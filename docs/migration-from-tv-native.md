@@ -4,16 +4,16 @@
 
 Current source app: `../putio-web/apps/tv-native`
 
-The phase-one behavior and visual reference is the exported screenshot/spec bundle in `../putio-frontend-handbook/docs/specs/tv-native/`, especially the Android TV screenshots. Boot the React Native app only when a missing state, ambiguous behavior, or suspected drift needs a fresh capture.
+The phase-one behavior and visual reference is the exported screenshot/spec bundle in `../putio-frontend-workspace/docs/specs/tv-native/`, especially the Android TV screenshots. Boot the React Native app only when a missing state, ambiguous behavior, or suspected drift needs a fresh capture.
 
 The new Android app should not copy the React component structure; it should preserve the product behavior while using Android-native UI, lifecycle, storage, playback, and input patterns.
 
 ## Available Inputs
 
 - `../putio-web/apps/tv-native` for source-level behavior, colors, menus, icons, component structure, focus handling, routes, hooks, and API usage
-- `../putio-frontend-handbook/docs/specs/tv-native/android-tv/` for the 34 exported Android TV parity screenshots
-- `../putio-frontend-handbook/docs/specs/tv-native/tvos/` for supporting cross-platform comparison when behavior overlaps
-- `../putio-frontend-handbook/docs/specs/tv-native/README.md` for behavior notes, screen names, player control flow, and capture method
+- `../putio-frontend-workspace/docs/specs/tv-native/android-tv/` for the 34 exported Android TV parity screenshots
+- `../putio-frontend-workspace/docs/specs/tv-native/tvos/` for supporting cross-platform comparison when behavior overlaps
+- `../putio-frontend-workspace/docs/specs/tv-native/README.md` for behavior notes, screen names, player control flow, and capture method
 - `../putio-sdk-kotlin` for typed API access and app-driven SDK tuning
 - The React Native TV app can still be booted for fresh captures when an exported state is missing, stale, or ambiguous
 

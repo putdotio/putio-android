@@ -10,7 +10,7 @@
 
 - [Overview](./README.md)
 - [Migration assessment](./docs/migration-from-tv-native.md)
-- Shared handbook: `../putio-frontend-handbook/AGENTS.md`
+- Shared workspace: `../putio-frontend-workspace/AGENTS.md`
 - TV product spec: `../putio-design/docs/specs/tv-app.md`
 - Kotlin SDK guide: `../putio-sdk-kotlin/AGENTS.md`
 
@@ -29,7 +29,7 @@
 - Prefer SDK changes in `../putio-sdk-kotlin` over app-local API workarounds
 - Preserve the current Android TV package/release identity unless product/release owners decide to create a new listing
 - Store tokens in Android platform secure storage; never commit sample secrets or OAuth tokens
-- Use the handbook docs for cross-repo policy, but keep app-specific build, verification, and architecture notes in this repo
+- Use the workspace docs for cross-repo policy, but keep app-specific build, verification, and architecture notes in this repo
 
 ## Verify
 
