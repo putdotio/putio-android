@@ -1,8 +1,8 @@
 [versions]
-agp = "8.7.3"
+agp = "9.2.1"
 kotlin = "2.3.21"
 activityCompose = "1.13.0"
-composeBom = "2024.12.01"
+composeBom = "2026.05.01"
 coreKtx = "1.18.0"
 lifecycle = "2.10.0"
 tvMaterial = "1.1.0"
