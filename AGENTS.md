@@ -34,4 +34,3 @@
 ## Verify
 
 Use `./gradlew verify` as the local guardrail once Gradle wrapper and Android SDK setup are complete. Until then, verify doc and scaffold changes with path checks and Gradle file inspection.
-
