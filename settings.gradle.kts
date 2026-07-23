@@ -1,3 +1,5 @@
+import java.util.Properties
+
 pluginManagement {
     repositories {
         google()
@@ -18,9 +20,19 @@ rootProject.name = "putio-android"
 
 include(":app")
 
-includeBuild("../putio-sdk-kotlin") {
+val localProperties = Properties().apply {
+    rootDir.resolve("local.properties")
+        .takeIf { it.isFile }
+        ?.inputStream()
+        ?.use { load(it) }
+}
+
+val sdkBuild = rootDir.resolve(
+    localProperties.getProperty("putioSdkKotlinPath", "../putio-sdk-kotlin"),
+)
+
+includeBuild(sdkBuild) {
     dependencySubstitution {
         substitute(module("io.putdotio:putio-sdk-kotlin")).using(project(":"))
     }
 }
-

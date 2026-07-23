@@ -1,8 +1,8 @@
 .gradle/
 .idea/
+.claude/worktrees/
 build/
 local.properties
 *.iml
 *.keystore
 app/build/
-

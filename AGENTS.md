@@ -22,6 +22,12 @@
 ./gradlew :app:assembleMobileDebug
 ```
 
+## Worktrees
+
+`.worktreeinclude` carries `local.properties` into Codex and Claude worktrees.
+Set `sdk.dir` and an absolute `putioSdkKotlinPath` there, then run
+`./gradlew verify`. No Infisical setup is required.
+
 ## Rules
 
 - Keep mobile and TV shared at the data, domain, theme, and component-foundation layers
