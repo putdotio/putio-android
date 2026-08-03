@@ -26,7 +26,7 @@
 
 `.worktreeinclude` carries `local.properties` into Codex and Claude worktrees.
 Set `sdk.dir` and an absolute `putioSdkKotlinPath` there, then run
-`./gradlew verify`. No Infisical setup is required.
+`./gradlew verify`.
 
 ## Rules
 
