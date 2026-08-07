@@ -2,7 +2,7 @@
 
 Native Android app for put.io, built with Kotlin and Jetpack Compose.
 
-The first target is Android TV / Fire TV parity with the shared TV app packet in `../putio-frontend-workspace/docs/specs/tv-app/`, while keeping the codebase shaped for Android mobile from the start.
+The first target is Android TV / Fire TV parity with the shared TV app packet in `../putio-frontend/docs/specs/tv-app/`, while keeping the codebase shaped for Android mobile from the start.
 
 ## Direction
 
@@ -13,7 +13,7 @@ The first target is Android TV / Fire TV parity with the shared TV app packet in
 
 ## Current Status
 
-This repo is a bootstrap shell. The GitHub remote exists at `putdotio/putio-android`, is private, and is listed in `../putio-frontend-workspace/repos.json`.
+This repo is a bootstrap shell. The GitHub remote exists at `putdotio/putio-android`, is private, and is listed in `../putio-frontend/repos.json`.
 
 Current doctrine:
 
@@ -25,17 +25,17 @@ Current doctrine:
 Available inputs:
 
 - `../putio-web/apps/tv-native` for source-level behavior, colors, menus, icons, components, focus behavior, and API usage
-- `../putio-frontend-workspace/docs/specs/tv-app/android-tv/` for exported Android TV screenshots
-- `../putio-frontend-workspace/docs/specs/tv-app/current-baseline.md` for behavior notes and capture provenance
+- `../putio-frontend/docs/specs/tv-app/android-tv/` for exported Android TV screenshots
+- `../putio-frontend/docs/specs/tv-app/current-baseline.md` for behavior notes and capture provenance
 - `../putio-sdk-kotlin` for the API boundary and app-driven SDK tuning
 - A bootable React Native reference app for fresh comparison when a state is missing or ambiguous
 
 ## Useful Docs
 
 - [Migration assessment](./docs/migration-from-tv-native.md)
-- [TV app packet](../putio-frontend-workspace/docs/specs/tv-app/README.md)
-- [Platform strategy](../putio-frontend-workspace/docs/platform-strategy.md)
-- [TV app feature spec](../putio-frontend-workspace/docs/specs/tv-app/feature-spec.md)
+- [TV app packet](../putio-frontend/docs/specs/tv-app/README.md)
+- [Platform strategy](../putio-frontend/docs/platform-strategy.md)
+- [TV app feature spec](../putio-frontend/docs/specs/tv-app/feature-spec.md)
 - [Kotlin SDK](../putio-sdk-kotlin/README.md)
 
 ## Planned Verify

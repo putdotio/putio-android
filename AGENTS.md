@@ -10,8 +10,8 @@
 
 - [Overview](./README.md)
 - [Migration assessment](./docs/migration-from-tv-native.md)
-- Shared workspace: `../putio-frontend-workspace/AGENTS.md`
-- TV app packet: `../putio-frontend-workspace/docs/specs/tv-app/README.md`
+- Shared workspace: `../putio-frontend/AGENTS.md`
+- TV app packet: `../putio-frontend/docs/specs/tv-app/README.md`
 - Kotlin SDK guide: `../putio-sdk-kotlin/AGENTS.md`
 
 ## Commands
