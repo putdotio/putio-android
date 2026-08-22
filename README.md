@@ -38,10 +38,15 @@ Available inputs:
 - [TV app feature spec](../putio-frontend/docs/specs/tv-app/feature-spec.md)
 - [Kotlin SDK](../putio-sdk-kotlin/README.md)
 
-## Planned Verify
+## Verify
 
 ```bash
+./scripts/bootstrap.sh   # once per machine; provisions SDK, AVDs, local.properties
 ./gradlew verify
 ./gradlew :app:assembleTvDebug
 ./gradlew :app:assembleMobileDebug
+./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof + evidence
 ```
+
+[AGENTS.md](./AGENTS.md) is the operating manual for setup, emulator flows,
+and evidence conventions.
