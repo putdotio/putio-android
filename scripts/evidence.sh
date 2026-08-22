@@ -11,20 +11,24 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_sdk_root
 
-cmd="${1:-}"; shift || { sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 64; }
+cmd="${1:-}"; shift || { print_usage "${BASH_SOURCE[0]}"; exit 64; }
 
 SERIAL=""
 LABEL="capture"
 SECONDS_ARG=10
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --serial) SERIAL="$2"; shift ;;
-    --label) LABEL="$2"; shift ;;
-    --seconds) SECONDS_ARG="$2"; shift ;;
+    --serial) SERIAL="${2:?--serial requires a value}"; shift ;;
+    --label) LABEL="${2:?--label requires a value}"; shift ;;
+    --seconds) SECONDS_ARG="${2:?--seconds requires a value}"; shift ;;
     *) die "unknown argument: $1" ;;
   esac
   shift
 done
+
+# screenrecord hard-caps --time-limit at 180 s and rejects larger values.
+[[ "${SECONDS_ARG}" =~ ^[0-9]+$ && "${SECONDS_ARG}" -ge 1 && "${SECONDS_ARG}" -le 180 ]] || \
+  die "--seconds must be 1-180 (screenrecord limit), got '${SECONDS_ARG}'"
 
 if [[ -z "${SERIAL}" ]]; then
   devices="$("${ADB}" devices | awk '$2 == "device" {print $1}')"
@@ -49,9 +53,24 @@ case "${cmd}" in
     out="${EVIDENCE_DIR}/${STAMP}-${LABEL}.mp4"
     remote="/data/local/tmp/putio-evidence.mp4"
     "${ADB}" -s "${SERIAL}" shell screenrecord --time-limit "${SECONDS_ARG}" "${remote}"
+    # screenrecord can return before the muxer finishes the container; a pull
+    # that races it produces an mp4 with no moov atom (unplayable).
+    sleep 2
     "${ADB}" -s "${SERIAL}" pull "${remote}" "${out}" >/dev/null
     "${ADB}" -s "${SERIAL}" shell rm -f "${remote}"
     [[ -s "${out}" ]] || { rm -f "${out}"; die "screenrecord produced no data"; }
+    # Integrity gate: a truncated screenrecord container still carries a moov
+    # atom but no parseable duration, so ffprobe is the reliable check.
+    if command -v ffprobe >/dev/null 2>&1; then
+      dur="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${out}" 2>/dev/null || true)"
+      if [[ ! "${dur}" =~ ^[0-9] ]]; then
+        # Quarantine with a suffix so the publish flow can't pick it up.
+        mv "${out}" "${out}.corrupt"
+        die "recording is corrupt (no parseable duration); kept as ${out}.corrupt"
+      fi
+    else
+      log "WARNING: ffprobe not found; recording integrity not verified"
+    fi
     log "recording: ${out}"
     echo "${out}"
     ;;

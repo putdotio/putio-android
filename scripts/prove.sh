@@ -30,7 +30,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_sdk_root
 
-FLAVOR="${1:-}"; shift || { sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 64; }
+FLAVOR="${1:-}"; shift || { print_usage "${BASH_SOURCE[0]}"; exit 64; }
 
 RECORD=0
 RECORD_SECONDS=10
@@ -41,7 +41,7 @@ SKIP_BUILD=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --record) RECORD=1 ;;
-    --seconds) RECORD_SECONDS="$2"; shift ;;
+    --seconds) RECORD_SECONDS="${2:?--seconds requires a value}"; shift ;;
     --keep) KEEP=1 ;;
     --ephemeral) EPHEMERAL=1 ;;
     --window) HEADLESS=0 ;;
@@ -76,6 +76,7 @@ fi
 
 OWNED=0
 SERIAL=""
+BOOT_STATE=""
 
 fail_marker() { echo "PROOF FAIL ${FLAVOR}"; }
 
@@ -88,6 +89,19 @@ cleanup() {
   if [[ -n "${SIGNAL_CODE}" ]]; then code="${SIGNAL_CODE}"; fi
   trap - EXIT INT TERM
   local cleanup_failed=0
+  # Reap a still-running background recorder before touching the emulator.
+  if [[ -n "${rec_pid:-}" ]] && kill -0 "${rec_pid}" 2>/dev/null; then
+    kill "${rec_pid}" 2>/dev/null || true
+    wait "${rec_pid}" 2>/dev/null || true
+  fi
+  # An interrupt during the boot handoff can leave a spawned emulator that
+  # neither emulator.sh (traps already cleared) nor OWNED tracks; the state
+  # file emulator.sh wrote closes that window. Reuse never writes the file.
+  if [[ "${OWNED}" != "1" && -n "${BOOT_STATE:-}" && -s "${BOOT_STATE}" ]]; then
+    SERIAL="$(awk '{print $1}' "${BOOT_STATE}")"
+    OWNED=1
+  fi
+  rm -f "${rec_out:-}" "${BOOT_STATE:-}"
   if [[ "${KEEP}" == "1" ]]; then
     log "--keep: leaving ${SERIAL:-<none>} running"
   else
@@ -140,10 +154,13 @@ if [[ "${EPHEMERAL}" != "1" ]] && SERIAL="$(serial_for_avd "${AVD_NAME}")"; then
 else
   boot_flags=()
   [[ "${HEADLESS}" == "1" ]] && boot_flags+=(--headless)
-  SERIAL="$("${REPO_ROOT}/scripts/emulator.sh" boot "${PROFILE}" --name "${AVD_NAME}" ${boot_flags[@]+"${boot_flags[@]}"} | tail -1)"
+  BOOT_STATE="$(mktemp)"
+  SERIAL="$(PUTIO_BOOT_STATE_FILE="${BOOT_STATE}" "${REPO_ROOT}/scripts/emulator.sh" boot "${PROFILE}" --name "${AVD_NAME}" ${boot_flags[@]+"${boot_flags[@]}"} | tail -1)"
   [[ "${SERIAL}" == emulator-* ]] || die "emulator boot did not return a serial (got '${SERIAL}')"
   OWNED=1
+  rm -f "${BOOT_STATE}"; BOOT_STATE=""
 fi
+prepare_device "${SERIAL}"
 echo "BOOTED ${SERIAL}"
 
 if [[ "${PUTIO_PROVE_FAIL_AT:-}" == "after-boot" ]]; then
@@ -158,20 +175,37 @@ if [[ "${PUTIO_PROVE_FAIL_AT:-}" == "after-install" ]]; then
   die "injected failure: after-install"
 fi
 
+"${ADB}" -s "${SERIAL}" shell am force-stop "${APP_ID}" >/dev/null 2>&1 || true
+# Clear every buffer the verification reads, or stale crashes/ANRs from a
+# previous run on a reused emulator fail a healthy launch.
+"${ADB}" -s "${SERIAL}" logcat -b crash -b main -b system -c || true
+
+rec_pid=""
+rec_out=""
+
 log "launching ${COMPONENT}"
-"${ADB}" -s "${SERIAL}" logcat -b crash -c || true
 "${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" >/dev/null
 
 # --- known-good verification -------------------------------------------------
 # Known-good state: the app process is alive, our activity is the top resumed
 # activity, and both still hold 3 seconds later with an empty crash buffer.
 log "verifying launch state"
+
+# Probes must tolerate failing commands inside set -e/pipefail — a nonzero
+# pidof or no-match grep would otherwise abort the retry loop on its first
+# probe instead of polling.
+app_pid() {
+  "${ADB}" -s "${SERIAL}" shell pidof "${APP_ID}" 2>/dev/null | tr -d '\r' | awk '{print $1}' || true
+}
+resumed_activity() {
+  "${ADB}" -s "${SERIAL}" shell dumpsys activity activities 2>/dev/null | grep -E 'topResumedActivity|ResumedActivity' | head -2 || true
+}
+
 deadline=$(( $(date +%s) + 30 ))
 pid=""
 while (( $(date +%s) < deadline )); do
-  pid="$("${ADB}" -s "${SERIAL}" shell pidof "${APP_ID}" 2>/dev/null | tr -d '\r' | awk '{print $1}')"
-  resumed="$("${ADB}" -s "${SERIAL}" shell dumpsys activity activities 2>/dev/null | grep -E 'topResumedActivity|ResumedActivity' | head -2)"
-  if [[ -n "${pid}" ]] && grep -q "${APP_ID}" <<<"${resumed}"; then
+  pid="$(app_pid)"
+  if [[ -n "${pid}" ]] && grep -qF "${APP_ID}" <<<"$(resumed_activity)"; then
     break
   fi
   pid=""
@@ -180,17 +214,84 @@ done
 [[ -n "${pid}" ]] || die "app did not reach resumed state within 30s (pidof + dumpsys)"
 
 sleep 3
-pid_after="$("${ADB}" -s "${SERIAL}" shell pidof "${APP_ID}" 2>/dev/null | tr -d '\r' | awk '{print $1}')"
+pid_after="$(app_pid)"
 [[ "${pid_after}" == "${pid}" ]] || die "app process changed after launch (was ${pid}, now '${pid_after}') — crash-restart suspected"
 crashes="$("${ADB}" -s "${SERIAL}" logcat -b crash -d 2>/dev/null | grep -F "${APP_ID}" || true)"
 [[ -z "${crashes}" ]] || die "crash buffer mentions ${APP_ID}: ${crashes}"
-log "launch verified: pid ${pid} resumed and stable"
+anr_log="$("${ADB}" -s "${SERIAL}" logcat -b main -b system -d 2>/dev/null | grep -E 'ANR in [a-z][a-z0-9.]+' || true)"
+anrs="$(grep -F "ANR in ${APP_ID}" <<<"${anr_log}" || true)"
+[[ -z "${anrs}" ]] || die "app ANR detected: ${anrs}"
+system_anrs="$(grep -Fv "${APP_ID}" <<<"${anr_log}" | grep . || true)"
+[[ -z "${system_anrs}" ]] || log "WARNING: non-app ANRs on device (dialogs hidden, evidence unaffected): $(head -2 <<<"${system_anrs}")"
+log "launch verified: pid ${pid} resumed and stable, no app ANR"
 
 # --- evidence ----------------------------------------------------------------
-shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")"
+# Pixel gate: a resumed process with a clean crash buffer can still render
+# nothing — in the first ~minute after a cold headless boot the app window
+# intermittently composites black. Mean luma below 16 means the screen is
+# effectively black and the launch is not visually proven.
+# Returns 0 and echoes the luma when rendered; returns 1 on black.
+shot_luma() {
+  local png="$1" luma
+  luma="$(ffprobe -v error -f lavfi -i "movie=${png},signalstats" \
+    -show_entries frame_tags=lavfi.signalstats.YAVG -of default=nk=1:nw=1 2>/dev/null | head -1 || true)"
+  luma="${luma%%.*}"
+  [[ "${luma}" =~ ^[0-9]+$ ]] || luma=0
+  echo "${luma}"
+  (( luma >= 16 ))
+}
+
+take_gated_screenshot() {
+  shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")"
+  if ! command -v ffprobe >/dev/null 2>&1; then
+    log "WARNING: ffprobe not found; cannot verify the screen actually rendered"
+    return 0
+  fi
+  local luma
+  if luma="$(shot_luma "${shot}")"; then
+    log "screenshot luma ${luma} (render verified)"
+    return 0
+  fi
+  mv "${shot}" "${shot%.png}.black.png"
+  log "screen is black (mean luma ${luma}); quarantined ${shot%.png}.black.png"
+  return 1
+}
+
+if ! take_gated_screenshot; then
+  # The black-render window heals once the post-boot churn settles; one
+  # relaunch retry distinguishes that flake from an app that never renders.
+  log "black render detected; settling 10s and relaunching once"
+  sleep 10
+  "${ADB}" -s "${SERIAL}" shell am force-stop "${APP_ID}" >/dev/null 2>&1 || true
+  "${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" >/dev/null
+  sleep 3
+  grep -qF "${APP_ID}" <<<"$(resumed_activity)" || die "app not resumed after black-render relaunch"
+  take_gated_screenshot || die "screen still black after relaunch — app renders nothing"
+fi
 echo "EVIDENCE ${shot}"
+
 if [[ "${RECORD}" == "1" ]]; then
-  rec="$("${REPO_ROOT}/scripts/evidence.sh" record --serial "${SERIAL}" --label "${FLAVOR}-launch" --seconds "${RECORD_SECONDS}")"
+  # Recorded on the settled, render-verified system: a force-stop then cold
+  # process relaunch under active capture. screenrecord only receives frames
+  # on content changes, so the launch transition guarantees a playable clip
+  # that shows the thing the proof claims — the app coming up.
+  log "recording a relaunch (${RECORD_SECONDS}s)"
+  "${ADB}" -s "${SERIAL}" shell am force-stop "${APP_ID}" >/dev/null 2>&1 || true
+  rec_out="$(mktemp)"
+  "${REPO_ROOT}/scripts/evidence.sh" record --serial "${SERIAL}" --label "${FLAVOR}-launch" --seconds "${RECORD_SECONDS}" >"${rec_out}" 2>&1 &
+  rec_pid=$!
+  sleep 1
+  "${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" >/dev/null
+  if ! wait "${rec_pid}"; then
+    log "recording capture output: $(cat "${rec_out}")"
+    rm -f "${rec_out}"
+    die "recording capture failed"
+  fi
+  rec="$(tail -1 "${rec_out}")"
+  rm -f "${rec_out}"
+  rec_pid=""
+  grep -qF "${APP_ID}" <<<"$(resumed_activity)" || die "app not resumed after recorded relaunch"
+  take_gated_screenshot || die "screen black after recorded relaunch — recording untrustworthy"
   echo "EVIDENCE ${rec}"
 fi
 

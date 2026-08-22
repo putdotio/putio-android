@@ -31,23 +31,43 @@ SDKMANAGER="${SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
 [[ -x "${SDKMANAGER}" ]] || die "sdkmanager missing under ${SDK_ROOT}"
 log "SDK root: ${SDK_ROOT}"
 
-log "accepting SDK licenses"
-# `yes` dies with SIGPIPE when sdkmanager exits first; don't let pipefail
-# turn that into a bootstrap failure.
-(yes || true) | "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --licenses >/dev/null
-
-log "installing SDK packages (first run downloads ~3 GB)"
-"${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --install \
-  "platform-tools" \
-  "emulator" \
-  "${COMPILE_SDK_PLATFORM}" \
-  "${BUILD_TOOLS}" \
-  "$(phone_image)" \
-  "$(tv_image)"
-
+packages_missing=0
 for pkg in "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}" "$(phone_image)" "$(tv_image)"; do
-  [[ -d "${SDK_ROOT}/$(echo "${pkg}" | tr ';' '/')" ]] || die "package ${pkg} missing after install"
+  [[ -d "${SDK_ROOT}/$(echo "${pkg}" | tr ';' '/')" ]] || packages_missing=1
 done
+
+if [[ "${packages_missing}" == "1" ]]; then
+  log "accepting SDK licenses"
+  # `yes` dies with SIGPIPE when sdkmanager exits first; don't let pipefail
+  # turn that into a bootstrap failure.
+  (yes || true) | "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --licenses >/dev/null
+
+  log "installing SDK packages (first run downloads ~3 GB)"
+  "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --install \
+    "platform-tools" \
+    "emulator" \
+    "${COMPILE_SDK_PLATFORM}" \
+    "${BUILD_TOOLS}" \
+    "$(phone_image)" \
+    "$(tv_image)"
+
+  for pkg in "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}" "$(phone_image)" "$(tv_image)"; do
+    [[ -d "${SDK_ROOT}/$(echo "${pkg}" | tr ';' '/')" ]] || die "package ${pkg} missing after install"
+  done
+else
+  log "all SDK packages already installed; skipping sdkmanager"
+fi
+
+# ffprobe backs the evidence integrity checks and prove.sh's pixel gate;
+# without it those degrade to warnings.
+if ! command -v ffprobe >/dev/null 2>&1; then
+  if command -v brew >/dev/null 2>&1; then
+    log "installing ffmpeg (ffprobe) for evidence verification"
+    brew install ffmpeg
+  else
+    log "WARNING: ffprobe not found and no Homebrew; evidence render checks will be skipped"
+  fi
+fi
 
 log "writing local.properties"
 SDK_KOTLIN_DEFAULT="$(cd "${REPO_ROOT}/.." 2>/dev/null && pwd)/putio-sdk-kotlin"
@@ -66,15 +86,8 @@ if [[ ! -d "${SDK_KOTLIN_DEFAULT}" ]]; then
   log "WARNING: ../putio-sdk-kotlin not found; clone it or set putioSdkKotlinPath in local.properties"
 fi
 
-require_sdk_root
 for profile in phone tv; do
-  name="$(avd_name_for "${profile}")"
-  if avd_exists "${name}"; then
-    log "AVD ${name} already exists"
-  else
-    log "creating AVD ${name}"
-    "${REPO_ROOT}/scripts/emulator.sh" create "${profile}"
-  fi
+  "${REPO_ROOT}/scripts/emulator.sh" create "${profile}"
 done
 
 log "bootstrap complete"

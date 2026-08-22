@@ -24,7 +24,7 @@ require_sdk_root
 
 BOOT_TIMEOUT_SECONDS="${PUTIO_EMULATOR_BOOT_TIMEOUT:-600}"
 
-usage() { sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 64; }
+usage() { print_usage "${BASH_SOURCE[0]}"; exit 64; }
 
 cmd="${1:-}"; shift || usage
 
@@ -35,7 +35,7 @@ parse_profile_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       phone|tv) PROFILE="$1" ;;
-      --name) NAME="$2"; shift ;;
+      --name) NAME="${2:?--name requires a value}"; shift ;;
       --headless) HEADLESS=1 ;;
       *) die "unknown argument: $1" ;;
     esac
@@ -71,6 +71,7 @@ do_boot() {
   local existing
   if existing="$(serial_for_avd "${NAME}")"; then
     log "reusing running emulator ${existing} (AVD ${NAME}, not owned by this invocation)"
+    prepare_device "${existing}"
     echo "${existing}"
     return 0
   fi
@@ -83,12 +84,20 @@ do_boot() {
 
   local flags=(-avd "${NAME}" -port "${port}" -no-snapshot -no-boot-anim -no-audio)
   if [[ "${HEADLESS}" == "1" ]]; then
-    flags+=(-no-window -gpu auto-no-window)
+    # swiftshader_indirect is slower than auto-no-window but renders
+    # deterministically; auto-no-window intermittently composites the app
+    # window black under host load, which fails prove.sh's pixel gate.
+    flags+=(-no-window -gpu swiftshader_indirect)
   fi
 
   log "booting ${NAME} on ${serial} (headless=${HEADLESS}, log: ${logfile})"
   "${EMULATOR_BIN}" "${flags[@]}" >"${logfile}" 2>&1 &
   pid=$!
+  # Callers (prove.sh) can learn the spawned serial before boot completes, so
+  # their cleanup can stop it even if this process dies mid-handoff.
+  if [[ -n "${PUTIO_BOOT_STATE_FILE:-}" ]]; then
+    echo "${serial} ${pid}" > "${PUTIO_BOOT_STATE_FILE}"
+  fi
 
   BOOT_SIGNAL_CODE=""
   cleanup_owned_boot() {
@@ -123,6 +132,8 @@ do_boot() {
     (( $(date +%s) < deadline )) || { log "package manager not ready after ${BOOT_TIMEOUT_SECONDS}s"; exit 1; }
     sleep 2
   done
+
+  prepare_device "${serial}"
 
   trap - EXIT INT TERM
   log "booted ${NAME} on ${serial} (pid ${pid}); stop with scripts/emulator.sh stop ${PROFILE}"

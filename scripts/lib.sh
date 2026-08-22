@@ -114,6 +114,21 @@ free_emulator_port() {
   die "no free emulator console port between 5554 and 5584"
 }
 
+# Print a script's leading comment header as usage text (skips the shebang,
+# stops at the first non-comment line).
+print_usage() {
+  awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$1"
+}
+
+# Idempotent prep for every serial the harness touches, on boot AND reuse.
+# Cold headless boots regularly ANR com.android.systemui and the dialog then
+# sits over every capture; app ANRs are detected from logcat instead.
+prepare_device() {
+  local serial="$1"
+  "${ADB}" -s "${serial}" shell settings put global hide_error_dialogs 1 >/dev/null 2>&1 || \
+    log "WARNING: could not set hide_error_dialogs on ${serial}"
+}
+
 wait_serial_gone() {
   local serial="$1" deadline=$(( $(date +%s) + ${2:-30} ))
   while (( $(date +%s) < deadline )); do

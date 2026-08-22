@@ -40,7 +40,16 @@ if "${ADB}" devices | awk '$1 ~ /^emulator-/ {found=1} END {exit !found}'; then
 fi
 
 tmpdir="$(mktemp -d)"
-trap 'rm -rf "${tmpdir}"' EXIT
+PRE_SERIAL=""
+cleanup_suite() {
+  rm -rf "${tmpdir}"
+  # The suite must honor the contract it proves: stop the case-4 emulator it
+  # booted even when an assertion fails mid-case.
+  if [[ -n "${PRE_SERIAL}" ]] && "${ADB}" devices | awk '{print $1}' | grep -qx "${PRE_SERIAL}"; then
+    "${EMU}" stop "${PRE_SERIAL}" || true
+  fi
+}
+trap cleanup_suite EXIT
 
 # --- case 1: forced failure stops the owned emulator, keeps the reusable AVD
 log "case 1: forced failure after boot"
@@ -82,31 +91,31 @@ done
 # --- case 4: preexisting emulator is reused and never stopped; an ephemeral
 # --- run alongside it stops only its own emulator and deletes only its AVD
 log "case 4: preexisting emulator preserved across reuse-failure and ephemeral runs"
-pre_serial="$("${EMU}" boot phone --headless | tail -1)"
-[[ "${pre_serial}" == emulator-* ]] || fail "case 4: could not boot preexisting emulator"
+PRE_SERIAL="$("${EMU}" boot phone --headless | tail -1)"
+[[ "${PRE_SERIAL}" == emulator-* ]] || fail "case 4: could not boot preexisting emulator"
 
 out="${tmpdir}/case4-reuse.log"
 if PUTIO_PROVE_FAIL_AT=after-boot "${PROVE}" mobile --skip-build >"${out}" 2>&1; then
   fail "case 4: reuse prove.sh unexpectedly succeeded"
 fi
-[[ "$(booted_serial "${out}")" == "${pre_serial}" ]] || fail "case 4: reuse run did not reuse ${pre_serial}"
-assert_serial_present "${pre_serial}" "case 4 (after reuse failure)"
+[[ "$(booted_serial "${out}")" == "${PRE_SERIAL}" ]] || fail "case 4: reuse run did not reuse ${PRE_SERIAL}"
+assert_serial_present "${PRE_SERIAL}" "case 4 (after reuse failure)"
 
 out="${tmpdir}/case4-eph.log"
 if PUTIO_PROVE_FAIL_AT=after-install "${PROVE}" mobile --skip-build --ephemeral >"${out}" 2>&1; then
   fail "case 4: ephemeral prove.sh unexpectedly succeeded"
 fi
 eph_serial="$(booted_serial "${out}")"
-[[ -n "${eph_serial}" && "${eph_serial}" != "${pre_serial}" ]] || fail "case 4: ephemeral run had no distinct serial"
+[[ -n "${eph_serial}" && "${eph_serial}" != "${PRE_SERIAL}" ]] || fail "case 4: ephemeral run had no distinct serial"
 eph_avd="$(sed -n 's/.*creating ephemeral AVD \(putio-phone-eph-[0-9-]*\).*/\1/p' "${out}" | head -1)"
 [[ -n "${eph_avd}" ]] || fail "case 4: could not determine ephemeral AVD name"
 assert_serial_gone "${eph_serial}" "case 4 (ephemeral)"
 assert_avd_absent "${eph_avd}" "case 4 (ephemeral)"
-assert_serial_present "${pre_serial}" "case 4 (after ephemeral failure)"
+assert_serial_present "${PRE_SERIAL}" "case 4 (after ephemeral failure)"
 assert_avd_exists "${PHONE_AVD}" "case 4"
 
-"${EMU}" stop "${pre_serial}"
-log "case 4 passed (preexisting ${pre_serial} survived both runs, ephemeral ${eph_serial}/${eph_avd} fully cleaned)"
+"${EMU}" stop "${PRE_SERIAL}"
+log "case 4 passed (preexisting ${PRE_SERIAL} survived both runs, ephemeral ${eph_serial}/${eph_avd} fully cleaned)"
 
 log "LIFECYCLE PASS: all cases green"
 echo "LIFECYCLE PASS"

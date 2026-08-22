@@ -88,12 +88,22 @@ One command from source to a verified, evidenced launch:
 
 Known-good state (the exit code is the proof — no screen-watching): app
 process alive, our activity is the top resumed activity, both still true 3 s
-later, and the logcat crash buffer is clean. Exit 0 pass · 1 fail ·
-70 cleanup failure. Machine-readable stdout markers: `BOOTED <serial>`,
-`EVIDENCE <path>`, `PROOF PASS|FAIL <flavor>`.
+later, the logcat crash buffer is clean, no `ANR in <app id>` in logcat, and
+the screenshot passes a pixel gate (mean luma — a resumed process whose
+window composites black fails the proof; one automatic relaunch retry covers
+the cold-boot render flake). Exit 0 pass · 1 fail · 70 cleanup failure.
+Machine-readable stdout markers: `BOOTED <serial>`, `EVIDENCE <path>`,
+`PROOF PASS|FAIL <flavor>`.
 
 Flags: `--keep` (leave emulator running), `--ephemeral` (throwaway AVD,
-deleted on exit), `--window` (headed), `--skip-build`, `--record`.
+deleted on exit), `--window` (headed), `--skip-build`, `--record`,
+`--seconds N` (recording length, max 180).
+
+`--record` runs after verification: the app is force-stopped and relaunched
+under active capture, so the clip always has frames (`screenrecord` drops
+static screens) and shows a real cold process launch on a settled system;
+a second pixel-gated screenshot confirms the recorded relaunch rendered.
+Still eyeball captures before publishing them as evidence.
 
 ## Evidence
 
@@ -146,6 +156,7 @@ Every child issue of the rewrite epic ships with:
 ## Headless / Devbox Notes
 
 - `--headless` boots with `-no-window -gpu auto-no-window -no-audio -no-boot-anim`; `screencap`/`screenrecord` capture fine without a window
+- Cold headless boots regularly ANR the emulator's own `com.android.systemui`; harness boots set `hide_error_dialogs 1` so the dialog cannot sit over captures. App crashes/ANRs are still detected — from logcat, which is where the proof reads them
 - macOS needs Hypervisor.framework (default on Apple Silicon); Linux devboxes need KVM (`emulator -accel-check`) — without acceleration arm64 images are unusably slow
 - First boot of a fresh AVD is the slow path (~1 min on an M-series Mac); subsequent boots are faster with `-no-snapshot` still enforced for reproducibility
 - On shared machines check `scripts/emulator.sh status` before assuming a free console port; the scripts scan 5554–5584
