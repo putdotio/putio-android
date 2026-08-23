@@ -32,7 +32,7 @@ SDKMANAGER="${SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
 log "SDK root: ${SDK_ROOT}"
 
 packages_missing=0
-for pkg in "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}" "$(phone_image)" "$(tv_image)"; do
+for pkg in "platform-tools" "emulator" "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}" "$(phone_image)" "$(tv_image)"; do
   [[ -d "${SDK_ROOT}/$(echo "${pkg}" | tr ';' '/')" ]] || packages_missing=1
 done
 
@@ -51,7 +51,7 @@ if [[ "${packages_missing}" == "1" ]]; then
     "$(phone_image)" \
     "$(tv_image)"
 
-  for pkg in "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}" "$(phone_image)" "$(tv_image)"; do
+  for pkg in "platform-tools" "emulator" "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}" "$(phone_image)" "$(tv_image)"; do
     [[ -d "${SDK_ROOT}/$(echo "${pkg}" | tr ';' '/')" ]] || die "package ${pkg} missing after install"
   done
 else
@@ -82,8 +82,13 @@ else
   grep -q '^sdk\.dir=' "${REPO_ROOT}/local.properties" || \
     echo "sdk.dir=${SDK_ROOT}" >> "${REPO_ROOT}/local.properties"
 fi
-if [[ ! -d "${SDK_KOTLIN_DEFAULT}" ]]; then
-  log "WARNING: ../putio-sdk-kotlin not found; clone it or set putioSdkKotlinPath in local.properties"
+# settings.gradle.kts unconditionally includes this composite build; without
+# it every Gradle command fails, so an absent checkout is a bootstrap failure,
+# not a warning.
+SDK_KOTLIN_PATH="$(sed -n 's/^putioSdkKotlinPath=//p' "${REPO_ROOT}/local.properties" | head -1)"
+[[ -n "${SDK_KOTLIN_PATH}" ]] || SDK_KOTLIN_PATH="${SDK_KOTLIN_DEFAULT}"
+if [[ ! -d "${SDK_KOTLIN_PATH}" ]]; then
+  die "putio-sdk-kotlin checkout missing at ${SDK_KOTLIN_PATH}; run: git clone git@github.com:putdotio/putio-sdk-kotlin.git '${SDK_KOTLIN_PATH}' (or point putioSdkKotlinPath in local.properties at an existing checkout), then re-run bootstrap"
 fi
 
 for profile in phone tv; do

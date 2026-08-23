@@ -130,10 +130,14 @@ prepare_device() {
 }
 
 wait_serial_gone() {
-  local serial="$1" deadline=$(( $(date +%s) + ${2:-30} ))
+  local serial="$1" deadline=$(( $(date +%s) + ${2:-30} )) devices
   while (( $(date +%s) < deadline )); do
-    if ! "${ADB}" devices | awk '{print $1}' | grep -qx "${serial}"; then
-      return 0
+    # A failed adb query is not proof the serial is gone; retry instead of
+    # letting pipefail turn the error into "confirmed gone".
+    if devices="$("${ADB}" devices 2>/dev/null)"; then
+      if ! grep -qx "${serial}" <<<"$(awk '{print $1}' <<<"${devices}")"; then
+        return 0
+      fi
     fi
     sleep 1
   done

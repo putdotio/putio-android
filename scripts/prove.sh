@@ -51,6 +51,16 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+# --keep exists for interactive follow-up on a healthy emulator; it must not
+# defeat cleanup guarantees on failure or leak throwaway AVDs.
+if [[ "${KEEP}" == "1" && "${EPHEMERAL}" == "1" ]]; then
+  die "--keep and --ephemeral conflict: an ephemeral AVD is always deleted"
+fi
+
+# The pixel gate is part of the known-good contract; without ffprobe a black
+# render would pass, making the exit code untrustworthy.
+command -v ffprobe >/dev/null 2>&1 || die "ffprobe not found; run scripts/bootstrap.sh (installs ffmpeg)"
+
 case "${FLAVOR}" in
   mobile)
     PROFILE="phone"
@@ -102,9 +112,12 @@ cleanup() {
     OWNED=1
   fi
   rm -f "${rec_out:-}" "${BOOT_STATE:-}"
-  if [[ "${KEEP}" == "1" ]]; then
+  if [[ "${KEEP}" == "1" && "${code}" -eq 0 ]]; then
     log "--keep: leaving ${SERIAL:-<none>} running"
   else
+    if [[ "${KEEP}" == "1" ]]; then
+      log "--keep ignored: proof did not succeed (exit ${code}); cleaning up"
+    fi
     if [[ "${OWNED}" == "1" && -n "${SERIAL}" ]]; then
       log "stopping owned emulator ${SERIAL}"
       "${ADB}" -s "${SERIAL}" emu kill >/dev/null 2>&1 || true
@@ -188,8 +201,9 @@ log "launching ${COMPONENT}"
 
 # --- known-good verification -------------------------------------------------
 # Known-good state: the app process is alive, our activity is the top resumed
-# activity, and both still hold 3 seconds later with an empty crash buffer.
-log "verifying launch state"
+# activity, both still hold 3 seconds later, the crash buffer is empty, and
+# logcat carries no app ANR. Runs after the initial launch and again after
+# every relaunch (black-render retry, recorded relaunch).
 
 # Probes must tolerate failing commands inside set -e/pipefail — a nonzero
 # pidof or no-match grep would otherwise abort the retry loop on its first
@@ -201,29 +215,36 @@ resumed_activity() {
   "${ADB}" -s "${SERIAL}" shell dumpsys activity activities 2>/dev/null | grep -E 'topResumedActivity|ResumedActivity' | head -2 || true
 }
 
-deadline=$(( $(date +%s) + 30 ))
-pid=""
-while (( $(date +%s) < deadline )); do
-  pid="$(app_pid)"
-  if [[ -n "${pid}" ]] && grep -qF "${APP_ID}" <<<"$(resumed_activity)"; then
-    break
-  fi
+verify_known_good() {
+  local deadline pid pid_after crashes anr_log anrs system_anrs
+  log "verifying launch state"
+  deadline=$(( $(date +%s) + 30 ))
   pid=""
-  sleep 1
-done
-[[ -n "${pid}" ]] || die "app did not reach resumed state within 30s (pidof + dumpsys)"
+  while (( $(date +%s) < deadline )); do
+    pid="$(app_pid)"
+    if [[ -n "${pid}" ]] && grep -qF "${APP_ID}" <<<"$(resumed_activity)"; then
+      break
+    fi
+    pid=""
+    sleep 1
+  done
+  [[ -n "${pid}" ]] || die "app did not reach resumed state within 30s (pidof + dumpsys)"
 
-sleep 3
-pid_after="$(app_pid)"
-[[ "${pid_after}" == "${pid}" ]] || die "app process changed after launch (was ${pid}, now '${pid_after}') — crash-restart suspected"
-crashes="$("${ADB}" -s "${SERIAL}" logcat -b crash -d 2>/dev/null | grep -F "${APP_ID}" || true)"
-[[ -z "${crashes}" ]] || die "crash buffer mentions ${APP_ID}: ${crashes}"
-anr_log="$("${ADB}" -s "${SERIAL}" logcat -b main -b system -d 2>/dev/null | grep -E 'ANR in [a-z][a-z0-9.]+' || true)"
-anrs="$(grep -F "ANR in ${APP_ID}" <<<"${anr_log}" || true)"
-[[ -z "${anrs}" ]] || die "app ANR detected: ${anrs}"
-system_anrs="$(grep -Fv "${APP_ID}" <<<"${anr_log}" | grep . || true)"
-[[ -z "${system_anrs}" ]] || log "WARNING: non-app ANRs on device (dialogs hidden, evidence unaffected): $(head -2 <<<"${system_anrs}")"
-log "launch verified: pid ${pid} resumed and stable, no app ANR"
+  sleep 3
+  pid_after="$(app_pid)"
+  [[ "${pid_after}" == "${pid}" ]] || die "app process changed after launch (was ${pid}, now '${pid_after}') — crash-restart suspected"
+  grep -qF "${APP_ID}" <<<"$(resumed_activity)" || die "app no longer top-resumed after stability window"
+  crashes="$("${ADB}" -s "${SERIAL}" logcat -b crash -d 2>/dev/null | grep -F "${APP_ID}" || true)"
+  [[ -z "${crashes}" ]] || die "crash buffer mentions ${APP_ID}: ${crashes}"
+  anr_log="$("${ADB}" -s "${SERIAL}" logcat -b main -b system -d 2>/dev/null | grep -E 'ANR in [a-z][a-z0-9.]+' || true)"
+  anrs="$(grep -F "ANR in ${APP_ID}" <<<"${anr_log}" || true)"
+  [[ -z "${anrs}" ]] || die "app ANR detected: ${anrs}"
+  system_anrs="$(grep -Fv "${APP_ID}" <<<"${anr_log}" | grep . || true)"
+  [[ -z "${system_anrs}" ]] || log "WARNING: non-app ANRs on device (dialogs hidden, evidence unaffected): $(head -2 <<<"${system_anrs}")"
+  log "launch verified: pid ${pid} resumed and stable, no app ANR"
+}
+
+verify_known_good
 
 # --- evidence ----------------------------------------------------------------
 # Pixel gate: a resumed process with a clean crash buffer can still render
@@ -264,8 +285,7 @@ if ! take_gated_screenshot; then
   sleep 10
   "${ADB}" -s "${SERIAL}" shell am force-stop "${APP_ID}" >/dev/null 2>&1 || true
   "${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" >/dev/null
-  sleep 3
-  grep -qF "${APP_ID}" <<<"$(resumed_activity)" || die "app not resumed after black-render relaunch"
+  verify_known_good
   take_gated_screenshot || die "screen still black after relaunch — app renders nothing"
 fi
 echo "EVIDENCE ${shot}"
@@ -290,7 +310,7 @@ if [[ "${RECORD}" == "1" ]]; then
   rec="$(tail -1 "${rec_out}")"
   rm -f "${rec_out}"
   rec_pid=""
-  grep -qF "${APP_ID}" <<<"$(resumed_activity)" || die "app not resumed after recorded relaunch"
+  verify_known_good
   take_gated_screenshot || die "screen black after recorded relaunch — recording untrustworthy"
   echo "EVIDENCE ${rec}"
 fi

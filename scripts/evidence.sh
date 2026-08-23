@@ -46,6 +46,22 @@ case "${cmd}" in
     out="${EVIDENCE_DIR}/${STAMP}-${LABEL}.png"
     "${ADB}" -s "${SERIAL}" exec-out screencap -p > "${out}"
     [[ -s "${out}" ]] || { rm -f "${out}"; die "screencap produced no data"; }
+    # A truncated screencap is not a PNG; check the magic bytes.
+    if [[ "$(head -c 4 "${out}" | xxd -p)" != "89504e47" ]]; then
+      mv "${out}" "${out}.corrupt"
+      die "screencap output is not a PNG; kept as ${out}.corrupt"
+    fi
+    # Content policy stays with callers (prove.sh gates its launch shots):
+    # dark-theme or playback captures can be legitimately near-black, so a
+    # generic capture only warns.
+    if command -v ffprobe >/dev/null 2>&1; then
+      luma="$(ffprobe -v error -f lavfi -i "movie=${out},signalstats" \
+        -show_entries frame_tags=lavfi.signalstats.YAVG -of default=nk=1:nw=1 2>/dev/null | head -1 || true)"
+      luma="${luma%%.*}"
+      if [[ "${luma}" =~ ^[0-9]+$ ]] && (( luma < 8 )); then
+        log "WARNING: screenshot is near-black (mean luma ${luma}); verify it shows what you expect"
+      fi
+    fi
     log "screenshot: ${out}"
     echo "${out}"
     ;;

@@ -155,7 +155,7 @@ Every child issue of the rewrite epic ships with:
 
 ## Headless / Devbox Notes
 
-- `--headless` boots with `-no-window -gpu auto-no-window -no-audio -no-boot-anim`; `screencap`/`screenrecord` capture fine without a window
+- `--headless` boots with `-no-window -gpu swiftshader_indirect -no-audio -no-boot-anim`; software rendering is slower than `auto-no-window` but deterministic — host-GPU headless mode intermittently composites app windows black, which the pixel gate would fail. `screencap`/`screenrecord` capture fine without a window
 - Cold headless boots regularly ANR the emulator's own `com.android.systemui`; harness boots set `hide_error_dialogs 1` so the dialog cannot sit over captures. App crashes/ANRs are still detected — from logcat, which is where the proof reads them
 - macOS needs Hypervisor.framework (default on Apple Silicon); Linux devboxes need KVM (`emulator -accel-check`) — without acceleration arm64 images are unusably slow
 - First boot of a fresh AVD is the slow path (~1 min on an M-series Mac); subsequent boots are faster with `-no-snapshot` still enforced for reproducibility
