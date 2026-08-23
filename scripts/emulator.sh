@@ -71,6 +71,18 @@ do_boot() {
   local existing
   if existing="$(serial_for_avd "${NAME}")"; then
     log "reusing running emulator ${existing} (AVD ${NAME}, not owned by this invocation)"
+    # adb reports 'device' before boot completes; a reused emulator that is
+    # still booting must pass the same readiness bar as a fresh one — waited
+    # on, never claimed or stopped.
+    local reuse_deadline=$(( $(date +%s) + BOOT_TIMEOUT_SECONDS ))
+    until [[ "$("${ADB}" -s "${existing}" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; do
+      (( $(date +%s) < reuse_deadline )) || die "reused emulator ${existing} did not finish booting within ${BOOT_TIMEOUT_SECONDS}s"
+      sleep 2
+    done
+    until "${ADB}" -s "${existing}" shell pm path android >/dev/null 2>&1; do
+      (( $(date +%s) < reuse_deadline )) || die "reused emulator ${existing}: package manager not ready within ${BOOT_TIMEOUT_SECONDS}s"
+      sleep 2
+    done
     prepare_device "${existing}"
     echo "${existing}"
     return 0

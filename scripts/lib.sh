@@ -28,8 +28,18 @@ resolve_sdk_root() {
       return
     fi
   fi
-  local candidate
-  for candidate in /opt/homebrew/share/android-commandlinetools "${HOME}/Library/Android/sdk" "${HOME}/Android/Sdk"; do
+  local candidate brew_prefix=""
+  # The Homebrew cask lands under the active prefix: /opt/homebrew on Apple
+  # Silicon, /usr/local on Intel macOS, /home/linuxbrew/.linuxbrew on Linux.
+  if command -v brew >/dev/null 2>&1; then
+    brew_prefix="$(brew --prefix 2>/dev/null || true)"
+  fi
+  for candidate in \
+    ${brew_prefix:+"${brew_prefix}/share/android-commandlinetools"} \
+    /opt/homebrew/share/android-commandlinetools \
+    /usr/local/share/android-commandlinetools \
+    "${HOME}/Library/Android/sdk" \
+    "${HOME}/Android/Sdk"; do
     if [[ -d "${candidate}" ]]; then
       echo "${candidate}"
       return

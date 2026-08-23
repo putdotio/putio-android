@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# One-command launch proof: boot emulator, install the debug APK, launch the
-# app, verify it reached a known-good state, capture evidence, tear down.
+# One-command launch proof: boot emulator, install the debug APK, run the
+# instrumented smoke test (LaunchSmokeTest via connectedAndroidTest), capture
+# evidence, tear down.
 #
 #   scripts/prove.sh <mobile|tv> [flags]
 #
@@ -10,7 +11,8 @@
 #   --keep          leave the emulator running after the proof
 #   --ephemeral     create a throwaway AVD for this run and delete it after
 #   --window        show the emulator window (default: headless)
-#   --skip-build    use the existing APK instead of running Gradle
+#   --skip-build    skip the explicit assemble (connectedAndroidTest still
+#                   builds incrementally)
 #
 # Exit codes: 0 proof passed · 1 proof failed · 64 usage · 70 cleanup failed
 #
@@ -57,8 +59,8 @@ if [[ "${KEEP}" == "1" && "${EPHEMERAL}" == "1" ]]; then
   die "--keep and --ephemeral conflict: an ephemeral AVD is always deleted"
 fi
 
-# The pixel gate is part of the known-good contract; without ffprobe a black
-# render would pass, making the exit code untrustworthy.
+# evidence.sh needs ffprobe for its capture gates; fail before booting
+# anything rather than after a full verification.
 command -v ffprobe >/dev/null 2>&1 || die "ffprobe not found; run scripts/bootstrap.sh (installs ffmpeg)"
 
 case "${FLAVOR}" in
@@ -201,108 +203,44 @@ if [[ "${PUTIO_PROVE_FAIL_AT:-}" == "after-install" ]]; then
   die "injected failure: after-install"
 fi
 
-"${ADB}" -s "${SERIAL}" shell am force-stop "${APP_ID}" >/dev/null 2>&1 || true
-# Clear every buffer the verification reads, or stale crashes/ANRs from a
-# previous run on a reused emulator fail a healthy launch.
-"${ADB}" -s "${SERIAL}" logcat -b crash -b main -b system -c || true
-
 rec_pid=""
 rec_out=""
 
-log "launching ${COMPONENT}"
-"${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" >/dev/null
-
 # --- known-good verification -------------------------------------------------
-# Known-good state: the app process is alive, our activity is the top resumed
-# activity, both still hold 3 seconds later, the crash buffer is empty, and
-# logcat carries no app ANR. Runs after the initial launch and again after
-# every relaunch (black-render retry, recorded relaunch).
+# The launch proof is the instrumented smoke test (LaunchSmokeTest): RESUMED
+# state, a 3 s stability window, and a real-pixel luma assertion, all through
+# platform test APIs instead of dumpsys/pidof parsing. A crash or ANR fails
+# the instrumentation. One retry covers the cold-boot black-render flake,
+# which heals once post-boot churn settles.
+case "${FLAVOR}" in
+  mobile) CONNECTED_TASK=":app:connectedMobileDebugAndroidTest" ;;
+  tv) CONNECTED_TASK=":app:connectedTvDebugAndroidTest" ;;
+esac
 
-# Probes must tolerate failing commands inside set -e/pipefail — a nonzero
-# pidof or no-match grep would otherwise abort the retry loop on its first
-# probe instead of polling.
-app_pid() {
-  "${ADB}" -s "${SERIAL}" shell pidof "${APP_ID}" 2>/dev/null | tr -d '\r' | awk '{print $1}' || true
-}
-resumed_activity() {
-  "${ADB}" -s "${SERIAL}" shell dumpsys activity activities 2>/dev/null | grep -E 'topResumedActivity|ResumedActivity' | head -2 || true
-}
-
-verify_known_good() {
-  local deadline pid pid_after crashes anr_log anrs system_anrs
-  log "verifying launch state"
-  deadline=$(( $(date +%s) + 30 ))
-  pid=""
-  while (( $(date +%s) < deadline )); do
-    pid="$(app_pid)"
-    if [[ -n "${pid}" ]] && grep -qF "${APP_ID}" <<<"$(resumed_activity)"; then
-      break
-    fi
-    pid=""
-    sleep 1
-  done
-  [[ -n "${pid}" ]] || die "app did not reach resumed state within 30s (pidof + dumpsys)"
-
-  sleep 3
-  pid_after="$(app_pid)"
-  [[ "${pid_after}" == "${pid}" ]] || die "app process changed after launch (was ${pid}, now '${pid_after}') — crash-restart suspected"
-  grep -qF "${APP_ID}" <<<"$(resumed_activity)" || die "app no longer top-resumed after stability window"
-  crashes="$("${ADB}" -s "${SERIAL}" logcat -b crash -d 2>/dev/null | grep -F "${APP_ID}" || true)"
-  [[ -z "${crashes}" ]] || die "crash buffer mentions ${APP_ID}: ${crashes}"
-  anr_log="$("${ADB}" -s "${SERIAL}" logcat -b main -b system -d 2>/dev/null | grep -E 'ANR in [a-z][a-z0-9.]+' || true)"
-  anrs="$(grep -F "ANR in ${APP_ID}" <<<"${anr_log}" || true)"
-  [[ -z "${anrs}" ]] || die "app ANR detected: ${anrs}"
-  system_anrs="$(grep -Fv "${APP_ID}" <<<"${anr_log}" | grep . || true)"
-  [[ -z "${system_anrs}" ]] || log "WARNING: non-app ANRs on device (dialogs hidden, evidence unaffected): $(head -2 <<<"${system_anrs}")"
-  log "launch verified: pid ${pid} resumed and stable, no app ANR"
+run_smoke_test() {
+  (cd "${REPO_ROOT}" && ANDROID_SERIAL="${SERIAL}" ./gradlew -q "${CONNECTED_TASK}")
 }
 
-verify_known_good
+log "running instrumented launch proof (${CONNECTED_TASK}) on ${SERIAL}"
+if ! run_smoke_test; then
+  log "instrumented proof failed; settling 10s and retrying once (cold-boot render flake)"
+  sleep 10
+  run_smoke_test || die "instrumented launch proof failed twice; see app/build/reports/androidTests"
+fi
+log "instrumented launch proof passed"
 
 # --- evidence ----------------------------------------------------------------
-# Pixel gate: a resumed process with a clean crash buffer can still render
-# nothing — in the first ~minute after a cold headless boot the app window
-# intermittently composites black. Mean luma below 16 means the screen is
-# effectively black and the launch is not visually proven.
-# Returns 0 and echoes the luma when rendered; returns 1 on black.
-shot_luma() {
-  local png="$1" luma
-  luma="$(ffprobe -v error -f lavfi -i "movie=${png},signalstats" \
-    -show_entries frame_tags=lavfi.signalstats.YAVG -of default=nk=1:nw=1 2>/dev/null | head -1 || true)"
-  luma="${luma%%.*}"
-  [[ "${luma}" =~ ^[0-9]+$ ]] || luma=0
-  echo "${luma}"
-  (( luma >= 16 ))
-}
-
-take_gated_screenshot() {
-  # evidence.sh already quarantines near-black (<8) and corrupt captures and
-  # exits nonzero; this proof additionally requires the brighter launch-shell
-  # threshold (<16) because the current shell draws a light theme.
-  if ! shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")"; then
-    log "screenshot failed the evidence gate (quarantined in .evidence/)"
-    return 1
-  fi
-  local luma
-  if luma="$(shot_luma "${shot}")"; then
-    log "screenshot luma ${luma} (render verified)"
-    return 0
-  fi
-  mv "${shot}" "${shot%.png}.black.png"
-  log "screen is black (mean luma ${luma}); quarantined ${shot%.png}.black.png"
-  return 1
-}
-
-if ! take_gated_screenshot; then
-  # The black-render window heals once the post-boot churn settles; one
-  # relaunch retry distinguishes that flake from an app that never renders.
-  log "black render detected; settling 10s and relaunching once"
-  sleep 10
-  "${ADB}" -s "${SERIAL}" shell am force-stop "${APP_ID}" >/dev/null 2>&1 || true
-  "${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" >/dev/null
-  verify_known_good
-  take_gated_screenshot || die "screen still black after relaunch — app renders nothing"
-fi
+# A launcher-style launch for the captures; evidence.sh quarantines black or
+# corrupt output, which also catches a crash back to the (black, headless)
+# launcher. connectedAndroidTest uninstalls its APKs on completion, so the
+# app must be reinstalled first.
+log "reinstalling ${APK##*/} for the evidence launch"
+install_out="$("${ADB}" -s "${SERIAL}" install -r "${APK}" 2>&1)" || die "reinstall failed: ${install_out}"
+log "launching ${COMPONENT} for evidence"
+start_out="$("${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" 2>&1)" || die "evidence launch failed: ${start_out}"
+sleep 2
+shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")" || \
+  die "evidence screenshot failed its gate (quarantined in .evidence/)"
 echo "EVIDENCE ${shot}"
 
 if [[ "${RECORD}" == "1" ]]; then
@@ -310,23 +248,34 @@ if [[ "${RECORD}" == "1" ]]; then
   # process relaunch under active capture. screenrecord only receives frames
   # on content changes, so the launch transition guarantees a playable clip
   # that shows the thing the proof claims — the app coming up.
-  log "recording a relaunch (${RECORD_SECONDS}s)"
-  "${ADB}" -s "${SERIAL}" shell am force-stop "${APP_ID}" >/dev/null 2>&1 || true
-  rec_out="$(mktemp)"
-  "${REPO_ROOT}/scripts/evidence.sh" record --serial "${SERIAL}" --label "${FLAVOR}-launch" --seconds "${RECORD_SECONDS}" >"${rec_out}" 2>&1 &
-  rec_pid=$!
-  sleep 1
-  "${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" >/dev/null
-  if ! wait "${rec_pid}"; then
-    log "recording capture output: $(cat "${rec_out}")"
+  record_relaunch() {
+    "${ADB}" -s "${SERIAL}" shell am force-stop "${APP_ID}" >/dev/null 2>&1 || true
+    rec_out="$(mktemp)"
+    "${REPO_ROOT}/scripts/evidence.sh" record --serial "${SERIAL}" --label "${FLAVOR}-launch" --seconds "${RECORD_SECONDS}" >"${rec_out}" 2>&1 &
+    rec_pid=$!
+    sleep 1
+    start_out="$("${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" 2>&1)" || die "recorded relaunch failed: ${start_out}"
+    if ! wait "${rec_pid}"; then
+      log "recording capture output: $(cat "${rec_out}")"
+      rm -f "${rec_out}"
+      rec_pid=""
+      return 1
+    fi
+    rec="$(tail -1 "${rec_out}")"
     rm -f "${rec_out}"
-    die "recording capture failed"
+    rec_pid=""
+  }
+
+  log "recording a relaunch (${RECORD_SECONDS}s)"
+  if ! record_relaunch; then
+    # A screenrecord that failed or desynced from the relaunch (unready
+    # encoder shortly after boot) gets one full extra cycle.
+    log "recording cycle failed; retrying the full record+relaunch once"
+    record_relaunch || die "recording capture failed twice"
   fi
-  rec="$(tail -1 "${rec_out}")"
-  rm -f "${rec_out}"
-  rec_pid=""
-  verify_known_good
-  take_gated_screenshot || die "screen black after recorded relaunch — recording untrustworthy"
+  post_shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch-after-record")" || \
+    die "screen black or corrupt after recorded relaunch (quarantined) — recording untrustworthy"
+  log "recorded relaunch rendered (${post_shot##*/})"
   echo "EVIDENCE ${rec}"
 fi
 

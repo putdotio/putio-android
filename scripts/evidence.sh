@@ -74,7 +74,12 @@ gate_dark() {
 case "${cmd}" in
   screenshot)
     out="${EVIDENCE_DIR}/${STAMP}-${LABEL}.png"
-    "${ADB}" -s "${SERIAL}" exec-out screencap -p > "${out}"
+    # Guard capture commands: under set -e an adb failure would otherwise
+    # exit before cleanup, stranding a partial file under a publishable name.
+    if ! "${ADB}" -s "${SERIAL}" exec-out screencap -p > "${out}"; then
+      rm -f "${out}"
+      die "screencap failed on ${SERIAL}"
+    fi
     [[ -s "${out}" ]] || { rm -f "${out}"; die "screencap produced no data"; }
     # A truncated screencap is not a PNG; check the magic bytes.
     if [[ "$(head -c 4 "${out}" | xxd -p)" != "89504e47" ]]; then
@@ -88,12 +93,22 @@ case "${cmd}" in
   record)
     out="${EVIDENCE_DIR}/${STAMP}-${LABEL}.mp4"
     remote="/data/local/tmp/putio-evidence.mp4"
-    "${ADB}" -s "${SERIAL}" shell screenrecord --time-limit "${SECONDS_ARG}" "${remote}"
+    # The encoder can be unready shortly after boot: screenrecord then exits
+    # nonzero (235) with an empty file. One bounded retry covers that window.
+    if ! "${ADB}" -s "${SERIAL}" shell screenrecord --time-limit "${SECONDS_ARG}" "${remote}"; then
+      log "screenrecord failed; retrying once in 5s"
+      sleep 5
+      "${ADB}" -s "${SERIAL}" shell screenrecord --time-limit "${SECONDS_ARG}" "${remote}" || \
+        die "screenrecord failed twice on ${SERIAL}"
+    fi
     # screenrecord can return before the muxer finishes the container; a pull
     # that races it produces an mp4 with no moov atom (unplayable).
     sleep 2
-    "${ADB}" -s "${SERIAL}" pull "${remote}" "${out}" >/dev/null
-    "${ADB}" -s "${SERIAL}" shell rm -f "${remote}"
+    if ! "${ADB}" -s "${SERIAL}" pull "${remote}" "${out}" >/dev/null; then
+      rm -f "${out}"
+      die "pull of ${remote} failed on ${SERIAL}"
+    fi
+    "${ADB}" -s "${SERIAL}" shell rm -f "${remote}" || true
     [[ -s "${out}" ]] || { rm -f "${out}"; die "screenrecord produced no data"; }
     # Integrity gate: a truncated screenrecord container still carries a moov
     # atom but no parseable duration, so ffprobe is the reliable check.
