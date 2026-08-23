@@ -15,6 +15,7 @@
 #                   builds incrementally)
 #
 # Exit codes: 0 proof passed · 1 proof failed · 64 usage · 70 cleanup failed
+# · 130/143 interrupted by SIGINT/SIGTERM (after stopping owned emulators)
 #
 # Ownership contract:
 #   - A running emulator for the target AVD is reused and never stopped.
@@ -89,6 +90,7 @@ fi
 OWNED=0
 SERIAL=""
 BOOT_STATE=""
+BOOT_PID=""
 PROOF_OK=0
 
 fail_marker() { echo "PROOF FAIL ${FLAVOR}"; }
@@ -112,7 +114,15 @@ cleanup() {
   # file emulator.sh wrote closes that window. Reuse never writes the file.
   if [[ "${OWNED}" != "1" && -n "${BOOT_STATE:-}" && -s "${BOOT_STATE}" ]]; then
     SERIAL="$(awk '{print $1}' "${BOOT_STATE}")"
+    BOOT_PID="$(awk '{print $2}' "${BOOT_STATE}")"
     OWNED=1
+  fi
+  # Ownership is ultimately the spawned pid: if our emulator process is dead,
+  # whatever answers on the serial (a same-AVD boot that won a port race)
+  # is not ours to stop.
+  if [[ "${OWNED}" == "1" && -n "${BOOT_PID:-}" ]] && ! kill -0 "${BOOT_PID}" 2>/dev/null; then
+    log "owned emulator process ${BOOT_PID} already exited; ${SERIAL} not ours to stop"
+    OWNED=0
   fi
   rm -f "${rec_out:-}" "${BOOT_STATE:-}" "${smoke_out:-}"
   if [[ "${KEEP}" == "1" && "${code}" -eq 0 ]]; then
@@ -189,6 +199,7 @@ SERIAL="$(PUTIO_BOOT_STATE_FILE="${BOOT_STATE}" "${REPO_ROOT}/scripts/emulator.s
 [[ "${SERIAL}" == emulator-* ]] || die "emulator boot did not return a serial (got '${SERIAL}')"
 if [[ -s "${BOOT_STATE}" ]]; then
   OWNED=1
+  BOOT_PID="$(awk '{print $2}' "${BOOT_STATE}")"
 else
   log "reusing running emulator ${SERIAL} (not owned; will not be stopped)"
 fi
@@ -272,7 +283,7 @@ install_out="$("${ADB}" -s "${SERIAL}" install -r "${APK}" 2>&1)" || die "reinst
 "${ADB}" -s "${SERIAL}" logcat -b crash -b main -b system -c || true
 log "launching ${COMPONENT} for evidence"
 start_out="$("${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" 2>&1)" || die "evidence launch failed: ${start_out}"
-sleep 2
+sleep 3
 evidence_launch_healthy || die "evidence launch is not healthy"
 shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")" || \
   die "evidence screenshot failed its gate (quarantined in .evidence/)"
@@ -311,10 +322,16 @@ if [[ "${RECORD}" == "1" ]]; then
     log "recording cycle failed; retrying the full record+relaunch once"
     record_relaunch || die "recording capture failed twice"
   fi
-  evidence_launch_healthy || die "recorded relaunch is not healthy — recording untrustworthy"
+  # The recording was already published by evidence.sh; if its relaunch
+  # turns out unhealthy the clip must not stay under a publishable name.
+  quarantine_rec() {
+    mv "${rec}" "${rec%.mp4}.unverified.mp4" 2>/dev/null || true
+    die "$1 — recording quarantined as ${rec%.mp4}.unverified.mp4"
+  }
+  evidence_launch_healthy || quarantine_rec "recorded relaunch is not healthy"
   post_shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch-after-record")" || \
-    die "screen black or corrupt after recorded relaunch (quarantined) — recording untrustworthy"
-  evidence_launch_healthy || die "recorded relaunch died during capture — recording untrustworthy"
+    quarantine_rec "screen black or corrupt after recorded relaunch"
+  evidence_launch_healthy || quarantine_rec "recorded relaunch died during capture"
   log "recorded relaunch rendered (${post_shot##*/})"
   echo "EVIDENCE ${rec}"
 fi

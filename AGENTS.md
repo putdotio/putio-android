@@ -92,8 +92,8 @@ Verification is the instrumented smoke test (`LaunchSmokeTest`), run through
 test APIs; a crash or ANR fails the instrumentation. The exit code is the
 proof. One automatic retry covers the cold-boot render flake, where the
 emulator composites the app window black for the first minute. Exit 0 pass ·
-1 fail · 70 cleanup failure. Machine-readable stdout markers:
-`BOOTED <serial>`, `EVIDENCE <path>`, `PROOF PASS|FAIL <flavor>`.
+1 fail · 70 cleanup failure · 130/143 interrupted. Machine-readable stdout
+markers: `BOOTED <serial>`, `EVIDENCE <path>`, `PROOF PASS|FAIL <flavor>`.
 
 Flags: `--keep` (leave emulator running), `--ephemeral` (throwaway AVD,
 deleted on exit), `--window` (headed), `--skip-build`, `--record`,
