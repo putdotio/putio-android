@@ -170,25 +170,21 @@ if [[ "${EPHEMERAL}" == "1" ]]; then
   CREATED_EPHEMERAL=1
 fi
 
-if [[ "${EPHEMERAL}" != "1" ]] && SERIAL="$(serial_for_avd "${AVD_NAME}")"; then
-  log "reusing running emulator ${SERIAL} (not owned; will not be stopped)"
+# emulator.sh boot owns the whole path: reuse detection, boot-complete and
+# package-manager readiness, and device prep. Ownership comes from the state
+# file, written only when boot spawned a process; on reuse it stays empty
+# and this invocation must not stop the emulator.
+boot_flags=()
+[[ "${HEADLESS}" == "1" ]] && boot_flags+=(--headless)
+BOOT_STATE="$(mktemp)"
+SERIAL="$(PUTIO_BOOT_STATE_FILE="${BOOT_STATE}" "${REPO_ROOT}/scripts/emulator.sh" boot "${PROFILE}" --name "${AVD_NAME}" ${boot_flags[@]+"${boot_flags[@]}"} | tail -1)"
+[[ "${SERIAL}" == emulator-* ]] || die "emulator boot did not return a serial (got '${SERIAL}')"
+if [[ -s "${BOOT_STATE}" ]]; then
+  OWNED=1
 else
-  boot_flags=()
-  [[ "${HEADLESS}" == "1" ]] && boot_flags+=(--headless)
-  BOOT_STATE="$(mktemp)"
-  SERIAL="$(PUTIO_BOOT_STATE_FILE="${BOOT_STATE}" "${REPO_ROOT}/scripts/emulator.sh" boot "${PROFILE}" --name "${AVD_NAME}" ${boot_flags[@]+"${boot_flags[@]}"} | tail -1)"
-  [[ "${SERIAL}" == emulator-* ]] || die "emulator boot did not return a serial (got '${SERIAL}')"
-  # Ownership comes from the state file, written only when boot spawned a
-  # process: if boot raced into its reuse path (an emulator appeared after
-  # our check above), this invocation owns nothing and must not stop it.
-  if [[ -s "${BOOT_STATE}" ]]; then
-    OWNED=1
-  else
-    log "boot reused an emulator that appeared concurrently; not owned"
-  fi
-  rm -f "${BOOT_STATE}"; BOOT_STATE=""
+  log "reusing running emulator ${SERIAL} (not owned; will not be stopped)"
 fi
-prepare_device "${SERIAL}"
+rm -f "${BOOT_STATE}"; BOOT_STATE=""
 echo "BOOTED ${SERIAL}"
 
 if [[ "${PUTIO_PROVE_FAIL_AT:-}" == "after-boot" ]]; then
@@ -230,15 +226,28 @@ fi
 log "instrumented launch proof passed"
 
 # --- evidence ----------------------------------------------------------------
-# A launcher-style launch for the captures; evidence.sh quarantines black or
-# corrupt output, which also catches a crash back to the (black, headless)
-# launcher. connectedAndroidTest uninstalls its APKs on completion, so the
-# app must be reinstalled first.
+# The proof above verified an ActivityScenario launch that AGP uninstalled
+# afterward; the captures come from a separate launcher-style launch that
+# needs its own health check: our activity top-resumed, clean crash buffer,
+# no app ANR since the launch. The luma gates alone would miss a crash into
+# a bright system dialog.
+evidence_launch_healthy() {
+  local resumed crashes anrs
+  resumed="$("${ADB}" -s "${SERIAL}" shell dumpsys activity activities 2>/dev/null | grep -E 'topResumedActivity|ResumedActivity' | head -2 || true)"
+  grep -qF "${APP_ID}" <<<"${resumed}" || { log "evidence launch not top-resumed"; return 1; }
+  crashes="$("${ADB}" -s "${SERIAL}" logcat -b crash -d 2>/dev/null | grep -F "${APP_ID}" || true)"
+  [[ -z "${crashes}" ]] || { log "evidence launch crashed: $(head -1 <<<"${crashes}")"; return 1; }
+  anrs="$("${ADB}" -s "${SERIAL}" logcat -b main -b system -d 2>/dev/null | grep -F "ANR in ${APP_ID}" || true)"
+  [[ -z "${anrs}" ]] || { log "evidence launch ANRed: $(head -1 <<<"${anrs}")"; return 1; }
+}
+
 log "reinstalling ${APK##*/} for the evidence launch"
 install_out="$("${ADB}" -s "${SERIAL}" install -r "${APK}" 2>&1)" || die "reinstall failed: ${install_out}"
+"${ADB}" -s "${SERIAL}" logcat -b crash -b main -b system -c || true
 log "launching ${COMPONENT} for evidence"
 start_out="$("${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" 2>&1)" || die "evidence launch failed: ${start_out}"
 sleep 2
+evidence_launch_healthy || die "evidence launch is not healthy"
 shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")" || \
   die "evidence screenshot failed its gate (quarantined in .evidence/)"
 echo "EVIDENCE ${shot}"
@@ -273,6 +282,7 @@ if [[ "${RECORD}" == "1" ]]; then
     log "recording cycle failed; retrying the full record+relaunch once"
     record_relaunch || die "recording capture failed twice"
   fi
+  evidence_launch_healthy || die "recorded relaunch is not healthy — recording untrustworthy"
   post_shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch-after-record")" || \
     die "screen black or corrupt after recorded relaunch (quarantined) — recording untrustworthy"
   log "recorded relaunch rendered (${post_shot##*/})"

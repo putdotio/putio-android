@@ -32,6 +32,11 @@ class LaunchSmokeTest {
             Thread.sleep(3_000)
             assertEquals(Lifecycle.State.RESUMED, scenario.state)
 
+            // Main-thread round-trip: RESUMED alone survives a blocked main
+            // thread; onActivity posts to it and waits, so an ANR-ish hang
+            // fails the run instead of passing silently.
+            scenario.onActivity { }
+
             val screenshot = InstrumentationRegistry.getInstrumentation()
                 .uiAutomation.takeScreenshot()
             assertTrue("uiAutomation returned no screenshot", screenshot != null)

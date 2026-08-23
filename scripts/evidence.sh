@@ -56,10 +56,13 @@ mean_luma() {
 }
 
 # Quarantine $1 with suffix .black.<ext> and fail, unless --allow-dark.
+# Threshold $2 depends on the pixel range: PNG screenshots are full-range
+# (black = 0, threshold 8); H.264 recordings are video-range (black = 16,
+# threshold 20).
 gate_dark() {
-  local file="$1" luma
+  local file="$1" threshold="$2" luma
   luma="$(mean_luma "${file}")"
-  if (( luma >= 8 )); then
+  if (( luma >= threshold )); then
     return 0
   fi
   if [[ "${ALLOW_DARK}" == "1" ]]; then
@@ -86,7 +89,7 @@ case "${cmd}" in
       mv "${out}" "${out}.corrupt"
       die "screencap output is not a PNG; kept as ${out}.corrupt"
     fi
-    gate_dark "${out}"
+    gate_dark "${out}" 8
     log "screenshot: ${out}"
     echo "${out}"
     ;;
@@ -117,7 +120,7 @@ case "${cmd}" in
       mv "${out}" "${out}.corrupt"
       die "recording is corrupt (no parseable duration); kept as ${out}.corrupt"
     fi
-    gate_dark "${out}"
+    gate_dark "${out}" 20
     log "recording: ${out}"
     echo "${out}"
     ;;
