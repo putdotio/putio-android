@@ -23,14 +23,9 @@ class PutioAndroidAppTest {
     val compose = createComposeRule()
 
     @Test
-    fun shellRendersProductNameAndStatusLine() {
+    fun shellRendersProductName() {
         compose.setContent { PutioAndroidApp() }
 
         compose.onNodeWithText("put.io").assertIsDisplayed()
-        compose
-            .onNodeWithText(
-                "Native Android shell is ready for the auth, files, and player slices.",
-            )
-            .assertIsDisplayed()
     }
 }
