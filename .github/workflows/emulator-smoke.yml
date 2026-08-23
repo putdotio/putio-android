@@ -62,7 +62,7 @@ jobs:
       - name: Run instrumented launch smoke
         working-directory: putio-android
         run: >-
-          ./gradlew :app:ciPhoneMobileDebugAndroidTest
+          ./gradlew :app:ciPhoneMobileProductionDebugAndroidTest
           -Pandroid.experimental.testOptions.managedDevices.emulator.gpuMode=swiftshader_indirect
 
       - name: Upload device test results

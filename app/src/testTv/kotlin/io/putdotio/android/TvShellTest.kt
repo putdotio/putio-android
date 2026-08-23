@@ -11,21 +11,24 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Local (JVM) proof that the Compose shell renders, via Robolectric with
- * native graphics. The on-device counterpart is LaunchSmokeTest.
+ * Local (JVM) proof that the Compose for TV shell renders: wordmark header
+ * plus the destination list. The on-device counterpart is LaunchSmokeTest.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35])
-class PutioAndroidAppTest {
+class TvShellTest {
 
     @get:Rule
     val compose = createComposeRule()
 
     @Test
-    fun shellRendersProductName() {
-        compose.setContent { PutioAndroidApp() }
+    fun shellRendersWordmarkAndDestinations() {
+        compose.setContent { PutioApp() }
 
         compose.onNodeWithText("put.io").assertIsDisplayed()
+        listOf("Files", "Transfers", "Settings").forEach { label ->
+            compose.onNodeWithText(label).assertIsDisplayed()
+        }
     }
 }

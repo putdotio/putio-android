@@ -17,7 +17,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    flavorDimensions += "surface"
+    flavorDimensions += listOf("surface", "channel")
 
     productFlavors {
         create("mobile") {
@@ -28,6 +28,18 @@ android {
 
         create("tv") {
             dimension = "surface"
+        }
+
+        create("production") {
+            dimension = "channel"
+        }
+
+        // Play internal/closed tracks ship nightly; the public listing keeps
+        // production. Own application id so both install side by side.
+        create("nightly") {
+            dimension = "channel"
+            applicationIdSuffix = ".nightly"
+            versionNameSuffix = "-nightly"
         }
     }
 
@@ -68,6 +80,21 @@ android {
                 }
             }
         }
+    }
+}
+
+val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDesignTokens") {
+    tokensFile.set(rootProject.layout.projectDirectory.file("design/tokens.dtcg.json"))
+    designVersion.set("3.0.0")
+    outputDir.set(layout.buildDirectory.dir("generated/designTokens/kotlin"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.kotlin?.addGeneratedSourceDirectory(
+            generateDesignTokens,
+            GenerateDesignTokensTask::outputDir,
+        )
     }
 }
 
