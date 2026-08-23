@@ -117,22 +117,21 @@ do_boot() {
     if [[ -n "${BOOT_SIGNAL_CODE}" ]]; then code="${BOOT_SIGNAL_CODE}"; fi
     trap - EXIT INT TERM
     log "boot did not complete (exit ${code}); stopping owned emulator pid ${pid} (${serial})"
-    # Port selection can race a concurrent boot: if the serial now answers
-    # for a different AVD, the port went to someone else's emulator — kill
-    # only our pid, never their serial.
-    local serial_avd
-    serial_avd="$("${ADB}" -s "${serial}" emu avd name 2>/dev/null | head -1 | tr -d '\r' || true)"
-    if [[ -z "${serial_avd}" || "${serial_avd}" == "${NAME}" ]]; then
+    # Port selection can race a concurrent boot. A live pid proves we bound
+    # the console port (the emulator exits immediately when the port is
+    # taken), so the serial is ours to kill; a dead pid means anything on
+    # that serial belongs to another invocation and must be left alone.
+    if kill -0 "${pid}" 2>/dev/null; then
       "${ADB}" -s "${serial}" emu kill >/dev/null 2>&1 || true
+      kill "${pid}" >/dev/null 2>&1 || true
+      if ! wait_serial_gone "${serial}" 20; then
+        log "ERROR: owned emulator ${serial} still present after cleanup"
+        exit 70
+      fi
+      log "owned emulator ${serial} confirmed gone"
     else
-      log "serial ${serial} answers for AVD ${serial_avd}, not ${NAME}; killing only pid ${pid}"
+      log "owned emulator process ${pid} already exited; ${serial} not ours to stop"
     fi
-    kill "${pid}" >/dev/null 2>&1 || true
-    if ! wait_serial_gone "${serial}" 20; then
-      log "ERROR: owned emulator ${serial} still present after cleanup"
-      exit 70
-    fi
-    log "owned emulator ${serial} confirmed gone"
     exit "${code}"
   }
   trap cleanup_owned_boot EXIT

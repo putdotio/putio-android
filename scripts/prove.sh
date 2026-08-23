@@ -276,6 +276,9 @@ sleep 2
 evidence_launch_healthy || die "evidence launch is not healthy"
 shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")" || \
   die "evidence screenshot failed its gate (quarantined in .evidence/)"
+# Recheck after capture: a crash in the check-to-screencap window could
+# otherwise publish a screenshot of whatever replaced the app.
+evidence_launch_healthy || die "evidence launch died during capture"
 echo "EVIDENCE ${shot}"
 
 if [[ "${RECORD}" == "1" ]]; then
@@ -311,6 +314,7 @@ if [[ "${RECORD}" == "1" ]]; then
   evidence_launch_healthy || die "recorded relaunch is not healthy — recording untrustworthy"
   post_shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch-after-record")" || \
     die "screen black or corrupt after recorded relaunch (quarantined) — recording untrustworthy"
+  evidence_launch_healthy || die "recorded relaunch died during capture — recording untrustworthy"
   log "recorded relaunch rendered (${post_shot##*/})"
   echo "EVIDENCE ${rec}"
 fi

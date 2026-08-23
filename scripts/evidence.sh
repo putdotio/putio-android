@@ -22,6 +22,8 @@ SERIAL=""
 LABEL="capture"
 SECONDS_ARG=10
 ALLOW_DARK=0
+# LABEL lands in an ffprobe filtergraph where commas/colons are syntax.
+LABEL_CHARSET='^[A-Za-z0-9._-]+$'
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --serial) SERIAL="${2:?--serial requires a value}"; shift ;;
@@ -36,6 +38,9 @@ done
 # screenrecord hard-caps --time-limit at 180 s and rejects larger values.
 [[ "${SECONDS_ARG}" =~ ^[0-9]+$ && "${SECONDS_ARG}" -ge 1 && "${SECONDS_ARG}" -le 180 ]] || \
   die "--seconds must be 1-180 (screenrecord limit), got '${SECONDS_ARG}'"
+
+[[ "${LABEL}" =~ ${LABEL_CHARSET} ]] || \
+  die "--label may only contain letters, digits, dot, underscore, dash (got '${LABEL}')"
 
 if [[ -z "${SERIAL}" ]]; then
   devices="$("${ADB}" devices | awk '$2 == "device" {print $1}')"
@@ -55,51 +60,54 @@ mean_luma() {
     awk -F, 'NF { sum += $1; n += 1 } END { if (n) printf "%d", sum / n; else print 0 }'
 }
 
-# Quarantine $1 with suffix .black.<ext> and fail, unless --allow-dark.
-# Threshold $2 depends on the pixel range: PNG screenshots are full-range
-# (black = 0, threshold 8); H.264 recordings are video-range (black = 16,
-# threshold 20).
-gate_dark() {
-  local file="$1" threshold="$2" luma
+# Validate the pending capture $1 against luma threshold $2, publishing to
+# $3 only on success (atomic rename: a die or signal before validation can
+# never leave a publishable name behind). Quarantine names derive from the
+# final path. Threshold depends on the pixel range: PNG screenshots are
+# full-range (black = 0, threshold 8); H.264 recordings are video-range
+# (black = 16, threshold 20).
+gate_dark_and_publish() {
+  local pending="$1" threshold="$2" final="$3" luma
   # A failed probe (undecodable file) must quarantine, not abort via set -e
-  # with the artifact still under a publishable name.
-  if ! luma="$(mean_luma "${file}")" || [[ ! "${luma}" =~ ^[0-9]+$ ]]; then
-    mv "${file}" "${file}.corrupt"
-    die "could not measure luma (undecodable capture); kept as ${file}.corrupt"
+  # with the artifact still on disk unvalidated.
+  if ! luma="$(mean_luma "${pending}")" || [[ ! "${luma}" =~ ^[0-9]+$ ]]; then
+    mv "${pending}" "${final}.corrupt"
+    die "could not measure luma (undecodable capture); kept as ${final}.corrupt"
   fi
-  if (( luma >= threshold )); then
-    return 0
+  if (( luma < threshold )) && [[ "${ALLOW_DARK}" != "1" ]]; then
+    local quarantined="${final%.*}.black.${final##*.}"
+    mv "${pending}" "${quarantined}"
+    die "capture is near-black (mean luma ${luma}); quarantined as ${quarantined} — pass --allow-dark for legitimately dark content"
   fi
-  if [[ "${ALLOW_DARK}" == "1" ]]; then
+  if (( luma < threshold )); then
     log "near-black capture (mean luma ${luma}) kept: --allow-dark"
-    return 0
   fi
-  local quarantined="${file%.*}.black.${file##*.}"
-  mv "${file}" "${quarantined}"
-  die "capture is near-black (mean luma ${luma}); quarantined as ${quarantined} — pass --allow-dark for legitimately dark content"
+  mv "${pending}" "${final}"
 }
 
 case "${cmd}" in
   screenshot)
     out="${EVIDENCE_DIR}/${STAMP}-${LABEL}.png"
+    pending="${out}.pending"
     # Guard capture commands: under set -e an adb failure would otherwise
-    # exit before cleanup, stranding a partial file under a publishable name.
-    if ! "${ADB}" -s "${SERIAL}" exec-out screencap -p > "${out}"; then
-      rm -f "${out}"
+    # exit before cleanup, stranding a partial file.
+    if ! "${ADB}" -s "${SERIAL}" exec-out screencap -p > "${pending}"; then
+      rm -f "${pending}"
       die "screencap failed on ${SERIAL}"
     fi
-    [[ -s "${out}" ]] || { rm -f "${out}"; die "screencap produced no data"; }
+    [[ -s "${pending}" ]] || { rm -f "${pending}"; die "screencap produced no data"; }
     # A truncated screencap is not a PNG; check the magic bytes.
-    if [[ "$(head -c 4 "${out}" | xxd -p)" != "89504e47" ]]; then
-      mv "${out}" "${out}.corrupt"
+    if [[ "$(head -c 4 "${pending}" | xxd -p)" != "89504e47" ]]; then
+      mv "${pending}" "${out}.corrupt"
       die "screencap output is not a PNG; kept as ${out}.corrupt"
     fi
-    gate_dark "${out}" 8
+    gate_dark_and_publish "${pending}" 8 "${out}"
     log "screenshot: ${out}"
     echo "${out}"
     ;;
   record)
     out="${EVIDENCE_DIR}/${STAMP}-${LABEL}.mp4"
+    pending="${out}.pending"
     remote="/data/local/tmp/putio-evidence.mp4"
     # No internal retry: callers that choreograph content during capture
     # (prove.sh relaunches the app mid-recording) would desync from it and
@@ -109,26 +117,26 @@ case "${cmd}" in
     # screenrecord can return before the muxer finishes the container; a pull
     # that races it produces an mp4 with no moov atom (unplayable).
     sleep 2
-    if ! "${ADB}" -s "${SERIAL}" pull "${remote}" "${out}" >/dev/null; then
-      rm -f "${out}"
+    if ! "${ADB}" -s "${SERIAL}" pull "${remote}" "${pending}" >/dev/null; then
+      rm -f "${pending}"
       die "pull of ${remote} failed on ${SERIAL}"
     fi
     "${ADB}" -s "${SERIAL}" shell rm -f "${remote}" || true
-    [[ -s "${out}" ]] || { rm -f "${out}"; die "screenrecord produced no data"; }
+    [[ -s "${pending}" ]] || { rm -f "${pending}"; die "screenrecord produced no data"; }
     # Integrity gate: a truncated screenrecord container still carries a moov
     # atom but no parseable duration, so ffprobe is the reliable check.
-    dur="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${out}" 2>/dev/null || true)"
+    dur="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${pending}" 2>/dev/null || true)"
     if [[ ! "${dur}" =~ ^[0-9] ]]; then
-      mv "${out}" "${out}.corrupt"
+      mv "${pending}" "${out}.corrupt"
       die "recording is corrupt (no parseable duration); kept as ${out}.corrupt"
     fi
     # A one-frame clip of a static screen parses as ~0.04s; require enough
     # duration to actually show something happening.
     if (( ${dur%%.*} < 2 )); then
-      mv "${out}" "${out}.corrupt"
+      mv "${pending}" "${out}.corrupt"
       die "recording too short (${dur}s — static screen or truncated capture); kept as ${out}.corrupt"
     fi
-    gate_dark "${out}" 20
+    gate_dark_and_publish "${pending}" 20 "${out}"
     log "recording: ${out}"
     echo "${out}"
     ;;
