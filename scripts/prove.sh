@@ -119,10 +119,20 @@ cleanup() {
   fi
   # Ownership is ultimately the spawned pid: if our emulator process is dead,
   # whatever answers on the serial (a same-AVD boot that won a port race)
-  # is not ours to stop.
+  # is not ours to stop — but our corpse must still be confirmed gone from
+  # adb before this run may report success.
   if [[ "${OWNED}" == "1" && -n "${BOOT_PID:-}" ]] && ! kill -0 "${BOOT_PID}" 2>/dev/null; then
     log "owned emulator process ${BOOT_PID} already exited; ${SERIAL} not ours to stop"
     OWNED=0
+    if ! wait_serial_gone "${SERIAL}" 15; then
+      state="$("${ADB}" devices 2>/dev/null | awk -v s="${SERIAL}" '$1 == s {print $2}')"
+      if [[ "${state}" == "device" ]]; then
+        log "${SERIAL} now serves another invocation; leaving it"
+      else
+        log "ERROR: dead emulator ${SERIAL} still listed (${state:-absent?}) in adb devices"
+        cleanup_failed=1
+      fi
+    fi
   fi
   rm -f "${rec_out:-}" "${BOOT_STATE:-}" "${smoke_out:-}"
   if [[ "${KEEP}" == "1" && "${code}" -eq 0 ]]; then
@@ -269,12 +279,16 @@ log "instrumented launch proof passed"
 # no app ANR since the launch. The luma gates alone would miss a crash into
 # a bright system dialog.
 evidence_launch_healthy() {
-  local resumed crashes anrs
+  # Fail closed: a failed adb query is indistinguishable from "no crashes"
+  # only if the query status is ignored, so it isn't.
+  local resumed crash_log anr_log crashes anrs
   resumed="$("${ADB}" -s "${SERIAL}" shell dumpsys activity activities 2>/dev/null | grep -E 'topResumedActivity|ResumedActivity' | head -2 || true)"
   grep -qF "${APP_ID}" <<<"${resumed}" || { log "evidence launch not top-resumed"; return 1; }
-  crashes="$("${ADB}" -s "${SERIAL}" logcat -b crash -d 2>/dev/null | grep -F "${APP_ID}" || true)"
+  crash_log="$("${ADB}" -s "${SERIAL}" logcat -b crash -d 2>/dev/null)" || { log "crash buffer query failed"; return 1; }
+  crashes="$(grep -F "${APP_ID}" <<<"${crash_log}" || true)"
   [[ -z "${crashes}" ]] || { log "evidence launch crashed: $(head -1 <<<"${crashes}")"; return 1; }
-  anrs="$("${ADB}" -s "${SERIAL}" logcat -b main -b system -d 2>/dev/null | grep -F "ANR in ${APP_ID}" || true)"
+  anr_log="$("${ADB}" -s "${SERIAL}" logcat -b main -b system -d 2>/dev/null)" || { log "logcat query failed"; return 1; }
+  anrs="$(grep -F "ANR in ${APP_ID}" <<<"${anr_log}" || true)"
   [[ -z "${anrs}" ]] || { log "evidence launch ANRed: $(head -1 <<<"${anrs}")"; return 1; }
 }
 
@@ -289,7 +303,10 @@ shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --lab
   die "evidence screenshot failed its gate (quarantined in .evidence/)"
 # Recheck after capture: a crash in the check-to-screencap window could
 # otherwise publish a screenshot of whatever replaced the app.
-evidence_launch_healthy || die "evidence launch died during capture"
+if ! evidence_launch_healthy; then
+  mv "${shot}" "${shot%.png}.unverified.png" 2>/dev/null || true
+  die "evidence launch died during capture — screenshot quarantined as ${shot%.png}.unverified.png"
+fi
 echo "EVIDENCE ${shot}"
 
 if [[ "${RECORD}" == "1" ]]; then
@@ -323,9 +340,14 @@ if [[ "${RECORD}" == "1" ]]; then
     record_relaunch || die "recording capture failed twice"
   fi
   # The recording was already published by evidence.sh; if its relaunch
-  # turns out unhealthy the clip must not stay under a publishable name.
+  # turns out unhealthy, neither the clip nor its companion screenshot may
+  # stay under a publishable name.
+  post_shot=""
   quarantine_rec() {
     mv "${rec}" "${rec%.mp4}.unverified.mp4" 2>/dev/null || true
+    if [[ -n "${post_shot}" ]]; then
+      mv "${post_shot}" "${post_shot%.png}.unverified.png" 2>/dev/null || true
+    fi
     die "$1 — recording quarantined as ${rec%.mp4}.unverified.mp4"
   }
   evidence_launch_healthy || quarantine_rec "recorded relaunch is not healthy"

@@ -131,6 +131,17 @@ do_boot() {
       log "owned emulator ${serial} confirmed gone"
     else
       log "owned emulator process ${pid} already exited; ${serial} not ours to stop"
+      # Our corpse must still clear from adb; a live 'device' entry belongs
+      # to whoever won the port and is left alone.
+      if ! wait_serial_gone "${serial}" 15; then
+        local state
+        state="$("${ADB}" devices 2>/dev/null | awk -v s="${serial}" '$1 == s {print $2}')"
+        if [[ "${state}" != "device" ]]; then
+          log "ERROR: dead emulator ${serial} still listed (${state:-absent?}) in adb devices"
+          exit 70
+        fi
+        log "${serial} now serves another invocation; leaving it"
+      fi
     fi
     exit "${code}"
   }
