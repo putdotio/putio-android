@@ -1,0 +1,74 @@
+name: Emulator smoke
+
+# Opt-in / scheduled lane: boots the app on a Gradle Managed Device and runs
+# the instrumented LaunchSmokeTest (RESUMED + stability + composited pixels).
+# Not a PR gate — emulator boots on shared runners are too slow and flaky to
+# block merges; the PR gate is the CI workflow. Local day-to-day proof stays
+# on scripts/prove.sh.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Launch smoke (mobile, managed device)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: putio-android
+          persist-credentials: false
+
+      - name: Check out putio-sdk-kotlin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: putdotio/putio-sdk-kotlin
+          ssh-key: ${{ secrets.PUTIO_SDK_KOTLIN_DEPLOY_KEY }}
+          path: putio-sdk-kotlin
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+        with:
+          validate-wrappers: true
+
+      # swiftshader mirrors the local harness decision: hardware-path headless
+      # rendering intermittently composites the app window black, which fails
+      # the smoke test's pixel assertion.
+      - name: Run instrumented launch smoke
+        working-directory: putio-android
+        run: >-
+          ./gradlew :app:ciPhoneMobileDebugAndroidTest
+          -Pandroid.experimental.testOptions.managedDevices.emulator.gpuMode=swiftshader_indirect
+
+      - name: Upload device test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: managed-device-results
+          if-no-files-found: warn
+          path: putio-android/app/build/outputs/androidTest-results/**

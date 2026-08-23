@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.detekt)
 }
 
 android {
@@ -10,7 +11,7 @@ android {
     defaultConfig {
         applicationId = "io.put.putio"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -43,6 +44,36 @@ android {
             )
         }
     }
+
+    lint {
+        warningsAsErrors = true
+        abortOnError = true
+        lintConfig = file("lint.xml")
+    }
+
+    testOptions {
+        unitTests {
+            // Robolectric-backed Compose tests need the app's resources.
+            isIncludeAndroidResources = true
+        }
+
+        managedDevices {
+            localDevices {
+                // CI smoke lane device (workflow_dispatch/scheduled); local
+                // proof stays on scripts/prove.sh with the reusable AVDs.
+                create("ciPhone") {
+                    device = "Pixel 7"
+                    apiLevel = 36
+                    systemImageSource = "google"
+                }
+            }
+        }
+    }
+}
+
+detekt {
+    config.setFrom(rootProject.file("detekt.yml"))
+    buildUponDefaultConfig = true
 }
 
 dependencies {
@@ -59,6 +90,12 @@ dependencies {
     implementation(libs.putio.sdk.kotlin)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.androidx.test.ext.junit)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.ext.junit)
