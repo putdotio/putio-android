@@ -55,9 +55,12 @@ mkdir -p "${EVIDENCE_DIR}"
 STAMP="$(date -u +%Y%m%d-%H%M%S)"
 
 # Mean luma across all frames (a PNG is one frame); integer, 0 on failure.
+# The basename is charset-safe (validated LABEL + timestamp), but the
+# directory part of the path is not — commas/colons are lavfi filtergraph
+# syntax — so probe from inside the directory.
 mean_luma() {
-  ffprobe -v error -f lavfi -i "movie=$1,signalstats" \
-    -show_entries frame_tags=lavfi.signalstats.YAVG -of csv=p=0 2>/dev/null | \
+  (cd "$(dirname "$1")" && ffprobe -v error -f lavfi -i "movie=$(basename "$1"),signalstats" \
+    -show_entries frame_tags=lavfi.signalstats.YAVG -of csv=p=0 2>/dev/null) | \
     awk -F, 'NF { sum += $1; n += 1 } END { if (n) printf "%d", sum / n; else print 0 }'
 }
 

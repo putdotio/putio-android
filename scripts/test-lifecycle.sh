@@ -17,7 +17,10 @@ APK="${REPO_ROOT}/app/build/outputs/apk/mobile/debug/app-mobile-debug.apk"
 fail() { log "LIFECYCLE FAIL: $*"; exit 1; }
 
 assert_serial_gone() {
-  "${ADB}" devices | awk '{print $1}' | grep -qx "$1" && fail "$2: serial $1 still present" || true
+  # Fail closed: a failed adb query is not proof of absence.
+  local devices
+  devices="$("${ADB}" devices)" || fail "$2: adb devices query failed"
+  grep -qx "$1" <<<"$(awk '{print $1}' <<<"${devices}")" && fail "$2: serial $1 still present" || true
 }
 assert_serial_present() {
   "${ADB}" devices | awk '{print $1}' | grep -qx "$1" || fail "$2: serial $1 not running"
@@ -51,6 +54,17 @@ cleanup_suite() {
 }
 trap cleanup_suite EXIT
 
+# --- case 0: normal completion stops the owned emulator, keeps the AVD
+log "case 0: successful proof tears down its own emulator"
+out="${tmpdir}/case0.log"
+"${PROVE}" mobile --skip-build >"${out}" 2>&1 || fail "case 0: prove.sh failed ($(tail -5 "${out}"))"
+serial="$(booted_serial "${out}")"
+[[ -n "${serial}" ]] || fail "case 0: no BOOTED marker"
+grep -q "PROOF PASS mobile" "${out}" || fail "case 0: missing PROOF PASS marker"
+assert_serial_gone "${serial}" "case 0"
+assert_avd_exists "${PHONE_AVD}" "case 0"
+log "case 0 passed (owned ${serial} stopped after success, ${PHONE_AVD} preserved)"
+
 # --- case 1: forced failure stops the owned emulator, keeps the reusable AVD
 log "case 1: forced failure after boot"
 out="${tmpdir}/case1.log"
@@ -82,7 +96,14 @@ for sig in INT TERM; do
   done
   serial="$(booted_serial "${out}")"
   kill "-${sig}" "${pid}"
-  wait "${pid}" && fail "case ${sig}: prove.sh exited 0 after SIG${sig}" || true
+  status=0
+  wait "${pid}" || status=$?
+  case "${sig}" in
+    INT) expected=130 ;;
+    TERM) expected=143 ;;
+  esac
+  [[ "${status}" -eq "${expected}" ]] || \
+    fail "case ${sig}: expected exit ${expected}, got ${status}"
   assert_serial_gone "${serial}" "case ${sig}"
   assert_avd_exists "${PHONE_AVD}" "case ${sig}"
   log "case ${sig} passed (owned ${serial} stopped on SIG${sig})"
