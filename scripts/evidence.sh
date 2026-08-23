@@ -101,14 +101,11 @@ case "${cmd}" in
   record)
     out="${EVIDENCE_DIR}/${STAMP}-${LABEL}.mp4"
     remote="/data/local/tmp/putio-evidence.mp4"
-    # The encoder can be unready shortly after boot: screenrecord then exits
-    # nonzero (235) with an empty file. One bounded retry covers that window.
-    if ! "${ADB}" -s "${SERIAL}" shell screenrecord --time-limit "${SECONDS_ARG}" "${remote}"; then
-      log "screenrecord failed; retrying once in 5s"
-      sleep 5
-      "${ADB}" -s "${SERIAL}" shell screenrecord --time-limit "${SECONDS_ARG}" "${remote}" || \
-        die "screenrecord failed twice on ${SERIAL}"
-    fi
+    # No internal retry: callers that choreograph content during capture
+    # (prove.sh relaunches the app mid-recording) would desync from it and
+    # publish a clip that missed the action. Callers own whole-cycle retries.
+    "${ADB}" -s "${SERIAL}" shell screenrecord --time-limit "${SECONDS_ARG}" "${remote}" || \
+      die "screenrecord failed on ${SERIAL} (encoder is briefly unready after boot; retry the capture)"
     # screenrecord can return before the muxer finishes the container; a pull
     # that races it produces an mp4 with no moov atom (unplayable).
     sleep 2
@@ -124,6 +121,12 @@ case "${cmd}" in
     if [[ ! "${dur}" =~ ^[0-9] ]]; then
       mv "${out}" "${out}.corrupt"
       die "recording is corrupt (no parseable duration); kept as ${out}.corrupt"
+    fi
+    # A one-frame clip of a static screen parses as ~0.04s; require enough
+    # duration to actually show something happening.
+    if (( ${dur%%.*} < 2 )); then
+      mv "${out}" "${out}.corrupt"
+      die "recording too short (${dur}s — static screen or truncated capture); kept as ${out}.corrupt"
     fi
     gate_dark "${out}" 20
     log "recording: ${out}"

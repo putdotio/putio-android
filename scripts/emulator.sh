@@ -117,7 +117,16 @@ do_boot() {
     if [[ -n "${BOOT_SIGNAL_CODE}" ]]; then code="${BOOT_SIGNAL_CODE}"; fi
     trap - EXIT INT TERM
     log "boot did not complete (exit ${code}); stopping owned emulator pid ${pid} (${serial})"
-    "${ADB}" -s "${serial}" emu kill >/dev/null 2>&1 || true
+    # Port selection can race a concurrent boot: if the serial now answers
+    # for a different AVD, the port went to someone else's emulator — kill
+    # only our pid, never their serial.
+    local serial_avd
+    serial_avd="$("${ADB}" -s "${serial}" emu avd name 2>/dev/null | head -1 | tr -d '\r' || true)"
+    if [[ -z "${serial_avd}" || "${serial_avd}" == "${NAME}" ]]; then
+      "${ADB}" -s "${serial}" emu kill >/dev/null 2>&1 || true
+    else
+      log "serial ${serial} answers for AVD ${serial_avd}, not ${NAME}; killing only pid ${pid}"
+    fi
     kill "${pid}" >/dev/null 2>&1 || true
     if ! wait_serial_gone "${serial}" 20; then
       log "ERROR: owned emulator ${serial} still present after cleanup"

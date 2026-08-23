@@ -78,9 +78,14 @@ if [[ ! -f "${REPO_ROOT}/local.properties" ]]; then
       echo "putioSdkKotlinPath=${SDK_KOTLIN_DEFAULT}"
     fi
   } > "${REPO_ROOT}/local.properties"
+elif grep -q '^sdk\.dir=' "${REPO_ROOT}/local.properties"; then
+  # Refresh a stale sdk.dir (moved SDK, changed ANDROID_HOME) instead of
+  # leaving Gradle pointed somewhere bootstrap did not provision.
+  tmp="$(mktemp)"
+  awk -v line="sdk.dir=${SDK_ROOT}" '/^sdk\.dir=/ { print line; next } { print }' \
+    "${REPO_ROOT}/local.properties" > "${tmp}" && mv "${tmp}" "${REPO_ROOT}/local.properties"
 else
-  grep -q '^sdk\.dir=' "${REPO_ROOT}/local.properties" || \
-    echo "sdk.dir=${SDK_ROOT}" >> "${REPO_ROOT}/local.properties"
+  echo "sdk.dir=${SDK_ROOT}" >> "${REPO_ROOT}/local.properties"
 fi
 # settings.gradle.kts unconditionally includes this composite build; without
 # it every Gradle command fails, so an absent checkout is a bootstrap failure,

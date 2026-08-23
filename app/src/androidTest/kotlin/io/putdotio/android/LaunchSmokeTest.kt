@@ -1,10 +1,14 @@
 package io.putdotio.android
 
 import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -32,10 +36,15 @@ class LaunchSmokeTest {
             Thread.sleep(3_000)
             assertEquals(Lifecycle.State.RESUMED, scenario.state)
 
-            // Main-thread round-trip: RESUMED alone survives a blocked main
-            // thread; onActivity posts to it and waits, so an ANR-ish hang
-            // fails the run instead of passing silently.
-            scenario.onActivity { }
+            // Bounded main-thread round-trip: RESUMED alone survives a
+            // blocked main thread, and an unbounded runOnMainSync would hang
+            // the instrumentation instead of failing it.
+            val mainThreadResponsive = CountDownLatch(1)
+            Handler(Looper.getMainLooper()).post { mainThreadResponsive.countDown() }
+            assertTrue(
+                "main thread unresponsive within 5s (ANR)",
+                mainThreadResponsive.await(5, TimeUnit.SECONDS),
+            )
 
             val screenshot = InstrumentationRegistry.getInstrumentation()
                 .uiAutomation.takeScreenshot()

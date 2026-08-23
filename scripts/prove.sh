@@ -122,13 +122,21 @@ cleanup() {
       log "--keep ignored: proof did not succeed (exit ${code}); cleaning up"
     fi
     if [[ "${OWNED}" == "1" && -n "${SERIAL}" ]]; then
-      log "stopping owned emulator ${SERIAL}"
-      "${ADB}" -s "${SERIAL}" emu kill >/dev/null 2>&1 || true
-      if ! wait_serial_gone "${SERIAL}" 30; then
-        log "ERROR: owned emulator ${SERIAL} still in adb devices after cleanup"
+      # Guard against a boot port race: never emu-kill a serial that answers
+      # for someone else's AVD.
+      serial_avd="$("${ADB}" -s "${SERIAL}" emu avd name 2>/dev/null | head -1 | tr -d '\r' || true)"
+      if [[ -n "${serial_avd}" && "${serial_avd}" != "${AVD_NAME}" ]]; then
+        log "ERROR: owned serial ${SERIAL} answers for AVD ${serial_avd}, not ${AVD_NAME}; refusing to stop it"
         cleanup_failed=1
       else
-        log "owned emulator ${SERIAL} confirmed gone"
+        log "stopping owned emulator ${SERIAL}"
+        "${ADB}" -s "${SERIAL}" emu kill >/dev/null 2>&1 || true
+        if ! wait_serial_gone "${SERIAL}" 30; then
+          log "ERROR: owned emulator ${SERIAL} still in adb devices after cleanup"
+          cleanup_failed=1
+        else
+          log "owned emulator ${SERIAL} confirmed gone"
+        fi
       fi
     fi
     if [[ "${CREATED_EPHEMERAL}" == "1" ]]; then
@@ -225,6 +233,9 @@ black_render_failure() {
   grep -q "screen is effectively black" "${smoke_out}" 2>/dev/null || \
     grep -rq "screen is effectively black" "${REPO_ROOT}/app/build/outputs/androidTest-results" 2>/dev/null
 }
+
+# Stale results from an earlier run must not classify this run's failure.
+rm -rf "${REPO_ROOT}/app/build/outputs/androidTest-results"
 
 log "running instrumented launch proof (${CONNECTED_TASK}) on ${SERIAL}"
 if ! run_smoke_test; then
