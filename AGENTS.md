@@ -113,8 +113,13 @@ Captures land in `.evidence/` (gitignored) as
 
 ```bash
 ./scripts/evidence.sh screenshot --label files-screen
-./scripts/evidence.sh record --seconds 15 --label playback
+./scripts/evidence.sh record --seconds 15 --label playback --allow-dark
 ```
+
+Captures are validated: corrupt output is quarantined as `*.corrupt`, and
+near-black captures fail and are quarantined as `*.black.*` unless
+`--allow-dark` is passed for legitimately dark content (playback, dark
+scenes). Quarantined files are never printed as evidence paths.
 
 Never commit evidence files. Publish them with the attach CLI and link the
 preview URL from the PR and issue:

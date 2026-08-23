@@ -87,6 +87,7 @@ fi
 OWNED=0
 SERIAL=""
 BOOT_STATE=""
+PROOF_OK=0
 
 fail_marker() { echo "PROOF FAIL ${FLAVOR}"; }
 
@@ -133,13 +134,18 @@ cleanup() {
       "${AVDMANAGER}" delete avd --name "${AVD_NAME}" >/dev/null 2>&1 || cleanup_failed=1
     fi
   fi
+  # The final marker is emitted only after teardown so a cleanup failure can
+  # never leave both PASS and FAIL in machine-readable stdout.
   if [[ "${cleanup_failed}" == "1" ]]; then
     fail_marker
     exit 70
   fi
-  if [[ "${code}" -ne 0 ]]; then
-    fail_marker
+  if [[ "${code}" -eq 0 && "${PROOF_OK}" == "1" ]]; then
+    echo "PROOF PASS ${FLAVOR}"
+    exit 0
   fi
+  fail_marker
+  [[ "${code}" -ne 0 ]] || code=1
   exit "${code}"
 }
 trap cleanup EXIT
@@ -170,7 +176,14 @@ else
   BOOT_STATE="$(mktemp)"
   SERIAL="$(PUTIO_BOOT_STATE_FILE="${BOOT_STATE}" "${REPO_ROOT}/scripts/emulator.sh" boot "${PROFILE}" --name "${AVD_NAME}" ${boot_flags[@]+"${boot_flags[@]}"} | tail -1)"
   [[ "${SERIAL}" == emulator-* ]] || die "emulator boot did not return a serial (got '${SERIAL}')"
-  OWNED=1
+  # Ownership comes from the state file, written only when boot spawned a
+  # process: if boot raced into its reuse path (an emulator appeared after
+  # our check above), this invocation owns nothing and must not stop it.
+  if [[ -s "${BOOT_STATE}" ]]; then
+    OWNED=1
+  else
+    log "boot reused an emulator that appeared concurrently; not owned"
+  fi
   rm -f "${BOOT_STATE}"; BOOT_STATE=""
 fi
 prepare_device "${SERIAL}"
@@ -263,10 +276,12 @@ shot_luma() {
 }
 
 take_gated_screenshot() {
-  shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")"
-  if ! command -v ffprobe >/dev/null 2>&1; then
-    log "WARNING: ffprobe not found; cannot verify the screen actually rendered"
-    return 0
+  # evidence.sh already quarantines near-black (<8) and corrupt captures and
+  # exits nonzero; this proof additionally requires the brighter launch-shell
+  # threshold (<16) because the current shell draws a light theme.
+  if ! shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")"; then
+    log "screenshot failed the evidence gate (quarantined in .evidence/)"
+    return 1
   fi
   local luma
   if luma="$(shot_luma "${shot}")"; then
@@ -315,4 +330,5 @@ if [[ "${RECORD}" == "1" ]]; then
   echo "EVIDENCE ${rec}"
 fi
 
-echo "PROOF PASS ${FLAVOR}"
+# cleanup emits the final PROOF marker after teardown succeeds.
+PROOF_OK=1
