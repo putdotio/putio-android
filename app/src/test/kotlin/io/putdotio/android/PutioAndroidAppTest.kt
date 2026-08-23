@@ -26,7 +26,7 @@ class PutioAndroidAppTest {
     fun shellRendersProductNameAndStatusLine() {
         compose.setContent { PutioAndroidApp() }
 
-        compose.onNodeWithText("intentionally wrong — CI blocking demo").assertIsDisplayed()
+        compose.onNodeWithText("put.io").assertIsDisplayed()
         compose
             .onNodeWithText(
                 "Native Android shell is ready for the auth, files, and player slices.",
