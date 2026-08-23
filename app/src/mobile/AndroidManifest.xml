@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Used but not required: keeps the mobile app installable on
+         ChromeOS and other pointer-driven devices. -->
     <uses-feature
         android:name="android.hardware.touchscreen"
-        android:required="true" />
+        android:required="false" />
 </manifest>
 

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- English-only at launch is a recorded program decision (#14 i18n row). -->
+    <issue id="MissingTranslation" severity="ignore" />
+    <!-- Dependency bumps are deliberate, catalog-driven changes; with
+         warningsAsErrors these advisory checks would break CI whenever an
+         upstream release ships. -->
+    <issue id="GradleDependency" severity="ignore" />
+    <issue id="AndroidGradlePluginVersion" severity="ignore" />
+    <issue id="NewerVersionAvailable" severity="ignore" />
+</lint>

@@ -1,4 +1,8 @@
+<!-- Android TV banners must be exactly 320x180 (platform spec), which is
+     over lint's 200dp fast-raster guideline; the banner renders once. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="VectorRaster"
     android:width="320dp"
     android:height="180dp"
     android:viewportWidth="320"

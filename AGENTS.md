@@ -51,9 +51,34 @@ SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
 ./gradlew :app:assembleTvDebug      # Android TV debug APK
 ```
 
+`verify` runs Android Lint (`warningsAsErrors`, config in `app/lint.xml`),
+detekt (config in `detekt.yml`, Compose exemptions only), and the local unit
+tests (`app/src/test/`, JUnit4 + Robolectric, Compose UI assertions run on
+the JVM). Fix findings at the source; suppress only with a comment stating
+the platform constraint.
+
 Debug application ids: `io.put.putio.mobile.debug` (mobile),
 `io.put.putio.debug` (tv). Debug builds only; nothing in this harness needs
 release credentials.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every PR and push to main: `./gradlew
+verify` plus both flavor assembles, uploading the debug APKs as the run's
+`debug-apks` artifact. The `Verify Android app` check is required by branch
+protection on `main`. Conventions mirror `putio-sdk-kotlin`: pinned action
+SHAs, Temurin 21, `gradle/actions/setup-gradle` caching, concurrency
+cancellation.
+
+The private `putio-sdk-kotlin` composite build is checked out as a sibling
+using a read-only deploy key stored as the `PUTIO_SDK_KOTLIN_DEPLOY_KEY`
+Actions secret; no other CI secret exists.
+
+Emulator-on-CI: `.github/workflows/emulator-smoke.yml` (weekly schedule +
+`workflow_dispatch`) runs `LaunchSmokeTest` on a Gradle Managed Device
+(`ciPhone`, Pixel 7, API 36, swiftshader) with KVM enabled on the runner.
+It is deliberately not a PR gate — shared-runner emulator boots are too slow
+and flaky to block merges; local proof stays on `scripts/prove.sh`.
 
 ## Emulators
 

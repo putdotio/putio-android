@@ -1,0 +1,21 @@
+# detekt configuration (merged on top of the bundled defaults via
+# buildUponDefaultConfig). Only deviations from the defaults live here —
+# mostly Compose idioms the default Kotlin rules reject.
+
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+
+complexity:
+  LongMethod:
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    ignoreAnnotated: ['Composable']
+  TooManyFunctions:
+    ignoreAnnotatedFunctions: ['Composable', 'Preview']
+
+style:
+  MagicNumber:
+    ignoreAnnotated: ['Composable']
+  UnusedPrivateMember:
+    ignoreAnnotated: ['Preview']
