@@ -61,7 +61,12 @@ mean_luma() {
 # threshold 20).
 gate_dark() {
   local file="$1" threshold="$2" luma
-  luma="$(mean_luma "${file}")"
+  # A failed probe (undecodable file) must quarantine, not abort via set -e
+  # with the artifact still under a publishable name.
+  if ! luma="$(mean_luma "${file}")" || [[ ! "${luma}" =~ ^[0-9]+$ ]]; then
+    mv "${file}" "${file}.corrupt"
+    die "could not measure luma (undecodable capture); kept as ${file}.corrupt"
+  fi
   if (( luma >= threshold )); then
     return 0
   fi

@@ -114,7 +114,7 @@ cleanup() {
     SERIAL="$(awk '{print $1}' "${BOOT_STATE}")"
     OWNED=1
   fi
-  rm -f "${rec_out:-}" "${BOOT_STATE:-}"
+  rm -f "${rec_out:-}" "${BOOT_STATE:-}" "${smoke_out:-}"
   if [[ "${KEEP}" == "1" && "${code}" -eq 0 ]]; then
     log "--keep: leaving ${SERIAL:-<none>} running"
   else
@@ -213,16 +213,31 @@ case "${FLAVOR}" in
   tv) CONNECTED_TASK=":app:connectedTvDebugAndroidTest" ;;
 esac
 
+smoke_out="$(mktemp)"
+
 run_smoke_test() {
-  (cd "${REPO_ROOT}" && ANDROID_SERIAL="${SERIAL}" ./gradlew -q "${CONNECTED_TASK}")
+  (cd "${REPO_ROOT}" && ANDROID_SERIAL="${SERIAL}" ./gradlew "${CONNECTED_TASK}") >"${smoke_out}" 2>&1
+}
+
+# Only the black-render assertion earns a retry; crashes, ANRs, and other
+# launch failures are terminal so a flaky-looking pass cannot hide them.
+black_render_failure() {
+  grep -q "screen is effectively black" "${smoke_out}" 2>/dev/null || \
+    grep -rq "screen is effectively black" "${REPO_ROOT}/app/build/outputs/androidTest-results" 2>/dev/null
 }
 
 log "running instrumented launch proof (${CONNECTED_TASK}) on ${SERIAL}"
 if ! run_smoke_test; then
-  log "instrumented proof failed; settling 10s and retrying once (cold-boot render flake)"
-  sleep 10
-  run_smoke_test || die "instrumented launch proof failed twice; see app/build/reports/androidTests"
+  if black_render_failure; then
+    log "black-render assertion failed; settling 10s and retrying once"
+    sleep 10
+    run_smoke_test || { tail -30 "${smoke_out}" >&2; die "instrumented launch proof failed twice; see app/build/reports/androidTests"; }
+  else
+    tail -30 "${smoke_out}" >&2
+    die "instrumented launch proof failed (not a render flake); see app/build/reports/androidTests"
+  fi
 fi
+rm -f "${smoke_out}"; smoke_out=""
 log "instrumented launch proof passed"
 
 # --- evidence ----------------------------------------------------------------
