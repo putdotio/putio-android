@@ -292,15 +292,26 @@ evidence_launch_healthy() {
   [[ -z "${anrs}" ]] || { log "evidence launch ANRed: $(head -1 <<<"${anrs}")"; return 1; }
 }
 
-log "reinstalling ${APK##*/} for the evidence launch"
-install_out="$("${ADB}" -s "${SERIAL}" install -r "${APK}" 2>&1)" || die "reinstall failed: ${install_out}"
-"${ADB}" -s "${SERIAL}" logcat -b crash -b main -b system -c || true
+evidence_launch() {
+  install_out="$("${ADB}" -s "${SERIAL}" install -r "${APK}" 2>&1)" || die "reinstall failed: ${install_out}"
+  "${ADB}" -s "${SERIAL}" logcat -b crash -b main -b system -c || true
+  "${ADB}" -s "${SERIAL}" shell am force-stop "${APP_ID}" >/dev/null 2>&1 || true
+  start_out="$("${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" 2>&1)" || die "evidence launch failed: ${start_out}"
+  sleep 3
+  evidence_launch_healthy || die "evidence launch is not healthy"
+}
+
 log "launching ${COMPONENT} for evidence"
-start_out="$("${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" 2>&1)" || die "evidence launch failed: ${start_out}"
-sleep 3
-evidence_launch_healthy || die "evidence launch is not healthy"
-shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")" || \
-  die "evidence screenshot failed its gate (quarantined in .evidence/)"
+evidence_launch
+if ! shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")"; then
+  # The documented one black-render retry also covers this launch; the
+  # failed capture is already quarantined by evidence.sh.
+  log "evidence screenshot failed its gate; settling 10s and relaunching once"
+  sleep 10
+  evidence_launch
+  shot="$("${REPO_ROOT}/scripts/evidence.sh" screenshot --serial "${SERIAL}" --label "${FLAVOR}-launch")" || \
+    die "evidence screenshot failed its gate twice (quarantined in .evidence/)"
+fi
 # Recheck after capture: a crash in the check-to-screencap window could
 # otherwise publish a screenshot of whatever replaced the app.
 if ! evidence_launch_healthy; then

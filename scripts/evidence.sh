@@ -35,9 +35,10 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# screenrecord hard-caps --time-limit at 180 s and rejects larger values.
-[[ "${SECONDS_ARG}" =~ ^[0-9]+$ && "${SECONDS_ARG}" -ge 1 && "${SECONDS_ARG}" -le 180 ]] || \
-  die "--seconds must be 1-180 (screenrecord limit), got '${SECONDS_ARG}'"
+# screenrecord hard-caps --time-limit at 180 s; the floor of 3 keeps every
+# accepted length clear of the 2 s minimum-duration integrity gate below.
+[[ "${SECONDS_ARG}" =~ ^[0-9]+$ && "${SECONDS_ARG}" -ge 3 && "${SECONDS_ARG}" -le 180 ]] || \
+  die "--seconds must be 3-180 (screenrecord limit, 2s duration gate), got '${SECONDS_ARG}'"
 
 [[ "${LABEL}" =~ ${LABEL_CHARSET} ]] || \
   die "--label may only contain letters, digits, dot, underscore, dash (got '${LABEL}')"
