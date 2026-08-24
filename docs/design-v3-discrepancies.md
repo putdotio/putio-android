@@ -32,6 +32,14 @@ Internal inconsistency in the same sources: DESIGN.md says the TV list glyph
 is 42px, the card says 44px. We render 21dp (= 42px at the tv_1080p xhdpi
 density). One number should win.
 
+## Nav indicator: the card's 64×32dp is the old M3 token
+
+Measured on device, stock `NavigationBarItem` in the current Compose BOM
+(2026.06.01, M3 expressive) draws the active indicator at 56×32dp. The card
+and DESIGN.md say 64×32dp — the pre-expressive M3 spec value. Per the tier
+rule ("Material decides"), the app ships Material's current number; the spec
+should update its metric or accept drift as Material moves.
+
 ## TV metrics are px on a 1920×1080 canvas; the app runs at 960×540dp
 
 Android TV at 1080p renders at xhdpi, so every px in the tv token group is
