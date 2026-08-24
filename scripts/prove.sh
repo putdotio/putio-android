@@ -68,14 +68,14 @@ case "${FLAVOR}" in
   mobile)
     PROFILE="phone"
     APP_ID="io.put.putio.mobile.debug"
-    GRADLE_TASK=":app:assembleMobileDebug"
-    APK="${REPO_ROOT}/app/build/outputs/apk/mobile/debug/app-mobile-debug.apk"
+    GRADLE_TASK=":app:assembleMobileProductionDebug"
+    APK="${REPO_ROOT}/app/build/outputs/apk/mobileProduction/debug/app-mobile-production-debug.apk"
     ;;
   tv)
     PROFILE="tv"
     APP_ID="io.put.putio.debug"
-    GRADLE_TASK=":app:assembleTvDebug"
-    APK="${REPO_ROOT}/app/build/outputs/apk/tv/debug/app-tv-debug.apk"
+    GRADLE_TASK=":app:assembleTvProductionDebug"
+    APK="${REPO_ROOT}/app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk"
     ;;
   *) die "unknown flavor '${FLAVOR}' (expected mobile|tv)" ;;
 esac
@@ -238,8 +238,8 @@ rec_out=""
 # the instrumentation. One retry covers the cold-boot black-render flake,
 # which heals once post-boot churn settles.
 case "${FLAVOR}" in
-  mobile) CONNECTED_TASK=":app:connectedMobileDebugAndroidTest" ;;
-  tv) CONNECTED_TASK=":app:connectedTvDebugAndroidTest" ;;
+  mobile) CONNECTED_TASK=":app:connectedMobileProductionDebugAndroidTest" ;;
+  tv) CONNECTED_TASK=":app:connectedTvProductionDebugAndroidTest" ;;
 esac
 
 smoke_out="$(mktemp)"

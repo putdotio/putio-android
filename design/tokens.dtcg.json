@@ -1,0 +1,5750 @@
+{
+  "$description": "Semantic app, brand, status, and surface tokens for light and dark modes.",
+  "component": {
+    "button": {
+      "primary": {
+        "background": {
+          "$type": "color",
+          "$value": "{color.brand.yellow}",
+          "$description": "Primary command background.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-primary-bg",
+              "mode": "global"
+            }
+          }
+        },
+        "backgroundHover": {
+          "$type": "color",
+          "$value": "{color.yellow.light.solidHover}",
+          "$description": "Primary command hover background in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-primary-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundHoverDark": {
+          "$type": "color",
+          "$value": "{color.yellow.dark.solidHover}",
+          "$description": "Primary command hover background in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-primary-bg-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "foreground": {
+          "$type": "color",
+          "$value": "{component.alias.primaryForeground}",
+          "$description": "Text or icon color on the yellow primary button.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-primary-fg",
+              "mode": "global"
+            }
+          }
+        },
+        "radius": {
+          "$type": "dimension",
+          "$value": "{radius.default}",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-radius",
+              "mode": "global"
+            }
+          }
+        }
+      },
+      "secondary": {
+        "background": {
+          "$type": "color",
+          "$value": "{color.neutral.light.componentBg}",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-secondary-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.componentBg}",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-secondary-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "foreground": {
+          "$type": "color",
+          "$value": "{color.neutral.light.text}",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-secondary-fg",
+              "mode": "light"
+            }
+          }
+        },
+        "foregroundDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.text}",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-secondary-fg",
+              "mode": "dark"
+            }
+          }
+        },
+        "backgroundHover": {
+          "$type": "color",
+          "$value": "{color.neutral.light.componentBgHover}",
+          "$description": "Secondary quiet-fill hover in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-secondary-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundHoverDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.componentBgHover}",
+          "$description": "Secondary quiet-fill hover in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-secondary-bg-hover",
+              "mode": "dark"
+            }
+          }
+        }
+      },
+      "success": {
+        "background": {
+          "$type": "color",
+          "$value": "{color.green.light.solid}",
+          "$description": "Success command background in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-success-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundDark": {
+          "$type": "color",
+          "$value": "{color.green.dark.solid}",
+          "$description": "Success command background in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-success-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "backgroundHover": {
+          "$type": "color",
+          "$value": "{color.green.light.solidHover}",
+          "$description": "Success command hover background in light mode. Step-10 hover companion to the green solid fill.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-success-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundHoverDark": {
+          "$type": "color",
+          "$value": "{color.green.dark.solidHover}",
+          "$description": "Success command hover background in dark mode. Step-10 hover companion to the green solid fill.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-success-bg-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "foreground": {
+          "$type": "color",
+          "$value": "{component.alias.successForeground}",
+          "$description": "Text or icon color on success command backgrounds.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-success-fg",
+              "mode": "global"
+            }
+          }
+        }
+      },
+      "danger": {
+        "background": {
+          "$type": "color",
+          "$value": "{color.red.light.solid}",
+          "$description": "Destructive command background in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-danger-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundDark": {
+          "$type": "color",
+          "$value": "{color.red.dark.solid}",
+          "$description": "Destructive command background in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-danger-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "backgroundHover": {
+          "$type": "color",
+          "$value": "{color.red.light.solidHover}",
+          "$description": "Destructive command hover background in light mode. Step-10 hover companion to the red solid fill.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-danger-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundHoverDark": {
+          "$type": "color",
+          "$value": "{color.red.dark.solidHover}",
+          "$description": "Destructive command hover background in dark mode. Step-10 hover companion to the red solid fill.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-danger-bg-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "foreground": {
+          "$type": "color",
+          "$value": "{component.alias.destructiveForeground}",
+          "$description": "Text or icon color on destructive command backgrounds.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-danger-fg",
+              "mode": "global"
+            }
+          }
+        }
+      },
+      "info": {
+        "background": {
+          "$type": "color",
+          "$value": "{color.neutral.light.solid}",
+          "$description": "Neutral solid command background in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-info-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.solid}",
+          "$description": "Neutral solid command background in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-info-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "backgroundHover": {
+          "$type": "color",
+          "$value": "{color.neutral.light.solidHover}",
+          "$description": "Neutral solid command hover background in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-info-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundHoverDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.solidHover}",
+          "$description": "Neutral solid command hover background in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-info-bg-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "foreground": {
+          "$type": "color",
+          "$value": "{component.alias.solidForeground}",
+          "$description": "Label on the neutral solid — mode-aware for AA contrast on the gray fill.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-info-fg",
+              "mode": "light"
+            }
+          }
+        },
+        "foregroundDark": {
+          "$type": "color",
+          "$value": "{component.alias.solidForegroundDark}",
+          "$description": "Label on the neutral solid in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-info-fg",
+              "mode": "dark"
+            }
+          }
+        }
+      },
+      "default": {
+        "background": {
+          "$type": "color",
+          "$value": "{color.neutral.light.componentBg}",
+          "$description": "Quiet default button fill in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-default-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.componentBg}",
+          "$description": "Quiet default button fill in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-default-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "backgroundHover": {
+          "$type": "color",
+          "$value": "{color.neutral.light.componentBgHover}",
+          "$description": "Default button hover fill in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-default-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundHoverDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.componentBgHover}",
+          "$description": "Default button hover fill in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-default-bg-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "foreground": {
+          "$type": "color",
+          "$value": "{color.neutral.light.text}",
+          "$description": "Default button label in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-default-fg",
+              "mode": "light"
+            }
+          }
+        },
+        "foregroundDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.text}",
+          "$description": "Default button label in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-default-fg",
+              "mode": "dark"
+            }
+          }
+        }
+      },
+      "ghost": {
+        "background": {
+          "$type": "color",
+          "$value": "hsla(0, 0%, 0%, 0)",
+          "$description": "Ghost tier rests with no fill and no border.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-ghost-bg",
+              "mode": "global"
+            }
+          }
+        },
+        "foreground": {
+          "$type": "color",
+          "$value": "{color.neutral.light.textSecondary}",
+          "$description": "Ghost label at rest in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-ghost-fg",
+              "mode": "light"
+            }
+          }
+        },
+        "foregroundDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.textSecondary}",
+          "$description": "Ghost label at rest in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-ghost-fg",
+              "mode": "dark"
+            }
+          }
+        },
+        "foregroundHover": {
+          "$type": "color",
+          "$value": "{color.neutral.light.text}",
+          "$description": "Ghost label on hover in light mode. The lift is mandatory.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-ghost-fg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "foregroundHoverDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.text}",
+          "$description": "Ghost label on hover in dark mode. The lift is mandatory.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-ghost-fg-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "backgroundHover": {
+          "$type": "color",
+          "$value": "{color.neutral.light.componentBgHover}",
+          "$description": "Shared quiet-fill hover step in light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-ghost-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "backgroundHoverDark": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.componentBgHover}",
+          "$description": "Shared quiet-fill hover step in dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "button-ghost-bg-hover",
+              "mode": "dark"
+            }
+          }
+        }
+      },
+      "height": {
+        "$type": "dimension",
+        "$value": "36px",
+        "$description": "Default (lg) button box.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-height",
+            "mode": "global"
+          }
+        }
+      },
+      "heightMd": {
+        "$type": "dimension",
+        "$value": "32px",
+        "$description": "Medium button box. The site top-bar CTA size.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-height-md",
+            "mode": "global"
+          }
+        }
+      },
+      "heightSm": {
+        "$type": "dimension",
+        "$value": "28px",
+        "$description": "Small button box.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-height-sm",
+            "mode": "global"
+          }
+        }
+      },
+      "heightXs": {
+        "$type": "dimension",
+        "$value": "24px",
+        "$description": "Extra-small button box.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-height-xs",
+            "mode": "global"
+          }
+        }
+      },
+      "paddingX": {
+        "$type": "dimension",
+        "$value": "12px",
+        "$description": "Horizontal padding for lg, md and sm.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-padding-x",
+            "mode": "global"
+          }
+        }
+      },
+      "paddingXXs": {
+        "$type": "dimension",
+        "$value": "8px",
+        "$description": "Horizontal padding at xs.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-padding-x-xs",
+            "mode": "global"
+          }
+        }
+      },
+      "labelSize": {
+        "$type": "dimension",
+        "$value": "{typography.fontSize.sm}",
+        "$description": "Uppercase label size.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-label-size",
+            "mode": "global"
+          }
+        }
+      },
+      "labelSizeXs": {
+        "$type": "dimension",
+        "$value": "{typography.fontSize.xs}",
+        "$description": "Uppercase label size at xs.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-label-size-xs",
+            "mode": "global"
+          }
+        }
+      },
+      "tracking": {
+        "$type": "dimension",
+        "$value": "1px",
+        "$description": "Letter-spacing at lg.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-tracking",
+            "mode": "global"
+          }
+        }
+      },
+      "trackingMd": {
+        "$type": "dimension",
+        "$value": "0.8px",
+        "$description": "Letter-spacing at md.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-tracking-md",
+            "mode": "global"
+          }
+        }
+      },
+      "trackingSm": {
+        "$type": "dimension",
+        "$value": "0.6px",
+        "$description": "Letter-spacing at sm.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-tracking-sm",
+            "mode": "global"
+          }
+        }
+      },
+      "trackingXs": {
+        "$type": "dimension",
+        "$value": "0.3px",
+        "$description": "Letter-spacing at xs.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-tracking-xs",
+            "mode": "global"
+          }
+        }
+      },
+      "iconSize": {
+        "$type": "dimension",
+        "$value": "14px",
+        "$description": "Glyph size inside a button.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-icon-size",
+            "mode": "global"
+          }
+        }
+      },
+      "gap": {
+        "$type": "dimension",
+        "$value": "8px",
+        "$description": "Gap between glyph and label.",
+        "$extensions": {
+          "putio": {
+            "cssName": "button-gap",
+            "mode": "global"
+          }
+        }
+      }
+    },
+    "nav": {
+      "$description": "Sticky site/marketing top bar. Colours live in semantic surface.*.nav*.",
+      "height": {
+        "$type": "dimension",
+        "$value": "56px",
+        "$description": "Sticky top bar height.",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-height",
+            "mode": "global"
+          }
+        }
+      },
+      "heightCompact": {
+        "$type": "dimension",
+        "$value": "52px",
+        "$description": "Sticky top bar height on narrow viewports.",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-height-compact",
+            "mode": "global"
+          }
+        }
+      },
+      "ctaHeight": {
+        "$type": "dimension",
+        "$value": "{component.button.heightMd}",
+        "$description": "The top-bar CTA box. Always the md button.",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-cta-height",
+            "mode": "global"
+          }
+        }
+      }
+    },
+    "input": {
+      "background": {
+        "$type": "color",
+        "$value": "{component.field.background}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "backgroundDark": {
+        "$type": "color",
+        "$value": "{component.field.backgroundDark}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "border": {
+        "$type": "color",
+        "$value": "{component.field.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-border",
+            "mode": "light"
+          }
+        }
+      },
+      "borderDark": {
+        "$type": "color",
+        "$value": "{component.field.borderDark}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "radius": {
+        "$type": "dimension",
+        "$value": "{component.field.radius}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-radius",
+            "mode": "global"
+          }
+        }
+      },
+      "borderHover": {
+        "$type": "color",
+        "$value": "{component.field.borderHover}",
+        "$description": "shadcn-friendly alias of --field-border-hover. Always aliases the field token so the two name systems cannot drift.",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-border-hover",
+            "mode": "light"
+          }
+        }
+      },
+      "borderHoverDark": {
+        "$type": "color",
+        "$value": "{component.field.borderHoverDark}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-border-hover",
+            "mode": "dark"
+          }
+        }
+      },
+      "borderFocus": {
+        "$type": "color",
+        "$value": "{component.field.borderFocus}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-border-focus",
+            "mode": "light"
+          }
+        }
+      },
+      "borderFocusDark": {
+        "$type": "color",
+        "$value": "{component.field.borderFocusDark}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-border-focus",
+            "mode": "dark"
+          }
+        }
+      },
+      "ring": {
+        "$type": "string",
+        "$value": "{component.field.ring}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-ring",
+            "mode": "light"
+          }
+        }
+      },
+      "ringDark": {
+        "$type": "string",
+        "$value": "{component.field.ringDark}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-ring",
+            "mode": "dark"
+          }
+        }
+      },
+      "text": {
+        "$type": "color",
+        "$value": "{component.field.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-text",
+            "mode": "light"
+          }
+        }
+      },
+      "textDark": {
+        "$type": "color",
+        "$value": "{component.field.textDark}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-text",
+            "mode": "dark"
+          }
+        }
+      },
+      "placeholder": {
+        "$type": "color",
+        "$value": "{component.field.placeholder}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-placeholder",
+            "mode": "light"
+          }
+        }
+      },
+      "placeholderDark": {
+        "$type": "color",
+        "$value": "{component.field.placeholderDark}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input-placeholder",
+            "mode": "dark"
+          }
+        }
+      }
+    },
+    "field": {
+      "background": {
+        "$type": "color",
+        "$value": "{surface.light.appBg}",
+        "$description": "Form-control fill. Fields stay on the app background surface, even inside a raised panel.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-bg",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "backgroundDark": {
+        "$type": "color",
+        "$value": "{surface.dark.appBg}",
+        "$description": "Dark-mode form-control fill.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-bg",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "backgroundDisabled": {
+        "$type": "color",
+        "$value": "{color.neutral.light.bgSecondary}",
+        "$description": "Disabled form-control fill.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-bg-disabled",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "backgroundDisabledDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.bgSecondary}",
+        "$description": "Dark-mode disabled form-control fill.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-bg-disabled",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "border": {
+        "$type": "color",
+        "$value": "{color.neutral.light.border}",
+        "$description": "Resting form-control border.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-border",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "borderDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.border}",
+        "$description": "Dark-mode resting form-control border.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-border",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "borderHover": {
+        "$type": "color",
+        "$value": "{color.neutral.light.borderHover}",
+        "$description": "Hover form-control border.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-border-hover",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "borderHoverDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.borderHover}",
+        "$description": "Dark-mode hover form-control border.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-border-hover",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "borderFocus": {
+        "$type": "color",
+        "$value": "{color.neutral.light.borderHover}",
+        "$description": "Focused form-control border. Focus matches hover and does not use the yellow focus shadow.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-border-focus",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "borderFocusDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.borderHover}",
+        "$description": "Dark-mode focused form-control border. Focus matches hover and does not use the yellow focus shadow.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-border-focus",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "text": {
+        "$type": "color",
+        "$value": "{color.neutral.light.text}",
+        "$description": "Form-control text color.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-text",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "textDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.text}",
+        "$description": "Dark-mode form-control text color.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-text",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "placeholder": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$description": "Form-control placeholder color.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-placeholder",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "placeholderDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$description": "Dark-mode form-control placeholder color.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-placeholder",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "radius": {
+        "$type": "dimension",
+        "$value": "{radius.default}",
+        "$description": "Shared form-control radius.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-radius",
+            "mode": "global",
+            "figma": false
+          }
+        }
+      },
+      "ring": {
+        "$type": "string",
+        "$value": "0 0 0 1px {color.neutral.light.borderHover}",
+        "$description": "Quiet field focus ring. Brand-yellow shadow focus is reserved for buttons, links, nav, and TV focus.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-ring",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "ringDark": {
+        "$type": "string",
+        "$value": "0 0 0 1px {color.neutral.dark.borderHover}",
+        "$description": "Dark-mode quiet field focus ring. Brand-yellow shadow focus is reserved for buttons, links, nav, and TV focus.",
+        "$extensions": {
+          "putio": {
+            "cssName": "field-ring",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      }
+    },
+    "panel": {
+      "background": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$description": "Raised panel background on the app background surface.",
+        "$extensions": {
+          "putio": {
+            "cssName": "panel-bg",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "backgroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$description": "Dark-mode raised panel background on the app background surface.",
+        "$extensions": {
+          "putio": {
+            "cssName": "panel-bg",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "border": {
+        "$type": "color",
+        "$value": "{color.neutral.light.line}",
+        "$description": "Raised panel hairline border.",
+        "$extensions": {
+          "putio": {
+            "cssName": "panel-border",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "borderDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.line}",
+        "$description": "Dark-mode raised panel hairline border.",
+        "$extensions": {
+          "putio": {
+            "cssName": "panel-border",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "radius": {
+        "$type": "dimension",
+        "$value": "{radius.lg}",
+        "$description": "Raised panel radius.",
+        "$extensions": {
+          "putio": {
+            "cssName": "panel-radius",
+            "mode": "global",
+            "figma": false
+          }
+        }
+      },
+      "shadow": {
+        "$type": "string",
+        "$value": "{elevation.md}",
+        "$description": "Raised panel shadow.",
+        "$extensions": {
+          "putio": {
+            "cssName": "panel-shadow",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "shadowDark": {
+        "$type": "string",
+        "$value": "{surface.dark.shadowMd}",
+        "$description": "Dark-mode raised panel shadow.",
+        "$extensions": {
+          "putio": {
+            "cssName": "panel-shadow",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      }
+    },
+    "alias": {
+      "background": {
+        "$type": "color",
+        "$value": "{color.neutral.light.bg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "background",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "backgroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.bg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "background",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "foreground": {
+        "$type": "color",
+        "$value": "{color.neutral.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "foreground",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "foregroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "foreground",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "foregroundMuted": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "foreground-muted",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "foregroundMutedDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "foreground-muted",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "primary": {
+        "$type": "color",
+        "$value": "{color.brand.yellow}",
+        "$extensions": {
+          "putio": {
+            "cssName": "primary",
+            "mode": "global",
+            "figma": false
+          }
+        }
+      },
+      "primaryForeground": {
+        "$type": "color",
+        "$value": "hsl(38, 65%, 10%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "primary-foreground",
+            "mode": "global",
+            "figma": false
+          }
+        }
+      },
+      "success": {
+        "$type": "color",
+        "$value": "{color.green.light.solid}",
+        "$extensions": {
+          "putio": {
+            "cssName": "success",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "successDark": {
+        "$type": "color",
+        "$value": "{color.green.dark.solid}",
+        "$extensions": {
+          "putio": {
+            "cssName": "success",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "successForeground": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 100%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "success-foreground",
+            "mode": "global",
+            "figma": false
+          }
+        }
+      },
+      "destructive": {
+        "$type": "color",
+        "$value": "{color.red.light.solid}",
+        "$extensions": {
+          "putio": {
+            "cssName": "destructive",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "destructiveDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.solid}",
+        "$extensions": {
+          "putio": {
+            "cssName": "destructive",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "destructiveForeground": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 100%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "destructive-foreground",
+            "mode": "global",
+            "figma": false
+          }
+        }
+      },
+      "invertForeground": {
+        "$type": "color",
+        "$value": "{surface.light.appBg}",
+        "$description": "Text or icon color on invert command backgrounds in light mode.",
+        "$extensions": {
+          "putio": {
+            "cssName": "invert-foreground",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "invertForegroundDark": {
+        "$type": "color",
+        "$value": "{surface.dark.appBg}",
+        "$description": "Text or icon color on invert command backgrounds in dark mode.",
+        "$extensions": {
+          "putio": {
+            "cssName": "invert-foreground",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "solidForeground": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 0%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "solid-foreground",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "solidForegroundDark": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 100%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "solid-foreground",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "muted": {
+        "$type": "color",
+        "$value": "{color.neutral.light.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "muted",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "mutedDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "muted",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "mutedForeground": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "muted-foreground",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "mutedForegroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "muted-foreground",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "accent": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "accent",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "accentDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "accent",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "accentForeground": {
+        "$type": "color",
+        "$value": "{color.neutral.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "accent-foreground",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "accentForegroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "accent-foreground",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "card": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "card",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "cardDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "card",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "cardForeground": {
+        "$type": "color",
+        "$value": "{color.neutral.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "card-foreground",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "cardForegroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "card-foreground",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "popover": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "popover",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "popoverDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "popover",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "popoverForeground": {
+        "$type": "color",
+        "$value": "{color.neutral.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "popover-foreground",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "popoverForegroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "popover-foreground",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "input": {
+        "$type": "color",
+        "$value": "{color.neutral.light.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input",
+            "mode": "light",
+            "figma": false
+          }
+        }
+      },
+      "inputDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "input",
+            "mode": "dark",
+            "figma": false
+          }
+        }
+      },
+      "ring": {
+        "$type": "color",
+        "$value": "{elevation.focusColor}",
+        "$extensions": {
+          "putio": {
+            "cssName": "ring",
+            "mode": "global",
+            "figma": false
+          }
+        }
+      }
+    },
+    "fileRow": {
+      "background": {
+        "$type": "color",
+        "$value": "{surface.light.listItemBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "file-row-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "backgroundDark": {
+        "$type": "color",
+        "$value": "{surface.dark.listItemBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "file-row-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "hoverBackground": {
+        "$type": "color",
+        "$value": "{surface.light.listItemBgHover}",
+        "$extensions": {
+          "putio": {
+            "cssName": "file-row-bg-hover",
+            "mode": "light"
+          }
+        }
+      },
+      "hoverBackgroundDark": {
+        "$type": "color",
+        "$value": "{surface.dark.listItemBgHover}",
+        "$extensions": {
+          "putio": {
+            "cssName": "file-row-bg-hover",
+            "mode": "dark"
+          }
+        }
+      },
+      "activeBackground": {
+        "$type": "color",
+        "$value": "{surface.light.listItemBgActive}",
+        "$extensions": {
+          "putio": {
+            "cssName": "file-row-bg-active",
+            "mode": "light"
+          }
+        }
+      },
+      "activeBackgroundDark": {
+        "$type": "color",
+        "$value": "{surface.dark.listItemBgActive}",
+        "$extensions": {
+          "putio": {
+            "cssName": "file-row-bg-active",
+            "mode": "dark"
+          }
+        }
+      },
+      "border": {
+        "$type": "color",
+        "$value": "{surface.light.listItemBorder}",
+        "$description": "Row divider. File lists divide with a hairline, never zebra stripes or per-row cards.",
+        "$extensions": {
+          "putio": {
+            "cssName": "file-row-border",
+            "mode": "light"
+          }
+        }
+      },
+      "borderDark": {
+        "$type": "color",
+        "$value": "{surface.dark.listItemBorder}",
+        "$extensions": {
+          "putio": {
+            "cssName": "file-row-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "icon": {
+        "$type": "color",
+        "$value": "{color.brand.yellow}",
+        "$description": "Every file kind takes this, not just the folder — folder, video, audio, image, archive, generic file alike. Utility and chrome icons stay neutral.",
+        "$extensions": {
+          "putio": {
+            "cssName": "file-row-icon",
+            "mode": "global"
+          }
+        }
+      }
+    },
+    "notification": {
+      "infoBackground": {
+        "$type": "color",
+        "$value": "{color.neutral.light.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-info-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "infoBackgroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-info-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "dangerBackground": {
+        "$type": "color",
+        "$value": "{color.red.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-danger-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "dangerBackgroundDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-danger-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "background": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$description": "Default toast / inline notification surface.",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "backgroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "border": {
+        "$type": "color",
+        "$value": "{color.neutral.light.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-border",
+            "mode": "light"
+          }
+        }
+      },
+      "borderDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "foreground": {
+        "$type": "color",
+        "$value": "{color.neutral.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-fg",
+            "mode": "light"
+          }
+        }
+      },
+      "foregroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-fg",
+            "mode": "dark"
+          }
+        }
+      },
+      "icon": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-icon",
+            "mode": "light"
+          }
+        }
+      },
+      "iconDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-icon",
+            "mode": "dark"
+          }
+        }
+      },
+      "successBackground": {
+        "$type": "color",
+        "$value": "{color.green.light.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-success-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "successBackgroundDark": {
+        "$type": "color",
+        "$value": "{color.green.dark.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-success-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "successBorder": {
+        "$type": "color",
+        "$value": "{color.green.light.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-success-border",
+            "mode": "light"
+          }
+        }
+      },
+      "successBorderDark": {
+        "$type": "color",
+        "$value": "{color.green.dark.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-success-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "successForeground": {
+        "$type": "color",
+        "$value": "{color.green.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-success-fg",
+            "mode": "light"
+          }
+        }
+      },
+      "successForegroundDark": {
+        "$type": "color",
+        "$value": "{color.green.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-success-fg",
+            "mode": "dark"
+          }
+        }
+      },
+      "dangerBorder": {
+        "$type": "color",
+        "$value": "{color.red.light.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-danger-border",
+            "mode": "light"
+          }
+        }
+      },
+      "dangerBorderDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-danger-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "dangerForeground": {
+        "$type": "color",
+        "$value": "{color.red.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-danger-fg",
+            "mode": "light"
+          }
+        }
+      },
+      "dangerForegroundDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-danger-fg",
+            "mode": "dark"
+          }
+        }
+      },
+      "badgeBackground": {
+        "$type": "color",
+        "$value": "hsl(358, 70%, 45%)",
+        "$description": "Unread count disc — darkened red so white numerals clear AA at 9px. Fixed in both modes.",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-badge-bg",
+            "mode": "global"
+          }
+        }
+      },
+      "badgeForeground": {
+        "$type": "color",
+        "$value": "{component.alias.destructiveForeground}",
+        "$extensions": {
+          "putio": {
+            "cssName": "notification-badge-fg",
+            "mode": "global"
+          }
+        }
+      }
+    },
+    "menu": {
+      "background": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$description": "Floating menu surface.",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "backgroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "border": {
+        "$type": "color",
+        "$value": "{color.neutral.light.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-border",
+            "mode": "light"
+          }
+        }
+      },
+      "borderDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "radius": {
+        "$type": "dimension",
+        "$value": "{radius.md}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-radius",
+            "mode": "global"
+          }
+        }
+      },
+      "shadow": {
+        "$type": "string",
+        "$value": "{elevation.lg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-shadow",
+            "mode": "light"
+          }
+        }
+      },
+      "shadowDark": {
+        "$type": "string",
+        "$value": "{surface.dark.shadowLg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-shadow",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemBackgroundHover": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBgHover}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-bg-hover",
+            "mode": "light"
+          }
+        }
+      },
+      "itemBackgroundHoverDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBgHover}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-bg-hover",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemText": {
+        "$type": "color",
+        "$value": "{color.neutral.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-text",
+            "mode": "light"
+          }
+        }
+      },
+      "itemTextDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-text",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemIcon": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-icon",
+            "mode": "light"
+          }
+        }
+      },
+      "itemIconDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-icon",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemShortcut": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-shortcut",
+            "mode": "light"
+          }
+        }
+      },
+      "itemShortcutDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-shortcut",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemDangerText": {
+        "$type": "color",
+        "$value": "{color.red.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-danger-text",
+            "mode": "light"
+          }
+        }
+      },
+      "itemDangerTextDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-danger-text",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemDangerBackgroundHover": {
+        "$type": "color",
+        "$value": "{color.red.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-danger-bg-hover",
+            "mode": "light"
+          }
+        }
+      },
+      "itemDangerBackgroundHoverDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-danger-bg-hover",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemHeight": {
+        "$type": "dimension",
+        "$value": "32px",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-item-height",
+            "mode": "global"
+          }
+        }
+      },
+      "separator": {
+        "$type": "color",
+        "$value": "{color.neutral.light.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-separator",
+            "mode": "light"
+          }
+        }
+      },
+      "separatorDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-separator",
+            "mode": "dark"
+          }
+        }
+      },
+      "label": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-label",
+            "mode": "light"
+          }
+        }
+      },
+      "labelDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "menu-label",
+            "mode": "dark"
+          }
+        }
+      }
+    },
+    "palette": {
+      "background": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$description": "Command palette surface.",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "backgroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "border": {
+        "$type": "color",
+        "$value": "{color.neutral.light.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-border",
+            "mode": "light"
+          }
+        }
+      },
+      "borderDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "shadow": {
+        "$type": "string",
+        "$value": "{elevation.lg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-shadow",
+            "mode": "light"
+          }
+        }
+      },
+      "shadowDark": {
+        "$type": "string",
+        "$value": "{surface.dark.shadowLg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-shadow",
+            "mode": "dark"
+          }
+        }
+      },
+      "scrim": {
+        "$type": "color",
+        "$value": "{surface.light.overlayFull}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-scrim",
+            "mode": "light"
+          }
+        }
+      },
+      "scrimDark": {
+        "$type": "color",
+        "$value": "{surface.dark.overlayFull}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-scrim",
+            "mode": "dark"
+          }
+        }
+      },
+      "width": {
+        "$type": "dimension",
+        "$value": "560px",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-width",
+            "mode": "global"
+          }
+        }
+      },
+      "inputHeight": {
+        "$type": "dimension",
+        "$value": "48px",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-input-height",
+            "mode": "global"
+          }
+        }
+      },
+      "itemHeight": {
+        "$type": "dimension",
+        "$value": "36px",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-item-height",
+            "mode": "global"
+          }
+        }
+      },
+      "itemBackgroundActive": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBgHover}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-item-bg-active",
+            "mode": "light"
+          }
+        }
+      },
+      "itemBackgroundActiveDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBgHover}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-item-bg-active",
+            "mode": "dark"
+          }
+        }
+      },
+      "groupLabel": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-group-label",
+            "mode": "light"
+          }
+        }
+      },
+      "groupLabelDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-group-label",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemMeta": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-item-meta",
+            "mode": "light"
+          }
+        }
+      },
+      "itemMetaDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "palette-item-meta",
+            "mode": "dark"
+          }
+        }
+      }
+    },
+    "sheet": {
+      "background": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$description": "Right-side detail panel surface.",
+        "$extensions": {
+          "putio": {
+            "cssName": "sheet-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "backgroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "sheet-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "border": {
+        "$type": "color",
+        "$value": "{color.neutral.light.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "sheet-border",
+            "mode": "light"
+          }
+        }
+      },
+      "borderDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "sheet-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "shadow": {
+        "$type": "string",
+        "$value": "{elevation.lg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "sheet-shadow",
+            "mode": "light"
+          }
+        }
+      },
+      "shadowDark": {
+        "$type": "string",
+        "$value": "{surface.dark.shadowLg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "sheet-shadow",
+            "mode": "dark"
+          }
+        }
+      },
+      "scrim": {
+        "$type": "color",
+        "$value": "{surface.light.overlayFull}",
+        "$extensions": {
+          "putio": {
+            "cssName": "sheet-scrim",
+            "mode": "light"
+          }
+        }
+      },
+      "scrimDark": {
+        "$type": "color",
+        "$value": "{surface.dark.overlayFull}",
+        "$extensions": {
+          "putio": {
+            "cssName": "sheet-scrim",
+            "mode": "dark"
+          }
+        }
+      },
+      "width": {
+        "$type": "dimension",
+        "$value": "380px",
+        "$description": "Fixed on web. Touch surfaces use a bottom sheet instead.",
+        "$extensions": {
+          "putio": {
+            "cssName": "sheet-width",
+            "mode": "global"
+          }
+        }
+      }
+    },
+    "avatar": {
+      "yellow": {
+        "$type": "color",
+        "$value": "{color.brand.yellow}",
+        "$description": "Initial-on-color avatar palette. Fixed in both modes; the chip carries its own contrast.",
+        "$extensions": {
+          "putio": {
+            "cssName": "avatar-yellow",
+            "mode": "global"
+          }
+        }
+      },
+      "green": {
+        "$type": "color",
+        "$value": "hsl(151, 55%, 33%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "avatar-green",
+            "mode": "global"
+          }
+        }
+      },
+      "red": {
+        "$type": "color",
+        "$value": "hsl(358, 55%, 46%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "avatar-red",
+            "mode": "global"
+          }
+        }
+      },
+      "blue": {
+        "$type": "color",
+        "$value": "hsl(211, 55%, 46%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "avatar-blue",
+            "mode": "global"
+          }
+        }
+      },
+      "purple": {
+        "$type": "color",
+        "$value": "hsl(280, 48%, 46%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "avatar-purple",
+            "mode": "global"
+          }
+        }
+      },
+      "teal": {
+        "$type": "color",
+        "$value": "hsl(168, 55%, 33%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "avatar-teal",
+            "mode": "global"
+          }
+        }
+      },
+      "orange": {
+        "$type": "color",
+        "$value": "hsl(28, 80%, 55%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "avatar-orange",
+            "mode": "global"
+          }
+        }
+      },
+      "foreground": {
+        "$type": "color",
+        "$value": "{component.alias.destructiveForeground}",
+        "$description": "White initials — every palette entry except yellow and orange.",
+        "$extensions": {
+          "putio": {
+            "cssName": "avatar-fg",
+            "mode": "global"
+          }
+        }
+      },
+      "foregroundWarm": {
+        "$type": "color",
+        "$value": "{component.alias.primaryForeground}",
+        "$description": "Warm dark initials on yellow and orange.",
+        "$extensions": {
+          "putio": {
+            "cssName": "avatar-fg-warm",
+            "mode": "global"
+          }
+        }
+      }
+    },
+    "alert": {
+      "radius": {
+        "$type": "dimension",
+        "$value": "{radius.default}",
+        "$description": "Inline, in-page messaging. Persists until the condition clears — a toast does not.",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-radius",
+            "mode": "global"
+          }
+        }
+      },
+      "infoBackground": {
+        "$type": "color",
+        "$value": "{color.neutral.light.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-info-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "infoBackgroundDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-info-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "infoBorder": {
+        "$type": "color",
+        "$value": "{color.neutral.light.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-info-border",
+            "mode": "light"
+          }
+        }
+      },
+      "infoBorderDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.line}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-info-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "infoText": {
+        "$type": "color",
+        "$value": "{color.neutral.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-info-text",
+            "mode": "light"
+          }
+        }
+      },
+      "infoTextDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-info-text",
+            "mode": "dark"
+          }
+        }
+      },
+      "infoBody": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-info-body",
+            "mode": "light"
+          }
+        }
+      },
+      "infoBodyDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-info-body",
+            "mode": "dark"
+          }
+        }
+      },
+      "infoIcon": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-info-icon",
+            "mode": "light"
+          }
+        }
+      },
+      "infoIconDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-info-icon",
+            "mode": "dark"
+          }
+        }
+      },
+      "brandBackground": {
+        "$type": "color",
+        "$value": "{color.yellow.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-brand-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "brandBackgroundDark": {
+        "$type": "color",
+        "$value": "{color.yellow.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-brand-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "brandBorder": {
+        "$type": "color",
+        "$value": "{color.yellow.light.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-brand-border",
+            "mode": "light"
+          }
+        }
+      },
+      "brandBorderDark": {
+        "$type": "color",
+        "$value": "{color.yellow.dark.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-brand-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "brandText": {
+        "$type": "color",
+        "$value": "{color.yellow.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-brand-text",
+            "mode": "light"
+          }
+        }
+      },
+      "brandTextDark": {
+        "$type": "color",
+        "$value": "{color.yellow.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-brand-text",
+            "mode": "dark"
+          }
+        }
+      },
+      "brandBody": {
+        "$type": "color",
+        "$value": "{color.yellow.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-brand-body",
+            "mode": "light"
+          }
+        }
+      },
+      "brandBodyDark": {
+        "$type": "color",
+        "$value": "{color.yellow.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-brand-body",
+            "mode": "dark"
+          }
+        }
+      },
+      "brandIcon": {
+        "$type": "color",
+        "$value": "{color.yellow.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-brand-icon",
+            "mode": "light"
+          }
+        }
+      },
+      "brandIconDark": {
+        "$type": "color",
+        "$value": "{color.yellow.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-brand-icon",
+            "mode": "dark"
+          }
+        }
+      },
+      "successBackground": {
+        "$type": "color",
+        "$value": "{color.green.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-success-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "successBackgroundDark": {
+        "$type": "color",
+        "$value": "{color.green.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-success-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "successBorder": {
+        "$type": "color",
+        "$value": "{color.green.light.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-success-border",
+            "mode": "light"
+          }
+        }
+      },
+      "successBorderDark": {
+        "$type": "color",
+        "$value": "{color.green.dark.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-success-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "successText": {
+        "$type": "color",
+        "$value": "{color.green.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-success-text",
+            "mode": "light"
+          }
+        }
+      },
+      "successTextDark": {
+        "$type": "color",
+        "$value": "{color.green.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-success-text",
+            "mode": "dark"
+          }
+        }
+      },
+      "successBody": {
+        "$type": "color",
+        "$value": "{color.green.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-success-body",
+            "mode": "light"
+          }
+        }
+      },
+      "successBodyDark": {
+        "$type": "color",
+        "$value": "{color.green.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-success-body",
+            "mode": "dark"
+          }
+        }
+      },
+      "successIcon": {
+        "$type": "color",
+        "$value": "{color.green.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-success-icon",
+            "mode": "light"
+          }
+        }
+      },
+      "successIconDark": {
+        "$type": "color",
+        "$value": "{color.green.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-success-icon",
+            "mode": "dark"
+          }
+        }
+      },
+      "dangerBackground": {
+        "$type": "color",
+        "$value": "{color.red.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-danger-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "dangerBackgroundDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-danger-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "dangerBorder": {
+        "$type": "color",
+        "$value": "{color.red.light.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-danger-border",
+            "mode": "light"
+          }
+        }
+      },
+      "dangerBorderDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-danger-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "dangerText": {
+        "$type": "color",
+        "$value": "{color.red.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-danger-text",
+            "mode": "light"
+          }
+        }
+      },
+      "dangerTextDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-danger-text",
+            "mode": "dark"
+          }
+        }
+      },
+      "dangerBody": {
+        "$type": "color",
+        "$value": "{color.red.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-danger-body",
+            "mode": "light"
+          }
+        }
+      },
+      "dangerBodyDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-danger-body",
+            "mode": "dark"
+          }
+        }
+      },
+      "dangerIcon": {
+        "$type": "color",
+        "$value": "{color.red.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-danger-icon",
+            "mode": "light"
+          }
+        }
+      },
+      "dangerIconDark": {
+        "$type": "color",
+        "$value": "{color.red.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "alert-danger-icon",
+            "mode": "dark"
+          }
+        }
+      }
+    },
+    "slider": {
+      "track": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBgActive}",
+        "$description": "Seek, volume, stepped numeric. The buffered band is what makes it a scrubber.",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-track",
+            "mode": "light"
+          }
+        }
+      },
+      "trackDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBgActive}",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-track",
+            "mode": "dark"
+          }
+        }
+      },
+      "buffer": {
+        "$type": "color",
+        "$value": "{color.neutral.light.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-buffer",
+            "mode": "light"
+          }
+        }
+      },
+      "bufferDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-buffer",
+            "mode": "dark"
+          }
+        }
+      },
+      "fill": {
+        "$type": "color",
+        "$value": "{color.brand.yellow}",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-fill",
+            "mode": "global"
+          }
+        }
+      },
+      "knob": {
+        "$type": "color",
+        "$value": "{color.brand.yellow}",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-knob",
+            "mode": "global"
+          }
+        }
+      },
+      "fillDisabled": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-fill-disabled",
+            "mode": "light"
+          }
+        }
+      },
+      "fillDisabledDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-fill-disabled",
+            "mode": "dark"
+          }
+        }
+      },
+      "trackHeight": {
+        "$type": "dimension",
+        "$value": "4px",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-track-height",
+            "mode": "global"
+          }
+        }
+      },
+      "knobSize": {
+        "$type": "dimension",
+        "$value": "14px",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-knob-size",
+            "mode": "global"
+          }
+        }
+      },
+      "hitHeight": {
+        "$type": "dimension",
+        "$value": "20px",
+        "$description": "44px on touch — the knob grows, the track does not.",
+        "$extensions": {
+          "putio": {
+            "cssName": "slider-hit-height",
+            "mode": "global"
+          }
+        }
+      }
+    },
+    "pagination": {
+      "itemSize": {
+        "$type": "dimension",
+        "$value": "30px",
+        "$description": "Numbered paging. Load-more and infinite scroll carry no chrome of their own.",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-size",
+            "mode": "global"
+          }
+        }
+      },
+      "itemText": {
+        "$type": "color",
+        "$value": "{color.neutral.light.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-text",
+            "mode": "light"
+          }
+        }
+      },
+      "itemTextDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.textSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-text",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemTextActive": {
+        "$type": "color",
+        "$value": "{color.neutral.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-text-active",
+            "mode": "light"
+          }
+        }
+      },
+      "itemTextActiveDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-text-active",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemBackgroundHover": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBgHover}",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-bg-hover",
+            "mode": "light"
+          }
+        }
+      },
+      "itemBackgroundHoverDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBgHover}",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-bg-hover",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemBackgroundActive": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBgActive}",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-bg-active",
+            "mode": "light"
+          }
+        }
+      },
+      "itemBackgroundActiveDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBgActive}",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-bg-active",
+            "mode": "dark"
+          }
+        }
+      },
+      "itemBorderActive": {
+        "$type": "color",
+        "$value": "{color.neutral.light.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-border-active",
+            "mode": "light"
+          }
+        }
+      },
+      "itemBorderActiveDark": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.border}",
+        "$extensions": {
+          "putio": {
+            "cssName": "pagination-item-border-active",
+            "mode": "dark"
+          }
+        }
+      }
+    }
+  },
+  "context": {
+    "tv": {
+      "text": {
+        "$description": "TV uses two semantic text roles. The tertiary name remains as a deprecated alias of secondary so existing consumers keep working; TV text is solid.",
+        "primary": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.text}",
+          "$description": "Row titles, modal option labels, and button labels.",
+          "$extensions": {
+            "putio": {
+              "cssName": "text-1",
+              "mode": "tv"
+            }
+          }
+        },
+        "secondary": {
+          "$type": "color",
+          "$value": "{color.neutral.dark.textSecondary}",
+          "$description": "Row sublines, modal titles, section headers, and accessories.",
+          "$extensions": {
+            "putio": {
+              "cssName": "text-2",
+              "mode": "tv"
+            }
+          }
+        },
+        "tertiary": {
+          "$type": "color",
+          "$value": "{context.tv.text.secondary}",
+          "$description": "Deprecated compatibility alias. Use context.tv.text.secondary.",
+          "$extensions": {
+            "putio": {
+              "cssName": "text-3",
+              "mode": "tv",
+              "deprecated": true
+            }
+          }
+        }
+      },
+      "channelArt": {
+        "production": {
+          "posterBackground": {
+            "$type": "color",
+            "$value": "hsl(0, 0%, 20%)",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-production-poster-bg",
+                "mode": "tv"
+              }
+            }
+          },
+          "splashBackground": {
+            "$type": "color",
+            "$value": "{color.neutral.dark.bg}",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-production-splash-bg",
+                "mode": "tv"
+              }
+            }
+          }
+        },
+        "development": {
+          "background": {
+            "$type": "color",
+            "$value": "hsl(206.7, 78.8%, 52%)",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-development-bg",
+                "mode": "tv"
+              }
+            }
+          },
+          "accent": {
+            "$type": "color",
+            "$value": "hsl(206.3, 100%, 81.2%)",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-development-accent",
+                "mode": "tv"
+              }
+            }
+          },
+          "grid": {
+            "$type": "color",
+            "$value": "hsla(0, 0%, 100%, 0.18)",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-development-grid",
+                "mode": "tv"
+              }
+            }
+          }
+        },
+        "nightly": {
+          "$description": "Nightly/staging store-art flavor: TestFlight, Play internal/closed tracks, and staging TV sideloads. True-black sky with scattered stars; the mark stays exactly as production draws it, so the surface alone carries the flavor.",
+          "background": {
+            "$type": "color",
+            "$value": "hsl(0, 0%, 2%)",
+            "$description": "True black, one step past production charcoal; carries the star field so a staging build is unmistakable next to the shipping app.",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-nightly-bg",
+                "mode": "tv"
+              }
+            }
+          },
+          "accent": {
+            "$type": "color",
+            "$value": "{color.brand.yellow}",
+            "$description": "Unlike dev, nightly does not recolor the mark: the accent is the brand yellow and the retro wordmark keeps its yellow drop-shadow. Present so emitters can express the flavor as a complete set rather than a special case.",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-nightly-accent",
+                "mode": "tv"
+              }
+            }
+          },
+          "star": {
+            "$type": "color",
+            "$value": "hsl(0, 0%, 100%)",
+            "$description": "Star colour. Stars are scattered, never gridded: three sizes at roughly 36%, 62%, and 95% opacity with the faint ones dominating. Static — never animated, blurred, or glowing.",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-nightly-star",
+                "mode": "tv"
+              }
+            }
+          },
+          "moon": {
+            "$type": "color",
+            "$value": "{color.brand.yellow}",
+            "$description": "Full moon disc in the brand yellow, placed top-left. Its own token so a platform can place the moon without hard-coding the brand value.",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-nightly-moon",
+                "mode": "tv"
+              }
+            }
+          },
+          "moonCrater": {
+            "$type": "color",
+            "$value": "hsl(45, 82%, 56%)",
+            "$description": "Craters one step darker than the moon disc. Low contrast on purpose: texture at icon size, not holes.",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-nightly-moon-crater",
+                "mode": "tv"
+              }
+            }
+          }
+        },
+        "lab": {
+          "background": {
+            "$type": "color",
+            "$value": "hsl(120, 20%, 4.9%)",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-lab-bg",
+                "mode": "tv"
+              }
+            }
+          },
+          "foreground": {
+            "$type": "color",
+            "$value": "hsl(111.1, 100%, 94.7%)",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-lab-fg",
+                "mode": "tv"
+              }
+            }
+          },
+          "accent": {
+            "$type": "color",
+            "$value": "hsl(110.6, 100%, 53.9%)",
+            "$extensions": {
+              "putio": {
+                "cssName": "tv-channel-art-lab-accent",
+                "mode": "tv"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tv": {
+    "$description": "The portable 10-foot scale. These mode \"tv\" tokens are graph data for platform adapters and are not emitted into web CSS; preview support CSS declares matching --tv-* properties under .tv. TV has no mono face, and its z-order is distinct from the web stack.",
+    "video": {
+      "$description": "On-video and hero-art plate colors. Fixed values by design: the video underneath does not change with the theme.",
+      "background": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 0%)",
+        "$description": "Letterbox / video plate. True black, not the app background.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-video-bg",
+            "mode": "tv"
+          }
+        }
+      },
+      "heroScrimTop": {
+        "$type": "color",
+        "$value": "hsl(30, 18.2%, 8.6%)",
+        "$description": "Top stop of the warm-black wash behind hero/poster art.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-hero-scrim-top",
+            "mode": "tv"
+          }
+        }
+      },
+      "heroScrimBottom": {
+        "$type": "color",
+        "$value": "hsl(30, 25%, 1.6%)",
+        "$description": "Bottom stop of the hero wash. Near-black but warm — never pure black, which reads blue next to the art.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-hero-scrim-bottom",
+            "mode": "tv"
+          }
+        }
+      },
+      "textOnVideo": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 100%)",
+        "$description": "Player chrome over video — always white, never a theme token.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-text-on-video",
+            "mode": "tv"
+          }
+        }
+      }
+    },
+    "text": {
+      "heading": {
+        "$type": "dimension",
+        "$value": "64px",
+        "$description": "text.heading · GTAmerica-Md.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-text-heading",
+            "mode": "tv"
+          }
+        }
+      },
+      "label": {
+        "$type": "dimension",
+        "$value": "48px",
+        "$description": "text.label · GTAmerica-Md. Screen titles, and the file-row icon size.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-text-label",
+            "mode": "tv"
+          }
+        }
+      },
+      "body": {
+        "$type": "dimension",
+        "$value": "36px",
+        "$description": "text.body · GTAmerica-Rg. The file-row title.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-text-body",
+            "mode": "tv"
+          }
+        }
+      },
+      "caption": {
+        "$type": "dimension",
+        "$value": "32px",
+        "$description": "text.caption · GTAmerica-Rg. Row subline and button icons. TV has no mono face, so the Berkeley Mono numeric rule is web and mobile only: the size subline renders in GT America, asking for its tnum tabular figures where the platform can select OpenType features and accepting proportional figures where it cannot.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-text-caption",
+            "mode": "tv"
+          }
+        }
+      },
+      "smol": {
+        "$type": "dimension",
+        "$value": "24px",
+        "$description": "text.smol · GTAmerica-Rg. Button labels, rendered uppercase.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-text-smol",
+            "mode": "tv"
+          }
+        }
+      }
+    },
+    "fontWeight": {
+      "regular": {
+        "$type": "fontWeight",
+        "$value": "400",
+        "$description": "GTAmerica-Rg.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-fw-regular",
+            "mode": "tv"
+          }
+        }
+      },
+      "medium": {
+        "$type": "fontWeight",
+        "$value": "500",
+        "$description": "GTAmerica-Md.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-fw-medium",
+            "mode": "tv"
+          }
+        }
+      }
+    },
+    "space": {
+      "xxs": {
+        "$type": "dimension",
+        "$value": "4px",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-space-xxs",
+            "mode": "tv"
+          }
+        }
+      },
+      "xs": {
+        "$type": "dimension",
+        "$value": "8px",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-space-xs",
+            "mode": "tv"
+          }
+        }
+      },
+      "sm": {
+        "$type": "dimension",
+        "$value": "16px",
+        "$description": "Button padding at size=\"sm\".",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-space-sm",
+            "mode": "tv"
+          }
+        }
+      },
+      "md": {
+        "$type": "dimension",
+        "$value": "32px",
+        "$description": "The workhorse step: uniform list-row padding, row gap, and header padding-bottom.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-space-md",
+            "mode": "tv"
+          }
+        }
+      },
+      "lg": {
+        "$type": "dimension",
+        "$value": "64px",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-space-lg",
+            "mode": "tv"
+          }
+        }
+      },
+      "xl": {
+        "$type": "dimension",
+        "$value": "128px",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-space-xl",
+            "mode": "tv"
+          }
+        }
+      },
+      "xxl": {
+        "$type": "dimension",
+        "$value": "256px",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-space-xxl",
+            "mode": "tv"
+          }
+        }
+      }
+    },
+    "overscan": {
+      "x": {
+        "$type": "number",
+        "$value": 0.04,
+        "$description": "Horizontal safe-area ratio. Platform adapters multiply this value by viewport width.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-overscan-x",
+            "mode": "tv",
+            "basis": "viewport-width"
+          }
+        }
+      },
+      "y": {
+        "$type": "number",
+        "$value": 0.02,
+        "$description": "Vertical safe-area ratio. Platform adapters multiply this value by viewport height.",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-overscan-y",
+            "mode": "tv",
+            "basis": "viewport-height"
+          }
+        }
+      }
+    },
+    "radius": {
+      "$type": "dimension",
+      "$value": "{radius.tv}",
+      "$description": "radii.default — one radius for every 10-foot surface.",
+      "$extensions": {
+        "putio": {
+          "cssName": "tv-radius",
+          "mode": "tv"
+        }
+      }
+    },
+    "z": {
+      "$description": "zIndices. NOT the web --z-* order: on TV, overlay sits ABOVE toast. Emit the two scales separately and never fold TV into the web stack order.",
+      "modal": {
+        "$type": "number",
+        "$value": 100,
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-z-modal",
+            "mode": "tv",
+            "category": "other"
+          }
+        }
+      },
+      "toast": {
+        "$type": "number",
+        "$value": 200,
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-z-toast",
+            "mode": "tv",
+            "category": "other"
+          }
+        }
+      },
+      "overlay": {
+        "$type": "number",
+        "$value": 300,
+        "$description": "Above toast — the opposite of the web scale, where --z-notification (1400) sits above --z-modal (1300).",
+        "$extensions": {
+          "putio": {
+            "cssName": "tv-z-overlay",
+            "mode": "tv",
+            "category": "other"
+          }
+        }
+      }
+    }
+  },
+  "color": {
+    "brand": {
+      "yellow": {
+        "$type": "color",
+        "$value": "hsl(44.7, 97.9%, 63.1%)",
+        "$description": "put.io brand yellow (canonical hex #FDCE45). The resting brand fill is the same in light and dark modes.",
+        "$extensions": {
+          "putio": {
+            "cssName": "yellow-solid",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      }
+    },
+    "neutral": {
+      "light": {
+        "bg": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 99.0%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "bg",
+              "mode": "light"
+            }
+          }
+        },
+        "bgSecondary": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 97.3%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "bg-secondary",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBg": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 95.1%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "component-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBgHover": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 93.0%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "component-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBgActive": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 90.9%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "component-bg-active",
+              "mode": "light"
+            }
+          }
+        },
+        "line": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 88.7%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "line",
+              "mode": "light"
+            }
+          }
+        },
+        "border": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 85.8%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "border",
+              "mode": "light"
+            }
+          }
+        },
+        "borderHover": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 78.0%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "border-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "solid": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 56.1%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "solid",
+              "mode": "light"
+            }
+          }
+        },
+        "solidHover": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 52.3%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "solid-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "textSecondary": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 43.5%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "text-secondary",
+              "mode": "light"
+            }
+          }
+        },
+        "text": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 9.0%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "text",
+              "mode": "light"
+            }
+          }
+        }
+      },
+      "dark": {
+        "bg": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 8.5%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "bgSecondary": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 11.0%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "bg-secondary",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBg": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 13.6%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "component-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBgHover": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 15.8%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "component-bg-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBgActive": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 17.9%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "component-bg-active",
+              "mode": "dark"
+            }
+          }
+        },
+        "line": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 20.5%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "line",
+              "mode": "dark"
+            }
+          }
+        },
+        "border": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 24.3%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "border",
+              "mode": "dark"
+            }
+          }
+        },
+        "borderHover": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 31.2%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "border-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "solid": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 43.9%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "solid",
+              "mode": "dark"
+            }
+          }
+        },
+        "solidHover": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 49.4%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "solid-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "textSecondary": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 62.8%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "text-secondary",
+              "mode": "dark"
+            }
+          }
+        },
+        "text": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 93.0%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "text",
+              "mode": "dark"
+            }
+          }
+        }
+      }
+    },
+    "green": {
+      "light": {
+        "bg": {
+          "$type": "color",
+          "$value": "hsl(140, 60%, 99%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "bgSecondary": {
+          "$type": "color",
+          "$value": "hsl(140, 41%, 97%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-bg-secondary",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBg": {
+          "$type": "color",
+          "$value": "hsl(135, 53%, 93%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-component-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBgHover": {
+          "$type": "color",
+          "$value": "hsl(138, 58%, 89%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-component-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBgActive": {
+          "$type": "color",
+          "$value": "hsl(140, 50%, 84%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-component-bg-active",
+              "mode": "light"
+            }
+          }
+        },
+        "line": {
+          "$type": "color",
+          "$value": "hsl(141, 47%, 77%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-line",
+              "mode": "light"
+            }
+          }
+        },
+        "border": {
+          "$type": "color",
+          "$value": "hsl(140, 39%, 68%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-border",
+              "mode": "light"
+            }
+          }
+        },
+        "borderHover": {
+          "$type": "color",
+          "$value": "hsl(146, 39%, 55%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-border-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "solid": {
+          "$type": "color",
+          "$value": "hsl(151, 55%, 41.5%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-solid",
+              "mode": "light"
+            }
+          }
+        },
+        "solidHover": {
+          "$type": "color",
+          "$value": "hsl(151, 58%, 37%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-solid-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "textSecondary": {
+          "$type": "color",
+          "$value": "hsl(155, 100%, 25%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-text-secondary",
+              "mode": "light"
+            }
+          }
+        },
+        "text": {
+          "$type": "color",
+          "$value": "hsl(146, 35%, 17%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-text",
+              "mode": "light"
+            }
+          }
+        }
+      },
+      "dark": {
+        "bg": {
+          "$type": "color",
+          "$value": "hsl(140, 13%, 6%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "bgSecondary": {
+          "$type": "color",
+          "$value": "hsl(149, 21%, 9%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-bg-secondary",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBg": {
+          "$type": "color",
+          "$value": "hsl(151, 35%, 13%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-component-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBgHover": {
+          "$type": "color",
+          "$value": "hsl(149, 49%, 16%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-component-bg-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBgActive": {
+          "$type": "color",
+          "$value": "hsl(149, 46%, 19%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-component-bg-active",
+              "mode": "dark"
+            }
+          }
+        },
+        "line": {
+          "$type": "color",
+          "$value": "hsl(146, 42%, 24%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-line",
+              "mode": "dark"
+            }
+          }
+        },
+        "border": {
+          "$type": "color",
+          "$value": "hsl(146, 41%, 29%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-border",
+              "mode": "dark"
+            }
+          }
+        },
+        "borderHover": {
+          "$type": "color",
+          "$value": "hsl(148, 43%, 34%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-border-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "solid": {
+          "$type": "color",
+          "$value": "{color.green.light.solid}",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-solid",
+              "mode": "dark"
+            }
+          }
+        },
+        "solidHover": {
+          "$type": "color",
+          "$value": "hsl(151, 68%, 35%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-solid-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "textSecondary": {
+          "$type": "color",
+          "$value": "hsl(146, 56%, 60%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-text-secondary",
+              "mode": "dark"
+            }
+          }
+        },
+        "text": {
+          "$type": "color",
+          "$value": "hsl(142, 71%, 82%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "green-text",
+              "mode": "dark"
+            }
+          }
+        }
+      }
+    },
+    "red": {
+      "light": {
+        "bg": {
+          "$type": "color",
+          "$value": "hsl(0, 100%, 99%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "bgSecondary": {
+          "$type": "color",
+          "$value": "hsl(0, 100%, 98%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-bg-secondary",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBg": {
+          "$type": "color",
+          "$value": "hsl(2, 100%, 96%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-component-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBgHover": {
+          "$type": "color",
+          "$value": "hsl(4, 100%, 93%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-component-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBgActive": {
+          "$type": "color",
+          "$value": "hsl(3, 100%, 89%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-component-bg-active",
+              "mode": "light"
+            }
+          }
+        },
+        "line": {
+          "$type": "color",
+          "$value": "hsl(3, 97%, 86%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-line",
+              "mode": "light"
+            }
+          }
+        },
+        "border": {
+          "$type": "color",
+          "$value": "hsl(2, 81%, 80%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-border",
+              "mode": "light"
+            }
+          }
+        },
+        "borderHover": {
+          "$type": "color",
+          "$value": "hsl(2, 71%, 73%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-border-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "solid": {
+          "$type": "color",
+          "$value": "hsl(358, 75%, 59%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-solid",
+              "mode": "light"
+            }
+          }
+        },
+        "solidHover": {
+          "$type": "color",
+          "$value": "hsl(357, 66%, 53%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-solid-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "textSecondary": {
+          "$type": "color",
+          "$value": "hsl(355, 64%, 49%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-text-secondary",
+              "mode": "light"
+            }
+          }
+        },
+        "text": {
+          "$type": "color",
+          "$value": "hsl(358, 62%, 24%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-text",
+              "mode": "light"
+            }
+          }
+        }
+      },
+      "dark": {
+        "bg": {
+          "$type": "color",
+          "$value": "hsl(8, 13%, 7%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "bgSecondary": {
+          "$type": "color",
+          "$value": "hsl(4, 28%, 10%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-bg-secondary",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBg": {
+          "$type": "color",
+          "$value": "hsl(0, 55%, 15%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-component-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBgHover": {
+          "$type": "color",
+          "$value": "hsl(357, 70%, 19%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-component-bg-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBgActive": {
+          "$type": "color",
+          "$value": "hsl(358, 62%, 24%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-component-bg-active",
+              "mode": "dark"
+            }
+          }
+        },
+        "line": {
+          "$type": "color",
+          "$value": "hsl(359, 52%, 30%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-line",
+              "mode": "dark"
+            }
+          }
+        },
+        "border": {
+          "$type": "color",
+          "$value": "hsl(0, 46%, 38%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-border",
+              "mode": "dark"
+            }
+          }
+        },
+        "borderHover": {
+          "$type": "color",
+          "$value": "hsl(359, 45%, 49%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-border-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "solid": {
+          "$type": "color",
+          "$value": "{color.red.light.solid}",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-solid",
+              "mode": "dark"
+            }
+          }
+        },
+        "solidHover": {
+          "$type": "color",
+          "$value": "hsl(357, 67%, 53%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-solid-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "textSecondary": {
+          "$type": "color",
+          "$value": "hsl(2, 100%, 77%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-text-secondary",
+              "mode": "dark"
+            }
+          }
+        },
+        "text": {
+          "$type": "color",
+          "$value": "hsl(5, 100%, 91%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "red-text",
+              "mode": "dark"
+            }
+          }
+        }
+      }
+    },
+    "yellow": {
+      "light": {
+        "bg": {
+          "$type": "color",
+          "$value": "hsl(45, 60%, 99%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "bgSecondary": {
+          "$type": "color",
+          "$value": "hsl(53, 100%, 96%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-bg-secondary",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBg": {
+          "$type": "color",
+          "$value": "hsl(52, 100%, 88%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-component-bg",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBgHover": {
+          "$type": "color",
+          "$value": "hsl(50, 100%, 82%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-component-bg-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "componentBgActive": {
+          "$type": "color",
+          "$value": "hsl(48, 100%, 76%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-component-bg-active",
+              "mode": "light"
+            }
+          }
+        },
+        "line": {
+          "$type": "color",
+          "$value": "hsl(46, 87%, 73%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-line",
+              "mode": "light"
+            }
+          }
+        },
+        "border": {
+          "$type": "color",
+          "$value": "hsl(45, 67%, 67%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-border",
+              "mode": "light"
+            }
+          }
+        },
+        "borderHover": {
+          "$type": "color",
+          "$value": "hsl(44, 58%, 56%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-border-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "solidHover": {
+          "$type": "color",
+          "$value": "hsl(45, 89%, 58%)",
+          "$description": "Primary-button hover yellow for light mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-solid-hover",
+              "mode": "light"
+            }
+          }
+        },
+        "textSecondary": {
+          "$type": "color",
+          "$value": "hsl(46, 100%, 27%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-text-secondary",
+              "mode": "light"
+            }
+          }
+        },
+        "text": {
+          "$type": "color",
+          "$value": "hsl(43, 32%, 21%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-text",
+              "mode": "light"
+            }
+          }
+        }
+      },
+      "dark": {
+        "bg": {
+          "$type": "color",
+          "$value": "hsl(0, 0%, 0%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "bgSecondary": {
+          "$type": "color",
+          "$value": "hsl(38, 35%, 6%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-bg-secondary",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBg": {
+          "$type": "color",
+          "$value": "hsl(45, 70%, 9%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-component-bg",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBgHover": {
+          "$type": "color",
+          "$value": "hsl(44, 100%, 11%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-component-bg-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "componentBgActive": {
+          "$type": "color",
+          "$value": "hsl(44, 100%, 14%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-component-bg-active",
+              "mode": "dark"
+            }
+          }
+        },
+        "line": {
+          "$type": "color",
+          "$value": "hsl(45, 71%, 19%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-line",
+              "mode": "dark"
+            }
+          }
+        },
+        "border": {
+          "$type": "color",
+          "$value": "hsl(45, 53%, 26%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-border",
+              "mode": "dark"
+            }
+          }
+        },
+        "borderHover": {
+          "$type": "color",
+          "$value": "hsl(45, 49%, 34%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-border-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "solidHover": {
+          "$type": "color",
+          "$value": "{color.yellow.light.solidHover}",
+          "$description": "Primary-button hover yellow for dark mode.",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-solid-hover",
+              "mode": "dark"
+            }
+          }
+        },
+        "textSecondary": {
+          "$type": "color",
+          "$value": "hsl(45, 100%, 64%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-text-secondary",
+              "mode": "dark"
+            }
+          }
+        },
+        "text": {
+          "$type": "color",
+          "$value": "hsl(46, 89%, 86%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "yellow-text",
+              "mode": "dark"
+            }
+          }
+        }
+      }
+    },
+    "transfer": {
+      "light": {
+        "lime3": {
+          "$type": "color",
+          "$value": "hsl(85, 76.0%, 92.3%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "lime-3",
+              "mode": "light"
+            }
+          }
+        }
+      },
+      "dark": {
+        "lime3": {
+          "$type": "color",
+          "$value": "hsl(85, 45%, 12%)",
+          "$extensions": {
+            "putio": {
+              "cssName": "lime-3",
+              "mode": "dark"
+            }
+          }
+        }
+      }
+    }
+  },
+  "elevation": {
+    "shadowColor": {
+      "$type": "color",
+      "$value": "hsl(0, 0%, 78.0%)",
+      "$extensions": {
+        "putio": {
+          "cssName": "shadow-color",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "color": {
+      "$type": "color",
+      "$value": "{elevation.shadowColor}",
+      "$description": "Compat name kept for existing web consumers — alias of elevation.shadowColor so the two can never drift.",
+      "$extensions": {
+        "putio": {
+          "cssName": "shadow",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "sm": {
+      "$type": "string",
+      "$value": "0 1px 2px hsla(0, 0%, 0%, 0.05)",
+      "$extensions": {
+        "putio": {
+          "cssName": "shadow-sm",
+          "mode": "global",
+          "figma": false
+        }
+      }
+    },
+    "md": {
+      "$type": "string",
+      "$value": "0 4px 12px hsla(0, 0%, 0%, 0.08)",
+      "$extensions": {
+        "putio": {
+          "cssName": "shadow-md",
+          "mode": "global",
+          "figma": false
+        }
+      }
+    },
+    "lg": {
+      "$type": "string",
+      "$value": "0 16px 40px hsla(0, 0%, 0%, 0.12)",
+      "$extensions": {
+        "putio": {
+          "cssName": "shadow-lg",
+          "mode": "global",
+          "figma": false
+        }
+      }
+    },
+    "focusColor": {
+      "$type": "color",
+      "$value": "hsla(47, 100%, 65%, 0.35)",
+      "$extensions": {
+        "putio": {
+          "cssName": "shadow-focus-color",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "focus": {
+      "$type": "string",
+      "$value": "0 0 0 3px {elevation.focusColor}",
+      "$extensions": {
+        "putio": {
+          "cssName": "shadow-focus",
+          "mode": "global",
+          "figma": false
+        }
+      }
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "sans": {
+        "$type": "fontFamily",
+        "$value": "\"GT America\", sans-serif",
+        "$extensions": {
+          "putio": {
+            "cssName": "font-sans",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "display": {
+        "$type": "fontFamily",
+        "$value": "{typography.fontFamily.sans}",
+        "$extensions": {
+          "putio": {
+            "cssName": "font-display",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "mono": {
+        "$type": "fontFamily",
+        "$value": "\"Berkeley Mono\", monospace",
+        "$description": "The single mono face: numerics, timestamps, file sizes, ETAs, counts, code, logs, magnet URIs, identifiers, and filenames. Web and mobile only — TV has no mono face.",
+        "$extensions": {
+          "putio": {
+            "cssName": "font-mono",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      }
+    },
+    "fontSize": {
+      "xs": {
+        "$type": "dimension",
+        "$value": "0.75rem",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-xs",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "sm": {
+        "$type": "dimension",
+        "$value": "0.875rem",
+        "$description": "Caption and button labels — production fontSize 0.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-sm",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "base": {
+        "$type": "dimension",
+        "$value": "1rem",
+        "$description": "Body, labels, inputs — production fontSize 1; equals the responsive root (14px, 15px at >= breakpoint.lg).",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-base",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "md": {
+        "$type": "dimension",
+        "$value": "1.125rem",
+        "$description": "Subheading.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-md",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "lg": {
+        "$type": "dimension",
+        "$value": "1.5rem",
+        "$description": "Heading.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-lg",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "xl": {
+        "$type": "dimension",
+        "$value": "2rem",
+        "$description": "Page title.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-xl",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "2xl": {
+        "$type": "dimension",
+        "$value": "48px",
+        "$description": "Fixed display tier — does not scale with the responsive root.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-2xl",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "3xl": {
+        "$type": "dimension",
+        "$value": "64px",
+        "$description": "Fixed display tier — does not scale with the responsive root.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-3xl",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "4xl": {
+        "$type": "dimension",
+        "$value": "{typography.fontSize.3xl}",
+        "$description": "Compatibility alias for the former 4xl tier; new surfaces should use fontSize.3xl or fontSize.display.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-4xl",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "display": {
+        "$type": "dimension",
+        "$value": "96px",
+        "$description": "Fixed display tier for brand display moments.",
+        "$extensions": {
+          "putio": {
+            "cssName": "fs-display",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      }
+    },
+    "lineHeight": {
+      "tight": {
+        "$type": "number",
+        "$value": "1.1",
+        "$extensions": {
+          "putio": {
+            "cssName": "lh-tight",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "snug": {
+        "$type": "number",
+        "$value": "1.25",
+        "$extensions": {
+          "putio": {
+            "cssName": "lh-snug",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "normal": {
+        "$type": "number",
+        "$value": "1.45",
+        "$extensions": {
+          "putio": {
+            "cssName": "lh-normal",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "loose": {
+        "$type": "number",
+        "$value": "1.6",
+        "$extensions": {
+          "putio": {
+            "cssName": "lh-loose",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      }
+    },
+    "fontWeight": {
+      "regular": {
+        "$type": "fontWeight",
+        "$value": "400",
+        "$extensions": {
+          "putio": {
+            "cssName": "fw-regular",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "medium": {
+        "$type": "fontWeight",
+        "$value": "500",
+        "$extensions": {
+          "putio": {
+            "cssName": "fw-medium",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "bold": {
+        "$type": "fontWeight",
+        "$value": "700",
+        "$extensions": {
+          "putio": {
+            "cssName": "fw-bold",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "black": {
+        "$type": "fontWeight",
+        "$value": "900",
+        "$extensions": {
+          "putio": {
+            "cssName": "fw-black",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      }
+    },
+    "letterSpacing": {
+      "tight": {
+        "$type": "dimension",
+        "$value": "-0.02em",
+        "$extensions": {
+          "putio": {
+            "cssName": "tracking-tight",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "normal": {
+        "$type": "number",
+        "$value": "0",
+        "$extensions": {
+          "putio": {
+            "cssName": "tracking-normal",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "wide": {
+        "$type": "dimension",
+        "$value": "0.02em",
+        "$extensions": {
+          "putio": {
+            "cssName": "tracking-wide",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "uppercase": {
+        "$type": "dimension",
+        "$value": "0.08em",
+        "$extensions": {
+          "putio": {
+            "cssName": "tracking-uppercase",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      }
+    }
+  },
+  "spacing": {
+    "0": {
+      "$type": "dimension",
+      "$value": "0",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-0",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "1": {
+      "$type": "dimension",
+      "$value": "4px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-1",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "2": {
+      "$type": "dimension",
+      "$value": "8px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-2",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "3": {
+      "$type": "dimension",
+      "$value": "16px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-3",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "4": {
+      "$type": "dimension",
+      "$value": "32px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-4",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "5": {
+      "$type": "dimension",
+      "$value": "64px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-5",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "6": {
+      "$type": "dimension",
+      "$value": "128px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-6",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "7": {
+      "$type": "dimension",
+      "$value": "256px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-7",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "8": {
+      "$type": "dimension",
+      "$value": "512px",
+      "$extensions": {
+        "putio": {
+          "cssName": "space-8",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    }
+  },
+  "radius": {
+    "sm": {
+      "$type": "dimension",
+      "$value": "4px",
+      "$extensions": {
+        "putio": {
+          "cssName": "radius-sm",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "default": {
+      "$type": "dimension",
+      "$value": "6px",
+      "$extensions": {
+        "putio": {
+          "cssName": "radius",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "md": {
+      "$type": "dimension",
+      "$value": "8px",
+      "$extensions": {
+        "putio": {
+          "cssName": "radius-md",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "lg": {
+      "$type": "dimension",
+      "$value": "10px",
+      "$extensions": {
+        "putio": {
+          "cssName": "radius-lg",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "pill": {
+      "$type": "dimension",
+      "$value": "999px",
+      "$extensions": {
+        "putio": {
+          "cssName": "radius-pill",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    },
+    "tv": {
+      "$type": "dimension",
+      "$value": "12px",
+      "$description": "The corner radius for every 10-foot surface — list rows, buttons, sheets, cards, code tiles, and keys. TV uses one radius, not a scale; the only other radii on TV are intentional pills and circles.",
+      "$extensions": {
+        "putio": {
+          "cssName": "radius-tv",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    }
+  },
+  "border": {
+    "width": {
+      "$type": "dimension",
+      "$value": "1px",
+      "$extensions": {
+        "putio": {
+          "cssName": "border-width",
+          "mode": "global",
+          "figma": true
+        }
+      }
+    }
+  },
+  "motion": {
+    "easing": {
+      "out": {
+        "$type": "cubicBezier",
+        "$value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "$extensions": {
+          "putio": {
+            "cssName": "ease-out",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "inOut": {
+        "$type": "cubicBezier",
+        "$value": "cubic-bezier(0.65, 0, 0.35, 1)",
+        "$extensions": {
+          "putio": {
+            "cssName": "ease-in-out",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      }
+    },
+    "duration": {
+      "fast": {
+        "$type": "duration",
+        "$value": "120ms",
+        "$extensions": {
+          "putio": {
+            "cssName": "dur-fast",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "base": {
+        "$type": "duration",
+        "$value": "200ms",
+        "$extensions": {
+          "putio": {
+            "cssName": "dur-base",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      },
+      "slow": {
+        "$type": "duration",
+        "$value": "320ms",
+        "$extensions": {
+          "putio": {
+            "cssName": "dur-slow",
+            "mode": "global",
+            "figma": true
+          }
+        }
+      }
+    }
+  },
+  "z": {
+    "$description": "Stacking scale. Gapped for platform chrome — never invent z-index numbers in apps.",
+    "dropdown": {
+      "$type": "number",
+      "$value": 1000,
+      "$extensions": {
+        "putio": {
+          "cssName": "z-dropdown",
+          "mode": "global",
+          "category": "other",
+          "figma": false
+        }
+      }
+    },
+    "sticky": {
+      "$type": "number",
+      "$value": 1100,
+      "$extensions": {
+        "putio": {
+          "cssName": "z-sticky",
+          "mode": "global",
+          "category": "other",
+          "figma": false
+        }
+      }
+    },
+    "modal": {
+      "$type": "number",
+      "$value": 1300,
+      "$extensions": {
+        "putio": {
+          "cssName": "z-modal",
+          "mode": "global",
+          "category": "other",
+          "figma": false
+        }
+      }
+    },
+    "notification": {
+      "$type": "number",
+      "$value": 1400,
+      "$extensions": {
+        "putio": {
+          "cssName": "z-notification",
+          "mode": "global",
+          "category": "other",
+          "figma": false
+        }
+      }
+    },
+    "tooltip": {
+      "$type": "number",
+      "$value": 1500,
+      "$extensions": {
+        "putio": {
+          "cssName": "z-tooltip",
+          "mode": "global",
+          "category": "other",
+          "figma": false
+        }
+      }
+    }
+  },
+  "breakpoint": {
+    "$description": "Responsive breakpoints, lifted from app.put.io's BREAKPOINTS. Generator-facing: CSS media queries cannot read custom properties, so emitters bind these as Tailwind screens, StyleX consts, or documented literals.",
+    "sm": {
+      "$type": "dimension",
+      "$value": "640px",
+      "$extensions": {
+        "putio": {
+          "cssName": "bp-sm",
+          "mode": "global",
+          "category": "other",
+          "figma": false
+        }
+      }
+    },
+    "md": {
+      "$type": "dimension",
+      "$value": "768px",
+      "$extensions": {
+        "putio": {
+          "cssName": "bp-md",
+          "mode": "global",
+          "category": "other",
+          "figma": false
+        }
+      }
+    },
+    "lg": {
+      "$type": "dimension",
+      "$value": "1280px",
+      "$description": "The root font-size steps from 14px to 15px at this width.",
+      "$extensions": {
+        "putio": {
+          "cssName": "bp-lg",
+          "mode": "global",
+          "category": "other",
+          "figma": false
+        }
+      }
+    }
+  },
+  "surface": {
+    "light": {
+      "htmlBg": {
+        "$type": "color",
+        "$value": "{color.neutral.light.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "html-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "appBg": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 100%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "app-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "navBg": {
+        "$type": "color",
+        "$value": "{surface.light.appBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "navItemBg": {
+        "$type": "color",
+        "$value": "hsla(0, 0%, 0%, 0)",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-item-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "navItemBgHover": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-item-bg-hover",
+            "mode": "light"
+          }
+        }
+      },
+      "navItemBgActive": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-item-bg-active",
+            "mode": "light"
+          }
+        }
+      },
+      "listItemBg": {
+        "$type": "color",
+        "$value": "hsla(0, 0%, 0%, 0)",
+        "$extensions": {
+          "putio": {
+            "cssName": "list-item-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "listItemBgHover": {
+        "$type": "color",
+        "$value": "{color.neutral.light.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "list-item-bg-hover",
+            "mode": "light"
+          }
+        }
+      },
+      "listItemBgActive": {
+        "$type": "color",
+        "$value": "{color.neutral.light.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "list-item-bg-active",
+            "mode": "light"
+          }
+        }
+      },
+      "listItemBorder": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 90.9%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "list-item-border",
+            "mode": "light"
+          }
+        }
+      },
+      "segmentedControlBg": {
+        "$type": "color",
+        "$value": "{color.neutral.light.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "segmented-control-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "segmentedControlBgActive": {
+        "$type": "color",
+        "$value": "{surface.light.appBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "segmented-control-bg-active",
+            "mode": "light"
+          }
+        }
+      },
+      "transferListItemCompletingBg": {
+        "$type": "color",
+        "$value": "{color.transfer.light.lime3}",
+        "$extensions": {
+          "putio": {
+            "cssName": "transfer-list-item-completing-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "transferListItemDownloadingBg": {
+        "$type": "color",
+        "$value": "{color.transfer.light.lime3}",
+        "$extensions": {
+          "putio": {
+            "cssName": "transfer-list-item-downloading-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "transferListItemFinishedBg": {
+        "$type": "color",
+        "$value": "{color.neutral.light.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "transfer-list-item-finished-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "transferListItemPassiveBg": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 99.0%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "transfer-list-item-passive-bg",
+            "mode": "light"
+          }
+        }
+      },
+      "hiContrast": {
+        "$type": "color",
+        "$value": "{color.neutral.light.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "hi-contrast",
+            "mode": "light"
+          }
+        }
+      },
+      "loContrast": {
+        "$type": "color",
+        "$value": "{color.neutral.light.bg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "lo-contrast",
+            "mode": "light"
+          }
+        }
+      },
+      "transparent": {
+        "$type": "color",
+        "$value": "hsla(0, 0%, 0%, 0)",
+        "$extensions": {
+          "putio": {
+            "cssName": "transparent",
+            "mode": "light"
+          }
+        }
+      },
+      "overlayInline": {
+        "$type": "color",
+        "$value": "hsla(0, 0%, 0%, 0.047)",
+        "$extensions": {
+          "putio": {
+            "cssName": "overlay-inline",
+            "mode": "light"
+          }
+        }
+      },
+      "overlayFull": {
+        "$type": "color",
+        "$value": "hsla(0, 0%, 0%, 0.439)",
+        "$extensions": {
+          "putio": {
+            "cssName": "overlay-full",
+            "mode": "light"
+          }
+        }
+      }
+    },
+    "dark": {
+      "htmlBg": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 0%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "html-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "appBg": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 8.5%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "app-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "navBg": {
+        "$type": "color",
+        "$value": "{surface.dark.appBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "navItemBg": {
+        "$type": "color",
+        "$value": "hsla(0, 0%, 0%, 0)",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-item-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "navItemBgHover": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-item-bg-hover",
+            "mode": "dark"
+          }
+        }
+      },
+      "navItemBgActive": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "nav-item-bg-active",
+            "mode": "dark"
+          }
+        }
+      },
+      "listItemBg": {
+        "$type": "color",
+        "$value": "hsla(0, 0%, 0%, 0)",
+        "$extensions": {
+          "putio": {
+            "cssName": "list-item-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "listItemBgHover": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "list-item-bg-hover",
+            "mode": "dark"
+          }
+        }
+      },
+      "listItemBgActive": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "list-item-bg-active",
+            "mode": "dark"
+          }
+        }
+      },
+      "listItemBorder": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 17.9%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "list-item-border",
+            "mode": "dark"
+          }
+        }
+      },
+      "segmentedControlBg": {
+        "$type": "color",
+        "$value": "{surface.dark.appBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "segmented-control-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "segmentedControlBgActive": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.componentBg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "segmented-control-bg-active",
+            "mode": "dark"
+          }
+        }
+      },
+      "transferListItemCompletingBg": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 13.6%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "transfer-list-item-completing-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "transferListItemDownloadingBg": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 13.6%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "transfer-list-item-downloading-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "transferListItemFinishedBg": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.bgSecondary}",
+        "$extensions": {
+          "putio": {
+            "cssName": "transfer-list-item-finished-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "transferListItemPassiveBg": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 11.0%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "transfer-list-item-passive-bg",
+            "mode": "dark"
+          }
+        }
+      },
+      "hiContrast": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.text}",
+        "$extensions": {
+          "putio": {
+            "cssName": "hi-contrast",
+            "mode": "dark"
+          }
+        }
+      },
+      "loContrast": {
+        "$type": "color",
+        "$value": "{color.neutral.dark.bg}",
+        "$extensions": {
+          "putio": {
+            "cssName": "lo-contrast",
+            "mode": "dark"
+          }
+        }
+      },
+      "overlayInline": {
+        "$type": "color",
+        "$value": "hsla(0, 0%, 0%, 0.439)",
+        "$extensions": {
+          "putio": {
+            "cssName": "overlay-inline",
+            "mode": "dark"
+          }
+        }
+      },
+      "overlayFull": {
+        "$type": "color",
+        "$value": "hsla(0, 0%, 0%, 0.565)",
+        "$extensions": {
+          "putio": {
+            "cssName": "overlay-full",
+            "mode": "dark"
+          }
+        }
+      },
+      "shadowColor": {
+        "$type": "color",
+        "$value": "hsl(0, 0%, 0%)",
+        "$extensions": {
+          "putio": {
+            "cssName": "shadow-color",
+            "mode": "dark"
+          }
+        }
+      },
+      "shadow": {
+        "$type": "color",
+        "$value": "{surface.dark.shadowColor}",
+        "$description": "Compat name kept for existing web consumers — alias of surface.dark.shadowColor so the two can never drift.",
+        "$extensions": {
+          "putio": {
+            "cssName": "shadow",
+            "mode": "dark"
+          }
+        }
+      },
+      "shadowSm": {
+        "$type": "string",
+        "$value": "0 1px 2px hsla(0, 0%, 0%, 0.4)",
+        "$extensions": {
+          "putio": {
+            "cssName": "shadow-sm",
+            "mode": "dark"
+          }
+        }
+      },
+      "shadowMd": {
+        "$type": "string",
+        "$value": "0 4px 12px hsla(0, 0%, 0%, 0.5)",
+        "$extensions": {
+          "putio": {
+            "cssName": "shadow-md",
+            "mode": "dark"
+          }
+        }
+      },
+      "shadowLg": {
+        "$type": "string",
+        "$value": "0 16px 40px hsla(0, 0%, 0%, 0.6)",
+        "$extensions": {
+          "putio": {
+            "cssName": "shadow-lg",
+            "mode": "dark"
+          }
+        }
+      }
+    }
+  }
+}

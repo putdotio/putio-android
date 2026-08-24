@@ -48,9 +48,12 @@ jobs:
         with:
           validate-wrappers: true
 
-      - name: Verify and assemble both flavors
+      - name: Verify and assemble all flavors
         working-directory: putio-android
-        run: ./gradlew verify :app:assembleMobileDebug :app:assembleTvDebug
+        run: >-
+          ./gradlew verify :buildSrc:test
+          :app:assembleMobileProductionDebug :app:assembleTvProductionDebug
+          :app:assembleMobileNightlyDebug :app:assembleTvNightlyDebug
 
       - name: Upload debug APKs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -58,5 +61,4 @@ jobs:
           name: debug-apks
           if-no-files-found: error
           path: |
-            putio-android/app/build/outputs/apk/mobile/debug/*.apk
-            putio-android/app/build/outputs/apk/tv/debug/*.apk
+            putio-android/app/build/outputs/apk/*/debug/*.apk

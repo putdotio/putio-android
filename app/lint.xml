@@ -2,6 +2,12 @@
 <lint>
     <!-- English-only at launch is a recorded program decision (#14 i18n row). -->
     <issue id="MissingTranslation" severity="ignore" />
+    <!-- The nightly launcher icon is putio-design art (app-icon-nightly-stars.png)
+         shipped as provided, full-bleed like the production vector icon; modern
+         launchers apply their own mask. -->
+    <issue id="IconLauncherShape">
+        <ignore path="**/src/nightly/res/**" />
+    </issue>
     <!-- Dependency bumps are deliberate, catalog-driven changes; with
          warningsAsErrors these advisory checks would break CI whenever an
          upstream release ships. -->

@@ -43,8 +43,8 @@ Available inputs:
 ```bash
 ./scripts/bootstrap.sh   # once per machine; provisions SDK, AVDs, local.properties
 ./gradlew verify
-./gradlew :app:assembleTvDebug
-./gradlew :app:assembleMobileDebug
+./gradlew :app:assembleTvProductionDebug
+./gradlew :app:assembleMobileProductionDebug
 ./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof + evidence
 ```
 

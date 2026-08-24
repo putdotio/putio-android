@@ -20,8 +20,8 @@ import org.junit.runner.RunWith
  * this via `connectedAndroidTest`; a crash or ANR fails the instrumentation.
  *
  * The pixel assertion exists because a resumed activity can still render
- * black under emulator load; the shell draws a light theme, so mean luma
- * below 16 means nothing reached the screen.
+ * black under emulator load; the shell's dark surface (#161616) composites
+ * at mean luma ~22, so below 16 means nothing reached the screen.
  */
 @RunWith(AndroidJUnit4::class)
 class LaunchSmokeTest {

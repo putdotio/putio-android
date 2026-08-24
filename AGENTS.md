@@ -46,20 +46,33 @@ SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
 ## Build and Verify
 
 ```bash
-./gradlew verify                    # canonical local gate (:app:check)
-./gradlew :app:assembleMobileDebug  # phone/tablet debug APK
-./gradlew :app:assembleTvDebug      # Android TV debug APK
+./gradlew verify :buildSrc:test               # canonical local gate + codegen tests
+./gradlew :app:assembleMobileProductionDebug  # phone/tablet debug APK
+./gradlew :app:assembleTvProductionDebug      # Android TV debug APK
 ```
 
 `verify` runs Android Lint (`warningsAsErrors`, config in `app/lint.xml`),
-detekt (config in `detekt.yml`, Compose exemptions only), and the local unit
+detekt (config in `detekt.yml`, Compose exemptions only), the local unit
 tests (`app/src/test/`, JUnit4 + Robolectric, Compose UI assertions run on
-the JVM). Fix findings at the source; suppress only with a comment stating
-the platform constraint.
+the JVM). `:buildSrc:test` covers the design-token codegen; run it alongside
+`verify` (CI does). Fix findings at the source; suppress only with a comment
+stating the platform constraint.
 
-Debug application ids: `io.put.putio.mobile.debug` (mobile),
-`io.put.putio.debug` (tv). Debug builds only; nothing in this harness needs
-release credentials.
+Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
+`nightly`). Nightly carries its own application id, label, and the stars
+launcher icon (`scripts/generate-nightly-icon.sh`); Play internal/closed
+tracks ship nightly, the public listing keeps production. Debug application
+ids: `io.put.putio.mobile.debug` (mobileProduction), `io.put.putio.debug`
+(tvProduction), plus `.nightly` before `.debug` for the nightly channel.
+Debug builds only; nothing in this harness needs release credentials.
+
+## Design system
+
+The theme is a tier-2 binding of putio-design (Material 3 + tokens, dark
+only). `design/tokens.dtcg.json` is vendored from `@putdotio/design`;
+`:app:generateDesignTokens` (buildSrc) generates `PutioDesignTokens.kt` with
+the color schemes — never hand-write colors. See `design/README.md`.
+Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 
 ## CI
 

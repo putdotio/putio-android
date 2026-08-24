@@ -12,7 +12,7 @@ require_sdk_root
 
 PROVE="${REPO_ROOT}/scripts/prove.sh"
 EMU="${REPO_ROOT}/scripts/emulator.sh"
-APK="${REPO_ROOT}/app/build/outputs/apk/mobile/debug/app-mobile-debug.apk"
+APK="${REPO_ROOT}/app/build/outputs/apk/mobileProduction/debug/app-mobile-production-debug.apk"
 
 fail() { log "LIFECYCLE FAIL: $*"; exit 1; }
 
@@ -35,7 +35,7 @@ booted_serial() {
   sed -n 's/^BOOTED //p' "$1" | head -1 | tr -d '\r'
 }
 
-[[ -f "${APK}" ]] || (cd "${REPO_ROOT}" && ./gradlew -q :app:assembleMobileDebug)
+[[ -f "${APK}" ]] || (cd "${REPO_ROOT}" && ./gradlew -q :app:assembleMobileProductionDebug)
 
 # No emulator may be running at the start; the assertions depend on it.
 if "${ADB}" devices | awk '$1 ~ /^emulator-/ {found=1} END {exit !found}'; then

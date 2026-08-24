@@ -101,4 +101,4 @@ for profile in phone tv; do
 done
 
 log "bootstrap complete"
-log "next: ./gradlew verify :app:assembleMobileDebug :app:assembleTvDebug"
+log "next: ./gradlew verify :app:assembleMobileProductionDebug :app:assembleTvProductionDebug"
