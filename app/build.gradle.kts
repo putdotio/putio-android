@@ -77,6 +77,7 @@ android {
                     device = "Pixel 7"
                     apiLevel = 36
                     systemImageSource = "google"
+                    testedAbi = "x86_64"
                 }
             }
         }
