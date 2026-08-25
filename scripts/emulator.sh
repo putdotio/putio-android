@@ -55,6 +55,7 @@ do_create() {
   image="$(image_for "${PROFILE}")"
   [[ -d "${SDK_ROOT}/$(echo "${image}" | tr ';' '/')" ]] || \
     die "system image ${image} not installed; run scripts/bootstrap.sh"
+  mkdir -p "${ANDROID_AVD_HOME}"
   echo "no" | "${AVDMANAGER}" create avd \
     --name "${NAME}" \
     --package "${image}" \
@@ -65,7 +66,6 @@ do_create() {
 do_boot() {
   parse_profile_args "$@"
   avd_exists "${NAME}" || die "AVD ${NAME} does not exist; run scripts/emulator.sh create ${PROFILE}"
-
   "${ADB}" start-server >/dev/null 2>&1
 
   local existing
@@ -96,10 +96,11 @@ do_boot() {
 
   local flags=(-avd "${NAME}" -port "${port}" -no-snapshot -no-boot-anim -no-audio)
   if [[ "${HEADLESS}" == "1" ]]; then
-    # swiftshader_indirect is slower than auto-no-window but renders
-    # deterministically; auto-no-window intermittently composites the app
-    # window black under host load, which fails prove.sh's pixel gate.
-    flags+=(-no-window -gpu swiftshader_indirect)
+    # SwiftShader is slower than auto but renders deterministically; auto
+    # intermittently composites the app window black under host load, which
+    # fails prove.sh's pixel gate. Current emulators removed the legacy
+    # swiftshader_indirect mode.
+    flags+=(-no-window -gpu swiftshader)
   fi
 
   log "booting ${NAME} on ${serial} (headless=${HEADLESS}, log: ${logfile})"

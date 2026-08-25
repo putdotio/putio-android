@@ -68,19 +68,6 @@ android {
             // Robolectric-backed Compose tests need the app's resources.
             isIncludeAndroidResources = true
         }
-
-        managedDevices {
-            localDevices {
-                // CI smoke lane device (workflow_dispatch/scheduled); local
-                // proof stays on scripts/prove.sh with the reusable AVDs.
-                create("ciPhone") {
-                    device = "Pixel 7"
-                    apiLevel = 36
-                    systemImageSource = "google"
-                    testedAbi = "x86_64"
-                }
-            }
-        }
     }
 }
 
