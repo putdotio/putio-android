@@ -88,11 +88,10 @@ using a read-only deploy key stored as the `PUTIO_SDK_KOTLIN_DEPLOY_KEY`
 Actions secret; no other CI secret exists.
 
 Emulator-on-CI: `.github/workflows/emulator-smoke.yml` (weekly schedule +
-`workflow_dispatch`) runs `scripts/prove.sh mobile --ephemeral` on API 36 with
-KVM enabled on the runner. It uses the same no-snapshot boot, app assertions,
-evidence capture, and exact-target cleanup as local proof. The ephemeral runner
-removes its unused .NET, Haskell, Swift, and PowerShell toolchains before setup
-to leave room for the Pixel 7 profile's default 6 GB userdata image.
+`workflow_dispatch`) runs `LaunchSmokeTest` on a Gradle Managed Device
+(`ciPhone`, Pixel 7, API 36, swiftshader) with KVM enabled on the runner. The
+ephemeral runner removes its unused .NET, Haskell, Swift, and PowerShell
+toolchains before setup to leave room for the managed-device snapshot.
 It is deliberately not a PR gate — shared-runner emulator boots are too slow
 and flaky to block merges; local proof stays on `scripts/prove.sh`.
 
@@ -201,7 +200,7 @@ Every child issue of the rewrite epic ships with:
 
 ## Headless / Devbox Notes
 
-- `--headless` boots with `-no-window -gpu swiftshader -no-audio -no-boot-anim`. Software rendering is slower than `auto` but deterministic; host-GPU headless mode intermittently composites app windows black, which fails the pixel assertion. `screencap`/`screenrecord` capture fine without a window
+- `--headless` boots with `-no-window -gpu swiftshader_indirect -no-audio -no-boot-anim`. Software rendering is slower than `auto-no-window` but deterministic; host-GPU headless mode intermittently composites app windows black, which fails the pixel assertion. `screencap`/`screenrecord` capture fine without a window
 - Cold headless boots regularly ANR the emulator's own `com.android.systemui`; harness boots set `hide_error_dialogs 1` so the dialog cannot sit over captures. App crashes and ANRs still fail the instrumented proof
 - macOS needs Hypervisor.framework (default on Apple Silicon); Linux devboxes need KVM (`emulator -accel-check`). Without acceleration arm64 images are unusably slow
 - First boot of a fresh AVD is the slow path (~1 min on an M-series Mac); subsequent boots are faster with `-no-snapshot` still enforced for reproducibility

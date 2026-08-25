@@ -10,25 +10,11 @@
 # Installs: platform/build-tools for the compileSdk, emulator, phone + TV
 # system images, and the two reusable AVDs. Writes local.properties.
 # Idempotent: safe to re-run; already-installed packages are skipped.
-#
-#   scripts/bootstrap.sh [--profile phone|tv]
-#
-# --profile provisions one emulator surface for a narrow CI or local proof.
-# Without it, bootstrap provisions both surfaces.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 COMPILE_SDK_PLATFORM="platforms;android-37.0"
 BUILD_TOOLS="build-tools;37.0.0"
-
-profiles=(phone tv)
-if [[ $# -gt 0 ]]; then
-  [[ $# -eq 2 && "$1" == "--profile" ]] || die "usage: scripts/bootstrap.sh [--profile phone|tv]"
-  case "$2" in
-    phone|tv) profiles=("$2") ;;
-    *) die "unknown emulator profile '$2' (expected phone|tv)" ;;
-  esac
-fi
 
 log "checking JDK"
 java -version >/dev/null 2>&1 || die "no java on PATH; install JDK 21 (mise install / brew install temurin@21)"
@@ -46,11 +32,7 @@ SDKMANAGER="${SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
 log "SDK root: ${SDK_ROOT}"
 
 packages_missing=0
-packages=("platform-tools" "emulator" "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}")
-for profile in "${profiles[@]}"; do
-  packages+=("$(image_for "${profile}")")
-done
-for pkg in "${packages[@]}"; do
+for pkg in "platform-tools" "emulator" "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}" "$(phone_image)" "$(tv_image)"; do
   [[ -d "${SDK_ROOT}/$(echo "${pkg}" | tr ';' '/')" ]] || packages_missing=1
 done
 
@@ -61,41 +43,30 @@ if [[ "${packages_missing}" == "1" ]]; then
   (yes || true) | "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --licenses >/dev/null
 
   log "installing SDK packages (first run downloads ~3 GB)"
-  packages_installed=0
-  for attempt in 1 2 3; do
-    if "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --install "${packages[@]}"; then
-      packages_installed=1
-      break
-    fi
-    log "SDK package install attempt ${attempt}/3 failed"
-  done
-  [[ "${packages_installed}" == "1" ]] || die "SDK package install failed after 3 attempts"
+  "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --install \
+    "platform-tools" \
+    "emulator" \
+    "${COMPILE_SDK_PLATFORM}" \
+    "${BUILD_TOOLS}" \
+    "$(phone_image)" \
+    "$(tv_image)"
 
-  for pkg in "${packages[@]}"; do
+  for pkg in "platform-tools" "emulator" "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}" "$(phone_image)" "$(tv_image)"; do
     [[ -d "${SDK_ROOT}/$(echo "${pkg}" | tr ';' '/')" ]] || die "package ${pkg} missing after install"
   done
 else
   log "all SDK packages already installed; skipping sdkmanager"
 fi
 
-# ffprobe backs the evidence integrity checks and prove.sh's pixel gate.
+# ffprobe backs the evidence integrity checks and prove.sh's pixel gate;
+# without it those degrade to warnings.
 if ! command -v ffprobe >/dev/null 2>&1; then
   if command -v brew >/dev/null 2>&1; then
     log "installing ffmpeg (ffprobe) for evidence verification"
     brew install ffmpeg
-  elif command -v apt-get >/dev/null 2>&1; then
-    elevate=()
-    if [[ "$(id -u)" -ne 0 ]]; then
-      command -v sudo >/dev/null 2>&1 || die "ffprobe missing and sudo unavailable; install ffmpeg and re-run"
-      elevate=(sudo)
-    fi
-    log "installing ffmpeg (ffprobe) for evidence verification"
-    "${elevate[@]}" apt-get update
-    "${elevate[@]}" apt-get install -y ffmpeg
   else
-    die "ffprobe missing; install ffmpeg and re-run"
+    log "WARNING: ffprobe not found and no Homebrew; evidence render checks will be skipped"
   fi
-  command -v ffprobe >/dev/null 2>&1 || die "ffmpeg install did not provide ffprobe"
 fi
 
 log "writing local.properties"
@@ -125,7 +96,7 @@ if [[ ! -d "${SDK_KOTLIN_PATH}" ]]; then
   die "putio-sdk-kotlin checkout missing at ${SDK_KOTLIN_PATH}; run: git clone git@github.com:putdotio/putio-sdk-kotlin.git '${SDK_KOTLIN_PATH}' (or point putioSdkKotlinPath in local.properties at an existing checkout), then re-run bootstrap"
 fi
 
-for profile in "${profiles[@]}"; do
+for profile in phone tv; do
   "${REPO_ROOT}/scripts/emulator.sh" create "${profile}"
 done
 

@@ -5,12 +5,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# New command-line tools honor ANDROID_USER_HOME when creating AVDs, while
-# emulator 37 still searches ANDROID_AVD_HOME and legacy locations. Normalize
-# the derived AVD directory so create, lookup, boot, and delete agree.
-ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-${ANDROID_USER_HOME:-${HOME}/.android}/avd}"
-export ANDROID_AVD_HOME
-
 log() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 die() { log "ERROR: $*"; exit 1; }
 

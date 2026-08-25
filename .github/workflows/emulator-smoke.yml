@@ -1,9 +1,10 @@
 name: Emulator smoke
 
-# Opt-in / scheduled lane: runs the repo-owned phone launch proof (build, boot,
-# install, instrumented LaunchSmokeTest, screenshot, exact-target teardown).
+# Opt-in / scheduled lane: boots the app on a Gradle Managed Device and runs
+# the instrumented LaunchSmokeTest (RESUMED + stability + composited pixels).
 # Not a PR gate — emulator boots on shared runners are too slow and flaky to
-# block merges; the PR gate is the CI workflow.
+# block merges; the PR gate is the CI workflow. Local day-to-day proof stays
+# on scripts/prove.sh.
 
 on:
   workflow_dispatch:
@@ -19,7 +20,7 @@ concurrency:
 
 jobs:
   smoke:
-    name: Launch smoke (mobile harness)
+    name: Launch smoke (mobile, managed device)
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -63,30 +64,20 @@ jobs:
         with:
           validate-wrappers: true
 
-      - name: Bootstrap phone emulator
-        working-directory: putio-android
-        run: ./scripts/bootstrap.sh --profile phone
-
+      # SwiftShader mirrors the local harness decision: hardware-path headless
+      # rendering intermittently composites the app window black, which fails
+      # the smoke test's pixel assertion. AGP 9.3 reads the new property name;
+      # the old experimental property silently fell back to auto-no-window.
       - name: Run instrumented launch smoke
         working-directory: putio-android
-        run: ./scripts/prove.sh mobile --ephemeral
+        run: >-
+          ./gradlew :app:ciPhoneMobileProductionDebugAndroidTest
+          -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader
 
-      - name: Print emulator diagnostics
-        if: failure()
-        working-directory: putio-android
-        run: |
-          if [[ -d .evidence/logs ]]; then
-            find .evidence/logs -maxdepth 1 -type f -print -exec tail -n 200 {} +
-          fi
-
-      - name: Upload smoke evidence and diagnostics
+      - name: Upload device test results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: emulator-smoke-results
+          name: managed-device-results
           if-no-files-found: warn
-          include-hidden-files: true
-          path: |
-            putio-android/.evidence/**
-            putio-android/app/build/outputs/androidTest-results/**
-            putio-android/app/build/reports/androidTests/**
+          path: putio-android/app/build/outputs/androidTest-results/**
