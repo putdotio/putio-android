@@ -56,14 +56,15 @@ jobs:
         with:
           validate-wrappers: true
 
-      # swiftshader mirrors the local harness decision: hardware-path headless
+      # SwiftShader mirrors the local harness decision: hardware-path headless
       # rendering intermittently composites the app window black, which fails
-      # the smoke test's pixel assertion.
+      # the smoke test's pixel assertion. AGP 9.3 reads the new property name;
+      # the old experimental property silently fell back to auto-no-window.
       - name: Run instrumented launch smoke
         working-directory: putio-android
         run: >-
           ./gradlew :app:ciPhoneMobileProductionDebugAndroidTest
-          -Pandroid.experimental.testOptions.managedDevices.emulator.gpuMode=swiftshader_indirect
+          -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader
 
       - name: Upload device test results
         if: always()
