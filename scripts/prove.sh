@@ -221,12 +221,38 @@ if [[ "${PUTIO_PROVE_FAIL_AT:-}" == "after-boot" ]]; then
 fi
 
 # --- install + launch --------------------------------------------------------
+wait_for_stable_package_service() {
+  local deadline=$(( $(date +%s) + 120 ))
+  local consecutive=0 service_state package_path
+
+  log "waiting for stable package service on ${SERIAL}"
+  while (( $(date +%s) < deadline )); do
+    service_state="$("${ADB}" -s "${SERIAL}" shell service check package 2>/dev/null | tr -d '\r' || true)"
+    package_path="$("${ADB}" -s "${SERIAL}" shell cmd package path android 2>/dev/null | tr -d '\r' || true)"
+    if [[ "${service_state}" == "Service package: found" && "${package_path}" == package:* ]]; then
+      consecutive=$(( consecutive + 1 ))
+      if (( consecutive == 5 )); then
+        log "package service stable on ${SERIAL} for 10s"
+        return 0
+      fi
+    else
+      consecutive=0
+    fi
+    sleep 2
+  done
+
+  die "package service did not remain stable on ${SERIAL} for 10s within 120s"
+}
+
+wait_for_stable_package_service
 log "installing ${APK##*/} on ${SERIAL}"
 install_out="$("${ADB}" -s "${SERIAL}" install -r "${APK}" 2>&1)" || die "install failed: ${install_out}"
 
 if [[ "${PUTIO_PROVE_FAIL_AT:-}" == "after-install" ]]; then
   die "injected failure: after-install"
 fi
+
+wait_for_stable_package_service
 
 rec_pid=""
 rec_out=""
