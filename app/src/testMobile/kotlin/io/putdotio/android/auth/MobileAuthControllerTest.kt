@@ -52,7 +52,7 @@ class MobileAuthControllerTest {
         assertEquals(TOKEN, fixture.tokenStore.token?.reveal())
         assertEquals(TOKEN, fixture.gateway.configuredToken?.reveal())
         assertEquals(listOf("clear-token", "build-url", "set-token", "validate"), fixture.gateway.calls)
-        assertEquals(MobileAuthState.SignedIn(ACCOUNT), fixture.controller.state.value)
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
     }
 
     @Test
@@ -174,7 +174,7 @@ class MobileAuthControllerTest {
         assertEquals(OAuthCallbackHandlingResult.ACCEPTED, result)
         assertNull(pendingAttemptStore.attempt)
         assertEquals(TOKEN, restoredProcess.tokenStore.token?.reveal())
-        assertEquals(MobileAuthState.SignedIn(ACCOUNT), restoredProcess.controller.state.value)
+        assertEquals(SIGNED_IN, restoredProcess.controller.state.value)
     }
 
     @Test
@@ -237,7 +237,7 @@ class MobileAuthControllerTest {
 
         fixture.controller.restoreSession()
 
-        assertEquals(MobileAuthState.SignedIn(ACCOUNT), fixture.controller.state.value)
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
         assertEquals(TOKEN, fixture.tokenStore.token?.reveal())
     }
 
@@ -248,7 +248,7 @@ class MobileAuthControllerTest {
         fixture.controller.restoreSession()
 
         assertEquals(listOf("set-token", "validate"), fixture.gateway.calls)
-        assertEquals(MobileAuthState.SignedIn(ACCOUNT), fixture.controller.state.value)
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
     }
 
     @Test
@@ -266,7 +266,7 @@ class MobileAuthControllerTest {
         assertNull(fixture.gateway.configuredToken)
         fixture.gateway.validationFailure = null
         fixture.controller.restoreSession()
-        assertEquals(MobileAuthState.SignedIn(ACCOUNT), fixture.controller.state.value)
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
     }
 
     @Test
@@ -328,6 +328,32 @@ class MobileAuthControllerTest {
     }
 
     @Test
+    fun `same account reauthentication advances the session identity`() = runBlocking {
+        val fixture = Fixture(
+            storedToken = TOKEN,
+            validationResults = listOf(
+                SessionValidationResult.Valid(ACCOUNT),
+                SessionValidationResult.Valid(ACCOUNT),
+            ),
+        )
+        fixture.controller.restoreSession()
+        val firstSession = fixture.controller.state.value as MobileAuthState.SignedIn
+        fixture.controller.rejectAuthoritativeSession()
+
+        fixture.controller.beginSignIn()
+        assertEquals(
+            OAuthCallbackHandlingResult.ACCEPTED,
+            fixture.controller.handleOAuthCallback(VALID_CALLBACK),
+        )
+
+        val secondSession = fixture.controller.state.value as MobileAuthState.SignedIn
+        assertEquals(ACCOUNT, firstSession.account)
+        assertEquals(ACCOUNT, secondSession.account)
+        assertEquals(1L, firstSession.sessionId.value)
+        assertEquals(2L, secondSession.sessionId.value)
+    }
+
+    @Test
     fun `authoritative rejection cleanup survives caller cancellation`() = runBlocking {
         val fixture = Fixture(storedToken = TOKEN)
         fixture.controller.restoreSession()
@@ -364,7 +390,7 @@ class MobileAuthControllerTest {
         assertEquals(TOKEN, fixture.tokenStore.token?.reveal())
         assertEquals(MobileAuthState.ValidationUnavailable(SessionValidationSource.RESTORE), fixture.controller.state.value)
         assertTrue(fixture.controller.retryValidation())
-        assertEquals(MobileAuthState.SignedIn(ACCOUNT), fixture.controller.state.value)
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
     }
 
     @Test
@@ -389,7 +415,7 @@ class MobileAuthControllerTest {
         assertNull(fixture.gateway.configuredToken)
         fixture.gateway.validationFailure = null
         assertTrue(fixture.controller.retryValidation())
-        assertEquals(MobileAuthState.SignedIn(ACCOUNT), fixture.controller.state.value)
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
     }
 
     @Test
@@ -545,5 +571,9 @@ class MobileAuthControllerTest {
         const val VALID_CALLBACK = "putio://auth/callback#access_token=$TOKEN&state=$OAUTH_STATE"
         const val NOW_EPOCH_MILLIS = 1_788_000_000_000L
         val ACCOUNT = MobileAccount(userId = 42, username = "user", email = "user@example.com")
+        val SIGNED_IN = MobileAuthState.SignedIn(
+            account = ACCOUNT,
+            sessionId = MobileAuthSessionId(1L),
+        )
     }
 }

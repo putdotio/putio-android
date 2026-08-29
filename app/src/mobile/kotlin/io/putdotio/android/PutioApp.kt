@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -47,13 +48,13 @@ import androidx.navigation.compose.rememberNavController
 import io.putdotio.android.auth.CustomTabsOAuthBrowser
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthController
+import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.auth.OAuthBrowserLaunchResult
 import io.putdotio.android.auth.OAuthLaunchResult
 import io.putdotio.android.design.PutioTheme
-import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
@@ -93,6 +94,9 @@ private fun MobileAuthRoot(
     val authState by authController.state.collectAsStateWithLifecycle()
     val rootScope = rememberCoroutineScope()
     val activity = LocalContext.current.findActivity()
+    val filesViewModel = viewModel<MobileFilesViewModel>(
+        factory = remember(authController) { mobileFilesViewModelFactory(authController.state) },
+    )
 
     LaunchedEffect(authController) {
         authController.restoreSession()
@@ -157,6 +161,8 @@ private fun MobileAuthRoot(
             SignedInMobileRoot(
                 runtime = runtime,
                 account = state.account,
+                sessionId = state.sessionId,
+                filesViewModel = filesViewModel,
                 authController = authController,
                 rootScope = rootScope,
             )
@@ -259,21 +265,28 @@ internal fun MobileSignedOutScreen(
 private fun SignedInMobileRoot(
     runtime: MobileOAuthRuntime,
     account: MobileAccount,
+    sessionId: MobileAuthSessionId,
+    filesViewModel: MobileFilesViewModel,
     authController: MobileAuthController,
     rootScope: CoroutineScope,
 ) {
-    val filesController = remember(runtime.putioClient, account.userId) {
-        FilesBrowserController(
-            repository = SdkFilesRepository(runtime.putioClient),
-            parentScope = rootScope,
+    val filesRepository = remember(runtime.putioClient) {
+        SdkFilesRepository(runtime.putioClient)
+    }
+    val filesController = remember(filesViewModel, filesRepository, account.userId, sessionId) {
+        filesViewModel.controllerFor(
+            userId = account.userId,
+            sessionId = sessionId,
+            repository = filesRepository,
         )
+    }
+    if (filesController == null) {
+        MobileLoadingState(stringResource(R.string.mobile_state_loading))
+        return
     }
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val authoritativeFailure = filesState.authoritativeSessionFailure()
 
-    DisposableEffect(filesController) {
-        onDispose { filesController.close() }
-    }
     LaunchedEffect(authoritativeFailure) {
         if (authoritativeFailure != null) {
             authController.rejectAuthoritativeSession()
