@@ -52,9 +52,12 @@ class DesignTokenCodegenTest {
         val dtcg = java.io.File("../design/tokens.dtcg.json").readText()
         val code = DesignTokenCodegen.generate(dtcg, "3.0.0")
         assertTrue(code.contains("val yellowSolid: Color = Color(0xFFFDCE45)"))
+        assertTrue(code.contains("val yellowTextSecondary: Color = Color(0xFFFFD147)"))
         assertTrue(code.contains("val appBg: Color = Color(0xFF161616)"))
         assertTrue(code.contains("val redSolid: Color = Color(0xFFE5484D)"))
         assertTrue(code.contains("primary = PutioDesignTokens.yellowSolid,"))
+        assertTrue(code.contains("inversePrimary = PutioDesignTokens.yellowTextSecondary,"))
+        assertTrue(code.contains("inverseSurface = PutioDesignTokens.componentBgActive,"))
         assertTrue(code.contains("borderVariant = PutioDesignTokens.line,"))
     }
 }

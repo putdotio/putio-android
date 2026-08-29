@@ -14,6 +14,7 @@ class PutioColorSchemeTest {
     @Test
     fun tokensMatchDesign300() {
         assertEquals(Color(0xFFFDCE45), PutioDesignTokens.yellowSolid)
+        assertEquals(Color(0xFFFFD147), PutioDesignTokens.yellowTextSecondary)
         assertEquals(Color(0xFF2A1E09), PutioDesignTokens.primaryForeground)
         assertEquals(Color(0xFF161616), PutioDesignTokens.appBg)
         assertEquals(Color(0xFFEDEDED), PutioDesignTokens.text)
@@ -34,9 +35,13 @@ class PutioColorSchemeTest {
         assertEquals(PutioDesignTokens.appBg, scheme.surface)
         assertEquals(PutioDesignTokens.text, scheme.onSurface)
         assertEquals(PutioDesignTokens.textSecondary, scheme.onSurfaceVariant)
+        assertEquals(PutioDesignTokens.componentBg, scheme.surfaceContainerLow)
         assertEquals(PutioDesignTokens.componentBg, scheme.surfaceContainer)
         assertEquals(PutioDesignTokens.componentBgHover, scheme.surfaceContainerHigh)
         assertEquals(PutioDesignTokens.componentBgActive, scheme.surfaceContainerHighest)
+        assertEquals(PutioDesignTokens.componentBgActive, scheme.inverseSurface)
+        assertEquals(PutioDesignTokens.text, scheme.inverseOnSurface)
+        assertEquals(PutioDesignTokens.yellowTextSecondary, scheme.inversePrimary)
         assertEquals(PutioDesignTokens.border, scheme.outline)
         assertEquals(PutioDesignTokens.line, scheme.outlineVariant)
         assertEquals(PutioDesignTokens.redSolid, scheme.error)
@@ -44,6 +49,7 @@ class PutioColorSchemeTest {
         // indicator reads secondaryContainer; without these they fall back
         // to M3 baseline purple.
         assertEquals(PutioDesignTokens.yellowSolid, scheme.primaryContainer)
+        assertEquals(PutioDesignTokens.text, scheme.secondary)
         assertEquals(PutioDesignTokens.yellowSolid.copy(alpha = 0.26f), scheme.secondaryContainer)
         assertEquals(PutioDesignTokens.yellowSolid, scheme.onSecondaryContainer)
     }
@@ -52,8 +58,23 @@ class PutioColorSchemeTest {
     fun tvRolesCarryTheContract() {
         val scheme = putioTvDarkColorScheme()
         assertEquals(PutioDesignTokens.yellowSolid, scheme.primary)
+        assertEquals(PutioDesignTokens.primaryForeground, scheme.onPrimary)
+        assertEquals(PutioDesignTokens.yellowSolid, scheme.primaryContainer)
+        assertEquals(PutioDesignTokens.primaryForeground, scheme.onPrimaryContainer)
+        assertEquals(PutioDesignTokens.yellowTextSecondary, scheme.inversePrimary)
+        assertEquals(PutioDesignTokens.text, scheme.secondary)
+        assertEquals(PutioDesignTokens.yellowSolid.copy(alpha = 0.26f), scheme.secondaryContainer)
+        assertEquals(PutioDesignTokens.yellowSolid, scheme.onSecondaryContainer)
         assertEquals(PutioDesignTokens.appBg, scheme.background)
+        assertEquals(PutioDesignTokens.text, scheme.onBackground)
+        assertEquals(PutioDesignTokens.appBg, scheme.surface)
+        assertEquals(PutioDesignTokens.text, scheme.onSurface)
+        assertEquals(PutioDesignTokens.componentBg, scheme.surfaceVariant)
+        assertEquals(PutioDesignTokens.textSecondary, scheme.onSurfaceVariant)
+        assertEquals(PutioDesignTokens.componentBgActive, scheme.inverseSurface)
+        assertEquals(PutioDesignTokens.text, scheme.inverseOnSurface)
         assertEquals(PutioDesignTokens.border, scheme.border)
         assertEquals(PutioDesignTokens.line, scheme.borderVariant)
+        assertEquals(PutioDesignTokens.redSolid, scheme.error)
     }
 }
