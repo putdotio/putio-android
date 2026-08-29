@@ -28,17 +28,12 @@ internal class AccessToken private constructor(
 }
 
 internal sealed interface OAuthCallbackParseResult {
-    val validatesExpectedState: Boolean
-
     data class Success(
         val accessToken: AccessToken,
-    ) : OAuthCallbackParseResult {
-        override val validatesExpectedState: Boolean = true
-    }
+    ) : OAuthCallbackParseResult
 
     data class Failure(
         val reason: OAuthCallbackFailure,
-        override val validatesExpectedState: Boolean = false,
     ) : OAuthCallbackParseResult
 }
 
@@ -48,6 +43,8 @@ internal sealed interface OAuthCallbackFailure {
     data object UnexpectedEndpoint : OAuthCallbackFailure
 
     data object MalformedFragment : OAuthCallbackFailure
+
+    data object MalformedQuery : OAuthCallbackFailure
 
     data object ProviderRejected : OAuthCallbackFailure
 
@@ -68,7 +65,7 @@ internal object OAuthCallbackParser {
             return failure(OAuthCallbackFailure.UnexpectedEndpoint)
         }
 
-        val parameters = callbackUri.rawFragment?.parseFragment()
+        val parameters = callbackUri.rawFragment?.parseParameters()
             ?: return failure(OAuthCallbackFailure.MalformedFragment)
         val returnedStates = parameters.values(OAUTH_STATE_PARAMETER)
         val validatesExpectedState = returnedStates.fold(false) { matches, returnedState ->
@@ -81,22 +78,34 @@ internal object OAuthCallbackParser {
                 } else {
                     OAuthCallbackFailure.MalformedFragment
                 },
-                validatesExpectedState = validatesExpectedState,
             )
         }
-        val returnedState = returnedStates.single()
         if (!validatesExpectedState) {
             return failure(OAuthCallbackFailure.StateMismatch)
         }
         if (parameters.malformed) {
-            return failure(OAuthCallbackFailure.MalformedFragment, validatesExpectedState = true)
+            return failure(OAuthCallbackFailure.MalformedFragment)
+        }
+        callbackUri.rawQuery?.let { rawQuery ->
+            val queryParameters = rawQuery.parseParameters()
+            val returnedQueryStates = queryParameters.values(OAUTH_STATE_PARAMETER)
+            if (
+                queryParameters.malformed ||
+                queryParameters.names != setOf(OAUTH_STATE_PARAMETER) ||
+                returnedQueryStates.size != 1
+            ) {
+                return failure(OAuthCallbackFailure.MalformedQuery)
+            }
+            if (!returnedQueryStates.single().constantTimeEquals(expectedState)) {
+                return failure(OAuthCallbackFailure.StateMismatch)
+            }
         }
         if (parameters.contains(OAUTH_ERROR_PARAMETER)) {
-            return failure(OAuthCallbackFailure.ProviderRejected, validatesExpectedState = true)
+            return failure(OAuthCallbackFailure.ProviderRejected)
         }
 
         val accessToken = AccessToken.parse(parameters.singleValue(OAUTH_ACCESS_TOKEN_PARAMETER))
-            ?: return failure(OAuthCallbackFailure.MissingAccessToken, validatesExpectedState = true)
+            ?: return failure(OAuthCallbackFailure.MissingAccessToken)
         return OAuthCallbackParseResult.Success(accessToken)
     }
 }
@@ -112,15 +121,17 @@ private fun URI.isExpectedEndpoint(): Boolean =
     !isOpaque &&
         scheme.equals(MOBILE_OAUTH_SCHEME, ignoreCase = true) &&
         host.equals(MOBILE_OAUTH_HOST, ignoreCase = true) &&
-        rawPath == MOBILE_OAUTH_PATH &&
+        rawPath.isNullOrEmpty() &&
         rawUserInfo == null &&
-        port == NO_PORT &&
-        rawQuery == null
+        port == NO_PORT
 
-private data class OAuthFragmentParameters(
+private data class OAuthEncodedParameters(
     private val parameters: Map<String, List<String>>,
     val malformed: Boolean,
 ) {
+    val names: Set<String>
+        get() = parameters.keys
+
     fun values(name: String): List<String> = parameters[name].orEmpty()
 
     fun singleValue(name: String): String? = values(name).singleOrNull()
@@ -128,15 +139,15 @@ private data class OAuthFragmentParameters(
     fun contains(name: String): Boolean = parameters.containsKey(name)
 }
 
-private fun String.parseFragment(): OAuthFragmentParameters {
+private fun String.parseParameters(): OAuthEncodedParameters {
     if (isEmpty()) {
-        return OAuthFragmentParameters(emptyMap(), malformed = true)
+        return OAuthEncodedParameters(emptyMap(), malformed = true)
     }
 
     val parameters = mutableMapOf<String, MutableList<String>>()
     var malformed = false
-    for (part in split(FRAGMENT_PARAMETER_SEPARATOR)) {
-        val separatorIndex = part.indexOf(FRAGMENT_VALUE_SEPARATOR)
+    for (part in split(PARAMETER_SEPARATOR)) {
+        val separatorIndex = part.indexOf(VALUE_SEPARATOR)
         if (separatorIndex <= 0) {
             malformed = true
             continue
@@ -154,7 +165,7 @@ private fun String.parseFragment(): OAuthFragmentParameters {
         malformed = malformed || values.size > 1
     }
 
-    return OAuthFragmentParameters(parameters, malformed)
+    return OAuthEncodedParameters(parameters, malformed)
 }
 
 private fun String.decodeFormComponent(): String? =
@@ -170,18 +181,12 @@ private fun String.constantTimeEquals(other: String): Boolean =
         other.toByteArray(StandardCharsets.UTF_8),
     )
 
-private fun failure(
-    reason: OAuthCallbackFailure,
-    validatesExpectedState: Boolean = false,
-): OAuthCallbackParseResult =
-    OAuthCallbackParseResult.Failure(reason, validatesExpectedState)
+private fun failure(reason: OAuthCallbackFailure): OAuthCallbackParseResult =
+    OAuthCallbackParseResult.Failure(reason)
 
-private const val MOBILE_OAUTH_SCHEME = "putio"
-private const val MOBILE_OAUTH_HOST = "auth"
-private const val MOBILE_OAUTH_PATH = "/callback"
 private const val NO_PORT = -1
-private const val FRAGMENT_PARAMETER_SEPARATOR = '&'
-private const val FRAGMENT_VALUE_SEPARATOR = '='
+private const val PARAMETER_SEPARATOR = '&'
+private const val VALUE_SEPARATOR = '='
 private const val OAUTH_ACCESS_TOKEN_PARAMETER = "access_token"
 private const val OAUTH_STATE_PARAMETER = "state"
 private const val OAUTH_ERROR_PARAMETER = "error"

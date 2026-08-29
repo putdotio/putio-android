@@ -71,7 +71,9 @@ sealed interface OAuthLaunchResult {
     data object NotAllowed : OAuthLaunchResult
 }
 
-internal const val MOBILE_OAUTH_REDIRECT_URI = "putio://auth/callback"
+internal const val MOBILE_OAUTH_SCHEME = "putio"
+internal const val MOBILE_OAUTH_HOST = "auth"
+internal const val MOBILE_OAUTH_REDIRECT_URI = "$MOBILE_OAUTH_SCHEME://$MOBILE_OAUTH_HOST"
 internal const val MOBILE_OAUTH_CLIENT_NAME = "put.io Android"
 
 private const val OAUTH_STATE_BYTE_COUNT = 32

@@ -160,9 +160,6 @@ class MobileAuthController internal constructor(
             }
 
             val callback = OAuthCallbackParser.parse(rawCallbackUri, pendingAttempt.state)
-            if (!callback.validatesExpectedState) {
-                return@withLock OAuthCallbackHandlingResult.REJECTED
-            }
             if (!clearPendingOAuthAttempt()) {
                 mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
                 return@withLock OAuthCallbackHandlingResult.REJECTED
@@ -286,8 +283,21 @@ class MobileAuthController internal constructor(
     }
 
     private suspend fun finishPendingSignIn(reason: MobileSignedOutReason?): Boolean {
-        if (mutableState.value != MobileAuthState.AwaitingOAuthCallback) {
+        val currentState = mutableState.value
+        if (!currentState.canFinishOAuthAttempt()) {
             return false
+        }
+
+        if (currentState != MobileAuthState.AwaitingOAuthCallback) {
+            val persistedAttempt = try {
+                pendingOAuthAttemptStore.read()
+            } catch (_: PendingOAuthAttemptStorageException) {
+                mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
+                return true
+            }
+            if (persistedAttempt == null) {
+                return false
+            }
         }
 
         mutableState.value = if (clearPendingOAuthAttempt()) {
@@ -326,6 +336,11 @@ private fun MobileOAuthConfiguration.initialSignedOutState(): MobileAuthState.Si
     )
 
 private fun MobileAuthState.canReceiveOAuthCallback(): Boolean =
+    this == MobileAuthState.Initializing ||
+        this == MobileAuthState.AwaitingOAuthCallback ||
+        this is MobileAuthState.SignedOut
+
+private fun MobileAuthState.canFinishOAuthAttempt(): Boolean =
     this == MobileAuthState.Initializing ||
         this == MobileAuthState.AwaitingOAuthCallback ||
         this is MobileAuthState.SignedOut

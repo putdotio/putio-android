@@ -12,7 +12,7 @@ class MobileOAuthConfigurationTest {
         assertTrue(configuration is MobileOAuthConfiguration.Configured)
         configuration as MobileOAuthConfiguration.Configured
         assertEquals("9001", configuration.clientId)
-        assertEquals("putio://auth/callback", configuration.redirectUri)
+        assertEquals("putio://auth", configuration.redirectUri)
     }
 
     @Test

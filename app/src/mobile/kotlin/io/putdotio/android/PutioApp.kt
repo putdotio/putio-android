@@ -1,8 +1,7 @@
 package io.putdotio.android
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
+import android.content.Intent
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,22 +20,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -45,7 +38,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import io.putdotio.android.auth.CustomTabsOAuthBrowser
+import io.putdotio.android.auth.AuthTabOAuthBrowser
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthController
 import io.putdotio.android.auth.MobileAuthSessionId
@@ -70,10 +63,14 @@ internal const val MOBILE_NAV_RAIL_TAG = "mobile-navigation-rail"
 private val TabletMinWidth = 600.dp
 
 @Composable
-fun PutioApp() {
+fun PutioApp(
+    authTabLauncher: ActivityResultLauncher<Intent>? = null,
+) {
     val context = LocalContext.current
     val runtime = remember(context.applicationContext) { MobileOAuthRuntime.get(context) }
-    val oauthBrowser = remember { CustomTabsOAuthBrowser() }
+    val oauthBrowser = remember(context.applicationContext, authTabLauncher) {
+        authTabLauncher?.let { AuthTabOAuthBrowser(context, it) }
+    }
 
     PutioTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
@@ -88,12 +85,11 @@ fun PutioApp() {
 @Composable
 private fun MobileAuthRoot(
     runtime: MobileOAuthRuntime,
-    oauthBrowser: CustomTabsOAuthBrowser,
+    oauthBrowser: AuthTabOAuthBrowser?,
 ) {
     val authController = runtime.authController
     val authState by authController.state.collectAsStateWithLifecycle()
     val rootScope = rememberCoroutineScope()
-    val activity = LocalContext.current.findActivity()
     val filesViewModel = viewModel<MobileFilesViewModel>(
         factory = remember(authController) { mobileFilesViewModelFactory(authController.state) },
     )
@@ -101,12 +97,6 @@ private fun MobileAuthRoot(
     LaunchedEffect(authController) {
         authController.restoreSession()
     }
-    OAuthBrowserReturnEffect(
-        runtime = runtime,
-        authController = authController,
-        rootScope = rootScope,
-    )
-
     when (val state = authState) {
         MobileAuthState.Initializing,
         MobileAuthState.RestoringSession,
@@ -126,7 +116,7 @@ private fun MobileAuthRoot(
                     rootScope.launch {
                         when (val authorization = authController.beginSignIn()) {
                             is OAuthLaunchResult.Ready -> {
-                                val launchResult = activity?.let { oauthBrowser.launch(it, authorization) }
+                                val launchResult = oauthBrowser?.launch(authorization)
                                 if (launchResult !is OAuthBrowserLaunchResult.Launched) {
                                     authController.failSignIn()
                                 }
@@ -166,43 +156,6 @@ private fun MobileAuthRoot(
                 authController = authController,
                 rootScope = rootScope,
             )
-    }
-}
-
-@Composable
-private fun OAuthBrowserReturnEffect(
-    runtime: MobileOAuthRuntime,
-    authController: MobileAuthController,
-    rootScope: CoroutineScope,
-) {
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var leftWhileAwaitingCallback by rememberSaveable { mutableStateOf(false) }
-    var callbackSequenceWhenPaused by rememberSaveable { mutableStateOf<Long?>(null) }
-    val returnTracker = remember(lifecycleOwner) {
-        MobileOAuthBrowserReturnTracker(
-            initialLeftWhileAwaitingCallback = leftWhileAwaitingCallback,
-            initialCallbackSequenceWhenPaused = callbackSequenceWhenPaused,
-        )
-    }
-
-    DisposableEffect(lifecycleOwner, runtime, authController, rootScope, returnTracker) {
-        val observer = LifecycleEventObserver { _, event ->
-            val awaitingCallback =
-                authController.state.value == MobileAuthState.AwaitingOAuthCallback
-            val cancelledInBrowser = returnTracker.onLifecycleEvent(
-                event = event,
-                awaitingCallback = awaitingCallback,
-                callbackDispatchSequence = runtime.callbackDispatchSequence(),
-            )
-            leftWhileAwaitingCallback = returnTracker.leftWhileAwaitingCallback
-            callbackSequenceWhenPaused = returnTracker.callbackSequenceWhenPaused
-            if (cancelledInBrowser) {
-                rootScope.launch { authController.cancelSignIn() }
-            }
-        }
-
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 }
 
@@ -518,13 +471,6 @@ internal fun FilesBrowserState.authoritativeSessionFailure(): FilesFailure? =
             is FilesContent.Loading -> null
         }
         failure?.takeIf { it is FilesFailure.AuthenticationRequired }
-    }
-
-private tailrec fun Context.findActivity(): Activity? =
-    when (this) {
-        is Activity -> this
-        is ContextWrapper -> baseContext.findActivity()
-        else -> null
     }
 
 private fun NavHostController.navigateTo(destination: MobileDestination) {

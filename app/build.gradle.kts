@@ -27,9 +27,6 @@ android {
             // #47 owns the dedicated public mobile client id. Empty is an
             // intentional fail-closed value; never borrow either TV id.
             buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"\"")
-            // Co-installable variants cannot safely claim one custom-scheme
-            // callback. #47 must assign ownership before enabling a receiver.
-            manifestPlaceholders["putioMobileOAuthCallbackEnabled"] = "false"
         }
 
         create("tv") {
