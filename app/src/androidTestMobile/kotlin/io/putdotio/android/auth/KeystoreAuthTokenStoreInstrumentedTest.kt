@@ -43,6 +43,7 @@ class KeystoreAuthTokenStoreInstrumentedTest {
         } finally {
             try {
                 store.clear()
+                assertFalse(loadKeyStore().containsAlias(keyAlias))
             } finally {
                 deleteKey(keyAlias)
             }

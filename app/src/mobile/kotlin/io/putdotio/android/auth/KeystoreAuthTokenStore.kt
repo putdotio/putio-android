@@ -71,11 +71,28 @@ internal class KeystoreAuthTokenStore internal constructor(
     }
 
     override suspend fun clear() = withContext(ioDispatcher) {
-        storageOperation(AUTH_STORAGE_CLEAR_OPERATION) {
-            if (!preferences.edit().remove(ENCRYPTED_ACCESS_TOKEN_KEY).commit()) {
-                throw AuthTokenStorageException(AUTH_STORAGE_CLEAR_OPERATION)
+        var clearFailure: AuthTokenStorageException? = null
+
+        try {
+            storageOperation(AUTH_STORAGE_CLEAR_OPERATION) {
+                tokenCipher.destroyKey()
             }
+        } catch (error: AuthTokenStorageException) {
+            clearFailure = error
         }
+
+        try {
+            storageOperation(AUTH_STORAGE_CLEAR_OPERATION) {
+                if (!preferences.edit().remove(ENCRYPTED_ACCESS_TOKEN_KEY).commit()) {
+                    throw AuthTokenStorageException(AUTH_STORAGE_CLEAR_OPERATION)
+                }
+            }
+        } catch (error: AuthTokenStorageException) {
+            clearFailure?.addSuppressed(error) ?: run { clearFailure = error }
+        }
+
+        clearFailure?.let { throw it }
+        Unit
     }
 }
 
@@ -83,6 +100,8 @@ internal interface AuthTokenCipher {
     fun encrypt(plaintext: ByteArray): EncryptedAuthTokenValue
 
     fun decrypt(value: EncryptedAuthTokenValue): ByteArray
+
+    fun destroyKey()
 }
 
 internal data class EncryptedAuthTokenValue(
@@ -138,6 +157,10 @@ private class AndroidKeystoreAuthTokenCipher(
             GCMParameterSpec(GCM_AUTHENTICATION_TAG_BIT_COUNT, value.initializationVector),
         )
         return cipher.doFinal(value.ciphertext)
+    }
+
+    override fun destroyKey() {
+        keyStore.deleteEntry(keyAlias)
     }
 
     @Synchronized
