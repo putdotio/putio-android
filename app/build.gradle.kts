@@ -24,9 +24,8 @@ android {
             dimension = "surface"
             applicationIdSuffix = ".mobile"
             versionNameSuffix = "-mobile"
-            // #47 owns the dedicated public mobile client id. Empty is an
-            // intentional fail-closed value; never borrow either TV id.
-            buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"\"")
+            // Dedicated public Android mobile OAuth client from #47.
+            buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"9677\"")
         }
 
         create("tv") {
