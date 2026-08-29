@@ -100,12 +100,12 @@ class MobileShellTest {
     }
 
     @Test
-    fun unavailableOAuthHidesSignInAfterSecureStorageFailure() {
+    fun secureStorageFailureHidesSignInWhenOAuthIsConfigured() {
         compose.setContent {
             PutioTheme {
                 MobileSignedOutScreen(
                     reason = MobileSignedOutReason.SecureStorageUnavailable,
-                    canSignIn = false,
+                    canSignIn = true,
                     onSignIn = {},
                 )
             }

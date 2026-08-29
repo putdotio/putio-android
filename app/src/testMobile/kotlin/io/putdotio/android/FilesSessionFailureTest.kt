@@ -32,6 +32,14 @@ class FilesSessionFailureTest {
     }
 
     @Test
+    fun `access denied in a hidden parent preserves the session`() {
+        val failure = FilesFailure.AccessDenied(PutioConfigurationException("forbidden"))
+        val state = browserStateWithParentPagingFailure(failure)
+
+        assertNull(state.authoritativeSessionFailure())
+    }
+
+    @Test
     fun `child failure does not mask an authoritative parent failure`() {
         val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
         val childFailure = FilesFailure.Misconfigured(PutioConfigurationException("missing client"))

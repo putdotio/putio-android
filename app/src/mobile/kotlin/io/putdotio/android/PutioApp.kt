@@ -235,7 +235,11 @@ internal fun MobileSignedOutScreen(
         }
     }
 
-    if (!canSignIn || reason == MobileSignedOutReason.OAuthNotConfigured) {
+    if (
+        !canSignIn ||
+        reason == MobileSignedOutReason.OAuthNotConfigured ||
+        reason == MobileSignedOutReason.SecureStorageUnavailable
+    ) {
         MobileEmptyState(
             title = stringResource(title),
             message = stringResource(message),
@@ -500,9 +504,7 @@ internal fun FilesBrowserState.authoritativeSessionFailure(): FilesFailure? =
             is FilesContent.Ready -> (content.paging as? FilesPaging.Failed)?.failure
             is FilesContent.Loading -> null
         }
-        failure?.takeIf {
-            it is FilesFailure.AuthenticationRequired || it is FilesFailure.AccessDenied
-        }
+        failure?.takeIf { it is FilesFailure.AuthenticationRequired }
     }
 
 private tailrec fun Context.findActivity(): Activity? =
