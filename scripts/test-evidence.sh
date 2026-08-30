@@ -237,10 +237,18 @@ short_publishable_count="$(find "${short_gate_dir}" -maxdepth 1 -type f -name '*
 
 keep_idle_dir="${tmpdir}/keep-idle"
 mkdir "${keep_idle_dir}"
-kept_path="$(ANDROID_HOME="${fake_sdk}" EVIDENCE_DIR="${keep_idle_dir}" ADB_FIXTURE="${tmpdir}/static.mp4" \
-  "${BASH_SOURCE[0]%/*}/evidence.sh" record --serial test --seconds 6 --keep-idle 2>/dev/null)"
+ffmpeg -hide_banner -loglevel error -f lavfi \
+  -i 'color=c=gray:s=320x240:r=30' -frames:v 1 -c:v libx264 -pix_fmt yuv420p \
+  "${tmpdir}/one-frame-static.mp4"
+kept_path="$(ANDROID_HOME="${fake_sdk}" EVIDENCE_DIR="${keep_idle_dir}" ADB_FIXTURE="${tmpdir}/one-frame-static.mp4" \
+  "${BASH_SOURCE[0]%/*}/evidence.sh" record --serial test --seconds 3 --keep-idle 2>/dev/null)"
 [[ -f "${kept_path}" && "${kept_path}" == "${keep_idle_dir}/"*.mp4 ]] || {
   echo "expected --keep-idle to publish the intentional static recording" >&2
+  exit 1
+}
+kept_duration="$(duration "${kept_path}")"
+awk -v value="${kept_duration}" 'BEGIN { exit !(value < 1) }' || {
+  echo "expected --keep-idle caller fixture to remain under 1s, got ${kept_duration}s" >&2
   exit 1
 }
 

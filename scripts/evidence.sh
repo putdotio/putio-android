@@ -155,9 +155,12 @@ case "${cmd}" in
     fi
     # A one-frame clip of a static screen parses as ~0.04s; require enough
     # duration to actually show something happening.
-    if (( ${dur%%.*} < 2 )); then
+    if (( ${dur%%.*} < 2 )) && [[ "${KEEP_IDLE}" != "1" ]]; then
       mv "${pending}" "${out}.corrupt"
       die "recording too short (${dur}s — static screen or truncated capture); kept as ${out}.corrupt"
+    fi
+    if (( ${dur%%.*} < 2 )); then
+      log "short recording (${dur}s) kept: --keep-idle"
     fi
     gate_dark_and_publish "${pending}" 20 "${out}"
     log "recording: ${out}"
