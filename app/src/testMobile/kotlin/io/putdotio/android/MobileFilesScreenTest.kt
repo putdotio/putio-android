@@ -6,6 +6,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -249,8 +251,51 @@ class MobileFilesScreenTest {
         compose.runOnIdle {
             state = browserState(FilesContent.Empty(FilesPaging.Complete))
         }
+        val refreshBounds = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).fetchSemanticsNode().boundsInRoot
+        val emptyMessageBounds = compose.onNodeWithText("This folder is empty.").fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            kotlin.math.abs(emptyMessageBounds.center.y - refreshBounds.center.y) < refreshBounds.height / 4f,
+        )
         compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
         compose.waitUntil(timeoutMillis = 5_000L) { events.lastOrNull() == FilesBrowserEvent.Refresh }
+    }
+
+    @Test
+    fun pagingActionsAreDisabledDuringFolderOperations() {
+        val pagingFailure = FilesFailure.Unexpected(IllegalStateException("paging failed"))
+        val operationFailure = FilesFailure.Unexpected(IllegalStateException("refresh failed"))
+        var state by mutableStateOf(
+            browserState(
+                content = FilesContent.Empty(FilesPaging.Available(FilesCursor("next-page"))),
+                operation = FilesFolderOperation.Loading(
+                    requestId = FilesRequestId(5L),
+                    intent = FilesFolderOperationIntent.Refresh,
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            ),
+        )
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = {})
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_PAGING_ACTION_TAG).assertIsNotEnabled()
+
+        compose.runOnIdle {
+            state = browserState(
+                content = FilesContent.Empty(
+                    FilesPaging.Failed(FilesCursor("next-page"), pagingFailure),
+                ),
+                operation = FilesFolderOperation.Failed(
+                    failure = operationFailure,
+                    intent = FilesFolderOperationIntent.Refresh,
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            )
+        }
+        compose.onNodeWithTag(MOBILE_FILES_PAGING_ACTION_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).assertIsEnabled()
     }
 
     @Test
@@ -300,6 +345,34 @@ class MobileFilesScreenTest {
         compose.onNodeWithText("Couldn’t refresh files.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
         assertEquals(FilesBrowserEvent.Retry, events.last())
+
+        compose.runOnIdle {
+            state = browserState(
+                content = content,
+                operation = FilesFolderOperation.Failed(
+                    failure = FilesFailure.Unexpected(IllegalStateException("offline")),
+                    intent = FilesFolderOperationIntent.Sort(
+                        io.putdotio.android.files.FilesSort.NAME_ASCENDING,
+                    ),
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            )
+        }
+        compose.onNodeWithText("Couldn’t reload files.").assertIsDisplayed()
+
+        compose.runOnIdle {
+            state = browserState(
+                content = content,
+                operation = FilesFolderOperation.Failed(
+                    failure = FilesFailure.Unexpected(IllegalStateException("offline")),
+                    intent = FilesFolderOperationIntent.Sort(
+                        io.putdotio.android.files.FilesSort.NAME_ASCENDING,
+                    ),
+                    phase = FilesFolderOperationPhase.PERSISTING_SORT,
+                ),
+            )
+        }
+        compose.onNodeWithText("Couldn’t change sorting.").assertIsDisplayed()
     }
 
     private fun setFilesContent(

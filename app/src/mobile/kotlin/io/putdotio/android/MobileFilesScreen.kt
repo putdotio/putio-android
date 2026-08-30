@@ -7,10 +7,12 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -52,6 +54,7 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
+import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
@@ -62,6 +65,8 @@ import kotlinx.coroutines.flow.filterNotNull
 import java.time.Instant
 
 internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
+internal const val MOBILE_FILES_OPERATION_RETRY_TAG = "mobile-files-operation-retry"
+internal const val MOBILE_FILES_PAGING_ACTION_TAG = "mobile-files-paging-action"
 internal const val MOBILE_FILES_REFRESH_TAG = "mobile-files-refresh"
 
 @Composable
@@ -125,10 +130,18 @@ private fun MobileRefreshableFilesContent(
                 },
         ) {
             when (content) {
-                is FilesContent.Empty -> MobileEmptyFilesContent(content.paging, onEvent)
+                is FilesContent.Empty -> MobileEmptyFilesContent(
+                    paging = content.paging,
+                    pagingEnabled = operation == FilesFolderOperation.Idle,
+                    onEvent = onEvent,
+                )
                 is FilesContent.Ready ->
                     key(state.current.folder.id.value, state.current.viewportGeneration) {
-                        MobileFilesList(content, onEvent)
+                        MobileFilesList(
+                            content = content,
+                            pagingEnabled = operation == FilesFolderOperation.Idle,
+                            onEvent = onEvent,
+                        )
                     }
 
                 is FilesContent.Failed,
@@ -143,23 +156,34 @@ private fun MobileRefreshableFilesContent(
 @Composable
 private fun MobileEmptyFilesContent(
     paging: FilesPaging,
+    pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+                .fillMaxWidth(),
         ) {
-            MobileEmptyState(
-                title = stringResource(R.string.mobile_state_empty_title),
-                message = stringResource(R.string.mobile_state_empty_message),
-            )
+            val viewportHeight = maxHeight
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                MobileEmptyState(
+                    title = stringResource(R.string.mobile_state_empty_title),
+                    message = stringResource(R.string.mobile_state_empty_message),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = viewportHeight),
+                )
+            }
         }
         MobileFilesPaging(
             paging = paging,
+            enabled = pagingEnabled,
             onEvent = onEvent,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -197,10 +221,10 @@ private fun MobileFilesOperationStatus(
 
         is FilesFolderOperation.Failed -> {
             val message = stringResource(
-                if (operation.intent == FilesFolderOperationIntent.Refresh) {
-                    R.string.mobile_files_refresh_error
-                } else {
-                    R.string.mobile_files_sort_error
+                when {
+                    operation.intent == FilesFolderOperationIntent.Refresh -> R.string.mobile_files_refresh_error
+                    operation.phase == FilesFolderOperationPhase.PERSISTING_SORT -> R.string.mobile_files_sort_error
+                    else -> R.string.mobile_files_reload_error
                 },
             )
             Row(
@@ -217,7 +241,10 @@ private fun MobileFilesOperationStatus(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                TextButton(onClick = onRetry) {
+                TextButton(
+                    onClick = onRetry,
+                    modifier = Modifier.testTag(MOBILE_FILES_OPERATION_RETRY_TAG),
+                ) {
                     Text(stringResource(R.string.mobile_action_retry))
                 }
             }
@@ -228,6 +255,7 @@ private fun MobileFilesOperationStatus(
 @Composable
 private fun MobileFilesList(
     content: FilesContent.Ready,
+    pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -289,6 +317,7 @@ private fun MobileFilesList(
             item(key = FILES_PAGING_ITEM_KEY) {
                 MobileFilesPaging(
                     paging = content.paging,
+                    enabled = pagingEnabled,
                     onEvent = onEvent,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -352,6 +381,7 @@ private fun MobileFilesRow(
 @Composable
 private fun MobileFilesPaging(
     paging: FilesPaging,
+    enabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -361,7 +391,11 @@ private fun MobileFilesPaging(
                 modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                TextButton(onClick = { onEvent(FilesBrowserEvent.LoadNextPage) }) {
+                TextButton(
+                    onClick = { onEvent(FilesBrowserEvent.LoadNextPage) },
+                    enabled = enabled,
+                    modifier = Modifier.testTag(MOBILE_FILES_PAGING_ACTION_TAG),
+                ) {
                     Text(stringResource(R.string.mobile_files_load_more))
                 }
             }
@@ -395,7 +429,11 @@ private fun MobileFilesPaging(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                TextButton(onClick = { onEvent(FilesBrowserEvent.Retry) }) {
+                TextButton(
+                    onClick = { onEvent(FilesBrowserEvent.Retry) },
+                    enabled = enabled,
+                    modifier = Modifier.testTag(MOBILE_FILES_PAGING_ACTION_TAG),
+                ) {
                     Text(stringResource(R.string.mobile_action_retry))
                 }
             }
