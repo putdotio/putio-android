@@ -36,6 +36,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
+import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -181,6 +182,27 @@ class MobileShellTest {
         compose.setShell(filesState = refreshing)
 
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun failedSortReloadCanSelectTheDisplayedSort() {
+        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
+        val failed = ready.copy(
+            stack = ready.stack.dropLast(1) + ready.current.copy(
+                operation = FilesFolderOperation.Failed(
+                    failure = FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                    intent = FilesFolderOperationIntent.Sort(FilesSort.SIZE_DESCENDING),
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            ),
+        )
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(filesState = failed, onFilesEvent = events::add)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsEnabled().performClick()
+        compose.onNodeWithText("Name, A–Z").assertIsSelected().performClick()
+
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING), events.last())
     }
 
     @Test
