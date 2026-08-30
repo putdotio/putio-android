@@ -58,7 +58,7 @@ internal fun MobileFilesSortMenu(
             )
         }
         DropdownMenu(
-            expanded = expanded,
+            expanded = expanded && enabled,
             onDismissRequest = { expanded = false },
             modifier = Modifier.selectableGroup(),
         ) {
