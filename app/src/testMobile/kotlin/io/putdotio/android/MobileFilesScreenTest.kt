@@ -415,6 +415,17 @@ class MobileFilesScreenTest {
         }
         compose.onNodeWithText("visible.txt").assertIsDisplayed()
         compose.onNodeWithText("Couldn’t refresh files.").assertIsDisplayed()
+        compose.runOnIdle { events.clear() }
+        val failedRefreshAction = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
+            .fetchSemanticsNode().config[SemanticsActions.CustomActions]
+            .single { it.label == "Refresh files" }
+        compose.runOnIdle { failedRefreshAction.action() }
+        assertEquals(FilesBrowserEvent.Refresh, events.last())
+
+        compose.runOnIdle { events.clear() }
+        compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
+        compose.waitUntil(timeoutMillis = 5_000L) { FilesBrowserEvent.Refresh in events }
+
         compose.onNodeWithText("Try again").performClick()
         assertEquals(FilesBrowserEvent.Retry, events.last())
 
