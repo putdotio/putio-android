@@ -108,6 +108,52 @@ class FilesBrowserControllerTest {
         }
 
     @Test
+    fun externalNavigationCancelsRequestsRemovedWithThePreviousStack() =
+        runBlocking {
+            val childStarted = CompletableDeferred<Unit>()
+            val childCancelled = CompletableDeferred<Unit>()
+            val folder = item(7L, "Shows", PutioFileType.FOLDER)
+            val repository =
+                object : FilesRepository {
+                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                        when (folderId.value) {
+                            FilesFolder.Root.id.value -> FilesRepositoryResult.Success(FilesPage(listOf(folder), null))
+                            folder.id.value -> {
+                                childStarted.complete(Unit)
+                                try {
+                                    awaitCancellation()
+                                } finally {
+                                    childCancelled.complete(Unit)
+                                }
+                            }
+                            44L -> FilesRepositoryResult.Success(FilesPage(emptyList(), null))
+                            else -> error("Unexpected folder $folderId")
+                        }
+
+                    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
+                        error("No continuation expected")
+                }
+            val controller = FilesBrowserController(repository, this)
+
+            try {
+                controller.awaitState { it.current.content is FilesContent.Ready }
+                assertTrue(controller.dispatch(FilesBrowserEvent.OpenFolder(folder.id)))
+                withTimeout(TEST_TIMEOUT_MILLIS) { childStarted.await() }
+
+                val externalFile = item(99L, "movie.mkv", PutioFileType.VIDEO).copy(parentId = FilesItemId(44L))
+                assertTrue(controller.dispatch(FilesBrowserEvent.OpenExternalItem(externalFile)))
+
+                withTimeout(TEST_TIMEOUT_MILLIS) { childCancelled.await() }
+                controller.awaitState {
+                    it.current.folder.id == FilesItemId(44L) && it.current.content is FilesContent.Empty
+                }
+                assertEquals(listOf(FilesItemId(0L), FilesItemId(44L)), controller.state.value.path.map { it.id })
+            } finally {
+                controller.close()
+            }
+        }
+
+    @Test
     fun reportsUnhandledRootBackAndDoesNotCancelItsParentScope() =
         runBlocking {
             val repository =

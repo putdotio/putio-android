@@ -9,6 +9,14 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.history.HistoryClearing
+import io.putdotio.android.history.HistoryContent
+import io.putdotio.android.history.HistoryEventId
+import io.putdotio.android.history.HistoryEventKind
+import io.putdotio.android.history.HistoryFileId
+import io.putdotio.android.history.HistoryItem
+import io.putdotio.android.history.HistoryPaging
+import io.putdotio.android.history.HistoryState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -50,6 +58,30 @@ class FilesSessionFailureTest {
                 ),
             )
         }
+
+        assertSame(authFailure, state.authoritativeSessionFailure())
+    }
+
+    @Test
+    fun `history paging failure does not mask an authoritative clear failure`() {
+        val pagingFailure = FilesFailure.Misconfigured(PutioConfigurationException("missing client"))
+        val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val state =
+            HistoryState(
+                content =
+                    HistoryContent.Ready(
+                        items =
+                            listOf(
+                                HistoryItem(
+                                    id = HistoryEventId(1L),
+                                    createdAt = "2026-08-30T00:00:00Z",
+                                    kind = HistoryEventKind.File(HistoryFileId(2L), "file.mkv"),
+                                ),
+                            ),
+                        paging = HistoryPaging.Failed(HistoryEventId(1L), pagingFailure),
+                    ),
+                clearing = HistoryClearing.Failed(authFailure),
+            )
 
         assertSame(authFailure, state.authoritativeSessionFailure())
     }

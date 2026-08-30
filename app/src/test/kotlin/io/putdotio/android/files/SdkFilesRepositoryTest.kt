@@ -43,6 +43,7 @@ class SdkFilesRepositoryTest {
                         )
                     },
                     continueListing = { error("Unexpected continuation") },
+                    getFile = { error("Unexpected file resolution") },
                 )
 
             val result = repository.loadFolder(FilesFolder.Root.id) as FilesRepositoryResult.Success
@@ -64,6 +65,7 @@ class SdkFilesRepositoryTest {
                         requestedCursor = cursor
                         response(cursor = "  ")
                     },
+                    getFile = { error("Unexpected file resolution") },
                 )
 
             val result = repository.loadNextPage(FilesCursor("opaque-cursor")) as FilesRepositoryResult.Success
@@ -90,6 +92,27 @@ class SdkFilesRepositoryTest {
                 ((unavailable as FilesRepositoryResult.Failure).failure as FilesFailure.ServerUnavailable).statusCode,
             )
             assertTrue((network as FilesRepositoryResult.Failure).failure is FilesFailure.NetworkUnavailable)
+        }
+
+    @Test
+    fun resolvesFileDetailsThroughTheFilesBoundary() =
+        runBlocking {
+            var requestedFileId: Long? = null
+            val repository =
+                SdkFilesRepository(
+                    listFolder = { error("Unexpected folder load") },
+                    continueListing = { error("Unexpected continuation") },
+                    getFile = { fileId ->
+                        requestedFileId = fileId
+                        sdkFile(fileId, "movie.mkv", PutioFileType.VIDEO)
+                    },
+                )
+
+            val result = repository.resolveItem(FilesItemId(42L)) as FilesRepositoryResult.Success
+
+            assertEquals(42L, requestedFileId)
+            assertEquals(FilesItemId(42L), result.value.id)
+            assertEquals("movie.mkv", result.value.name)
         }
 
     @Test
@@ -164,6 +187,7 @@ class SdkFilesRepositoryTest {
         SdkFilesRepository(
             listFolder = { throw error },
             continueListing = { throw error },
+            getFile = { throw error },
         )
 
     private fun apiFailure(

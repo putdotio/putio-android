@@ -13,6 +13,7 @@ data class MobileAccount(
     val userId: Long,
     val username: String,
     val email: String,
+    val historyEnabled: Boolean = false,
 )
 
 @JvmInline

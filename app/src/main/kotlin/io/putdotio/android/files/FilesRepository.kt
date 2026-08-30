@@ -71,13 +71,19 @@ interface FilesRepository {
     suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage>
 }
 
+interface FilesItemResolver {
+    suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem>
+}
+
 class SdkFilesRepository internal constructor(
     private val listFolder: suspend (Long) -> FilesListResponse,
     private val continueListing: suspend (String) -> FilesListResponse,
-) : FilesRepository {
+    private val getFile: suspend (Long) -> PutioFile,
+) : FilesRepository, FilesItemResolver {
     constructor(client: PutioClient) : this(
         listFolder = { folderId -> client.files.list(parentId = folderId) },
         continueListing = { cursor -> client.files.continueList(cursor = cursor) },
+        getFile = { fileId -> client.files.get(fileId) },
     )
 
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
@@ -86,12 +92,19 @@ class SdkFilesRepository internal constructor(
     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
         requestPage { continueListing(cursor.value) }
 
+    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+        request { getFile(itemId.value).toFilesItem() }
+
     // Kotlin/JVM has no typed throws contract, so the SDK boundary converts
     // unknown failures after preserving cancellation.
     @Suppress("TooGenericExceptionCaught")
     private suspend fun requestPage(request: suspend () -> FilesListResponse): FilesRepositoryResult<FilesPage> =
+        request { request().toFilesPage() }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun <T> request(request: suspend () -> T): FilesRepositoryResult<T> =
         try {
-            FilesRepositoryResult.Success(request().toFilesPage())
+            FilesRepositoryResult.Success(request())
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
@@ -107,7 +120,7 @@ private fun FilesListResponse.toFilesPage(): FilesPage =
         nextCursor = cursor?.takeIf(String::isNotBlank)?.let(::FilesCursor),
     )
 
-private fun PutioFile.toFilesItem(): FilesItem =
+internal fun PutioFile.toFilesItem(): FilesItem =
     FilesItem(
         id = FilesItemId(id),
         parentId = parentId?.let(::FilesItemId),
@@ -120,7 +133,7 @@ private fun PutioFile.toFilesItem(): FilesItem =
 // Mirrors PutioAuthSessionGateway.isAuthoritativeAuthRejection: a contract-derived
 // 401/403 reason is an auth verdict even when the underlying error is not an API
 // exception, and the wrapper chain is walked with a cycle guard.
-private fun PutioException.toFilesFailure(): FilesFailure {
+internal fun PutioException.toFilesFailure(): FilesFailure {
     var current: PutioException = this
     val visited = mutableSetOf<PutioException>()
     while (current is PutioOperationException && visited.add(current)) {

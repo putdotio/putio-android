@@ -83,6 +83,10 @@ sealed interface FilesBrowserEvent {
         val itemId: FilesItemId,
     ) : FilesBrowserEvent
 
+    data class OpenExternalItem(
+        val item: FilesItem,
+    ) : FilesBrowserEvent
+
     data object NavigateBack : FilesBrowserEvent
 
     data object LoadNextPage : FilesBrowserEvent
@@ -151,6 +155,7 @@ object FilesBrowserReducer {
     ): FilesBrowserTransition =
         when (event) {
             is FilesBrowserEvent.OpenFolder -> state.openFolder(event.itemId)
+            is FilesBrowserEvent.OpenExternalItem -> state.openExternalItem(event.item)
             FilesBrowserEvent.NavigateBack -> state.navigateBack()
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
             FilesBrowserEvent.Retry -> state.retry()

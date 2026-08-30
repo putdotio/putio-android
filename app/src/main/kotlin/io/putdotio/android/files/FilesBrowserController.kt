@@ -40,15 +40,14 @@ class FilesBrowserController(
                 val previousState = mutableState.value
                 val next = FilesBrowserReducer.reduce(previousState, event)
                 mutableState.value = next.state
+                val completedRequestId = event.completedRequestId()
                 val removedJobs =
-                    if (event == FilesBrowserEvent.NavigateBack) {
-                        jobs.keys
-                            .filter { requestId ->
-                                previousState.hasRequest(requestId) && !next.state.hasRequest(requestId)
-                            }.mapNotNull(jobs::remove)
-                    } else {
-                        emptyList()
-                    }
+                    jobs.keys
+                        .filter { requestId ->
+                            requestId != completedRequestId &&
+                                previousState.hasRequest(requestId) &&
+                                !next.state.hasRequest(requestId)
+                        }.mapNotNull(jobs::remove)
                 next to removedJobs
             }
         jobsToCancel.forEach { it.cancel() }
@@ -110,3 +109,10 @@ class FilesBrowserController(
         job.start()
     }
 }
+
+private fun FilesBrowserEvent.completedRequestId(): FilesRequestId? =
+    when (this) {
+        is FilesBrowserEvent.LoadSucceeded -> requestId
+        is FilesBrowserEvent.LoadFailed -> requestId
+        else -> null
+    }
