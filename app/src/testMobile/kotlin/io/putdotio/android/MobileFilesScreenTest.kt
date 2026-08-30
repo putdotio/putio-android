@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEvent
@@ -17,6 +18,9 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesFolderOperation
+import io.putdotio.android.files.FilesFolderOperationIntent
+import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -90,6 +94,11 @@ class MobileFilesScreenTest {
             state = browserState(FilesContent.Empty(FilesPaging.Complete))
         }
         compose.onNodeWithText("This folder is empty.").assertIsDisplayed()
+        val emptyRefreshAction = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
+            .fetchSemanticsNode().config[SemanticsActions.CustomActions]
+            .single { it.label == "Refresh files" }
+        compose.runOnIdle { emptyRefreshAction.action() }
+        assertEquals(FilesBrowserEvent.Refresh, events.last())
 
         compose.runOnIdle {
             state = browserState(
@@ -164,6 +173,55 @@ class MobileFilesScreenTest {
         }
     }
 
+    @Test
+    fun refreshIsAccessibleAndOperationFailureKeepsRowsRecoverable() {
+        val content = FilesContent.Ready(
+            items = listOf(filesItem(id = 1L, name = "visible.txt")),
+            paging = FilesPaging.Complete,
+        )
+        var state by mutableStateOf(browserState(content))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = events::add)
+            }
+        }
+
+        val refreshAction = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
+            .fetchSemanticsNode().config[SemanticsActions.CustomActions]
+            .single { it.label == "Refresh files" }
+        compose.runOnIdle { refreshAction.action() }
+        assertEquals(FilesBrowserEvent.Refresh, events.last())
+
+        compose.runOnIdle {
+            state = browserState(
+                content = content,
+                operation = FilesFolderOperation.Loading(
+                    requestId = FilesRequestId(3L),
+                    intent = FilesFolderOperationIntent.Sort(io.putdotio.android.files.FilesSort.NAME_ASCENDING),
+                    phase = FilesFolderOperationPhase.PERSISTING_SORT,
+                ),
+            )
+        }
+        compose.onNodeWithText("visible.txt").assertIsDisplayed()
+        compose.onNodeWithText("Updating file order").assertIsDisplayed()
+
+        compose.runOnIdle {
+            state = browserState(
+                content = content,
+                operation = FilesFolderOperation.Failed(
+                    failure = FilesFailure.Unexpected(IllegalStateException("offline")),
+                    intent = FilesFolderOperationIntent.Refresh,
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            )
+        }
+        compose.onNodeWithText("visible.txt").assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t refresh files.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").performClick()
+        assertEquals(FilesBrowserEvent.Retry, events.last())
+    }
+
     private fun setFilesContent(
         state: FilesBrowserState,
         onEvent: (FilesBrowserEvent) -> Unit,
@@ -175,9 +233,12 @@ class MobileFilesScreenTest {
         }
     }
 
-    private fun browserState(content: FilesContent): FilesBrowserState =
+    private fun browserState(
+        content: FilesContent,
+        operation: FilesFolderOperation = FilesFolderOperation.Idle,
+    ): FilesBrowserState =
         FilesBrowserState(
-            stack = listOf(FilesFolderState(folder = FilesFolder.Root, content = content)),
+            stack = listOf(FilesFolderState(folder = FilesFolder.Root, content = content, operation = operation)),
             nextRequestValue = 2L,
         )
 

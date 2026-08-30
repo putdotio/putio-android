@@ -27,6 +27,7 @@ ICONS=(
   "main ic_ph_file_code_fill fill/file-code-fill"
   "mobile ic_ph_folder regular/folder"
   "mobile ic_ph_arrow_left regular/arrow-left"
+  "mobile ic_ph_sort_ascending regular/sort-ascending"
   "mobile ic_ph_magnifying_glass regular/magnifying-glass"
   "mobile ic_ph_magnifying_glass_fill fill/magnifying-glass-fill"
   "mobile ic_ph_arrow_circle_down regular/arrow-circle-down"

@@ -16,12 +16,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,9 +36,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +50,8 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesFolderOperation
+import io.putdotio.android.files.FilesFolderOperationIntent
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
@@ -55,6 +62,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import java.time.Instant
 
 internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
+internal const val MOBILE_FILES_REFRESH_TAG = "mobile-files-refresh"
 
 @Composable
 internal fun MobileFilesScreen(
@@ -70,12 +78,7 @@ internal fun MobileFilesScreen(
                 modifier = modifier,
             )
 
-        is FilesContent.Empty ->
-            MobileEmptyFilesContent(
-                paging = content.paging,
-                onEvent = onEvent,
-                modifier = modifier,
-            )
+        is FilesContent.Empty -> MobileRefreshableFilesContent(state, content, onEvent, modifier)
 
         is FilesContent.Failed ->
             MobileErrorState(
@@ -86,14 +89,54 @@ internal fun MobileFilesScreen(
                 modifier = modifier,
             )
 
-        is FilesContent.Ready ->
-            key(current.folder.id.value, current.viewportGeneration) {
-                MobileFilesList(
-                    content = content,
-                    onEvent = onEvent,
-                    modifier = modifier,
-                )
+        is FilesContent.Ready -> MobileRefreshableFilesContent(state, content, onEvent, modifier)
+    }
+}
+
+@Composable
+private fun MobileRefreshableFilesContent(
+    state: FilesBrowserState,
+    content: FilesContent,
+    onEvent: (FilesBrowserEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val operation = state.current.operation
+    val isRefreshing =
+        operation is FilesFolderOperation.Loading &&
+            operation.intent == FilesFolderOperationIntent.Refresh
+    val refreshLabel = stringResource(R.string.mobile_files_refresh)
+    val refreshAction = CustomAccessibilityAction(refreshLabel) {
+        onEvent(FilesBrowserEvent.Refresh)
+        true
+    }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { onEvent(FilesBrowserEvent.Refresh) },
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .testTag(MOBILE_FILES_REFRESH_TAG)
+                .semantics {
+                    if (operation !is FilesFolderOperation.Loading) {
+                        customActions = listOf(refreshAction)
+                    }
+                },
+        ) {
+            when (content) {
+                is FilesContent.Empty -> MobileEmptyFilesContent(content.paging, onEvent)
+                is FilesContent.Ready ->
+                    key(state.current.folder.id.value, state.current.viewportGeneration) {
+                        MobileFilesList(content, onEvent)
+                    }
+
+                is FilesContent.Failed,
+                is FilesContent.Loading,
+                -> Unit
             }
+        }
+        MobileFilesOperationStatus(operation = operation, onRetry = { onEvent(FilesBrowserEvent.Retry) })
     }
 }
 
@@ -103,18 +146,82 @@ private fun MobileEmptyFilesContent(
     onEvent: (FilesBrowserEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
-        MobileEmptyState(
-            title = stringResource(R.string.mobile_state_empty_title),
-            message = stringResource(R.string.mobile_state_empty_message),
-        )
+    Column(modifier = modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            MobileEmptyState(
+                title = stringResource(R.string.mobile_state_empty_title),
+                message = stringResource(R.string.mobile_state_empty_message),
+            )
+        }
         MobileFilesPaging(
             paging = paging,
             onEvent = onEvent,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+@Composable
+private fun MobileFilesOperationStatus(
+    operation: FilesFolderOperation,
+    onRetry: () -> Unit,
+) {
+    when (operation) {
+        FilesFolderOperation.Idle -> Unit
+        is FilesFolderOperation.Loading -> {
+            if (operation.intent is FilesFolderOperationIntent.Sort) {
+                val message = stringResource(R.string.mobile_files_sorting)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .semantics { contentDescription = message },
+                        strokeWidth = 2.dp,
+                    )
+                    Text(message, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+
+        is FilesFolderOperation.Failed -> {
+            val message = stringResource(
+                if (operation.intent == FilesFolderOperationIntent.Refresh) {
+                    R.string.mobile_files_refresh_error
+                } else {
+                    R.string.mobile_files_sort_error
+                },
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 8.dp)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = message,
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(onClick = onRetry) {
+                    Text(stringResource(R.string.mobile_action_retry))
+                }
+            }
+        }
     }
 }
 

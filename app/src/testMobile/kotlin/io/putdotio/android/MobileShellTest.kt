@@ -4,7 +4,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -15,6 +18,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
@@ -26,9 +31,14 @@ import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesFolderOperation
+import io.putdotio.android.files.FilesFolderOperationIntent
+import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -100,6 +110,48 @@ class MobileShellTest {
     }
 
     @Test
+    fun filesTopBarSelectsSortAndOtherDestinationsHideIt() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(
+            filesState = readyFilesState(FilesSort.NAME_ASCENDING),
+            onFilesEvent = events::add,
+        )
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG)
+            .assertIsEnabled()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.StateDescription,
+                    "Name, A–Z",
+                ),
+            )
+            .performClick()
+        compose.onNodeWithText("Size, largest first").performClick()
+
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING), events.last())
+
+        compose.onNodeWithText("Transfers").performClick()
+        compose.onAllNodesWithTag(MOBILE_FILES_SORT_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun filesSortIsDisabledWhileARefreshIsRunning() {
+        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
+        val refreshing = ready.copy(
+            stack = ready.stack.dropLast(1) + ready.current.copy(
+                operation = FilesFolderOperation.Loading(
+                    requestId = FilesRequestId(12L),
+                    intent = FilesFolderOperationIntent.Refresh,
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            ),
+        )
+        compose.setShell(filesState = refreshing)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
+    }
+
+    @Test
     fun secureStorageFailureHidesSignInWhenOAuthIsConfigured() {
         compose.setContent {
             PutioTheme {
@@ -163,4 +215,29 @@ private fun nestedFilesState(): FilesBrowserState {
     val nested = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenFolder(folder.id)).state
     check(nested.current.content is FilesContent.Loading)
     return nested
+}
+
+private fun readyFilesState(sort: FilesSort): FilesBrowserState {
+    val initial = FilesBrowserReducer.start()
+    val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
+    return FilesBrowserReducer.reduce(
+        initial.state,
+        FilesBrowserEvent.LoadSucceeded(
+            requestId,
+            FilesPage(
+                items = listOf(
+                    FilesItem(
+                        id = FilesItemId(9L),
+                        parentId = FilesFolder.Root.id,
+                        name = "movie.mkv",
+                        type = PutioFileType.VIDEO,
+                        sizeBytes = 42L,
+                        createdAt = "2026-08-29T00:00:00Z",
+                    ),
+                ),
+                nextCursor = null,
+                sort = sort,
+            ),
+        ),
+    ).state
 }
