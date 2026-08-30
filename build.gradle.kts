@@ -4,9 +4,14 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
 }
 
+val testEvidence = tasks.register<Exec>("testEvidence") {
+    group = "verification"
+    description = "Run evidence harness regression tests"
+    commandLine("bash", "scripts/test-evidence.sh")
+}
+
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
-    dependsOn(":app:check")
+    dependsOn(":app:check", testEvidence)
 }
-

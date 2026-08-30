@@ -48,6 +48,12 @@ jobs:
         with:
           validate-wrappers: true
 
+      - name: Install evidence dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg locales
+          sudo locale-gen de_DE.UTF-8
+
       - name: Verify and assemble all flavors
         working-directory: putio-android
         run: >-

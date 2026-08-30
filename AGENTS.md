@@ -28,7 +28,7 @@ rest.
 | --- | --- |
 | JDK 21 on PATH | `.java-version` pins 21; `mise install` or `brew install temurin@21` |
 | Homebrew (macOS) | only needed if Android cmdline-tools are absent |
-| Network | first bootstrap downloads ~3 GB of SDK packages |
+| Network | first bootstrap downloads ~3 GB of SDK packages plus FFmpeg |
 
 ```bash
 ./scripts/bootstrap.sh
@@ -142,6 +142,10 @@ deleted on exit), `--window` (headed), `--skip-build`, `--record`,
 `--record` runs after verification: the app is force-stopped and relaunched
 under active capture, so the clip always has frames (`screenrecord` drops
 static screens) and shows a real cold process launch on a settled system.
+A publication gate trims sustained frozen lead and tail while retaining short
+context around the action. A fully static recording is quarantined as
+`*.idle.mp4`; pass `--keep-idle` to `scripts/evidence.sh record` only for an
+intentional timing demonstration.
 A follow-up gated screenshot confirms the recorded relaunch rendered.
 Still eyeball captures before publishing them as evidence.
 
