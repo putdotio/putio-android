@@ -1,96 +1,65 @@
-# putio-design 3.0.0 · Android binding discrepancies
+# putio-design 3.x · Android binding reconciliation
 
-The 3.0.0 design round was written without reading this repo
-(`platforms/android/DESIGN.md` front matter: "No Android source repo is
-tracked"). This file lists where the cards and the shipped source disagree, so
-the next design revision can be grounded in the actual app instead of
-guessing. Owner of each decision noted per row.
+The Android app consumes the `@putdotio/design` DTCG graph as a tier-2
+binding. Components and interaction stay native to Material 3 and Compose for
+TV. This ledger records the remaining cross-repo gaps without treating preview
+CSS as Compose source.
 
-## The repo exists
+## August 2026 design update
 
-`putdotio/putio-android` is the native Compose rewrite (program
-[#14](https://github.com/putdotio/putio-android/issues/14)), one codebase for
-Android mobile and Android TV / Fire TV. Point the design system at it.
+`putio-design` commit `15a3201` expands the Android TV contract with an M3
+navigation drawer, Search, Account and continue-watching cards. It changes no
+token source or generated token artifact. The app's vendored graph and design's
+`dist/tokens.dtcg.json` remain byte-identical at SHA-256
+`a915906059426c95bde3fea77b4de72e1097fc50d46842b417143172dfc5c0c6`, so the
+Android token version stays `3.0.0`.
 
-## androidtv-s00-shell documents the app this repo replaces
+The update resolves two earlier discrepancies:
 
-The card's tier bar says the Android TV app is "the same React Native codebase
-as tv.put.io (`apps/tv-native`)" and its don't-list forbids exactly what
-`platforms/android/DESIGN.md` §Android TV specifies:
+- Android TV is now documented as Compose for TV with scale and elevation,
+  rather than as the React Native app this repository replaces.
+- TV cards now state their 1920x1080 canvas is a 2x rendering of the
+  960x540dp app surface.
 
-| Card (androidtv-s00-shell) | DESIGN.md §Android TV | This repo ships |
-| --- | --- | --- |
-| "Focus is a filled rounded row. Not Compose's scale-plus-elevation" | "Focus is Compose for TV's: the focused `Surface` scales and elevates" | Compose for TV platform focus (scale + elevate, no tilt) |
-| Rebuilt from the shipped RN app | Compose for TV | Compose for TV (`androidx.tv:tv-material`) |
+No Android mobile behavior changed. The new TV implementation work belongs to
+[#32](https://github.com/putdotio/putio-android/issues/32),
+[#33](https://github.com/putdotio/putio-android/issues/33) and
+[#34](https://github.com/putdotio/putio-android/issues/34), not the weekend
+mobile auth-to-Files slice.
 
-Both statements can't bind the same platform. This repo follows DESIGN.md and
-the rewrite program: platform focus engine, list-first, no poster wall. The
-card should be re-drawn from this repo once a files screen ships, the way the
-Roku cards were grounded.
+## Reconciled binding details
 
-Internal inconsistency in the same sources: DESIGN.md says the TV list glyph
-is 42px, the card says 44px. We render 21dp (= 42px at the tv_1080p xhdpi
-density). One number should win.
+The paired design-contract update records the behavior already shipped by the
+Android adapter:
 
-## Nav indicator: the card's 64×32dp is the old M3 token
+- Navigation indicator geometry remains Material-owned. The current Compose
+  Material 3 Expressive implementation renders `56x32dp`, not the older
+  `64x32dp` preview value.
+- Android TV file-row glyphs use `42px` on the 2x card and `21dp` on the xhdpi
+  emulator.
+- The phone scheme includes the secondary, container, background and inverse
+  roles used by stock navigation, bottom-sheet, FAB and snackbar components.
+- Compose for TV receives the equivalent container and inverse-role projection
+  through its older API, including `surfaceVariant`, `inverseSurface`,
+  `inverseOnSurface`, `border` and `borderVariant`. Stock TV `ListItem` focus
+  reads `inverseSurface`, so leaving it at the Material baseline is not safe.
+- `SWF` uses Phosphor `file-code` because Phosphor has no dedicated SWF glyph.
+- The design contract acknowledges that a native Android implementation owns
+  the generated platform adapter; `putio-design` remains free of Kotlin and
+  Android XML outputs.
 
-Measured on device, stock `NavigationBarItem` in the current Compose BOM
-(2026.06.01, M3 expressive) draws the active indicator at 56×32dp. The card
-and DESIGN.md say 64×32dp — the pre-expressive M3 spec value. Per the tier
-rule ("Material decides"), the app ships Material's current number; the spec
-should update its metric or accept drift as Material moves.
+The role projections live in
+`buildSrc/src/main/kotlin/DesignTokenCodegen.kt`. Generated Kotlin remains an
+output and must not be edited by hand.
 
-## TV metrics are px on a 1920×1080 canvas; the app runs at 960×540dp
+## Remaining gaps
 
-Android TV at 1080p renders at xhdpi, so every px in the tv token group is
-2 physical px per dp. The app halves the card values (80px side padding →
-40dp, 64px top → 32dp). The next revision should state TV metrics in dp, as
-the phone cards already do.
-
-## Fonts: specified but not deliverable
-
-GT America and Berkeley Mono are specified as the type families; the cards
-load them as web fonts from `static.put.io`. No app-embeddable binaries
-(ttf/otf) exist in any tracked repo, and both are commercial faces whose
-app-embedding licensing is not documented anywhere we can see. The app ships
-system fonts (Roboto) until the design/licensing owners deliver embeddable
-files. Decision owner: put.io design + licensing.
-
-## The M3 role map is 11 roles; Material has more
-
-`darkColorScheme(...)` roles the contract does not name fall back to M3
-baseline values — including baseline purple `secondary`/`tertiary` and their
-containers, which stock chips and filled tonal components read. This repo
-derives four extra entries to keep stock components on-token:
-
-- `background`/`onBackground` mirror `surface`/`onSurface`
-- `primaryContainer`/`onPrimaryContainer` = `--yellow-solid` /
-  `--primary-foreground`, because the stock FAB reads `primaryContainer` and
-  the android-s00-shell card specs the FAB in exactly those tokens
-- `secondaryContainer` = `--yellow-solid` at 26% and `onSecondaryContainer` =
-  `--yellow-solid`, because the stock `NavigationBarItem` indicator reads
-  `secondaryContainer` and the card specs "64×32dp pill at 26% primary" with
-  a yellow glyph — without the mapping the pill renders baseline purple
-
-The next revision should either extend the table or state that baseline
-fallbacks are accepted. Same for the Compose for TV `ColorScheme`, which
-predates the `surfaceContainer` tiers and names its outline roles
-`border`/`borderVariant`; our projection lives in
-`buildSrc/src/main/kotlin/DesignTokenCodegen.kt` (`TV_ROLES`).
-
-## SWF has no Phosphor glyph
-
-The put.io API's file kinds are FOLDER, FILE, AUDIO, VIDEO, IMAGE, ARCHIVE,
-PDF, TEXT, SWF. Phosphor has no swf/flash file icon; the app maps SWF to
-`file-code`. If the design round wants a different stand-in, say so in the
-icon section.
-
-## Shipped behavior the cards don't know about
-
-- Flavor matrix is `surface` (`mobile`, `tv`) × `channel` (`production`,
-  `nightly`); debug ids append `.debug`. The TV package/release identity
-  (`io.put.putio`) is preserved per program rule.
-- The production launcher icon is an in-repo vector
-  (`app/src/main/res/drawable/putio_icon.xml`), not design-system art;
-  nightly uses `app-icon-nightly-stars.png` from putio-design. A production
-  icon source in the design system would close that gap.
+- GT America and Berkeley Mono have no licensed, app-embeddable font files.
+  Android uses system fonts until licensing and delivery are resolved under
+  [#48](https://github.com/putdotio/putio-android/issues/48).
+- The design icon catalogs now prefer regular file icons while the Android
+  adapter generates filled file icons. [#21](https://github.com/putdotio/putio-android/issues/21)
+  owns that decision and the future icon lock manifest.
+- The production launcher icon is an in-repo vector. A canonical production
+  source asset is still absent from the design package; nightly already uses
+  the packaged stars icon.

@@ -16,6 +16,7 @@ object DesignTokenCodegen {
     val TOKEN_BINDINGS: List<Pair<String, String>> = listOf(
         "yellowSolid" to "yellow-solid",
         "primaryForeground" to "primary-foreground",
+        "yellowTextSecondary" to "yellow-text-secondary",
         "appBg" to "app-bg",
         "text" to "text",
         "textSecondary" to "text-secondary",
@@ -28,20 +29,22 @@ object DesignTokenCodegen {
     )
 
     /**
-     * M3 role → token property (optionally `property:alpha`). The 11
-     * contracted roles from DESIGN.md, plus derived entries so stock
-     * components do not fall back to M3 baseline purple:
+     * M3 role → token property (optionally `property:alpha`). These are the
+     * contracted roles from DESIGN.md. The container and background entries
+     * keep stock components from falling back to M3 baseline purple:
      * background/onBackground mirror surface/onSurface;
      * primaryContainer/onPrimaryContainer carry the FAB spec from the
      * android-s00-shell card (--yellow-solid / --primary-foreground);
-     * secondaryContainer/onSecondaryContainer carry the card's nav indicator
-     * ("64x32dp pill at 26% primary", yellow glyph on it).
+     * secondary/secondaryContainer/onSecondaryContainer carry the card's nav
+     * label and indicator; inverse roles carry the snackbar contract; and
+     * surfaceContainerLow carries the stock bottom-sheet surface.
      */
     val M3_ROLES: List<Pair<String, String>> = listOf(
         "primary" to "yellowSolid",
         "onPrimary" to "primaryForeground",
         "primaryContainer" to "yellowSolid",
         "onPrimaryContainer" to "primaryForeground",
+        "secondary" to "text",
         "secondaryContainer" to "yellowSolid:0.26",
         "onSecondaryContainer" to "yellowSolid",
         "background" to "appBg",
@@ -49,9 +52,13 @@ object DesignTokenCodegen {
         "surface" to "appBg",
         "onSurface" to "text",
         "onSurfaceVariant" to "textSecondary",
+        "surfaceContainerLow" to "componentBg",
         "surfaceContainer" to "componentBg",
         "surfaceContainerHigh" to "componentBgHover",
         "surfaceContainerHighest" to "componentBgActive",
+        "inverseSurface" to "componentBgActive",
+        "inverseOnSurface" to "text",
+        "inversePrimary" to "yellowTextSecondary",
         "outline" to "border",
         "outlineVariant" to "line",
         "error" to "redSolid",
@@ -59,18 +66,27 @@ object DesignTokenCodegen {
 
     /**
      * androidx.tv.material3 role → token property. The TV ColorScheme predates
-     * the surfaceContainer tiers and names its outline roles border/borderVariant;
-     * this is the closest projection of the same contract.
+     * the surfaceContainer tiers and names its outline roles border/borderVariant.
+     * Its stock components still read the container and inverse roles: notably,
+     * a focused ListItem uses inverseSurface.
      */
     val TV_ROLES: List<Pair<String, String>> = listOf(
         "primary" to "yellowSolid",
         "onPrimary" to "primaryForeground",
+        "primaryContainer" to "yellowSolid",
+        "onPrimaryContainer" to "primaryForeground",
+        "inversePrimary" to "yellowTextSecondary",
+        "secondary" to "text",
+        "secondaryContainer" to "yellowSolid:0.26",
+        "onSecondaryContainer" to "yellowSolid",
         "background" to "appBg",
         "onBackground" to "text",
         "surface" to "appBg",
         "onSurface" to "text",
         "surfaceVariant" to "componentBg",
         "onSurfaceVariant" to "textSecondary",
+        "inverseSurface" to "componentBgActive",
+        "inverseOnSurface" to "text",
         "border" to "border",
         "borderVariant" to "line",
         "error" to "redSolid",
