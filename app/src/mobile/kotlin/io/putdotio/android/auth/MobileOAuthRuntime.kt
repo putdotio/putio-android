@@ -7,24 +7,26 @@ import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicLong
 
 class MobileOAuthRuntime private constructor(
     val putioClient: PutioClient,
     val authController: MobileAuthController,
     private val applicationScope: CoroutineScope,
 ) {
-    private val callbackDispatchCounter = AtomicLong()
-
-    fun dispatchOAuthCallback(rawCallbackUri: String?) {
-        callbackDispatchCounter.incrementAndGet()
+    fun dispatchAuthTabResult(
+        resultCode: Int,
+        rawResultUri: String?,
+    ) {
         applicationScope.launch {
-            authController.handleOAuthCallback(rawCallbackUri)
+            when (val result = classifyAuthTabResult(resultCode, rawResultUri)) {
+                is OAuthBrowserResult.Callback -> authController.handleOAuthCallback(result.uri)
+                OAuthBrowserResult.Cancelled -> authController.cancelSignIn()
+                OAuthBrowserResult.Failed -> authController.failSignIn()
+            }
         }
     }
-
-    fun callbackDispatchSequence(): Long = callbackDispatchCounter.get()
 
     companion object {
         @Volatile
@@ -34,6 +36,13 @@ class MobileOAuthRuntime private constructor(
             instance ?: synchronized(this) {
                 instance ?: create(context.applicationContext).also { instance = it }
             }
+
+        internal fun resetForTests() {
+            synchronized(this) {
+                instance?.applicationScope?.cancel()
+                instance = null
+            }
+        }
 
         private fun create(context: Context): MobileOAuthRuntime {
             val oauthConfiguration = MobileOAuthConfiguration.fromClientId(BuildConfig.PUTIO_MOBILE_OAUTH_CLIENT_ID)
