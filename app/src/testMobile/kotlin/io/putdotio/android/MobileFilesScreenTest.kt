@@ -215,6 +215,7 @@ class MobileFilesScreenTest {
                     viewport = FilesViewportPosition(),
                 ),
                 sort = FilesSort.SIZE_DESCENDING,
+                viewportGeneration = 1L,
             )
         }
 
@@ -453,6 +454,7 @@ class MobileFilesScreenTest {
         content: FilesContent,
         operation: FilesFolderOperation = FilesFolderOperation.Idle,
         sort: FilesSort? = null,
+        viewportGeneration: Long = 0L,
     ): FilesBrowserState =
         FilesBrowserState(
             stack = listOf(
@@ -460,6 +462,7 @@ class MobileFilesScreenTest {
                     folder = FilesFolder.Root.copy(sort = sort),
                     content = content,
                     operation = operation,
+                    viewportGeneration = viewportGeneration,
                 ),
             ),
             nextRequestValue = 2L,
