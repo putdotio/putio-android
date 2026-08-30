@@ -87,7 +87,7 @@ internal fun MobileFilesScreen(
             )
 
         is FilesContent.Ready ->
-            key(current.folder.id.value, current.folder.sort) {
+            key(current.folder.id.value, current.viewportGeneration) {
                 MobileFilesList(
                     content = content,
                     onEvent = onEvent,

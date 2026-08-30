@@ -40,13 +40,18 @@ internal fun FilesFolderState.replaceFirstPage(
             FilesFolderOperationIntent.Refresh -> content.viewport()
             is FilesFolderOperationIntent.Sort -> FilesViewportPosition()
         }
-    // folder.sort changes only when the reordered rows replace the list; the UI keys
-    // its list state on it, so an earlier change would anchor scroll to the old order.
+    // folder.sort changes only when the reordered rows replace the list, while the
+    // viewport generation advances only for an explicit sort so refresh cannot reset it.
     val persistedSort = (loading.intent as? FilesFolderOperationIntent.Sort)?.sort
     return copy(
         folder = folder.copy(sort = page.sort ?: persistedSort ?: folder.sort),
         content = contentFor(page.items, page.nextCursor.toPaging(emptySet()), viewport),
         operation = FilesFolderOperation.Idle,
+        viewportGeneration =
+            when (loading.intent) {
+                FilesFolderOperationIntent.Refresh -> viewportGeneration
+                is FilesFolderOperationIntent.Sort -> viewportGeneration + 1
+            },
         consumedCursors = emptySet(),
     )
 }

@@ -248,6 +248,7 @@ class FilesBrowserReducerTest {
         assertEquals(FilesPaging.Available(FilesCursor("fresh-next")), refreshedContent.paging)
         assertEquals(viewport, refreshedContent.viewport)
         assertEquals(FilesSort.DATE_ADDED_DESCENDING, refreshed.current.folder.sort)
+        assertEquals(0L, refreshed.current.viewportGeneration)
         assertEquals(FilesFolderOperation.Idle, refreshed.current.operation)
     }
 
@@ -295,6 +296,7 @@ class FilesBrowserReducerTest {
         assertEquals(listOf(sorted), content.items)
         assertEquals(FilesViewportPosition(), content.viewport)
         assertEquals(FilesSort.SIZE_DESCENDING, completed.current.folder.sort)
+        assertEquals(1L, completed.current.viewportGeneration)
         assertEquals(FilesFolderOperation.Idle, completed.current.operation)
     }
 
