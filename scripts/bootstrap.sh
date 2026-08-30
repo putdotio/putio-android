@@ -58,16 +58,48 @@ else
   log "all SDK packages already installed; skipping sdkmanager"
 fi
 
-# ffprobe backs the evidence integrity checks and prove.sh's pixel gate;
-# without it those degrade to warnings.
-if ! command -v ffprobe >/dev/null 2>&1; then
+# FFmpeg backs the canonical evidence regression gate as well as runtime
+# integrity checks, so every supported bootstrap path must provision it.
+if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
   if command -v brew >/dev/null 2>&1; then
-    log "installing ffmpeg (ffprobe) for evidence verification"
+    log "installing ffmpeg for evidence verification"
     brew install ffmpeg
+  elif command -v apt-get >/dev/null 2>&1; then
+    apt_prefix=()
+    if [[ "$(id -u)" -ne 0 ]]; then
+      command -v sudo >/dev/null 2>&1 || die "ffmpeg missing; install it with your system package manager and re-run"
+      apt_prefix=(sudo)
+    fi
+    log "installing ffmpeg for evidence verification"
+    "${apt_prefix[@]}" apt-get update
+    "${apt_prefix[@]}" apt-get install -y ffmpeg
   else
-    log "WARNING: ffprobe not found and no Homebrew; evidence render checks will be skipped"
+    die "ffmpeg missing; install it with your system package manager and re-run"
   fi
 fi
+command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg install did not put ffmpeg on PATH"
+command -v ffprobe >/dev/null 2>&1 || die "ffmpeg install did not put ffprobe on PATH"
+ffmpeg_filters="$(ffmpeg -hide_banner -filters 2>/dev/null)"
+grep -q ' freezedetect ' <<<"${ffmpeg_filters}" || die "ffmpeg is missing the freezedetect filter"
+ffmpeg_encoders="$(ffmpeg -hide_banner -encoders 2>/dev/null)"
+grep -q ' libx264 ' <<<"${ffmpeg_encoders}" || die "ffmpeg is missing the libx264 encoder"
+
+if ! locale -a | grep -Ei '^de_DE[.]utf-?8$' >/dev/null; then
+  if command -v apt-get >/dev/null 2>&1; then
+    apt_prefix=()
+    if [[ "$(id -u)" -ne 0 ]]; then
+      command -v sudo >/dev/null 2>&1 || die "de_DE.UTF-8 locale missing; install locales and re-run"
+      apt_prefix=(sudo)
+    fi
+    log "installing de_DE.UTF-8 locale for evidence regression tests"
+    "${apt_prefix[@]}" apt-get update
+    "${apt_prefix[@]}" apt-get install -y locales
+    "${apt_prefix[@]}" locale-gen de_DE.UTF-8
+  else
+    die "de_DE.UTF-8 locale missing; generate it and re-run"
+  fi
+fi
+locale -a | grep -Ei '^de_DE[.]utf-?8$' >/dev/null || die "de_DE.UTF-8 locale generation failed"
 
 log "writing local.properties"
 SDK_KOTLIN_DEFAULT="$(cd "${REPO_ROOT}/.." 2>/dev/null && pwd)/putio-sdk-kotlin"
