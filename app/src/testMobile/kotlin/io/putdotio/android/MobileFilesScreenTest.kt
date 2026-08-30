@@ -3,13 +3,17 @@ package io.putdotio.android
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
-import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEvent
@@ -171,6 +175,82 @@ class MobileFilesScreenTest {
                 .filterIsInstance<FilesBrowserEvent.ViewportChanged>()
                 .any { it.position.firstVisibleItemIndex == 20 }
         }
+    }
+
+    @Test
+    fun aCompletedSortResetsTheVisibleFolderViewport() {
+        val initialItems = (0L until 30L).map { index ->
+            filesItem(id = index + 1L, name = "initial-$index.txt")
+        }
+        var state by mutableStateOf(
+            browserState(
+                FilesContent.Ready(
+                    items = initialItems,
+                    paging = FilesPaging.Complete,
+                    viewport = FilesViewportPosition(firstVisibleItemIndex = 12),
+                ),
+            ),
+        )
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = {})
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(20)
+        compose.runOnIdle {
+            state = browserState(
+                FilesContent.Ready(
+                    items = initialItems.reversed().mapIndexed { index, item ->
+                        item.copy(name = "sorted-$index.txt")
+                    },
+                    paging = FilesPaging.Complete,
+                    viewport = FilesViewportPosition(),
+                ),
+            )
+        }
+
+        compose.onNodeWithText("sorted-0.txt").assertIsDisplayed()
+    }
+
+    @Test
+    fun readyAndEmptyFoldersRefreshFromPullGestures() {
+        val ready = FilesContent.Ready(
+            items = (0L until 30L).map { index -> filesItem(id = index + 1L, name = "file-$index.txt") },
+            paging = FilesPaging.Complete,
+        )
+        var state by mutableStateOf(browserState(ready))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = events::add)
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
+        compose.waitUntil(timeoutMillis = 5_000L) { events.lastOrNull() == FilesBrowserEvent.Refresh }
+
+        compose.runOnIdle {
+            events.clear()
+            state = browserState(
+                content = ready,
+                operation = FilesFolderOperation.Loading(
+                    requestId = FilesRequestId(4L),
+                    intent = FilesFolderOperationIntent.Refresh,
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            )
+        }
+        compose.onNode(
+            hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate),
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
+
+        compose.runOnIdle {
+            state = browserState(FilesContent.Empty(FilesPaging.Complete))
+        }
+        compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
+        compose.waitUntil(timeoutMillis = 5_000L) { events.lastOrNull() == FilesBrowserEvent.Refresh }
     }
 
     @Test

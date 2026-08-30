@@ -3,11 +3,16 @@ package io.putdotio.android
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -18,8 +23,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
@@ -126,6 +129,30 @@ class MobileShellTest {
                 ),
             )
             .performClick()
+        val sortOptions = listOf(
+            "Name, A–Z",
+            "Name, Z–A",
+            "Size, smallest first",
+            "Size, largest first",
+            "Date added, oldest first",
+            "Date added, newest first",
+            "Date modified, oldest first",
+            "Date modified, newest first",
+            "Type, A–Z",
+            "Type, Z–A",
+            "Unwatched first",
+            "Watched first",
+        )
+        sortOptions.forEachIndexed { index, label ->
+            val option = compose.onNodeWithText(label)
+                .assertExists()
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+            if (index == 0) {
+                option.assertIsSelected()
+            } else {
+                option.assertIsNotSelected()
+            }
+        }
         compose.onNodeWithText("Size, largest first").performClick()
 
         assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING), events.last())

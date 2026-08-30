@@ -89,6 +89,30 @@ class FilesSessionFailureTest {
             nextRequestValue = 2L,
         )
 
+    @Test
+    fun `non-auth operation failure does not mask authoritative paging failure`() {
+        val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val operationFailure = FilesFailure.Misconfigured(PutioConfigurationException("missing client"))
+        val state = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    folder = FilesFolder.Root,
+                    content = FilesContent.Empty(
+                        paging = FilesPaging.Failed(FilesCursor("root-next"), authFailure),
+                    ),
+                    operation = FilesFolderOperation.Failed(
+                        failure = operationFailure,
+                        intent = FilesFolderOperationIntent.Refresh,
+                        phase = FilesFolderOperationPhase.RELOADING,
+                    ),
+                ),
+            ),
+            nextRequestValue = 3L,
+        )
+
+        assertSame(authFailure, state.authoritativeSessionFailure())
+    }
+
     private fun browserStateWithParentPagingFailure(failure: FilesFailure): FilesBrowserState =
         FilesBrowserState(
             stack = listOf(
