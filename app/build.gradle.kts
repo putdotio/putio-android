@@ -24,6 +24,12 @@ android {
             dimension = "surface"
             applicationIdSuffix = ".mobile"
             versionNameSuffix = "-mobile"
+            // #47 owns the dedicated public mobile client id. Empty is an
+            // intentional fail-closed value; never borrow either TV id.
+            buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"\"")
+            // Co-installable variants cannot safely claim one custom-scheme
+            // callback. #47 must assign ownership before enabling a receiver.
+            manifestPlaceholders["putioMobileOAuthCallbackEnabled"] = "false"
         }
 
         create("tv") {
@@ -82,6 +88,10 @@ android {
             }
         }
     }
+
+    buildFeatures {
+        buildConfig = true
+    }
 }
 
 val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDesignTokens") {
@@ -115,7 +125,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.tv.material)
+    implementation(libs.kotlinx.coroutines.android)
     implementation(libs.putio.sdk.kotlin)
+
+    add("mobileImplementation", libs.androidx.browser)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 
