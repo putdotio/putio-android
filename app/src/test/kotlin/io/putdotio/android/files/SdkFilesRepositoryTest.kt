@@ -118,6 +118,27 @@ class SdkFilesRepositoryTest {
         }
 
     @Test
+    fun classifiesAContractStatusReasonWithoutAnApiUnderlyingError() =
+        runBlocking {
+            val transport =
+                PutioTransportException(
+                    request = PutioRequestData("GET", "https://api.put.io/v2/files/list"),
+                    cause = IOException("connection reset"),
+                )
+            val operationError =
+                operationFailure(
+                    transport,
+                    reason = PutioOperationErrorReason.StatusCode(401),
+                )
+
+            val result =
+                repositoryThrowing(operationError).loadFolder(FilesFolder.Root.id) as FilesRepositoryResult.Failure
+
+            assertTrue(result.failure is FilesFailure.AuthenticationRequired)
+            assertSame(operationError, result.failure.cause)
+        }
+
+    @Test
     fun boundsUnexpectedExceptionsAsTypedFailures() =
         runBlocking {
             val error = IllegalStateException("broken mapper")

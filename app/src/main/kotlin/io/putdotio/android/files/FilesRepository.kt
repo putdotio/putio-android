@@ -4,6 +4,7 @@ import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.errors.PutioException
+import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
@@ -116,7 +117,27 @@ private fun PutioFile.toFilesItem(): FilesItem =
         createdAt = createdAt,
     )
 
-private fun PutioException.toFilesFailure(context: PutioException = this): FilesFailure =
+// Mirrors PutioAuthSessionGateway.isAuthoritativeAuthRejection: a contract-derived
+// 401/403 reason is an auth verdict even when the underlying error is not an API
+// exception, and the wrapper chain is walked with a cycle guard.
+private fun PutioException.toFilesFailure(): FilesFailure {
+    var current: PutioException = this
+    val visited = mutableSetOf<PutioException>()
+    while (current is PutioOperationException && visited.add(current)) {
+        current.reasonFailure(context = this)?.let { return it }
+        current = current.underlyingError
+    }
+    return current.leafFailure(context = this)
+}
+
+private fun PutioOperationException.reasonFailure(context: PutioException): FilesFailure? =
+    when ((reason as? PutioOperationErrorReason.StatusCode)?.statusCode) {
+        HTTP_UNAUTHORIZED -> FilesFailure.AuthenticationRequired(context)
+        HTTP_FORBIDDEN -> FilesFailure.AccessDenied(context)
+        else -> null
+    }
+
+private fun PutioException.leafFailure(context: PutioException): FilesFailure =
     when (this) {
         is PutioApiException ->
             when (statusCode) {
@@ -130,7 +151,7 @@ private fun PutioException.toFilesFailure(context: PutioException = this): Files
         is PutioTransportException -> FilesFailure.NetworkUnavailable(context)
         is PutioSerializationException -> FilesFailure.InvalidResponse(context)
         is PutioConfigurationException -> FilesFailure.Misconfigured(context)
-        is PutioOperationException -> underlyingError.toFilesFailure(context)
+        is PutioOperationException -> FilesFailure.Unexpected(context)
     }
 
 private const val HTTP_UNAUTHORIZED = 401
