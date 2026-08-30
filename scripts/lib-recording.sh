@@ -7,7 +7,7 @@ normalize_recording() {
   local input="$1" output="$2"
   local LC_ALL=C
   export LC_ALL
-  local duration freeze_log freeze_start="" leading_end="" trailing_start=""
+  local duration frame_count freeze_log freeze_start="" leading_end="" trailing_start=""
   local line end freeze_duration start trim_end trim_duration
 
   command -v ffmpeg >/dev/null 2>&1 || return 1
@@ -16,6 +16,11 @@ normalize_recording() {
   duration="$(ffprobe -v error -show_entries format=duration \
     -of default=noprint_wrappers=1:nokey=1 "${input}" 2>/dev/null)" || return 1
   [[ "${duration}" =~ ^[0-9]+([.][0-9]+)?$ ]] || return 1
+  frame_count="$(ffprobe -v error -count_frames -select_streams v:0 \
+    -show_entries stream=nb_read_frames -of default=noprint_wrappers=1:nokey=1 \
+    "${input}" 2>/dev/null)" || return 1
+  [[ "${frame_count}" =~ ^[0-9]+$ ]] || return 1
+  (( frame_count == 1 )) && return 2
 
   freeze_log="$(mktemp)" || return 1
   if ! ffmpeg -hide_banner -nostats -i "${input}" \

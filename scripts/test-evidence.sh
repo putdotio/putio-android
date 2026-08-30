@@ -235,11 +235,25 @@ short_publishable_count="$(find "${short_gate_dir}" -maxdepth 1 -type f -name '*
   exit 1
 }
 
-keep_idle_dir="${tmpdir}/keep-idle"
-mkdir "${keep_idle_dir}"
 ffmpeg -hide_banner -loglevel error -f lavfi \
   -i 'color=c=gray:s=320x240:r=30' -frames:v 1 -c:v libx264 -pix_fmt yuv420p \
   "${tmpdir}/one-frame-static.mp4"
+
+one_frame_idle_dir="${tmpdir}/one-frame-idle"
+mkdir "${one_frame_idle_dir}"
+if ANDROID_HOME="${fake_sdk}" EVIDENCE_DIR="${one_frame_idle_dir}" ADB_FIXTURE="${tmpdir}/one-frame-static.mp4" \
+  "${BASH_SOURCE[0]%/*}/evidence.sh" record --serial test --seconds 3 >/dev/null 2>&1; then
+  echo "expected a one-frame static recording to fail as idle" >&2
+  exit 1
+fi
+one_frame_idle_files=("${one_frame_idle_dir}"/*.idle.mp4)
+[[ "${#one_frame_idle_files[@]}" -eq 1 && -f "${one_frame_idle_files[0]}" ]] || {
+  echo "expected one-frame static recording to use the idle quarantine" >&2
+  exit 1
+}
+
+keep_idle_dir="${tmpdir}/keep-idle"
+mkdir "${keep_idle_dir}"
 kept_path="$(ANDROID_HOME="${fake_sdk}" EVIDENCE_DIR="${keep_idle_dir}" ADB_FIXTURE="${tmpdir}/one-frame-static.mp4" \
   "${BASH_SOURCE[0]%/*}/evidence.sh" record --serial test --seconds 3 --keep-idle 2>/dev/null)"
 [[ -f "${kept_path}" && "${kept_path}" == "${keep_idle_dir}/"*.mp4 ]] || {
