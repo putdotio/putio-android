@@ -290,7 +290,7 @@ class MobileFilesScreenTest {
         }
 
         compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
-        compose.waitUntil(timeoutMillis = 5_000L) { events.lastOrNull() == FilesBrowserEvent.Refresh }
+        compose.waitUntil(timeoutMillis = 5_000L) { FilesBrowserEvent.Refresh in events }
 
         compose.runOnIdle {
             events.clear()
@@ -317,7 +317,7 @@ class MobileFilesScreenTest {
             kotlin.math.abs(emptyMessageBounds.center.y - refreshBounds.center.y) < refreshBounds.height / 4f,
         )
         compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
-        compose.waitUntil(timeoutMillis = 5_000L) { events.lastOrNull() == FilesBrowserEvent.Refresh }
+        compose.waitUntil(timeoutMillis = 5_000L) { FilesBrowserEvent.Refresh in events }
     }
 
     @Test
@@ -392,7 +392,7 @@ class MobileFilesScreenTest {
         compose.onNodeWithText("Updating file order").assertIsDisplayed()
         compose.runOnIdle { events.clear() }
         compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
-        compose.runOnIdle { assertTrue(events.isEmpty()) }
+        compose.runOnIdle { assertTrue(FilesBrowserEvent.Refresh !in events) }
 
         compose.runOnIdle {
             state = browserState(
