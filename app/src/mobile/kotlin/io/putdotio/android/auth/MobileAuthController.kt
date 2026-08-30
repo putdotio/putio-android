@@ -15,6 +15,11 @@ data class MobileAccount(
     val email: String,
 )
 
+@JvmInline
+value class MobileAuthSessionId internal constructor(
+    val value: Long,
+)
+
 sealed interface MobileAuthState {
     data object Initializing : MobileAuthState
 
@@ -36,6 +41,7 @@ sealed interface MobileAuthState {
 
     data class SignedIn(
         val account: MobileAccount,
+        val sessionId: MobileAuthSessionId,
     ) : MobileAuthState
 
     data object SigningOut : MobileAuthState
@@ -72,6 +78,7 @@ class MobileAuthController internal constructor(
 ) {
     private val operationMutex = Mutex()
     private val mutableState = MutableStateFlow<MobileAuthState>(MobileAuthState.Initializing)
+    private var sessionSequence = 0L
 
     val state: StateFlow<MobileAuthState> = mutableState.asStateFlow()
     val isOAuthConfigured: Boolean = oauthConfiguration is MobileOAuthConfiguration.Configured
@@ -231,7 +238,13 @@ class MobileAuthController internal constructor(
     private suspend fun validateConfiguredSession(source: SessionValidationSource) {
         mutableState.value = MobileAuthState.ValidatingSession(source)
         when (val result = sessionGateway.validateSession()) {
-            is SessionValidationResult.Valid -> mutableState.value = MobileAuthState.SignedIn(result.account)
+            is SessionValidationResult.Valid -> {
+                sessionSequence = Math.incrementExact(sessionSequence)
+                mutableState.value = MobileAuthState.SignedIn(
+                    account = result.account,
+                    sessionId = MobileAuthSessionId(sessionSequence),
+                )
+            }
             is SessionValidationResult.Unavailable -> mutableState.value = MobileAuthState.ValidationUnavailable(source)
             is SessionValidationResult.Rejected -> handleRejectedSession()
         }

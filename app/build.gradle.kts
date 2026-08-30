@@ -124,11 +124,14 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.tv.material)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.putio.sdk.kotlin)
 
     add("mobileImplementation", libs.androidx.browser)
+    add("mobileImplementation", libs.androidx.navigation.compose)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 

@@ -1,0 +1,198 @@
+package io.putdotio.android
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.FilesContent
+import io.putdotio.android.files.FilesCursor
+import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesFolderState
+import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.sdk.files.PutioFileType
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobileFilesScreenTest {
+
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
+    fun readyContentPreservesNamesAndOpensFolders() {
+        val folder = filesItem(
+            id = 7L,
+            name = "Season 01 [raw]",
+            type = PutioFileType.FOLDER,
+        )
+        val video = filesItem(
+            id = 8L,
+            name = "episode.01.1080p.mkv",
+            type = PutioFileType.VIDEO,
+            sizeBytes = 1_048_576L,
+        )
+        val events = mutableListOf<FilesBrowserEvent>()
+
+        setFilesContent(
+            state = browserState(
+                FilesContent.Ready(
+                    items = listOf(folder, video),
+                    paging = FilesPaging.Complete,
+                ),
+            ),
+            onEvent = events::add,
+        )
+
+        compose.onNodeWithText(folder.name).assertIsDisplayed().performClick()
+        compose.onNodeWithText(video.name).assertIsDisplayed()
+        compose.onNodeWithText("MB", substring = true).assertIsDisplayed()
+
+        assertEquals(FilesBrowserEvent.OpenFolder(folder.id), events.last())
+    }
+
+    @Test
+    fun loadingEmptyAndFailedStatesStayRecoverable() {
+        var state by mutableStateOf(
+            browserState(FilesContent.Loading(FilesRequestId(1L))),
+        )
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = events::add)
+            }
+        }
+
+        compose.onNodeWithText("Loading").assertIsDisplayed()
+
+        compose.runOnIdle {
+            state = browserState(FilesContent.Empty(FilesPaging.Complete))
+        }
+        compose.onNodeWithText("This folder is empty.").assertIsDisplayed()
+
+        compose.runOnIdle {
+            state = browserState(
+                FilesContent.Failed(FilesFailure.Unexpected(IllegalStateException("broken"))),
+            )
+        }
+        compose.onNodeWithText("Try again").performClick()
+
+        assertEquals(FilesBrowserEvent.Retry, events.last())
+    }
+
+    @Test
+    fun pagingOffersContinuationAndRetry() {
+        var state by mutableStateOf(
+            browserState(
+                FilesContent.Ready(
+                    items = listOf(filesItem(id = 1L, name = "first.txt")),
+                    paging = FilesPaging.Available(FilesCursor("next-page")),
+                ),
+            ),
+        )
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = events::add)
+            }
+        }
+
+        compose.onNodeWithText("Load more").performClick()
+        assertTrue(events.contains(FilesBrowserEvent.LoadNextPage))
+
+        compose.runOnIdle {
+            state = browserState(
+                FilesContent.Ready(
+                    items = listOf(filesItem(id = 1L, name = "first.txt")),
+                    paging = FilesPaging.Failed(
+                        cursor = FilesCursor("next-page"),
+                        failure = FilesFailure.Unexpected(IllegalStateException("broken")),
+                    ),
+                ),
+            )
+        }
+        compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").performClick()
+
+        assertEquals(FilesBrowserEvent.Retry, events.last())
+    }
+
+    @Test
+    fun restoresAndReportsTheFolderViewport() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val items = (0L until 30L).map { index ->
+            filesItem(id = index + 1L, name = "file-$index.txt")
+        }
+        setFilesContent(
+            state = browserState(
+                FilesContent.Ready(
+                    items = items,
+                    paging = FilesPaging.Complete,
+                    viewport = FilesViewportPosition(firstVisibleItemIndex = 12),
+                ),
+            ),
+            onEvent = events::add,
+        )
+
+        compose.onNodeWithText("file-12.txt").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(20)
+        compose.waitUntil(timeoutMillis = 5_000L) {
+            events
+                .filterIsInstance<FilesBrowserEvent.ViewportChanged>()
+                .any { it.position.firstVisibleItemIndex == 20 }
+        }
+    }
+
+    private fun setFilesContent(
+        state: FilesBrowserState,
+        onEvent: (FilesBrowserEvent) -> Unit,
+    ) {
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = onEvent)
+            }
+        }
+    }
+
+    private fun browserState(content: FilesContent): FilesBrowserState =
+        FilesBrowserState(
+            stack = listOf(FilesFolderState(folder = FilesFolder.Root, content = content)),
+            nextRequestValue = 2L,
+        )
+
+    private fun filesItem(
+        id: Long,
+        name: String,
+        type: PutioFileType = PutioFileType.TEXT,
+        sizeBytes: Long = 128L,
+    ): FilesItem =
+        FilesItem(
+            id = FilesItemId(id),
+            parentId = FilesFolder.Root.id,
+            name = name,
+            type = type,
+            sizeBytes = sizeBytes,
+            createdAt = "2026-04-20T10:00:00Z",
+        )
+}
