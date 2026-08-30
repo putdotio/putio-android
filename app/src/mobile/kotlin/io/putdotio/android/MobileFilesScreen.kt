@@ -51,6 +51,7 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterNotNull
 import java.time.Instant
 
 internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
@@ -131,12 +132,19 @@ private fun MobileFilesList(
     val currentOnEvent by rememberUpdatedState(onEvent)
 
     LaunchedEffect(listState) {
+        // Report only settled positions: per-frame offsets during a fling would
+        // rebuild FilesBrowserState and recompose the whole signed-in tree.
         snapshotFlow {
-            FilesViewportPosition(
-                firstVisibleItemIndex = listState.firstVisibleItemIndex,
-                firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
-            )
+            if (listState.isScrollInProgress) {
+                null
+            } else {
+                FilesViewportPosition(
+                    firstVisibleItemIndex = listState.firstVisibleItemIndex,
+                    firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
+                )
+            }
         }
+            .filterNotNull()
             .drop(1)
             .distinctUntilChanged()
             .collect { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
