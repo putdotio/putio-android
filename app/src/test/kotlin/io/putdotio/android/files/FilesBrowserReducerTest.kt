@@ -336,6 +336,41 @@ class FilesBrowserReducerTest {
     }
 
     @Test
+    fun failedSortReloadCanRevertToTheDisplayedSort() {
+        val original = item(1L, "one.mkv", PutioFileType.VIDEO)
+        val root = loadedRoot(listOf(original), null, FilesSort.NAME_ASCENDING)
+        val persisting = FilesBrowserReducer.reduce(
+            root,
+            FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING),
+        )
+        val persistEffect = persisting.effect as FilesBrowserEffect.PersistSort
+        val reloading = FilesBrowserReducer.reduce(
+            persisting.state,
+            FilesBrowserEvent.SortPersisted(persistEffect.requestId),
+        )
+        val reloadEffect = reloading.effect as FilesBrowserEffect.LoadFolder
+        val failed = FilesBrowserReducer.reduce(
+            reloading.state,
+            FilesBrowserEvent.LoadFailed(
+                reloadEffect.requestId,
+                FilesFailure.Unexpected(IllegalStateException("offline")),
+            ),
+        ).state
+
+        val reverted = FilesBrowserReducer.reduce(
+            failed,
+            FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING),
+        )
+        val revertEffect = reverted.effect as FilesBrowserEffect.PersistSort
+
+        assertEquals(FilesSort.NAME_ASCENDING, revertEffect.sort)
+        assertEquals(
+            FilesFolderOperationIntent.Sort(FilesSort.NAME_ASCENDING),
+            (reverted.state.current.operation as FilesFolderOperation.Loading).intent,
+        )
+    }
+
+    @Test
     fun failedRefreshKeepsRowsAndRetriesTheReload() {
         val original = item(1L, "one.mkv", PutioFileType.VIDEO)
         val root = loadedRoot(listOf(original), FilesCursor("next"), FilesSort.NAME_ASCENDING)
