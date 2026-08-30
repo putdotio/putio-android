@@ -18,7 +18,9 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
@@ -31,6 +33,7 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesViewportPosition
@@ -244,15 +247,28 @@ class MobileFilesScreenTest {
             events.filterIsInstance<FilesBrowserEvent.ViewportChanged>()
                 .any { it.position.firstVisibleItemIndex == 40 }
         }
+        var refreshRequestValue = -1L
         compose.runOnIdle {
+            val viewportEvent = events.filterIsInstance<FilesBrowserEvent.ViewportChanged>()
+                .last { it.position.firstVisibleItemIndex == 40 }
+            state = FilesBrowserReducer.reduce(state, viewportEvent).state
             events.clear()
-            state = browserState(
-                FilesContent.Ready(
-                    items = items,
-                    paging = FilesPaging.Complete,
-                    viewport = FilesViewportPosition(firstVisibleItemIndex = 5),
+        }
+        compose.runOnIdle {
+            val refresh = FilesBrowserReducer.reduce(state, FilesBrowserEvent.Refresh)
+            state = refresh.state
+            refreshRequestValue = (refresh.effect as FilesBrowserEffect.LoadFolder).requestId.value
+        }
+        compose.onNodeWithText("file-40.txt").assertIsDisplayed()
+        compose.runOnIdle {
+            check(refreshRequestValue >= 0L)
+            state = FilesBrowserReducer.reduce(
+                state,
+                FilesBrowserEvent.LoadSucceeded(
+                    FilesRequestId(refreshRequestValue),
+                    FilesPage(items = items, nextCursor = null),
                 ),
-            )
+            ).state
         }
 
         compose.onNodeWithText("file-40.txt").assertIsDisplayed()
