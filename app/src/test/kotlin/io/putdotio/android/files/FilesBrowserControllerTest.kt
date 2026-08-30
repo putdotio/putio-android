@@ -195,6 +195,87 @@ class FilesBrowserControllerTest {
             }
         }
 
+    @Test
+    fun sortRetriesPersistenceAndRecoversFromReloadFailure() =
+        runBlocking {
+            val original = item(1L, "old.mkv", PutioFileType.VIDEO)
+            var folderLoads = 0
+            val persistedSorts = mutableListOf<FilesSort>()
+            val repository =
+                object : FilesRepository {
+                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+                        folderLoads += 1
+                        return when (folderLoads) {
+                            1 -> FilesRepositoryResult.Success(
+                                FilesPage(listOf(original), null, FilesSort.NAME_ASCENDING),
+                            )
+
+                            2 -> FilesRepositoryResult.Failure(
+                                FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                            )
+
+                            else -> FilesRepositoryResult.Success(
+                                FilesPage(listOf(original), null, FilesSort.NAME_ASCENDING),
+                            )
+                        }
+                    }
+
+                    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
+                        error("No continuation expected")
+
+                    override suspend fun persistSort(
+                        folderId: FilesItemId,
+                        sort: FilesSort,
+                    ): FilesRepositoryResult<Unit> {
+                        persistedSorts += sort
+                        return if (persistedSorts.size == 1) {
+                            FilesRepositoryResult.Failure(
+                                FilesFailure.Unexpected(IllegalStateException("persist failed")),
+                            )
+                        } else {
+                            FilesRepositoryResult.Success(Unit)
+                        }
+                    }
+                }
+            val controller = FilesBrowserController(repository, this)
+
+            try {
+                controller.awaitState { it.current.content is FilesContent.Ready }
+                assertTrue(controller.dispatch(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING)))
+
+                val persistenceFailed = controller.awaitState {
+                    (it.current.operation as? FilesFolderOperation.Failed)?.phase ==
+                        FilesFolderOperationPhase.PERSISTING_SORT
+                }
+                assertEquals(listOf(original), (persistenceFailed.current.content as FilesContent.Ready).items)
+
+                assertTrue(controller.dispatch(FilesBrowserEvent.Retry))
+                val reloadFailed = controller.awaitState {
+                    (it.current.operation as? FilesFolderOperation.Failed)?.phase ==
+                        FilesFolderOperationPhase.RELOADING
+                }
+                assertEquals(listOf(original), (reloadFailed.current.content as FilesContent.Ready).items)
+
+                assertTrue(controller.dispatch(FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING)))
+                val recovered = controller.awaitState {
+                    it.current.operation == FilesFolderOperation.Idle && folderLoads == 3
+                }
+
+                assertEquals(
+                    listOf(
+                        FilesSort.SIZE_DESCENDING,
+                        FilesSort.SIZE_DESCENDING,
+                        FilesSort.NAME_ASCENDING,
+                    ),
+                    persistedSorts,
+                )
+                assertEquals(FilesSort.NAME_ASCENDING, recovered.current.folder.sort)
+                assertEquals(listOf(original), (recovered.current.content as FilesContent.Ready).items)
+            } finally {
+                controller.close()
+            }
+        }
+
     private suspend fun FilesBrowserController.awaitState(
         predicate: (FilesBrowserState) -> Boolean,
     ): FilesBrowserState = withTimeout(TEST_TIMEOUT_MILLIS) { state.first(predicate) }
