@@ -3,7 +3,8 @@
 #
 #   scripts/emulator.sh create <phone|tv> [--name NAME]
 #   scripts/emulator.sh boot   <phone|tv> [--headless] [--name NAME]
-#   scripts/emulator.sh stop   <phone|tv|emulator-NNNN>
+#   scripts/emulator.sh stop   <phone|tv> [--name NAME]
+#   scripts/emulator.sh stop   <emulator-NNNN>
 #   scripts/emulator.sh delete <phone|tv> [--name NAME]
 #   scripts/emulator.sh status
 #
@@ -43,28 +44,44 @@ parse_profile_args() {
   done
   [[ -n "${PROFILE}" ]] || usage
   [[ -n "${NAME}" ]] || NAME="$(avd_name_for "${PROFILE}")"
+  validate_avd_name "${NAME}"
+}
+
+require_matching_avd_image() {
+  local expected_image current_image stop_command delete_command
+  expected_image="$(image_for "${PROFILE}")"
+  stop_command="$(avd_stop_command "${PROFILE}" "${NAME}")"
+  delete_command="$(avd_delete_command "${PROFILE}" "${NAME}")"
+  current_image="$(avd_image_for_name "${NAME}")" || \
+    die "could not determine the system image for existing AVD ${NAME}; explicitly run ${stop_command}, then ${delete_command}, then scripts/bootstrap.sh"
+  [[ "${current_image}" == "${expected_image}" ]] || \
+    die "AVD ${NAME} uses ${current_image}; expected ${expected_image}; explicitly run ${stop_command}, then ${delete_command}, then scripts/bootstrap.sh"
 }
 
 do_create() {
   parse_profile_args "$@"
-  if avd_exists "${NAME}"; then
-    log "AVD ${NAME} already exists"
-    return 0
-  fi
-  local image
+  local image create_out
   image="$(image_for "${PROFILE}")"
   [[ -d "${SDK_ROOT}/$(echo "${image}" | tr ';' '/')" ]] || \
     die "system image ${image} not installed; run scripts/bootstrap.sh"
-  echo "no" | "${AVDMANAGER}" create avd \
+  if avd_registered "${NAME}"; then
+    require_matching_avd_image
+    log "AVD ${NAME} already exists (${image})"
+    return 0
+  fi
+  create_out="$(echo "no" | "${AVDMANAGER}" create avd \
     --name "${NAME}" \
     --package "${image}" \
-    --device "$(device_for "${PROFILE}")" >/dev/null
+    --device "$(device_for "${PROFILE}")" 2>&1)" || \
+    die "could not create AVD ${NAME}: ${create_out}"
+  require_matching_avd_image
   log "created AVD ${NAME} (${image})"
 }
 
 do_boot() {
   parse_profile_args "$@"
-  avd_exists "${NAME}" || die "AVD ${NAME} does not exist; run scripts/emulator.sh create ${PROFILE}"
+  avd_registered "${NAME}" || die "AVD ${NAME} does not exist; run scripts/emulator.sh create ${PROFILE}"
+  require_matching_avd_image
 
   "${ADB}" start-server >/dev/null 2>&1
 
@@ -83,7 +100,7 @@ do_boot() {
       (( $(date +%s) < reuse_deadline )) || die "reused emulator ${existing}: package manager not ready within ${BOOT_TIMEOUT_SECONDS}s"
       sleep 2
     done
-    prepare_device "${existing}"
+    prepare_device "${existing}" "${PROFILE}" "${NAME}"
     echo "${existing}"
     return 0
   fi
@@ -164,7 +181,7 @@ do_boot() {
     sleep 2
   done
 
-  prepare_device "${serial}"
+  prepare_device "${serial}" "${PROFILE}" "${NAME}"
 
   trap - EXIT INT TERM
   log "booted ${NAME} on ${serial} (pid ${pid}); stop with scripts/emulator.sh stop ${PROFILE}"
@@ -175,10 +192,14 @@ do_stop() {
   local target="${1:-}" serial
   [[ -n "${target}" ]] || usage
   case "${target}" in
-    emulator-*) serial="${target}" ;;
+    emulator-*)
+      [[ $# -eq 1 ]] || usage
+      serial="${target}"
+      ;;
     phone|tv)
-      serial="$(serial_for_avd "$(avd_name_for "${target}")")" || \
-        { log "no running emulator for AVD $(avd_name_for "${target}")"; return 0; }
+      parse_profile_args "$@"
+      serial="$(serial_for_avd "${NAME}")" || \
+        { log "no running emulator for AVD ${NAME}"; return 0; }
       ;;
     *) die "unknown stop target: ${target}" ;;
   esac
@@ -190,7 +211,7 @@ do_stop() {
 
 do_delete() {
   parse_profile_args "$@"
-  avd_exists "${NAME}" || { log "AVD ${NAME} does not exist"; return 0; }
+  avd_registered "${NAME}" || { log "AVD ${NAME} does not exist"; return 0; }
   if serial="$(serial_for_avd "${NAME}")"; then
     die "AVD ${NAME} is in use by ${serial}; stop it first"
   fi
