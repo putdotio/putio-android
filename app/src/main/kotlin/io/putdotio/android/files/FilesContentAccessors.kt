@@ -45,6 +45,24 @@ internal fun FilesContent.withViewport(viewport: FilesViewportPosition): FilesCo
         -> null
     }
 
+internal fun FilesContent.withoutActivePagingRequest(): FilesContent =
+    when (this) {
+        is FilesContent.Empty -> copy(paging = paging.withoutActiveRequest())
+        is FilesContent.Ready -> copy(paging = paging.withoutActiveRequest())
+        is FilesContent.Failed,
+        is FilesContent.Loading,
+        -> this
+    }
+
+private fun FilesPaging.withoutActiveRequest(): FilesPaging =
+    when (this) {
+        is FilesPaging.Loading -> FilesPaging.Available(cursor)
+        is FilesPaging.Available,
+        is FilesPaging.Failed,
+        FilesPaging.Complete,
+        -> this
+    }
+
 internal fun <T> List<T>.replaceLast(value: T): List<T> = replaceAt(lastIndex, value)
 
 internal fun <T> List<T>.replaceAt(
