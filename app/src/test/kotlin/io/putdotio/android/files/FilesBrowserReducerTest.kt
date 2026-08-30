@@ -277,7 +277,7 @@ class FilesBrowserReducerTest {
                 FilesBrowserEvent.SortPersisted(persistEffect.requestId),
             )
         val reloadEffect = reloading.effect as FilesBrowserEffect.LoadFolder
-        assertEquals(FilesSort.SIZE_DESCENDING, reloading.state.current.folder.sort)
+        assertEquals(FilesSort.NAME_ASCENDING, reloading.state.current.folder.sort)
         assertEquals(
             FilesFolderOperationPhase.RELOADING,
             (reloading.state.current.operation as FilesFolderOperation.Loading).phase,
@@ -294,6 +294,7 @@ class FilesBrowserReducerTest {
         val content = completed.current.content as FilesContent.Ready
         assertEquals(listOf(sorted), content.items)
         assertEquals(FilesViewportPosition(), content.viewport)
+        assertEquals(FilesSort.SIZE_DESCENDING, completed.current.folder.sort)
         assertEquals(FilesFolderOperation.Idle, completed.current.operation)
     }
 

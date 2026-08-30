@@ -14,7 +14,6 @@ internal fun FilesBrowserState.sortPersisted(event: FilesBrowserEvent.SortPersis
     val reloadRequestId = FilesRequestId(nextRequestValue)
     val updated =
         folderState.copy(
-            folder = folderState.folder.copy(sort = intent.sort),
             operation =
                 FilesFolderOperation.Loading(
                     requestId = reloadRequestId,
@@ -41,8 +40,11 @@ internal fun FilesFolderState.replaceFirstPage(
             FilesFolderOperationIntent.Refresh -> content.viewport()
             is FilesFolderOperationIntent.Sort -> FilesViewportPosition()
         }
+    // folder.sort changes only when the reordered rows replace the list; the UI keys
+    // its list state on it, so an earlier change would anchor scroll to the old order.
+    val persistedSort = (loading.intent as? FilesFolderOperationIntent.Sort)?.sort
     return copy(
-        folder = folder.copy(sort = page.sort ?: folder.sort),
+        folder = folder.copy(sort = page.sort ?: persistedSort ?: folder.sort),
         content = contentFor(page.items, page.nextCursor.toPaging(emptySet()), viewport),
         operation = FilesFolderOperation.Idle,
         consumedCursors = emptySet(),

@@ -5,6 +5,9 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesFolderOperation
+import io.putdotio.android.files.FilesFolderOperationIntent
+import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
@@ -53,6 +56,38 @@ class FilesSessionFailureTest {
 
         assertSame(authFailure, state.authoritativeSessionFailure())
     }
+
+    @Test
+    fun `auth failure in a folder operation expires the session`() {
+        val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val state = browserStateWithOperationFailure(failure)
+
+        assertSame(failure, state.authoritativeSessionFailure())
+    }
+
+    @Test
+    fun `non-auth failure in a folder operation preserves the session`() {
+        val failure = FilesFailure.Misconfigured(PutioConfigurationException("missing client"))
+        val state = browserStateWithOperationFailure(failure)
+
+        assertNull(state.authoritativeSessionFailure())
+    }
+
+    private fun browserStateWithOperationFailure(failure: FilesFailure): FilesBrowserState =
+        FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    folder = FilesFolder.Root,
+                    content = FilesContent.Empty(paging = FilesPaging.Complete),
+                    operation = FilesFolderOperation.Failed(
+                        failure = failure,
+                        intent = FilesFolderOperationIntent.Refresh,
+                        phase = FilesFolderOperationPhase.RELOADING,
+                    ),
+                ),
+            ),
+            nextRequestValue = 2L,
+        )
 
     private fun browserStateWithParentPagingFailure(failure: FilesFailure): FilesBrowserState =
         FilesBrowserState(
