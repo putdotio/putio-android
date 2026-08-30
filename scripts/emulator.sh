@@ -48,14 +48,15 @@ parse_profile_args() {
 }
 
 require_matching_avd_image() {
-  local expected_image current_image stop_command delete_command
+  local expected_image current_image stop_command delete_command recreate_command
   expected_image="$(image_for "${PROFILE}")"
   stop_command="$(avd_stop_command "${PROFILE}" "${NAME}")"
   delete_command="$(avd_delete_command "${PROFILE}" "${NAME}")"
+  recreate_command="$(avd_recreate_command "${PROFILE}" "${NAME}")"
   current_image="$(avd_image_for_name "${NAME}")" || \
-    die "could not determine the system image for existing AVD ${NAME}; explicitly run ${stop_command}, then ${delete_command}, then scripts/bootstrap.sh"
+    die "could not determine the system image for existing AVD ${NAME}; explicitly run ${stop_command}, then ${delete_command}, then ${recreate_command}"
   [[ "${current_image}" == "${expected_image}" ]] || \
-    die "AVD ${NAME} uses ${current_image}; expected ${expected_image}; explicitly run ${stop_command}, then ${delete_command}, then scripts/bootstrap.sh"
+    die "AVD ${NAME} uses ${current_image}; expected ${expected_image}; explicitly run ${stop_command}, then ${delete_command}, then ${recreate_command}"
 }
 
 do_create() {

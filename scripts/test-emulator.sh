@@ -276,7 +276,7 @@ fi
 [[ "$(avd_image_for_name "${custom_avd}")" == "${non_play_image}" ]] || \
   fail "custom AVD mismatch changed its registration"
 [[ ! -s "${state}/avd-operations" ]] || fail "custom AVD mismatch mutated state"
-grep -Fq "explicitly run scripts/emulator.sh stop phone --name ${custom_avd}, then scripts/emulator.sh delete phone --name ${custom_avd}, then scripts/bootstrap.sh" \
+grep -Fq "explicitly run scripts/emulator.sh stop phone --name ${custom_avd}, then scripts/emulator.sh delete phone --name ${custom_avd}, then scripts/emulator.sh create phone --name ${custom_avd}" \
   "${custom_out}" || fail "custom AVD mismatch targeted the wrong recovery AVD"
 
 reset_avd "${custom_avd}" "${target_image}" 1

@@ -107,6 +107,15 @@ avd_stop_command() {
   [[ "${name}" == "$(avd_name_for "${profile}")" ]] || command+=" --name ${name}"
   echo "${command}"
 }
+
+avd_recreate_command() {
+  local profile="$1" name="$2"
+  if [[ "${name}" == "$(avd_name_for "${profile}")" ]]; then
+    echo "scripts/bootstrap.sh"
+  else
+    echo "scripts/emulator.sh create ${profile} --name ${name}"
+  fi
+}
 device_for() {
   case "$1" in
     phone) echo "pixel_7" ;;
@@ -197,14 +206,15 @@ print_usage() {
 # Cold headless boots regularly ANR com.android.systemui and the dialog then
 # sits over every capture; app ANRs are detected from logcat instead.
 prepare_device() {
-  local serial="$1" profile="$2" avd_name="${3:-$(avd_name_for "$2")}" delete_command recovery
+  local serial="$1" profile="$2" avd_name="${3:-$(avd_name_for "$2")}" delete_command recreate_command recovery
   "${ADB}" -s "${serial}" shell settings put global hide_error_dialogs 1 >/dev/null 2>&1 || \
     log "WARNING: could not set hide_error_dialogs on ${serial}"
 
   [[ "${profile}" == "phone" ]] || return 0
 
   delete_command="$(avd_delete_command "${profile}" "${avd_name}")"
-  recovery="explicitly run scripts/emulator.sh stop ${serial}, then ${delete_command}, then scripts/bootstrap.sh"
+  recreate_command="$(avd_recreate_command "${profile}" "${avd_name}")"
+  recovery="explicitly run scripts/emulator.sh stop ${serial}, then ${delete_command}, then ${recreate_command}"
   local api_level role_holders auth_tab_services chrome_version
   api_level="$("${ADB}" -s "${serial}" shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r')" || \
     die "could not read the API level from ${serial}; ${recovery}"
