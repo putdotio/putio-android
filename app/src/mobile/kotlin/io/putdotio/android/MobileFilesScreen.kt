@@ -118,7 +118,11 @@ private fun MobileRefreshableFilesContent(
     Column(modifier = modifier.fillMaxSize()) {
         PullToRefreshBox(
             isRefreshing = isRefreshing,
-            onRefresh = { onEvent(FilesBrowserEvent.Refresh) },
+            onRefresh = {
+                if (operation !is FilesFolderOperation.Loading) {
+                    onEvent(FilesBrowserEvent.Refresh)
+                }
+            },
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()

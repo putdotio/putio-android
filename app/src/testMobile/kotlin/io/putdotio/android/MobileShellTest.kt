@@ -2,6 +2,9 @@ package io.putdotio.android
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -44,6 +47,7 @@ import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -176,6 +180,40 @@ class MobileShellTest {
         compose.setShell(filesState = refreshing)
 
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun openFilesSortMenuClosesWhenLoadingStarts() {
+        var filesState by mutableStateOf(readyFilesState(FilesSort.NAME_ASCENDING))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = filesState,
+                    account = Account,
+                    onFilesEvent = events::add,
+                    onSignOut = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText("Size, largest first").assertIsDisplayed()
+
+        compose.runOnIdle {
+            filesState = filesState.copy(
+                stack = filesState.stack.dropLast(1) + filesState.current.copy(
+                    operation = FilesFolderOperation.Loading(
+                        requestId = FilesRequestId(13L),
+                        intent = FilesFolderOperationIntent.Refresh,
+                        phase = FilesFolderOperationPhase.RELOADING,
+                    ),
+                ),
+            )
+        }
+
+        compose.onAllNodesWithText("Size, largest first").assertCountEquals(0)
+        assertTrue(events.isEmpty())
     }
 
     @Test

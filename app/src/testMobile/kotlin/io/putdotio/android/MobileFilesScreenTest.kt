@@ -330,6 +330,9 @@ class MobileFilesScreenTest {
         }
         compose.onNodeWithText("visible.txt").assertIsDisplayed()
         compose.onNodeWithText("Updating file order").assertIsDisplayed()
+        compose.runOnIdle { events.clear() }
+        compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
+        compose.runOnIdle { assertTrue(events.isEmpty()) }
 
         compose.runOnIdle {
             state = browserState(

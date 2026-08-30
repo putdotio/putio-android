@@ -10,6 +10,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +40,10 @@ internal fun MobileFilesSortMenu(
     val currentLabel = stringResource(folder.folder.sort?.labelResource() ?: R.string.mobile_files_sort_account_default)
     val enabled = folder.operation !is FilesFolderOperation.Loading
 
+    LaunchedEffect(enabled) {
+        if (!enabled) expanded = false
+    }
+
     Box {
         IconButton(
             onClick = { expanded = true },
@@ -61,6 +66,7 @@ internal fun MobileFilesSortMenu(
                 val selectedSort = sort == folder.folder.sort
                 DropdownMenuItem(
                     text = { Text(stringResource(sort.labelResource())) },
+                    enabled = enabled,
                     onClick = {
                         expanded = false
                         onSelect(sort)
