@@ -270,18 +270,6 @@ private fun MobileFilesList(
     )
     val currentOnEvent by rememberUpdatedState(onEvent)
 
-    LaunchedEffect(listState, viewport) {
-        if (
-            listState.firstVisibleItemIndex != viewport.firstVisibleItemIndex ||
-            listState.firstVisibleItemScrollOffset != viewport.firstVisibleItemScrollOffset
-        ) {
-            listState.scrollToItem(
-                index = viewport.firstVisibleItemIndex,
-                scrollOffset = viewport.firstVisibleItemScrollOffset,
-            )
-        }
-    }
-
     LaunchedEffect(listState) {
         // Report only settled positions: per-frame offsets during a fling would
         // rebuild FilesBrowserState and recompose the whole signed-in tree.

@@ -32,6 +32,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
@@ -191,6 +192,7 @@ class MobileFilesScreenTest {
                     paging = FilesPaging.Complete,
                     viewport = FilesViewportPosition(firstVisibleItemIndex = 12),
                 ),
+                sort = FilesSort.NAME_ASCENDING,
             ),
         )
         compose.setContent {
@@ -209,10 +211,52 @@ class MobileFilesScreenTest {
                     paging = FilesPaging.Complete,
                     viewport = FilesViewportPosition(),
                 ),
+                sort = FilesSort.SIZE_DESCENDING,
             )
         }
 
         compose.onNodeWithText("sorted-0.txt").assertIsDisplayed()
+    }
+
+    @Test
+    fun viewportReportsDoNotOverrideActiveListPosition() {
+        val items = (0L until 60L).map { index ->
+            filesItem(id = index + 1L, name = "file-$index.txt")
+        }
+        var state by mutableStateOf(
+            browserState(
+                FilesContent.Ready(
+                    items = items,
+                    paging = FilesPaging.Complete,
+                    viewport = FilesViewportPosition(firstVisibleItemIndex = 5),
+                ),
+            ),
+        )
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = events::add)
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(40)
+        compose.waitUntil(timeoutMillis = 5_000L) {
+            events.filterIsInstance<FilesBrowserEvent.ViewportChanged>()
+                .any { it.position.firstVisibleItemIndex == 40 }
+        }
+        compose.runOnIdle {
+            events.clear()
+            state = browserState(
+                FilesContent.Ready(
+                    items = items,
+                    paging = FilesPaging.Complete,
+                    viewport = FilesViewportPosition(firstVisibleItemIndex = 5),
+                ),
+            )
+        }
+
+        compose.onNodeWithText("file-40.txt").assertIsDisplayed()
+        compose.runOnIdle { assertTrue(events.isEmpty()) }
     }
 
     @Test
@@ -392,9 +436,16 @@ class MobileFilesScreenTest {
     private fun browserState(
         content: FilesContent,
         operation: FilesFolderOperation = FilesFolderOperation.Idle,
+        sort: FilesSort? = null,
     ): FilesBrowserState =
         FilesBrowserState(
-            stack = listOf(FilesFolderState(folder = FilesFolder.Root, content = content, operation = operation)),
+            stack = listOf(
+                FilesFolderState(
+                    folder = FilesFolder.Root.copy(sort = sort),
+                    content = content,
+                    operation = operation,
+                ),
+            ),
             nextRequestValue = 2L,
         )
 
