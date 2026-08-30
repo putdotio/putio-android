@@ -172,12 +172,12 @@ if ANDROID_HOME="${fake_sdk}" EVIDENCE_DIR="${static_gate_dir}" ADB_FIXTURE="${t
   echo "expected evidence.sh to reject a static recording" >&2
   exit 1
 fi
-idle_files=("${static_gate_dir}"/*.idle.mp4)
+idle_files=("${static_gate_dir}"/*.mp4.idle)
 [[ "${#idle_files[@]}" -eq 1 && -f "${idle_files[0]}" ]] || {
   echo "expected exactly one quarantined idle recording" >&2
   exit 1
 }
-publishable_count="$(find "${static_gate_dir}" -maxdepth 1 -type f -name '*.mp4' ! -name '*.idle.mp4' | wc -l | tr -d ' ')"
+publishable_count="$(find "${static_gate_dir}" -maxdepth 1 -type f -name '*.mp4' | wc -l | tr -d ' ')"
 [[ "${publishable_count}" -eq 0 ]] || {
   echo "static recording left a publishable output" >&2
   exit 1
@@ -211,27 +211,30 @@ awk -v value="${caller_duration}" 'BEGIN { exit !(value >= 3 && value <= 5) }' |
   echo "expected caller-normalized output to be 3-5s, got ${caller_duration}s" >&2
   exit 1
 }
-pending_count="$(find "${normalized_gate_dir}" -maxdepth 1 -type f -name '*.pending' | wc -l | tr -d ' ')"
+pending_count="$(find "${normalized_gate_dir}" -maxdepth 1 -type f \( -name '*.pending' -o -name '*.raw' \) | wc -l | tr -d ' ')"
 [[ "${pending_count}" -eq 0 ]] || {
-  echo "default normalized publication left pending artifacts" >&2
+  echo "default normalized publication left pending or raw artifacts" >&2
   exit 1
 }
 
+# The duration gate judges the capture window, not the trimmed clip: a valid
+# capture whose visible action is brief must still publish, just trimmed.
 short_gate_dir="${tmpdir}/short-gate"
 mkdir "${short_gate_dir}"
-if ANDROID_HOME="${fake_sdk}" EVIDENCE_DIR="${short_gate_dir}" ADB_FIXTURE="${tmpdir}/short-action.mp4" \
-  "${BASH_SOURCE[0]%/*}/evidence.sh" record --serial test --seconds 4 >/dev/null 2>&1; then
-  echo "expected post-normalization duration gate to reject a short recording" >&2
-  exit 1
-fi
-short_corrupt_files=("${short_gate_dir}"/*.corrupt)
-[[ "${#short_corrupt_files[@]}" -eq 1 && -f "${short_corrupt_files[0]}" ]] || {
-  echo "expected normalized short recording to be quarantined as corrupt" >&2
+short_path="$(ANDROID_HOME="${fake_sdk}" EVIDENCE_DIR="${short_gate_dir}" ADB_FIXTURE="${tmpdir}/short-action.mp4" \
+  "${BASH_SOURCE[0]%/*}/evidence.sh" record --serial test --seconds 4 2>/dev/null)"
+[[ -f "${short_path}" ]] || {
+  echo "expected a short visible action to publish after trimming" >&2
   exit 1
 }
-short_publishable_count="$(find "${short_gate_dir}" -maxdepth 1 -type f -name '*.mp4' | wc -l | tr -d ' ')"
-[[ "${short_publishable_count}" -eq 0 ]] || {
-  echo "normalized short recording left a publishable output" >&2
+short_published_duration="$(duration "${short_path}")"
+awk -v value="${short_published_duration}" 'BEGIN { exit !(value >= 1.2 && value <= 1.4) }' || {
+  echo "expected published short action to be 1.2-1.4s, got ${short_published_duration}s" >&2
+  exit 1
+}
+short_leftovers="$(find "${short_gate_dir}" -maxdepth 1 -type f \( -name '*.pending' -o -name '*.raw' \) | wc -l | tr -d ' ')"
+[[ "${short_leftovers}" -eq 0 ]] || {
+  echo "short-action publication left pending or raw artifacts" >&2
   exit 1
 }
 
@@ -246,7 +249,7 @@ if ANDROID_HOME="${fake_sdk}" EVIDENCE_DIR="${one_frame_idle_dir}" ADB_FIXTURE="
   echo "expected a one-frame static recording to fail as idle" >&2
   exit 1
 fi
-one_frame_idle_files=("${one_frame_idle_dir}"/*.idle.mp4)
+one_frame_idle_files=("${one_frame_idle_dir}"/*.mp4.idle)
 [[ "${#one_frame_idle_files[@]}" -eq 1 && -f "${one_frame_idle_files[0]}" ]] || {
   echo "expected one-frame static recording to use the idle quarantine" >&2
   exit 1

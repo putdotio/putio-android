@@ -144,8 +144,9 @@ under active capture, so the clip always has frames (`screenrecord` drops
 static screens) and shows a real cold process launch on a settled system.
 A publication gate trims sustained frozen lead and tail while retaining short
 context around the action. A fully static recording is quarantined as
-`*.idle.mp4`; pass `--keep-idle` to `scripts/evidence.sh record` only for an
-intentional timing demonstration.
+`*.mp4.idle`; pass `--keep-idle` to `scripts/evidence.sh record` only for an
+intentional timing demonstration. Published recordings are lossy re-encodes
+of the trimmed range, not the raw device capture.
 A follow-up gated screenshot confirms the recorded relaunch rendered.
 Still eyeball captures before publishing them as evidence.
 

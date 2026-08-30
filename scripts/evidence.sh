@@ -130,15 +130,53 @@ case "${cmd}" in
     fi
     "${ADB}" -s "${SERIAL}" shell rm -f "${remote}" || true
     [[ -s "${pending}" ]] || { rm -f "${pending}"; die "screenrecord produced no data"; }
+    # Integrity gate on the capture itself, before any trim: a truncated
+    # screenrecord container still carries a moov atom but no parseable
+    # duration, so ffprobe is the reliable check. A one-frame clip of a
+    # static screen parses as ~0.04s; require enough capture to actually
+    # show something happening. Trimming may legitimately shorten the
+    # published clip below this floor.
+    dur="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${pending}" 2>/dev/null || true)"
+    if [[ ! "${dur}" =~ ^[0-9] ]]; then
+      mv "${pending}" "${out}.corrupt"
+      die "recording is corrupt (no parseable duration); kept as ${out}.corrupt"
+    fi
+    if (( ${dur%%.*} < 2 )) && [[ "${KEEP_IDLE}" != "1" ]]; then
+      # Fall through to normalization: a sub-2s capture of a static screen is
+      # idle, not corrupt, and the idle quarantine names the actual problem.
+      if normalize_recording "${pending}" "${out}.normalized.pending"; then
+        rm -f "${out}.normalized.pending"
+        mv "${pending}" "${out}.corrupt"
+        die "recording too short (${dur}s — truncated capture); kept as ${out}.corrupt"
+      else
+        status=$?
+        rm -f "${out}.normalized.pending"
+        if [[ "${status}" -eq 2 ]]; then
+          quarantined="${out}.idle"
+          mv "${pending}" "${quarantined}"
+          die "recording contains no meaningful motion; quarantined as ${quarantined} — pass --keep-idle for an intentional timing capture"
+        fi
+        mv "${pending}" "${out}.corrupt"
+        die "recording too short (${dur}s — static screen or truncated capture); kept as ${out}.corrupt"
+      fi
+    fi
+    if (( ${dur%%.*} < 2 )); then
+      log "short recording (${dur}s) kept: --keep-idle"
+    fi
+    raw=""
     if [[ "${KEEP_IDLE}" != "1" ]]; then
       normalized="${out}.normalized.pending"
       if normalize_recording "${pending}" "${normalized}"; then
-        mv "${normalized}" "${pending}"
+        # Keep the untrimmed capture until publication succeeds so a later
+        # gate failure never destroys the only recoverable evidence.
+        raw="${out}.raw"
+        mv "${pending}" "${raw}"
+        pending="${normalized}"
       else
         status=$?
         rm -f "${normalized}"
         if [[ "${status}" -eq 2 ]]; then
-          quarantined="${out%.mp4}.idle.mp4"
+          quarantined="${out}.idle"
           mv "${pending}" "${quarantined}"
           die "recording contains no meaningful motion; quarantined as ${quarantined} — pass --keep-idle for an intentional timing capture"
         fi
@@ -146,23 +184,8 @@ case "${cmd}" in
         die "could not normalize recording; kept as ${out}.corrupt"
       fi
     fi
-    # Integrity gate: a truncated screenrecord container still carries a moov
-    # atom but no parseable duration, so ffprobe is the reliable check.
-    dur="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${pending}" 2>/dev/null || true)"
-    if [[ ! "${dur}" =~ ^[0-9] ]]; then
-      mv "${pending}" "${out}.corrupt"
-      die "recording is corrupt (no parseable duration); kept as ${out}.corrupt"
-    fi
-    # A one-frame clip of a static screen parses as ~0.04s; require enough
-    # duration to actually show something happening.
-    if (( ${dur%%.*} < 2 )) && [[ "${KEEP_IDLE}" != "1" ]]; then
-      mv "${pending}" "${out}.corrupt"
-      die "recording too short (${dur}s — static screen or truncated capture); kept as ${out}.corrupt"
-    fi
-    if (( ${dur%%.*} < 2 )); then
-      log "short recording (${dur}s) kept: --keep-idle"
-    fi
     gate_dark_and_publish "${pending}" 20 "${out}"
+    if [[ -n "${raw}" ]]; then rm -f "${raw}"; fi
     log "recording: ${out}"
     echo "${out}"
     ;;

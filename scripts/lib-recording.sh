@@ -30,12 +30,23 @@ normalize_recording() {
     return 1
   fi
 
+  # Fail closed: a freeze marker the regexes cannot parse (negative, N/A, a
+  # future format change) must be an error, never a silently published clip.
+  local parse_failure=""
   while IFS= read -r line; do
-    if [[ "${line}" =~ lavfi.freezedetect.freeze_start:\ ([0-9]+([.][0-9]+)?) ]]; then
-      freeze_start="${BASH_REMATCH[1]}"
+    if [[ "${line}" == *lavfi.freezedetect.freeze_start:* ]]; then
+      if [[ "${line}" =~ lavfi.freezedetect.freeze_start:\ ([0-9]+([.][0-9]+)?) ]]; then
+        freeze_start="${BASH_REMATCH[1]}"
+      else
+        parse_failure=1
+      fi
       continue
     fi
-    if [[ "${line}" =~ lavfi.freezedetect.freeze_end:\ ([0-9]+([.][0-9]+)?) ]]; then
+    if [[ "${line}" == *lavfi.freezedetect.freeze_end:* ]]; then
+      if [[ ! "${line}" =~ lavfi.freezedetect.freeze_end:\ ([0-9]+([.][0-9]+)?) ]]; then
+        parse_failure=1
+        continue
+      fi
       end="${BASH_REMATCH[1]}"
       if [[ -n "${freeze_start}" ]]; then
         freeze_duration="$(awk -v start="${freeze_start}" -v end="${end}" 'BEGIN { print end - start }')"
@@ -48,6 +59,7 @@ normalize_recording() {
     fi
   done < "${freeze_log}"
   rm -f "${freeze_log}"
+  [[ -z "${parse_failure}" ]] || return 1
 
   # An open freeze runs through EOF. A clip frozen from its first frame has
   # no publishable action; a late open freeze is removable tail idle.
