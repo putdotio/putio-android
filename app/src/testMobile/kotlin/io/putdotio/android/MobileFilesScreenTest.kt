@@ -188,6 +188,7 @@ class MobileFilesScreenTest {
         val initialItems = (0L until 30L).map { index ->
             filesItem(id = index + 1L, name = "initial-$index.txt")
         }
+        val events = mutableListOf<FilesBrowserEvent>()
         var state by mutableStateOf(
             browserState(
                 FilesContent.Ready(
@@ -200,12 +201,13 @@ class MobileFilesScreenTest {
         )
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state = state, onEvent = {})
+                MobileFilesScreen(state = state, onEvent = events::add)
             }
         }
 
         compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(20)
         compose.runOnIdle {
+            events.clear()
             state = browserState(
                 FilesContent.Ready(
                     items = initialItems.reversed().mapIndexed { index, item ->
@@ -220,6 +222,9 @@ class MobileFilesScreenTest {
         }
 
         compose.onNodeWithText("sorted-0.txt").assertIsDisplayed()
+        compose.runOnIdle {
+            assertTrue(events.none { it is FilesBrowserEvent.ViewportChanged })
+        }
     }
 
     @Test
@@ -391,6 +396,9 @@ class MobileFilesScreenTest {
         }
         compose.onNodeWithText("visible.txt").assertIsDisplayed()
         compose.onNodeWithText("Updating file order").assertIsDisplayed()
+        val activeRefreshConfig = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
+            .fetchSemanticsNode().config
+        assertTrue(SemanticsActions.CustomActions !in activeRefreshConfig)
         compose.runOnIdle { events.clear() }
         compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
         compose.runOnIdle { assertTrue(FilesBrowserEvent.Refresh !in events) }

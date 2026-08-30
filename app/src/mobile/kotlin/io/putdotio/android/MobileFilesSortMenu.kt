@@ -58,7 +58,7 @@ internal fun MobileFilesSortMenu(
             )
         }
         DropdownMenu(
-            expanded = expanded && enabled,
+            expanded = shouldShowFilesSortMenu(expanded = expanded, enabled = enabled),
             onDismissRequest = { expanded = false },
             modifier = Modifier.selectableGroup(),
         ) {
@@ -81,6 +81,11 @@ internal fun MobileFilesSortMenu(
         }
     }
 }
+
+internal fun shouldShowFilesSortMenu(
+    expanded: Boolean,
+    enabled: Boolean,
+): Boolean = expanded && enabled
 
 @StringRes
 private fun FilesSort.labelResource(): Int =

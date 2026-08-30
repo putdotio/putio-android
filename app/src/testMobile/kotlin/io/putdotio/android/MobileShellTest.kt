@@ -47,6 +47,7 @@ import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -214,6 +215,12 @@ class MobileShellTest {
 
         compose.onAllNodesWithText("Size, largest first").assertCountEquals(0)
         assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun sortMenuVisibilityClosesSynchronouslyWhenDisabled() {
+        assertTrue(shouldShowFilesSortMenu(expanded = true, enabled = true))
+        assertFalse(shouldShowFilesSortMenu(expanded = true, enabled = false))
     }
 
     @Test
