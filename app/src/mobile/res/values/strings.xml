@@ -55,6 +55,7 @@
     <string name="mobile_search_start_message">Enter a name or keyword to search your put.io account.</string>
     <string name="mobile_search_recent">Recent searches</string>
     <string name="mobile_search_clear_recent">Clear</string>
+    <string name="mobile_search_recent_error_title">Couldn’t update recent searches</string>
     <string name="mobile_search_no_results_title">No results</string>
     <string name="mobile_search_no_results_message">Nothing matched “%1$s”.</string>
     <string name="mobile_search_open_result">Open %1$s</string>

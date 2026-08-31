@@ -26,6 +26,8 @@ import kotlinx.serialization.json.contentOrNull
 
 internal interface MobileRecentSearchStoreOwner : RecentSearchStore, Closeable {
     val failure: StateFlow<FilesFailure?>
+
+    fun retry()
 }
 
 internal class MobileRecentSearchStore internal constructor(
@@ -41,7 +43,7 @@ internal class MobileRecentSearchStore internal constructor(
 
     private val storeJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + storeJob)
-    private val edits = Channel<RecentSearchMutation>(Channel.UNLIMITED)
+    private val commands = Channel<RecentSearchCommand>(Channel.UNLIMITED)
     private val mutableTerms = MutableStateFlow<List<SearchTerm>>(emptyList())
     private val mutableFailure = MutableStateFlow<FilesFailure?>(null)
 
@@ -53,8 +55,10 @@ internal class MobileRecentSearchStore internal constructor(
             var config = loadConfigOrNull()
             config?.let(::applyLoadedConfig)
             val pendingEdits = ArrayDeque<RecentSearchMutation>()
-            for (edit in edits) {
-                pendingEdits.addLast(edit)
+            for (command in commands) {
+                if (command is RecentSearchCommand.Edit) {
+                    pendingEdits.addLast(command.mutation)
+                }
                 if (config == null) {
                     config = loadConfigOrNull()
                     config?.let(::applyLoadedConfig)
@@ -72,19 +76,23 @@ internal class MobileRecentSearchStore internal constructor(
     }
 
     override fun record(term: SearchTerm) {
-        edits.trySend(RecentSearchMutation.Record(term))
+        commands.trySend(RecentSearchCommand.Edit(RecentSearchMutation.Record(term)))
     }
 
     override fun remove(term: SearchTerm) {
-        edits.trySend(RecentSearchMutation.Remove(term))
+        commands.trySend(RecentSearchCommand.Edit(RecentSearchMutation.Remove(term)))
     }
 
     override fun clear() {
-        edits.trySend(RecentSearchMutation.Clear)
+        commands.trySend(RecentSearchCommand.Edit(RecentSearchMutation.Clear))
+    }
+
+    override fun retry() {
+        commands.trySend(RecentSearchCommand.Retry)
     }
 
     override fun close() {
-        edits.close()
+        commands.close()
         scope.cancel()
     }
 
@@ -166,6 +174,12 @@ private sealed interface RecentSearchMutation {
     data class Record(val term: SearchTerm) : RecentSearchMutation
     data class Remove(val term: SearchTerm) : RecentSearchMutation
     data object Clear : RecentSearchMutation
+}
+
+private sealed interface RecentSearchCommand {
+    data class Edit(val mutation: RecentSearchMutation) : RecentSearchCommand
+
+    data object Retry : RecentSearchCommand
 }
 
 internal const val SEARCH_HISTORY_KEY = "searchHistory"

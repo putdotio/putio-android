@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -65,6 +66,7 @@ internal const val MOBILE_HISTORY_LIST_TAG = "mobile-history-list"
 internal fun MobileSearchHistoryScreen(
     searchState: SearchState,
     historyState: HistoryState,
+    recentSearchFailure: FilesFailure?,
     onSearchQueryChanged: (String) -> Unit,
     onSearchSubmit: () -> Unit,
     onSearchResult: (FilesItem) -> Unit,
@@ -72,6 +74,7 @@ internal fun MobileSearchHistoryScreen(
     onSearchRetry: () -> Unit,
     onRecentSearch: (SearchTerm) -> Unit,
     onRecentEdit: (RecentSearchEdit) -> Unit,
+    onRecentRetry: () -> Unit,
     onHistoryEvent: (HistoryEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -99,6 +102,8 @@ internal fun MobileSearchHistoryScreen(
                 onRetry = onSearchRetry,
                 onRecentSearch = onRecentSearch,
                 onRecentEdit = onRecentEdit,
+                recentSearchFailure = recentSearchFailure,
+                onRecentRetry = onRecentRetry,
                 modifier = Modifier.weight(1f),
             )
         } else {
@@ -121,6 +126,8 @@ private fun MobileSearchContent(
     onRetry: () -> Unit,
     onRecentSearch: (SearchTerm) -> Unit,
     onRecentEdit: (RecentSearchEdit) -> Unit,
+    recentSearchFailure: FilesFailure?,
+    onRecentRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -137,6 +144,16 @@ private fun MobileSearchContent(
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
         )
+
+        if (recentSearchFailure != null) {
+            MobileRecentSearchFailure(
+                failure = recentSearchFailure,
+                onRetry = onRecentRetry,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+            )
+        }
 
         when (val content = state.content) {
             SearchContent.Idle ->
@@ -185,6 +202,39 @@ private fun MobileSearchContent(
                     onRetry = onRetry,
                     modifier = Modifier.weight(1f),
                 )
+        }
+    }
+}
+
+@Composable
+private fun MobileRecentSearchFailure(
+    failure: FilesFailure,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.mobile_search_recent_error_title),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    text = stringResource(failure.mobileMessageResource()),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            TextButton(onClick = onRetry) {
+                Text(stringResource(R.string.mobile_action_retry))
+            }
         }
     }
 }

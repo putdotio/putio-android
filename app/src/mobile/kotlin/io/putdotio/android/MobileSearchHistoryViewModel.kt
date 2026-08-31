@@ -160,6 +160,10 @@ internal class ActiveSearchHistorySession(
         mutableNavigationFailure.value = null
     }
 
+    fun retryRecentSearches() {
+        recentSearchStore.retry()
+    }
+
     fun close() {
         scope.cancel()
         search.close()

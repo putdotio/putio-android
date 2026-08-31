@@ -295,7 +295,13 @@ private fun SignedInMobileRoot(
 
     MobileShell(
         filesState = filesState,
-        searchHistoryState = MobileSearchHistoryState(searchState, historyState),
+        searchHistoryState =
+            MobileSearchHistoryState(
+                search = searchState,
+                history = historyState,
+                recentSearchFailure =
+                    recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired },
+            ),
         account = account,
         onFilesEvent = filesController::dispatch,
         searchHistoryActions =
@@ -310,6 +316,7 @@ private fun SignedInMobileRoot(
                     searchHistorySession.search.submit()
                 },
                 onRecentEdit = { searchHistorySession.search.editRecentSearches(it) },
+                onRecentRetry = searchHistorySession::retryRecentSearches,
                 onHistoryEvent = { searchHistorySession.history.dispatch(it) },
             ),
         contentNavigation = searchHistorySession.navigation,
@@ -548,6 +555,7 @@ private fun MobileNavHost(
             MobileSearchHistoryScreen(
                 searchState = searchHistoryState.search,
                 historyState = searchHistoryState.history,
+                recentSearchFailure = searchHistoryState.recentSearchFailure,
                 onSearchQueryChanged = searchHistoryActions.onQueryChanged,
                 onSearchSubmit = searchHistoryActions.onSubmit,
                 onSearchResult = searchHistoryActions.onResult,
@@ -555,6 +563,7 @@ private fun MobileNavHost(
                 onSearchRetry = searchHistoryActions.onRetry,
                 onRecentSearch = searchHistoryActions.onRecentSearch,
                 onRecentEdit = searchHistoryActions.onRecentEdit,
+                onRecentRetry = searchHistoryActions.onRecentRetry,
                 onHistoryEvent = searchHistoryActions.onHistoryEvent,
             )
         }
@@ -612,6 +621,7 @@ internal fun HistoryState.authoritativeSessionFailure(): FilesFailure? =
 internal data class MobileSearchHistoryState(
     val search: SearchState,
     val history: HistoryState,
+    val recentSearchFailure: FilesFailure?,
 )
 
 internal data class MobileSearchHistoryActions(
@@ -622,6 +632,7 @@ internal data class MobileSearchHistoryActions(
     val onRetry: () -> Unit = {},
     val onRecentSearch: (SearchTerm) -> Unit = {},
     val onRecentEdit: (RecentSearchEdit) -> Unit = {},
+    val onRecentRetry: () -> Unit = {},
     val onHistoryEvent: (HistoryEvent) -> Unit = {},
 )
 
@@ -636,6 +647,7 @@ private fun emptySearchHistoryState(): MobileSearchHistoryState =
                 nextRequestValue = 1L,
             ),
         history = HistoryState(HistoryContent.Disabled),
+        recentSearchFailure = null,
     )
 
 private fun NavHostController.navigateTo(destination: MobileDestination) {

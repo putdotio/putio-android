@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.history.HistoryClearing
@@ -68,6 +69,22 @@ class MobileSearchHistoryScreenTest {
     }
 
     @Test
+    fun recentSearchFailureIsVisibleAndCanBeRetriedWithoutBlockingSearch() {
+        var retries = 0
+        setScreen(
+            search = searchState(SearchContent.Idle, listOf(SearchTerm("documentary"))),
+            recentSearchFailure = FilesFailure.Unexpected(IllegalStateException("offline")),
+            onRecentRetry = { retries += 1 },
+        )
+
+        compose.onNodeWithText("Couldn’t update recent searches").assertIsDisplayed()
+        compose.onNodeWithText("documentary").assertIsDisplayed()
+        compose.onNodeWithText("Try again").performClick()
+
+        assertEquals(1, retries)
+    }
+
+    @Test
     fun historyGroupsEventsAndConfirmsClear() {
         val events = mutableListOf<HistoryEvent>()
         val history =
@@ -127,9 +144,11 @@ class MobileSearchHistoryScreenTest {
     private fun setScreen(
         search: SearchState = searchState(SearchContent.Idle),
         history: HistoryState = HistoryState(HistoryContent.Disabled),
+        recentSearchFailure: FilesFailure? = null,
         onSearchResult: (FilesItem) -> Unit = {},
         onRecentSearch: (SearchTerm) -> Unit = {},
         onRecentEdit: (io.putdotio.android.search.RecentSearchEdit) -> Unit = {},
+        onRecentRetry: () -> Unit = {},
         onHistoryEvent: (HistoryEvent) -> Unit = {},
     ) {
         compose.setContent {
@@ -137,6 +156,7 @@ class MobileSearchHistoryScreenTest {
                 MobileSearchHistoryScreen(
                     searchState = search,
                     historyState = history,
+                    recentSearchFailure = recentSearchFailure,
                     onSearchQueryChanged = {},
                     onSearchSubmit = {},
                     onSearchResult = onSearchResult,
@@ -144,6 +164,7 @@ class MobileSearchHistoryScreenTest {
                     onSearchRetry = {},
                     onRecentSearch = onRecentSearch,
                     onRecentEdit = onRecentEdit,
+                    onRecentRetry = onRecentRetry,
                     onHistoryEvent = onHistoryEvent,
                 )
             }

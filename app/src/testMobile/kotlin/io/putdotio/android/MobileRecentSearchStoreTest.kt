@@ -168,6 +168,39 @@ class MobileRecentSearchStoreTest {
         }
 
     @Test
+    fun explicitlyRetriesInitialConfigFailureWithoutAnEdit() =
+        runBlocking {
+            val firstLoadFailed = CompletableDeferred<Unit>()
+            var loadCalls = 0
+            val store =
+                MobileRecentSearchStore(
+                    loadConfig = {
+                        loadCalls += 1
+                        if (loadCalls == 1) {
+                            firstLoadFailed.complete(Unit)
+                            error("offline")
+                        }
+                        MobileSearchConfig(enabled = true, terms = listOf("existing"))
+                    },
+                    saveTerms = { error("No edit should be saved") },
+                    parentScope = this,
+                )
+
+            try {
+                withTimeout(TIMEOUT) { firstLoadFailed.await() }
+                store.failure.first { it != null }
+
+                store.retry()
+
+                store.awaitTerms("existing")
+                assertEquals(2, loadCalls)
+                assertEquals(null, store.failure.value)
+            } finally {
+                store.close()
+            }
+        }
+
+    @Test
     fun failedServerWriteRollsBackTheOptimisticEdit() =
         runBlocking {
             val attempted = CompletableDeferred<Unit>()
@@ -232,6 +265,46 @@ class MobileRecentSearchStoreTest {
                     listOf(listOf("two", "one"), listOf("three", "two", "one")),
                     saved,
                 )
+                assertEquals(null, store.failure.value)
+            } finally {
+                store.close()
+            }
+        }
+
+    @Test
+    fun explicitlyRetriesTheRetainedFailedWrite() =
+        runBlocking {
+            var attempts = 0
+            val saved = mutableListOf<List<String>>()
+            val firstAttempt = CompletableDeferred<Unit>()
+            val store =
+                MobileRecentSearchStore(
+                    loadConfig = { MobileSearchConfig(enabled = true, terms = listOf("one")) },
+                    saveTerms = {
+                        attempts += 1
+                        if (attempts == 1) {
+                            firstAttempt.complete(Unit)
+                            error("offline")
+                        }
+                        saved += it
+                    },
+                    parentScope = this,
+                )
+
+            try {
+                store.awaitTerms("one")
+                store.record(SearchTerm("two"))
+                withTimeout(TIMEOUT) { firstAttempt.await() }
+                store.failure.first { it != null }
+                store.awaitTerms("one")
+
+                store.retry()
+
+                store.awaitTerms("two", "one")
+                withTimeout(TIMEOUT) {
+                    while (saved.isEmpty()) delay(1)
+                }
+                assertEquals(listOf(listOf("two", "one")), saved)
                 assertEquals(null, store.failure.value)
             } finally {
                 store.close()

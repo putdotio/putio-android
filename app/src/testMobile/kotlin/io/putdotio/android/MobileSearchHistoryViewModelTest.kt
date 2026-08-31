@@ -145,6 +145,8 @@ class MobileSearchHistoryViewModelTest {
             terms.value = emptyList()
         }
 
+        override fun retry() = Unit
+
         override fun close() {
             closed = true
         }
