@@ -91,7 +91,7 @@ internal fun TransfersState.refresh(): TransfersTransition {
                 reconcileIds =
                     content.items()
                         .mapTo(mutableSetOf(), TransferItem::id)
-                        .takeIf { consumedCursors.isNotEmpty() }
+                        .takeIf { hasRowsBeyondFirstPage }
                         .orEmpty(),
             ),
         )
@@ -128,7 +128,7 @@ internal fun TransfersState.refreshSucceeded(
 ): TransfersTransition {
     val refreshedFirstPageIds = page.items.mapTo(mutableSetOf(), TransferItem::id)
     return (content as? TransfersContent.Ready)
-        ?.takeIf { consumedCursors.isNotEmpty() }
+        ?.takeIf { hasRowsBeyondFirstPage }
         ?.let { ready ->
             val items = page.items + reconciledItems
             if (items.isEmpty()) {
@@ -161,6 +161,9 @@ internal fun TransfersState.refreshSucceeded(
             ),
         )
 }
+
+private val TransfersState.hasRowsBeyondFirstPage: Boolean
+    get() = content.items().any { it.id !in firstPageIds }
 
 private fun TransfersState.pageSucceeded(
     ready: TransfersContent.Ready,
