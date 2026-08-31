@@ -334,7 +334,7 @@ private fun MobileAccountMutationError(
 private fun AccountSettingsFailure.messageResource(): Int =
     when (this) {
         is AccountSettingsFailure.AuthenticationRequired -> R.string.mobile_state_error_session
-        is AccountSettingsFailure.AccessDenied -> R.string.mobile_state_error_forbidden
+        is AccountSettingsFailure.AccessDenied -> R.string.mobile_settings_error_access_denied
         is AccountSettingsFailure.RateLimited -> R.string.mobile_state_error_rate_limited
         is AccountSettingsFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
         is AccountSettingsFailure.NetworkUnavailable -> R.string.mobile_state_error_message

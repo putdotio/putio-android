@@ -20,6 +20,7 @@ import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -111,12 +112,13 @@ class MobileAccountScreenTest {
                 AccountSettingsState(
                     content =
                         AccountSettingsContent.Failed(
-                            AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                            AccountSettingsFailure.AccessDenied(PutioConfigurationException("restricted")),
                         ),
                     mutation = AccountSettingsMutation.Idle,
                     nextRequestValue = 2L,
                 )
         }
+        compose.onNodeWithText("This app doesn’t have access to account settings.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
 
         assertEquals(AccountSettingsEvent.RetryLoad, events.single())
