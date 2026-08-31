@@ -15,6 +15,8 @@ import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.history.HistoryController
+import io.putdotio.android.history.HistoryEvent
+import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.history.HistoryRepositoryResult
@@ -26,10 +28,12 @@ import io.putdotio.android.search.SearchTerm
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -88,6 +92,55 @@ class MobileSearchHistoryViewModelTest {
                 yield()
 
                 assertEquals(item, withTimeout(TIMEOUT) { session.navigation.first() })
+            } finally {
+                session.close()
+            }
+        }
+
+    @Test
+    fun resolvedHistoryNavigationIsRetainedAndDeliveredExactlyOnce() =
+        runBlocking {
+            val item =
+                FilesItem(
+                    id = FilesItemId(32L),
+                    parentId = FilesItemId(0L),
+                    name = "history.mkv",
+                    type = PutioFileType.VIDEO,
+                    sizeBytes = 1L,
+                    createdAt = "2026-08-31T10:00:00Z",
+                )
+            val resolved = CompletableDeferred<Unit>()
+            var resolverCalls = 0
+            val recentSearchStore = FakeRecentSearchStore()
+            val history = HistoryController(EmptyHistoryRepository, historyEnabled = true, parentScope = this)
+            val session =
+                ActiveSearchHistorySession(
+                    key = SessionKey(USER_ID, SessionOne),
+                    recentSearchStore = recentSearchStore,
+                    search = SearchController(RecordingSearchRepository(), recentSearchStore, this),
+                    history = history,
+                    parentScope = this,
+                    filesItemResolver =
+                        object : FilesItemResolver {
+                            override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+                                resolverCalls += 1
+                                resolved.complete(Unit)
+                                return FilesRepositoryResult.Success(item)
+                            }
+                        },
+                )
+
+            try {
+                assertTrue(history.dispatch(HistoryEvent.OpenFile(HistoryFileId(item.id.value))))
+                withTimeout(TIMEOUT) { resolved.await() }
+                yield()
+
+                assertEquals(item, withTimeout(TIMEOUT) { session.navigation.first() })
+                assertEquals(
+                    null,
+                    withTimeoutOrNull(NO_SECOND_EVENT_TIMEOUT) { session.navigation.first() },
+                )
+                assertEquals(1, resolverCalls)
             } finally {
                 session.close()
             }
@@ -245,6 +298,7 @@ class MobileSearchHistoryViewModelTest {
     private companion object {
         const val USER_ID = 42L
         const val TIMEOUT = 2_000L
+        const val NO_SECOND_EVENT_TIMEOUT = 100L
         val Account = MobileAccount(USER_ID, "user", "user@example.com", historyEnabled = true)
         val SessionOne = MobileAuthSessionId(1L)
         val SessionTwo = MobileAuthSessionId(2L)
