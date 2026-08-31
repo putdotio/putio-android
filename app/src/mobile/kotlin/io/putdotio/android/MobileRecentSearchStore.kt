@@ -157,7 +157,11 @@ internal data class MobileSearchConfig(
 
 internal fun AppConfig.toMobileSearchConfig(): MobileSearchConfig =
     MobileSearchConfig(
-        enabled = (this[SEARCH_HISTORY_ENABLED_KEY] as? JsonPrimitive)?.booleanOrNull ?: true,
+        enabled =
+            (this[SEARCH_HISTORY_ENABLED_KEY] as? JsonPrimitive)
+                ?.takeUnless(JsonPrimitive::isString)
+                ?.booleanOrNull
+                ?: true,
         terms =
             (this[SEARCH_HISTORY_KEY] as? JsonArray)
                 ?.mapNotNull { value ->

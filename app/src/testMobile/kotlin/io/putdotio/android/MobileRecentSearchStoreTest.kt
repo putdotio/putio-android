@@ -39,7 +39,7 @@ class MobileRecentSearchStoreTest {
         val config =
             AppConfig(
                 mapOf(
-                    SEARCH_HISTORY_ENABLED_KEY to JsonObject(emptyMap()),
+                    SEARCH_HISTORY_ENABLED_KEY to JsonPrimitive("false"),
                     SEARCH_HISTORY_KEY to
                         JsonArray(
                             listOf(
