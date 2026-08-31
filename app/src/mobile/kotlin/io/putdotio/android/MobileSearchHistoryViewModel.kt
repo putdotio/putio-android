@@ -23,12 +23,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 internal class MobileSearchHistoryViewModel(
@@ -128,10 +128,10 @@ internal class ActiveSearchHistorySession(
 ) {
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + sessionJob)
-    private val mutableNavigation = MutableSharedFlow<FilesItem>(extraBufferCapacity = 1)
+    private val navigationChannel = Channel<FilesItem>(Channel.BUFFERED)
     private val mutableNavigationFailure = MutableStateFlow<FilesFailure?>(null)
 
-    val navigation: SharedFlow<FilesItem> = mutableNavigation.asSharedFlow()
+    val navigation: Flow<FilesItem> = navigationChannel.receiveAsFlow()
     val navigationFailure: StateFlow<FilesFailure?> = mutableNavigationFailure.asStateFlow()
     val recentSearchFailure: StateFlow<FilesFailure?> = recentSearchStore.failure
 
@@ -139,7 +139,7 @@ internal class ActiveSearchHistorySession(
         scope.launch {
             search.outputs.collect { output ->
                 when (output) {
-                    is SearchOutput.OpenResult -> mutableNavigation.emit(output.item)
+                    is SearchOutput.OpenResult -> navigationChannel.send(output.item)
                 }
             }
         }
@@ -148,7 +148,7 @@ internal class ActiveSearchHistorySession(
                 when (val result = filesItemResolver.resolveItem(FilesItemId(output.fileId.value))) {
                     is FilesRepositoryResult.Success -> {
                         mutableNavigationFailure.value = null
-                        mutableNavigation.emit(result.value)
+                        navigationChannel.send(result.value)
                     }
                     is FilesRepositoryResult.Failure -> mutableNavigationFailure.value = result.failure
                 }
@@ -166,6 +166,7 @@ internal class ActiveSearchHistorySession(
 
     fun close() {
         scope.cancel()
+        navigationChannel.close()
         search.close()
         history.close()
         recentSearchStore.close()

@@ -14,9 +14,12 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.history.HistoryRepositoryResult
+import io.putdotio.android.search.SearchContent
+import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
@@ -24,6 +27,11 @@ import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
@@ -36,6 +44,55 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class MobileSearchHistoryViewModelTest {
+    @Test
+    fun navigationProducedBeforeCollectorStartsIsRetained() =
+        runBlocking {
+            val item =
+                FilesItem(
+                    id = FilesItemId(7L),
+                    parentId = FilesItemId(0L),
+                    name = "movie.mkv",
+                    type = PutioFileType.VIDEO,
+                    sizeBytes = 1L,
+                    createdAt = "2026-08-31T10:00:00Z",
+                )
+            val recentSearchStore = FakeRecentSearchStore()
+            val search =
+                SearchController(
+                    repository =
+                        object : SearchRepository {
+                            override suspend fun search(term: SearchTerm): FilesRepositoryResult<SearchPage> =
+                                FilesRepositoryResult.Success(SearchPage(listOf(item), nextCursor = null, total = 1))
+
+                            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<SearchPage> =
+                                error("No continuation expected")
+                        },
+                    recentSearchStore = recentSearchStore,
+                    parentScope = this,
+                )
+            val session =
+                ActiveSearchHistorySession(
+                    key = SessionKey(USER_ID, SessionOne),
+                    recentSearchStore = recentSearchStore,
+                    search = search,
+                    history = HistoryController(EmptyHistoryRepository, historyEnabled = true, parentScope = this),
+                    parentScope = this,
+                    filesItemResolver = EmptyFilesItemResolver,
+                )
+
+            try {
+                search.updateQuery("movie")
+                search.submit()
+                search.state.first { it.content is SearchContent.Ready }
+                assertTrue(search.openResult(item.id))
+                yield()
+
+                assertEquals(item, withTimeout(TIMEOUT) { session.navigation.first() })
+            } finally {
+                session.close()
+            }
+        }
+
     @Test
     fun reauthenticationClosesOldSessionAndUsesReplacementRepositories() {
         val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
@@ -187,6 +244,7 @@ class MobileSearchHistoryViewModelTest {
 
     private companion object {
         const val USER_ID = 42L
+        const val TIMEOUT = 2_000L
         val Account = MobileAccount(USER_ID, "user", "user@example.com", historyEnabled = true)
         val SessionOne = MobileAuthSessionId(1L)
         val SessionTwo = MobileAuthSessionId(2L)
