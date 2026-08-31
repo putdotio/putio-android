@@ -160,7 +160,11 @@ internal fun AppConfig.toMobileSearchConfig(): MobileSearchConfig =
         enabled = (this[SEARCH_HISTORY_ENABLED_KEY] as? JsonPrimitive)?.booleanOrNull ?: true,
         terms =
             (this[SEARCH_HISTORY_KEY] as? JsonArray)
-                ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+                ?.mapNotNull { value ->
+                    (value as? JsonPrimitive)
+                        ?.takeIf(JsonPrimitive::isString)
+                        ?.contentOrNull
+                }
                 .orEmpty(),
     )
 

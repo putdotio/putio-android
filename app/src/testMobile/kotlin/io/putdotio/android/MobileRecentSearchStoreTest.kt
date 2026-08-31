@@ -40,12 +40,20 @@ class MobileRecentSearchStoreTest {
             AppConfig(
                 mapOf(
                     SEARCH_HISTORY_ENABLED_KEY to JsonObject(emptyMap()),
-                    SEARCH_HISTORY_KEY to JsonPrimitive("not-an-array"),
+                    SEARCH_HISTORY_KEY to
+                        JsonArray(
+                            listOf(
+                                JsonPrimitive(true),
+                                JsonPrimitive(7),
+                                JsonObject(emptyMap()),
+                                JsonPrimitive("kept"),
+                            ),
+                        ),
                     "anotherAndroidSetting" to JsonPrimitive(true),
                 ),
             )
 
-        assertEquals(MobileSearchConfig(enabled = true, terms = emptyList()), config.toMobileSearchConfig())
+        assertEquals(MobileSearchConfig(enabled = true, terms = listOf("kept")), config.toMobileSearchConfig())
     }
 
     @Test
