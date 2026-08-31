@@ -78,6 +78,7 @@ internal class AccountSettingsController(
                                 )
                         }
                     }
+                releaseActiveJob(coroutineContext[Job])
                 dispatch(event)
             }
 
@@ -96,13 +97,17 @@ internal class AccountSettingsController(
         }
 
         job.invokeOnCompletion {
-            synchronized(lock) {
-                if (activeJob === job) {
-                    activeJob = null
-                }
-            }
+            releaseActiveJob(job)
         }
         job.start()
+    }
+
+    private fun releaseActiveJob(job: Job?) {
+        synchronized(lock) {
+            if (activeJob === job) {
+                activeJob = null
+            }
+        }
     }
 }
 
