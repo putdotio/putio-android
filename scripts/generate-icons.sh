@@ -33,6 +33,10 @@ ICONS=(
   "mobile ic_ph_arrow_circle_down_fill fill/arrow-circle-down-fill"
   "mobile ic_ph_user_circle regular/user-circle"
   "mobile ic_ph_user_circle_fill fill/user-circle-fill"
+  "mobile ic_ph_clock_counter_clockwise regular/clock-counter-clockwise"
+  "mobile ic_ph_list_checks regular/list-checks"
+  "mobile ic_ph_subtitles regular/subtitles"
+  "mobile ic_ph_trash regular/trash"
   "tv ic_ph_arrow_circle_down_fill fill/arrow-circle-down-fill"
   "tv ic_ph_gear_fill fill/gear-fill"
 )

@@ -29,6 +29,8 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -87,8 +89,10 @@ class MobileShellTest {
                 Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
                     MobileShell(
                         filesState = emptyFilesState(),
+                        accountSettingsState = readyAccountSettingsState(),
                         account = Account,
                         onFilesEvent = {},
+                        onAccountSettingsEvent = {},
                         onSignOut = {},
                     )
                 }
@@ -117,14 +121,18 @@ class MobileShellTest {
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         filesState: FilesBrowserState = emptyFilesState(),
+        accountSettingsState: AccountSettingsState = readyAccountSettingsState(),
         onFilesEvent: (FilesBrowserEvent) -> Unit = {},
+        onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
     ) {
         setContent {
             PutioTheme {
                 MobileShell(
                     filesState = filesState,
+                    accountSettingsState = accountSettingsState,
                     account = Account,
                     onFilesEvent = onFilesEvent,
+                    onAccountSettingsEvent = onAccountSettingsEvent,
                     onSignOut = {},
                 )
             }

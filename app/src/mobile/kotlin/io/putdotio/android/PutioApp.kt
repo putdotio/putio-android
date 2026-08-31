@@ -54,6 +54,10 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.SdkFilesRepository
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.authoritativeSessionFailure
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -92,6 +96,9 @@ private fun MobileAuthRoot(
     val rootScope = rememberCoroutineScope()
     val filesViewModel = viewModel<MobileFilesViewModel>(
         factory = remember(authController) { mobileFilesViewModelFactory(authController.state) },
+    )
+    val accountSettingsViewModel = viewModel<MobileAccountSettingsViewModel>(
+        factory = remember(authController) { mobileAccountSettingsViewModelFactory(authController.state) },
     )
 
     LaunchedEffect(authController) {
@@ -153,6 +160,7 @@ private fun MobileAuthRoot(
                 account = state.account,
                 sessionId = state.sessionId,
                 filesViewModel = filesViewModel,
+                accountSettingsViewModel = accountSettingsViewModel,
                 authController = authController,
                 rootScope = rootScope,
             )
@@ -220,6 +228,7 @@ private fun SignedInMobileRoot(
     account: MobileAccount,
     sessionId: MobileAuthSessionId,
     filesViewModel: MobileFilesViewModel,
+    accountSettingsViewModel: MobileAccountSettingsViewModel,
     authController: MobileAuthController,
     rootScope: CoroutineScope,
 ) {
@@ -233,12 +242,25 @@ private fun SignedInMobileRoot(
             repository = filesRepository,
         )
     }
-    if (filesController == null) {
+    val accountSettingsRepository = remember(runtime.putioClient) {
+        SdkAccountSettingsRepository(runtime.putioClient)
+    }
+    val accountSettingsController =
+        remember(accountSettingsViewModel, accountSettingsRepository, account.userId, sessionId) {
+            accountSettingsViewModel.controllerFor(
+                userId = account.userId,
+                sessionId = sessionId,
+                repository = accountSettingsRepository,
+            )
+        }
+    if (filesController == null || accountSettingsController == null) {
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
     }
     val filesState by filesController.state.collectAsStateWithLifecycle()
-    val authoritativeFailure = filesState.authoritativeSessionFailure()
+    val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
+    val authoritativeFailure =
+        filesState.authoritativeSessionFailure() ?: accountSettingsState.authoritativeSessionFailure()
 
     LaunchedEffect(authoritativeFailure) {
         if (authoritativeFailure != null) {
@@ -248,8 +270,10 @@ private fun SignedInMobileRoot(
 
     MobileShell(
         filesState = filesState,
+        accountSettingsState = accountSettingsState,
         account = account,
         onFilesEvent = filesController::dispatch,
+        onAccountSettingsEvent = accountSettingsController::dispatch,
         onSignOut = { rootScope.launch { authController.logout() } },
     )
 }
@@ -257,8 +281,10 @@ private fun SignedInMobileRoot(
 @Composable
 internal fun MobileShell(
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     account: MobileAccount,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     onSignOut: () -> Unit,
 ) {
     val navController = rememberNavController()
@@ -277,8 +303,10 @@ internal fun MobileShell(
                 navController = navController,
                 selectedDestination = selectedDestination,
                 filesState = filesState,
+                accountSettingsState = accountSettingsState,
                 account = account,
                 onFilesEvent = onFilesEvent,
+                onAccountSettingsEvent = onAccountSettingsEvent,
                 onSignOut = onSignOut,
             )
         } else {
@@ -286,8 +314,10 @@ internal fun MobileShell(
                 navController = navController,
                 selectedDestination = selectedDestination,
                 filesState = filesState,
+                accountSettingsState = accountSettingsState,
                 account = account,
                 onFilesEvent = onFilesEvent,
+                onAccountSettingsEvent = onAccountSettingsEvent,
                 onSignOut = onSignOut,
             )
         }
@@ -300,8 +330,10 @@ private fun PhoneShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     account: MobileAccount,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     onSignOut: () -> Unit,
 ) {
     Scaffold(
@@ -328,8 +360,10 @@ private fun PhoneShell(
         MobileNavHost(
             navController = navController,
             filesState = filesState,
+            accountSettingsState = accountSettingsState,
             account = account,
             onFilesEvent = onFilesEvent,
+            onAccountSettingsEvent = onAccountSettingsEvent,
             onSignOut = onSignOut,
             modifier = Modifier.padding(padding),
         )
@@ -342,8 +376,10 @@ private fun TabletShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     account: MobileAccount,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     onSignOut: () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
@@ -370,8 +406,10 @@ private fun TabletShell(
             MobileNavHost(
                 navController = navController,
                 filesState = filesState,
+                accountSettingsState = accountSettingsState,
                 account = account,
                 onFilesEvent = onFilesEvent,
+                onAccountSettingsEvent = onAccountSettingsEvent,
                 onSignOut = onSignOut,
                 modifier = Modifier.padding(padding),
             )
@@ -425,8 +463,10 @@ private fun MobileDestinationIcon(
 private fun MobileNavHost(
     navController: NavHostController,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     account: MobileAccount,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -456,6 +496,8 @@ private fun MobileNavHost(
         composable(MobileDestination.Account.route) {
             MobileAccountScreen(
                 account = account,
+                settingsState = accountSettingsState,
+                onSettingsEvent = onAccountSettingsEvent,
                 onSignOut = onSignOut,
             )
         }
