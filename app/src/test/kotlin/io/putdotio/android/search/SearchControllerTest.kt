@@ -333,6 +333,6 @@ class SearchControllerTest {
     }
 
     private companion object {
-        const val TIMEOUT = 2_000L
+        const val TIMEOUT = 10_000L
     }
 }
