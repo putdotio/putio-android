@@ -68,7 +68,7 @@ class AccountSettingsReducerTest {
     }
 
     @Test
-    fun failedSaveKeepsTheChosenValueAndRetriesTheExactChange() {
+    fun failedSaveRestoresTheServerValueAndRetriesTheExactChange() {
         val loaded = loadedState(Preferences)
         val change = AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, enabled = false)
         val saving =
@@ -85,11 +85,20 @@ class AccountSettingsReducerTest {
             )
 
         val ready = failed.state.content as AccountSettingsContent.Ready
-        assertFalse(ready.preferences.autoSelectSubtitles)
-        assertEquals(AccountSettingsMutation.Failed(change, failure), failed.state.mutation)
+        assertTrue(ready.preferences.autoSelectSubtitles)
+        assertEquals(
+            AccountSettingsMutation.Failed(
+                change = change,
+                failure = failure,
+                previousPreferences = Preferences,
+            ),
+            failed.state.mutation,
+        )
 
         val retried = AccountSettingsReducer.reduce(failed.state, AccountSettingsEvent.RetryChange)
+        val retryReady = retried.state.content as AccountSettingsContent.Ready
         val retryEffect = retried.effect as AccountSettingsEffect.Save
+        assertFalse(retryReady.preferences.autoSelectSubtitles)
         assertEquals(change, retryEffect.change)
         assertTrue(retryEffect.requestId.value > requestId.value)
     }

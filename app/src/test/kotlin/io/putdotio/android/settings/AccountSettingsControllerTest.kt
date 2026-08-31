@@ -24,7 +24,7 @@ class AccountSettingsControllerTest {
                 controller.awaitState { it.mutation is AccountSettingsMutation.Failed }
 
                 val failedReady = controller.state.value.content as AccountSettingsContent.Ready
-                assertFalse(failedReady.preferences.historyEnabled)
+                assertTrue(failedReady.preferences.historyEnabled)
                 assertTrue(controller.dispatch(AccountSettingsEvent.RetryChange))
                 controller.awaitState { it.mutation == AccountSettingsMutation.Idle }
 

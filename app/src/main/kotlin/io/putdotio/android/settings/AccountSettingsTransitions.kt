@@ -30,7 +30,12 @@ internal fun AccountSettingsState.requestChange(change: AccountSettingsChange): 
             state =
                 copy(
                     content = AccountSettingsContent.Ready(ready.preferences.applying(change)),
-                    mutation = AccountSettingsMutation.Saving(requestId, change),
+                    mutation =
+                        AccountSettingsMutation.Saving(
+                            requestId = requestId,
+                            change = change,
+                            previousPreferences = ready.preferences,
+                        ),
                     nextRequestValue = requestId.value + 1,
                 ),
             effect = AccountSettingsEffect.Save(requestId, change),
@@ -40,12 +45,21 @@ internal fun AccountSettingsState.requestChange(change: AccountSettingsChange): 
 
 internal fun AccountSettingsState.retryChange(): AccountSettingsTransition {
     val failed = mutation as? AccountSettingsMutation.Failed
-        ?: return AccountSettingsTransition(this, consumed = false)
+    val ready = content as? AccountSettingsContent.Ready
+    if (failed == null || ready == null) {
+        return AccountSettingsTransition(this, consumed = false)
+    }
     val requestId = nextRequestId()
     return AccountSettingsTransition(
         state =
             copy(
-                mutation = AccountSettingsMutation.Saving(requestId, failed.change),
+                content = AccountSettingsContent.Ready(ready.preferences.applying(failed.change)),
+                mutation =
+                    AccountSettingsMutation.Saving(
+                        requestId = requestId,
+                        change = failed.change,
+                        previousPreferences = failed.previousPreferences,
+                    ),
                 nextRequestValue = requestId.value + 1,
             ),
         effect = AccountSettingsEffect.Save(requestId, failed.change),
@@ -96,7 +110,15 @@ internal fun AccountSettingsState.saveFailed(
     val saving = mutation as? AccountSettingsMutation.Saving
     return if (saving?.requestId == event.requestId) {
         AccountSettingsTransition(
-            copy(mutation = AccountSettingsMutation.Failed(saving.change, event.failure)),
+            copy(
+                content = AccountSettingsContent.Ready(saving.previousPreferences),
+                mutation =
+                    AccountSettingsMutation.Failed(
+                        change = saving.change,
+                        failure = event.failure,
+                        previousPreferences = saving.previousPreferences,
+                    ),
+            ),
         )
     } else {
         AccountSettingsTransition(this, consumed = false)

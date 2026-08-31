@@ -44,11 +44,13 @@ internal sealed interface AccountSettingsMutation {
     data class Saving(
         val requestId: AccountSettingsRequestId,
         val change: AccountSettingsChange,
+        val previousPreferences: AccountSettingsPreferences,
     ) : AccountSettingsMutation
 
     data class Failed(
         val change: AccountSettingsChange,
         val failure: AccountSettingsFailure,
+        val previousPreferences: AccountSettingsPreferences,
     ) : AccountSettingsMutation
 }
 
