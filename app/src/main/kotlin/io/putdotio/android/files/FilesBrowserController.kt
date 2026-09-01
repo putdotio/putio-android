@@ -64,6 +64,7 @@ class FilesBrowserController(
             is FilesBrowserEvent.SortPersisted -> requestId
             is FilesBrowserEvent.LoadNextPage,
             is FilesBrowserEvent.OpenFolder,
+            is FilesBrowserEvent.OpenExternalItem,
             is FilesBrowserEvent.SelectSort,
             is FilesBrowserEvent.ViewportChanged,
             FilesBrowserEvent.NavigateBack,

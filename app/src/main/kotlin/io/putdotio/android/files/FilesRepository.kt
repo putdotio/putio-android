@@ -78,11 +78,16 @@ interface FilesRepository {
     ): FilesRepositoryResult<Unit>
 }
 
+interface FilesItemResolver {
+    suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem>
+}
+
 class SdkFilesRepository internal constructor(
     private val listFolder: suspend (Long, FilesListQuery) -> FilesListResponse,
     private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse,
     private val setSort: suspend (Long, String) -> Unit,
-) : FilesRepository {
+    private val getFile: suspend (Long) -> PutioFile,
+) : FilesRepository, FilesItemResolver {
     constructor(client: PutioClient) : this(
         listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
         continueListing = { cursor, query -> client.files.continueList(cursor = cursor, query = query) },
@@ -90,6 +95,7 @@ class SdkFilesRepository internal constructor(
             client.files.setSortBy(fileId = folderId, sortBy = sort)
             Unit
         },
+        getFile = { fileId -> client.files.get(fileId) },
     )
 
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
@@ -102,6 +108,9 @@ class SdkFilesRepository internal constructor(
         folderId: FilesItemId,
         sort: FilesSort,
     ): FilesRepositoryResult<Unit> = request { setSort(folderId.value, sort.apiValue) }
+
+    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+        request { getFile(itemId.value).toFilesItem() }
 
     // Kotlin/JVM has no typed throws contract, so the SDK boundary converts
     // unknown failures after preserving cancellation.
@@ -129,7 +138,7 @@ private fun FilesListResponse.toFilesPage(): FilesPage =
         sort = FilesSort.fromApiValue(parent?.sortBy),
     )
 
-private fun PutioFile.toFilesItem(): FilesItem =
+internal fun PutioFile.toFilesItem(): FilesItem =
     FilesItem(
         id = FilesItemId(id),
         parentId = parentId?.let(::FilesItemId),
@@ -142,7 +151,7 @@ private fun PutioFile.toFilesItem(): FilesItem =
 // Mirrors PutioAuthSessionGateway.isAuthoritativeAuthRejection: a contract-derived
 // 401/403 reason is an auth verdict even when the underlying error is not an API
 // exception, and the wrapper chain is walked with a cycle guard.
-private fun PutioException.toFilesFailure(): FilesFailure {
+internal fun PutioException.toFilesFailure(): FilesFailure {
     var current: PutioException = this
     val visited = mutableSetOf<PutioException>()
     while (current is PutioOperationException && visited.add(current)) {
