@@ -153,7 +153,7 @@ private fun MobileReadyVideoPlayer(
         ExoPlayer.Builder(context, renderersFactory).build().apply {
             setMediaItem(preparedPlayback.mediaItem, preparedPlayback.startPositionMillis)
             trackSelectionParameters =
-                trackSelectionParameters.withSubtitlesEnabled(source.hasSubtitles())
+                trackSelectionParameters.withSubtitlesEnabled(source.hasSelectableSubtitles())
             prepare()
             playWhenReady = lifecycleAllowsAutoplay(lifecycle.currentState)
         }
@@ -201,7 +201,7 @@ private fun MobileReadyVideoPlayer(
                         .windowInsetsPadding(WindowInsets.safeDrawing)
                         .padding(8.dp),
             ) {
-                if (source.hasSubtitles() && it != null) {
+                if (source.hasSelectableSubtitles() && it != null) {
                     MobileSubtitleToggle(
                         player = it,
                         modifier = Modifier.align(Alignment.TopEnd),
@@ -320,9 +320,11 @@ internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
         .build()
 }
 
-private fun PlaybackSource.hasSubtitles(): Boolean =
+internal fun PlaybackSource.hasSelectableSubtitles(): Boolean =
     subtitles is PlaybackSubtitles.Embedded ||
-        (subtitles as? PlaybackSubtitles.Sidecar)?.tracks?.isNotEmpty() == true
+        (subtitles as? PlaybackSubtitles.Sidecar)
+            ?.tracks
+            ?.any { it.format.toSubtitleMimeType() != null } == true
 
 internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
     var current: Throwable? = this

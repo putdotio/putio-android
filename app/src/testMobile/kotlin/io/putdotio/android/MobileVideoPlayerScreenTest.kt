@@ -143,6 +143,13 @@ class MobileVideoPlayerScreenTest {
         assertEquals("en", local.subtitleConfigurations.single().language)
         assertEquals(C.SELECTION_FLAG_DEFAULT, local.subtitleConfigurations.single().selectionFlags)
         assertEquals(54_321L, source.preparePlayback(Target.name, 54_321L).startPositionMillis)
+        assertTrue(source.hasSelectableSubtitles())
+        assertFalse(
+            source
+                .copy(
+                    subtitles = PlaybackSubtitles.Sidecar(listOf(subtitle("Unknown", "und", "future-format"))),
+                ).hasSelectableSubtitles(),
+        )
     }
 
     @Test
