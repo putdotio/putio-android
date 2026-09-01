@@ -244,7 +244,7 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
-    fun retryRecreationRetainsPositionPauseIntentAndTrackSelection() {
+    fun retainedPreferencesSurviveReadyRemovalAndStateRestoration() {
         val restoration = StateRestorationTester(compose)
         lateinit var preferences: RetainedPlayerPreferences
         var showReady by mutableStateOf(true)
@@ -549,6 +549,28 @@ class MobileVideoPlayerCodecTest {
                 lifecycleState = Lifecycle.State.CREATED,
                 positionMillis = 54_321L,
                 playWhenReady = false,
+            ),
+        )
+    }
+
+    @Test
+    fun sourceReplacementUsesLivePositionOnlyForTheActiveFile() {
+        assertEquals(
+            54_321L,
+            replacementPositionMillis(
+                activeFileId = 42L,
+                replacementFileId = 42L,
+                livePositionMillis = 54_321L,
+                preparedPositionMillis = 12_345L,
+            ),
+        )
+        assertEquals(
+            12_345L,
+            replacementPositionMillis(
+                activeFileId = 7L,
+                replacementFileId = 42L,
+                livePositionMillis = 54_321L,
+                preparedPositionMillis = 12_345L,
             ),
         )
     }

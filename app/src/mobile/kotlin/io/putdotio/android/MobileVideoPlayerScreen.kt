@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -236,7 +237,7 @@ private fun MobileReadyVideoPlayer(
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
-    val player = remember(context, preparedPlayback, lifecycle) {
+    val player = remember(context, lifecycle) {
         val renderersFactory = DefaultRenderersFactory(context)
         if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
             // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
@@ -247,23 +248,40 @@ private fun MobileReadyVideoPlayer(
         ExoPlayer.Builder(context, renderersFactory)
             .setAudioAttributes(MobileVideoAudioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
-            .build().apply {
-            setMediaItem(preparedPlayback.mediaItem, preparedPlayback.startPositionMillis)
-            trackSelectionParameters =
-                restoreTrackSelection(
-                    defaults = trackSelectionParameters,
-                    retained = retainedTrackSelection,
-                    systemCaptionsEnabled = context.systemCaptionsEnabled(),
-                )
-            prepare()
-            playWhenReady =
-                lifecycleAllowsAutoplay(lifecycle.currentState, resumeAfterLifecyclePause)
-        }
+            .build()
     }
+    val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
+    var activeFileId by remember(player) { mutableStateOf<Long?>(null) }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     var keepScreenOn by remember(player) { mutableStateOf(player.shouldKeepScreenOn()) }
     val hostView = LocalView.current
+
+    LaunchedEffect(player, preparedPlayback) {
+        val replacingFileId = activeFileId
+        val replacementPosition =
+            replacementPositionMillis(
+                activeFileId = replacingFileId,
+                replacementFileId = source.fileId,
+                livePositionMillis = player.currentPosition,
+                preparedPositionMillis = preparedPlayback.startPositionMillis,
+            )
+        retainedPositionMillis = replacementPosition
+        currentOnPositionChanged.value(replacementPosition)
+        if (replacingFileId != source.fileId || retainedTrackSelection == null) {
+            player.trackSelectionParameters =
+                restoreTrackSelection(
+                    defaults = defaultTrackSelection,
+                    retained = retainedTrackSelection,
+                    systemCaptionsEnabled = context.systemCaptionsEnabled(),
+                )
+        }
+        activeFileId = source.fileId
+        player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
+        player.prepare()
+        player.playWhenReady =
+            lifecycleAllowsAutoplay(lifecycle.currentState, resumeAfterLifecyclePause)
+    }
 
     DisposableEffect(hostView, keepScreenOn) {
         if (keepScreenOn) hostView.keepScreenOn = true
@@ -327,7 +345,6 @@ private fun MobileReadyVideoPlayer(
                 playWhenReady = player.playWhenReady,
             )?.let(currentOnPlaybackRetained.value)
                 ?: currentOnPositionChanged.value(retainedPositionMillis)
-            onTrackSelectionChanged(player.trackSelectionParameters)
             player.removeListener(listener)
             player.release()
         }
@@ -541,13 +558,24 @@ internal fun retainPlaybackWhileActive(
         null
     }
 
+internal fun replacementPositionMillis(
+    activeFileId: Long?,
+    replacementFileId: Long,
+    livePositionMillis: Long,
+    preparedPositionMillis: Long,
+): Long =
+    if (activeFileId == replacementFileId) {
+        livePositionMillis.coerceAtLeast(0L)
+    } else {
+        preparedPositionMillis.coerceAtLeast(0L)
+    }
+
 @Composable
 private fun MobileSubtitleControls(
     player: Media3Player,
     onTrackSelectionChanged: (TrackSelectionParameters) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val currentOnTrackSelectionChanged = rememberUpdatedState(onTrackSelectionChanged)
     var tracks by remember(player) { mutableStateOf(player.mobileSubtitleTracks()) }
     var enabled by remember(player) {
         mutableStateOf(player.trackSelectionParameters.subtitlesEnabled(tracks))
@@ -565,7 +593,6 @@ private fun MobileSubtitleControls(
                 override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
                     tracks = player.mobileSubtitleTracks()
                     enabled = parameters.subtitlesEnabled(tracks)
-                    currentOnTrackSelectionChanged.value(parameters)
                 }
             }
         player.addListener(listener)
@@ -577,8 +604,9 @@ private fun MobileSubtitleControls(
             enabled = enabled,
             onToggle = { subtitlesEnabled ->
                 enabled = subtitlesEnabled
-                player.trackSelectionParameters =
-                    player.trackSelectionParameters.withSubtitlesEnabled(subtitlesEnabled)
+                val parameters = player.trackSelectionParameters.withSubtitlesEnabled(subtitlesEnabled)
+                player.trackSelectionParameters = parameters
+                onTrackSelectionChanged(parameters)
             },
         )
         if (tracks.size > 1) {
@@ -595,8 +623,9 @@ private fun MobileSubtitleControls(
                             track = track,
                             onClick = {
                                 enabled = true
-                                player.trackSelectionParameters =
-                                    player.trackSelectionParameters.withSubtitleTrack(track)
+                                val parameters = player.trackSelectionParameters.withSubtitleTrack(track)
+                                player.trackSelectionParameters = parameters
+                                onTrackSelectionChanged(parameters)
                                 menuExpanded = false
                             },
                         )
