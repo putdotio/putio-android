@@ -54,16 +54,11 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
-<<<<<<< HEAD
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
-import io.putdotio.sdk.files.PutioFileType
-import io.putdotio.sdk.errors.PutioConfigurationException
-import io.putdotio.sdk.files.PlaybackConversionState
-=======
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
@@ -79,11 +74,11 @@ import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersRequestId
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.sdk.errors.PutioConfigurationException
+import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
->>>>>>> origin/main
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -145,15 +140,11 @@ class MobileShellTest {
                         filesState = emptyFilesState(),
                         accountSettingsState = readyAccountSettingsState(),
                         account = Account,
-<<<<<<< HEAD
                         playbackRepository = ConversionRepository,
-                        onFilesEvent = {},
-                        onPlaybackAuthenticationRequired = {},
-=======
                         sessionId = Session,
                         onFilesEvent = {},
                         onAccountSettingsEvent = {},
->>>>>>> origin/main
+                        onPlaybackAuthenticationRequired = {},
                         onSignOut = {},
                     )
                 }
@@ -261,15 +252,11 @@ class MobileShellTest {
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
                     account = Account,
-<<<<<<< HEAD
                     playbackRepository = ConversionRepository,
-                    onFilesEvent = events::add,
-                    onPlaybackAuthenticationRequired = {},
-=======
                     sessionId = Session,
                     onFilesEvent = events::add,
                     onAccountSettingsEvent = {},
->>>>>>> origin/main
+                    onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
                 )
             }
@@ -317,32 +304,6 @@ class MobileShellTest {
     }
 
     @Test
-<<<<<<< HEAD
-    fun videoRowsOpenAFullScreenPlaybackStateAndNavigateBack() {
-        compose.setShell(filesState = videoFilesState())
-
-        compose.onNodeWithText("episode.mkv").performClick()
-
-        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
-        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
-        compose.onNodeWithContentDescription("Back").performClick()
-        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
-    }
-
-    @Test
-    fun authoritativePlaybackFailureRejectsTheSessionOnce() {
-        var rejections = 0
-        compose.setShell(
-            filesState = videoFilesState(),
-            playbackRepository = AuthenticationFailureRepository,
-            onPlaybackAuthenticationRequired = { rejections += 1 },
-        )
-
-        compose.onNodeWithText("episode.mkv").performClick()
-        compose.waitUntil(timeoutMillis = 5_000) { rejections == 1 }
-
-        assertEquals(1, rejections)
-=======
     fun phoneShellForwardsAccountSettingEvents() {
         val events = mutableListOf<AccountSettingsEvent>()
         compose.setShell(onAccountSettingsEvent = events::add)
@@ -370,6 +331,7 @@ class MobileShellTest {
                         filesState = emptyFilesState(),
                         accountSettingsState = settingsState,
                         account = Account,
+                        playbackRepository = ConversionRepository,
                         sessionId = Session,
                         onFilesEvent = {},
                         onAccountSettingsEvent = { event ->
@@ -389,6 +351,7 @@ class MobileShellTest {
                                     )
                             }
                         },
+                        onPlaybackAuthenticationRequired = {},
                         onSignOut = {},
                     )
                 }
@@ -413,9 +376,11 @@ class MobileShellTest {
                         filesState = emptyFilesState(),
                         accountSettingsState = readyAccountSettingsState(),
                         account = Account,
+                        playbackRepository = ConversionRepository,
                         sessionId = Session,
                         onFilesEvent = {},
                         onAccountSettingsEvent = events::add,
+                        onPlaybackAuthenticationRequired = {},
                         onSignOut = {},
                     )
                 }
@@ -446,6 +411,7 @@ class MobileShellTest {
                     accountSettingsState = readyAccountSettingsState(),
                     transfersState = resolvingTransfersState(),
                     account = Account,
+                    playbackRepository = ConversionRepository,
                     sessionId = Session,
                     onFilesEvent = {},
                     onTransfersEvent = events::add,
@@ -456,6 +422,7 @@ class MobileShellTest {
                     },
                     onTransferAuthenticationRequired = { rejections += 1 },
                     onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
                 )
             }
@@ -493,6 +460,7 @@ class MobileShellTest {
                     transfersState = transfersState,
                     transfersSessionId = sessionId,
                     account = Account,
+                    playbackRepository = ConversionRepository,
                     sessionId = Session,
                     onFilesEvent = filesEvents::add,
                     onTransfersEvent = events::add,
@@ -504,6 +472,7 @@ class MobileShellTest {
                         FilesRepositoryResult.Success(resolvedItem)
                     },
                     onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
                 )
             }
@@ -537,6 +506,7 @@ class MobileShellTest {
                     accountSettingsState = readyAccountSettingsState(),
                     transfersState = transfersState,
                     account = Account,
+                    playbackRepository = ConversionRepository,
                     sessionId = Session,
                     onFilesEvent = {},
                     onTransfersEvent = { event ->
@@ -546,6 +516,7 @@ class MobileShellTest {
                         }
                     },
                     onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
                 )
             }
@@ -577,11 +548,13 @@ class MobileShellTest {
                     accountSettingsState = readyAccountSettingsState(),
                     transfersState = resolvingTransfersState(),
                     account = Account,
+                    playbackRepository = ConversionRepository,
                     sessionId = Session,
                     onFilesEvent = filesEvents::add,
                     onTransfersEvent = events::add,
                     resolveTransferFile = { FilesRepositoryResult.Success(resolvedItem) },
                     onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
                 )
             }
@@ -606,10 +579,12 @@ class MobileShellTest {
                     accountSettingsState = readyAccountSettingsState(),
                     transfersSessionId = sessionId,
                     account = Account,
+                    playbackRepository = ConversionRepository,
                     sessionId = Session,
                     onFilesEvent = {},
                     onTransfersEvent = events::add,
                     onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
                 )
             }
@@ -663,20 +638,42 @@ class MobileShellTest {
                     TransfersEvent.VisibilityChanged(true),
                 )
         }
->>>>>>> origin/main
+    }
+
+    @Test
+    fun videoRowsOpenAFullScreenPlaybackStateAndNavigateBack() {
+        compose.setShell(filesState = videoFilesState())
+
+        compose.onNodeWithText("episode.mkv").performClick()
+
+        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun authoritativePlaybackFailureRejectsTheSessionOnce() {
+        var rejections = 0
+        compose.setShell(
+            filesState = videoFilesState(),
+            playbackRepository = AuthenticationFailureRepository,
+            onPlaybackAuthenticationRequired = { rejections += 1 },
+        )
+
+        compose.onNodeWithText("episode.mkv").performClick()
+        compose.waitUntil(timeoutMillis = 5_000) { rejections == 1 }
+
+        assertEquals(1, rejections)
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         filesState: FilesBrowserState = emptyFilesState(),
-<<<<<<< HEAD
+        accountSettingsState: AccountSettingsState = readyAccountSettingsState(),
         playbackRepository: PlaybackRepository = ConversionRepository,
         onFilesEvent: (FilesBrowserEvent) -> Unit = {},
-        onPlaybackAuthenticationRequired: suspend () -> Unit = {},
-=======
-        accountSettingsState: AccountSettingsState = readyAccountSettingsState(),
-        onFilesEvent: (FilesBrowserEvent) -> Unit = {},
         onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
->>>>>>> origin/main
+        onPlaybackAuthenticationRequired: suspend () -> Unit = {},
     ) {
         setContent {
             PutioTheme {
@@ -684,15 +681,11 @@ class MobileShellTest {
                     filesState = filesState,
                     accountSettingsState = accountSettingsState,
                     account = Account,
-<<<<<<< HEAD
                     playbackRepository = playbackRepository,
-                    onFilesEvent = onFilesEvent,
-                    onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
-=======
                     sessionId = Session,
                     onFilesEvent = onFilesEvent,
                     onAccountSettingsEvent = onAccountSettingsEvent,
->>>>>>> origin/main
+                    onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                     onSignOut = {},
                 )
             }
@@ -701,7 +694,7 @@ class MobileShellTest {
 
     private companion object {
         val Account = MobileAccount(userId = 42L, username = "user", email = "user@example.com")
-<<<<<<< HEAD
+        val Session = MobileAuthSessionId(1L)
         val ConversionRepository =
             object : PlaybackRepository {
                 override suspend fun resolve(
@@ -720,9 +713,6 @@ class MobileShellTest {
                         PlaybackFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
                     )
             }
-=======
-        val Session = MobileAuthSessionId(1L)
->>>>>>> origin/main
     }
 }
 
@@ -753,23 +743,6 @@ private fun nestedFilesState(): FilesBrowserState {
     val nested = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenFolder(folder.id)).state
     check(nested.current.content is FilesContent.Loading)
     return nested
-}
-
-private fun videoFilesState(): FilesBrowserState {
-    val initial = FilesBrowserReducer.start()
-    val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
-    val video = FilesItem(
-        id = FilesItemId(8L),
-        parentId = FilesFolder.Root.id,
-        name = "episode.mkv",
-        type = PutioFileType.VIDEO,
-        sizeBytes = 1L,
-        createdAt = "2026-08-29T00:00:00Z",
-    )
-    return FilesBrowserReducer.reduce(
-        initial.state,
-        FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(video), nextCursor = null)),
-    ).state
 }
 
 private fun readyFilesState(sort: FilesSort): FilesBrowserState {
@@ -812,3 +785,20 @@ private fun resolvingTransfersState(): TransfersState =
         content = TransfersContent.Empty,
         navigation = TransferNavigation.Resolving(TransferFileId(7L), TransfersRequestId(3L)),
     )
+
+private fun videoFilesState(): FilesBrowserState {
+    val initial = FilesBrowserReducer.start()
+    val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
+    val video = FilesItem(
+        id = FilesItemId(8L),
+        parentId = FilesFolder.Root.id,
+        name = "episode.mkv",
+        type = PutioFileType.VIDEO,
+        sizeBytes = 1L,
+        createdAt = "2026-08-29T00:00:00Z",
+    )
+    return FilesBrowserReducer.reduce(
+        initial.state,
+        FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(video), nextCursor = null)),
+    ).state
+}
