@@ -123,6 +123,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.tv.material)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.putio.sdk.kotlin)

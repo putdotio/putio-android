@@ -54,6 +54,11 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.hasSelectableSubtitles
+import io.putdotio.android.playback.preparePlayback
+import io.putdotio.android.playback.toMediaItem
+import io.putdotio.android.playback.toMediaRequestFailureOrNull
+import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -589,6 +594,41 @@ class MobileVideoPlayerCodecTest {
                 lifecycleState = Lifecycle.State.CREATED,
                 positionMillis = 54_321L,
                 playWhenReady = false,
+            ),
+        )
+    }
+
+    @Test
+    fun playerEventsPreserveBackgroundPauseIntent() {
+        assertEquals(
+            PlayerRetentionUpdate.Playback(
+                RetainedPlayback(positionMillis = 54_321L, resumeAfterLifecyclePause = true),
+            ),
+            playerRetentionUpdate(
+                event = PlayerRetentionEvent.PlayerError,
+                lifecycleState = Lifecycle.State.RESUMED,
+                positionMillis = 54_321L,
+                playWhenReady = true,
+            ),
+        )
+        assertEquals(
+            PlayerRetentionUpdate.Position(54_321L),
+            playerRetentionUpdate(
+                event = PlayerRetentionEvent.PlayerError,
+                lifecycleState = Lifecycle.State.CREATED,
+                positionMillis = 54_321L,
+                playWhenReady = false,
+            ),
+        )
+        assertEquals(
+            PlayerRetentionUpdate.Playback(
+                RetainedPlayback(positionMillis = 54_321L, resumeAfterLifecyclePause = true),
+            ),
+            playerRetentionUpdate(
+                event = PlayerRetentionEvent.LifecyclePause,
+                lifecycleState = Lifecycle.State.CREATED,
+                positionMillis = 54_321L,
+                playWhenReady = true,
             ),
         )
     }
