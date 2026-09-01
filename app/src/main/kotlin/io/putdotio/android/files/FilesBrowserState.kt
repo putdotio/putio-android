@@ -86,6 +86,7 @@ data class FilesFolderState(
     val folder: FilesFolder,
     val content: FilesContent,
     val operation: FilesFolderOperation = FilesFolderOperation.Idle,
+    val viewportGeneration: Long = 0L,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
 )
 

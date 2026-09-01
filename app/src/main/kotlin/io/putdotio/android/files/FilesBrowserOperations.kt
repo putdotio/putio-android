@@ -7,7 +7,7 @@ internal fun FilesBrowserState.refresh(): FilesBrowserTransition =
     )
 
 internal fun FilesBrowserState.selectSort(sort: FilesSort): FilesBrowserTransition =
-    if (current.folder.sort == sort) {
+    if (current.folder.sort == sort && current.operation == FilesFolderOperation.Idle) {
         FilesBrowserTransition(this, consumed = false)
     } else {
         startOperation(
