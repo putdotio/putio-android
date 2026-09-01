@@ -159,6 +159,7 @@ Captures land in `.evidence/` (gitignored) as
 ```bash
 ./scripts/evidence.sh screenshot --label files-screen
 ./scripts/evidence.sh record --seconds 15 --label playback --allow-dark
+./scripts/publish-evidence.sh .evidence/<file> --pr <number>
 ```
 
 Captures are validated: corrupt output is quarantined as `*.corrupt`, and
@@ -166,17 +167,20 @@ near-black captures fail and are quarantined as `*.black.*` unless
 `--allow-dark` is passed for legitimately dark content (playback, dark
 scenes). Quarantined files are never printed as evidence paths.
 
-Never commit evidence files. Publish them with the attach CLI and link the
-preview URL from the PR and issue:
+Never commit evidence files. `scripts/prove.sh <flavor> --pr <number>` uploads
+each validated capture and emits `EVIDENCE_URL <preview-url>`. For an existing
+capture, use the publisher wrapper directly. Both paths select installed
+`attach` first, fall back to `gh attach`, and never invoke login or touch
+`gh auth`:
 
 ```bash
 attach put .evidence/<file> --repo putdotio/putio-android --pr <number>
 ```
 
 Follow the installed `attach-cli` skill for login and safe handling; use
-`--markdown` only when the PR needs an inline embed. Deeper harness
-integration is tracked in
-[#50](https://github.com/putdotio/putio-android/issues/50).
+`--markdown` only when the PR needs an inline embed. The harness deliberately
+fails closed on a missing CLI, custom deployment client id, authentication, or
+allowlist error while preserving the validated local capture.
 
 ## Live API Proof (putio CLI)
 
