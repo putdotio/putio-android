@@ -2,8 +2,8 @@ package io.putdotio.android
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -28,11 +28,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileSignedOutReason
@@ -51,6 +51,8 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.files.FilesSort
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferNavigation
@@ -60,8 +62,6 @@ import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersRequestId
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.sdk.errors.PutioConfigurationException
-import io.putdotio.android.files.FilesRequestId
-import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
@@ -135,6 +135,149 @@ class MobileShellTest {
 
         compose.onNodeWithTag(MOBILE_NAV_RAIL_TAG).assertExists()
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun filesTopBarSelectsSortAndOtherDestinationsHideIt() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(
+            filesState = readyFilesState(FilesSort.NAME_ASCENDING),
+            onFilesEvent = events::add,
+        )
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG)
+            .assertIsEnabled()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.StateDescription,
+                    "Name, A–Z",
+                ),
+            )
+            .performClick()
+        val sortOptions = listOf(
+            "Name, A–Z",
+            "Name, Z–A",
+            "Size, smallest first",
+            "Size, largest first",
+            "Date added, oldest first",
+            "Date added, newest first",
+            "Date modified, oldest first",
+            "Date modified, newest first",
+            "Type, A–Z",
+            "Type, Z–A",
+            "Unwatched first",
+            "Watched first",
+        )
+        sortOptions.forEachIndexed { index, label ->
+            val option = compose.onNodeWithText(label)
+                .assertExists()
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+            if (index == 0) {
+                option.assertIsSelected()
+            } else {
+                option.assertIsNotSelected()
+            }
+        }
+        compose.onNodeWithText("Size, largest first").performClick()
+
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING), events.last())
+
+        compose.onNodeWithText("Transfers").performClick()
+        compose.onAllNodesWithTag(MOBILE_FILES_SORT_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun filesSortIsDisabledWhileARefreshIsRunning() {
+        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
+        val refreshing = ready.copy(
+            stack = ready.stack.dropLast(1) + ready.current.copy(
+                operation = FilesFolderOperation.Loading(
+                    requestId = FilesRequestId(12L),
+                    intent = FilesFolderOperationIntent.Refresh,
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            ),
+        )
+        compose.setShell(filesState = refreshing)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun failedSortReloadCanSelectTheDisplayedSort() {
+        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
+        val failed = ready.copy(
+            stack = ready.stack.dropLast(1) + ready.current.copy(
+                operation = FilesFolderOperation.Failed(
+                    failure = FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                    intent = FilesFolderOperationIntent.Sort(FilesSort.SIZE_DESCENDING),
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            ),
+        )
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(filesState = failed, onFilesEvent = events::add)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsEnabled().performClick()
+        compose.onNodeWithText("Name, A–Z").assertIsSelected().performClick()
+
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING), events.last())
+    }
+
+    @Test
+    fun openFilesSortMenuClosesWhenLoadingStarts() {
+        var filesState by mutableStateOf(readyFilesState(FilesSort.NAME_ASCENDING))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = filesState,
+                    account = Account,
+                    onFilesEvent = events::add,
+                    onSignOut = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText("Size, largest first").assertIsDisplayed()
+
+        compose.runOnIdle {
+            filesState = filesState.copy(
+                stack = filesState.stack.dropLast(1) + filesState.current.copy(
+                    operation = FilesFolderOperation.Loading(
+                        requestId = FilesRequestId(13L),
+                        intent = FilesFolderOperationIntent.Refresh,
+                        phase = FilesFolderOperationPhase.RELOADING,
+                    ),
+                ),
+            )
+        }
+
+        compose.onAllNodesWithText("Size, largest first").assertCountEquals(0)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun sortMenuVisibilityClosesSynchronouslyWhenDisabled() {
+        assertTrue(shouldShowFilesSortMenu(expanded = true, enabled = true))
+        assertFalse(shouldShowFilesSortMenu(expanded = true, enabled = false))
+    }
+
+    @Test
+    fun secureStorageFailureHidesSignInWhenOAuthIsConfigured() {
+        compose.setContent {
+            PutioTheme {
+                MobileSignedOutScreen(
+                    reason = MobileSignedOutReason.SecureStorageUnavailable,
+                    canSignIn = true,
+                    onSignIn = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
+        compose.onAllNodesWithText("Sign in").assertCountEquals(0)
     }
 
     @Test
@@ -325,103 +468,6 @@ class MobileShellTest {
                 TransfersVisibilityEffect(
                     sessionId = MobileAuthSessionId(1L),
                     onEvent = events::add,
-    fun filesTopBarSelectsSortAndOtherDestinationsHideIt() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setShell(
-            filesState = readyFilesState(FilesSort.NAME_ASCENDING),
-            onFilesEvent = events::add,
-        )
-
-        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG)
-            .assertIsEnabled()
-            .assert(
-                SemanticsMatcher.expectValue(
-                    SemanticsProperties.StateDescription,
-                    "Name, A–Z",
-                ),
-            )
-            .performClick()
-        val sortOptions = listOf(
-            "Name, A–Z",
-            "Name, Z–A",
-            "Size, smallest first",
-            "Size, largest first",
-            "Date added, oldest first",
-            "Date added, newest first",
-            "Date modified, oldest first",
-            "Date modified, newest first",
-            "Type, A–Z",
-            "Type, Z–A",
-            "Unwatched first",
-            "Watched first",
-        )
-        sortOptions.forEachIndexed { index, label ->
-            val option = compose.onNodeWithText(label)
-                .assertExists()
-                .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
-            if (index == 0) {
-                option.assertIsSelected()
-            } else {
-                option.assertIsNotSelected()
-            }
-        }
-        compose.onNodeWithText("Size, largest first").performClick()
-
-        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING), events.last())
-
-        compose.onNodeWithText("Transfers").performClick()
-        compose.onAllNodesWithTag(MOBILE_FILES_SORT_TAG).assertCountEquals(0)
-    }
-
-    @Test
-    fun filesSortIsDisabledWhileARefreshIsRunning() {
-        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
-        val refreshing = ready.copy(
-            stack = ready.stack.dropLast(1) + ready.current.copy(
-                operation = FilesFolderOperation.Loading(
-                    requestId = FilesRequestId(12L),
-                    intent = FilesFolderOperationIntent.Refresh,
-                    phase = FilesFolderOperationPhase.RELOADING,
-                ),
-            ),
-        )
-        compose.setShell(filesState = refreshing)
-
-        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
-    }
-
-    @Test
-    fun failedSortReloadCanSelectTheDisplayedSort() {
-        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
-        val failed = ready.copy(
-            stack = ready.stack.dropLast(1) + ready.current.copy(
-                operation = FilesFolderOperation.Failed(
-                    failure = FilesFailure.Unexpected(IllegalStateException("reload failed")),
-                    intent = FilesFolderOperationIntent.Sort(FilesSort.SIZE_DESCENDING),
-                    phase = FilesFolderOperationPhase.RELOADING,
-                ),
-            ),
-        )
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setShell(filesState = failed, onFilesEvent = events::add)
-
-        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsEnabled().performClick()
-        compose.onNodeWithText("Name, A–Z").assertIsSelected().performClick()
-
-        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING), events.last())
-    }
-
-    @Test
-    fun openFilesSortMenuClosesWhenLoadingStarts() {
-        var filesState by mutableStateOf(readyFilesState(FilesSort.NAME_ASCENDING))
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    filesState = filesState,
-                    account = Account,
-                    onFilesEvent = events::add,
-                    onSignOut = {},
                 )
             }
         }
@@ -447,45 +493,6 @@ class MobileShellTest {
                     TransfersEvent.VisibilityChanged(true),
                 )
         }
-        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
-        compose.onNodeWithText("Size, largest first").assertIsDisplayed()
-
-        compose.runOnIdle {
-            filesState = filesState.copy(
-                stack = filesState.stack.dropLast(1) + filesState.current.copy(
-                    operation = FilesFolderOperation.Loading(
-                        requestId = FilesRequestId(13L),
-                        intent = FilesFolderOperationIntent.Refresh,
-                        phase = FilesFolderOperationPhase.RELOADING,
-                    ),
-                ),
-            )
-        }
-
-        compose.onAllNodesWithText("Size, largest first").assertCountEquals(0)
-        assertTrue(events.isEmpty())
-    }
-
-    @Test
-    fun sortMenuVisibilityClosesSynchronouslyWhenDisabled() {
-        assertTrue(shouldShowFilesSortMenu(expanded = true, enabled = true))
-        assertFalse(shouldShowFilesSortMenu(expanded = true, enabled = false))
-    }
-
-    @Test
-    fun secureStorageFailureHidesSignInWhenOAuthIsConfigured() {
-        compose.setContent {
-            PutioTheme {
-                MobileSignedOutScreen(
-                    reason = MobileSignedOutReason.SecureStorageUnavailable,
-                    canSignIn = true,
-                    onSignIn = {},
-                )
-            }
-        }
-
-        compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
-        compose.onAllNodesWithText("Sign in").assertCountEquals(0)
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
@@ -508,22 +515,6 @@ class MobileShellTest {
         val Account = MobileAccount(userId = 42L, username = "user", email = "user@example.com")
     }
 }
-
-private class ShellLifecycleOwner : LifecycleOwner {
-    private val registry = LifecycleRegistry(this)
-
-    override val lifecycle: Lifecycle = registry
-
-    fun moveTo(state: Lifecycle.State) {
-        registry.currentState = state
-    }
-}
-
-private fun resolvingTransfersState(): TransfersState =
-    TransfersState(
-        content = TransfersContent.Empty,
-        navigation = TransferNavigation.Resolving(TransferFileId(7L), TransfersRequestId(3L)),
-    )
 
 private fun emptyFilesState(): FilesBrowserState {
     val initial = FilesBrowserReducer.start()
@@ -578,3 +569,19 @@ private fun readyFilesState(sort: FilesSort): FilesBrowserState {
         ),
     ).state
 }
+
+private class ShellLifecycleOwner : LifecycleOwner {
+    private val registry = LifecycleRegistry(this)
+
+    override val lifecycle: Lifecycle = registry
+
+    fun moveTo(state: Lifecycle.State) {
+        registry.currentState = state
+    }
+}
+
+private fun resolvingTransfersState(): TransfersState =
+    TransfersState(
+        content = TransfersContent.Empty,
+        navigation = TransferNavigation.Resolving(TransferFileId(7L), TransfersRequestId(3L)),
+    )
