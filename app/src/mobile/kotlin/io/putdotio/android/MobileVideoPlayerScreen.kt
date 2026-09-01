@@ -246,6 +246,7 @@ private fun MobileReadyVideoPlayer(
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
+    val currentResumeAfterLifecyclePause = rememberUpdatedState(resumeAfterLifecyclePause)
     val player = remember(context, lifecycle) {
         val renderersFactory = DefaultRenderersFactory(context)
         if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
@@ -269,6 +270,7 @@ private fun MobileReadyVideoPlayer(
     var controlsInteracting by remember { mutableStateOf(false) }
     var controlsMenuOpen by remember { mutableStateOf(false) }
     var controlsActivity by remember { mutableStateOf(0) }
+    var failurePositionMillis by remember(player) { mutableStateOf<Long?>(null) }
     val hostView = LocalView.current
 
     LaunchedEffect(player, preparedPlayback) {
@@ -294,7 +296,7 @@ private fun MobileReadyVideoPlayer(
         player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
         player.prepare()
         playerWantsToPlay =
-            lifecycleAllowsAutoplay(lifecycle.currentState, resumeAfterLifecyclePause)
+            lifecycleAllowsAutoplay(lifecycle.currentState, currentResumeAfterLifecyclePause.value)
         player.playWhenReady = playerWantsToPlay
     }
 
@@ -326,16 +328,19 @@ private fun MobileReadyVideoPlayer(
         player.pause()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (resumeAfterLifecyclePause) player.play()
+        if (currentResumeAfterLifecyclePause.value) player.play()
     }
     DisposableEffect(player) {
         val listener =
             object : Media3Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
+                    val errorPositionMillis = player.currentPosition.coerceAtLeast(0L)
+                    retainedPositionMillis = errorPositionMillis
+                    failurePositionMillis = errorPositionMillis
                     playerRetentionUpdate(
                         event = PlayerRetentionEvent.PlayerError,
                         lifecycleState = lifecycle.currentState,
-                        positionMillis = player.currentPosition,
+                        positionMillis = errorPositionMillis,
                         playWhenReady = player.playWhenReady,
                     ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
                     currentOnPlayerFailure.value(
@@ -376,7 +381,11 @@ private fun MobileReadyVideoPlayer(
             }
         player.addListener(listener)
         onDispose {
-            retainedPositionMillis = player.currentPosition.coerceAtLeast(0L)
+            retainedPositionMillis =
+                retainedPositionOnDispose(
+                    failurePositionMillis = failurePositionMillis,
+                    livePositionMillis = player.currentPosition,
+                )
             playerRetentionUpdate(
                 event = PlayerRetentionEvent.PlayerDisposed,
                 lifecycleState = lifecycle.currentState,
@@ -392,20 +401,10 @@ private fun MobileReadyVideoPlayer(
         Modifier
             .fillMaxSize()
             .testTag(MOBILE_VIDEO_PLAYER_TAG)
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    var wasPressed = false
-                    while (true) {
-                        val isPressed =
-                            awaitPointerEvent(PointerEventPass.Initial)
-                                .changes
-                                .any { it.pressed }
-                        if (isPressed && !wasPressed) controlsActivity += 1
-                        controlsInteracting = isPressed
-                        wasPressed = isPressed
-                    }
-                }
-            },
+            .observePlayerControlInteraction(
+                onInteractionChanged = { controlsInteracting = it },
+                onActivity = { controlsActivity += 1 },
+            ),
     ) {
         ContentFrame(
             player = player,
@@ -469,6 +468,25 @@ private fun MobileReadyVideoPlayer(
         )
     }
 }
+
+internal fun Modifier.observePlayerControlInteraction(
+    onInteractionChanged: (Boolean) -> Unit,
+    onActivity: () -> Unit,
+): Modifier =
+    pointerInput(Unit) {
+        awaitPointerEventScope {
+            var wasPressed = false
+            while (true) {
+                val isPressed =
+                    awaitPointerEvent(PointerEventPass.Initial)
+                        .changes
+                        .any { it.pressed }
+                if (isPressed && !wasPressed) onActivity()
+                onInteractionChanged(isPressed)
+                wasPressed = isPressed
+            }
+        }
+    }
 
 @Composable
 @UnstableApi
@@ -653,17 +671,6 @@ private fun PlayerRetentionUpdate.dispatch(
     }
 }
 
-internal fun retainPlaybackWhileActive(
-    lifecycleState: Lifecycle.State,
-    positionMillis: Long,
-    playWhenReady: Boolean,
-): RetainedPlayback? =
-    if (lifecycleState.isAtLeast(Lifecycle.State.RESUMED)) {
-        retainPlaybackOnPause(positionMillis, playWhenReady)
-    } else {
-        null
-    }
-
 internal fun replacementPositionMillis(
     activeFileId: Long?,
     replacementFileId: Long,
@@ -680,6 +687,11 @@ internal fun preferredPlaybackPosition(
     retainedPositionMillis: Long?,
     requestedPositionMillis: Long?,
 ): Long? = retainedPositionMillis ?: requestedPositionMillis
+
+internal fun retainedPositionOnDispose(
+    failurePositionMillis: Long?,
+    livePositionMillis: Long,
+): Long = failurePositionMillis ?: livePositionMillis.coerceAtLeast(0L)
 
 @Composable
 private fun MobileSubtitleControls(
@@ -866,7 +878,7 @@ internal fun restoreTrackSelection(
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                 .build()
         } else {
-            defaults
+            defaults.withSubtitlesEnabled(false)
         }
 
 internal fun android.content.Context.systemCaptionsEnabled(): Boolean =

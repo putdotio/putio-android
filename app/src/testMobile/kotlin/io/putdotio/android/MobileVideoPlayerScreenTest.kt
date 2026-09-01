@@ -32,6 +32,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
@@ -210,24 +211,43 @@ class MobileVideoPlayerScreenTest {
     @Test
     fun subtitleCueLayerDoesNotBlockUnderlyingPlayerTouches() {
         var taps = 0
+        var interactions = 0
         compose.setContent {
             PutioTheme {
-                Box(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .observePlayerControlInteraction(
+                            onInteractionChanged = {},
+                            onActivity = { interactions += 1 },
+                        ),
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .zIndex(0.5f),
+                    )
+                    MobileSubtitleCueOverlay(
+                        cues = listOf(Cue.Builder().setText("Visible subtitle").build()),
+                        modifier = Modifier.zIndex(1f),
+                    )
                     Button(
                         onClick = { taps += 1 },
-                        modifier = Modifier.fillMaxSize().testTag("player-touch-target"),
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .zIndex(2f)
+                                .testTag("player-touch-target"),
                     ) {
                         Text("Player")
                     }
-                    MobileSubtitleCueOverlay(
-                        cues = listOf(Cue.Builder().setText("Visible subtitle").build()),
-                    )
                 }
             }
         }
 
         compose.onNodeWithTag("player-touch-target").performTouchInput { click() }
         assertEquals(1, taps)
+        assertEquals(1, interactions)
     }
 
     @Test
@@ -519,7 +539,7 @@ class MobileVideoPlayerCodecTest {
                 systemCaptionsEnabled = true,
             )
 
-        assertEquals(captionsDisabled, restored)
+        assertTrue(C.TRACK_TYPE_TEXT in restored.disabledTrackTypes)
         assertFalse(restored.subtitlesEnabled(emptyList()))
         assertTrue(captionsEnabled.selectTextByDefault)
         assertFalse(C.TRACK_TYPE_TEXT in captionsEnabled.disabledTrackTypes)
@@ -580,25 +600,6 @@ class MobileVideoPlayerCodecTest {
     }
 
     @Test
-    fun activeIntentIsRetainedOnlyWhileTheLifecycleIsResumed() {
-        assertEquals(
-            RetainedPlayback(positionMillis = 54_321L, resumeAfterLifecyclePause = false),
-            retainPlaybackWhileActive(
-                lifecycleState = Lifecycle.State.RESUMED,
-                positionMillis = 54_321L,
-                playWhenReady = false,
-            ),
-        )
-        assertNull(
-            retainPlaybackWhileActive(
-                lifecycleState = Lifecycle.State.CREATED,
-                positionMillis = 54_321L,
-                playWhenReady = false,
-            ),
-        )
-    }
-
-    @Test
     fun playerEventsPreserveBackgroundPauseIntent() {
         assertEquals(
             PlayerRetentionUpdate.Playback(
@@ -651,6 +652,24 @@ class MobileVideoPlayerCodecTest {
                 replacementFileId = 42L,
                 livePositionMillis = 54_321L,
                 preparedPositionMillis = 12_345L,
+            ),
+        )
+    }
+
+    @Test
+    fun errorPositionSurvivesTheFollowingPlayerDisposal() {
+        assertEquals(
+            54_321L,
+            retainedPositionOnDispose(
+                failurePositionMillis = 54_321L,
+                livePositionMillis = 12_345L,
+            ),
+        )
+        assertEquals(
+            12_345L,
+            retainedPositionOnDispose(
+                failurePositionMillis = null,
+                livePositionMillis = 12_345L,
             ),
         )
     }
