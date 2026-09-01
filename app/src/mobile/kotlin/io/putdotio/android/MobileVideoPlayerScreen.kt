@@ -178,7 +178,8 @@ private fun MobileReadyVideoPlayer(
             trackSelectionParameters =
                 trackSelectionParameters.withSubtitlesEnabled(source.hasSelectableSubtitles())
             prepare()
-            playWhenReady = lifecycleAllowsAutoplay(lifecycle.currentState)
+            playWhenReady =
+                lifecycleAllowsAutoplay(lifecycle.currentState, resumeAfterLifecyclePause)
         }
     }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
@@ -289,8 +290,10 @@ internal fun MobileSubtitleCueOverlay(
     }
 }
 
-internal fun lifecycleAllowsAutoplay(state: Lifecycle.State): Boolean =
-    state.isAtLeast(Lifecycle.State.RESUMED)
+internal fun lifecycleAllowsAutoplay(
+    state: Lifecycle.State,
+    resumeAfterLifecyclePause: Boolean = true,
+): Boolean = resumeAfterLifecyclePause && state.isAtLeast(Lifecycle.State.RESUMED)
 
 internal data class RetainedPlayback(
     val positionMillis: Long,

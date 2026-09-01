@@ -263,6 +263,12 @@ class MobileVideoPlayerCodecTest {
         assertFalse(lifecycleAllowsAutoplay(Lifecycle.State.CREATED))
         assertFalse(lifecycleAllowsAutoplay(Lifecycle.State.STARTED))
         assertTrue(lifecycleAllowsAutoplay(Lifecycle.State.RESUMED))
+        assertFalse(
+            lifecycleAllowsAutoplay(
+                state = Lifecycle.State.RESUMED,
+                resumeAfterLifecyclePause = false,
+            ),
+        )
     }
 
     @Test
