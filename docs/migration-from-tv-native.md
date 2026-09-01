@@ -96,6 +96,6 @@ behavior correctly.
 
 ## Open Decisions
 
-- Whether Android TV release keeps the current signing lineage and Play listing from the React Native app
+- Which owner-controlled signing lineage and custody path will replace the React Native app on the existing Play listing
 - Which physical Android TV and Fire TV devices are the required remote/back-button/playback proof set
 - Later playback phase only: whether libVLC is the only target player or whether Media3/ExoPlayer remains a first-class fallback
