@@ -46,14 +46,14 @@ import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
-import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.AccountSettingsChange
+import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsState
-import io.putdotio.android.files.FilesRequestId
-import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -91,67 +91,6 @@ class MobileShellTest {
         compose.onNodeWithText("Transfers").performClick()
 
         compose.onAllNodes(hasText("Transfers")).assertCountEquals(2)
-    }
-
-    @Test
-    fun phoneShellForwardsAccountSettingEvents() {
-        val events = mutableListOf<AccountSettingsEvent>()
-        compose.setShell(onAccountSettingsEvent = events::add)
-
-        compose.onNodeWithText("Account").performClick()
-        compose.onNodeWithText("Show subtitles").performClick()
-
-        assertEquals(
-            listOf(
-                AccountSettingsEvent.ChangeRequested(
-                    AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
-                ),
-            ),
-            events,
-        )
-    }
-
-    @Test
-    fun compactPhoneShellBringsRecoverableFailureIntoView() {
-        var settingsState by mutableStateOf(readyAccountSettingsState())
-        compose.setContent {
-            PutioTheme {
-                Box(modifier = Modifier.requiredSize(width = 360.dp, height = 240.dp)) {
-                    MobileShell(
-                        filesState = emptyFilesState(),
-                        accountSettingsState = settingsState,
-                        account = Account,
-                        sessionId = Session,
-                        onFilesEvent = {},
-                        onAccountSettingsEvent = { event ->
-                            if (event is AccountSettingsEvent.ChangeRequested) {
-                                settingsState =
-                                    readyAccountSettingsState(
-                                        mutation =
-                                            AccountSettingsMutation.Failed(
-                                                change = event.change,
-                                                failure =
-                                                    AccountSettingsFailure.Unexpected(
-                                                        IllegalStateException("offline"),
-                                                    ),
-                                                previousPreferences = DefaultAccountSettingsPreferences,
-                                                operation = AccountSettingsMutation.Operation.Save,
-                                            ),
-                                    )
-                            }
-                        },
-                        onSignOut = {},
-                    )
-                }
-            }
-        }
-
-        compose.onNodeWithText("Account").performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(3)
-        compose.onNodeWithText("Show subtitles").assertIsDisplayed().performClick()
-
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).assertIsDisplayed()
-        compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
     }
 
     @Test
@@ -285,8 +224,11 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     filesState = filesState,
+                    accountSettingsState = readyAccountSettingsState(),
                     account = Account,
+                    sessionId = Session,
                     onFilesEvent = events::add,
+                    onAccountSettingsEvent = {},
                     onSignOut = {},
                 )
             }
@@ -315,6 +257,84 @@ class MobileShellTest {
     fun sortMenuVisibilityClosesSynchronouslyWhenDisabled() {
         assertTrue(shouldShowFilesSortMenu(expanded = true, enabled = true))
         assertFalse(shouldShowFilesSortMenu(expanded = true, enabled = false))
+    }
+
+    @Test
+    fun secureStorageFailureHidesSignInWhenOAuthIsConfigured() {
+        compose.setContent {
+            PutioTheme {
+                MobileSignedOutScreen(
+                    reason = MobileSignedOutReason.SecureStorageUnavailable,
+                    canSignIn = true,
+                    onSignIn = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
+        compose.onAllNodesWithText("Sign in").assertCountEquals(0)
+    }
+
+    @Test
+    fun phoneShellForwardsAccountSettingEvents() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setShell(onAccountSettingsEvent = events::add)
+
+        compose.onNodeWithText("Account").performClick()
+        compose.onNodeWithText("Show subtitles").performClick()
+
+        assertEquals(
+            listOf(
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
+                ),
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun compactPhoneShellBringsRecoverableFailureIntoView() {
+        var settingsState by mutableStateOf(readyAccountSettingsState())
+        compose.setContent {
+            PutioTheme {
+                Box(modifier = Modifier.requiredSize(width = 360.dp, height = 240.dp)) {
+                    MobileShell(
+                        filesState = emptyFilesState(),
+                        accountSettingsState = settingsState,
+                        account = Account,
+                        sessionId = Session,
+                        onFilesEvent = {},
+                        onAccountSettingsEvent = { event ->
+                            if (event is AccountSettingsEvent.ChangeRequested) {
+                                settingsState =
+                                    readyAccountSettingsState(
+                                        mutation =
+                                            AccountSettingsMutation.Failed(
+                                                change = event.change,
+                                                failure =
+                                                    AccountSettingsFailure.Unexpected(
+                                                        IllegalStateException("offline"),
+                                                    ),
+                                                previousPreferences = DefaultAccountSettingsPreferences,
+                                                operation = AccountSettingsMutation.Operation.Save,
+                                            ),
+                                    )
+                            }
+                        },
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithText("Account").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(3)
+        compose.onNodeWithText("Show subtitles").assertIsDisplayed().performClick()
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
+    }
 
     @Test
     fun tabletShellForwardsAccountSettingEvents() {
@@ -346,22 +366,6 @@ class MobileShellTest {
             ),
             events,
         )
-    }
-
-    @Test
-    fun secureStorageFailureHidesSignInWhenOAuthIsConfigured() {
-        compose.setContent {
-            PutioTheme {
-                MobileSignedOutScreen(
-                    reason = MobileSignedOutReason.SecureStorageUnavailable,
-                    canSignIn = true,
-                    onSignIn = {},
-                )
-            }
-        }
-
-        compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
-        compose.onAllNodesWithText("Sign in").assertCountEquals(0)
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
