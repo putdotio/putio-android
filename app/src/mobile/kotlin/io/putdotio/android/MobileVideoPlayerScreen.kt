@@ -197,6 +197,17 @@ private fun MobileReadyVideoPlayer(
                 }
             }
         },
+        bottomControls = { controlledPlayer, visible ->
+            PlayerDefaults.BottomControls(
+                player = controlledPlayer,
+                visible = visible,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(8.dp),
+            )
+        },
     )
 }
 
@@ -297,17 +308,22 @@ private fun PlaybackSource.hasSubtitles(): Boolean =
 internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
     var current: Throwable? = this
     val visited = mutableSetOf<Throwable>()
-    var dataSourceFailure: HttpDataSource.HttpDataSourceException? = null
+    var networkFailure: HttpDataSource.HttpDataSourceException? = null
     while (current != null && visited.add(current)) {
         when (current) {
             is HttpDataSource.InvalidResponseCodeException ->
                 return PlaybackFailure.MediaCredentialUnavailable(this)
 
-            is HttpDataSource.HttpDataSourceException -> dataSourceFailure = current
+            is HttpDataSource.HttpDataSourceException ->
+                if (current.reason == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                    current.reason == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+                ) {
+                    networkFailure = current
+                }
         }
         current = current.cause
     }
-    return dataSourceFailure?.let { PlaybackFailure.NetworkUnavailable(this) }
+    return networkFailure?.let { PlaybackFailure.NetworkUnavailable(this) }
 }
 
 internal fun PlaybackException.toPlaybackFailure(): PlaybackFailure =

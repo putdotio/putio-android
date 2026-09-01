@@ -232,14 +232,34 @@ class MobileVideoPlayerCodecTest {
             HttpDataSource.HttpDataSourceException(
                 IOException("offline"),
                 dataSpec,
-                HttpDataSource.HttpDataSourceException.TYPE_OPEN,
                 PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                HttpDataSource.HttpDataSourceException.TYPE_OPEN,
             )
 
         assertTrue(
             IllegalStateException("player failed", transport).toMediaRequestFailureOrNull() is
                 PlaybackFailure.NetworkUnavailable,
         )
+    }
+
+    @Test
+    fun nonNetworkDataSourceFailureUsesGenericRecovery() {
+        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
+        val dataSourceFailure =
+            HttpDataSource.HttpDataSourceException(
+                IOException("cleartext rejected"),
+                dataSpec,
+                PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK,
+                HttpDataSource.HttpDataSourceException.TYPE_OPEN,
+            )
+        val error =
+            PlaybackException(
+                "player failed",
+                dataSourceFailure,
+                PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK,
+            )
+
+        assertTrue(error.toPlaybackFailure() is PlaybackFailure.Unexpected)
     }
 
     @Test
