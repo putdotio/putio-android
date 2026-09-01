@@ -8,6 +8,8 @@ import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
+import io.putdotio.sdk.files.FilesContinueQuery
+import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
 import java.util.concurrent.CancellationException
@@ -72,19 +74,19 @@ interface FilesRepository {
 }
 
 class SdkFilesRepository internal constructor(
-    private val listFolder: suspend (Long) -> FilesListResponse,
-    private val continueListing: suspend (String) -> FilesListResponse,
+    private val listFolder: suspend (Long, FilesListQuery) -> FilesListResponse,
+    private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse,
 ) : FilesRepository {
     constructor(client: PutioClient) : this(
-        listFolder = { folderId -> client.files.list(parentId = folderId) },
-        continueListing = { cursor -> client.files.continueList(cursor = cursor) },
+        listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
+        continueListing = { cursor, query -> client.files.continueList(cursor = cursor, query = query) },
     )
 
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
-        requestPage { listFolder(folderId.value) }
+        requestPage { listFolder(folderId.value, FilesListQuery(perPage = FILES_PAGE_SIZE)) }
 
     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
-        requestPage { continueListing(cursor.value) }
+        requestPage { continueListing(cursor.value, FilesContinueQuery(perPage = FILES_PAGE_SIZE)) }
 
     // Kotlin/JVM has no typed throws contract, so the SDK boundary converts
     // unknown failures after preserving cancellation.
@@ -160,3 +162,4 @@ private const val HTTP_TOO_MANY_REQUESTS = 429
 private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
 private const val HTTP_SERVER_ERROR_START = 500
 private const val HTTP_SERVER_ERROR_END = 599
+private const val FILES_PAGE_SIZE = 50
