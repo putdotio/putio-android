@@ -57,6 +57,10 @@ import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.SdkFilesRepository
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryState
@@ -107,6 +111,9 @@ private fun MobileAuthRoot(
     val rootScope = rememberCoroutineScope()
     val filesViewModel = viewModel<MobileFilesViewModel>(
         factory = remember(authController) { mobileFilesViewModelFactory(authController.state) },
+    )
+    val accountSettingsViewModel = viewModel<MobileAccountSettingsViewModel>(
+        factory = remember(authController) { mobileAccountSettingsViewModelFactory(authController.state) },
     )
     val searchHistoryViewModel = viewModel<MobileSearchHistoryViewModel>(
         factory = remember(authController, context.applicationContext) {
@@ -176,6 +183,7 @@ private fun MobileAuthRoot(
                 account = state.account,
                 sessionId = state.sessionId,
                 filesViewModel = filesViewModel,
+                accountSettingsViewModel = accountSettingsViewModel,
                 searchHistoryViewModel = searchHistoryViewModel,
                 authController = authController,
                 rootScope = rootScope,
@@ -244,6 +252,7 @@ private fun SignedInMobileRoot(
     account: MobileAccount,
     sessionId: MobileAuthSessionId,
     filesViewModel: MobileFilesViewModel,
+    accountSettingsViewModel: MobileAccountSettingsViewModel,
     searchHistoryViewModel: MobileSearchHistoryViewModel,
     authController: MobileAuthController,
     rootScope: CoroutineScope,
@@ -258,6 +267,17 @@ private fun SignedInMobileRoot(
             repository = filesRepository,
         )
     }
+    val accountSettingsRepository = remember(runtime.putioClient) {
+        SdkAccountSettingsRepository(runtime.putioClient)
+    }
+    val accountSettingsController =
+        remember(accountSettingsViewModel, accountSettingsRepository, account.userId, sessionId) {
+            accountSettingsViewModel.controllerFor(
+                userId = account.userId,
+                sessionId = sessionId,
+                repository = accountSettingsRepository,
+            )
+        }
     val searchRepository = remember(runtime.putioClient) { SdkSearchRepository(runtime.putioClient) }
     val historyRepository = remember(runtime.putioClient) { SdkHistoryRepository(runtime.putioClient) }
     val searchHistorySession =
@@ -272,17 +292,19 @@ private fun SignedInMobileRoot(
                 filesItemResolver = filesRepository,
             )
         }
-    if (filesController == null || searchHistorySession == null) {
+    if (filesController == null || accountSettingsController == null || searchHistorySession == null) {
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
     }
     val filesState by filesController.state.collectAsStateWithLifecycle()
+    val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
     val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
     val historyState by searchHistorySession.history.state.collectAsStateWithLifecycle()
     val navigationFailure by searchHistorySession.navigationFailure.collectAsStateWithLifecycle()
     val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
     val authoritativeFailure =
         filesState.authoritativeSessionFailure()
+            ?: accountSettingsState.authoritativeSessionFailure()
             ?: searchState.authoritativeSessionFailure()
             ?: historyState.authoritativeSessionFailure()
             ?: recentSearchFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
@@ -296,6 +318,7 @@ private fun SignedInMobileRoot(
 
     MobileShell(
         filesState = filesState,
+        accountSettingsState = accountSettingsState,
         searchHistoryState =
             MobileSearchHistoryState(
                 search = searchState,
@@ -304,7 +327,9 @@ private fun SignedInMobileRoot(
                     recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired },
             ),
         account = account,
+        sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
+        onAccountSettingsEvent = accountSettingsController::dispatch,
         searchHistoryActions =
             MobileSearchHistoryActions(
                 onQueryChanged = { searchHistorySession.search.updateQuery(it) },
@@ -330,9 +355,12 @@ private fun SignedInMobileRoot(
 @Composable
 internal fun MobileShell(
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
     account: MobileAccount,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     searchHistoryActions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     contentNavigation: Flow<FilesItem> = emptyFlow(),
     navigationFailure: FilesFailure? = null,
@@ -362,9 +390,12 @@ internal fun MobileShell(
                 navController = navController,
                 selectedDestination = selectedDestination,
                 filesState = filesState,
+                accountSettingsState = accountSettingsState,
                 searchHistoryState = searchHistoryState,
                 account = account,
+                sessionId = sessionId,
                 onFilesEvent = onFilesEvent,
+                onAccountSettingsEvent = onAccountSettingsEvent,
                 searchHistoryActions = searchHistoryActions,
                 onSignOut = onSignOut,
             )
@@ -373,9 +404,12 @@ internal fun MobileShell(
                 navController = navController,
                 selectedDestination = selectedDestination,
                 filesState = filesState,
+                accountSettingsState = accountSettingsState,
                 searchHistoryState = searchHistoryState,
                 account = account,
+                sessionId = sessionId,
                 onFilesEvent = onFilesEvent,
+                onAccountSettingsEvent = onAccountSettingsEvent,
                 searchHistoryActions = searchHistoryActions,
                 onSignOut = onSignOut,
             )
@@ -401,9 +435,12 @@ private fun PhoneShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState,
     account: MobileAccount,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onSignOut: () -> Unit,
 ) {
@@ -432,9 +469,12 @@ private fun PhoneShell(
         MobileNavHost(
             navController = navController,
             filesState = filesState,
+            accountSettingsState = accountSettingsState,
             searchHistoryState = searchHistoryState,
             account = account,
+            sessionId = sessionId,
             onFilesEvent = onFilesEvent,
+            onAccountSettingsEvent = onAccountSettingsEvent,
             searchHistoryActions = searchHistoryActions,
             onSignOut = onSignOut,
             modifier = Modifier.padding(padding),
@@ -448,9 +488,12 @@ private fun TabletShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState,
     account: MobileAccount,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onSignOut: () -> Unit,
 ) {
@@ -479,9 +522,12 @@ private fun TabletShell(
             MobileNavHost(
                 navController = navController,
                 filesState = filesState,
+                accountSettingsState = accountSettingsState,
                 searchHistoryState = searchHistoryState,
                 account = account,
+                sessionId = sessionId,
                 onFilesEvent = onFilesEvent,
+                onAccountSettingsEvent = onAccountSettingsEvent,
                 searchHistoryActions = searchHistoryActions,
                 onSignOut = onSignOut,
                 modifier = Modifier.padding(padding),
@@ -548,9 +594,12 @@ private fun MobileDestinationIcon(
 private fun MobileNavHost(
     navController: NavHostController,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState,
     account: MobileAccount,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
@@ -591,6 +640,9 @@ private fun MobileNavHost(
         composable(MobileDestination.Account.route) {
             MobileAccountScreen(
                 account = account,
+                sessionId = sessionId,
+                settingsState = accountSettingsState,
+                onSettingsEvent = onAccountSettingsEvent,
                 onSignOut = onSignOut,
             )
         }
