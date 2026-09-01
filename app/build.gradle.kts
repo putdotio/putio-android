@@ -127,6 +127,9 @@ dependencies {
     implementation(libs.putio.sdk.kotlin)
 
     add("mobileImplementation", libs.androidx.browser)
+    add("mobileImplementation", libs.androidx.media3.exoplayer)
+    add("mobileImplementation", libs.androidx.media3.exoplayer.hls)
+    add("mobileImplementation", libs.androidx.media3.ui.compose.material3)
     add("mobileImplementation", libs.androidx.navigation.compose)
 
     debugImplementation(libs.androidx.compose.ui.tooling)

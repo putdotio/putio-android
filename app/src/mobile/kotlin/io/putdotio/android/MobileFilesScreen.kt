@@ -49,6 +49,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
@@ -60,6 +61,7 @@ internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
 internal fun MobileFilesScreen(
     state: FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Unit,
+    onPlayVideo: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val current = state.current
@@ -91,6 +93,7 @@ internal fun MobileFilesScreen(
                 MobileFilesList(
                     content = content,
                     onEvent = onEvent,
+                    onPlayVideo = onPlayVideo,
                     modifier = modifier,
                 )
             }
@@ -122,6 +125,7 @@ private fun MobileEmptyFilesContent(
 private fun MobileFilesList(
     content: FilesContent.Ready,
     onEvent: (FilesBrowserEvent) -> Unit,
+    onPlayVideo: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewport = content.viewport
@@ -163,6 +167,7 @@ private fun MobileFilesList(
             MobileFilesRow(
                 item = item,
                 onOpenFolder = { onEvent(FilesBrowserEvent.OpenFolder(it)) },
+                onPlayVideo = onPlayVideo,
             )
             HorizontalDivider(modifier = Modifier.padding(start = FILES_DIVIDER_INSET))
         }
@@ -182,19 +187,32 @@ private fun MobileFilesList(
 private fun MobileFilesRow(
     item: FilesItem,
     onOpenFolder: (FilesItemId) -> Unit,
+    onPlayVideo: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val metadata = formatFilesItemMetadata(LocalContext.current, item)
-    val interaction = if (item.isFolder) {
-        val openFolderLabel = stringResource(R.string.mobile_files_open_folder, item.name)
-        Modifier.clickable(
-            onClickLabel = openFolderLabel,
-            role = Role.Button,
-            onClick = { onOpenFolder(item.id) },
-        )
-    } else {
-        Modifier
-    }
+    val interaction =
+        when {
+            item.isFolder -> {
+                val openFolderLabel = stringResource(R.string.mobile_files_open_folder, item.name)
+                Modifier.clickable(
+                    onClickLabel = openFolderLabel,
+                    role = Role.Button,
+                    onClick = { onOpenFolder(item.id) },
+                )
+            }
+
+            item.type == PutioFileType.VIDEO -> {
+                val playVideoLabel = stringResource(R.string.mobile_files_play_video, item.name)
+                Modifier.clickable(
+                    onClickLabel = playVideoLabel,
+                    role = Role.Button,
+                    onClick = { onPlayVideo(item) },
+                )
+            }
+
+            else -> Modifier
+        }
 
     ListItem(
         headlineContent = {

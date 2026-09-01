@@ -29,7 +29,12 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackResolution
+import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PlaybackConversionState
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -88,7 +93,9 @@ class MobileShellTest {
                     MobileShell(
                         filesState = emptyFilesState(),
                         account = Account,
+                        playbackRepository = ConversionRepository,
                         onFilesEvent = {},
+                        onPlaybackAuthenticationRequired = {},
                         onSignOut = {},
                     )
                 }
@@ -115,6 +122,18 @@ class MobileShellTest {
         compose.onAllNodesWithText("Sign in").assertCountEquals(0)
     }
 
+    @Test
+    fun videoRowsOpenAFullScreenPlaybackStateAndNavigateBack() {
+        compose.setShell(filesState = videoFilesState())
+
+        compose.onNodeWithText("episode.mkv").performClick()
+
+        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+    }
+
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         filesState: FilesBrowserState = emptyFilesState(),
         onFilesEvent: (FilesBrowserEvent) -> Unit = {},
@@ -124,7 +143,9 @@ class MobileShellTest {
                 MobileShell(
                     filesState = filesState,
                     account = Account,
+                    playbackRepository = ConversionRepository,
                     onFilesEvent = onFilesEvent,
+                    onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
                 )
             }
@@ -133,6 +154,15 @@ class MobileShellTest {
 
     private companion object {
         val Account = MobileAccount(userId = 42L, username = "user", email = "user@example.com")
+        val ConversionRepository =
+            object : PlaybackRepository {
+                override suspend fun resolve(
+                    target: PlaybackTarget,
+                ): PlaybackRepositoryResult<PlaybackResolution> =
+                    PlaybackRepositoryResult.Success(
+                        PlaybackResolution.Conversion(PlaybackConversionState.Queued),
+                    )
+            }
     }
 }
 
@@ -163,4 +193,21 @@ private fun nestedFilesState(): FilesBrowserState {
     val nested = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenFolder(folder.id)).state
     check(nested.current.content is FilesContent.Loading)
     return nested
+}
+
+private fun videoFilesState(): FilesBrowserState {
+    val initial = FilesBrowserReducer.start()
+    val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
+    val video = FilesItem(
+        id = FilesItemId(8L),
+        parentId = FilesFolder.Root.id,
+        name = "episode.mkv",
+        type = PutioFileType.VIDEO,
+        sizeBytes = 1L,
+        createdAt = "2026-08-29T00:00:00Z",
+    )
+    return FilesBrowserReducer.reduce(
+        initial.state,
+        FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(video), nextCursor = null)),
+    ).state
 }

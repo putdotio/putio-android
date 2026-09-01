@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
@@ -20,6 +21,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -33,11 +35,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import io.putdotio.android.auth.AuthTabOAuthBrowser
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthController
@@ -52,13 +56,22 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.SdkFilesRepository
+import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackEvent
+import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.SdkPlaybackRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 internal const val MOBILE_NAV_BAR_TAG = "mobile-navigation-bar"
 internal const val MOBILE_NAV_RAIL_TAG = "mobile-navigation-rail"
+internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}"
 
 private val TabletMinWidth = 600.dp
 
@@ -226,6 +239,9 @@ private fun SignedInMobileRoot(
     val filesRepository = remember(runtime.putioClient) {
         SdkFilesRepository(runtime.putioClient)
     }
+    val playbackRepository = remember(runtime.putioClient) {
+        SdkPlaybackRepository(runtime.putioClient)
+    }
     val filesController = remember(filesViewModel, filesRepository, account.userId, sessionId) {
         filesViewModel.controllerFor(
             userId = account.userId,
@@ -249,7 +265,9 @@ private fun SignedInMobileRoot(
     MobileShell(
         filesState = filesState,
         account = account,
+        playbackRepository = playbackRepository,
         onFilesEvent = filesController::dispatch,
+        onPlaybackAuthenticationRequired = authController::rejectAuthoritativeSession,
         onSignOut = { rootScope.launch { authController.logout() } },
     )
 }
@@ -258,17 +276,38 @@ private fun SignedInMobileRoot(
 internal fun MobileShell(
     filesState: FilesBrowserState,
     account: MobileAccount,
+    playbackRepository: PlaybackRepository,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onPlaybackAuthenticationRequired: suspend () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
+    val isPlayback = backStackEntry?.destination?.route == MOBILE_PLAYBACK_ROUTE
+
+    BackHandler(enabled = isPlayback) {
+        navController.popBackStack()
+    }
 
     BackHandler(
-        enabled = selectedDestination == MobileDestination.Files && filesState.canNavigateBack,
+        enabled = !isPlayback && selectedDestination == MobileDestination.Files && filesState.canNavigateBack,
     ) {
         onFilesEvent(FilesBrowserEvent.NavigateBack)
+    }
+
+    if (isPlayback) {
+        MobileNavHost(
+            navController = navController,
+            filesState = filesState,
+            account = account,
+            playbackRepository = playbackRepository,
+            onFilesEvent = onFilesEvent,
+            onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
+            onSignOut = onSignOut,
+            modifier = Modifier.fillMaxSize(),
+        )
+        return
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -278,7 +317,9 @@ internal fun MobileShell(
                 selectedDestination = selectedDestination,
                 filesState = filesState,
                 account = account,
+                playbackRepository = playbackRepository,
                 onFilesEvent = onFilesEvent,
+                onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                 onSignOut = onSignOut,
             )
         } else {
@@ -287,7 +328,9 @@ internal fun MobileShell(
                 selectedDestination = selectedDestination,
                 filesState = filesState,
                 account = account,
+                playbackRepository = playbackRepository,
                 onFilesEvent = onFilesEvent,
+                onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                 onSignOut = onSignOut,
             )
         }
@@ -301,7 +344,9 @@ private fun PhoneShell(
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
     account: MobileAccount,
+    playbackRepository: PlaybackRepository,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onPlaybackAuthenticationRequired: suspend () -> Unit,
     onSignOut: () -> Unit,
 ) {
     Scaffold(
@@ -329,7 +374,9 @@ private fun PhoneShell(
             navController = navController,
             filesState = filesState,
             account = account,
+            playbackRepository = playbackRepository,
             onFilesEvent = onFilesEvent,
+            onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
             onSignOut = onSignOut,
             modifier = Modifier.padding(padding),
         )
@@ -343,7 +390,9 @@ private fun TabletShell(
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
     account: MobileAccount,
+    playbackRepository: PlaybackRepository,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onPlaybackAuthenticationRequired: suspend () -> Unit,
     onSignOut: () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
@@ -371,7 +420,9 @@ private fun TabletShell(
                 navController = navController,
                 filesState = filesState,
                 account = account,
+                playbackRepository = playbackRepository,
                 onFilesEvent = onFilesEvent,
+                onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                 onSignOut = onSignOut,
                 modifier = Modifier.padding(padding),
             )
@@ -426,7 +477,9 @@ private fun MobileNavHost(
     navController: NavHostController,
     filesState: FilesBrowserState,
     account: MobileAccount,
+    playbackRepository: PlaybackRepository,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onPlaybackAuthenticationRequired: suspend () -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -439,6 +492,7 @@ private fun MobileNavHost(
             MobileFilesScreen(
                 state = filesState,
                 onEvent = onFilesEvent,
+                onPlayVideo = navController::navigateToPlayback,
             )
         }
         composable(MobileDestination.Search.route) {
@@ -459,7 +513,60 @@ private fun MobileNavHost(
                 onSignOut = onSignOut,
             )
         }
+        composable(
+            route = MOBILE_PLAYBACK_ROUTE,
+            arguments =
+                listOf(
+                    navArgument("fileId") { type = NavType.LongType },
+                    navArgument("name") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                ),
+        ) { backStackEntry ->
+            val fileId = requireNotNull(backStackEntry.arguments?.getLong("fileId"))
+            val name = backStackEntry.arguments?.getString("name").orEmpty()
+            MobilePlaybackRoute(
+                target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name),
+                repository = playbackRepository,
+                onAuthenticationRequired = onPlaybackAuthenticationRequired,
+                onBack = navController::popBackStack,
+            )
+        }
     }
+}
+
+@Composable
+private fun MobilePlaybackRoute(
+    target: PlaybackTarget,
+    repository: PlaybackRepository,
+    onAuthenticationRequired: suspend () -> Unit,
+    onBack: () -> Unit,
+) {
+    val routeScope = rememberCoroutineScope()
+    val controller = remember(target, repository, routeScope) {
+        PlaybackController(target, repository, routeScope)
+    }
+    val state by controller.state.collectAsStateWithLifecycle()
+    val authenticationFailure =
+        (state.content as? PlaybackContent.Failed)
+            ?.failure
+            ?.takeIf { it is PlaybackFailure.AuthenticationRequired }
+
+    DisposableEffect(controller) {
+        onDispose(controller::close)
+    }
+    LaunchedEffect(authenticationFailure) {
+        if (authenticationFailure != null) {
+            onAuthenticationRequired()
+        }
+    }
+
+    MobileVideoPlayerScreen(
+        state = state,
+        onRetry = { controller.dispatch(PlaybackEvent.Retry) },
+        onBack = onBack,
+    )
 }
 
 internal fun FilesBrowserState.authoritativeSessionFailure(): FilesFailure? =
@@ -481,4 +588,8 @@ private fun NavHostController.navigateTo(destination: MobileDestination) {
         launchSingleTop = true
         restoreState = true
     }
+}
+
+private fun NavHostController.navigateToPlayback(item: FilesItem) {
+    navigate("playback/${item.id.value}?name=${Uri.encode(item.name)}")
 }

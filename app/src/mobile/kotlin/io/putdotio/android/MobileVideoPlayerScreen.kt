@@ -1,0 +1,228 @@
+package io.putdotio.android
+
+import android.net.Uri
+import android.os.Build
+import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.ui.compose.material3.Player
+import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackState
+import io.putdotio.sdk.files.PlaybackConversionState
+import io.putdotio.sdk.files.PlaybackSource
+import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackSubtitles
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
+
+internal const val MOBILE_VIDEO_PLAYER_TAG = "mobile-video-player"
+
+@Composable
+internal fun MobileVideoPlayerScreen(
+    state: PlaybackState,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        when (val content = state.content) {
+            is PlaybackContent.Loading ->
+                MobileLoadingState(stringResource(R.string.mobile_playback_loading))
+
+            is PlaybackContent.Ready ->
+                MobileReadyVideoPlayer(
+                    source = content.source,
+                    title = state.target.name,
+                )
+
+            is PlaybackContent.Conversion ->
+                MobileErrorState(
+                    title = stringResource(R.string.mobile_playback_conversion_title),
+                    message = content.state.message(),
+                    retryLabel = stringResource(R.string.mobile_playback_check_again),
+                    onRetry = onRetry,
+                )
+
+            is PlaybackContent.Unsupported ->
+                MobileEmptyState(
+                    title = stringResource(R.string.mobile_playback_unsupported_title),
+                    message = stringResource(R.string.mobile_playback_unsupported_message),
+                )
+
+            is PlaybackContent.Failed ->
+                MobileErrorState(
+                    title = stringResource(R.string.mobile_playback_error_title),
+                    message = stringResource(content.failure.messageResource()),
+                    retryLabel = stringResource(R.string.mobile_action_retry),
+                    onRetry = onRetry,
+                )
+        }
+
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(8.dp),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_ph_arrow_left),
+                contentDescription = stringResource(R.string.mobile_action_back),
+            )
+        }
+    }
+}
+
+@UnstableApi
+@Composable
+private fun MobileReadyVideoPlayer(
+    source: PlaybackSource,
+    title: String,
+) {
+    val context = LocalContext.current
+    val mediaItem = remember(source, title) { source.toMediaItem(title) }
+    val player = remember(context, mediaItem) {
+        val renderersFactory = DefaultRenderersFactory(context)
+        if (requiresEmulatorCodecWorkaround(Build.HARDWARE)) {
+            // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
+            renderersFactory
+                .setMediaCodecSelector(EmulatorMediaCodecSelector)
+                .setEnableDecoderFallback(true)
+        }
+        ExoPlayer.Builder(context, renderersFactory).build().apply {
+            setMediaItem(mediaItem, source.startFromSeconds.toPlaybackMillis())
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        player.pause()
+    }
+    DisposableEffect(player) {
+        onDispose(player::release)
+    }
+
+    Player(
+        player = player,
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag(MOBILE_VIDEO_PLAYER_TAG),
+    )
+}
+
+internal fun requiresEmulatorCodecWorkaround(hardware: String): Boolean =
+    hardware == "ranchu" || hardware == "goldfish"
+
+internal fun emulatorCodecPriority(codecName: String): Int =
+    if (codecName.startsWith("c2.goldfish.")) 1 else 0
+
+@UnstableApi
+private val EmulatorMediaCodecSelector =
+    MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+        MediaCodecSelector.DEFAULT
+            .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+            .sortedBy { emulatorCodecPriority(it.name) }
+    }
+
+internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
+    val subtitleConfigurations =
+        (subtitles as? PlaybackSubtitles.Sidecar)
+            ?.tracks
+            .orEmpty()
+            .mapNotNull { subtitle ->
+                val mimeType = subtitle.format.toSubtitleMimeType() ?: return@mapNotNull null
+                MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitle.url.value))
+                    .setId(subtitle.key)
+                    .setLabel(subtitle.name)
+                    .setLanguage(subtitle.languageCode)
+                    .setMimeType(mimeType)
+                    .setSelectionFlags(0)
+                    .build()
+            }
+
+    return MediaItem.Builder()
+        .setUri(url.value)
+        .setMimeType(if (kind == PlaybackSourceKind.HLS) MimeTypes.APPLICATION_M3U8 else null)
+        .setMediaMetadata(MediaMetadata.Builder().setTitle(title).build())
+        .setSubtitleConfigurations(subtitleConfigurations)
+        .build()
+}
+
+private fun Double.toPlaybackMillis(): Long =
+    (this * C.MILLIS_PER_SECOND)
+        .coerceIn(0.0, Long.MAX_VALUE.toDouble())
+        .roundToLong()
+
+private fun String?.toSubtitleMimeType(): String? =
+    when (this?.lowercase()) {
+        "srt", "subrip" -> MimeTypes.APPLICATION_SUBRIP
+        "vtt", "webvtt" -> MimeTypes.TEXT_VTT
+        "ssa", "ass" -> MimeTypes.TEXT_SSA
+        "ttml" -> MimeTypes.APPLICATION_TTML
+        else -> null
+    }
+
+@Composable
+private fun PlaybackConversionState.message(): String =
+    when (this) {
+        PlaybackConversionState.Queued -> stringResource(R.string.mobile_playback_conversion_queued)
+        is PlaybackConversionState.Converting ->
+            percent?.roundToInt()?.let {
+                stringResource(R.string.mobile_playback_conversion_progress, "$it%")
+            } ?: stringResource(R.string.mobile_playback_conversion_working)
+
+        PlaybackConversionState.Completed -> stringResource(R.string.mobile_playback_conversion_completed)
+        PlaybackConversionState.Failed -> stringResource(R.string.mobile_playback_conversion_failed)
+        PlaybackConversionState.NotAvailable -> stringResource(R.string.mobile_playback_conversion_unavailable)
+        is PlaybackConversionState.Unknown -> stringResource(R.string.mobile_playback_conversion_unknown)
+    }
+
+@StringRes
+private fun PlaybackFailure.messageResource(): Int =
+    when (this) {
+        is PlaybackFailure.AuthenticationRequired -> R.string.mobile_state_error_session
+        is PlaybackFailure.AccessDenied -> R.string.mobile_playback_error_forbidden
+        is PlaybackFailure.RateLimited -> R.string.mobile_state_error_rate_limited
+        is PlaybackFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+        is PlaybackFailure.MediaCredentialUnavailable -> R.string.mobile_playback_error_credential
+        is PlaybackFailure.ApiRejected,
+        is PlaybackFailure.InvalidResponse,
+        is PlaybackFailure.Misconfigured,
+        is PlaybackFailure.ServerUnavailable,
+        is PlaybackFailure.Unexpected,
+        -> R.string.mobile_state_error_unavailable
+    }
