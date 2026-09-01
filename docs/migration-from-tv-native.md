@@ -2,28 +2,40 @@
 
 ## Source
 
-Current source app: `../putio-web/apps/tv-native`
+Behavior reference app: `../putio-web/apps/tv-native`
 
-The phase-one behavior and visual reference is the TV app packet in `../putio-frontend/docs/specs/tv-app/`, especially the Android TV screenshots. Boot the React Native app only when a missing state, ambiguous behavior, or suspected drift needs a fresh capture.
+The phase-one behavior and visual reference is the TV app packet in
+`../putio-frontend/docs/specs/tv-app/`, especially the Android TV screenshots.
+Boot the React Native app only when a missing state, ambiguous behavior, or
+suspected drift needs a fresh capture. It is not the source for tokens, icons,
+Compose structure, or Android architecture.
 
 The new Android app should not copy the React component structure; it should preserve the product behavior while using Android-native UI, lifecycle, storage, playback, and input patterns.
 
 ## Available Inputs
 
-- `../putio-web/apps/tv-native` for source-level behavior, colors, menus, icons, component structure, focus handling, routes, hooks, and API usage
+- `../putio-web/apps/tv-native` for source-level behavior, focus handling, routes, hooks, and API usage
 - `../putio-frontend/docs/specs/tv-app/android-tv/` for the exported Android TV parity screenshots
 - `../putio-frontend/docs/specs/tv-app/tvos/` for supporting cross-platform comparison when behavior overlaps
 - `../putio-frontend/docs/specs/tv-app/current-baseline.md` for behavior notes, screen names, player control flow, and capture method
 - `../putio-sdk-kotlin` for typed API access and app-driven SDK tuning
+- `../putio-design/dist/tokens.dtcg.json` for visual roles, vendored here as `design/tokens.dtcg.json`
+- Phosphor for icons, vendored through `scripts/generate-icons.sh`
 - The React Native TV app can still be booted for fresh captures when an exported state is missing, stale, or ambiguous
 
 ## Working Decisions
 
-- Build Android TV parity first from the exported reference bundle
+- Ship Android mobile first, then build Android TV parity from the exported reference bundle
 - Treat focus polish as expected implementation work, not an architectural blocker
-- Extract colors, menus, icons, and component patterns from `tv-native` and the screenshots before refining them into native Compose tokens
+- Generate Compose colors and component roles from the vendored `@putdotio/design` graph; use Phosphor icons
+- Treat `tv-native` as the behavior oracle only; Compose for TV and Android platform conventions own the UI structure
 - Fine-tune `putio-sdk-kotlin` as real app slices expose gaps; do not bypass it with app-local HTTP unless the SDK gap is documented first
 - Move libVLC/original-file playback to a later upgrade phase after the native app matches the current Android TV behavior
+- Target one Play identity, `io.put.putio`, for both release form factors; the
+  current mobile development flavor keeps its `.mobile` suffix until release
+  identity work, and the first TV replacement build must use a versionCode
+  above 91
+- Use dedicated public mobile OAuth client `9677` with exact callback `putio://auth` through AndroidX Auth Tab
 
 ## Current Reference Surface
 
@@ -56,22 +68,34 @@ The new Android app should not copy the React component structure; it should pre
 - Tighten account settings naming around `use_start_from` vs `start_from` before the app bakes in either assumption
 - Add Android live proof for file playback metadata, subtitles, start-from, and routes before claiming feature parity
 
-## First Milestones
+## Rollout Order
 
-1. Buildable app shell with `mobile` and `tv` flavors, CI, and emulator/device smoke commands
-2. SDK Android compatibility pass and local composite build against `../putio-sdk-kotlin`
-3. TV auth slice: code request, polling, token storage, token validation, logout
-4. TV file browser slice: root folder, nested folder navigation, D-pad focus, paging, sorting, refresh
-5. TV playback parity: HLS/MP4 behavior, custom controls, subtitles, audio tracks, speed, seekbar scrubbing, resume prompt, and start-from updates
-6. TV settings/trash/history parity after auth/files/player behavior is stable
-7. Mobile shell pass: reuse data/domain/theme, add touch navigation and mobile-first layouts
+1. Shared app shell, SDK composite build, CI, emulator proof, design tokens, and icons
+2. Mobile Auth Tab, adaptive navigation, Files, Search/History, Transfers, and Account/Settings
+3. Mobile playback, downloads, share/open-in, Chromecast, and release proof
+4. TV shell and device-code auth on the shared core
+5. TV browse, playback, settings, trash, and history parity against the exported packet
+6. TV/Fire TV release proof on the existing listing and package identity
+
+## Recovered Gap Notes
+
+The retired `feature/android-tv-full-parity` branch was never compiled or
+device-proven. Its implementation is discarded, but its draft audit identified
+useful states to verify against the canonical 34-capture packet:
+
+- vector logo and activation-code QR variants
+- conversion-in-progress UI
+- diagnostics bandwidth and buffer telemetry
+- VLC handoff on Fire TV
+- Search settings behavior
+- watched/progress treatment in Files
+- diagnostics test-stream source parity
+
+These are planning notes, not evidence that the retired branch implemented the
+behavior correctly.
 
 ## Open Decisions
 
-- Whether Android mobile should share the existing `io.put.putio` package identity or receive a separate package/listing
 - Whether Android TV release keeps the current signing lineage and Play listing from the React Native app
-- Which mobile OAuth client id should be used when mobile auth ships from this repo
-- Which exact icon source and token extraction path should seed the native Compose design system from `tv-native`
-- Which CI runner owns Android emulator/device proof
 - Which physical Android TV and Fire TV devices are the required remote/back-button/playback proof set
 - Later playback phase only: whether libVLC is the only target player or whether Media3/ExoPlayer remains a first-class fallback
