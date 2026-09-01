@@ -1,8 +1,10 @@
 package io.putdotio.android.settings
 
+import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -149,6 +151,47 @@ class AccountSettingsReducerTest {
         val duplicate = AccountSettingsReducer.reduce(retry.state, AccountSettingsEvent.RetryLoad)
         assertFalse(duplicate.consumed)
         assertSame(retry.state, duplicate.state)
+    }
+
+    @Test
+    fun onlyAuthenticationFailuresCrossTheAuthoritativeSessionBoundary() {
+        val invalidToken =
+            AccountSettingsFailure.AuthenticationRequired(
+                PutioConfigurationException("invalid token"),
+            )
+        val invalidScope =
+            AccountSettingsFailure.AccessDenied(
+                PutioConfigurationException("invalid scope"),
+            )
+
+        assertSame(invalidToken, failedLoadState(invalidToken).authoritativeSessionFailure())
+        assertSame(invalidToken, failedSaveState(invalidToken).authoritativeSessionFailure())
+        assertNull(failedLoadState(invalidScope).authoritativeSessionFailure())
+        assertNull(failedSaveState(invalidScope).authoritativeSessionFailure())
+    }
+
+    private fun failedLoadState(failure: AccountSettingsFailure): AccountSettingsState {
+        val start = AccountSettingsReducer.start()
+        val requestId = (start.effect as AccountSettingsEffect.Load).requestId
+        return AccountSettingsReducer.reduce(
+            start.state,
+            AccountSettingsEvent.LoadFailed(requestId, failure),
+        ).state
+    }
+
+    private fun failedSaveState(failure: AccountSettingsFailure): AccountSettingsState {
+        val saving =
+            AccountSettingsReducer.reduce(
+                loadedState(Preferences),
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.History, enabled = false),
+                ),
+            )
+        val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
+        return AccountSettingsReducer.reduce(
+            saving.state,
+            AccountSettingsEvent.SaveFailed(requestId, failure),
+        ).state
     }
 
     private fun loadedState(preferences: AccountSettingsPreferences): AccountSettingsState {

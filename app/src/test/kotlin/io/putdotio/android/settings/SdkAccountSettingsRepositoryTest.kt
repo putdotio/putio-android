@@ -54,6 +54,39 @@ class SdkAccountSettingsRepositoryTest {
         }
 
     @Test
+    fun saveReturnsSettingsFromTheAuthoritativeReload() =
+        runBlocking {
+            val operations = mutableListOf<String>()
+            val reloadedSettings = Settings.copy(historyEnabled = false, trashEnabled = true)
+            val repository =
+                SdkAccountSettingsRepository(
+                    getSettings = {
+                        operations += "read"
+                        reloadedSettings
+                    },
+                    saveSettings = {
+                        operations += "save"
+                    },
+                )
+
+            val result =
+                repository.save(
+                    AccountSettingsChange(AccountSettingsKey.History, enabled = false),
+                ) as AccountSettingsRepositoryResult.Success
+
+            assertEquals(listOf("save", "read"), operations)
+            assertEquals(
+                AccountSettingsPreferences(
+                    historyEnabled = false,
+                    trashEnabled = true,
+                    showSubtitles = false,
+                    autoSelectSubtitles = false,
+                ),
+                result.value,
+            )
+        }
+
+    @Test
     fun classifiesAuthoritativeAuthenticationFailures() =
         runBlocking {
             val apiError =

@@ -1,7 +1,9 @@
 package io.putdotio.android.settings
 
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
@@ -66,6 +68,35 @@ class AccountSettingsControllerTest {
                 collector.cancelAndJoin()
                 controller.close()
             }
+        }
+
+    @Test
+    fun closeCancelsAnInFlightLoad() =
+        runBlocking {
+            val started = CompletableDeferred<Unit>()
+            val cancelled = CompletableDeferred<Unit>()
+            val repository =
+                object : AccountSettingsRepository {
+                    override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> {
+                        started.complete(Unit)
+                        try {
+                            awaitCancellation()
+                        } finally {
+                            cancelled.complete(Unit)
+                        }
+                    }
+
+                    override suspend fun save(
+                        change: AccountSettingsChange,
+                    ): AccountSettingsRepositoryResult<AccountSettingsPreferences> =
+                        error("Save is not expected")
+                }
+            val controller = AccountSettingsController(repository, this)
+
+            started.await()
+            controller.close()
+
+            withTimeout(TEST_TIMEOUT_MILLIS) { cancelled.await() }
         }
 
     private suspend fun AccountSettingsController.awaitState(
