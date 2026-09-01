@@ -284,6 +284,112 @@ class MobileAuthControllerTest {
     }
 
     @Test
+    fun `unexpected restore failure stays retryable`() = runBlocking {
+        val fixture = Fixture(storedToken = TOKEN)
+        fixture.gateway.validationFailure = IllegalStateException("unexpected sdk failure")
+
+        fixture.controller.restoreSession()
+
+        assertEquals(
+            MobileAuthState.ValidationUnavailable(SessionValidationSource.RESTORE),
+            fixture.controller.state.value,
+        )
+        assertEquals(TOKEN, fixture.tokenStore.token?.reveal())
+        fixture.gateway.validationFailure = null
+        assertTrue(fixture.controller.retryValidation())
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
+    }
+
+    @Test
+    fun `secure storage failure cannot start a new sign in`() = runBlocking {
+        val fixture = Fixture(storedToken = TOKEN)
+        fixture.tokenStore.failRead = true
+
+        fixture.controller.restoreSession()
+        val launch = fixture.controller.beginSignIn()
+
+        assertEquals(OAuthLaunchResult.StorageUnavailable, launch)
+        assertNull(fixture.pendingAttemptStore.attempt)
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
+            fixture.controller.state.value,
+        )
+        assertFalse("build-url" in fixture.gateway.calls)
+    }
+
+    @Test
+    fun `secure storage failure survives late OAuth results`() = runBlocking {
+        val pendingAttemptStore = FakePendingOAuthAttemptStore(
+            attempt = PendingOAuthAttempt(OAUTH_STATE, NOW_EPOCH_MILLIS),
+        )
+        val fixture = Fixture(storedToken = TOKEN, pendingAttemptStore = pendingAttemptStore)
+        fixture.tokenStore.failRead = true
+        fixture.controller.restoreSession()
+
+        val callback = fixture.controller.handleOAuthCallback(VALID_CALLBACK)
+
+        assertEquals(OAuthCallbackHandlingResult.REJECTED, callback)
+        assertFalse(fixture.controller.cancelSignIn())
+        assertFalse(fixture.controller.failSignIn())
+        assertEquals(OAuthLaunchResult.StorageUnavailable, fixture.controller.beginSignIn())
+        assertEquals(OAUTH_STATE, pendingAttemptStore.attempt?.state)
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
+            fixture.controller.state.value,
+        )
+    }
+
+    @Test
+    fun `restore completes before a recreated process handles its callback`() = runBlocking {
+        val pendingAttemptStore = FakePendingOAuthAttemptStore()
+        val firstProcess = Fixture(pendingAttemptStore = pendingAttemptStore)
+        firstProcess.controller.restoreSession()
+        firstProcess.controller.beginSignIn()
+        val restoredProcess = Fixture(pendingAttemptStore = pendingAttemptStore)
+        val readStarted = CompletableDeferred<Unit>()
+        val allowRead = CompletableDeferred<Unit>()
+        restoredProcess.tokenStore.beforeRead = {
+            readStarted.complete(Unit)
+            allowRead.await()
+        }
+
+        val restore = launch { restoredProcess.controller.restoreSession() }
+        readStarted.await()
+        val callback = launch { restoredProcess.controller.handleOAuthCallback(VALID_CALLBACK) }
+        allowRead.complete(Unit)
+        restore.join()
+        callback.join()
+
+        assertNull(pendingAttemptStore.attempt)
+        assertEquals(SIGNED_IN, restoredProcess.controller.state.value)
+    }
+
+    @Test
+    fun `callback completes before a recreated process restores its session`() = runBlocking {
+        val pendingAttemptStore = FakePendingOAuthAttemptStore()
+        val firstProcess = Fixture(pendingAttemptStore = pendingAttemptStore)
+        firstProcess.controller.restoreSession()
+        firstProcess.controller.beginSignIn()
+        val restoredProcess = Fixture(pendingAttemptStore = pendingAttemptStore)
+        val readStarted = CompletableDeferred<Unit>()
+        val allowRead = CompletableDeferred<Unit>()
+        pendingAttemptStore.beforeRead = {
+            readStarted.complete(Unit)
+            allowRead.await()
+        }
+
+        val callback = launch { restoredProcess.controller.handleOAuthCallback(VALID_CALLBACK) }
+        readStarted.await()
+        val restore = launch { restoredProcess.controller.restoreSession() }
+        allowRead.complete(Unit)
+        callback.join()
+        restore.join()
+
+        assertNull(pendingAttemptStore.attempt)
+        assertEquals(SIGNED_IN, restoredProcess.controller.state.value)
+    }
+
+    @Test
     fun `cancelled restore resets initialization so recreation can retry`() = runBlocking {
         val fixture = Fixture(storedToken = TOKEN)
         fixture.gateway.validationFailure = CancellationException("activity recreated")
@@ -464,6 +570,21 @@ class MobileAuthControllerTest {
     }
 
     @Test
+    fun `logout while awaiting OAuth clears the attempt and rejects a late callback`() = runBlocking {
+        val fixture = Fixture()
+        fixture.controller.restoreSession()
+        fixture.controller.beginSignIn()
+
+        fixture.controller.logout()
+        val callback = fixture.controller.handleOAuthCallback(VALID_CALLBACK)
+
+        assertNull(fixture.pendingAttemptStore.attempt)
+        assertNull(fixture.tokenStore.token)
+        assertEquals(OAuthCallbackHandlingResult.REJECTED, callback)
+        assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.SignInFailed), fixture.controller.state.value)
+    }
+
+    @Test
     fun `missing client id fails closed before state generation`() = runBlocking {
         var generated = false
         val fixture = Fixture(
@@ -513,8 +634,10 @@ class MobileAuthControllerTest {
     ) : PendingOAuthAttemptStore {
         var failRead = false
         var failClear = false
+        var beforeRead: (suspend () -> Unit)? = null
 
         override suspend fun read(): PendingOAuthAttempt? {
+            beforeRead?.invoke()
             if (failRead) {
                 throw PendingOAuthAttemptStorageException("read")
             }
@@ -543,8 +666,16 @@ class MobileAuthControllerTest {
         var token: AccessToken?,
     ) : AuthTokenStore {
         var beforeClear: (suspend () -> Unit)? = null
+        var beforeRead: (suspend () -> Unit)? = null
+        var failRead = false
 
-        override suspend fun read(): AccessToken? = token
+        override suspend fun read(): AccessToken? {
+            beforeRead?.invoke()
+            if (failRead) {
+                throw AuthTokenStorageException("read")
+            }
+            return token
+        }
 
         override suspend fun write(accessToken: AccessToken) {
             token = accessToken

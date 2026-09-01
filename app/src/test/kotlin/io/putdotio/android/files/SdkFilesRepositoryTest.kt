@@ -40,9 +40,16 @@ class SdkFilesRepositoryTest {
                                     ),
                                 ),
                             cursor = "next",
+                            parent = sdkFile(
+                                id = 0L,
+                                name = "Files",
+                                type = PutioFileType.FOLDER,
+                                sort = "NAME_DESC",
+                            ),
                         )
                     },
                     continueListing = { error("Unexpected continuation") },
+                    setSort = { _, _ -> error("Unexpected sort") },
                 )
 
             val result = repository.loadFolder(FilesFolder.Root.id) as FilesRepositoryResult.Success
@@ -51,6 +58,7 @@ class SdkFilesRepositoryTest {
             assertEquals("  raw name.mkv  ", result.value.items.single().name)
             assertEquals(PutioFileType.VIDEO, result.value.items.single().type)
             assertEquals(FilesCursor("next"), result.value.nextCursor)
+            assertEquals(FilesSort.NAME_DESCENDING, result.value.sort)
         }
 
     @Test
@@ -64,6 +72,7 @@ class SdkFilesRepositoryTest {
                         requestedCursor = cursor
                         response(cursor = "  ")
                     },
+                    setSort = { _, _ -> error("Unexpected sort") },
                 )
 
             val result = repository.loadNextPage(FilesCursor("opaque-cursor")) as FilesRepositoryResult.Success
@@ -83,6 +92,9 @@ class SdkFilesRepositoryTest {
                     cause = IOException("offline"),
                 )
             val network = repositoryThrowing(operationFailure(transport)).loadFolder(FilesFolder.Root.id)
+            val sortFailure =
+                repositoryThrowing(operationFailure(transport))
+                    .persistSort(FilesFolder.Root.id, FilesSort.NAME_ASCENDING)
 
             assertTrue((unauthorized as FilesRepositoryResult.Failure).failure is FilesFailure.AuthenticationRequired)
             assertEquals(
@@ -90,6 +102,7 @@ class SdkFilesRepositoryTest {
                 ((unavailable as FilesRepositoryResult.Failure).failure as FilesFailure.ServerUnavailable).statusCode,
             )
             assertTrue((network as FilesRepositoryResult.Failure).failure is FilesFailure.NetworkUnavailable)
+            assertTrue((sortFailure as FilesRepositoryResult.Failure).failure is FilesFailure.NetworkUnavailable)
         }
 
     @Test
@@ -160,10 +173,43 @@ class SdkFilesRepositoryTest {
         }
     }
 
+    @Test
+    fun neverConvertsSortCancellationIntoAUiFailure() {
+        val cancellation = CancellationException("screen closed")
+        try {
+            runBlocking {
+                repositoryThrowing(cancellation)
+                    .persistSort(FilesFolder.Root.id, FilesSort.DATE_ADDED_DESCENDING)
+            }
+            fail("Expected cancellation")
+        } catch (actual: CancellationException) {
+            assertSame(cancellation, actual)
+        }
+    }
+
+    @Test
+    fun persistsOnlyBoundedSortValuesThroughTheSdk() =
+        runBlocking {
+            val persisted = mutableListOf<Pair<Long, String>>()
+            val repository =
+                SdkFilesRepository(
+                    listFolder = { response() },
+                    continueListing = { response() },
+                    setSort = { folderId, sort -> persisted += folderId to sort },
+                )
+
+            FilesSort.entries.forEach { sort ->
+                assertTrue(repository.persistSort(FilesItemId(42L), sort) is FilesRepositoryResult.Success)
+            }
+
+            assertEquals(FilesSort.entries.map { 42L to it.apiValue }, persisted)
+        }
+
     private fun repositoryThrowing(error: Throwable): SdkFilesRepository =
         SdkFilesRepository(
             listFolder = { throw error },
             continueListing = { throw error },
+            setSort = { _, _ -> throw error },
         )
 
     private fun apiFailure(
@@ -200,8 +246,10 @@ class SdkFilesRepositoryTest {
     private fun response(
         files: List<PutioFile> = emptyList(),
         cursor: String? = null,
+        parent: PutioFile? = null,
     ): FilesListResponse =
         FilesListResponse(
+            parent = parent,
             files = files,
             cursor = cursor,
             status = "OK",
@@ -211,6 +259,7 @@ class SdkFilesRepositoryTest {
         id: Long,
         name: String,
         type: PutioFileType,
+        sort: String? = null,
     ): PutioFile =
         PutioFile(
             id = id,
@@ -219,5 +268,6 @@ class SdkFilesRepositoryTest {
             size = 42L,
             createdAt = "2026-08-29T00:00:00Z",
             fileType = type,
+            sortBy = sort,
         )
 }

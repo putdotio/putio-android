@@ -24,33 +24,41 @@ internal fun FilesBrowserState.hasRequest(requestId: FilesRequestId): Boolean =
     stack.any { it.hasRequest(requestId) }
 
 private fun FilesFolderState.hasRequest(requestId: FilesRequestId): Boolean =
-    when (val state = content) {
+    operation.requestId() == requestId || when (val state = content) {
         is FilesContent.Loading -> state.requestId == requestId
         is FilesContent.Empty -> (state.paging as? FilesPaging.Loading)?.requestId == requestId
         is FilesContent.Ready -> (state.paging as? FilesPaging.Loading)?.requestId == requestId
         is FilesContent.Failed -> false
     }
 
+private fun FilesFolderOperation.requestId(): FilesRequestId? =
+    (this as? FilesFolderOperation.Loading)?.requestId
+
 private fun FilesFolderState.loadSucceeded(
     requestId: FilesRequestId,
     page: FilesPage,
 ): FilesFolderState? =
-    when (val state = content) {
-        is FilesContent.Loading ->
-            if (state.requestId == requestId) {
-                copy(
-                    content = contentFor(page.items, page.nextCursor.toPaging(consumedCursors)),
-                    consumedCursors = emptySet(),
-                )
-            } else {
-                null
-            }
+    if (operation.requestId() == requestId) {
+        replaceFirstPage(requestId, page)
+    } else {
+        when (val state = content) {
+            is FilesContent.Loading ->
+                if (state.requestId == requestId) {
+                    copy(
+                        folder = folder.copy(sort = page.sort ?: folder.sort),
+                        content = contentFor(page.items, page.nextCursor.toPaging(consumedCursors)),
+                        consumedCursors = emptySet(),
+                    )
+                } else {
+                    null
+                }
 
-        is FilesContent.Empty,
-        is FilesContent.Ready,
-        -> appendPage(state, requestId, page)
+            is FilesContent.Empty,
+            is FilesContent.Ready,
+            -> appendPage(state, requestId, page)
 
-        is FilesContent.Failed -> null
+            is FilesContent.Failed -> null
+        }
     }
 
 private fun FilesFolderState.appendPage(
@@ -80,29 +88,36 @@ private fun FilesFolderState.loadFailed(
     requestId: FilesRequestId,
     failure: FilesFailure,
 ): FilesFolderState? =
-    when (val state = content) {
-        is FilesContent.Loading ->
-            if (state.requestId == requestId) {
-                copy(content = FilesContent.Failed(failure))
-            } else {
-                null
+    if (operation.requestId() == requestId) {
+        val loading = operation as FilesFolderOperation.Loading
+        copy(
+            operation = FilesFolderOperation.Failed(failure, loading.intent, loading.phase),
+        )
+    } else {
+        when (val state = content) {
+            is FilesContent.Loading ->
+                if (state.requestId == requestId) {
+                    copy(content = FilesContent.Failed(failure))
+                } else {
+                    null
+                }
+
+            is FilesContent.Empty,
+            is FilesContent.Ready,
+            -> {
+                val loading = state.paging() as? FilesPaging.Loading
+                if (loading == null || loading.requestId != requestId) {
+                    null
+                } else {
+                    copy(content = state.withPaging(FilesPaging.Failed(loading.cursor, failure)) ?: return null)
+                }
             }
 
-        is FilesContent.Empty,
-        is FilesContent.Ready,
-        -> {
-            val loading = state.paging() as? FilesPaging.Loading
-            if (loading == null || loading.requestId != requestId) {
-                null
-            } else {
-                copy(content = state.withPaging(FilesPaging.Failed(loading.cursor, failure)) ?: return null)
-            }
+            is FilesContent.Failed -> null
         }
-
-        is FilesContent.Failed -> null
     }
 
-private fun contentFor(
+internal fun contentFor(
     items: List<FilesItem>,
     paging: FilesPaging,
     viewport: FilesViewportPosition = FilesViewportPosition(),
@@ -113,7 +128,7 @@ private fun contentFor(
         FilesContent.Ready(items = items.distinctBy(FilesItem::id), paging = paging, viewport = viewport)
     }
 
-private fun FilesCursor?.toPaging(consumedCursors: Set<FilesCursor>): FilesPaging =
+internal fun FilesCursor?.toPaging(consumedCursors: Set<FilesCursor>): FilesPaging =
     if (this == null || this in consumedCursors) {
         FilesPaging.Complete
     } else {
