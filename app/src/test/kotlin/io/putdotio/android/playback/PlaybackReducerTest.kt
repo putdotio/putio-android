@@ -104,10 +104,11 @@ class PlaybackReducerTest {
                 ),
             )
         val failure = PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired"))
-        val failed = PlaybackReducer.reduce(ready.state, PlaybackEvent.PlayerFailed(failure))
+        val failed = PlaybackReducer.reduce(ready.state, PlaybackEvent.PlayerFailed(failure, 54_321L))
         val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
 
         assertEquals(failure, (failed.state.content as PlaybackContent.Failed).failure)
+        assertEquals(54_321L, failed.state.resumePositionMillis)
         assertEquals(PlaybackRequestId(2L), (retry.state.content as PlaybackContent.Loading).requestId)
         assertEquals(PlaybackRequestId(2L), retry.effect?.requestId)
     }

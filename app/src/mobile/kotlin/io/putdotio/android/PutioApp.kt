@@ -565,7 +565,9 @@ private fun MobilePlaybackRoute(
     MobileVideoPlayerScreen(
         state = state,
         onRetry = { controller.dispatch(PlaybackEvent.Retry) },
-        onMediaRequestFailure = { controller.dispatch(PlaybackEvent.PlayerFailed(it)) },
+        onPlayerFailure = { failure, positionMillis ->
+            controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))
+        },
         onBack = onBack,
     )
 }

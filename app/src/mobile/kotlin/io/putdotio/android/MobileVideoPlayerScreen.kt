@@ -7,16 +7,22 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +37,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
+import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -39,6 +46,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import androidx.media3.ui.compose.material3.Player
+import androidx.media3.ui.compose.material3.PlayerDefaults
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackState
@@ -57,7 +65,7 @@ private const val MILLIS_PER_SECOND = 1_000.0
 internal fun MobileVideoPlayerScreen(
     state: PlaybackState,
     onRetry: () -> Unit,
-    onMediaRequestFailure: (PlaybackFailure) -> Unit,
+    onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -74,7 +82,8 @@ internal fun MobileVideoPlayerScreen(
                 MobileReadyVideoPlayer(
                     source = content.source,
                     title = state.target.name,
-                    onMediaRequestFailure = onMediaRequestFailure,
+                    startPositionMillis = state.resumePositionMillis,
+                    onPlayerFailure = onPlayerFailure,
                 )
 
             is PlaybackContent.Conversion ->
@@ -120,11 +129,14 @@ internal fun MobileVideoPlayerScreen(
 private fun MobileReadyVideoPlayer(
     source: PlaybackSource,
     title: String,
-    onMediaRequestFailure: (PlaybackFailure) -> Unit,
+    startPositionMillis: Long?,
+    onPlayerFailure: (PlaybackFailure, Long) -> Unit,
 ) {
     val context = LocalContext.current
-    val preparedPlayback = remember(source, title) { source.preparePlayback(title) }
-    val currentOnMediaRequestFailure = rememberUpdatedState(onMediaRequestFailure)
+    val preparedPlayback = remember(source, title, startPositionMillis) {
+        source.preparePlayback(title, startPositionMillis)
+    }
+    val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val player = remember(context, preparedPlayback) {
         val renderersFactory = DefaultRenderersFactory(context)
         if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
@@ -147,7 +159,10 @@ private fun MobileReadyVideoPlayer(
         val listener =
             object : Media3Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
-                    error.toMediaRequestFailureOrNull()?.let(currentOnMediaRequestFailure.value)
+                    currentOnPlayerFailure.value(
+                        error.toPlaybackFailure(),
+                        player.currentPosition,
+                    )
                 }
             }
         player.addListener(listener)
@@ -163,7 +178,47 @@ private fun MobileReadyVideoPlayer(
             .fillMaxSize()
             .testTag(MOBILE_VIDEO_PLAYER_TAG),
         surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
+        showControls = true,
+        topControls = { controlledPlayer, visible ->
+            PlayerDefaults.TopControls(
+                player = controlledPlayer,
+                visible = visible,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (source.hasSubtitles() && it != null) {
+                    MobileSubtitleToggle(
+                        player = it,
+                        modifier = Modifier.align(Alignment.TopEnd),
+                    )
+                }
+            }
+        },
     )
+}
+
+@Composable
+private fun MobileSubtitleToggle(
+    player: Media3Player,
+    modifier: Modifier = Modifier,
+) {
+    var enabled by remember(player) { mutableStateOf(true) }
+    TextButton(
+        onClick = {
+            enabled = !enabled
+            player.trackSelectionParameters =
+                player.trackSelectionParameters
+                    .buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
+                    .build()
+        },
+        modifier = modifier,
+    ) {
+        Text(
+            stringResource(
+                if (enabled) R.string.mobile_playback_subtitles_on else R.string.mobile_playback_subtitles_off,
+            ),
+        )
+    }
 }
 
 internal fun requiresEmulatorCodecWorkaround(
@@ -198,10 +253,13 @@ internal data class PreparedPlayback(
     val startPositionMillis: Long,
 )
 
-internal fun PlaybackSource.preparePlayback(title: String): PreparedPlayback =
+internal fun PlaybackSource.preparePlayback(
+    title: String,
+    resumePositionMillis: Long? = null,
+): PreparedPlayback =
     PreparedPlayback(
         mediaItem = toMediaItem(title),
-        startPositionMillis = startFromSeconds.toPlaybackMillis(),
+        startPositionMillis = resumePositionMillis ?: startFromSeconds.toPlaybackMillis(),
     )
 
 internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
@@ -216,7 +274,7 @@ internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
                     .setLabel(subtitle.name)
                     .setLanguage(subtitle.languageCode)
                     .setMimeType(mimeType)
-                    .setSelectionFlags(0)
+                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                     .build()
             }
 
@@ -227,6 +285,10 @@ internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
         .setSubtitleConfigurations(subtitleConfigurations)
         .build()
 }
+
+private fun PlaybackSource.hasSubtitles(): Boolean =
+    subtitles is PlaybackSubtitles.Embedded ||
+        (subtitles as? PlaybackSubtitles.Sidecar)?.tracks?.isNotEmpty() == true
 
 internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
     var current: Throwable? = this
@@ -243,6 +305,9 @@ internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
     }
     return dataSourceFailure?.let { PlaybackFailure.NetworkUnavailable(this) }
 }
+
+internal fun PlaybackException.toPlaybackFailure(): PlaybackFailure =
+    toMediaRequestFailureOrNull() ?: PlaybackFailure.Unexpected(this)
 
 private fun Double.toPlaybackMillis(): Long =
     (this * MILLIS_PER_SECOND)

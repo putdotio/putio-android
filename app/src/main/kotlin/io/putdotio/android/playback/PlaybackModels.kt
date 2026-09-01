@@ -41,6 +41,7 @@ data class PlaybackState(
     val target: PlaybackTarget,
     val content: PlaybackContent,
     internal val nextRequestValue: Long,
+    val resumePositionMillis: Long? = null,
 )
 
 sealed interface PlaybackEvent {
@@ -48,6 +49,7 @@ sealed interface PlaybackEvent {
 
     data class PlayerFailed(
         val failure: PlaybackFailure,
+        val resumePositionMillis: Long,
     ) : PlaybackEvent
 
     data class ResolveSucceeded(
@@ -101,7 +103,12 @@ private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): Playb
     if (content !is PlaybackContent.Ready) {
         return PlaybackTransition(this, consumed = false)
     }
-    return PlaybackTransition(copy(content = PlaybackContent.Failed(event.failure)))
+    return PlaybackTransition(
+        copy(
+            content = PlaybackContent.Failed(event.failure),
+            resumePositionMillis = event.resumePositionMillis,
+        ),
+    )
 }
 
 private fun PlaybackState.retry(): PlaybackTransition {

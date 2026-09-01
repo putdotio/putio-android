@@ -33,7 +33,9 @@
     <string name="mobile_playback_unsupported_message">Choose a video file to start playback.</string>
     <string name="mobile_playback_error_title">Couldn’t play this video</string>
     <string name="mobile_playback_error_forbidden">You don’t have access to this video.</string>
-    <string name="mobile_playback_error_credential">Playback access is temporarily unavailable. Try signing in again.</string>
+    <string name="mobile_playback_error_credential">Playback access expired. Retry to refresh it.</string>
+    <string name="mobile_playback_subtitles_on">Subtitles on</string>
+    <string name="mobile_playback_subtitles_off">Subtitles off</string>
     <string name="mobile_account_signed_in_as">Signed in as</string>
     <string name="mobile_account_sign_out">Sign out</string>
     <string name="mobile_action_back">Back</string>

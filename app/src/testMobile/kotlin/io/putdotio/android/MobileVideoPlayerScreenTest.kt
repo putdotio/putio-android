@@ -2,10 +2,13 @@ package io.putdotio.android
 
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
@@ -54,7 +57,7 @@ class MobileVideoPlayerScreenTest {
                 MobileVideoPlayerScreen(
                     state = state(PlaybackContent.Conversion(PlaybackConversionState.Converting(42.0))),
                     onRetry = { retries += 1 },
-                    onMediaRequestFailure = {},
+                    onPlayerFailure = { _, _ -> },
                     onBack = { backs += 1 },
                 )
             }
@@ -75,16 +78,42 @@ class MobileVideoPlayerScreenTest {
                 MobileVideoPlayerScreen(
                     state = state(PlaybackContent.Unsupported(PutioFileType.TEXT)),
                     onRetry = { error("Retry must not be offered") },
-                    onMediaRequestFailure = {},
+                    onPlayerFailure = { _, _ -> },
                     onBack = {},
                 )
             }
         }
 
         compose.onNodeWithText("Can’t play this file").assertIsDisplayed()
+        compose.onAllNodesWithText("Try again").assertCountEquals(0)
     }
 
     @Test
+    fun expiredPlaybackAccessOffersCredentialRefresh() {
+        var retries = 0
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state =
+                        state(
+                            PlaybackContent.Failed(
+                                PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired")),
+                            ),
+                        ),
+                    onRetry = { retries += 1 },
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Playback access expired. Retry to refresh it.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").performClick()
+        assertEquals(1, retries)
+    }
+
+    @Test
+    @UnstableApi
     fun mediaItemPreservesHlsMetadataAndKnownSidecarSubtitles() {
         val source = PlaybackSource(
             fileId = Target.fileId.value,
@@ -110,6 +139,8 @@ class MobileVideoPlayerScreenTest {
         assertEquals(1, local.subtitleConfigurations.size)
         assertEquals(MimeTypes.APPLICATION_SUBRIP, local.subtitleConfigurations.single().mimeType)
         assertEquals("en", local.subtitleConfigurations.single().language)
+        assertEquals(C.SELECTION_FLAG_DEFAULT, local.subtitleConfigurations.single().selectionFlags)
+        assertEquals(54_321L, source.preparePlayback(Target.name, 54_321L).startPositionMillis)
     }
 
     @Test
@@ -209,5 +240,17 @@ class MobileVideoPlayerCodecTest {
             IllegalStateException("player failed", transport).toMediaRequestFailureOrNull() is
                 PlaybackFailure.NetworkUnavailable,
         )
+    }
+
+    @Test
+    fun nonTransportPlayerFailureUsesTheAppRecoveryState() {
+        val error =
+            PlaybackException(
+                "decoder failed",
+                IllegalStateException("codec"),
+                PlaybackException.ERROR_CODE_DECODING_FAILED,
+            )
+
+        assertTrue(error.toPlaybackFailure() is PlaybackFailure.Unexpected)
     }
 }
