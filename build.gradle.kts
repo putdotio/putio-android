@@ -26,5 +26,5 @@ val testIconPipeline = tasks.register<Exec>("testIconPipeline") {
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
-    dependsOn(":app:check", checkIcons, testEvidence, testIconPipeline)
+    dependsOn(":app:check", ":app:assembleMobileProductionRelease", checkIcons, testEvidence, testIconPipeline)
 }

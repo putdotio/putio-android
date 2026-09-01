@@ -1,2 +1,1 @@
-# Keep app-specific shrinking rules here once release builds are enabled.
-
+# The minified SDK-consumer proof currently requires no app-specific keep rules.

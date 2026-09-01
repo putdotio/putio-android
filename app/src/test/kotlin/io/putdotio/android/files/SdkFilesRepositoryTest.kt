@@ -220,6 +220,20 @@ class SdkFilesRepositoryTest {
     @Test
     fun persistsOnlyBoundedSortValuesThroughTheSdk() =
         runBlocking {
+            val expected = listOf(
+                FilesSort.NAME_ASCENDING to "NAME_ASC",
+                FilesSort.NAME_DESCENDING to "NAME_DESC",
+                FilesSort.SIZE_ASCENDING to "SIZE_ASC",
+                FilesSort.SIZE_DESCENDING to "SIZE_DESC",
+                FilesSort.DATE_ADDED_ASCENDING to "DATE_ASC",
+                FilesSort.DATE_ADDED_DESCENDING to "DATE_DESC",
+                FilesSort.DATE_MODIFIED_ASCENDING to "MODIFIED_ASC",
+                FilesSort.DATE_MODIFIED_DESCENDING to "MODIFIED_DESC",
+                FilesSort.TYPE_ASCENDING to "TYPE_ASC",
+                FilesSort.TYPE_DESCENDING to "TYPE_DESC",
+                FilesSort.WATCH_STATUS_ASCENDING to "WATCH_ASC",
+                FilesSort.WATCH_STATUS_DESCENDING to "WATCH_DESC",
+            )
             val persisted = mutableListOf<Pair<Long, String>>()
             val repository =
                 SdkFilesRepository(
@@ -229,11 +243,15 @@ class SdkFilesRepositoryTest {
                     getFile = { error("Unexpected file resolution") },
                 )
 
-            FilesSort.entries.forEach { sort ->
+            assertEquals(12, FilesSort.entries.size)
+            expected.forEach { (sort, apiValue) ->
+                assertEquals(sort, FilesSort.fromApiValue(apiValue))
                 assertTrue(repository.persistSort(FilesItemId(42L), sort) is FilesRepositoryResult.Success)
             }
+            assertNull(FilesSort.fromApiValue(null))
+            assertNull(FilesSort.fromApiValue("UNKNOWN"))
 
-            assertEquals(FilesSort.entries.map { 42L to it.apiValue }, persisted)
+            assertEquals(expected.map { 42L to it.second }, persisted)
         }
 
     private fun repositoryThrowing(error: Throwable): SdkFilesRepository =
