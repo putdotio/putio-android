@@ -14,7 +14,8 @@
 #   --skip-build    skip the explicit assemble (connectedAndroidTest still
 #                   builds incrementally)
 #   --pr N          upload each published capture to Attach for pull request N
-#   --repo NAME     Attach repository metadata (default putdotio/putio-android)
+#   --repo OWNER/NAME
+#                   Attach repository metadata (default putdotio/putio-android)
 #   --markdown      emit an inline raw-object embed instead of a preview URL
 #
 # Exit codes: 0 proof passed · 1 proof failed · 64 usage · 70 cleanup failed

@@ -27,8 +27,22 @@ markdown=0
 dry_run=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --repo) repo="${2:?--repo requires a value}"; shift ;;
-    --pr) pr="${2:?--pr requires a value}"; shift ;;
+    --repo)
+      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || {
+        log_error "--repo requires a value"
+        exit 64
+      }
+      repo="$2"
+      shift
+      ;;
+    --pr)
+      [[ $# -ge 2 && -n "$2" && "$2" != --* ]] || {
+        log_error "--pr requires a value"
+        exit 64
+      }
+      pr="$2"
+      shift
+      ;;
     --markdown) markdown=1 ;;
     --dry-run) dry_run=1 ;;
     *) log_error "unknown argument: $1"; exit 64 ;;

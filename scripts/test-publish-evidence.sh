@@ -57,6 +57,16 @@ PATH="${fake_bin}:/usr/bin:/bin" ATTACH_ARGS_FILE="${args_file}" \
   "${SCRIPT}" "${fixture}" --pr 50 --dry-run >/dev/null
 grep -q -- '--dry-run' "${args_file}"
 
+for option in --repo --pr; do
+  set +e
+  PATH="${fake_bin}:/usr/bin:/bin" ATTACH_ARGS_FILE="${args_file}" \
+    "${SCRIPT}" "${fixture}" "${option}" >"${tmpdir}/missing-value.out" 2>&1
+  status=$?
+  set -e
+  [[ "${status}" -eq 64 ]]
+  grep -qF "publish-evidence: ${option} requires a value" "${tmpdir}/missing-value.out"
+done
+
 output="$(PATH="${fake_bin}:/usr/bin:/bin" ATTACH_ARGS_FILE="${args_file}" \
   ATTACH_API_BASE="https://attach.uinaf.dev/" \
   "${SCRIPT}" "${fixture}" --pr 50)"
