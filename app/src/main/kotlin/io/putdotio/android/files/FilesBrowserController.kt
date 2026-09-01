@@ -64,6 +64,7 @@ class FilesBrowserController(
             is FilesBrowserEvent.SortPersisted -> requestId
             is FilesBrowserEvent.LoadNextPage,
             is FilesBrowserEvent.OpenFolder,
+            is FilesBrowserEvent.OpenExternalItem,
             is FilesBrowserEvent.SelectSort,
             is FilesBrowserEvent.ViewportChanged,
             FilesBrowserEvent.NavigateBack,
@@ -131,10 +132,3 @@ class FilesBrowserController(
         job.start()
     }
 }
-
-private fun FilesBrowserEvent.completedRequestId(): FilesRequestId? =
-    when (this) {
-        is FilesBrowserEvent.LoadSucceeded -> requestId
-        is FilesBrowserEvent.LoadFailed -> requestId
-        else -> null
-    }
