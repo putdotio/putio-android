@@ -58,6 +58,7 @@ import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
@@ -72,6 +73,7 @@ internal const val MOBILE_FILES_REFRESH_TAG = "mobile-files-refresh"
 internal fun MobileFilesScreen(
     state: FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Unit,
+    onPlayVideo: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val current = state.current
@@ -82,7 +84,7 @@ internal fun MobileFilesScreen(
                 modifier = modifier,
             )
 
-        is FilesContent.Empty -> MobileRefreshableFilesContent(state, content, onEvent, modifier)
+        is FilesContent.Empty -> MobileRefreshableFilesContent(state, content, onEvent, onPlayVideo, modifier)
 
         is FilesContent.Failed ->
             MobileErrorState(
@@ -93,7 +95,7 @@ internal fun MobileFilesScreen(
                 modifier = modifier,
             )
 
-        is FilesContent.Ready -> MobileRefreshableFilesContent(state, content, onEvent, modifier)
+        is FilesContent.Ready -> MobileRefreshableFilesContent(state, content, onEvent, onPlayVideo, modifier)
     }
 }
 
@@ -102,6 +104,7 @@ private fun MobileRefreshableFilesContent(
     state: FilesBrowserState,
     content: FilesContent,
     onEvent: (FilesBrowserEvent) -> Unit,
+    onPlayVideo: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val operation = state.current.operation
@@ -144,6 +147,7 @@ private fun MobileRefreshableFilesContent(
                             content = content,
                             pagingEnabled = operation == FilesFolderOperation.Idle,
                             onEvent = onEvent,
+                            onPlayVideo = onPlayVideo,
                         )
                     }
 
@@ -260,6 +264,7 @@ private fun MobileFilesList(
     content: FilesContent.Ready,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
+    onPlayVideo: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewport = content.viewport
@@ -300,15 +305,23 @@ private fun MobileFilesList(
         ) { item ->
             MobileFilesRow(
                 item = item,
-                onClick = if (item.isFolder) {
-                    { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
-                } else {
-                    null
+                onClick = when {
+                    item.isFolder -> {
+                        { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
+                    }
+
+                    item.type == PutioFileType.VIDEO -> {
+                        { onPlayVideo(item) }
+                    }
+
+                    else -> null
                 },
-                onClickLabel = if (item.isFolder) {
-                    stringResource(R.string.mobile_files_open_folder, item.name)
-                } else {
-                    null
+                onClickLabel = when {
+                    item.isFolder -> stringResource(R.string.mobile_files_open_folder, item.name)
+                    item.type == PutioFileType.VIDEO ->
+                        stringResource(R.string.mobile_files_play_video, item.name)
+
+                    else -> null
                 },
             )
             HorizontalDivider(modifier = Modifier.padding(start = FILES_DIVIDER_INSET))

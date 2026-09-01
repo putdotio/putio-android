@@ -52,7 +52,7 @@ sealed interface PlaybackFailure {
     ) : PlaybackFailure
 
     data class NetworkUnavailable(
-        override val cause: PutioException,
+        override val cause: Throwable,
     ) : PlaybackFailure
 
     data class InvalidResponse(

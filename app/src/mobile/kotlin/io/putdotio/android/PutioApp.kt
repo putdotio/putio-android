@@ -1,7 +1,8 @@
 package io.putdotio.android
 
-import android.app.Application
 import android.content.Intent
+import android.net.Uri
+import android.app.Application
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
@@ -21,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -39,11 +41,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import io.putdotio.android.auth.AuthTabOAuthBrowser
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthController
@@ -59,11 +63,18 @@ import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolderOperation
-import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.SdkFilesRepository
+import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackEvent
+import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.SdkPlaybackRepository
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
-import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
@@ -97,6 +108,7 @@ import kotlinx.coroutines.launch
 
 internal const val MOBILE_NAV_BAR_TAG = "mobile-navigation-bar"
 internal const val MOBILE_NAV_RAIL_TAG = "mobile-navigation-rail"
+internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}"
 
 private val TabletMinWidth = 600.dp
 
@@ -285,6 +297,9 @@ private fun SignedInMobileRoot(
     val filesRepository = remember(runtime.putioClient) {
         SdkFilesRepository(runtime.putioClient)
     }
+    val playbackRepository = remember(runtime.putioClient) {
+        SdkPlaybackRepository(runtime.putioClient)
+    }
     val filesController = remember(filesViewModel, filesRepository, account.userId, sessionId) {
         filesViewModel.controllerFor(
             userId = account.userId,
@@ -368,9 +383,11 @@ private fun SignedInMobileRoot(
         transfersState = transfersState,
         transfersSessionId = sessionId,
         account = account,
+        playbackRepository = playbackRepository,
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,
+        onPlaybackAuthenticationRequired = authController::rejectAuthoritativeSession,
         searchHistoryActions =
             MobileSearchHistoryActions(
                 onQueryChanged = { searchHistorySession.search.updateQuery(it) },
@@ -406,9 +423,11 @@ internal fun MobileShell(
     transfersState: TransfersState = emptyTransfersState(),
     transfersSessionId: MobileAuthSessionId? = null,
     account: MobileAccount,
+    playbackRepository: PlaybackRepository,
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     onTransfersEvent: (TransfersEvent) -> Unit = {},
     resolveTransferFile: suspend (TransferFileId) -> FilesRepositoryResult<FilesItem> = {
@@ -423,6 +442,12 @@ internal fun MobileShell(
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
+    val isPlayback = backStackEntry?.destination?.route == MOBILE_PLAYBACK_ROUTE
+
+    BackHandler(enabled = isPlayback) {
+        navController.popBackStack()
+    }
+
     val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
     val resolvingTransfer = transfersState.navigation as? TransferNavigation.Resolving
 
@@ -465,9 +490,31 @@ internal fun MobileShell(
     }
 
     BackHandler(
-        enabled = selectedDestination == MobileDestination.Files && filesState.canNavigateBack,
+        enabled = !isPlayback && selectedDestination == MobileDestination.Files && filesState.canNavigateBack,
     ) {
         onFilesEvent(FilesBrowserEvent.NavigateBack)
+    }
+
+    if (isPlayback) {
+        MobileNavHost(
+            navController = navController,
+            filesState = filesState,
+            accountSettingsState = accountSettingsState,
+            searchHistoryState = searchHistoryState,
+            transfersState = transfersState,
+            transfersSessionId = transfersSessionId,
+            account = account,
+            sessionId = sessionId,
+            playbackRepository = playbackRepository,
+            onFilesEvent = onFilesEvent,
+            onAccountSettingsEvent = onAccountSettingsEvent,
+            searchHistoryActions = searchHistoryActions,
+            onTransfersEvent = onTransfersEvent,
+            onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
+            onSignOut = onSignOut,
+            modifier = Modifier.fillMaxSize(),
+        )
+        return
     }
 
     key(transfersSessionId) {
@@ -483,10 +530,12 @@ internal fun MobileShell(
                     transfersSessionId = transfersSessionId,
                     account = account,
                     sessionId = sessionId,
+                    playbackRepository = playbackRepository,
                     onFilesEvent = onFilesEvent,
                     onAccountSettingsEvent = onAccountSettingsEvent,
                     searchHistoryActions = searchHistoryActions,
                     onTransfersEvent = onTransfersEvent,
+                    onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                     onSignOut = onSignOut,
                 )
             } else {
@@ -500,10 +549,12 @@ internal fun MobileShell(
                     transfersSessionId = transfersSessionId,
                     account = account,
                     sessionId = sessionId,
+                    playbackRepository = playbackRepository,
                     onFilesEvent = onFilesEvent,
                     onAccountSettingsEvent = onAccountSettingsEvent,
                     searchHistoryActions = searchHistoryActions,
                     onTransfersEvent = onTransfersEvent,
+                    onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                     onSignOut = onSignOut,
                 )
             }
@@ -571,9 +622,11 @@ private fun PhoneShell(
     transfersState: TransfersState,
     transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
+    playbackRepository: PlaybackRepository,
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
@@ -608,9 +661,11 @@ private fun PhoneShell(
             transfersState = transfersState,
             transfersSessionId = transfersSessionId,
             account = account,
+            playbackRepository = playbackRepository,
             sessionId = sessionId,
             onFilesEvent = onFilesEvent,
             onAccountSettingsEvent = onAccountSettingsEvent,
+            onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
             searchHistoryActions = searchHistoryActions,
             onTransfersEvent = onTransfersEvent,
             onSignOut = onSignOut,
@@ -630,9 +685,11 @@ private fun TabletShell(
     transfersState: TransfersState,
     transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
+    playbackRepository: PlaybackRepository,
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
@@ -667,9 +724,11 @@ private fun TabletShell(
                 transfersState = transfersState,
                 transfersSessionId = transfersSessionId,
                 account = account,
+                playbackRepository = playbackRepository,
                 sessionId = sessionId,
                 onFilesEvent = onFilesEvent,
                 onAccountSettingsEvent = onAccountSettingsEvent,
+                onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                 searchHistoryActions = searchHistoryActions,
                 onTransfersEvent = onTransfersEvent,
                 onSignOut = onSignOut,
@@ -742,9 +801,11 @@ private fun MobileNavHost(
     transfersState: TransfersState,
     transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
+    playbackRepository: PlaybackRepository,
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
@@ -762,6 +823,7 @@ private fun MobileNavHost(
             MobileFilesScreen(
                 state = filesState,
                 onEvent = onFilesEvent,
+                onPlayVideo = navController::navigateToPlayback,
             )
         }
         composable(MobileDestination.Search.route) {
@@ -798,7 +860,63 @@ private fun MobileNavHost(
                 onSignOut = onSignOut,
             )
         }
+        composable(
+            route = MOBILE_PLAYBACK_ROUTE,
+            arguments =
+                listOf(
+                    navArgument("fileId") { type = NavType.LongType },
+                    navArgument("name") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                ),
+        ) { backStackEntry ->
+            val fileId = requireNotNull(backStackEntry.arguments?.getLong("fileId"))
+            val name = backStackEntry.arguments?.getString("name").orEmpty()
+            MobilePlaybackRoute(
+                target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name),
+                repository = playbackRepository,
+                onAuthenticationRequired = onPlaybackAuthenticationRequired,
+                onBack = navController::popBackStack,
+            )
+        }
     }
+}
+
+@Composable
+private fun MobilePlaybackRoute(
+    target: PlaybackTarget,
+    repository: PlaybackRepository,
+    onAuthenticationRequired: suspend () -> Unit,
+    onBack: () -> Unit,
+) {
+    val routeScope = rememberCoroutineScope()
+    val controller = remember(target, repository, routeScope) {
+        PlaybackController(target, repository, routeScope)
+    }
+    val state by controller.state.collectAsStateWithLifecycle()
+    val authenticationFailure =
+        (state.content as? PlaybackContent.Failed)
+            ?.failure
+            ?.takeIf { it is PlaybackFailure.AuthenticationRequired }
+
+    DisposableEffect(controller) {
+        onDispose(controller::close)
+    }
+    LaunchedEffect(authenticationFailure) {
+        if (authenticationFailure != null) {
+            onAuthenticationRequired()
+        }
+    }
+
+    MobileVideoPlayerScreen(
+        state = state,
+        onRetry = { controller.dispatch(PlaybackEvent.Retry) },
+        onPlayerFailure = { failure, positionMillis ->
+            controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))
+        },
+        onBack = onBack,
+    )
 }
 
 @Composable
@@ -906,4 +1024,8 @@ private fun NavHostController.navigateTo(destination: MobileDestination) {
         launchSingleTop = true
         restoreState = true
     }
+}
+
+private fun NavHostController.navigateToPlayback(item: FilesItem) {
+    navigate("playback/${item.id.value}?name=${Uri.encode(item.name)}")
 }

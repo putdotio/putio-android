@@ -41,10 +41,16 @@ data class PlaybackState(
     val target: PlaybackTarget,
     val content: PlaybackContent,
     internal val nextRequestValue: Long,
+    val resumePositionMillis: Long? = null,
 )
 
 sealed interface PlaybackEvent {
     data object Retry : PlaybackEvent
+
+    data class PlayerFailed(
+        val failure: PlaybackFailure,
+        val resumePositionMillis: Long,
+    ) : PlaybackEvent
 
     data class ResolveSucceeded(
         val requestId: PlaybackRequestId,
@@ -87,9 +93,22 @@ object PlaybackReducer {
     ): PlaybackTransition =
         when (event) {
             PlaybackEvent.Retry -> state.retry()
+            is PlaybackEvent.PlayerFailed -> state.playerFailed(event)
             is PlaybackEvent.ResolveSucceeded -> state.resolveSucceeded(event)
             is PlaybackEvent.ResolveFailed -> state.resolveFailed(event)
         }
+}
+
+private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): PlaybackTransition {
+    if (content !is PlaybackContent.Ready) {
+        return PlaybackTransition(this, consumed = false)
+    }
+    return PlaybackTransition(
+        copy(
+            content = PlaybackContent.Failed(event.failure),
+            resumePositionMillis = event.resumePositionMillis,
+        ),
+    )
 }
 
 private fun PlaybackState.retry(): PlaybackTransition {
