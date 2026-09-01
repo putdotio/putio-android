@@ -142,6 +142,11 @@ class FilesBrowserControllerTest {
 
                     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
                         error("No continuation expected")
+
+                    override suspend fun persistSort(
+                        folderId: FilesItemId,
+                        sort: FilesSort,
+                    ): FilesRepositoryResult<Unit> = error("No sort expected")
                 }
             val controller = FilesBrowserController(repository, this)
 
