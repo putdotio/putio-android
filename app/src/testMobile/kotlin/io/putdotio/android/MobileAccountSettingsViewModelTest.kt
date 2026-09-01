@@ -13,9 +13,12 @@ import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsRepository
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
@@ -86,6 +89,36 @@ class MobileAccountSettingsViewModelTest {
     }
 
     @Test
+    fun sessionReplacementCancelsThePreviousInFlightLoad() {
+        val repository = SuspendingRepository()
+        val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
+        val activityController = Robolectric.buildActivity(SettingsHostActivity::class.java).setup()
+
+        try {
+            val viewModel = activityController.get().settingsViewModel(authState)
+            val first = checkNotNull(viewModel.controllerFor(USER_ID, SessionOne, repository))
+            shadowOf(Looper.getMainLooper()).idle()
+            runBlocking {
+                withTimeout(TEST_TIMEOUT_MILLIS) { repository.started.await() }
+            }
+
+            authState.value = signedIn(SessionTwo)
+            shadowOf(Looper.getMainLooper()).idle()
+
+            runBlocking {
+                withTimeout(TEST_TIMEOUT_MILLIS) { repository.cancelled.await() }
+            }
+            assertFalse(first.dispatch(AccountSettingsEvent.RetryLoad))
+            assertNotSame(
+                first,
+                viewModel.controllerFor(USER_ID, SessionTwo, RecordingRepository()),
+            )
+        } finally {
+            activityController.close()
+        }
+    }
+
+    @Test
     fun staleSessionCannotRecreateAControllerAfterSignOut() {
         val repository = RecordingRepository()
         val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
@@ -129,8 +162,28 @@ class MobileAccountSettingsViewModelTest {
         ): AccountSettingsRepositoryResult<Unit> = AccountSettingsRepositoryResult.Success(Unit)
     }
 
+    private class SuspendingRepository : AccountSettingsRepository {
+        val started = CompletableDeferred<Unit>()
+        val cancelled = CompletableDeferred<Unit>()
+
+        override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> {
+            started.complete(Unit)
+            try {
+                awaitCancellation()
+            } finally {
+                cancelled.complete(Unit)
+            }
+        }
+
+        override suspend fun save(
+            change: AccountSettingsChange,
+        ): AccountSettingsRepositoryResult<Unit> =
+            error("Save is not expected")
+    }
+
     private companion object {
         const val USER_ID = 42L
+        const val TEST_TIMEOUT_MILLIS = 2_000L
         val Account = MobileAccount(USER_ID, "user", "user@example.com")
         val SessionOne = MobileAuthSessionId(1L)
         val SessionTwo = MobileAuthSessionId(2L)
