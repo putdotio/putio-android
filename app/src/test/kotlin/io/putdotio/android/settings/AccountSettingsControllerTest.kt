@@ -71,6 +71,32 @@ class AccountSettingsControllerTest {
         }
 
     @Test
+    fun refreshRetryAfterAcceptedSaveDoesNotRepeatTheMutation() =
+        runBlocking {
+            val repository = RefreshFailureRepository()
+            val controller = AccountSettingsController(repository, this)
+            val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
+
+            try {
+                controller.awaitState { it.content is AccountSettingsContent.Ready }
+                assertTrue(controller.dispatch(AccountSettingsEvent.ChangeRequested(change)))
+                controller.awaitState {
+                    (it.mutation as? AccountSettingsMutation.Failed)?.operation ==
+                        AccountSettingsMutation.Operation.Refresh
+                }
+
+                assertEquals(1, repository.saveCount)
+                assertTrue(controller.dispatch(AccountSettingsEvent.RetryChange))
+                controller.awaitState { it.mutation == AccountSettingsMutation.Idle }
+
+                assertEquals(1, repository.saveCount)
+                assertEquals(3, repository.loadCount)
+            } finally {
+                controller.close()
+            }
+        }
+
+    @Test
     fun closeCancelsAnInFlightLoad() =
         runBlocking {
             val started = CompletableDeferred<Unit>()
@@ -88,7 +114,7 @@ class AccountSettingsControllerTest {
 
                     override suspend fun save(
                         change: AccountSettingsChange,
-                    ): AccountSettingsRepositoryResult<AccountSettingsPreferences> =
+                    ): AccountSettingsRepositoryResult<Unit> =
                         error("Save is not expected")
                 }
             val controller = AccountSettingsController(repository, this)
@@ -111,17 +137,37 @@ class AccountSettingsControllerTest {
 
         override suspend fun save(
             change: AccountSettingsChange,
-        ): AccountSettingsRepositoryResult<AccountSettingsPreferences> {
+        ): AccountSettingsRepositoryResult<Unit> {
             savedChanges += change
             return if (savedChanges.size == 1) {
                 AccountSettingsRepositoryResult.Failure(
                     AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
                 )
             } else {
-                AccountSettingsRepositoryResult.Success(
-                    Preferences.copy(historyEnabled = change.enabled),
-                )
+                AccountSettingsRepositoryResult.Success(Unit)
             }
+        }
+    }
+
+    private class RefreshFailureRepository : AccountSettingsRepository {
+        var loadCount = 0
+        var saveCount = 0
+
+        override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> {
+            loadCount += 1
+            return when (loadCount) {
+                1 -> AccountSettingsRepositoryResult.Success(Preferences)
+                2 ->
+                    AccountSettingsRepositoryResult.Failure(
+                        AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    )
+                else -> AccountSettingsRepositoryResult.Success(Preferences.copy(historyEnabled = false))
+            }
+        }
+
+        override suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<Unit> {
+            saveCount += 1
+            return AccountSettingsRepositoryResult.Success(Unit)
         }
     }
 

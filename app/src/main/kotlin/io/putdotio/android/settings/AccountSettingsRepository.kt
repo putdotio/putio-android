@@ -68,7 +68,7 @@ internal sealed interface AccountSettingsFailure {
 internal interface AccountSettingsRepository {
     suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences>
 
-    suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<AccountSettingsPreferences>
+    suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<Unit>
 }
 
 internal class SdkAccountSettingsRepository(
@@ -85,12 +85,12 @@ internal class SdkAccountSettingsRepository(
 
     override suspend fun save(
         change: AccountSettingsChange,
-    ): AccountSettingsRepositoryResult<AccountSettingsPreferences> =
+    ): AccountSettingsRepositoryResult<Unit> =
         request {
             saveSettings(change.toPatch())
-            getSettings().toPreferences()
         }
 
+    // This SDK boundary converts unexpected implementation failures into the app's stable failure taxonomy.
     @Suppress("TooGenericExceptionCaught")
     private suspend fun <T> request(block: suspend () -> T): AccountSettingsRepositoryResult<T> =
         try {
@@ -117,9 +117,17 @@ internal suspend fun AccountSettingsRepository.execute(effect: AccountSettingsEf
         is AccountSettingsEffect.Save ->
             when (val result = save(effect.change)) {
                 is AccountSettingsRepositoryResult.Success ->
-                    AccountSettingsEvent.SaveSucceeded(effect.requestId, result.value)
+                    AccountSettingsEvent.SaveSucceeded(effect.requestId)
                 is AccountSettingsRepositoryResult.Failure ->
                     AccountSettingsEvent.SaveFailed(effect.requestId, result.failure)
+            }
+
+        is AccountSettingsEffect.Refresh ->
+            when (val result = load()) {
+                is AccountSettingsRepositoryResult.Success ->
+                    AccountSettingsEvent.RefreshSucceeded(effect.requestId, result.value)
+                is AccountSettingsRepositoryResult.Failure ->
+                    AccountSettingsEvent.RefreshFailed(effect.requestId, result.failure)
             }
     }
 

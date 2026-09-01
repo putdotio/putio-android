@@ -32,6 +32,7 @@ class AccountSettingsReducerTest {
         val effect = transition.effect as AccountSettingsEffect.Save
         assertFalse(ready.preferences.historyEnabled)
         assertEquals(change, saving.change)
+        assertEquals(AccountSettingsMutation.Operation.Save, saving.operation)
         assertEquals(saving.requestId, effect.requestId)
         assertEquals(change, effect.change)
     }
@@ -93,6 +94,7 @@ class AccountSettingsReducerTest {
                 change = change,
                 failure = failure,
                 previousPreferences = Preferences,
+                operation = AccountSettingsMutation.Operation.Save,
             ),
             failed.state.mutation,
         )
@@ -106,7 +108,109 @@ class AccountSettingsReducerTest {
     }
 
     @Test
-    fun ignoresStaleLoadAndSaveResults() {
+    fun acceptedSaveRetriesOnlyTheFailedAuthoritativeRefresh() {
+        val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
+        val saving =
+            AccountSettingsReducer.reduce(
+                loadedState(Preferences),
+                AccountSettingsEvent.ChangeRequested(change),
+            )
+        val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
+        val refreshing =
+            AccountSettingsReducer.reduce(
+                saving.state,
+                AccountSettingsEvent.SaveSucceeded(requestId),
+            )
+
+        assertEquals(AccountSettingsEffect.Refresh(requestId), refreshing.effect)
+        assertEquals(
+            AccountSettingsMutation.Operation.Refresh,
+            (refreshing.state.mutation as AccountSettingsMutation.Saving).operation,
+        )
+
+        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failed =
+            AccountSettingsReducer.reduce(
+                refreshing.state,
+                AccountSettingsEvent.RefreshFailed(requestId, failure),
+            )
+        val failedReady = failed.state.content as AccountSettingsContent.Ready
+        assertFalse(failedReady.preferences.historyEnabled)
+        assertEquals(
+            AccountSettingsMutation.Operation.Refresh,
+            (failed.state.mutation as AccountSettingsMutation.Failed).operation,
+        )
+
+        val retried = AccountSettingsReducer.reduce(failed.state, AccountSettingsEvent.RetryChange)
+        assertTrue(retried.effect is AccountSettingsEffect.Refresh)
+        assertEquals(
+            AccountSettingsMutation.Operation.Refresh,
+            (retried.state.mutation as AccountSettingsMutation.Saving).operation,
+        )
+    }
+
+    @Test
+    fun laterChangeSupersedesAFailedMutation() {
+        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val replacement = AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)
+
+        listOf(
+            failedSaveState(failure) to true,
+            failedRefreshState(failure) to false,
+        ).forEach { (failed, expectedHistoryEnabled) ->
+            val superseded =
+                AccountSettingsReducer.reduce(
+                    failed,
+                    AccountSettingsEvent.ChangeRequested(replacement),
+                )
+
+            assertTrue(superseded.consumed)
+            assertEquals(replacement, (superseded.effect as AccountSettingsEffect.Save).change)
+            val ready = superseded.state.content as AccountSettingsContent.Ready
+            assertEquals(expectedHistoryEnabled, ready.preferences.historyEnabled)
+            assertFalse(ready.preferences.trashEnabled)
+        }
+    }
+
+    @Test
+    fun laterChangeCannotHideAnAuthoritativeSessionFailure() {
+        val failure =
+            AccountSettingsFailure.AuthenticationRequired(
+                PutioConfigurationException("invalid token"),
+            )
+        listOf(failedSaveState(failure), failedRefreshState(failure)).forEach { failed ->
+            val replacement =
+                AccountSettingsReducer.reduce(
+                    failed,
+                    AccountSettingsEvent.ChangeRequested(
+                        AccountSettingsChange(AccountSettingsKey.Trash, enabled = false),
+                    ),
+                )
+
+            assertFalse(replacement.consumed)
+            assertSame(failed, replacement.state)
+            assertSame(failure, replacement.state.authoritativeSessionFailure())
+        }
+    }
+
+    @Test
+    fun retryCannotHideAnAuthoritativeSessionFailure() {
+        val failure =
+            AccountSettingsFailure.AuthenticationRequired(
+                PutioConfigurationException("invalid token"),
+            )
+
+        listOf(failedSaveState(failure), failedRefreshState(failure)).forEach { failed ->
+            val retry = AccountSettingsReducer.reduce(failed, AccountSettingsEvent.RetryChange)
+
+            assertFalse(retry.consumed)
+            assertSame(failed, retry.state)
+            assertSame(failure, retry.state.authoritativeSessionFailure())
+        }
+    }
+
+    @Test
+    fun ignoresStaleAndWrongPhaseResults() {
         val start = AccountSettingsReducer.start()
         val staleLoad =
             AccountSettingsReducer.reduce(
@@ -127,10 +231,45 @@ class AccountSettingsReducerTest {
         val staleSave =
             AccountSettingsReducer.reduce(
                 saving.state,
-                AccountSettingsEvent.SaveSucceeded(AccountSettingsRequestId(99L), Preferences),
+                AccountSettingsEvent.SaveSucceeded(AccountSettingsRequestId(99L)),
             )
         assertFalse(staleSave.consumed)
         assertSame(saving.state, staleSave.state)
+
+        val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
+        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val staleSaveFailure =
+            AccountSettingsReducer.reduce(
+                saving.state,
+                AccountSettingsEvent.SaveFailed(AccountSettingsRequestId(99L), failure),
+            )
+        assertFalse(staleSaveFailure.consumed)
+        assertSame(saving.state, staleSaveFailure.state)
+
+        listOf(
+            AccountSettingsEvent.RefreshSucceeded(requestId, Preferences),
+            AccountSettingsEvent.RefreshFailed(requestId, failure),
+        ).forEach { wrongPhase ->
+            val result = AccountSettingsReducer.reduce(saving.state, wrongPhase)
+            assertFalse(result.consumed)
+            assertSame(saving.state, result.state)
+        }
+
+        val refreshing =
+            AccountSettingsReducer.reduce(
+                saving.state,
+                AccountSettingsEvent.SaveSucceeded(requestId),
+            )
+        listOf(
+            AccountSettingsEvent.SaveSucceeded(requestId),
+            AccountSettingsEvent.SaveFailed(requestId, failure),
+            AccountSettingsEvent.RefreshSucceeded(AccountSettingsRequestId(99L), Preferences),
+            AccountSettingsEvent.RefreshFailed(AccountSettingsRequestId(99L), failure),
+        ).forEach { staleOrWrongPhase ->
+            val result = AccountSettingsReducer.reduce(refreshing.state, staleOrWrongPhase)
+            assertFalse(result.consumed)
+            assertSame(refreshing.state, result.state)
+        }
     }
 
     @Test
@@ -151,6 +290,21 @@ class AccountSettingsReducerTest {
         val duplicate = AccountSettingsReducer.reduce(retry.state, AccountSettingsEvent.RetryLoad)
         assertFalse(duplicate.consumed)
         assertSame(retry.state, duplicate.state)
+    }
+
+    @Test
+    fun retryLoadCannotHideAnAuthoritativeSessionFailure() {
+        val failure =
+            AccountSettingsFailure.AuthenticationRequired(
+                PutioConfigurationException("invalid token"),
+            )
+        val failed = failedLoadState(failure)
+
+        val retry = AccountSettingsReducer.reduce(failed, AccountSettingsEvent.RetryLoad)
+
+        assertFalse(retry.consumed)
+        assertSame(failed, retry.state)
+        assertSame(failure, retry.state.authoritativeSessionFailure())
     }
 
     @Test
@@ -191,6 +345,26 @@ class AccountSettingsReducerTest {
         return AccountSettingsReducer.reduce(
             saving.state,
             AccountSettingsEvent.SaveFailed(requestId, failure),
+        ).state
+    }
+
+    private fun failedRefreshState(failure: AccountSettingsFailure): AccountSettingsState {
+        val saving =
+            AccountSettingsReducer.reduce(
+                loadedState(Preferences),
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.History, enabled = false),
+                ),
+            )
+        val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
+        val refreshing =
+            AccountSettingsReducer.reduce(
+                saving.state,
+                AccountSettingsEvent.SaveSucceeded(requestId),
+            )
+        return AccountSettingsReducer.reduce(
+            refreshing.state,
+            AccountSettingsEvent.RefreshFailed(requestId, failure),
         ).state
     }
 

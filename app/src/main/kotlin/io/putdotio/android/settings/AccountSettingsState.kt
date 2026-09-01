@@ -39,18 +39,25 @@ internal sealed interface AccountSettingsContent {
 }
 
 internal sealed interface AccountSettingsMutation {
+    enum class Operation {
+        Save,
+        Refresh,
+    }
+
     data object Idle : AccountSettingsMutation
 
     data class Saving(
         val requestId: AccountSettingsRequestId,
         val change: AccountSettingsChange,
         val previousPreferences: AccountSettingsPreferences,
+        val operation: Operation,
     ) : AccountSettingsMutation
 
     data class Failed(
         val change: AccountSettingsChange,
         val failure: AccountSettingsFailure,
         val previousPreferences: AccountSettingsPreferences,
+        val operation: Operation,
     ) : AccountSettingsMutation
 }
 
@@ -82,10 +89,19 @@ internal sealed interface AccountSettingsEvent {
 
     data class SaveSucceeded(
         val requestId: AccountSettingsRequestId,
-        val preferences: AccountSettingsPreferences,
     ) : AccountSettingsEvent
 
     data class SaveFailed(
+        val requestId: AccountSettingsRequestId,
+        val failure: AccountSettingsFailure,
+    ) : AccountSettingsEvent
+
+    data class RefreshSucceeded(
+        val requestId: AccountSettingsRequestId,
+        val preferences: AccountSettingsPreferences,
+    ) : AccountSettingsEvent
+
+    data class RefreshFailed(
         val requestId: AccountSettingsRequestId,
         val failure: AccountSettingsFailure,
     ) : AccountSettingsEvent
@@ -101,6 +117,10 @@ internal sealed interface AccountSettingsEffect {
     data class Save(
         override val requestId: AccountSettingsRequestId,
         val change: AccountSettingsChange,
+    ) : AccountSettingsEffect
+
+    data class Refresh(
+        override val requestId: AccountSettingsRequestId,
     ) : AccountSettingsEffect
 }
 
@@ -136,6 +156,8 @@ internal object AccountSettingsReducer {
             is AccountSettingsEvent.LoadFailed -> state.loadFailed(event)
             is AccountSettingsEvent.SaveSucceeded -> state.saveSucceeded(event)
             is AccountSettingsEvent.SaveFailed -> state.saveFailed(event)
+            is AccountSettingsEvent.RefreshSucceeded -> state.refreshSucceeded(event)
+            is AccountSettingsEvent.RefreshFailed -> state.refreshFailed(event)
         }
 }
 

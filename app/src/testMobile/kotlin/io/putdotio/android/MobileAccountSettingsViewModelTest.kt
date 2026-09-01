@@ -126,8 +126,7 @@ class MobileAccountSettingsViewModelTest {
 
         override suspend fun save(
             change: AccountSettingsChange,
-        ): AccountSettingsRepositoryResult<AccountSettingsPreferences> =
-            AccountSettingsRepositoryResult.Success(Preferences)
+        ): AccountSettingsRepositoryResult<Unit> = AccountSettingsRepositoryResult.Success(Unit)
     }
 
     private companion object {

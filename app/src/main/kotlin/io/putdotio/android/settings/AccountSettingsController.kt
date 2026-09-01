@@ -55,6 +55,7 @@ internal class AccountSettingsController(
         controllerScope.cancel()
     }
 
+    // This controller boundary contains repository implementations that escape the declared result contract.
     @Suppress("TooGenericExceptionCaught")
     private fun launchEffect(effect: AccountSettingsEffect) {
         val job =
@@ -73,6 +74,11 @@ internal class AccountSettingsController(
                                 )
                             is AccountSettingsEffect.Save ->
                                 AccountSettingsEvent.SaveFailed(
+                                    effect.requestId,
+                                    AccountSettingsFailure.Unexpected(unexpected),
+                                )
+                            is AccountSettingsEffect.Refresh ->
+                                AccountSettingsEvent.RefreshFailed(
                                     effect.requestId,
                                     AccountSettingsFailure.Unexpected(unexpected),
                                 )

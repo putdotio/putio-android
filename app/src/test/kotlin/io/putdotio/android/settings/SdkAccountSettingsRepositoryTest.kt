@@ -54,7 +54,7 @@ class SdkAccountSettingsRepositoryTest {
         }
 
     @Test
-    fun saveReturnsSettingsFromTheAuthoritativeReload() =
+    fun acceptedSaveAndAuthoritativeRefreshRemainSeparateEffects() =
         runBlocking {
             val operations = mutableListOf<String>()
             val reloadedSettings = Settings.copy(historyEnabled = false, trashEnabled = true)
@@ -69,21 +69,55 @@ class SdkAccountSettingsRepositoryTest {
                     },
                 )
 
-            val result =
-                repository.save(
-                    AccountSettingsChange(AccountSettingsKey.History, enabled = false),
-                ) as AccountSettingsRepositoryResult.Success
+            val requestId = AccountSettingsRequestId(7L)
+            val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
+            val saveEvent = repository.execute(AccountSettingsEffect.Save(requestId, change))
+
+            assertEquals(listOf("save"), operations)
+            assertEquals(AccountSettingsEvent.SaveSucceeded(requestId), saveEvent)
+
+            val refreshEvent = repository.execute(AccountSettingsEffect.Refresh(requestId))
 
             assertEquals(listOf("save", "read"), operations)
             assertEquals(
-                AccountSettingsPreferences(
-                    historyEnabled = false,
-                    trashEnabled = true,
-                    showSubtitles = false,
-                    autoSelectSubtitles = false,
+                AccountSettingsEvent.RefreshSucceeded(
+                    requestId,
+                    AccountSettingsPreferences(
+                        historyEnabled = false,
+                        trashEnabled = true,
+                        showSubtitles = false,
+                        autoSelectSubtitles = false,
+                    ),
                 ),
-                result.value,
+                refreshEvent,
             )
+        }
+
+    @Test
+    fun failedRefreshAfterAcceptedSaveDoesNotReportTheWriteAsFailed() =
+        runBlocking {
+            var saveCount = 0
+            val refreshFailure = IllegalStateException("reload failed")
+            val repository =
+                SdkAccountSettingsRepository(
+                    getSettings = { throw refreshFailure },
+                    saveSettings = { saveCount += 1 },
+                )
+            val requestId = AccountSettingsRequestId(8L)
+            val change = AccountSettingsChange(AccountSettingsKey.Trash, enabled = true)
+
+            val saveEvent = repository.execute(AccountSettingsEffect.Save(requestId, change))
+            val refreshEvent = repository.execute(AccountSettingsEffect.Refresh(requestId))
+
+            assertEquals(AccountSettingsEvent.SaveSucceeded(requestId), saveEvent)
+            assertTrue(refreshEvent is AccountSettingsEvent.RefreshFailed)
+            val refreshError =
+                (refreshEvent as AccountSettingsEvent.RefreshFailed).failure as AccountSettingsFailure.Unexpected
+            assertSame(
+                refreshFailure,
+                refreshError.cause,
+            )
+            assertEquals(1, saveCount)
         }
 
     @Test
