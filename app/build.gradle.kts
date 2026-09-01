@@ -93,7 +93,7 @@ android {
 
 val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDesignTokens") {
     tokensFile.set(rootProject.layout.projectDirectory.file("design/tokens.dtcg.json"))
-    designVersion.set("3.0.0")
+    designVersion.set("3.2.1")
     outputDir.set(layout.buildDirectory.dir("generated/designTokens/kotlin"))
 }
 
@@ -129,6 +129,9 @@ dependencies {
 
     add("mobileImplementation", libs.androidx.browser)
     add("mobileImplementation", libs.androidx.navigation.compose)
+    add("mobileImplementation", libs.coil.compose)
+    add("mobileImplementation", libs.coil.network.okhttp)
+    add("mobileImplementation", libs.okhttp)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 

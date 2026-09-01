@@ -165,6 +165,13 @@ private fun AccountInfo.toMobileAccount(): MobileAccount =
         username = username,
         email = mail,
         historyEnabled = settings.historyEnabled,
+        avatarUrl = avatarUrl,
+        storage =
+            MobileAccountStorage(
+                availableBytes = disk.available,
+                sizeBytes = disk.size,
+                usedBytes = disk.used,
+            ),
     )
 
 private const val HTTP_UNAUTHORIZED = 401

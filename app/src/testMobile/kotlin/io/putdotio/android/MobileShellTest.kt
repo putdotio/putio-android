@@ -27,6 +27,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -53,6 +54,12 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.settings.AccountSettingsChange
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsFailure
+import io.putdotio.android.settings.AccountSettingsKey
+import io.putdotio.android.settings.AccountSettingsMutation
+import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferNavigation
@@ -125,8 +132,11 @@ class MobileShellTest {
                 Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
                     MobileShell(
                         filesState = emptyFilesState(),
+                        accountSettingsState = readyAccountSettingsState(),
                         account = Account,
+                        sessionId = Session,
                         onFilesEvent = {},
+                        onAccountSettingsEvent = {},
                         onSignOut = {},
                     )
                 }
@@ -232,8 +242,11 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     filesState = filesState,
+                    accountSettingsState = readyAccountSettingsState(),
                     account = Account,
+                    sessionId = Session,
                     onFilesEvent = events::add,
+                    onAccountSettingsEvent = {},
                     onSignOut = {},
                 )
             }
@@ -281,6 +294,99 @@ class MobileShellTest {
     }
 
     @Test
+    fun phoneShellForwardsAccountSettingEvents() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setShell(onAccountSettingsEvent = events::add)
+
+        compose.onNodeWithText("Account").performClick()
+        compose.onNodeWithText("Show subtitles").performClick()
+
+        assertEquals(
+            listOf(
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
+                ),
+            ),
+            events,
+        )
+    }
+
+    @Test
+    fun compactPhoneShellBringsRecoverableFailureIntoView() {
+        var settingsState by mutableStateOf(readyAccountSettingsState())
+        compose.setContent {
+            PutioTheme {
+                Box(modifier = Modifier.requiredSize(width = 360.dp, height = 240.dp)) {
+                    MobileShell(
+                        filesState = emptyFilesState(),
+                        accountSettingsState = settingsState,
+                        account = Account,
+                        sessionId = Session,
+                        onFilesEvent = {},
+                        onAccountSettingsEvent = { event ->
+                            if (event is AccountSettingsEvent.ChangeRequested) {
+                                settingsState =
+                                    readyAccountSettingsState(
+                                        mutation =
+                                            AccountSettingsMutation.Failed(
+                                                change = event.change,
+                                                failure =
+                                                    AccountSettingsFailure.Unexpected(
+                                                        IllegalStateException("offline"),
+                                                    ),
+                                                previousPreferences = DefaultAccountSettingsPreferences,
+                                                operation = AccountSettingsMutation.Operation.Save,
+                                            ),
+                                    )
+                            }
+                        },
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithText("Account").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(3)
+        compose.onNodeWithText("Show subtitles").assertIsDisplayed().performClick()
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
+    }
+
+    @Test
+    fun tabletShellForwardsAccountSettingEvents() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setContent {
+            PutioTheme {
+                Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
+                    MobileShell(
+                        filesState = emptyFilesState(),
+                        accountSettingsState = readyAccountSettingsState(),
+                        account = Account,
+                        sessionId = Session,
+                        onFilesEvent = {},
+                        onAccountSettingsEvent = events::add,
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithText("Account").performClick()
+        compose.onNodeWithText("Show subtitles").performClick()
+
+        assertEquals(
+            listOf(
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
+                ),
+            ),
+            events,
+        )
+    }
+
+    @Test
     fun transferFileAuthenticationFailureRejectsTheSession() {
         val events = mutableListOf<TransfersEvent>()
         var rejections = 0
@@ -288,8 +394,10 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
                     transfersState = resolvingTransfersState(),
                     account = Account,
+                    sessionId = Session,
                     onFilesEvent = {},
                     onTransfersEvent = events::add,
                     resolveTransferFile = {
@@ -298,6 +406,7 @@ class MobileShellTest {
                         )
                     },
                     onTransferAuthenticationRequired = { rejections += 1 },
+                    onAccountSettingsEvent = {},
                     onSignOut = {},
                 )
             }
@@ -331,9 +440,11 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
                     transfersState = transfersState,
                     transfersSessionId = sessionId,
                     account = Account,
+                    sessionId = Session,
                     onFilesEvent = filesEvents::add,
                     onTransfersEvent = events::add,
                     resolveTransferFile = {
@@ -343,6 +454,7 @@ class MobileShellTest {
                         }
                         FilesRepositoryResult.Success(resolvedItem)
                     },
+                    onAccountSettingsEvent = {},
                     onSignOut = {},
                 )
             }
@@ -373,8 +485,10 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
                     transfersState = transfersState,
                     account = Account,
+                    sessionId = Session,
                     onFilesEvent = {},
                     onTransfersEvent = { event ->
                         events += event
@@ -382,6 +496,7 @@ class MobileShellTest {
                             transfersState = transfersState.copy(notice = null)
                         }
                     },
+                    onAccountSettingsEvent = {},
                     onSignOut = {},
                 )
             }
@@ -410,11 +525,14 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
                     transfersState = resolvingTransfersState(),
                     account = Account,
+                    sessionId = Session,
                     onFilesEvent = filesEvents::add,
                     onTransfersEvent = events::add,
                     resolveTransferFile = { FilesRepositoryResult.Success(resolvedItem) },
+                    onAccountSettingsEvent = {},
                     onSignOut = {},
                 )
             }
@@ -436,10 +554,13 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
                     transfersSessionId = sessionId,
                     account = Account,
+                    sessionId = Session,
                     onFilesEvent = {},
                     onTransfersEvent = events::add,
+                    onAccountSettingsEvent = {},
                     onSignOut = {},
                 )
             }
@@ -497,14 +618,19 @@ class MobileShellTest {
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         filesState: FilesBrowserState = emptyFilesState(),
+        accountSettingsState: AccountSettingsState = readyAccountSettingsState(),
         onFilesEvent: (FilesBrowserEvent) -> Unit = {},
+        onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
     ) {
         setContent {
             PutioTheme {
                 MobileShell(
                     filesState = filesState,
+                    accountSettingsState = accountSettingsState,
                     account = Account,
+                    sessionId = Session,
                     onFilesEvent = onFilesEvent,
+                    onAccountSettingsEvent = onAccountSettingsEvent,
                     onSignOut = {},
                 )
             }
@@ -513,6 +639,7 @@ class MobileShellTest {
 
     private companion object {
         val Account = MobileAccount(userId = 42L, username = "user", email = "user@example.com")
+        val Session = MobileAuthSessionId(1L)
     }
 }
 

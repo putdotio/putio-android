@@ -64,6 +64,10 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.SdkFilesRepository
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryState
@@ -127,6 +131,9 @@ private fun MobileAuthRoot(
     val rootScope = rememberCoroutineScope()
     val filesViewModel = viewModel<MobileFilesViewModel>(
         factory = remember(authController) { mobileFilesViewModelFactory(authController.state) },
+    )
+    val accountSettingsViewModel = viewModel<MobileAccountSettingsViewModel>(
+        factory = remember(authController) { mobileAccountSettingsViewModelFactory(authController.state) },
     )
     val searchHistoryViewModel = viewModel<MobileSearchHistoryViewModel>(
         factory = remember(authController, context.applicationContext) {
@@ -199,6 +206,7 @@ private fun MobileAuthRoot(
                 account = state.account,
                 sessionId = state.sessionId,
                 filesViewModel = filesViewModel,
+                accountSettingsViewModel = accountSettingsViewModel,
                 searchHistoryViewModel = searchHistoryViewModel,
                 transfersViewModel = transfersViewModel,
                 authController = authController,
@@ -268,6 +276,7 @@ private fun SignedInMobileRoot(
     account: MobileAccount,
     sessionId: MobileAuthSessionId,
     filesViewModel: MobileFilesViewModel,
+    accountSettingsViewModel: MobileAccountSettingsViewModel,
     searchHistoryViewModel: MobileSearchHistoryViewModel,
     transfersViewModel: MobileTransfersViewModel,
     authController: MobileAuthController,
@@ -283,6 +292,17 @@ private fun SignedInMobileRoot(
             repository = filesRepository,
         )
     }
+    val accountSettingsRepository = remember(runtime.putioClient) {
+        SdkAccountSettingsRepository(runtime.putioClient)
+    }
+    val accountSettingsController =
+        remember(accountSettingsViewModel, accountSettingsRepository, account.userId, sessionId) {
+            accountSettingsViewModel.controllerFor(
+                userId = account.userId,
+                sessionId = sessionId,
+                repository = accountSettingsRepository,
+            )
+        }
     val searchRepository = remember(runtime.putioClient) { SdkSearchRepository(runtime.putioClient) }
     val historyRepository = remember(runtime.putioClient) { SdkHistoryRepository(runtime.putioClient) }
     val transfersRepository = remember(runtime.putioClient) { SdkTransfersRepository(runtime.putioClient) }
@@ -305,11 +325,16 @@ private fun SignedInMobileRoot(
             repository = transfersRepository,
         )
     }
-    if (filesController == null || searchHistorySession == null || transfersController == null) {
+    if (filesController == null ||
+        accountSettingsController == null ||
+        searchHistorySession == null ||
+        transfersController == null
+    ) {
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
     }
     val filesState by filesController.state.collectAsStateWithLifecycle()
+    val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
     val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
     val historyState by searchHistorySession.history.state.collectAsStateWithLifecycle()
     val transfersState by transfersController.state.collectAsStateWithLifecycle()
@@ -317,6 +342,7 @@ private fun SignedInMobileRoot(
     val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
     val authoritativeFailure =
         filesState.authoritativeSessionFailure()
+            ?: accountSettingsState.authoritativeSessionFailure()
             ?: searchState.authoritativeSessionFailure()
             ?: historyState.authoritativeSessionFailure()
             ?: transfersState.authoritativeSessionFailure()
@@ -331,6 +357,7 @@ private fun SignedInMobileRoot(
 
     MobileShell(
         filesState = filesState,
+        accountSettingsState = accountSettingsState,
         searchHistoryState =
             MobileSearchHistoryState(
                 search = searchState,
@@ -341,7 +368,9 @@ private fun SignedInMobileRoot(
         transfersState = transfersState,
         transfersSessionId = sessionId,
         account = account,
+        sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
+        onAccountSettingsEvent = accountSettingsController::dispatch,
         searchHistoryActions =
             MobileSearchHistoryActions(
                 onQueryChanged = { searchHistorySession.search.updateQuery(it) },
@@ -372,11 +401,14 @@ private fun SignedInMobileRoot(
 @Composable
 internal fun MobileShell(
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
     transfersState: TransfersState = emptyTransfersState(),
     transfersSessionId: MobileAuthSessionId? = null,
     account: MobileAccount,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     searchHistoryActions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     onTransfersEvent: (TransfersEvent) -> Unit = {},
     resolveTransferFile: suspend (TransferFileId) -> FilesRepositoryResult<FilesItem> = {
@@ -445,11 +477,14 @@ internal fun MobileShell(
                     navController = navController,
                     selectedDestination = selectedDestination,
                     filesState = filesState,
+                    accountSettingsState = accountSettingsState,
                     searchHistoryState = searchHistoryState,
                     transfersState = transfersState,
                     transfersSessionId = transfersSessionId,
                     account = account,
+                    sessionId = sessionId,
                     onFilesEvent = onFilesEvent,
+                    onAccountSettingsEvent = onAccountSettingsEvent,
                     searchHistoryActions = searchHistoryActions,
                     onTransfersEvent = onTransfersEvent,
                     onSignOut = onSignOut,
@@ -459,11 +494,14 @@ internal fun MobileShell(
                     navController = navController,
                     selectedDestination = selectedDestination,
                     filesState = filesState,
+                    accountSettingsState = accountSettingsState,
                     searchHistoryState = searchHistoryState,
                     transfersState = transfersState,
                     transfersSessionId = transfersSessionId,
                     account = account,
+                    sessionId = sessionId,
                     onFilesEvent = onFilesEvent,
+                    onAccountSettingsEvent = onAccountSettingsEvent,
                     searchHistoryActions = searchHistoryActions,
                     onTransfersEvent = onTransfersEvent,
                     onSignOut = onSignOut,
@@ -528,11 +566,14 @@ private fun PhoneShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState,
     transfersState: TransfersState,
     transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
@@ -562,11 +603,14 @@ private fun PhoneShell(
         MobileNavHost(
             navController = navController,
             filesState = filesState,
+            accountSettingsState = accountSettingsState,
             searchHistoryState = searchHistoryState,
             transfersState = transfersState,
             transfersSessionId = transfersSessionId,
             account = account,
+            sessionId = sessionId,
             onFilesEvent = onFilesEvent,
+            onAccountSettingsEvent = onAccountSettingsEvent,
             searchHistoryActions = searchHistoryActions,
             onTransfersEvent = onTransfersEvent,
             onSignOut = onSignOut,
@@ -581,11 +625,14 @@ private fun TabletShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState,
     transfersState: TransfersState,
     transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
@@ -615,11 +662,14 @@ private fun TabletShell(
             MobileNavHost(
                 navController = navController,
                 filesState = filesState,
+                accountSettingsState = accountSettingsState,
                 searchHistoryState = searchHistoryState,
                 transfersState = transfersState,
                 transfersSessionId = transfersSessionId,
                 account = account,
+                sessionId = sessionId,
                 onFilesEvent = onFilesEvent,
+                onAccountSettingsEvent = onAccountSettingsEvent,
                 searchHistoryActions = searchHistoryActions,
                 onTransfersEvent = onTransfersEvent,
                 onSignOut = onSignOut,
@@ -687,11 +737,14 @@ private fun MobileDestinationIcon(
 private fun MobileNavHost(
     navController: NavHostController,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState,
     transfersState: TransfersState,
     transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
@@ -739,6 +792,9 @@ private fun MobileNavHost(
         composable(MobileDestination.Account.route) {
             MobileAccountScreen(
                 account = account,
+                sessionId = sessionId,
+                settingsState = accountSettingsState,
+                onSettingsEvent = onAccountSettingsEvent,
                 onSignOut = onSignOut,
             )
         }
