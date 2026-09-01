@@ -1,7 +1,10 @@
 package io.putdotio.android
 
+import android.text.format.Formatter
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,11 +17,13 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
@@ -33,6 +38,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -41,8 +49,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import coil3.compose.SubcomposeAsyncImage
+import coil3.compose.SubcomposeAsyncImageContent
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
+import io.putdotio.android.auth.MobileAccountStorage
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -51,8 +62,12 @@ import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsState
+import java.net.URI
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
+internal const val MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG = "mobile-account-avatar-fallback"
+internal const val MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG = "mobile-account-storage-progress"
 
 @Composable
 internal fun MobileAccountScreen(
@@ -145,17 +160,94 @@ internal fun MobileAccountScreen(
 
 @Composable
 private fun MobileAccountIdentity(account: MobileAccount) {
+    val context = LocalContext.current
+    val storageCopy =
+        stringResource(
+            R.string.mobile_account_storage,
+            Formatter.formatShortFileSize(context, account.storage.usedBytes.coerceAtLeast(0L)),
+            Formatter.formatShortFileSize(context, account.storage.availableBytes.coerceAtLeast(0L)),
+        )
     ListItem(
         headlineContent = { Text(account.username) },
-        supportingContent = { Text(account.email) },
+        supportingContent = {
+            Column {
+                Text(account.email)
+                Text(
+                    text = storageCopy,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                LinearProgressIndicator(
+                    progress = { account.storage.usedFraction() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .testTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG),
+                )
+            }
+        },
         leadingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_user_circle_fill),
-                contentDescription = null,
-            )
+            MobileAccountAvatar(account.avatarUrl)
         },
         overlineContent = { Text(stringResource(R.string.mobile_account_signed_in_as)) },
     )
+}
+
+@Composable
+private fun MobileAccountAvatar(avatarUrl: String?) {
+    val resolvedUrl = avatarUrl?.takeIf(String::isSupportedAvatarUrl)
+    val avatarModifier =
+        Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+    if (resolvedUrl == null) {
+        MobileAccountAvatarFallback(avatarModifier)
+        return
+    }
+
+    SubcomposeAsyncImage(
+        model = resolvedUrl,
+        contentDescription = null,
+        modifier = avatarModifier,
+        contentScale = ContentScale.Crop,
+        loading = { MobileAccountAvatarFallback(Modifier.fillMaxSize()) },
+        error = { MobileAccountAvatarFallback(Modifier.fillMaxSize()) },
+        success = { SubcomposeAsyncImageContent() },
+    )
+}
+
+@Composable
+private fun MobileAccountAvatarFallback(modifier: Modifier) {
+    Box(
+        modifier = modifier.testTag(MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_ph_user_circle_fill),
+            contentDescription = null,
+            modifier = Modifier.size(28.dp),
+        )
+    }
+}
+
+internal fun String.isSupportedAvatarUrl(): Boolean {
+    val uri = runCatching { URI(this) }.getOrNull() ?: return false
+    if (
+        !uri.scheme.equals("https", ignoreCase = true) ||
+        uri.host.isNullOrBlank() ||
+        uri.userInfo != null ||
+        uri.rawAuthority?.endsWith(':') == true
+    ) {
+        return false
+    }
+    val url = toHttpUrlOrNull() ?: return false
+    return url.isHttps && url.username.isEmpty() && url.password.isEmpty()
+}
+
+private fun MobileAccountStorage.usedFraction(): Float {
+    if (sizeBytes <= 0L) return 0f
+    return (usedBytes.toDouble() / sizeBytes.toDouble()).coerceIn(0.0, 1.0).toFloat()
 }
 
 private fun LazyListScope.accountSettingsItems(
