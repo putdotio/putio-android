@@ -8,8 +8,8 @@
 # Near-black captures are quarantined (*.black.*) and fail the command unless
 # --allow-dark is passed for content that is legitimately dark (playback,
 # dark scenes). Corrupt output is quarantined as *.corrupt.
-# .evidence/ is gitignored; publish a validated output with
-# scripts/publish-evidence.sh, or let prove.sh do it with --pr. Never commit it.
+# .evidence/ is gitignored. Inspect a validated output, then publish it with
+# scripts/publish-evidence.sh. Never commit it.
 # With one device connected --serial is optional.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"

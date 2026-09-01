@@ -51,8 +51,21 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -f "${file}" && -s "${file}" ]] || fail "evidence file is missing or empty: ${file}"
+case "${file##*/}" in
+  *.corrupt|*.black.*|*.idle|*.unverified.*)
+    fail "refusing to publish quarantined evidence: ${file}"
+    ;;
+esac
 [[ "${repo}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "--repo must be OWNER/NAME"
 [[ "${pr}" =~ ^[1-9][0-9]*$ ]] || fail "--pr must be a positive integer"
+evidence_name="${file##*/}"
+markdown_escape=$'\\'
+if [[ "${markdown}" == "1" ]] &&
+   [[ "${evidence_name}" == *'['* || "${evidence_name}" == *']'* ||
+      "${evidence_name}" == *"${markdown_escape}"* || "${evidence_name}" == *$'\n'* ||
+      "${evidence_name}" == *$'\r'* ]]; then
+  fail "evidence filename cannot be represented safely in Markdown: ${file}"
+fi
 
 attach_origin="${ATTACH_API_BASE:-https://attach.uinaf.dev}"
 while [[ "${attach_origin}" == */ ]]; do attach_origin="${attach_origin%/}"; done
@@ -74,10 +87,8 @@ args=(put "${file}" --repo "${repo}" --pr "${pr}")
 [[ "${markdown}" == "1" ]] && args+=(--markdown)
 [[ "${dry_run}" == "1" ]] && args+=(--dry-run)
 
-stderr_file="$(mktemp)"
-trap 'rm -f "${stderr_file}"' EXIT
 set +e
-output="$("${attach_command[@]}" "${args[@]}" 2>"${stderr_file}")"
+output="$("${attach_command[@]}" "${args[@]}" 2>/dev/null)"
 status=$?
 set -e
 if [[ "${status}" -ne 0 ]]; then
@@ -92,22 +103,29 @@ fi
 [[ -n "${output}" ]] || fail "Attach CLI returned empty output"
 [[ "${output}" != *$'\n'* && "${output}" != *$'\r'* ]] || fail "Attach CLI returned multiline output"
 preview_prefix="${attach_origin}/p/"
-raw_embed_prefix="](${attach_origin}/o/"
+raw_link_prefix="](${attach_origin}/o/"
 if [[ "${dry_run}" != "1" && "${markdown}" != "1" ]]; then
   preview_key="${output#"${preview_prefix}"}"
-  if [[ "${output}" == "${preview_key}" || ! "${preview_key}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+  if [[ "${output}" == "${preview_key}" || ! "${preview_key}" =~ ^[A-Za-z0-9_-]{20,}$ ]]; then
     fail "Attach CLI did not return one preview URL for ${attach_origin}"
   fi
 fi
 if [[ "${dry_run}" != "1" && "${markdown}" == "1" ]]; then
-  markdown_lead="${output%%"${raw_embed_prefix}"*}"
-  markdown_tail="${output#*"${raw_embed_prefix}"}"
+  markdown_lead="${output%%"${raw_link_prefix}"*}"
+  markdown_tail="${output#*"${raw_link_prefix}"}"
   markdown_key="${markdown_tail%)}"
-  expected_markdown="${markdown_lead}${raw_embed_prefix}${markdown_key})"
-  if [[ "${markdown_lead}" != '!'\[* || "${markdown_lead}" == *']'* ||
-        "${markdown_tail}" == "${output}" || ! "${markdown_key}" =~ ^[A-Za-z0-9_-]+$ ||
+  expected_markdown="${markdown_lead}${raw_link_prefix}${markdown_key})"
+  if [[ "${markdown_lead}" == '!'\[* ]]; then
+    markdown_label="${markdown_lead:2}"
+  elif [[ "${markdown_lead}" == \[* ]]; then
+    markdown_label="${markdown_lead:1}"
+  else
+    markdown_label="]"
+  fi
+  if [[ "${markdown_label}" != "${evidence_name}" ||
+        "${markdown_tail}" == "${output}" || ! "${markdown_key}" =~ ^[A-Za-z0-9_-]{20,}$ ||
         "${output}" != "${expected_markdown}" ]]; then
-    fail "Attach CLI did not return one Markdown raw-object embed for ${attach_origin}"
+    fail "Attach CLI did not return one Markdown raw-object link for ${attach_origin}"
   fi
 fi
 printf '%s\n' "${output}"

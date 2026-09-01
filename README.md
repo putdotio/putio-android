@@ -52,7 +52,6 @@ Available inputs:
 ./gradlew :app:assembleTvProductionDebug
 ./gradlew :app:assembleMobileProductionDebug
 ./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof + evidence
-./scripts/prove.sh mobile --pr 123                   # proof + hosted preview URL
 ```
 
 [AGENTS.md](./AGENTS.md) is the operating manual for setup, emulator flows,

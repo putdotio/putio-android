@@ -13,10 +13,6 @@
 #   --window        show the emulator window (default: headless)
 #   --skip-build    skip the explicit assemble (connectedAndroidTest still
 #                   builds incrementally)
-#   --pr N          upload each published capture to Attach for pull request N
-#   --repo OWNER/NAME
-#                   Attach repository metadata (default putdotio/putio-android)
-#   --markdown      emit an inline raw-object embed instead of a preview URL
 #
 # Exit codes: 0 proof passed · 1 proof failed · 64 usage · 70 cleanup failed
 # · 130/143 interrupted by SIGINT/SIGTERM (after stopping owned emulators)
@@ -29,14 +25,13 @@
 #   - AVD registrations are deleted only when created here via --ephemeral.
 #
 # Machine-readable stdout markers: BOOTED <serial>, EVIDENCE <path>,
-# EVIDENCE_URL <preview-url> or EVIDENCE_MARKDOWN <embed>,
 # PROOF PASS|FAIL <flavor>.
 #
-# Test hooks: PUTIO_PROVE_FAIL_AT=after-boot|after-install injects a failure;
-# PUTIO_PROVE_TEST_CAPTURE=<file> exercises the real publication boundary
-# without starting an emulator.
+# Test hook: PUTIO_PROVE_FAIL_AT=after-boot|after-install injects a failure
+# at that stage (used by scripts/test-lifecycle.sh).
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require_sdk_root
 
 FLAVOR="${1:-}"; shift || { print_usage "${BASH_SOURCE[0]}"; exit 64; }
 
@@ -46,9 +41,6 @@ KEEP=0
 EPHEMERAL=0
 HEADLESS=1
 SKIP_BUILD=0
-PUBLISH_PR=""
-PUBLISH_REPO="putdotio/putio-android"
-PUBLISH_MARKDOWN=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --record) RECORD=1 ;;
@@ -57,9 +49,6 @@ while [[ $# -gt 0 ]]; do
     --ephemeral) EPHEMERAL=1 ;;
     --window) HEADLESS=0 ;;
     --skip-build) SKIP_BUILD=1 ;;
-    --pr) PUBLISH_PR="${2:?--pr requires a value}"; shift ;;
-    --repo) PUBLISH_REPO="${2:?--repo requires a value}"; shift ;;
-    --markdown) PUBLISH_MARKDOWN=1 ;;
     *) die "unknown argument: $1" ;;
   esac
   shift
@@ -70,40 +59,6 @@ done
 if [[ "${KEEP}" == "1" && "${EPHEMERAL}" == "1" ]]; then
   die "--keep and --ephemeral conflict: an ephemeral AVD is always deleted"
 fi
-
-if [[ -n "${PUBLISH_PR}" && ! "${PUBLISH_PR}" =~ ^[1-9][0-9]*$ ]]; then
-  die "--pr must be a positive integer"
-fi
-if [[ ! "${PUBLISH_REPO}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
-  die "--repo must be OWNER/NAME"
-fi
-if [[ "${PUBLISH_MARKDOWN}" == "1" && -z "${PUBLISH_PR}" ]]; then
-  die "--markdown requires --pr"
-fi
-
-publish_capture() {
-  local capture="$1" published publish_args
-  [[ -n "${PUBLISH_PR}" ]] || return 0
-  publish_args=("${capture}" --repo "${PUBLISH_REPO}" --pr "${PUBLISH_PR}")
-  [[ "${PUBLISH_MARKDOWN}" == "1" ]] && publish_args+=(--markdown)
-  if ! published="$("${REPO_ROOT}/scripts/publish-evidence.sh" "${publish_args[@]}")"; then
-    die "evidence upload failed; validated local capture remains at ${capture}"
-  fi
-  if [[ "${PUBLISH_MARKDOWN}" == "1" ]]; then
-    echo "EVIDENCE_MARKDOWN ${published}"
-  else
-    echo "EVIDENCE_URL ${published}"
-  fi
-}
-
-if [[ -n "${PUTIO_PROVE_TEST_CAPTURE:-}" ]]; then
-  [[ -f "${PUTIO_PROVE_TEST_CAPTURE}" ]] || die "test capture missing: ${PUTIO_PROVE_TEST_CAPTURE}"
-  echo "EVIDENCE ${PUTIO_PROVE_TEST_CAPTURE}"
-  publish_capture "${PUTIO_PROVE_TEST_CAPTURE}"
-  exit 0
-fi
-
-require_sdk_root
 
 # evidence.sh needs ffprobe for its capture gates; fail before booting
 # anything rather than after a full verification.
@@ -364,7 +319,6 @@ if ! evidence_launch_healthy; then
   die "evidence launch died during capture — screenshot quarantined as ${shot%.png}.unverified.png"
 fi
 echo "EVIDENCE ${shot}"
-publish_capture "${shot}"
 
 if [[ "${RECORD}" == "1" ]]; then
   # Recorded on the settled, render-verified system: a force-stop then cold
@@ -413,7 +367,6 @@ if [[ "${RECORD}" == "1" ]]; then
   evidence_launch_healthy || quarantine_rec "recorded relaunch died during capture"
   log "recorded relaunch rendered (${post_shot##*/})"
   echo "EVIDENCE ${rec}"
-  publish_capture "${rec}"
 fi
 
 # cleanup emits the final PROOF marker after teardown succeeds.
