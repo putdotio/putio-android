@@ -52,6 +52,7 @@ class SdkFilesRepositoryTest {
                     },
                     continueListing = { _, _ -> error("Unexpected continuation") },
                     setSort = { _, _ -> error("Unexpected sort") },
+                    getFile = { error("Unexpected file resolution") },
                 )
 
             val result = repository.loadFolder(FilesFolder.Root.id) as FilesRepositoryResult.Success
@@ -78,6 +79,7 @@ class SdkFilesRepositoryTest {
                         response(cursor = "  ")
                     },
                     setSort = { _, _ -> error("Unexpected sort") },
+                    getFile = { error("Unexpected file resolution") },
                 )
 
             val result = repository.loadNextPage(FilesCursor("opaque-cursor")) as FilesRepositoryResult.Success
@@ -109,6 +111,28 @@ class SdkFilesRepositoryTest {
             )
             assertTrue((network as FilesRepositoryResult.Failure).failure is FilesFailure.NetworkUnavailable)
             assertTrue((sortFailure as FilesRepositoryResult.Failure).failure is FilesFailure.NetworkUnavailable)
+        }
+
+    @Test
+    fun resolvesFileDetailsThroughTheFilesBoundary() =
+        runBlocking {
+            var requestedFileId: Long? = null
+            val repository =
+                SdkFilesRepository(
+                    listFolder = { _, _ -> error("Unexpected folder load") },
+                    continueListing = { _, _ -> error("Unexpected continuation") },
+                    setSort = { _, _ -> error("Unexpected sort") },
+                    getFile = { fileId ->
+                        requestedFileId = fileId
+                        sdkFile(fileId, "movie.mkv", PutioFileType.VIDEO)
+                    },
+                )
+
+            val result = repository.resolveItem(FilesItemId(42L)) as FilesRepositoryResult.Success
+
+            assertEquals(42L, requestedFileId)
+            assertEquals(FilesItemId(42L), result.value.id)
+            assertEquals("movie.mkv", result.value.name)
         }
 
     @Test
@@ -216,6 +240,7 @@ class SdkFilesRepositoryTest {
                     listFolder = { _, _ -> response() },
                     continueListing = { _, _ -> response() },
                     setSort = { folderId, sort -> persisted += folderId to sort },
+                    getFile = { error("Unexpected file resolution") },
                 )
 
             assertEquals(12, FilesSort.entries.size)
@@ -234,6 +259,7 @@ class SdkFilesRepositoryTest {
             listFolder = { _, _ -> throw error },
             continueListing = { _, _ -> throw error },
             setSort = { _, _ -> throw error },
+            getFile = { throw error },
         )
 
     private fun apiFailure(

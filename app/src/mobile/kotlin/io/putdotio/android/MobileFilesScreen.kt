@@ -56,7 +56,6 @@ import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
 import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
-import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.sdk.files.PutioFileType
@@ -90,7 +89,7 @@ internal fun MobileFilesScreen(
         is FilesContent.Failed ->
             MobileErrorState(
                 title = stringResource(R.string.mobile_state_error_title),
-                message = stringResource(content.failure.messageResource()),
+                message = stringResource(content.failure.mobileMessageResource()),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(FilesBrowserEvent.Retry) },
                 modifier = modifier,
@@ -306,8 +305,24 @@ private fun MobileFilesList(
         ) { item ->
             MobileFilesRow(
                 item = item,
-                onOpenFolder = { onEvent(FilesBrowserEvent.OpenFolder(it)) },
-                onPlayVideo = onPlayVideo,
+                onClick = when {
+                    item.isFolder -> {
+                        { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
+                    }
+
+                    item.type == PutioFileType.VIDEO -> {
+                        { onPlayVideo(item) }
+                    }
+
+                    else -> null
+                },
+                onClickLabel = when {
+                    item.isFolder -> stringResource(R.string.mobile_files_open_folder, item.name)
+                    item.type == PutioFileType.VIDEO ->
+                        stringResource(R.string.mobile_files_play_video, item.name)
+
+                    else -> null
+                },
             )
             HorizontalDivider(modifier = Modifier.padding(start = FILES_DIVIDER_INSET))
         }
@@ -325,35 +340,22 @@ private fun MobileFilesList(
 }
 
 @Composable
-private fun MobileFilesRow(
+internal fun MobileFilesRow(
     item: FilesItem,
-    onOpenFolder: (FilesItemId) -> Unit,
-    onPlayVideo: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
 ) {
     val metadata = formatFilesItemMetadata(LocalContext.current, item)
-    val interaction =
-        when {
-            item.isFolder -> {
-                val openFolderLabel = stringResource(R.string.mobile_files_open_folder, item.name)
-                Modifier.clickable(
-                    onClickLabel = openFolderLabel,
-                    role = Role.Button,
-                    onClick = { onOpenFolder(item.id) },
-                )
-            }
-
-            item.type == PutioFileType.VIDEO -> {
-                val playVideoLabel = stringResource(R.string.mobile_files_play_video, item.name)
-                Modifier.clickable(
-                    onClickLabel = playVideoLabel,
-                    role = Role.Button,
-                    onClick = { onPlayVideo(item) },
-                )
-            }
-
-            else -> Modifier
-        }
+    val interaction = if (onClick != null) {
+        Modifier.clickable(
+            onClickLabel = onClickLabel,
+            role = Role.Button,
+            onClick = onClick,
+        )
+    } else {
+        Modifier
+    }
 
     ListItem(
         headlineContent = {
@@ -483,7 +485,7 @@ private fun String.toDisplayDate(context: Context): String? =
         }
 
 @StringRes
-private fun FilesFailure.messageResource(): Int =
+internal fun FilesFailure.mobileMessageResource(): Int =
     when (this) {
         is FilesFailure.AuthenticationRequired -> R.string.mobile_state_error_session
         is FilesFailure.AccessDenied -> R.string.mobile_state_error_forbidden

@@ -37,6 +37,11 @@ booted_serial() {
 
 [[ -f "${APK}" ]] || (cd "${REPO_ROOT}" && ./gradlew -q :app:assembleMobileProductionDebug)
 
+phone_avd_image="$(avd_image_for_name "${PHONE_AVD}")" || \
+  fail "precondition: could not determine ${PHONE_AVD} system image"
+[[ "${phone_avd_image}" == "$(phone_image)" ]] || \
+  fail "precondition: ${PHONE_AVD} uses ${phone_avd_image}; run scripts/bootstrap.sh"
+
 # No emulator may be running at the start; the assertions depend on it.
 if "${ADB}" devices | awk '$1 ~ /^emulator-/ {found=1} END {exit !found}'; then
   fail "precondition: emulators already running; stop them first (scripts/emulator.sh status)"
@@ -61,6 +66,8 @@ out="${tmpdir}/case0.log"
 serial="$(booted_serial "${out}")"
 [[ -n "${serial}" ]] || fail "case 0: no BOOTED marker"
 grep -q "PROOF PASS mobile" "${out}" || fail "case 0: missing PROOF PASS marker"
+grep -q "phone runtime ready on ${serial}: API ${PHONE_API_LEVEL}.*AndroidX Auth Tab" "${out}" || \
+  fail "case 0: missing API ${PHONE_API_LEVEL} Auth Tab readiness proof"
 assert_serial_gone "${serial}" "case 0"
 assert_avd_exists "${PHONE_AVD}" "case 0"
 log "case 0 passed (owned ${serial} stopped after success, ${PHONE_AVD} preserved)"
@@ -119,7 +126,9 @@ out="${tmpdir}/case4-reuse.log"
 if PUTIO_PROVE_FAIL_AT=after-boot "${PROVE}" mobile --skip-build >"${out}" 2>&1; then
   fail "case 4: reuse prove.sh unexpectedly succeeded"
 fi
-[[ "$(booted_serial "${out}")" == "${PRE_SERIAL}" ]] || fail "case 4: reuse run did not reuse ${PRE_SERIAL}"
+reuse_serial="$(booted_serial "${out}")"
+[[ "${reuse_serial}" == "${PRE_SERIAL}" ]] || \
+  fail "case 4: expected reuse of ${PRE_SERIAL}, got ${reuse_serial:-no BOOTED marker} ($(tail -5 "${out}"))"
 assert_serial_present "${PRE_SERIAL}" "case 4 (after reuse failure)"
 
 out="${tmpdir}/case4-eph.log"

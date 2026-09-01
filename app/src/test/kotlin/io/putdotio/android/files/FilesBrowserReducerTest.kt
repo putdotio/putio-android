@@ -474,6 +474,29 @@ class FilesBrowserReducerTest {
         assertSame(root, back.state)
     }
 
+    @Test
+    fun externalFolderResultOpensDirectlyFromRoot() {
+        val root = loadedRoot(items = emptyList(), nextCursor = null)
+        val folder = item(70L, "Search result", PutioFileType.FOLDER)
+
+        val opened = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenExternalItem(folder))
+
+        assertEquals(FilesItemId(70L), opened.state.current.folder.id)
+        assertEquals(FilesItemId(70L), (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
+        assertTrue(opened.state.canNavigateBack)
+    }
+
+    @Test
+    fun externalFileResultOpensItsContainingFolder() {
+        val root = loadedRoot(items = emptyList(), nextCursor = null)
+        val file = item(71L, "movie.mkv", PutioFileType.VIDEO).copy(parentId = FilesItemId(44L))
+
+        val opened = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenExternalItem(file))
+
+        assertEquals(FilesItemId(44L), opened.state.current.folder.id)
+        assertEquals(FilesItemId(44L), (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
+    }
+
     private fun loadedRoot(
         items: List<FilesItem>,
         nextCursor: FilesCursor?,
