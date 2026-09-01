@@ -3,6 +3,7 @@ package io.putdotio.android
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,8 +25,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -31,7 +36,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
@@ -156,8 +164,15 @@ private fun LazyListScope.accountSettingsItems(
     onChange: (AccountSettingsChange) -> Unit,
     onRetryChange: () -> Unit,
 ) {
-    val enabled = mutation == AccountSettingsMutation.Idle
+    val enabled =
+        when (mutation) {
+            AccountSettingsMutation.Idle -> true
+            is AccountSettingsMutation.Saving -> false
+            is AccountSettingsMutation.Failed ->
+                mutation.failure !is AccountSettingsFailure.AuthenticationRequired
+        }
     val savingKey = (mutation as? AccountSettingsMutation.Saving)?.change?.key
+    val failedMutation = mutation as? AccountSettingsMutation.Failed
     item(key = SUBTITLES_HEADER_KEY) {
         MobileAccountSectionHeader(R.string.mobile_settings_section_subtitles)
     }
@@ -169,6 +184,8 @@ private fun LazyListScope.accountSettingsItems(
             checked = preferences.showSubtitles,
             enabled = enabled,
             saving = savingKey == AccountSettingsKey.ShowSubtitles,
+            failure = failedMutation?.takeIf { it.change.key == AccountSettingsKey.ShowSubtitles },
+            onRetry = onRetryChange,
             onCheckedChange = {
                 onChange(AccountSettingsChange(AccountSettingsKey.ShowSubtitles, it))
             },
@@ -183,6 +200,8 @@ private fun LazyListScope.accountSettingsItems(
                 checked = preferences.autoSelectSubtitles,
                 enabled = enabled,
                 saving = savingKey == AccountSettingsKey.AutoSelectSubtitles,
+                failure = failedMutation?.takeIf { it.change.key == AccountSettingsKey.AutoSelectSubtitles },
+                onRetry = onRetryChange,
                 onCheckedChange = {
                     onChange(AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, it))
                 },
@@ -200,6 +219,8 @@ private fun LazyListScope.accountSettingsItems(
             checked = preferences.historyEnabled,
             enabled = enabled,
             saving = savingKey == AccountSettingsKey.History,
+            failure = failedMutation?.takeIf { it.change.key == AccountSettingsKey.History },
+            onRetry = onRetryChange,
             onCheckedChange = {
                 onChange(AccountSettingsChange(AccountSettingsKey.History, it))
             },
@@ -213,18 +234,12 @@ private fun LazyListScope.accountSettingsItems(
             checked = preferences.trashEnabled,
             enabled = enabled,
             saving = savingKey == AccountSettingsKey.Trash,
+            failure = failedMutation?.takeIf { it.change.key == AccountSettingsKey.Trash },
+            onRetry = onRetryChange,
             onCheckedChange = {
                 onChange(AccountSettingsChange(AccountSettingsKey.Trash, it))
             },
         )
-    }
-    if (mutation is AccountSettingsMutation.Failed) {
-        item(key = SETTINGS_MUTATION_ERROR_KEY) {
-            MobileAccountMutationError(
-                failure = mutation.failure,
-                onRetry = onRetryChange,
-            )
-        }
     }
 }
 
@@ -246,44 +261,55 @@ private fun MobileAccountSettingRow(
     checked: Boolean,
     enabled: Boolean,
     saving: Boolean,
+    failure: AccountSettingsMutation.Failed?,
+    onRetry: () -> Unit,
     onCheckedChange: (Boolean) -> Unit,
 ) {
-    ListItem(
-        headlineContent = { Text(stringResource(title)) },
-        supportingContent = { Text(stringResource(description)) },
-        leadingContent = {
-            Icon(
-                painter = painterResource(icon),
-                contentDescription = null,
-            )
-        },
-        trailingContent = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (saving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
+    Column(modifier = Modifier.fillMaxWidth()) {
+        ListItem(
+            headlineContent = { Text(stringResource(title)) },
+            supportingContent = { Text(stringResource(description)) },
+            leadingContent = {
+                Icon(
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                )
+            },
+            trailingContent = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (saving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                    Switch(
+                        checked = checked,
+                        onCheckedChange = null,
+                        enabled = enabled,
                     )
                 }
-                Switch(
-                    checked = checked,
-                    onCheckedChange = null,
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = checked,
                     enabled = enabled,
-                )
-            }
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(
-                value = checked,
-                enabled = enabled,
-                role = Role.Switch,
-                onValueChange = onCheckedChange,
-            ),
-    )
+                    role = Role.Switch,
+                    onValueChange = onCheckedChange,
+                ),
+        )
+        failure?.let {
+            MobileAccountMutationError(
+                failure = it.failure,
+                operation = it.operation,
+                onRetry = onRetry,
+            )
+        }
+    }
 }
 
 @Composable
@@ -309,8 +335,10 @@ private fun MobileAccountSettingsError(
         headlineContent = { Text(stringResource(R.string.mobile_settings_error_title)) },
         supportingContent = { Text(stringResource(failure.messageResource())) },
         trailingContent = {
-            TextButton(onClick = onRetry) {
-                Text(stringResource(R.string.mobile_action_retry))
+            if (failure !is AccountSettingsFailure.AuthenticationRequired) {
+                TextButton(onClick = onRetry) {
+                    Text(stringResource(R.string.mobile_action_retry))
+                }
             }
         },
     )
@@ -319,14 +347,29 @@ private fun MobileAccountSettingsError(
 @Composable
 private fun MobileAccountMutationError(
     failure: AccountSettingsFailure,
+    operation: AccountSettingsMutation.Operation,
     onRetry: () -> Unit,
 ) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(failure, operation) {
+        bringIntoViewRequester.bringIntoView()
+    }
+    val title =
+        when (operation) {
+            AccountSettingsMutation.Operation.Save -> R.string.mobile_settings_save_error
+            AccountSettingsMutation.Operation.Refresh -> R.string.mobile_settings_refresh_error
+        }
     ListItem(
-        headlineContent = { Text(stringResource(R.string.mobile_settings_save_error)) },
+        modifier = Modifier
+            .bringIntoViewRequester(bringIntoViewRequester)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        headlineContent = { Text(stringResource(title)) },
         supportingContent = { Text(stringResource(failure.messageResource())) },
         trailingContent = {
-            TextButton(onClick = onRetry) {
-                Text(stringResource(R.string.mobile_action_retry))
+            if (failure !is AccountSettingsFailure.AuthenticationRequired) {
+                TextButton(onClick = onRetry) {
+                    Text(stringResource(R.string.mobile_action_retry))
+                }
             }
         },
     )
@@ -353,5 +396,4 @@ private const val SETTINGS_LOADING_KEY = "account-settings-loading"
 private const val SETTINGS_ERROR_KEY = "account-settings-error"
 private const val SUBTITLES_HEADER_KEY = "account-settings-subtitles-header"
 private const val PRIVACY_STORAGE_HEADER_KEY = "account-settings-privacy-storage-header"
-private const val SETTINGS_MUTATION_ERROR_KEY = "account-settings-mutation-error"
 private const val SIGN_OUT_KEY = "account-sign-out"

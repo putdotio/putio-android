@@ -24,6 +24,7 @@
     <string name="mobile_settings_loading">Loading account settings</string>
     <string name="mobile_settings_error_title">Couldn’t load account settings</string>
     <string name="mobile_settings_save_error">Couldn’t save this setting</string>
+    <string name="mobile_settings_refresh_error">Saved, but couldn’t confirm this setting</string>
     <string name="mobile_settings_error_access_denied">This app doesn’t have access to account settings.</string>
     <string name="mobile_settings_section_subtitles">Subtitles</string>
     <string name="mobile_settings_section_privacy_storage">Privacy and storage</string>

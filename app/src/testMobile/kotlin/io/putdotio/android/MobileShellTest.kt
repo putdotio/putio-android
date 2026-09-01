@@ -2,6 +2,9 @@ package io.putdotio.android
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -15,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
@@ -32,7 +36,9 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsChange
+import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
+import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
@@ -87,6 +93,49 @@ class MobileShellTest {
             ),
             events,
         )
+    }
+
+    @Test
+    fun compactPhoneShellBringsRecoverableFailureIntoView() {
+        var settingsState by mutableStateOf(readyAccountSettingsState())
+        compose.setContent {
+            PutioTheme {
+                Box(modifier = Modifier.requiredSize(width = 360.dp, height = 240.dp)) {
+                    MobileShell(
+                        filesState = emptyFilesState(),
+                        accountSettingsState = settingsState,
+                        account = Account,
+                        sessionId = Session,
+                        onFilesEvent = {},
+                        onAccountSettingsEvent = { event ->
+                            if (event is AccountSettingsEvent.ChangeRequested) {
+                                settingsState =
+                                    readyAccountSettingsState(
+                                        mutation =
+                                            AccountSettingsMutation.Failed(
+                                                change = event.change,
+                                                failure =
+                                                    AccountSettingsFailure.Unexpected(
+                                                        IllegalStateException("offline"),
+                                                    ),
+                                                previousPreferences = DefaultAccountSettingsPreferences,
+                                                operation = AccountSettingsMutation.Operation.Save,
+                                            ),
+                                    )
+                            }
+                        },
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithText("Account").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(3)
+        compose.onNodeWithText("Show subtitles").assertIsDisplayed().performClick()
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
     }
 
     @Test

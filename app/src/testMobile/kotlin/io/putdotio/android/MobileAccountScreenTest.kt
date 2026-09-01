@@ -1,10 +1,15 @@
 package io.putdotio.android
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -126,6 +131,129 @@ class MobileAccountScreenTest {
         compose.onNodeWithText("Try again").performClick()
 
         assertEquals(AccountSettingsEvent.RetryLoad, events.single())
+    }
+
+    @Test
+    fun authenticationLoadFailureHasNoRetryAction() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        setAccountContent(
+            state =
+                AccountSettingsState(
+                    content =
+                        AccountSettingsContent.Failed(
+                            AccountSettingsFailure.AuthenticationRequired(
+                                PutioConfigurationException("invalid token"),
+                            ),
+                        ),
+                    mutation = AccountSettingsMutation.Idle,
+                    nextRequestValue = 2L,
+                ),
+            events = events,
+        )
+
+        compose.onNodeWithText("Your session has expired. Sign in again.").assertIsDisplayed()
+        compose.onAllNodesWithText("Try again").assertCountEquals(0)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    @Config(sdk = [35], qualifiers = "w360dp-h240dp")
+    fun recoverableMutationFailureStaysVisibleWithoutDisablingRows() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        setAccountContent(
+            state =
+                readyAccountSettingsState(
+                    mutation =
+                        AccountSettingsMutation.Failed(
+                            change =
+                                AccountSettingsChange(
+                                    AccountSettingsKey.ShowSubtitles,
+                                    enabled = false,
+                                ),
+                            failure = failure,
+                            previousPreferences = DefaultAccountSettingsPreferences,
+                            operation = AccountSettingsMutation.Operation.Save,
+                        ),
+                ),
+            events = events,
+        )
+
+        compose.onNode(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.LiveRegion,
+                LiveRegionMode.Polite,
+            ),
+        ).assertExists()
+        compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
+        compose.onNodeWithText("Show subtitles").assertIsEnabled().performClick()
+
+        assertEquals(
+            AccountSettingsEvent.ChangeRequested(
+                AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
+            ),
+            events.single(),
+        )
+    }
+
+    @Test
+    fun authoritativeMutationFailureDisablesRowsAndHidesRetry() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        val failure =
+            AccountSettingsFailure.AuthenticationRequired(
+                PutioConfigurationException("invalid token"),
+            )
+        setAccountContent(
+            state =
+                readyAccountSettingsState(
+                    mutation =
+                        AccountSettingsMutation.Failed(
+                            change =
+                                AccountSettingsChange(
+                                    AccountSettingsKey.ShowSubtitles,
+                                    enabled = false,
+                                ),
+                            failure = failure,
+                            previousPreferences = DefaultAccountSettingsPreferences,
+                            operation = AccountSettingsMutation.Operation.Save,
+                        ),
+                ),
+            events = events,
+        )
+
+        compose.onNodeWithText("Show subtitles").assertIsNotEnabled()
+        compose.onAllNodesWithText("Try again").assertCountEquals(0)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun refreshFailureUsesConfirmationCopyAndRetriesTheRefresh() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        setAccountContent(
+            state =
+                readyAccountSettingsState(
+                    preferences = DefaultAccountSettingsPreferences.copy(showSubtitles = false),
+                    mutation =
+                        AccountSettingsMutation.Failed(
+                            change =
+                                AccountSettingsChange(
+                                    AccountSettingsKey.ShowSubtitles,
+                                    enabled = false,
+                                ),
+                            failure = failure,
+                            previousPreferences = DefaultAccountSettingsPreferences,
+                            operation = AccountSettingsMutation.Operation.Refresh,
+                        ),
+                ),
+            events = events,
+        )
+
+        compose.onNodeWithText("Saved, but couldn’t confirm this setting").assertIsDisplayed()
+        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(0)
+        compose.onNodeWithText("Try again").performClick()
+
+        assertEquals(AccountSettingsEvent.RetryChange, events.single())
     }
 
     @Test
