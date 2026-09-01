@@ -24,6 +24,14 @@ if [[ "${ATTACH_INVALID:-0}" == "1" ]]; then
   echo 'invalid metadata att_secret' >&2
   exit 2
 fi
+if [[ "${ATTACH_MALFORMED:-}" == "preview" ]]; then
+  echo 'https://attach.uinaf.dev/p/preview att_secret'
+  exit 0
+fi
+if [[ "${ATTACH_MALFORMED:-}" == "markdown" ]]; then
+  echo 'prefix ![proof](https://attach.uinaf.dev/o/object) att_secret'
+  exit 0
+fi
 echo 'successful diagnostic that must stay off stdout' >&2
 case " $* " in
   *' --markdown '*) echo '![proof](https://attach.uinaf.dev/o/object)' ;;
@@ -113,6 +121,21 @@ if grep -Eq 'ABCD-EFGH|att_secret' "${tmpdir}/xtrace.out"; then
   echo "xtrace leaked suppressed Attach output" >&2
   exit 1
 fi
+
+for malformed in preview markdown; do
+  malformed_args=("${fixture}" --pr 50)
+  [[ "${malformed}" == "markdown" ]] && malformed_args+=(--markdown)
+  if PATH="${fake_bin}:/usr/bin:/bin" ATTACH_ARGS_FILE="${args_file}" \
+    ATTACH_MALFORMED="${malformed}" \
+    "${SCRIPT}" "${malformed_args[@]}" >"${tmpdir}/malformed-${malformed}.out" 2>&1; then
+    echo "expected malformed successful ${malformed} output to fail" >&2
+    exit 1
+  fi
+  if grep -q 'att_secret' "${tmpdir}/malformed-${malformed}.out"; then
+    echo "malformed successful ${malformed} output leaked arbitrary stdout" >&2
+    exit 1
+  fi
+done
 
 # Invoke prove.sh's real argument and marker boundary without an emulator.
 prove_out="$(PATH="${fake_bin}:/usr/bin:/bin" ATTACH_ARGS_FILE="${args_file}" \

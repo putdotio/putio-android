@@ -79,10 +79,21 @@ fi
 [[ "${output}" != *$'\n'* && "${output}" != *$'\r'* ]] || fail "Attach CLI returned multiline output"
 preview_prefix="${attach_origin}/p/"
 raw_embed_prefix="](${attach_origin}/o/"
-if [[ "${dry_run}" != "1" && "${markdown}" != "1" && "${output}" != "${preview_prefix}"?* ]]; then
-  fail "Attach CLI did not return a preview URL for ${attach_origin}"
+if [[ "${dry_run}" != "1" && "${markdown}" != "1" ]]; then
+  preview_key="${output#"${preview_prefix}"}"
+  if [[ "${output}" == "${preview_key}" || ! "${preview_key}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    fail "Attach CLI did not return one preview URL for ${attach_origin}"
+  fi
 fi
-if [[ "${dry_run}" != "1" && "${markdown}" == "1" && "${output}" != *"${raw_embed_prefix}"?* ]]; then
-  fail "Attach CLI did not return a Markdown raw-object embed for ${attach_origin}"
+if [[ "${dry_run}" != "1" && "${markdown}" == "1" ]]; then
+  markdown_lead="${output%%"${raw_embed_prefix}"*}"
+  markdown_tail="${output#*"${raw_embed_prefix}"}"
+  markdown_key="${markdown_tail%)}"
+  expected_markdown="${markdown_lead}${raw_embed_prefix}${markdown_key})"
+  if [[ "${markdown_lead}" != '!'\[* || "${markdown_lead}" == *']'* ||
+        "${markdown_tail}" == "${output}" || ! "${markdown_key}" =~ ^[A-Za-z0-9_-]+$ ||
+        "${output}" != "${expected_markdown}" ]]; then
+    fail "Attach CLI did not return one Markdown raw-object embed for ${attach_origin}"
+  fi
 fi
 printf '%s\n' "${output}"
