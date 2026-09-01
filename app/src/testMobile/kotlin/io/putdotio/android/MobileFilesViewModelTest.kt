@@ -208,6 +208,11 @@ class MobileFilesViewModelTest {
         override suspend fun loadNextPage(
             cursor: io.putdotio.android.files.FilesCursor,
         ): FilesRepositoryResult<FilesPage> = error("No continuation expected")
+
+        override suspend fun persistSort(
+            folderId: FilesItemId,
+            sort: io.putdotio.android.files.FilesSort,
+        ): FilesRepositoryResult<Unit> = FilesRepositoryResult.Success(Unit)
     }
 
     private companion object {
