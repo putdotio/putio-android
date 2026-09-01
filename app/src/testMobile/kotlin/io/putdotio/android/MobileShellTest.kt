@@ -31,6 +31,8 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsChange
+import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
@@ -70,6 +72,24 @@ class MobileShellTest {
     }
 
     @Test
+    fun phoneShellForwardsAccountSettingEvents() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setShell(onAccountSettingsEvent = events::add)
+
+        compose.onNodeWithText("Account").performClick()
+        compose.onNodeWithText("Show subtitles").performClick()
+
+        assertEquals(
+            listOf(
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
+                ),
+            ),
+            events,
+        )
+    }
+
+    @Test
     fun nestedFolderUsesItsNameAndBackAction() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.setShell(
@@ -103,6 +123,38 @@ class MobileShellTest {
 
         compose.onNodeWithTag(MOBILE_NAV_RAIL_TAG).assertExists()
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun tabletShellForwardsAccountSettingEvents() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setContent {
+            PutioTheme {
+                Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
+                    MobileShell(
+                        filesState = emptyFilesState(),
+                        accountSettingsState = readyAccountSettingsState(),
+                        account = Account,
+                        sessionId = Session,
+                        onFilesEvent = {},
+                        onAccountSettingsEvent = events::add,
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithText("Account").performClick()
+        compose.onNodeWithText("Show subtitles").performClick()
+
+        assertEquals(
+            listOf(
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
+                ),
+            ),
+            events,
+        )
     }
 
     @Test
