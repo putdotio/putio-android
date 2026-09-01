@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import android.os.Build
+import android.os.Bundle
 import androidx.annotation.StringRes
 import androidx.core.net.toUri
 import androidx.compose.foundation.background
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
@@ -161,6 +163,9 @@ private fun MobileReadyVideoPlayer(
         mutableStateOf(initialPlayback.startPositionMillis)
     }
     var resumeAfterLifecyclePause by rememberSaveable(source.fileId) { mutableStateOf(true) }
+    var retainedTrackSelection by rememberSaveable(source.fileId) {
+        mutableStateOf<Bundle?>(null)
+    }
     val preparedPlayback = remember(source, title) {
         source.preparePlayback(title, retainedPositionMillis)
     }
@@ -174,9 +179,17 @@ private fun MobileReadyVideoPlayer(
                 .setEnableDecoderFallback(true)
         }
         ExoPlayer.Builder(context, renderersFactory).build().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build(),
+                /* handleAudioFocus = */ true,
+            )
             setMediaItem(preparedPlayback.mediaItem, preparedPlayback.startPositionMillis)
             trackSelectionParameters =
-                trackSelectionParameters.withSubtitlesEnabled(source.hasSelectableSubtitles())
+                retainedTrackSelection?.let(TrackSelectionParameters::fromBundle)
+                    ?: trackSelectionParameters.withSubtitlesEnabled(source.hasSelectableSubtitles())
             prepare()
             playWhenReady =
                 lifecycleAllowsAutoplay(lifecycle.currentState, resumeAfterLifecyclePause)
@@ -205,6 +218,10 @@ private fun MobileReadyVideoPlayer(
 
                 override fun onCues(cueGroup: CueGroup) {
                     cues = cueGroup.cues
+                }
+
+                override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
+                    retainedTrackSelection = parameters.toBundle()
                 }
             }
         player.addListener(listener)
