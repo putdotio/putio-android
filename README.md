@@ -57,5 +57,9 @@ Available inputs:
 `verify` also assembles an unsigned, minified mobile production release APK to
 prove the composite Kotlin SDK survives Android minSdk 26 and R8.
 
+The reusable phone AVD uses the API 37 Google Play image and verifies bundled
+Chrome/AndroidX Auth Tab readiness on every boot. Android TV and the scheduled
+CI managed device remain on API 36.
+
 [AGENTS.md](./AGENTS.md) is the operating manual for setup, emulator flows,
 and evidence conventions.

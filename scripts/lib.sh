@@ -58,10 +58,15 @@ require_sdk_root() {
   [[ -x "${ADB}" ]] || die "adb missing at ${ADB}; run scripts/bootstrap.sh"
 }
 
-# Reusable AVD names and images. Phone and TV share API 36 so one platform
-# level serves both; TV system images are not published for 37 yet.
+# Reusable AVD names and images. The phone uses API 37 because its Google Play
+# image includes a Chrome build with AndroidX Auth Tab support. Android TV
+# system images are not published for API 37 yet, so TV remains on API 36.
 PHONE_AVD="putio-phone"
 TV_AVD="putio-tv"
+PHONE_API_LEVEL="37"
+CHROME_PACKAGE="com.android.chrome"
+AUTH_TAB_SERVICE_ACTION="android.support.customtabs.action.CustomTabsService"
+AUTH_TAB_SERVICE_CATEGORY="androidx.browser.auth.category.AuthTab"
 
 sdk_arch() {
   case "$(uname -m)" in
@@ -71,7 +76,7 @@ sdk_arch() {
   esac
 }
 
-phone_image() { echo "system-images;android-36;google_apis;$(sdk_arch)"; }
+phone_image() { echo "system-images;android-37.0;google_apis_playstore;$(sdk_arch)"; }
 tv_image() { echo "system-images;android-36;android-tv;$(sdk_arch)"; }
 
 # profile -> AVD name / image / avdmanager device id
@@ -88,6 +93,29 @@ image_for() {
     tv) tv_image ;;
   esac
 }
+
+avd_delete_command() {
+  local profile="$1" name="$2" command
+  command="scripts/emulator.sh delete ${profile}"
+  [[ "${name}" == "$(avd_name_for "${profile}")" ]] || command+=" --name ${name}"
+  echo "${command}"
+}
+
+avd_stop_command() {
+  local profile="$1" name="$2" command
+  command="scripts/emulator.sh stop ${profile}"
+  [[ "${name}" == "$(avd_name_for "${profile}")" ]] || command+=" --name ${name}"
+  echo "${command}"
+}
+
+avd_recreate_command() {
+  local profile="$1" name="$2"
+  if [[ "${name}" == "$(avd_name_for "${profile}")" ]]; then
+    echo "scripts/bootstrap.sh"
+  else
+    echo "scripts/emulator.sh create ${profile} --name ${name}"
+  fi
+}
 device_for() {
   case "$1" in
     phone) echo "pixel_7" ;;
@@ -97,6 +125,50 @@ device_for() {
 
 avd_exists() {
   "${AVDMANAGER}" list avd -c 2>/dev/null | grep -qx "$1"
+}
+
+validate_avd_name() {
+  [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid AVD name '$1'"
+}
+
+avd_path_for() {
+  local wanted="$1"
+  "${AVDMANAGER}" list avd 2>/dev/null | awk -v wanted="${wanted}" '
+    /^[[:space:]]*Name:/ {
+      name = $0
+      sub(/^[[:space:]]*Name:[[:space:]]*/, "", name)
+      next
+    }
+    name == wanted && /^[[:space:]]*Path:/ {
+      path = $0
+      sub(/^[[:space:]]*Path:[[:space:]]*/, "", path)
+      print path
+      exit
+    }
+  '
+}
+
+avd_registered() {
+  avd_exists "$1" || [[ -n "$(avd_path_for "$1")" ]]
+}
+
+avd_image_for_name() {
+  local name="$1" path image
+  path="$(avd_path_for "${name}")"
+  [[ -n "${path}" && -f "${path}/config.ini" ]] || return 1
+  image="$(awk '
+    /^image\.sysdir\.1=/ {
+      count++
+      value = $0
+      sub(/^image\.sysdir\.1=/, "", value)
+    }
+    END {
+      if (count != 1 || value == "") exit 1
+      print value
+    }
+  ' "${path}/config.ini")" || return 1
+  [[ -n "${image}" ]] || return 1
+  sed -E 's#/$##; s#/#;#g' <<<"${image}"
 }
 
 # Serial of a running emulator whose AVD name matches $1, empty if none.
@@ -134,9 +206,43 @@ print_usage() {
 # Cold headless boots regularly ANR com.android.systemui and the dialog then
 # sits over every capture; app ANRs are detected from logcat instead.
 prepare_device() {
-  local serial="$1"
+  local serial="$1" profile="$2" avd_name="${3:-$(avd_name_for "$2")}" delete_command recreate_command recovery
   "${ADB}" -s "${serial}" shell settings put global hide_error_dialogs 1 >/dev/null 2>&1 || \
     log "WARNING: could not set hide_error_dialogs on ${serial}"
+
+  [[ "${profile}" == "phone" ]] || return 0
+
+  delete_command="$(avd_delete_command "${profile}" "${avd_name}")"
+  recreate_command="$(avd_recreate_command "${profile}" "${avd_name}")"
+  recovery="explicitly run scripts/emulator.sh stop ${serial}, then ${delete_command}, then ${recreate_command}"
+  local api_level role_holders auth_tab_services chrome_version
+  api_level="$("${ADB}" -s "${serial}" shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r')" || \
+    die "could not read the API level from ${serial}; ${recovery}"
+  [[ "${api_level}" == "${PHONE_API_LEVEL}" ]] || \
+    die "phone emulator ${serial} is API ${api_level:-unknown}; expected API ${PHONE_API_LEVEL}; ${recovery}"
+
+  "${ADB}" -s "${serial}" shell pm path --user 0 "${CHROME_PACKAGE}" >/dev/null 2>&1 || \
+    die "Chrome (${CHROME_PACKAGE}) is missing on ${serial}; ${recovery}"
+  "${ADB}" -s "${serial}" shell cmd role add-role-holder --user 0 \
+    android.app.role.BROWSER "${CHROME_PACKAGE}" >/dev/null 2>&1 || \
+    die "could not select Chrome as the browser on ${serial}; ${recovery}"
+  role_holders="$("${ADB}" -s "${serial}" shell cmd role get-role-holders --user 0 \
+    android.app.role.BROWSER 2>/dev/null | tr -d '\r')" || \
+    die "could not read browser role holders on ${serial}; ${recovery}"
+  [[ "${role_holders}" == "${CHROME_PACKAGE}" ]] || \
+    die "Chrome is not the sole browser role holder on ${serial}; ${recovery}"
+
+  auth_tab_services="$("${ADB}" -s "${serial}" shell cmd package query-services \
+    -a "${AUTH_TAB_SERVICE_ACTION}" -c "${AUTH_TAB_SERVICE_CATEGORY}" 2>/dev/null)" || \
+    die "could not query Auth Tab support on ${serial}; ${recovery}"
+  awk -v package="${CHROME_PACKAGE}" \
+    '$1 == "packageName=" package { found=1 } END { exit !found }' <<<"${auth_tab_services}" || \
+    die "Chrome on ${serial} does not expose AndroidX Auth Tab support; ${recovery}"
+
+  chrome_version="$("${ADB}" -s "${serial}" shell dumpsys package "${CHROME_PACKAGE}" 2>/dev/null | \
+    awk '/^[[:space:]]*versionName=/ && !found { sub(/^[[:space:]]*versionName=/, ""); print; found=1 }' | \
+    tr -d '\r')" || chrome_version=""
+  log "phone runtime ready on ${serial}: API ${api_level}, Chrome ${chrome_version:-unknown}, AndroidX Auth Tab"
 }
 
 wait_serial_gone() {
