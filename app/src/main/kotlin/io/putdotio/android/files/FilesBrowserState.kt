@@ -53,9 +53,39 @@ sealed interface FilesContent {
     ) : FilesContent
 }
 
+sealed interface FilesFolderOperationIntent {
+    data object Refresh : FilesFolderOperationIntent
+
+    data class Sort(
+        val sort: FilesSort,
+    ) : FilesFolderOperationIntent
+}
+
+enum class FilesFolderOperationPhase {
+    PERSISTING_SORT,
+    RELOADING,
+}
+
+sealed interface FilesFolderOperation {
+    data object Idle : FilesFolderOperation
+
+    data class Loading(
+        val requestId: FilesRequestId,
+        val intent: FilesFolderOperationIntent,
+        val phase: FilesFolderOperationPhase,
+    ) : FilesFolderOperation
+
+    data class Failed(
+        val failure: FilesFailure,
+        val intent: FilesFolderOperationIntent,
+        val phase: FilesFolderOperationPhase,
+    ) : FilesFolderOperation
+}
+
 data class FilesFolderState(
     val folder: FilesFolder,
     val content: FilesContent,
+    val operation: FilesFolderOperation = FilesFolderOperation.Idle,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
 )
 
@@ -91,6 +121,12 @@ sealed interface FilesBrowserEvent {
 
     data object LoadNextPage : FilesBrowserEvent
 
+    data object Refresh : FilesBrowserEvent
+
+    data class SelectSort(
+        val sort: FilesSort,
+    ) : FilesBrowserEvent
+
     data object Retry : FilesBrowserEvent
 
     data class ViewportChanged(
@@ -106,6 +142,10 @@ sealed interface FilesBrowserEvent {
         val requestId: FilesRequestId,
         val failure: FilesFailure,
     ) : FilesBrowserEvent
+
+    data class SortPersisted(
+        val requestId: FilesRequestId,
+    ) : FilesBrowserEvent
 }
 
 sealed interface FilesBrowserEffect {
@@ -118,6 +158,12 @@ sealed interface FilesBrowserEffect {
 
     data class LoadNextPage(
         val cursor: FilesCursor,
+        override val requestId: FilesRequestId,
+    ) : FilesBrowserEffect
+
+    data class PersistSort(
+        val folderId: FilesItemId,
+        val sort: FilesSort,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 }
@@ -158,10 +204,13 @@ object FilesBrowserReducer {
             is FilesBrowserEvent.OpenExternalItem -> state.openExternalItem(event.item)
             FilesBrowserEvent.NavigateBack -> state.navigateBack()
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
+            FilesBrowserEvent.Refresh -> state.refresh()
+            is FilesBrowserEvent.SelectSort -> state.selectSort(event.sort)
             FilesBrowserEvent.Retry -> state.retry()
             is FilesBrowserEvent.ViewportChanged -> state.rememberViewport(event.position)
             is FilesBrowserEvent.LoadSucceeded -> state.loadSucceeded(event)
             is FilesBrowserEvent.LoadFailed -> state.loadFailed(event)
+            is FilesBrowserEvent.SortPersisted -> state.sortPersisted(event)
         }
 }
 
@@ -170,6 +219,13 @@ suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesBrowserEve
         when (effect) {
             is FilesBrowserEffect.LoadFolder -> loadFolder(effect.folderId)
             is FilesBrowserEffect.LoadNextPage -> loadNextPage(effect.cursor)
+            is FilesBrowserEffect.PersistSort -> {
+                return when (val persisted = persistSort(effect.folderId, effect.sort)) {
+                    is FilesRepositoryResult.Success -> FilesBrowserEvent.SortPersisted(effect.requestId)
+                    is FilesRepositoryResult.Failure ->
+                        FilesBrowserEvent.LoadFailed(effect.requestId, persisted.failure)
+                }
+            }
         }
 
     return when (result) {

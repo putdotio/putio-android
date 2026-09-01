@@ -69,6 +69,11 @@ interface FilesRepository {
     suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage>
 
     suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage>
+
+    suspend fun persistSort(
+        folderId: FilesItemId,
+        sort: FilesSort,
+    ): FilesRepositoryResult<Unit>
 }
 
 interface FilesItemResolver {
@@ -78,11 +83,16 @@ interface FilesItemResolver {
 class SdkFilesRepository internal constructor(
     private val listFolder: suspend (Long) -> FilesListResponse,
     private val continueListing: suspend (String) -> FilesListResponse,
+    private val setSort: suspend (Long, String) -> Unit,
     private val getFile: suspend (Long) -> PutioFile,
 ) : FilesRepository, FilesItemResolver {
     constructor(client: PutioClient) : this(
         listFolder = { folderId -> client.files.list(parentId = folderId) },
         continueListing = { cursor -> client.files.continueList(cursor = cursor) },
+        setSort = { folderId, sort ->
+            client.files.setSortBy(fileId = folderId, sortBy = sort)
+            Unit
+        },
         getFile = { fileId -> client.files.get(fileId) },
     )
 
@@ -91,6 +101,11 @@ class SdkFilesRepository internal constructor(
 
     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
         requestPage { continueListing(cursor.value) }
+
+    override suspend fun persistSort(
+        folderId: FilesItemId,
+        sort: FilesSort,
+    ): FilesRepositoryResult<Unit> = request { setSort(folderId.value, sort.apiValue) }
 
     override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
         request { getFile(itemId.value).toFilesItem() }
@@ -118,6 +133,7 @@ private fun FilesListResponse.toFilesPage(): FilesPage =
     FilesPage(
         items = files.map(PutioFile::toFilesItem),
         nextCursor = cursor?.takeIf(String::isNotBlank)?.let(::FilesCursor),
+        sort = FilesSort.fromApiValue(parent?.sortBy),
     )
 
 internal fun PutioFile.toFilesItem(): FilesItem =

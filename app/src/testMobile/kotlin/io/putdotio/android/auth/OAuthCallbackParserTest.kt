@@ -17,6 +17,35 @@ class OAuthCallbackParserTest {
     }
 
     @Test
+    fun `callback preserves literal and percent encoded plus characters`() {
+        listOf("token+value", "token%2Bvalue").forEach { encodedToken ->
+            val result = OAuthCallbackParser.parse(
+                rawCallbackUri = "putio://auth#access_token=$encodedToken&state=expected-state",
+                expectedState = EXPECTED_STATE,
+            )
+
+            assertTrue(result is OAuthCallbackParseResult.Success)
+            assertEquals("token+value", (result as OAuthCallbackParseResult.Success).accessToken.reveal())
+        }
+    }
+
+    @Test
+    fun `callback accepts token character boundaries and rejects values outside them`() {
+        val boundaryResult = OAuthCallbackParser.parse(
+            rawCallbackUri = "putio://auth#access_token=!token~&state=expected-state",
+            expectedState = EXPECTED_STATE,
+        )
+        assertTrue(boundaryResult is OAuthCallbackParseResult.Success)
+        assertEquals("!token~", (boundaryResult as OAuthCallbackParseResult.Success).accessToken.reveal())
+
+        listOf("token%20value", "token%7Fvalue", "token%C3%A9value").forEach { encodedToken ->
+            assertFailure<OAuthCallbackFailure.MissingAccessToken>(
+                "putio://auth#access_token=$encodedToken&state=expected-state",
+            )
+        }
+    }
+
+    @Test
     fun `callback rejects every endpoint variation`() {
         val callbacks = listOf(
             "https://auth/callback#access_token=token&state=expected-state",

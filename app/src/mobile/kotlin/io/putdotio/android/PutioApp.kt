@@ -53,6 +53,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.SdkFilesRepository
@@ -584,13 +585,15 @@ private fun MobileNavHost(
 
 internal fun FilesBrowserState.authoritativeSessionFailure(): FilesFailure? =
     stack.asReversed().firstNotNullOfOrNull { folder ->
-        val failure = when (val content = folder.content) {
+        val contentFailure = when (val content = folder.content) {
             is FilesContent.Failed -> content.failure
             is FilesContent.Empty -> (content.paging as? FilesPaging.Failed)?.failure
             is FilesContent.Ready -> (content.paging as? FilesPaging.Failed)?.failure
             is FilesContent.Loading -> null
         }
-        failure?.takeIf { it is FilesFailure.AuthenticationRequired }
+        val operationFailure = (folder.operation as? FilesFolderOperation.Failed)?.failure
+        listOfNotNull(contentFailure, operationFailure)
+            .firstOrNull { it is FilesFailure.AuthenticationRequired }
     }
 
 internal fun SearchState.authoritativeSessionFailure(): FilesFailure? =
