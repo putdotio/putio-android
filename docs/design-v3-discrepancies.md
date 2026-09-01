@@ -12,7 +12,8 @@ navigation drawer, Search, Account and continue-watching cards. It changes no
 token source or generated token artifact. The app's vendored graph and design's
 `dist/tokens.dtcg.json` remain byte-identical at SHA-256
 `a915906059426c95bde3fea77b4de72e1097fc50d46842b417143172dfc5c0c6`, so the
-Android token version stays `3.0.0`.
+Android token version advances to `3.2.1` while retaining the byte-identical
+graph.
 
 The update resolves two earlier discrepancies:
 
