@@ -93,10 +93,24 @@
     },
     {
       "sourceSet": "mobile",
+      "resource": "ic_ph_clock_counter_clockwise",
+      "asset": "assets/regular/clock-counter-clockwise.svg",
+      "sourceSha256": "06aa1cb0d2664789232f4addb1c5932c8ce14e48465c8e8fb09a651b619b44e3",
+      "outputSha256": "771062155c549a4b1466bf5dc577fc889c4a28fb232142d4d79c019005dc01aa"
+    },
+    {
+      "sourceSet": "mobile",
       "resource": "ic_ph_folder",
       "asset": "assets/regular/folder.svg",
       "sourceSha256": "4a882bcd4a91ae0a01887024f08d358932f183b6b171e87a3e48c5910364d507",
       "outputSha256": "a92b95b4c51e4d49eeef4927c633adef0cc60897b7cf3dc8b9d9f10e467e78f4"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_list_checks",
+      "asset": "assets/regular/list-checks.svg",
+      "sourceSha256": "b2d11fc95de627d6abe9feeced5f7e0cdce3ccdf8d9f9d2334d596b8b5cc5cc4",
+      "outputSha256": "6aa7b867a0246c3ac0179b915f8b9c484b98602bfb2745d8be52d16d389c3703"
     },
     {
       "sourceSet": "mobile",
@@ -118,6 +132,20 @@
       "asset": "assets/regular/sort-ascending.svg",
       "sourceSha256": "a9791208ad848f553cc7eb38a6adaf3dedcbb5922841dd05c683d123fd6272f6",
       "outputSha256": "55c11f6b84b5770e3cf17faef89ad0e5fec5fa58e3d2e140f7f349ec5fba1efa"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_subtitles",
+      "asset": "assets/regular/subtitles.svg",
+      "sourceSha256": "830b60f447804704071506de91ee161dd721813d795968faaa5a42be85e88cf1",
+      "outputSha256": "eba6daa271095723bcec51192794b6a758b43039572d4346e05d9b9caf1a0521"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_trash",
+      "asset": "assets/regular/trash.svg",
+      "sourceSha256": "e6a830c0409f9e101e3695c981eef98427d39fd01f502b9cbd6900930b01f19c",
+      "outputSha256": "43cf4b9ae31a1bab692ffbb5ac80f2e09454011dea73006a8ceb7fbaa2cd92e7"
     },
     {
       "sourceSet": "mobile",

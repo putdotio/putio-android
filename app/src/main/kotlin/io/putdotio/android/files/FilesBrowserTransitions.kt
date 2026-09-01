@@ -25,16 +25,18 @@ internal fun FilesBrowserState.openExternalItem(item: FilesItem): FilesBrowserTr
         } else {
             item.parentId?.let { FilesFolder(id = it, name = null) }
         }
-    return if (destination == null || destination.id == current.folder.id) {
+    return if (destination == null) {
         FilesBrowserTransition(this, consumed = false)
     } else {
         val requestId = FilesRequestId(nextRequestValue)
-        val folder = FilesFolderState(destination, FilesContent.Loading(requestId))
+        val resolvedDestination =
+            if (destination.id == current.folder.id && destination.name == null) current.folder else destination
+        val folder = FilesFolderState(resolvedDestination, FilesContent.Loading(requestId))
         val nextStack =
-            if (destination.id == FilesFolder.Root.id) {
-                listOf(folder)
-            } else {
-                listOf(rootFolderState(), folder)
+            when {
+                destination.id == current.folder.id -> stack.replaceLast(folder)
+                destination.id == FilesFolder.Root.id -> listOf(folder)
+                else -> listOf(rootFolderState(), folder)
             }
         FilesBrowserTransition(
             state = copy(stack = nextStack, nextRequestValue = nextRequestValue + 1),

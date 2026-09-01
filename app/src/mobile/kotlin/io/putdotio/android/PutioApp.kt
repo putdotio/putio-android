@@ -25,8 +25,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -34,6 +38,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -68,6 +73,12 @@ import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SdkPlaybackRepository
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryState
@@ -77,9 +88,22 @@ import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.transfers.SdkTransfersRepository
+import io.putdotio.android.transfers.TransferFileId
+import io.putdotio.android.transfers.TransferMutation
+import io.putdotio.android.transfers.TransferNavigation
+import io.putdotio.android.transfers.TransferNotice
+import io.putdotio.android.transfers.TransfersContent
+import io.putdotio.android.transfers.TransfersEvent
+import io.putdotio.android.transfers.TransfersPaging
+import io.putdotio.android.transfers.TransfersRefresh
+import io.putdotio.android.transfers.TransfersState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 internal const val MOBILE_NAV_BAR_TAG = "mobile-navigation-bar"
@@ -120,6 +144,9 @@ private fun MobileAuthRoot(
     val filesViewModel = viewModel<MobileFilesViewModel>(
         factory = remember(authController) { mobileFilesViewModelFactory(authController.state) },
     )
+    val accountSettingsViewModel = viewModel<MobileAccountSettingsViewModel>(
+        factory = remember(authController) { mobileAccountSettingsViewModelFactory(authController.state) },
+    )
     val searchHistoryViewModel = viewModel<MobileSearchHistoryViewModel>(
         factory = remember(authController, context.applicationContext) {
             mobileSearchHistoryViewModelFactory(
@@ -127,6 +154,9 @@ private fun MobileAuthRoot(
                 authController.state,
             )
         },
+    )
+    val transfersViewModel = viewModel<MobileTransfersViewModel>(
+        factory = remember(authController) { mobileTransfersViewModelFactory(authController.state) },
     )
 
     LaunchedEffect(authController) {
@@ -188,7 +218,9 @@ private fun MobileAuthRoot(
                 account = state.account,
                 sessionId = state.sessionId,
                 filesViewModel = filesViewModel,
+                accountSettingsViewModel = accountSettingsViewModel,
                 searchHistoryViewModel = searchHistoryViewModel,
+                transfersViewModel = transfersViewModel,
                 authController = authController,
                 rootScope = rootScope,
             )
@@ -256,7 +288,9 @@ private fun SignedInMobileRoot(
     account: MobileAccount,
     sessionId: MobileAuthSessionId,
     filesViewModel: MobileFilesViewModel,
+    accountSettingsViewModel: MobileAccountSettingsViewModel,
     searchHistoryViewModel: MobileSearchHistoryViewModel,
+    transfersViewModel: MobileTransfersViewModel,
     authController: MobileAuthController,
     rootScope: CoroutineScope,
 ) {
@@ -273,8 +307,20 @@ private fun SignedInMobileRoot(
             repository = filesRepository,
         )
     }
+    val accountSettingsRepository = remember(runtime.putioClient) {
+        SdkAccountSettingsRepository(runtime.putioClient)
+    }
+    val accountSettingsController =
+        remember(accountSettingsViewModel, accountSettingsRepository, account.userId, sessionId) {
+            accountSettingsViewModel.controllerFor(
+                userId = account.userId,
+                sessionId = sessionId,
+                repository = accountSettingsRepository,
+            )
+        }
     val searchRepository = remember(runtime.putioClient) { SdkSearchRepository(runtime.putioClient) }
     val historyRepository = remember(runtime.putioClient) { SdkHistoryRepository(runtime.putioClient) }
+    val transfersRepository = remember(runtime.putioClient) { SdkTransfersRepository(runtime.putioClient) }
     val searchHistorySession =
         remember(searchHistoryViewModel, runtime.putioClient, account, sessionId) {
             searchHistoryViewModel.controllersFor(
@@ -287,19 +333,34 @@ private fun SignedInMobileRoot(
                 filesItemResolver = filesRepository,
             )
         }
-    if (filesController == null || searchHistorySession == null) {
+    val transfersController = remember(transfersViewModel, transfersRepository, account.userId, sessionId) {
+        transfersViewModel.controllerFor(
+            userId = account.userId,
+            sessionId = sessionId,
+            repository = transfersRepository,
+        )
+    }
+    if (filesController == null ||
+        accountSettingsController == null ||
+        searchHistorySession == null ||
+        transfersController == null
+    ) {
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
     }
     val filesState by filesController.state.collectAsStateWithLifecycle()
+    val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
     val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
     val historyState by searchHistorySession.history.state.collectAsStateWithLifecycle()
+    val transfersState by transfersController.state.collectAsStateWithLifecycle()
     val navigationFailure by searchHistorySession.navigationFailure.collectAsStateWithLifecycle()
     val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
     val authoritativeFailure =
         filesState.authoritativeSessionFailure()
+            ?: accountSettingsState.authoritativeSessionFailure()
             ?: searchState.authoritativeSessionFailure()
             ?: historyState.authoritativeSessionFailure()
+            ?: transfersState.authoritativeSessionFailure()
             ?: recentSearchFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
             ?: navigationFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
 
@@ -311,6 +372,7 @@ private fun SignedInMobileRoot(
 
     MobileShell(
         filesState = filesState,
+        accountSettingsState = accountSettingsState,
         searchHistoryState =
             MobileSearchHistoryState(
                 search = searchState,
@@ -318,9 +380,13 @@ private fun SignedInMobileRoot(
                 recentSearchFailure =
                     recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired },
             ),
+        transfersState = transfersState,
+        transfersSessionId = sessionId,
         account = account,
         playbackRepository = playbackRepository,
+        sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
+        onAccountSettingsEvent = accountSettingsController::dispatch,
         onPlaybackAuthenticationRequired = authController::rejectAuthoritativeSession,
         searchHistoryActions =
             MobileSearchHistoryActions(
@@ -337,6 +403,11 @@ private fun SignedInMobileRoot(
                 onRecentRetry = searchHistorySession::retryRecentSearches,
                 onHistoryEvent = { searchHistorySession.history.dispatch(it) },
             ),
+        onTransfersEvent = transfersController::dispatch,
+        resolveTransferFile = { fileId ->
+            filesRepository.resolveItem(FilesItemId(fileId.value))
+        },
+        onTransferAuthenticationRequired = authController::rejectAuthoritativeSession,
         contentNavigation = searchHistorySession.navigation,
         navigationFailure = navigationFailure,
         onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
@@ -347,12 +418,22 @@ private fun SignedInMobileRoot(
 @Composable
 internal fun MobileShell(
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
+    transfersState: TransfersState = emptyTransfersState(),
+    transfersSessionId: MobileAuthSessionId? = null,
     account: MobileAccount,
     playbackRepository: PlaybackRepository,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
+    onTransfersEvent: (TransfersEvent) -> Unit = {},
+    resolveTransferFile: suspend (TransferFileId) -> FilesRepositoryResult<FilesItem> = {
+        FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("No transfer file resolver")))
+    },
+    onTransferAuthenticationRequired: suspend () -> Unit = {},
     contentNavigation: Flow<FilesItem> = emptyFlow(),
     navigationFailure: FilesFailure? = null,
     onDismissNavigationFailure: () -> Unit = {},
@@ -365,6 +446,40 @@ internal fun MobileShell(
 
     BackHandler(enabled = isPlayback) {
         navController.popBackStack()
+    }
+
+    val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
+    val resolvingTransfer = transfersState.navigation as? TransferNavigation.Resolving
+
+    LaunchedEffect(contentNavigation) {
+        contentNavigation.collect { item ->
+            currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item))
+            navController.navigateTo(MobileDestination.Files)
+        }
+    }
+    LaunchedEffect(resolvingTransfer?.requestId, transfersSessionId) {
+        val resolving = resolvingTransfer ?: return@LaunchedEffect
+        val sessionOnFilesEvent = onFilesEvent
+        val sessionOnTransfersEvent = onTransfersEvent
+        val sessionResolveTransferFile = resolveTransferFile
+        val sessionOnTransferAuthenticationRequired = onTransferAuthenticationRequired
+        val resolved = sessionResolveTransferFile(resolving.fileId)
+        currentCoroutineContext().ensureActive()
+        when (resolved) {
+            is FilesRepositoryResult.Success -> {
+                navController.currentBackStackEntryFlow.first()
+                currentCoroutineContext().ensureActive()
+                sessionOnFilesEvent(FilesBrowserEvent.OpenExternalItem(resolved.value))
+                navController.navigateTo(MobileDestination.Files)
+                sessionOnTransfersEvent(TransfersEvent.OpenSucceeded(resolving.requestId))
+            }
+            is FilesRepositoryResult.Failure ->
+                if (resolved.failure is FilesFailure.AuthenticationRequired) {
+                    sessionOnTransferAuthenticationRequired()
+                } else {
+                    sessionOnTransfersEvent(TransfersEvent.OpenFailed(resolving.requestId, resolved.failure))
+                }
+        }
     }
 
     LaunchedEffect(contentNavigation) {
@@ -384,11 +499,17 @@ internal fun MobileShell(
         MobileNavHost(
             navController = navController,
             filesState = filesState,
+            accountSettingsState = accountSettingsState,
             searchHistoryState = searchHistoryState,
+            transfersState = transfersState,
+            transfersSessionId = transfersSessionId,
             account = account,
+            sessionId = sessionId,
             playbackRepository = playbackRepository,
             onFilesEvent = onFilesEvent,
+            onAccountSettingsEvent = onAccountSettingsEvent,
             searchHistoryActions = searchHistoryActions,
+            onTransfersEvent = onTransfersEvent,
             onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
             onSignOut = onSignOut,
             modifier = Modifier.fillMaxSize(),
@@ -396,33 +517,47 @@ internal fun MobileShell(
         return
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        if (maxWidth >= TabletMinWidth) {
-            TabletShell(
-                navController = navController,
-                selectedDestination = selectedDestination,
-                filesState = filesState,
-                searchHistoryState = searchHistoryState,
-                account = account,
-                playbackRepository = playbackRepository,
-                onFilesEvent = onFilesEvent,
-                onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
-                searchHistoryActions = searchHistoryActions,
-                onSignOut = onSignOut,
-            )
-        } else {
-            PhoneShell(
-                navController = navController,
-                selectedDestination = selectedDestination,
-                filesState = filesState,
-                searchHistoryState = searchHistoryState,
-                account = account,
-                playbackRepository = playbackRepository,
-                onFilesEvent = onFilesEvent,
-                onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
-                searchHistoryActions = searchHistoryActions,
-                onSignOut = onSignOut,
-            )
+    key(transfersSessionId) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            if (maxWidth >= TabletMinWidth) {
+                TabletShell(
+                    navController = navController,
+                    selectedDestination = selectedDestination,
+                    filesState = filesState,
+                    accountSettingsState = accountSettingsState,
+                    searchHistoryState = searchHistoryState,
+                    transfersState = transfersState,
+                    transfersSessionId = transfersSessionId,
+                    account = account,
+                    sessionId = sessionId,
+                    playbackRepository = playbackRepository,
+                    onFilesEvent = onFilesEvent,
+                    onAccountSettingsEvent = onAccountSettingsEvent,
+                    searchHistoryActions = searchHistoryActions,
+                    onTransfersEvent = onTransfersEvent,
+                    onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
+                    onSignOut = onSignOut,
+                )
+            } else {
+                PhoneShell(
+                    navController = navController,
+                    selectedDestination = selectedDestination,
+                    filesState = filesState,
+                    accountSettingsState = accountSettingsState,
+                    searchHistoryState = searchHistoryState,
+                    transfersState = transfersState,
+                    transfersSessionId = transfersSessionId,
+                    account = account,
+                    sessionId = sessionId,
+                    playbackRepository = playbackRepository,
+                    onFilesEvent = onFilesEvent,
+                    onAccountSettingsEvent = onAccountSettingsEvent,
+                    searchHistoryActions = searchHistoryActions,
+                    onTransfersEvent = onTransfersEvent,
+                    onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
+                    onSignOut = onSignOut,
+                )
+            }
         }
     }
     if (navigationFailure != null && navigationFailure !is FilesFailure.AuthenticationRequired) {
@@ -437,6 +572,43 @@ internal fun MobileShell(
             },
         )
     }
+    (transfersState.navigation as? TransferNavigation.Failed)?.let { failed ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { onTransfersEvent(TransfersEvent.DismissNavigationFailure) },
+            title = { Text(stringResource(R.string.mobile_navigation_error_title)) },
+            text = { Text(stringResource(failed.failure.mobileMessageResource())) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { onTransfersEvent(TransfersEvent.DismissNavigationFailure) },
+                ) {
+                    Text(stringResource(R.string.mobile_action_ok))
+                }
+            },
+        )
+    }
+    transfersState.notice?.let { notice ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { onTransfersEvent(TransfersEvent.DismissNotice(notice.requestId)) },
+            title = { Text(stringResource(R.string.mobile_transfers_open_unavailable_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        when (notice) {
+                            is TransferNotice.FilePreparing -> R.string.mobile_transfers_file_preparing
+                            is TransferNotice.FileUnavailable -> R.string.mobile_transfers_file_unavailable
+                        },
+                    ),
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { onTransfersEvent(TransfersEvent.DismissNotice(notice.requestId)) },
+                ) {
+                    Text(stringResource(R.string.mobile_action_ok))
+                }
+            },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -445,12 +617,18 @@ private fun PhoneShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState,
+    transfersState: TransfersState,
+    transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
     playbackRepository: PlaybackRepository,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
+    onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
 ) {
     Scaffold(
@@ -478,12 +656,18 @@ private fun PhoneShell(
         MobileNavHost(
             navController = navController,
             filesState = filesState,
+            accountSettingsState = accountSettingsState,
             searchHistoryState = searchHistoryState,
+            transfersState = transfersState,
+            transfersSessionId = transfersSessionId,
             account = account,
             playbackRepository = playbackRepository,
+            sessionId = sessionId,
             onFilesEvent = onFilesEvent,
+            onAccountSettingsEvent = onAccountSettingsEvent,
             onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
             searchHistoryActions = searchHistoryActions,
+            onTransfersEvent = onTransfersEvent,
             onSignOut = onSignOut,
             modifier = Modifier.padding(padding),
         )
@@ -496,12 +680,18 @@ private fun TabletShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState,
+    transfersState: TransfersState,
+    transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
     playbackRepository: PlaybackRepository,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
+    onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
@@ -529,12 +719,18 @@ private fun TabletShell(
             MobileNavHost(
                 navController = navController,
                 filesState = filesState,
+                accountSettingsState = accountSettingsState,
                 searchHistoryState = searchHistoryState,
+                transfersState = transfersState,
+                transfersSessionId = transfersSessionId,
                 account = account,
                 playbackRepository = playbackRepository,
+                sessionId = sessionId,
                 onFilesEvent = onFilesEvent,
+                onAccountSettingsEvent = onAccountSettingsEvent,
                 onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                 searchHistoryActions = searchHistoryActions,
+                onTransfersEvent = onTransfersEvent,
                 onSignOut = onSignOut,
                 modifier = Modifier.padding(padding),
             )
@@ -600,15 +796,24 @@ private fun MobileDestinationIcon(
 private fun MobileNavHost(
     navController: NavHostController,
     filesState: FilesBrowserState,
+    accountSettingsState: AccountSettingsState,
     searchHistoryState: MobileSearchHistoryState,
+    transfersState: TransfersState,
+    transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
     playbackRepository: PlaybackRepository,
+    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
+    onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val currentTransfersState by rememberUpdatedState(transfersState)
+    val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
+    val currentOnTransfersEvent by rememberUpdatedState(onTransfersEvent)
     NavHost(
         navController = navController,
         startDestination = MobileDestination.start.route,
@@ -638,14 +843,20 @@ private fun MobileNavHost(
             )
         }
         composable(MobileDestination.Transfers.route) {
-            MobileEmptyState(
-                title = stringResource(R.string.mobile_transfers_empty_title),
-                message = stringResource(R.string.mobile_transfers_empty_message),
+            val eventHandler = currentOnTransfersEvent
+            TransfersVisibilityEffect(currentTransfersSessionId, eventHandler)
+            MobileTransfersScreen(
+                state = currentTransfersState,
+                onEvent = eventHandler,
+                sessionId = currentTransfersSessionId,
             )
         }
         composable(MobileDestination.Account.route) {
             MobileAccountScreen(
                 account = account,
+                sessionId = sessionId,
+                settingsState = accountSettingsState,
+                onSettingsEvent = onAccountSettingsEvent,
                 onSignOut = onSignOut,
             )
         }
@@ -708,6 +919,17 @@ private fun MobilePlaybackRoute(
     )
 }
 
+@Composable
+internal fun TransfersVisibilityEffect(
+    sessionId: MobileAuthSessionId?,
+    onEvent: (TransfersEvent) -> Unit,
+) {
+    LifecycleStartEffect(sessionId) {
+        onEvent(TransfersEvent.VisibilityChanged(true))
+        onStopOrDispose { onEvent(TransfersEvent.VisibilityChanged(false)) }
+    }
+}
+
 internal fun FilesBrowserState.authoritativeSessionFailure(): FilesFailure? =
     stack.asReversed().firstNotNullOfOrNull { folder ->
         val contentFailure = when (val content = folder.content) {
@@ -746,6 +968,19 @@ internal fun HistoryState.authoritativeSessionFailure(): FilesFailure? =
         (clearing as? io.putdotio.android.history.HistoryClearing.Failed)?.failure,
     ).firstOrNull { it is FilesFailure.AuthenticationRequired }
 
+internal fun TransfersState.authoritativeSessionFailure(): FilesFailure? =
+    listOfNotNull(
+        when (val value = content) {
+            is TransfersContent.Failed -> value.failure
+            is TransfersContent.Ready -> (value.paging as? TransfersPaging.Failed)?.failure
+            TransfersContent.Empty,
+            is TransfersContent.InitialLoading,
+            -> null
+        },
+        (refresh as? TransfersRefresh.Failed)?.failure,
+        (mutation as? TransferMutation.Failed)?.failure,
+    ).firstOrNull { it is FilesFailure.AuthenticationRequired }
+
 internal data class MobileSearchHistoryState(
     val search: SearchState,
     val history: HistoryState,
@@ -777,6 +1012,9 @@ private fun emptySearchHistoryState(): MobileSearchHistoryState =
         history = HistoryState(HistoryContent.Disabled),
         recentSearchFailure = null,
     )
+
+private fun emptyTransfersState(): TransfersState =
+    TransfersState(content = TransfersContent.Empty)
 
 private fun NavHostController.navigateTo(destination: MobileDestination) {
     navigate(destination.route) {

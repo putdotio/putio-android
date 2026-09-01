@@ -14,6 +14,14 @@ data class MobileAccount(
     val username: String,
     val email: String,
     val historyEnabled: Boolean = false,
+    val avatarUrl: String? = null,
+    val storage: MobileAccountStorage = MobileAccountStorage(),
+)
+
+data class MobileAccountStorage(
+    val availableBytes: Long = 0L,
+    val sizeBytes: Long = 0L,
+    val usedBytes: Long = 0L,
 )
 
 @JvmInline

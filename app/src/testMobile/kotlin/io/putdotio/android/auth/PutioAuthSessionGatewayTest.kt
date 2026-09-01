@@ -26,6 +26,8 @@ class PutioAuthSessionGatewayTest {
                     username = "user",
                     email = "user@example.com",
                     historyEnabled = true,
+                    avatarUrl = "https://example.com/avatar.png",
+                    storage = MobileAccountStorage(availableBytes = 1, sizeBytes = 2, usedBytes = 1),
                 ),
             ),
             result,

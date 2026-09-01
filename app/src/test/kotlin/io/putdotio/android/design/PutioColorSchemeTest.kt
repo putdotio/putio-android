@@ -5,14 +5,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Pins the generated scheme to @putdotio/design 3.0.0. A failure here means
+ * Pins the generated scheme to @putdotio/design 3.2.1. A failure here means
  * either the codegen regressed or the vendored token graph changed values —
  * both deliberate events that should update these literals consciously.
  */
 class PutioColorSchemeTest {
 
     @Test
-    fun tokensMatchDesign300() {
+    fun tokensMatchDesign321() {
         assertEquals(Color(0xFFFDCE45), PutioDesignTokens.yellowSolid)
         assertEquals(Color(0xFFFFD147), PutioDesignTokens.yellowTextSecondary)
         assertEquals(Color(0xFF2A1E09), PutioDesignTokens.primaryForeground)
