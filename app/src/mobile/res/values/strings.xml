@@ -151,6 +151,4 @@
     <string name="mobile_transfer_upload_speed">↑ %1$s/s</string>
     <string name="mobile_transfer_eta">%1$s remaining</string>
     <string name="mobile_transfer_availability">%1$s available</string>
-    <string name="mobile_transfers_empty_title">Transfers aren’t available yet</string>
-    <string name="mobile_transfers_empty_message">Transfer management will appear here.</string>
 </resources>
