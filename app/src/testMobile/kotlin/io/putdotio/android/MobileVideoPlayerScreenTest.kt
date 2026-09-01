@@ -6,6 +6,9 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
+import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
@@ -145,6 +148,7 @@ class MobileVideoPlayerScreenTest {
     }
 }
 
+@UnstableApi
 class MobileVideoPlayerCodecTest {
     @Test
     fun emulatorCodecsDemoteGoldfishDecoders() {
@@ -153,5 +157,7 @@ class MobileVideoPlayerCodecTest {
         assertFalse(requiresEmulatorCodecWorkaround("tensor"))
         assertEquals(1, emulatorCodecPriority("c2.goldfish.h264.decoder"))
         assertEquals(0, emulatorCodecPriority("c2.android.avc.decoder"))
+        assertEquals(SURFACE_TYPE_TEXTURE_VIEW, playbackSurfaceType("ranchu"))
+        assertEquals(SURFACE_TYPE_SURFACE_VIEW, playbackSurfaceType("tensor"))
     }
 }

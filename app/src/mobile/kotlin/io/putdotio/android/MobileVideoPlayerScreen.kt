@@ -1,8 +1,8 @@
 package io.putdotio.android
 
-import android.net.Uri
 import android.os.Build
 import androidx.annotation.StringRes
+import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -25,7 +25,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
@@ -33,6 +32,8 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
+import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import androidx.media3.ui.compose.material3.Player
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
@@ -45,7 +46,9 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 internal const val MOBILE_VIDEO_PLAYER_TAG = "mobile-video-player"
+private const val MILLIS_PER_SECOND = 1_000.0
 
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 internal fun MobileVideoPlayerScreen(
     state: PlaybackState,
@@ -141,6 +144,7 @@ private fun MobileReadyVideoPlayer(
         modifier = Modifier
             .fillMaxSize()
             .testTag(MOBILE_VIDEO_PLAYER_TAG),
+        surfaceType = playbackSurfaceType(Build.HARDWARE),
     )
 }
 
@@ -149,6 +153,14 @@ internal fun requiresEmulatorCodecWorkaround(hardware: String): Boolean =
 
 internal fun emulatorCodecPriority(codecName: String): Int =
     if (codecName.startsWith("c2.goldfish.")) 1 else 0
+
+@UnstableApi
+internal fun playbackSurfaceType(hardware: String): Int =
+    if (requiresEmulatorCodecWorkaround(hardware)) {
+        SURFACE_TYPE_TEXTURE_VIEW
+    } else {
+        SURFACE_TYPE_SURFACE_VIEW
+    }
 
 @UnstableApi
 private val EmulatorMediaCodecSelector =
@@ -165,7 +177,7 @@ internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
             .orEmpty()
             .mapNotNull { subtitle ->
                 val mimeType = subtitle.format.toSubtitleMimeType() ?: return@mapNotNull null
-                MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitle.url.value))
+                MediaItem.SubtitleConfiguration.Builder(subtitle.url.value.toUri())
                     .setId(subtitle.key)
                     .setLabel(subtitle.name)
                     .setLanguage(subtitle.languageCode)
@@ -183,7 +195,7 @@ internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
 }
 
 private fun Double.toPlaybackMillis(): Long =
-    (this * C.MILLIS_PER_SECOND)
+    (this * MILLIS_PER_SECOND)
         .coerceIn(0.0, Long.MAX_VALUE.toDouble())
         .roundToLong()
 
