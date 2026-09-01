@@ -12,6 +12,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
@@ -112,6 +113,19 @@ class MobileVideoPlayerScreenTest {
         compose.onNodeWithText("Playback access expired. Retry to refresh it.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
         assertEquals(1, retries)
+    }
+
+    @Test
+    fun selectedSubtitleCueIsRendered() {
+        compose.setContent {
+            PutioTheme {
+                MobileSubtitleCueOverlay(
+                    cues = listOf(Cue.Builder().setText("A rendered subtitle").build()),
+                )
+            }
+        }
+
+        compose.onNodeWithText("A rendered subtitle").assertIsDisplayed()
     }
 
     @Test
@@ -245,6 +259,25 @@ class MobileVideoPlayerCodecTest {
             HttpDataSource.InvalidResponseCodeException(
                 401,
                 "Unauthorized",
+                IOException("rejected"),
+                emptyMap(),
+                dataSpec,
+                ByteArray(0),
+            )
+
+        assertTrue(
+            IllegalStateException("player failed", response).toMediaRequestFailureOrNull() is
+                PlaybackFailure.MediaCredentialUnavailable,
+        )
+    }
+
+    @Test
+    fun mediaRequestForbiddenRefreshesThePlaybackCredential() {
+        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
+        val response =
+            HttpDataSource.InvalidResponseCodeException(
+                403,
+                "Forbidden",
                 IOException("rejected"),
                 emptyMap(),
                 dataSpec,

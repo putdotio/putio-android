@@ -5,6 +5,7 @@ import androidx.annotation.StringRes
 import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,6 +41,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.C
+import androidx.media3.common.text.Cue
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -60,6 +63,7 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 internal const val MOBILE_VIDEO_PLAYER_TAG = "mobile-video-player"
+internal const val MOBILE_SUBTITLE_CUES_TAG = "mobile-subtitle-cues"
 private const val MILLIS_PER_SECOND = 1_000.0
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
@@ -159,6 +163,7 @@ private fun MobileReadyVideoPlayer(
         }
     }
     var resumeAfterLifecyclePause by remember(player) { mutableStateOf(true) }
+    var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         resumeAfterLifecyclePause = player.playWhenReady
@@ -176,6 +181,10 @@ private fun MobileReadyVideoPlayer(
                         player.currentPosition,
                     )
                 }
+
+                override fun onCues(cueGroup: CueGroup) {
+                    cues = cueGroup.cues
+                }
             }
         player.addListener(listener)
         onDispose {
@@ -184,43 +193,79 @@ private fun MobileReadyVideoPlayer(
         }
     }
 
-    Player(
-        player = player,
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag(MOBILE_VIDEO_PLAYER_TAG),
-        surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
-        showControls = true,
-        topControls = { controlledPlayer, visible ->
-            PlayerDefaults.TopControls(
-                player = controlledPlayer,
-                visible = visible,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
-                        .padding(8.dp),
-            ) {
-                if (source.hasSelectableSubtitles() && it != null) {
-                    MobileSubtitleToggle(
-                        player = it,
-                        modifier = Modifier.align(Alignment.TopEnd),
-                    )
+    Box(Modifier.fillMaxSize()) {
+        Player(
+            player = player,
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag(MOBILE_VIDEO_PLAYER_TAG),
+            surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
+            showControls = true,
+            topControls = { controlledPlayer, visible ->
+                PlayerDefaults.TopControls(
+                    player = controlledPlayer,
+                    visible = visible,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.safeDrawing)
+                            .padding(8.dp),
+                ) {
+                    if (source.hasSelectableSubtitles() && it != null) {
+                        MobileSubtitleToggle(
+                            player = it,
+                            modifier = Modifier.align(Alignment.TopEnd),
+                        )
+                    }
                 }
-            }
-        },
-        bottomControls = { controlledPlayer, visible ->
-            PlayerDefaults.BottomControls(
-                player = controlledPlayer,
-                visible = visible,
+            },
+            bottomControls = { controlledPlayer, visible ->
+                PlayerDefaults.BottomControls(
+                    player = controlledPlayer,
+                    visible = visible,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.safeDrawing)
+                            .padding(8.dp),
+                )
+            },
+        )
+        MobileSubtitleCueOverlay(
+            cues = cues,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+}
+
+@Composable
+internal fun MobileSubtitleCueOverlay(
+    cues: List<Cue>,
+    modifier: Modifier = Modifier,
+) {
+    val textCues = cues.mapNotNull { it.text?.toString()?.takeIf(String::isNotBlank) }
+    if (textCues.isEmpty()) return
+
+    Column(
+        modifier =
+            modifier
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(horizontal = 24.dp, vertical = 96.dp)
+                .testTag(MOBILE_SUBTITLE_CUES_TAG),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        textCues.forEach { cue ->
+            Text(
+                text = cue,
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
                 modifier =
                     Modifier
-                        .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
-                        .padding(8.dp),
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
             )
-        },
-    )
+        }
+    }
 }
 
 internal fun lifecycleAllowsAutoplay(state: Lifecycle.State): Boolean =
