@@ -153,8 +153,8 @@ private fun String.parseParameters(): OAuthEncodedParameters {
             continue
         }
 
-        val name = part.substring(0, separatorIndex).decodeFormComponent()
-        val value = part.substring(separatorIndex + 1).decodeFormComponent()
+        val name = part.substring(0, separatorIndex).decodeUriComponent()
+        val value = part.substring(separatorIndex + 1).decodeUriComponent()
         if (name.isNullOrEmpty() || value == null) {
             malformed = true
             continue
@@ -168,9 +168,9 @@ private fun String.parseParameters(): OAuthEncodedParameters {
     return OAuthEncodedParameters(parameters, malformed)
 }
 
-private fun String.decodeFormComponent(): String? =
+private fun String.decodeUriComponent(): String? =
     try {
-        URLDecoder.decode(this, StandardCharsets.UTF_8.name())
+        URLDecoder.decode(replace("+", "%2B"), StandardCharsets.UTF_8.name())
     } catch (_: IllegalArgumentException) {
         null
     }

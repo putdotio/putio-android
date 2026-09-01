@@ -1,29 +1,44 @@
 package io.putdotio.android.auth
 
 import android.content.Context
+import android.util.Log
 import io.putdotio.android.BuildConfig
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-class MobileOAuthRuntime private constructor(
+internal fun interface OAuthRuntimeFailureReporter {
+    fun report(error: Exception)
+}
+
+class MobileOAuthRuntime internal constructor(
     val putioClient: PutioClient,
     val authController: MobileAuthController,
     private val applicationScope: CoroutineScope,
+    private val failureReporter: OAuthRuntimeFailureReporter = AndroidOAuthRuntimeFailureReporter,
 ) {
     fun dispatchAuthTabResult(
         resultCode: Int,
         rawResultUri: String?,
     ) {
+        // Activity results outlive individual UI owners; keep a boundary failure inside this application scope.
+        @Suppress("TooGenericExceptionCaught")
         applicationScope.launch {
-            when (val result = classifyAuthTabResult(resultCode, rawResultUri)) {
-                is OAuthBrowserResult.Callback -> authController.handleOAuthCallback(result.uri)
-                OAuthBrowserResult.Cancelled -> authController.cancelSignIn()
-                OAuthBrowserResult.Failed -> authController.failSignIn()
+            try {
+                when (val result = classifyAuthTabResult(resultCode, rawResultUri)) {
+                    is OAuthBrowserResult.Callback -> authController.handleOAuthCallback(result.uri)
+                    OAuthBrowserResult.Cancelled -> authController.cancelSignIn()
+                    OAuthBrowserResult.Failed -> authController.failSignIn()
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                failureReporter.report(error)
             }
         }
     }
@@ -67,3 +82,15 @@ class MobileOAuthRuntime private constructor(
         }
     }
 }
+
+private object AndroidOAuthRuntimeFailureReporter : OAuthRuntimeFailureReporter {
+    override fun report(error: Exception) {
+        Log.e(MOBILE_OAUTH_LOG_TAG, oauthRuntimeFailureLog(error))
+    }
+}
+
+internal fun oauthRuntimeFailureLog(error: Exception): String =
+    "event=oauth_auth_tab_result operation=dispatch outcome=failed error_kind=unknown " +
+        "error_type=${error.javaClass.simpleName}"
+
+private const val MOBILE_OAUTH_LOG_TAG = "PutioOAuth"
