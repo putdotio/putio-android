@@ -31,11 +31,11 @@
 # EVIDENCE_URL <preview-url> or EVIDENCE_MARKDOWN <embed>,
 # PROOF PASS|FAIL <flavor>.
 #
-# Test hook: PUTIO_PROVE_FAIL_AT=after-boot|after-install injects a failure
-# at that stage (used by scripts/test-lifecycle.sh).
+# Test hooks: PUTIO_PROVE_FAIL_AT=after-boot|after-install injects a failure;
+# PUTIO_PROVE_TEST_CAPTURE=<file> exercises the real publication boundary
+# without starting an emulator.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-require_sdk_root
 
 FLAVOR="${1:-}"; shift || { print_usage "${BASH_SOURCE[0]}"; exit 64; }
 
@@ -79,6 +79,30 @@ fi
 if [[ "${PUBLISH_MARKDOWN}" == "1" && -z "${PUBLISH_PR}" ]]; then
   die "--markdown requires --pr"
 fi
+
+publish_capture() {
+  local capture="$1" published publish_args
+  [[ -n "${PUBLISH_PR}" ]] || return 0
+  publish_args=("${capture}" --repo "${PUBLISH_REPO}" --pr "${PUBLISH_PR}")
+  [[ "${PUBLISH_MARKDOWN}" == "1" ]] && publish_args+=(--markdown)
+  if ! published="$("${REPO_ROOT}/scripts/publish-evidence.sh" "${publish_args[@]}")"; then
+    die "evidence upload failed; validated local capture remains at ${capture}"
+  fi
+  if [[ "${PUBLISH_MARKDOWN}" == "1" ]]; then
+    echo "EVIDENCE_MARKDOWN ${published}"
+  else
+    echo "EVIDENCE_URL ${published}"
+  fi
+}
+
+if [[ -n "${PUTIO_PROVE_TEST_CAPTURE:-}" ]]; then
+  [[ -f "${PUTIO_PROVE_TEST_CAPTURE}" ]] || die "test capture missing: ${PUTIO_PROVE_TEST_CAPTURE}"
+  echo "EVIDENCE ${PUTIO_PROVE_TEST_CAPTURE}"
+  publish_capture "${PUTIO_PROVE_TEST_CAPTURE}"
+  exit 0
+fi
+
+require_sdk_root
 
 # evidence.sh needs ffprobe for its capture gates; fail before booting
 # anything rather than after a full verification.
@@ -319,21 +343,6 @@ evidence_launch() {
   start_out="$("${ADB}" -s "${SERIAL}" shell am start -W -n "${COMPONENT}" 2>&1)" || die "evidence launch failed: ${start_out}"
   sleep 3
   evidence_launch_healthy || die "evidence launch is not healthy"
-}
-
-publish_capture() {
-  local capture="$1" published publish_args
-  [[ -n "${PUBLISH_PR}" ]] || return 0
-  publish_args=("${capture}" --repo "${PUBLISH_REPO}" --pr "${PUBLISH_PR}")
-  [[ "${PUBLISH_MARKDOWN}" == "1" ]] && publish_args+=(--markdown)
-  if ! published="$("${REPO_ROOT}/scripts/publish-evidence.sh" "${publish_args[@]}")"; then
-    die "evidence upload failed; validated local capture remains at ${capture}"
-  fi
-  if [[ "${PUBLISH_MARKDOWN}" == "1" ]]; then
-    echo "EVIDENCE_MARKDOWN ${published}"
-  else
-    echo "EVIDENCE_URL ${published}"
-  fi
 }
 
 log "launching ${COMPONENT} for evidence"

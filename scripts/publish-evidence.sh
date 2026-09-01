@@ -6,6 +6,9 @@
 # Default output is the hosted preview URL. --markdown requests an inline raw
 # object embed. This wrapper never authenticates and never touches gh auth.
 
+# A caller may enable xtrace on this script. Disable it before any CLI output
+# can enter a shell assignment and therefore a durable trace.
+set +x
 set -euo pipefail
 
 log_error() { printf 'publish-evidence: %s\n' "$*" >&2; }
@@ -37,7 +40,10 @@ done
 [[ "${repo}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "--repo must be OWNER/NAME"
 [[ "${pr}" =~ ^[1-9][0-9]*$ ]] || fail "--pr must be a positive integer"
 
-if [[ -n "${ATTACH_API_BASE:-}" && "${ATTACH_API_BASE}" != "https://attach.uinaf.dev" && -z "${ATTACH_GITHUB_CLIENT_ID:-}" ]]; then
+attach_origin="${ATTACH_API_BASE:-https://attach.uinaf.dev}"
+while [[ "${attach_origin}" == */ ]]; do attach_origin="${attach_origin%/}"; done
+[[ -n "${attach_origin}" ]] || fail "ATTACH_API_BASE must not be empty"
+if [[ "${attach_origin}" != "https://attach.uinaf.dev" && -z "${ATTACH_GITHUB_CLIENT_ID:-}" ]]; then
   fail "custom ATTACH_API_BASE requires ATTACH_GITHUB_CLIENT_ID"
 fi
 
@@ -54,15 +60,29 @@ args=(put "${file}" --repo "${repo}" --pr "${pr}")
 [[ "${markdown}" == "1" ]] && args+=(--markdown)
 [[ "${dry_run}" == "1" ]] && args+=(--dry-run)
 
+stderr_file="$(mktemp)"
+trap 'rm -f "${stderr_file}"' EXIT
 set +e
-output="$("${attach_command[@]}" "${args[@]}" 2>&1)"
+output="$("${attach_command[@]}" "${args[@]}" 2>"${stderr_file}")"
 status=$?
 set -e
 if [[ "${status}" -ne 0 ]]; then
   # Do not relay arbitrary CLI output: authentication failures may include a
   # short-lived device code, and credentials must never reach durable logs.
-  fail "Attach CLI failed (exit ${status}); run attach login interactively, then verify repository allowlisting and retry"
+  if [[ "${status}" -eq 2 ]]; then
+    fail "Attach CLI rejected the file or metadata (exit 2); validate with --dry-run"
+  fi
+  fail "Attach upload failed (exit ${status}); run attach login interactively if needed, then verify GitHub user allowlisting and service availability"
 fi
 
 [[ -n "${output}" ]] || fail "Attach CLI returned empty output"
+[[ "${output}" != *$'\n'* && "${output}" != *$'\r'* ]] || fail "Attach CLI returned multiline output"
+preview_prefix="${attach_origin}/p/"
+raw_embed_prefix="](${attach_origin}/o/"
+if [[ "${dry_run}" != "1" && "${markdown}" != "1" && "${output}" != "${preview_prefix}"?* ]]; then
+  fail "Attach CLI did not return a preview URL for ${attach_origin}"
+fi
+if [[ "${dry_run}" != "1" && "${markdown}" == "1" && "${output}" != *"${raw_embed_prefix}"?* ]]; then
+  fail "Attach CLI did not return a Markdown raw-object embed for ${attach_origin}"
+fi
 printf '%s\n' "${output}"
