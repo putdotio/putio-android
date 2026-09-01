@@ -248,6 +248,7 @@ class FilesBrowserReducerTest {
         assertEquals(FilesPaging.Available(FilesCursor("fresh-next")), refreshedContent.paging)
         assertEquals(viewport, refreshedContent.viewport)
         assertEquals(FilesSort.DATE_ADDED_DESCENDING, refreshed.current.folder.sort)
+        assertEquals(0L, refreshed.current.viewportGeneration)
         assertEquals(FilesFolderOperation.Idle, refreshed.current.operation)
     }
 
@@ -295,6 +296,7 @@ class FilesBrowserReducerTest {
         assertEquals(listOf(sorted), content.items)
         assertEquals(FilesViewportPosition(), content.viewport)
         assertEquals(FilesSort.SIZE_DESCENDING, completed.current.folder.sort)
+        assertEquals(1L, completed.current.viewportGeneration)
         assertEquals(FilesFolderOperation.Idle, completed.current.operation)
     }
 
@@ -333,6 +335,41 @@ class FilesBrowserReducerTest {
         val retried = FilesBrowserReducer.reduce(failed, FilesBrowserEvent.Retry)
         val retryEffect = retried.effect as FilesBrowserEffect.PersistSort
         assertEquals(FilesSort.TYPE_ASCENDING, retryEffect.sort)
+    }
+
+    @Test
+    fun failedSortReloadCanRevertToTheDisplayedSort() {
+        val original = item(1L, "one.mkv", PutioFileType.VIDEO)
+        val root = loadedRoot(listOf(original), null, FilesSort.NAME_ASCENDING)
+        val persisting = FilesBrowserReducer.reduce(
+            root,
+            FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING),
+        )
+        val persistEffect = persisting.effect as FilesBrowserEffect.PersistSort
+        val reloading = FilesBrowserReducer.reduce(
+            persisting.state,
+            FilesBrowserEvent.SortPersisted(persistEffect.requestId),
+        )
+        val reloadEffect = reloading.effect as FilesBrowserEffect.LoadFolder
+        val failed = FilesBrowserReducer.reduce(
+            reloading.state,
+            FilesBrowserEvent.LoadFailed(
+                reloadEffect.requestId,
+                FilesFailure.Unexpected(IllegalStateException("offline")),
+            ),
+        ).state
+
+        val reverted = FilesBrowserReducer.reduce(
+            failed,
+            FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING),
+        )
+        val revertEffect = reverted.effect as FilesBrowserEffect.PersistSort
+
+        assertEquals(FilesSort.NAME_ASCENDING, revertEffect.sort)
+        assertEquals(
+            FilesFolderOperationIntent.Sort(FilesSort.NAME_ASCENDING),
+            (reverted.state.current.operation as FilesFolderOperation.Loading).intent,
+        )
     }
 
     @Test

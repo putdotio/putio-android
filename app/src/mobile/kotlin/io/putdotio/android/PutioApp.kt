@@ -311,6 +311,7 @@ private fun PhoneShell(
                 destination = selectedDestination,
                 filesState = filesState,
                 onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
+                onFilesEvent = onFilesEvent,
             )
         },
         bottomBar = {
@@ -365,6 +366,7 @@ private fun TabletShell(
                     destination = selectedDestination,
                     filesState = filesState,
                     onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
+                    onFilesEvent = onFilesEvent,
                 )
             },
         ) { padding ->
@@ -386,6 +388,7 @@ private fun MobileTopBar(
     destination: MobileDestination,
     filesState: FilesBrowserState,
     onFilesBack: () -> Unit,
+    onFilesEvent: (FilesBrowserEvent) -> Unit,
 ) {
     val filesFolderName = filesState.current.folder.name?.takeIf(String::isNotBlank)
     TopAppBar(
@@ -406,6 +409,17 @@ private fun MobileTopBar(
                         contentDescription = stringResource(R.string.mobile_action_back),
                     )
                 }
+            }
+        },
+        actions = {
+            if (
+                destination == MobileDestination.Files &&
+                (filesState.current.content is FilesContent.Empty || filesState.current.content is FilesContent.Ready)
+            ) {
+                MobileFilesSortMenu(
+                    folder = filesState.current,
+                    onSelect = { onFilesEvent(FilesBrowserEvent.SelectSort(it)) },
+                )
             }
         },
     )

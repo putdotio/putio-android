@@ -26,10 +26,12 @@ class SdkFilesRepositoryTest {
     fun listsRootThroughSdkAndMapsRawFileData() =
         runBlocking {
             var requestedFolder: Long? = null
+            var requestedPageSize: Int? = null
             val repository =
                 SdkFilesRepository(
-                    listFolder = { folderId ->
+                    listFolder = { folderId, query ->
                         requestedFolder = folderId
+                        requestedPageSize = query.perPage
                         response(
                             files =
                                 listOf(
@@ -48,13 +50,14 @@ class SdkFilesRepositoryTest {
                             ),
                         )
                     },
-                    continueListing = { error("Unexpected continuation") },
+                    continueListing = { _, _ -> error("Unexpected continuation") },
                     setSort = { _, _ -> error("Unexpected sort") },
                 )
 
             val result = repository.loadFolder(FilesFolder.Root.id) as FilesRepositoryResult.Success
 
             assertEquals(0L, requestedFolder)
+            assertEquals(50, requestedPageSize)
             assertEquals("  raw name.mkv  ", result.value.items.single().name)
             assertEquals(PutioFileType.VIDEO, result.value.items.single().type)
             assertEquals(FilesCursor("next"), result.value.nextCursor)
@@ -65,11 +68,13 @@ class SdkFilesRepositoryTest {
     fun continuesThroughSdkAndNormalizesBlankCursor() =
         runBlocking {
             var requestedCursor: String? = null
+            var requestedPageSize: Int? = null
             val repository =
                 SdkFilesRepository(
-                    listFolder = { error("Unexpected folder load") },
-                    continueListing = { cursor ->
+                    listFolder = { _, _ -> error("Unexpected folder load") },
+                    continueListing = { cursor, query ->
                         requestedCursor = cursor
+                        requestedPageSize = query.perPage
                         response(cursor = "  ")
                     },
                     setSort = { _, _ -> error("Unexpected sort") },
@@ -78,6 +83,7 @@ class SdkFilesRepositoryTest {
             val result = repository.loadNextPage(FilesCursor("opaque-cursor")) as FilesRepositoryResult.Success
 
             assertEquals("opaque-cursor", requestedCursor)
+            assertEquals(50, requestedPageSize)
             assertNull(result.value.nextCursor)
         }
 
@@ -190,25 +196,43 @@ class SdkFilesRepositoryTest {
     @Test
     fun persistsOnlyBoundedSortValuesThroughTheSdk() =
         runBlocking {
+            val expected = listOf(
+                FilesSort.NAME_ASCENDING to "NAME_ASC",
+                FilesSort.NAME_DESCENDING to "NAME_DESC",
+                FilesSort.SIZE_ASCENDING to "SIZE_ASC",
+                FilesSort.SIZE_DESCENDING to "SIZE_DESC",
+                FilesSort.DATE_ADDED_ASCENDING to "DATE_ASC",
+                FilesSort.DATE_ADDED_DESCENDING to "DATE_DESC",
+                FilesSort.DATE_MODIFIED_ASCENDING to "MODIFIED_ASC",
+                FilesSort.DATE_MODIFIED_DESCENDING to "MODIFIED_DESC",
+                FilesSort.TYPE_ASCENDING to "TYPE_ASC",
+                FilesSort.TYPE_DESCENDING to "TYPE_DESC",
+                FilesSort.WATCH_STATUS_ASCENDING to "WATCH_ASC",
+                FilesSort.WATCH_STATUS_DESCENDING to "WATCH_DESC",
+            )
             val persisted = mutableListOf<Pair<Long, String>>()
             val repository =
                 SdkFilesRepository(
-                    listFolder = { response() },
-                    continueListing = { response() },
+                    listFolder = { _, _ -> response() },
+                    continueListing = { _, _ -> response() },
                     setSort = { folderId, sort -> persisted += folderId to sort },
                 )
 
-            FilesSort.entries.forEach { sort ->
+            assertEquals(12, FilesSort.entries.size)
+            expected.forEach { (sort, apiValue) ->
+                assertEquals(sort, FilesSort.fromApiValue(apiValue))
                 assertTrue(repository.persistSort(FilesItemId(42L), sort) is FilesRepositoryResult.Success)
             }
+            assertNull(FilesSort.fromApiValue(null))
+            assertNull(FilesSort.fromApiValue("UNKNOWN"))
 
-            assertEquals(FilesSort.entries.map { 42L to it.apiValue }, persisted)
+            assertEquals(expected.map { 42L to it.second }, persisted)
         }
 
     private fun repositoryThrowing(error: Throwable): SdkFilesRepository =
         SdkFilesRepository(
-            listFolder = { throw error },
-            continueListing = { throw error },
+            listFolder = { _, _ -> throw error },
+            continueListing = { _, _ -> throw error },
             setSort = { _, _ -> throw error },
         )
 

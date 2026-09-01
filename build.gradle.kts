@@ -16,8 +16,28 @@ val testPublishEvidence = tasks.register<Exec>("testPublishEvidence") {
     commandLine("bash", "scripts/test-publish-evidence.sh")
 }
 
+val checkIcons = tasks.register<Exec>("checkIcons") {
+    group = "verification"
+    description = "Verify locked Phosphor drawables without network access"
+    commandLine("bash", "scripts/generate-icons.sh", "--check")
+}
+
+val testIconPipeline = tasks.register<Exec>("testIconPipeline") {
+    group = "verification"
+    description = "Test the Phosphor lock and drift contracts"
+    environment("PYTHONDONTWRITEBYTECODE", "1")
+    commandLine("python3", "scripts/test_phosphor_icons.py")
+}
+
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
-    dependsOn(":app:check", testEvidence, testPublishEvidence)
+    dependsOn(
+        ":app:check",
+        ":app:assembleMobileProductionRelease",
+        checkIcons,
+        testEvidence,
+        testIconPipeline,
+        testPublishEvidence,
+    )
 }

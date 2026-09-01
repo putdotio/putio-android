@@ -54,9 +54,10 @@ SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
 `verify` runs Android Lint (`warningsAsErrors`, config in `app/lint.xml`),
 detekt (config in `detekt.yml`, Compose exemptions only), the local unit
 tests (`app/src/test/`, JUnit4 + Robolectric, Compose UI assertions run on
-the JVM). `:buildSrc:test` covers the design-token codegen; run it alongside
-`verify` (CI does). Fix findings at the source; suppress only with a comment
-stating the platform constraint.
+the JVM), and an unsigned minified `mobileProductionRelease` build that proves
+the composite Kotlin SDK against minSdk 26 and R8. `:buildSrc:test` covers the
+design-token codegen; run it alongside `verify` (CI does). Fix findings at the
+source; suppress only with a comment stating the platform constraint.
 
 Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
 `nightly`). Nightly carries its own application id, label, and the stars
@@ -64,7 +65,8 @@ launcher icon (`scripts/generate-nightly-icon.sh`); Play internal/closed
 tracks ship nightly, the public listing keeps production. Debug application
 ids: `io.put.putio.mobile.debug` (mobileProduction), `io.put.putio.debug`
 (tvProduction), plus `.nightly` before `.debug` for the nightly channel.
-Debug builds only; nothing in this harness needs release credentials.
+Harness launch proof uses debug builds. The minified release verification APK
+is unsigned; nothing in this harness needs release credentials.
 
 ## Design system
 
@@ -77,11 +79,11 @@ Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 ## CI
 
 `.github/workflows/ci.yml` runs on every PR and push to main: `./gradlew
-verify` plus both flavor assembles, uploading the debug APKs as the run's
-`debug-apks` artifact. The `Verify Android app` check is required by branch
-protection on `main`. Conventions mirror `putio-sdk-kotlin`: pinned action
-SHAs, Temurin 21, `gradle/actions/setup-gradle` caching, concurrency
-cancellation.
+verify` (including the minified SDK-consumer build) plus both debug flavor
+assembles, uploading the debug APKs as the run's `debug-apks` artifact. The
+`Verify Android app` check is required by branch protection on `main`.
+Conventions mirror `putio-sdk-kotlin`: pinned action SHAs, Temurin 21,
+`gradle/actions/setup-gradle` caching, concurrency cancellation.
 
 The private `putio-sdk-kotlin` composite build is checked out as a sibling
 using a read-only deploy key stored as the `PUTIO_SDK_KOTLIN_DEPLOY_KEY`
