@@ -27,8 +27,9 @@
 # Machine-readable stdout markers: BOOTED <serial>, EVIDENCE <path>,
 # PROOF PASS|FAIL <flavor>.
 #
-# Test hook: PUTIO_PROVE_FAIL_AT=after-boot|after-install injects a failure
-# at that stage (used by scripts/test-lifecycle.sh).
+# Test hooks: PUTIO_PROVE_FAIL_AT=after-boot|after-install injects a failure
+# at that stage; PUTIO_PROVE_APK supplies a disposable package path for the
+# isolated pre-install contract tests. Neither belongs in normal proof runs.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_sdk_root
@@ -69,13 +70,13 @@ case "${FLAVOR}" in
     PROFILE="phone"
     APP_ID="io.put.putio.mobile.debug"
     GRADLE_TASK=":app:assembleMobileProductionDebug"
-    APK="${REPO_ROOT}/app/build/outputs/apk/mobileProduction/debug/app-mobile-production-debug.apk"
+    APK="${PUTIO_PROVE_APK:-${REPO_ROOT}/app/build/outputs/apk/mobileProduction/debug/app-mobile-production-debug.apk}"
     ;;
   tv)
     PROFILE="tv"
     APP_ID="io.put.putio.debug"
     GRADLE_TASK=":app:assembleTvProductionDebug"
-    APK="${REPO_ROOT}/app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk"
+    APK="${PUTIO_PROVE_APK:-${REPO_ROOT}/app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk}"
     ;;
   *) die "unknown flavor '${FLAVOR}' (expected mobile|tv)" ;;
 esac
