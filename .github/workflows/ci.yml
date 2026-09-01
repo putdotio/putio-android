@@ -49,13 +49,10 @@ jobs:
           validate-wrappers: true
 
       - name: Install evidence dependencies
-        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
-        with:
-          packages: ffmpeg locales
-          version: "1"
-
-      - name: Generate evidence locale
-        run: sudo locale-gen de_DE.UTF-8
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg locales
+          sudo locale-gen de_DE.UTF-8
 
       - name: Verify and assemble all flavors
         working-directory: putio-android
