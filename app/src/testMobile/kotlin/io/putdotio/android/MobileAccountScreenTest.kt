@@ -1,16 +1,19 @@
 package io.putdotio.android
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
+import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsContent
@@ -99,6 +102,7 @@ class MobileAccountScreenTest {
             PutioTheme {
                 MobileAccountScreen(
                     account = Account,
+                    sessionId = SessionOne,
                     settingsState = state,
                     onSettingsEvent = events::add,
                     onSignOut = {},
@@ -124,6 +128,30 @@ class MobileAccountScreenTest {
         assertEquals(AccountSettingsEvent.RetryLoad, events.single())
     }
 
+    @Test
+    fun trashConfirmationDoesNotSurviveASessionReplacement() {
+        var sessionId by mutableStateOf(SessionOne)
+        compose.setContent {
+            PutioTheme {
+                MobileAccountScreen(
+                    account = Account,
+                    sessionId = sessionId,
+                    settingsState = readyAccountSettingsState(),
+                    onSettingsEvent = {},
+                    onSignOut = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(7)
+        compose.onNodeWithText("Move deleted files to Trash").performClick()
+        compose.onNodeWithText("Turn off Trash?").assertIsDisplayed()
+
+        compose.runOnIdle { sessionId = SessionTwo }
+
+        compose.onAllNodesWithText("Turn off Trash?").assertCountEquals(0)
+    }
+
     private fun setAccountContent(
         state: AccountSettingsState,
         events: MutableList<AccountSettingsEvent>,
@@ -133,6 +161,7 @@ class MobileAccountScreenTest {
             PutioTheme {
                 MobileAccountScreen(
                     account = Account,
+                    sessionId = SessionOne,
                     settingsState = state,
                     onSettingsEvent = events::add,
                     onSignOut = onSignOut,
@@ -148,5 +177,7 @@ class MobileAccountScreenTest {
                 username = "putio-user",
                 email = "user@example.com",
             )
+        val SessionOne = MobileAuthSessionId(1L)
+        val SessionTwo = MobileAuthSessionId(2L)
     }
 }

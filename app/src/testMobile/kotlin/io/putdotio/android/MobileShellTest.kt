@@ -18,6 +18,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
+import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEffect
@@ -91,6 +92,7 @@ class MobileShellTest {
                         filesState = emptyFilesState(),
                         accountSettingsState = readyAccountSettingsState(),
                         account = Account,
+                        sessionId = Session,
                         onFilesEvent = {},
                         onAccountSettingsEvent = {},
                         onSignOut = {},
@@ -131,6 +133,7 @@ class MobileShellTest {
                     filesState = filesState,
                     accountSettingsState = accountSettingsState,
                     account = Account,
+                    sessionId = Session,
                     onFilesEvent = onFilesEvent,
                     onAccountSettingsEvent = onAccountSettingsEvent,
                     onSignOut = {},
@@ -141,6 +144,7 @@ class MobileShellTest {
 
     private companion object {
         val Account = MobileAccount(userId = 42L, username = "user", email = "user@example.com")
+        val Session = MobileAuthSessionId(1L)
     }
 }
 

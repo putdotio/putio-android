@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.auth.MobileAccount
+import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -48,12 +49,13 @@ internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
 @Composable
 internal fun MobileAccountScreen(
     account: MobileAccount,
+    sessionId: MobileAuthSessionId,
     settingsState: AccountSettingsState,
     onSettingsEvent: (AccountSettingsEvent) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var confirmTrashDisable by rememberSaveable { mutableStateOf(false) }
+    var confirmTrashDisable by rememberSaveable(sessionId) { mutableStateOf(false) }
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
