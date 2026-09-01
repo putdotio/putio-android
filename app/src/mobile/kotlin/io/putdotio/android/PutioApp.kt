@@ -52,6 +52,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -347,6 +348,7 @@ private fun PhoneShell(
                 destination = selectedDestination,
                 filesState = filesState,
                 onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
+                onFilesEvent = onFilesEvent,
             )
         },
         bottomBar = {
@@ -407,6 +409,7 @@ private fun TabletShell(
                     destination = selectedDestination,
                     filesState = filesState,
                     onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
+                    onFilesEvent = onFilesEvent,
                 )
             },
         ) { padding ->
@@ -431,6 +434,7 @@ private fun MobileTopBar(
     destination: MobileDestination,
     filesState: FilesBrowserState,
     onFilesBack: () -> Unit,
+    onFilesEvent: (FilesBrowserEvent) -> Unit,
 ) {
     val filesFolderName = filesState.current.folder.name?.takeIf(String::isNotBlank)
     TopAppBar(
@@ -451,6 +455,17 @@ private fun MobileTopBar(
                         contentDescription = stringResource(R.string.mobile_action_back),
                     )
                 }
+            }
+        },
+        actions = {
+            if (
+                destination == MobileDestination.Files &&
+                (filesState.current.content is FilesContent.Empty || filesState.current.content is FilesContent.Ready)
+            ) {
+                MobileFilesSortMenu(
+                    folder = filesState.current,
+                    onSelect = { onFilesEvent(FilesBrowserEvent.SelectSort(it)) },
+                )
             }
         },
     )
@@ -516,13 +531,15 @@ private fun MobileNavHost(
 
 internal fun FilesBrowserState.authoritativeSessionFailure(): FilesFailure? =
     stack.asReversed().firstNotNullOfOrNull { folder ->
-        val failure = when (val content = folder.content) {
+        val contentFailure = when (val content = folder.content) {
             is FilesContent.Failed -> content.failure
             is FilesContent.Empty -> (content.paging as? FilesPaging.Failed)?.failure
             is FilesContent.Ready -> (content.paging as? FilesPaging.Failed)?.failure
             is FilesContent.Loading -> null
         }
-        failure?.takeIf { it is FilesFailure.AuthenticationRequired }
+        val operationFailure = (folder.operation as? FilesFolderOperation.Failed)?.failure
+        listOfNotNull(contentFailure, operationFailure)
+            .firstOrNull { it is FilesFailure.AuthenticationRequired }
     }
 
 private fun NavHostController.navigateTo(destination: MobileDestination) {

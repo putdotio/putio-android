@@ -13,12 +13,18 @@ import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsRepository
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
+<<<<<<< HEAD
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+=======
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
+>>>>>>> origin/main
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
@@ -89,6 +95,7 @@ class MobileAccountSettingsViewModelTest {
     }
 
     @Test
+<<<<<<< HEAD
     fun sessionReplacementCancelsThePreviousInFlightLoad() {
         val repository = SuspendingRepository()
         val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
@@ -119,6 +126,8 @@ class MobileAccountSettingsViewModelTest {
     }
 
     @Test
+=======
+>>>>>>> origin/main
     fun staleSessionCannotRecreateAControllerAfterSignOut() {
         val repository = RecordingRepository()
         val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
@@ -162,6 +171,7 @@ class MobileAccountSettingsViewModelTest {
         ): AccountSettingsRepositoryResult<Unit> = AccountSettingsRepositoryResult.Success(Unit)
     }
 
+<<<<<<< HEAD
     private class SuspendingRepository : AccountSettingsRepository {
         val started = CompletableDeferred<Unit>()
         val cancelled = CompletableDeferred<Unit>()
@@ -184,6 +194,10 @@ class MobileAccountSettingsViewModelTest {
     private companion object {
         const val USER_ID = 42L
         const val TEST_TIMEOUT_MILLIS = 2_000L
+=======
+    private companion object {
+        const val USER_ID = 42L
+>>>>>>> origin/main
         val Account = MobileAccount(USER_ID, "user", "user@example.com")
         val SessionOne = MobileAuthSessionId(1L)
         val SessionTwo = MobileAuthSessionId(2L)
