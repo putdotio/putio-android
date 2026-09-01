@@ -1,7 +1,7 @@
 # Design tokens
 
 `tokens.dtcg.json` is the DTCG token graph from
-[`@putdotio/design` 3.0.0](https://github.com/putdotio/putio-design)
+[`@putdotio/design` 3.2.1](https://github.com/putdotio/putio-design)
 (`dist/tokens.dtcg.json`), vendored verbatim.
 
 The Compose color schemes are generated from this file at build time by

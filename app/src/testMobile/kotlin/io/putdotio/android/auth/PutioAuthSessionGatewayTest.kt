@@ -20,7 +20,15 @@ class PutioAuthSessionGatewayTest {
 
         assertEquals(listOf("validate", "account"), boundary.calls)
         assertEquals(
-            SessionValidationResult.Valid(MobileAccount(userId = 42, username = "user", email = "user@example.com")),
+            SessionValidationResult.Valid(
+                MobileAccount(
+                    userId = 42,
+                    username = "user",
+                    email = "user@example.com",
+                    avatarUrl = "https://example.com/avatar.png",
+                    storage = MobileAccountStorage(availableBytes = 1, sizeBytes = 2, usedBytes = 1),
+                ),
+            ),
             result,
         )
     }

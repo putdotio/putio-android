@@ -20,6 +20,7 @@
     <string name="mobile_files_metadata_size_date">%1$s · %2$s</string>
     <string name="mobile_files_open_folder">Open %1$s</string>
     <string name="mobile_account_signed_in_as">Signed in as</string>
+    <string name="mobile_account_storage">%1$s used · %2$s free</string>
     <string name="mobile_account_sign_out">Sign out</string>
     <string name="mobile_settings_loading">Loading account settings</string>
     <string name="mobile_settings_error_title">Couldn’t load account settings</string>
