@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import android.content.Intent
+import android.app.Application
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
@@ -54,8 +55,20 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.SdkFilesRepository
+import io.putdotio.android.history.HistoryContent
+import io.putdotio.android.history.HistoryEvent
+import io.putdotio.android.history.HistoryState
+import io.putdotio.android.history.SdkHistoryRepository
+import io.putdotio.android.search.RecentSearchEdit
+import io.putdotio.android.search.SdkSearchRepository
+import io.putdotio.android.search.SearchContent
+import io.putdotio.android.search.SearchState
+import io.putdotio.android.search.SearchTerm
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
 
 internal const val MOBILE_NAV_BAR_TAG = "mobile-navigation-bar"
@@ -88,11 +101,20 @@ private fun MobileAuthRoot(
     runtime: MobileOAuthRuntime,
     oauthBrowser: AuthTabOAuthBrowser?,
 ) {
+    val context = LocalContext.current
     val authController = runtime.authController
     val authState by authController.state.collectAsStateWithLifecycle()
     val rootScope = rememberCoroutineScope()
     val filesViewModel = viewModel<MobileFilesViewModel>(
         factory = remember(authController) { mobileFilesViewModelFactory(authController.state) },
+    )
+    val searchHistoryViewModel = viewModel<MobileSearchHistoryViewModel>(
+        factory = remember(authController, context.applicationContext) {
+            mobileSearchHistoryViewModelFactory(
+                context.applicationContext as Application,
+                authController.state,
+            )
+        },
     )
 
     LaunchedEffect(authController) {
@@ -154,6 +176,7 @@ private fun MobileAuthRoot(
                 account = state.account,
                 sessionId = state.sessionId,
                 filesViewModel = filesViewModel,
+                searchHistoryViewModel = searchHistoryViewModel,
                 authController = authController,
                 rootScope = rootScope,
             )
@@ -221,6 +244,7 @@ private fun SignedInMobileRoot(
     account: MobileAccount,
     sessionId: MobileAuthSessionId,
     filesViewModel: MobileFilesViewModel,
+    searchHistoryViewModel: MobileSearchHistoryViewModel,
     authController: MobileAuthController,
     rootScope: CoroutineScope,
 ) {
@@ -234,12 +258,35 @@ private fun SignedInMobileRoot(
             repository = filesRepository,
         )
     }
-    if (filesController == null) {
+    val searchRepository = remember(runtime.putioClient) { SdkSearchRepository(runtime.putioClient) }
+    val historyRepository = remember(runtime.putioClient) { SdkHistoryRepository(runtime.putioClient) }
+    val searchHistorySession =
+        remember(searchHistoryViewModel, runtime.putioClient, account, sessionId) {
+            searchHistoryViewModel.controllersFor(
+                userId = account.userId,
+                sessionId = sessionId,
+                historyEnabled = account.historyEnabled,
+                putioClient = runtime.putioClient,
+                searchRepository = searchRepository,
+                historyRepository = historyRepository,
+                filesItemResolver = filesRepository,
+            )
+        }
+    if (filesController == null || searchHistorySession == null) {
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
     }
     val filesState by filesController.state.collectAsStateWithLifecycle()
-    val authoritativeFailure = filesState.authoritativeSessionFailure()
+    val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
+    val historyState by searchHistorySession.history.state.collectAsStateWithLifecycle()
+    val navigationFailure by searchHistorySession.navigationFailure.collectAsStateWithLifecycle()
+    val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
+    val authoritativeFailure =
+        filesState.authoritativeSessionFailure()
+            ?: searchState.authoritativeSessionFailure()
+            ?: historyState.authoritativeSessionFailure()
+            ?: recentSearchFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
+            ?: navigationFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
 
     LaunchedEffect(authoritativeFailure) {
         if (authoritativeFailure != null) {
@@ -249,8 +296,33 @@ private fun SignedInMobileRoot(
 
     MobileShell(
         filesState = filesState,
+        searchHistoryState =
+            MobileSearchHistoryState(
+                search = searchState,
+                history = historyState,
+                recentSearchFailure =
+                    recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired },
+            ),
         account = account,
         onFilesEvent = filesController::dispatch,
+        searchHistoryActions =
+            MobileSearchHistoryActions(
+                onQueryChanged = { searchHistorySession.search.updateQuery(it) },
+                onSubmit = { searchHistorySession.search.submit() },
+                onResult = { searchHistorySession.search.openResult(it.id) },
+                onNextPage = { searchHistorySession.search.loadNextPage() },
+                onRetry = { searchHistorySession.search.retry() },
+                onRecentSearch = { term ->
+                    searchHistorySession.search.updateQuery(term.value)
+                    searchHistorySession.search.submit()
+                },
+                onRecentEdit = { searchHistorySession.search.editRecentSearches(it) },
+                onRecentRetry = searchHistorySession::retryRecentSearches,
+                onHistoryEvent = { searchHistorySession.history.dispatch(it) },
+            ),
+        contentNavigation = searchHistorySession.navigation,
+        navigationFailure = navigationFailure,
+        onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
         onSignOut = { rootScope.launch { authController.logout() } },
     )
 }
@@ -258,13 +330,25 @@ private fun SignedInMobileRoot(
 @Composable
 internal fun MobileShell(
     filesState: FilesBrowserState,
+    searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
     account: MobileAccount,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    searchHistoryActions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
+    contentNavigation: Flow<FilesItem> = emptyFlow(),
+    navigationFailure: FilesFailure? = null,
+    onDismissNavigationFailure: () -> Unit = {},
     onSignOut: () -> Unit,
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
+
+    LaunchedEffect(contentNavigation) {
+        contentNavigation.collect { item ->
+            onFilesEvent(FilesBrowserEvent.OpenExternalItem(item))
+            navController.navigateTo(MobileDestination.Files)
+        }
+    }
 
     BackHandler(
         enabled = selectedDestination == MobileDestination.Files && filesState.canNavigateBack,
@@ -278,8 +362,10 @@ internal fun MobileShell(
                 navController = navController,
                 selectedDestination = selectedDestination,
                 filesState = filesState,
+                searchHistoryState = searchHistoryState,
                 account = account,
                 onFilesEvent = onFilesEvent,
+                searchHistoryActions = searchHistoryActions,
                 onSignOut = onSignOut,
             )
         } else {
@@ -287,11 +373,25 @@ internal fun MobileShell(
                 navController = navController,
                 selectedDestination = selectedDestination,
                 filesState = filesState,
+                searchHistoryState = searchHistoryState,
                 account = account,
                 onFilesEvent = onFilesEvent,
+                searchHistoryActions = searchHistoryActions,
                 onSignOut = onSignOut,
             )
         }
+    }
+    if (navigationFailure != null && navigationFailure !is FilesFailure.AuthenticationRequired) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onDismissNavigationFailure,
+            title = { Text(stringResource(R.string.mobile_navigation_error_title)) },
+            text = { Text(stringResource(navigationFailure.mobileMessageResource())) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = onDismissNavigationFailure) {
+                    Text(stringResource(R.string.mobile_action_ok))
+                }
+            },
+        )
     }
 }
 
@@ -301,8 +401,10 @@ private fun PhoneShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    searchHistoryState: MobileSearchHistoryState,
     account: MobileAccount,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    searchHistoryActions: MobileSearchHistoryActions,
     onSignOut: () -> Unit,
 ) {
     Scaffold(
@@ -330,8 +432,10 @@ private fun PhoneShell(
         MobileNavHost(
             navController = navController,
             filesState = filesState,
+            searchHistoryState = searchHistoryState,
             account = account,
             onFilesEvent = onFilesEvent,
+            searchHistoryActions = searchHistoryActions,
             onSignOut = onSignOut,
             modifier = Modifier.padding(padding),
         )
@@ -344,8 +448,10 @@ private fun TabletShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    searchHistoryState: MobileSearchHistoryState,
     account: MobileAccount,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    searchHistoryActions: MobileSearchHistoryActions,
     onSignOut: () -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
@@ -373,8 +479,10 @@ private fun TabletShell(
             MobileNavHost(
                 navController = navController,
                 filesState = filesState,
+                searchHistoryState = searchHistoryState,
                 account = account,
                 onFilesEvent = onFilesEvent,
+                searchHistoryActions = searchHistoryActions,
                 onSignOut = onSignOut,
                 modifier = Modifier.padding(padding),
             )
@@ -440,8 +548,10 @@ private fun MobileDestinationIcon(
 private fun MobileNavHost(
     navController: NavHostController,
     filesState: FilesBrowserState,
+    searchHistoryState: MobileSearchHistoryState,
     account: MobileAccount,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
+    searchHistoryActions: MobileSearchHistoryActions,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -457,9 +567,19 @@ private fun MobileNavHost(
             )
         }
         composable(MobileDestination.Search.route) {
-            MobileEmptyState(
-                title = stringResource(R.string.mobile_search_empty_title),
-                message = stringResource(R.string.mobile_search_empty_message),
+            MobileSearchHistoryScreen(
+                searchState = searchHistoryState.search,
+                historyState = searchHistoryState.history,
+                recentSearchFailure = searchHistoryState.recentSearchFailure,
+                onSearchQueryChanged = searchHistoryActions.onQueryChanged,
+                onSearchSubmit = searchHistoryActions.onSubmit,
+                onSearchResult = searchHistoryActions.onResult,
+                onSearchNextPage = searchHistoryActions.onNextPage,
+                onSearchRetry = searchHistoryActions.onRetry,
+                onRecentSearch = searchHistoryActions.onRecentSearch,
+                onRecentEdit = searchHistoryActions.onRecentEdit,
+                onRecentRetry = searchHistoryActions.onRecentRetry,
+                onHistoryEvent = searchHistoryActions.onHistoryEvent,
             )
         }
         composable(MobileDestination.Transfers.route) {
@@ -489,6 +609,63 @@ internal fun FilesBrowserState.authoritativeSessionFailure(): FilesFailure? =
         listOfNotNull(contentFailure, operationFailure)
             .firstOrNull { it is FilesFailure.AuthenticationRequired }
     }
+
+internal fun SearchState.authoritativeSessionFailure(): FilesFailure? =
+    when (val value = content) {
+        is SearchContent.Failed -> value.failure
+        is SearchContent.Empty -> (value.paging as? io.putdotio.android.search.SearchPaging.Failed)?.failure
+        is SearchContent.Ready -> (value.paging as? io.putdotio.android.search.SearchPaging.Failed)?.failure
+        SearchContent.Idle,
+        is SearchContent.Debouncing,
+        is SearchContent.Loading,
+        -> null
+    }?.takeIf { it is FilesFailure.AuthenticationRequired }
+
+internal fun HistoryState.authoritativeSessionFailure(): FilesFailure? =
+    listOfNotNull(
+        when (val value = content) {
+            is HistoryContent.Failed -> value.failure
+            is HistoryContent.Ready ->
+                (value.paging as? io.putdotio.android.history.HistoryPaging.Failed)?.failure
+            HistoryContent.Disabled,
+            HistoryContent.Empty,
+            is HistoryContent.Loading,
+            -> null
+        },
+        (clearing as? io.putdotio.android.history.HistoryClearing.Failed)?.failure,
+    ).firstOrNull { it is FilesFailure.AuthenticationRequired }
+
+internal data class MobileSearchHistoryState(
+    val search: SearchState,
+    val history: HistoryState,
+    val recentSearchFailure: FilesFailure?,
+)
+
+internal data class MobileSearchHistoryActions(
+    val onQueryChanged: (String) -> Unit = {},
+    val onSubmit: () -> Unit = {},
+    val onResult: (FilesItem) -> Unit = {},
+    val onNextPage: () -> Unit = {},
+    val onRetry: () -> Unit = {},
+    val onRecentSearch: (SearchTerm) -> Unit = {},
+    val onRecentEdit: (RecentSearchEdit) -> Unit = {},
+    val onRecentRetry: () -> Unit = {},
+    val onHistoryEvent: (HistoryEvent) -> Unit = {},
+)
+
+private fun emptySearchHistoryState(): MobileSearchHistoryState =
+    MobileSearchHistoryState(
+        search =
+            SearchState(
+                query = "",
+                content = SearchContent.Idle,
+                recentTerms = emptyList(),
+                consumedCursors = emptySet(),
+                nextRequestValue = 1L,
+            ),
+        history = HistoryState(HistoryContent.Disabled),
+        recentSearchFailure = null,
+    )
 
 private fun NavHostController.navigateTo(destination: MobileDestination) {
     navigate(destination.route) {

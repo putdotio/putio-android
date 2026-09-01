@@ -56,7 +56,6 @@ import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
 import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
-import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -88,7 +87,7 @@ internal fun MobileFilesScreen(
         is FilesContent.Failed ->
             MobileErrorState(
                 title = stringResource(R.string.mobile_state_error_title),
-                message = stringResource(content.failure.messageResource()),
+                message = stringResource(content.failure.mobileMessageResource()),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(FilesBrowserEvent.Retry) },
                 modifier = modifier,
@@ -301,7 +300,16 @@ private fun MobileFilesList(
         ) { item ->
             MobileFilesRow(
                 item = item,
-                onOpenFolder = { onEvent(FilesBrowserEvent.OpenFolder(it)) },
+                onClick = if (item.isFolder) {
+                    { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
+                } else {
+                    null
+                },
+                onClickLabel = if (item.isFolder) {
+                    stringResource(R.string.mobile_files_open_folder, item.name)
+                } else {
+                    null
+                },
             )
             HorizontalDivider(modifier = Modifier.padding(start = FILES_DIVIDER_INSET))
         }
@@ -319,18 +327,18 @@ private fun MobileFilesList(
 }
 
 @Composable
-private fun MobileFilesRow(
+internal fun MobileFilesRow(
     item: FilesItem,
-    onOpenFolder: (FilesItemId) -> Unit,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
 ) {
     val metadata = formatFilesItemMetadata(LocalContext.current, item)
-    val interaction = if (item.isFolder) {
-        val openFolderLabel = stringResource(R.string.mobile_files_open_folder, item.name)
+    val interaction = if (onClick != null) {
         Modifier.clickable(
-            onClickLabel = openFolderLabel,
+            onClickLabel = onClickLabel,
             role = Role.Button,
-            onClick = { onOpenFolder(item.id) },
+            onClick = onClick,
         )
     } else {
         Modifier
@@ -464,7 +472,7 @@ private fun String.toDisplayDate(context: Context): String? =
         }
 
 @StringRes
-private fun FilesFailure.messageResource(): Int =
+internal fun FilesFailure.mobileMessageResource(): Int =
     when (this) {
         is FilesFailure.AuthenticationRequired -> R.string.mobile_state_error_session
         is FilesFailure.AccessDenied -> R.string.mobile_state_error_forbidden

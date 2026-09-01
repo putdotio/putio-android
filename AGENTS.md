@@ -28,7 +28,7 @@ rest.
 | --- | --- |
 | JDK 21 on PATH | `.java-version` pins 21; `mise install` or `brew install temurin@21` |
 | Homebrew (macOS) | only needed if Android cmdline-tools are absent |
-| Network | first bootstrap downloads ~3 GB of SDK packages plus FFmpeg |
+| Network | first bootstrap downloads several GB of SDK packages plus FFmpeg |
 
 ```bash
 ./scripts/bootstrap.sh
@@ -36,7 +36,8 @@ rest.
 
 Idempotent. Installs cmdline-tools (via Homebrew if missing), accepts
 licenses, installs platform/build-tools for the compileSdk, the emulator, the
-phone + TV system images, creates the two reusable AVDs, and writes
+API 37 Google Play phone image and API 36 Android TV image, creates
+the two reusable AVDs, and writes
 `local.properties` (`sdk.dir` plus `putioSdkKotlinPath`, defaulting to the
 sibling `../putio-sdk-kotlin` checkout, which must be cloned).
 
@@ -99,11 +100,11 @@ and flaky to block merges; local proof stays on `scripts/prove.sh`.
 
 ## Emulators
 
-Two reusable AVDs, both API 36 arm64 on Apple Silicon (x86_64 elsewhere):
+Two reusable AVDs, arm64 on Apple Silicon (x86_64 elsewhere):
 
 | AVD | Device profile | System image |
 | --- | --- | --- |
-| `putio-phone` | pixel_7 | `android-36;google_apis` |
+| `putio-phone` | pixel_7 | `android-37.0;google_apis_playstore` |
 | `putio-tv` | tv_1080p | `android-36;android-tv` |
 
 ```bash
@@ -118,6 +119,14 @@ completion, failure, SIGINT, and SIGTERM; it confirms the owned serial is gone
 from `adb devices` before returning; preexisting emulators are reused, never
 stopped; AVD registrations are deleted only if the flow created them via
 `--ephemeral`. No process-name or blanket emulator cleanup, ever.
+
+Every phone boot, including reuse, also verifies API 37, selects the bundled
+Chrome as the browser role holder, and requires its AndroidX Auth Tab service
+category. The harness fails closed before install when that secure OAuth
+transport is unavailable. TV and the CI managed device remain API 36.
+
+Bootstrap never replaces a mismatched AVD. It fails with an explicit command;
+stop and delete that exact profile yourself before rerunning bootstrap.
 
 ## Launch Proof
 

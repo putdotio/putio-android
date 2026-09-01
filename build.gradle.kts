@@ -16,6 +16,12 @@ val testPublishEvidence = tasks.register<Exec>("testPublishEvidence") {
     commandLine("bash", "scripts/test-publish-evidence.sh")
 }
 
+val testEmulatorHarness = tasks.register<Exec>("testEmulatorHarness") {
+    group = "verification"
+    description = "Run emulator provisioning and readiness contract tests"
+    commandLine("bash", "scripts/test-emulator.sh")
+}
+
 val checkIcons = tasks.register<Exec>("checkIcons") {
     group = "verification"
     description = "Verify locked Phosphor drawables without network access"
@@ -36,6 +42,7 @@ tasks.register("verify") {
         ":app:check",
         ":app:assembleMobileProductionRelease",
         checkIcons,
+        testEmulatorHarness,
         testEvidence,
         testIconPipeline,
         testPublishEvidence,
