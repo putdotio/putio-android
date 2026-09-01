@@ -183,7 +183,11 @@ private fun MobileReadyVideoPlayer(
             PlayerDefaults.TopControls(
                 player = controlledPlayer,
                 visible = visible,
-                modifier = Modifier.fillMaxWidth(),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(8.dp),
             ) {
                 if (source.hasSubtitles() && it != null) {
                     MobileSubtitleToggle(
