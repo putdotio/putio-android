@@ -37,6 +37,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -91,6 +92,11 @@ internal fun MobileVideoPlayerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Track selection lives at screen level so a retry (Ready -> Failed -> Ready)
+    // cannot drop the user's subtitle choice with the removed player subtree.
+    var retainedTrackSelection by rememberSaveable(state.target) {
+        mutableStateOf<Bundle?>(null)
+    }
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -105,6 +111,8 @@ internal fun MobileVideoPlayerScreen(
                     source = content.source,
                     title = state.target.name,
                     startPositionMillis = state.resumePositionMillis,
+                    retainedTrackSelection = retainedTrackSelection,
+                    onTrackSelectionRetained = { retainedTrackSelection = it },
                     onPlayerFailure = onPlayerFailure,
                 )
 
@@ -152,10 +160,13 @@ private fun MobileReadyVideoPlayer(
     source: PlaybackSource,
     title: String,
     startPositionMillis: Long?,
+    retainedTrackSelection: Bundle?,
+    onTrackSelectionRetained: (Bundle) -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val view = LocalView.current
     val initialPlayback = remember(source, title, startPositionMillis) {
         source.preparePlayback(title, startPositionMillis)
     }
@@ -163,9 +174,6 @@ private fun MobileReadyVideoPlayer(
         mutableStateOf(initialPlayback.startPositionMillis)
     }
     var resumeAfterLifecyclePause by rememberSaveable(source.fileId) { mutableStateOf(true) }
-    var retainedTrackSelection by rememberSaveable(source.fileId) {
-        mutableStateOf<Bundle?>(null)
-    }
     val preparedPlayback = remember(source, title) {
         source.preparePlayback(title, retainedPositionMillis)
     }
@@ -186,6 +194,7 @@ private fun MobileReadyVideoPlayer(
                     .build(),
                 /* handleAudioFocus = */ true,
             )
+            setHandleAudioBecomingNoisy(true)
             setMediaItem(preparedPlayback.mediaItem, preparedPlayback.startPositionMillis)
             trackSelectionParameters =
                 retainedTrackSelection?.let(TrackSelectionParameters::fromBundle)
@@ -196,6 +205,11 @@ private fun MobileReadyVideoPlayer(
         }
     }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
+
+    DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         val retained = retainPlaybackOnPause(player.currentPosition, player.playWhenReady)
@@ -221,7 +235,7 @@ private fun MobileReadyVideoPlayer(
                 }
 
                 override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
-                    retainedTrackSelection = parameters.toBundle()
+                    onTrackSelectionRetained(parameters.toBundle())
                 }
             }
         player.addListener(listener)
