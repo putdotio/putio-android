@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import hashlib
 import hmac
 import io
@@ -80,14 +81,30 @@ def require_object(value: object, field: str) -> dict[str, object]:
     return value
 
 
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            fail(f"lock contains duplicate key {key!r}")
+        result[key] = value
+    return result
+
+
 def load_lock() -> tuple[PackageLock, tuple[IconLock, ...]]:
     try:
-        document: object = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+        document: object = json.loads(
+            LOCK_PATH.read_text(encoding="utf-8"),
+            object_pairs_hook=reject_duplicate_keys,
+        )
     except (OSError, json.JSONDecodeError) as error:
         fail(f"cannot read {LOCK_PATH.relative_to(REPO_ROOT)}: {error}")
 
     root = require_object(document, "lock")
-    if set(root) != {"schemaVersion", "package", "icons"} or root["schemaVersion"] != 1:
+    if (
+        set(root) != {"schemaVersion", "package", "icons"}
+        or type(root["schemaVersion"]) is not int
+        or root["schemaVersion"] != 1
+    ):
         fail("lock must use schemaVersion 1 with package and icons fields")
 
     package_value = require_object(root["package"], "package")
@@ -105,8 +122,19 @@ def load_lock() -> tuple[PackageLock, tuple[IconLock, ...]]:
     )
     if package.name != "@phosphor-icons/core" or package.tarball != expected_tarball:
         fail("package name or tarball does not match the locked Phosphor version")
-    if not package.integrity.startswith("sha512-"):
+    integrity_prefix = "sha512-"
+    if not package.integrity.startswith(integrity_prefix):
         fail("package.integrity must use sha512 SRI")
+    integrity_digest = package.integrity.removeprefix(integrity_prefix)
+    try:
+        decoded_integrity = base64.b64decode(integrity_digest, validate=True)
+    except (ValueError, binascii.Error):
+        fail("package.integrity must contain valid base64")
+    if (
+        len(decoded_integrity) != hashlib.sha512().digest_size
+        or base64.b64encode(decoded_integrity).decode("ascii") != integrity_digest
+    ):
+        fail("package.integrity must contain a canonical SHA-512 digest")
 
     icons_value = root["icons"]
     if not isinstance(icons_value, list) or not icons_value:
