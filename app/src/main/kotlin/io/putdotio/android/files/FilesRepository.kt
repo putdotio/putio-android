@@ -71,15 +71,25 @@ interface FilesRepository {
     suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage>
 
     suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage>
+
+    suspend fun persistSort(
+        folderId: FilesItemId,
+        sort: FilesSort,
+    ): FilesRepositoryResult<Unit>
 }
 
 class SdkFilesRepository internal constructor(
     private val listFolder: suspend (Long, FilesListQuery) -> FilesListResponse,
     private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse,
+    private val setSort: suspend (Long, String) -> Unit,
 ) : FilesRepository {
     constructor(client: PutioClient) : this(
         listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
         continueListing = { cursor, query -> client.files.continueList(cursor = cursor, query = query) },
+        setSort = { folderId, sort ->
+            client.files.setSortBy(fileId = folderId, sortBy = sort)
+            Unit
+        },
     )
 
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
@@ -88,12 +98,21 @@ class SdkFilesRepository internal constructor(
     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
         requestPage { continueListing(cursor.value, FilesContinueQuery(perPage = FILES_PAGE_SIZE)) }
 
+    override suspend fun persistSort(
+        folderId: FilesItemId,
+        sort: FilesSort,
+    ): FilesRepositoryResult<Unit> = request { setSort(folderId.value, sort.apiValue) }
+
     // Kotlin/JVM has no typed throws contract, so the SDK boundary converts
     // unknown failures after preserving cancellation.
     @Suppress("TooGenericExceptionCaught")
     private suspend fun requestPage(request: suspend () -> FilesListResponse): FilesRepositoryResult<FilesPage> =
+        request { request().toFilesPage() }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun <T> request(request: suspend () -> T): FilesRepositoryResult<T> =
         try {
-            FilesRepositoryResult.Success(request().toFilesPage())
+            FilesRepositoryResult.Success(request())
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
@@ -107,6 +126,7 @@ private fun FilesListResponse.toFilesPage(): FilesPage =
     FilesPage(
         items = files.map(PutioFile::toFilesItem),
         nextCursor = cursor?.takeIf(String::isNotBlank)?.let(::FilesCursor),
+        sort = FilesSort.fromApiValue(parent?.sortBy),
     )
 
 private fun PutioFile.toFilesItem(): FilesItem =
