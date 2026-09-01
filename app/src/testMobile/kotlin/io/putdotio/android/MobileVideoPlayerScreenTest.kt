@@ -576,6 +576,24 @@ class MobileVideoPlayerCodecTest {
     }
 
     @Test
+    fun retainedPositionWinsOverAnEarlierRequestedResumePosition() {
+        assertEquals(
+            54_321L,
+            preferredPlaybackPosition(
+                retainedPositionMillis = 54_321L,
+                requestedPositionMillis = 12_345L,
+            ),
+        )
+        assertEquals(
+            12_345L,
+            preferredPlaybackPosition(
+                retainedPositionMillis = null,
+                requestedPositionMillis = 12_345L,
+            ),
+        )
+    }
+
+    @Test
     fun selectingSubtitleTrackEnablesTextAndPinsTheRequestedTrack() {
         val group =
             TrackGroup(

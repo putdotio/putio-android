@@ -73,9 +73,9 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.ui.SubtitleView
-import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
+import androidx.media3.ui.compose.material3.Player
 import androidx.media3.ui.compose.material3.PlayerDefaults
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
@@ -117,7 +117,11 @@ internal fun MobileVideoPlayerScreen(
                 MobileReadyVideoPlayer(
                     source = content.source,
                     title = state.target.name,
-                    startPositionMillis = state.resumePositionMillis ?: preferences.positionMillis,
+                    startPositionMillis =
+                        preferredPlaybackPosition(
+                            retainedPositionMillis = preferences.positionMillis,
+                            requestedPositionMillis = state.resumePositionMillis,
+                        ),
                     resumeAfterLifecyclePause = preferences.resumeAfterLifecyclePause,
                     retainedTrackSelection = preferences.trackSelection,
                     onPlaybackRetained = preferences::retainPlayback,
@@ -350,65 +354,59 @@ private fun MobileReadyVideoPlayer(
         }
     }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .testTag(MOBILE_VIDEO_PLAYER_TAG),
-    ) {
-        ContentFrame(
-            player = player,
-            modifier = Modifier
+    Player(
+        player = player,
+        modifier =
+            Modifier
                 .fillMaxSize()
-                .align(Alignment.Center),
-            surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
-        )
-        MobileSubtitleCueOverlay(
-            cues = cues,
-            videoAspectRatio = videoSize.displayAspectRatioOrNull(),
-            modifier =
-                Modifier
-                    .align(Alignment.Center)
-                    .zIndex(1f),
-        )
-        PlayerDefaults.TopControls(
-            player = player,
-            visible = true,
-            modifier =
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .zIndex(2f)
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(8.dp),
-        ) {
-            if (source.hasSelectableSubtitles() && it != null) {
-                MobileSubtitleControls(
-                    player = it,
-                    onTrackSelectionChanged = onTrackSelectionChanged,
-                    modifier = Modifier.align(Alignment.TopEnd),
-                )
+                .testTag(MOBILE_VIDEO_PLAYER_TAG),
+        surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
+        showControls = true,
+        topControls = { controlledPlayer, visible ->
+            PlayerDefaults.TopControls(
+                player = controlledPlayer,
+                visible = visible,
+                modifier =
+                    Modifier
+                        .zIndex(2f)
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(8.dp),
+            ) {
+                if (source.hasSelectableSubtitles() && it != null) {
+                    MobileSubtitleControls(
+                        player = it,
+                        onTrackSelectionChanged = onTrackSelectionChanged,
+                        modifier = Modifier.align(Alignment.TopEnd),
+                    )
+                }
             }
-        }
-        PlayerDefaults.CenterControls(
-            player = player,
-            visible = true,
-            modifier =
-                Modifier
-                    .align(Alignment.Center)
-                    .zIndex(2f),
-        )
-        PlayerDefaults.BottomControls(
-            player = player,
-            visible = true,
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .zIndex(2f)
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(8.dp),
-        )
-    }
+        },
+        centerControls = { controlledPlayer, visible ->
+            MobileSubtitleCueOverlay(
+                cues = cues,
+                videoAspectRatio = videoSize.displayAspectRatioOrNull(),
+                modifier = Modifier.zIndex(1f),
+            )
+            PlayerDefaults.CenterControls(
+                player = controlledPlayer,
+                visible = visible,
+                modifier = Modifier.zIndex(2f),
+            )
+        },
+        bottomControls = { controlledPlayer, visible ->
+            PlayerDefaults.BottomControls(
+                player = controlledPlayer,
+                visible = visible,
+                modifier =
+                    Modifier
+                        .zIndex(2f)
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(8.dp),
+            )
+        },
+    )
 }
 
 @Composable
@@ -569,6 +567,11 @@ internal fun replacementPositionMillis(
     } else {
         preparedPositionMillis.coerceAtLeast(0L)
     }
+
+internal fun preferredPlaybackPosition(
+    retainedPositionMillis: Long?,
+    requestedPositionMillis: Long?,
+): Long? = retainedPositionMillis ?: requestedPositionMillis
 
 @Composable
 private fun MobileSubtitleControls(
