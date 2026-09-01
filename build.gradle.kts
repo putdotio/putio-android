@@ -10,8 +10,14 @@ val testEvidence = tasks.register<Exec>("testEvidence") {
     commandLine("bash", "scripts/test-evidence.sh")
 }
 
+val checkIcons = tasks.register<Exec>("checkIcons") {
+    group = "verification"
+    description = "Verify locked Phosphor drawables without network access"
+    commandLine("bash", "scripts/generate-icons.sh", "--check")
+}
+
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
-    dependsOn(":app:check", testEvidence)
+    dependsOn(":app:check", checkIcons, testEvidence)
 }
