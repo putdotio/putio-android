@@ -46,6 +46,10 @@ data class PlaybackState(
 sealed interface PlaybackEvent {
     data object Retry : PlaybackEvent
 
+    data class PlayerFailed(
+        val failure: PlaybackFailure,
+    ) : PlaybackEvent
+
     data class ResolveSucceeded(
         val requestId: PlaybackRequestId,
         val resolution: PlaybackResolution,
@@ -87,9 +91,17 @@ object PlaybackReducer {
     ): PlaybackTransition =
         when (event) {
             PlaybackEvent.Retry -> state.retry()
+            is PlaybackEvent.PlayerFailed -> state.playerFailed(event)
             is PlaybackEvent.ResolveSucceeded -> state.resolveSucceeded(event)
             is PlaybackEvent.ResolveFailed -> state.resolveFailed(event)
         }
+}
+
+private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): PlaybackTransition {
+    if (content !is PlaybackContent.Ready) {
+        return PlaybackTransition(this, consumed = false)
+    }
+    return PlaybackTransition(copy(content = PlaybackContent.Failed(event.failure)))
 }
 
 private fun PlaybackState.retry(): PlaybackTransition {

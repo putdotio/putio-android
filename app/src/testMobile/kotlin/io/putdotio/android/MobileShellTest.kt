@@ -31,6 +31,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.sdk.files.PutioFileType
@@ -134,18 +135,35 @@ class MobileShellTest {
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
     }
 
+    @Test
+    fun authoritativePlaybackFailureRejectsTheSessionOnce() {
+        var rejections = 0
+        compose.setShell(
+            filesState = videoFilesState(),
+            playbackRepository = AuthenticationFailureRepository,
+            onPlaybackAuthenticationRequired = { rejections += 1 },
+        )
+
+        compose.onNodeWithText("episode.mkv").performClick()
+        compose.waitUntil(timeoutMillis = 5_000) { rejections == 1 }
+
+        assertEquals(1, rejections)
+    }
+
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         filesState: FilesBrowserState = emptyFilesState(),
+        playbackRepository: PlaybackRepository = ConversionRepository,
         onFilesEvent: (FilesBrowserEvent) -> Unit = {},
+        onPlaybackAuthenticationRequired: suspend () -> Unit = {},
     ) {
         setContent {
             PutioTheme {
                 MobileShell(
                     filesState = filesState,
                     account = Account,
-                    playbackRepository = ConversionRepository,
+                    playbackRepository = playbackRepository,
                     onFilesEvent = onFilesEvent,
-                    onPlaybackAuthenticationRequired = {},
+                    onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                     onSignOut = {},
                 )
             }
@@ -161,6 +179,15 @@ class MobileShellTest {
                 ): PlaybackRepositoryResult<PlaybackResolution> =
                     PlaybackRepositoryResult.Success(
                         PlaybackResolution.Conversion(PlaybackConversionState.Queued),
+                    )
+            }
+        val AuthenticationFailureRepository =
+            object : PlaybackRepository {
+                override suspend fun resolve(
+                    target: PlaybackTarget,
+                ): PlaybackRepositoryResult<PlaybackResolution> =
+                    PlaybackRepositoryResult.Failure(
+                        PlaybackFailure.AuthenticationRequired(IllegalStateException("session expired")),
                     )
             }
     }

@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -7,12 +8,15 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -31,6 +35,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.io.IOException
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -48,6 +53,7 @@ class MobileVideoPlayerScreenTest {
                 MobileVideoPlayerScreen(
                     state = state(PlaybackContent.Conversion(PlaybackConversionState.Converting(42.0))),
                     onRetry = { retries += 1 },
+                    onMediaRequestFailure = {},
                     onBack = { backs += 1 },
                 )
             }
@@ -68,6 +74,7 @@ class MobileVideoPlayerScreenTest {
                 MobileVideoPlayerScreen(
                     state = state(PlaybackContent.Unsupported(PutioFileType.TEXT)),
                     onRetry = { error("Retry must not be offered") },
+                    onMediaRequestFailure = {},
                     onBack = {},
                 )
             }
@@ -92,9 +99,11 @@ class MobileVideoPlayerScreenTest {
                 ),
         )
 
-        val item = source.toMediaItem(Target.name)
+        val preparedPlayback = source.preparePlayback(Target.name)
+        val item = preparedPlayback.mediaItem
         val local = requireNotNull(item.localConfiguration)
 
+        assertEquals(12_500L, preparedPlayback.startPositionMillis)
         assertEquals(MimeTypes.APPLICATION_M3U8, local.mimeType)
         assertEquals("episode.mkv", item.mediaMetadata.title)
         assertEquals(1, local.subtitleConfigurations.size)
@@ -148,16 +157,39 @@ class MobileVideoPlayerScreenTest {
     }
 }
 
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [35])
 @UnstableApi
 class MobileVideoPlayerCodecTest {
     @Test
     fun emulatorCodecsDemoteGoldfishDecoders() {
-        assertTrue(requiresEmulatorCodecWorkaround("ranchu"))
-        assertTrue(requiresEmulatorCodecWorkaround("goldfish"))
-        assertFalse(requiresEmulatorCodecWorkaround("tensor"))
+        assertTrue(requiresEmulatorCodecWorkaround(37, "ranchu"))
+        assertTrue(requiresEmulatorCodecWorkaround(37, "goldfish"))
+        assertFalse(requiresEmulatorCodecWorkaround(36, "ranchu"))
+        assertFalse(requiresEmulatorCodecWorkaround(37, "tensor"))
         assertEquals(1, emulatorCodecPriority("c2.goldfish.h264.decoder"))
         assertEquals(0, emulatorCodecPriority("c2.android.avc.decoder"))
-        assertEquals(SURFACE_TYPE_TEXTURE_VIEW, playbackSurfaceType("ranchu"))
-        assertEquals(SURFACE_TYPE_SURFACE_VIEW, playbackSurfaceType("tensor"))
+        assertEquals(SURFACE_TYPE_TEXTURE_VIEW, playbackSurfaceType(37, "ranchu"))
+        assertEquals(SURFACE_TYPE_SURFACE_VIEW, playbackSurfaceType(36, "ranchu"))
+        assertEquals(SURFACE_TYPE_SURFACE_VIEW, playbackSurfaceType(37, "tensor"))
+    }
+
+    @Test
+    fun mediaRequestUnauthorizedRequiresAuthentication() {
+        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
+        val response =
+            HttpDataSource.InvalidResponseCodeException(
+                401,
+                "Unauthorized",
+                IOException("rejected"),
+                emptyMap(),
+                dataSpec,
+                ByteArray(0),
+            )
+
+        assertTrue(
+            IllegalStateException("player failed", response).toMediaRequestFailureOrNull() is
+                PlaybackFailure.AuthenticationRequired,
+        )
     }
 }

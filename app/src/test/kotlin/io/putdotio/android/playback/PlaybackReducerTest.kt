@@ -92,6 +92,26 @@ class PlaybackReducerTest {
         assertTrue((ready.state.content as PlaybackContent.Ready).source === source)
     }
 
+    @Test
+    fun mediaRequestFailureLeavesReadyStateAndCanRetryResolution() {
+        val start = PlaybackReducer.start(Target)
+        val ready =
+            PlaybackReducer.reduce(
+                start.state,
+                PlaybackEvent.ResolveSucceeded(
+                    PlaybackRequestId(1L),
+                    PlaybackResolution.Ready(playbackSource()),
+                ),
+            )
+        val failure = PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired"))
+        val failed = PlaybackReducer.reduce(ready.state, PlaybackEvent.PlayerFailed(failure))
+        val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
+
+        assertEquals(failure, (failed.state.content as PlaybackContent.Failed).failure)
+        assertEquals(PlaybackRequestId(2L), (retry.state.content as PlaybackContent.Loading).requestId)
+        assertEquals(PlaybackRequestId(2L), retry.effect?.requestId)
+    }
+
     private fun playbackSource(): PlaybackSource =
         PlaybackSource(
             fileId = Target.fileId.value,

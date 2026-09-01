@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -28,7 +29,10 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
@@ -53,6 +57,7 @@ private const val MILLIS_PER_SECOND = 1_000.0
 internal fun MobileVideoPlayerScreen(
     state: PlaybackState,
     onRetry: () -> Unit,
+    onMediaRequestFailure: (PlaybackFailure) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -69,6 +74,7 @@ internal fun MobileVideoPlayerScreen(
                 MobileReadyVideoPlayer(
                     source = content.source,
                     title = state.target.name,
+                    onMediaRequestFailure = onMediaRequestFailure,
                 )
 
             is PlaybackContent.Conversion ->
@@ -114,19 +120,21 @@ internal fun MobileVideoPlayerScreen(
 private fun MobileReadyVideoPlayer(
     source: PlaybackSource,
     title: String,
+    onMediaRequestFailure: (PlaybackFailure) -> Unit,
 ) {
     val context = LocalContext.current
-    val mediaItem = remember(source, title) { source.toMediaItem(title) }
-    val player = remember(context, mediaItem) {
+    val preparedPlayback = remember(source, title) { source.preparePlayback(title) }
+    val currentOnMediaRequestFailure = rememberUpdatedState(onMediaRequestFailure)
+    val player = remember(context, preparedPlayback) {
         val renderersFactory = DefaultRenderersFactory(context)
-        if (requiresEmulatorCodecWorkaround(Build.HARDWARE)) {
+        if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
             // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
             renderersFactory
                 .setMediaCodecSelector(EmulatorMediaCodecSelector)
                 .setEnableDecoderFallback(true)
         }
         ExoPlayer.Builder(context, renderersFactory).build().apply {
-            setMediaItem(mediaItem, source.startFromSeconds.toPlaybackMillis())
+            setMediaItem(preparedPlayback.mediaItem, preparedPlayback.startPositionMillis)
             prepare()
             playWhenReady = true
         }
@@ -136,7 +144,17 @@ private fun MobileReadyVideoPlayer(
         player.pause()
     }
     DisposableEffect(player) {
-        onDispose(player::release)
+        val listener =
+            object : Media3Player.Listener {
+                override fun onPlayerError(error: PlaybackException) {
+                    error.toMediaRequestFailureOrNull()?.let(currentOnMediaRequestFailure.value)
+                }
+            }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
     }
 
     Player(
@@ -144,19 +162,24 @@ private fun MobileReadyVideoPlayer(
         modifier = Modifier
             .fillMaxSize()
             .testTag(MOBILE_VIDEO_PLAYER_TAG),
-        surfaceType = playbackSurfaceType(Build.HARDWARE),
+        surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
     )
 }
 
-internal fun requiresEmulatorCodecWorkaround(hardware: String): Boolean =
-    hardware == "ranchu" || hardware == "goldfish"
+internal fun requiresEmulatorCodecWorkaround(
+    sdkInt: Int,
+    hardware: String,
+): Boolean = sdkInt == 37 && (hardware == "ranchu" || hardware == "goldfish")
 
 internal fun emulatorCodecPriority(codecName: String): Int =
     if (codecName.startsWith("c2.goldfish.")) 1 else 0
 
 @UnstableApi
-internal fun playbackSurfaceType(hardware: String): Int =
-    if (requiresEmulatorCodecWorkaround(hardware)) {
+internal fun playbackSurfaceType(
+    sdkInt: Int,
+    hardware: String,
+): Int =
+    if (requiresEmulatorCodecWorkaround(sdkInt, hardware)) {
         SURFACE_TYPE_TEXTURE_VIEW
     } else {
         SURFACE_TYPE_SURFACE_VIEW
@@ -169,6 +192,17 @@ private val EmulatorMediaCodecSelector =
             .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
             .sortedBy { emulatorCodecPriority(it.name) }
     }
+
+internal data class PreparedPlayback(
+    val mediaItem: MediaItem,
+    val startPositionMillis: Long,
+)
+
+internal fun PlaybackSource.preparePlayback(title: String): PreparedPlayback =
+    PreparedPlayback(
+        mediaItem = toMediaItem(title),
+        startPositionMillis = startFromSeconds.toPlaybackMillis(),
+    )
 
 internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
     val subtitleConfigurations =
@@ -192,6 +226,26 @@ internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
         .setMediaMetadata(MediaMetadata.Builder().setTitle(title).build())
         .setSubtitleConfigurations(subtitleConfigurations)
         .build()
+}
+
+internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
+    var current: Throwable? = this
+    val visited = mutableSetOf<Throwable>()
+    var dataSourceFailure: HttpDataSource.HttpDataSourceException? = null
+    while (current != null && visited.add(current)) {
+        when (current) {
+            is HttpDataSource.InvalidResponseCodeException ->
+                return if (current.responseCode == 401) {
+                    PlaybackFailure.AuthenticationRequired(this)
+                } else {
+                    PlaybackFailure.MediaCredentialUnavailable(this)
+                }
+
+            is HttpDataSource.HttpDataSourceException -> dataSourceFailure = current
+        }
+        current = current.cause
+    }
+    return dataSourceFailure?.let { PlaybackFailure.MediaCredentialUnavailable(this) }
 }
 
 private fun Double.toPlaybackMillis(): Long =
