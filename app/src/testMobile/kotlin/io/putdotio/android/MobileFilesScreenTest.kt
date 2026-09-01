@@ -204,7 +204,7 @@ class MobileFilesScreenTest {
         )
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state = state, onEvent = events::add)
+                MobileFilesScreen(state = state, onEvent = events::add, onPlayVideo = {})
             }
         }
 
@@ -247,7 +247,7 @@ class MobileFilesScreenTest {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state = state, onEvent = events::add)
+                MobileFilesScreen(state = state, onEvent = events::add, onPlayVideo = {})
             }
         }
 
@@ -294,7 +294,7 @@ class MobileFilesScreenTest {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state = state, onEvent = events::add)
+                MobileFilesScreen(state = state, onEvent = events::add, onPlayVideo = {})
             }
         }
 
@@ -345,7 +345,7 @@ class MobileFilesScreenTest {
         )
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state = state, onEvent = {})
+                MobileFilesScreen(state = state, onEvent = {}, onPlayVideo = {})
             }
         }
 
@@ -377,7 +377,7 @@ class MobileFilesScreenTest {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state = state, onEvent = events::add)
+                MobileFilesScreen(state = state, onEvent = events::add, onPlayVideo = {})
             }
         }
 

@@ -223,7 +223,9 @@ class MobileShellTest {
                 MobileShell(
                     filesState = filesState,
                     account = Account,
+                    playbackRepository = ConversionRepository,
                     onFilesEvent = events::add,
+                    onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
                 )
             }
