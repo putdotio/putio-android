@@ -497,6 +497,38 @@ class FilesBrowserReducerTest {
         assertEquals(FilesItemId(44L), (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
     }
 
+    @Test
+    fun externalFileInCurrentFolderReloadsThatFolder() {
+        val root = loadedRoot(items = listOf(item(1L, "older.mkv", PutioFileType.VIDEO)), nextCursor = null)
+        val newFile = item(71L, "new.mkv", PutioFileType.VIDEO)
+
+        val opened = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenExternalItem(newFile))
+
+        assertTrue(opened.consumed)
+        assertEquals(listOf(FilesFolder.Root), opened.state.path)
+        assertTrue(opened.state.current.content is FilesContent.Loading)
+        assertEquals(FilesFolder.Root.id, (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
+    }
+
+    @Test
+    fun externalFileReloadPreservesTheCurrentFolderName() {
+        val folder = item(44L, "Movies", PutioFileType.FOLDER)
+        val root = loadedRoot(items = listOf(folder), nextCursor = null)
+        val opening = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenFolder(folder.id))
+        val request = opening.effect as FilesBrowserEffect.LoadFolder
+        val nested =
+            FilesBrowserReducer.reduce(
+                opening.state,
+                FilesBrowserEvent.LoadSucceeded(request.requestId, FilesPage(emptyList(), null)),
+            ).state
+        val externalFile = item(71L, "new.mkv", PutioFileType.VIDEO).copy(parentId = folder.id)
+
+        val reloading = FilesBrowserReducer.reduce(nested, FilesBrowserEvent.OpenExternalItem(externalFile))
+
+        assertEquals(FilesFolder(folder.id, folder.name), reloading.state.current.folder)
+        assertTrue(reloading.state.current.content is FilesContent.Loading)
+    }
+
     private fun loadedRoot(
         items: List<FilesItem>,
         nextCursor: FilesCursor?,

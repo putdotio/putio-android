@@ -57,6 +57,7 @@ internal fun MobileErrorState(
     retryLabel: String,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    retryEnabled: Boolean = true,
 ) {
     MobileAuthMessageScreen(
         title = title,
@@ -64,6 +65,7 @@ internal fun MobileErrorState(
         actionLabel = retryLabel,
         onAction = onRetry,
         modifier = modifier,
+        actionEnabled = retryEnabled,
     )
 }
 
@@ -74,13 +76,14 @@ internal fun MobileAuthMessageScreen(
     actionLabel: String,
     onAction: () -> Unit,
     modifier: Modifier = Modifier,
+    actionEnabled: Boolean = true,
 ) {
     MobileMessageState(
         title = title,
         message = message,
         modifier = modifier,
     ) {
-        Button(onClick = onAction) {
+        Button(onClick = onAction, enabled = actionEnabled) {
             Text(text = actionLabel)
         }
     }

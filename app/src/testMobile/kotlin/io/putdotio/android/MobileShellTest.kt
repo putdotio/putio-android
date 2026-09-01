@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -28,6 +29,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
@@ -46,6 +51,7 @@ import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.AccountSettingsChange
@@ -54,7 +60,19 @@ import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.transfers.TransferFileId
+import io.putdotio.android.transfers.TransferId
+import io.putdotio.android.transfers.TransferNavigation
+import io.putdotio.android.transfers.TransferNotice
+import io.putdotio.android.transfers.TransfersContent
+import io.putdotio.android.transfers.TransfersEvent
+import io.putdotio.android.transfers.TransfersRequestId
+import io.putdotio.android.transfers.TransfersState
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -368,6 +386,236 @@ class MobileShellTest {
         )
     }
 
+    @Test
+    fun transferFileAuthenticationFailureRejectsTheSession() {
+        val events = mutableListOf<TransfersEvent>()
+        var rejections = 0
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    transfersState = resolvingTransfersState(),
+                    account = Account,
+                    sessionId = Session,
+                    onFilesEvent = {},
+                    onTransfersEvent = events::add,
+                    resolveTransferFile = {
+                        FilesRepositoryResult.Failure(
+                            FilesFailure.AuthenticationRequired(PutioConfigurationException("expired")),
+                        )
+                    },
+                    onTransferAuthenticationRequired = { rejections += 1 },
+                    onAccountSettingsEvent = {},
+                    onSignOut = {},
+                )
+            }
+        }
+
+        compose.waitUntil { rejections == 1 }
+        assertEquals(emptyList<TransfersEvent>(), events)
+        compose.onAllNodesWithText("Something went wrong").assertCountEquals(0)
+    }
+
+    @Test
+    fun lateTransferFileResolutionStaysScopedToItsOriginalSession() {
+        var sessionId by mutableStateOf(MobileAuthSessionId(1L))
+        var transfersState by mutableStateOf(resolvingTransfersState())
+        val firstEvents = mutableListOf<TransfersEvent>()
+        val secondEvents = mutableListOf<TransfersEvent>()
+        val filesEvents = mutableListOf<FilesBrowserEvent>()
+        val resolutionStarted = CompletableDeferred<Unit>()
+        val releaseResolution = CompletableDeferred<Unit>()
+        val resolvedItem =
+            FilesItem(
+                id = FilesItemId(7L),
+                parentId = FilesFolder.Root.id,
+                name = "resolved",
+                type = PutioFileType.FOLDER,
+                sizeBytes = 0L,
+                createdAt = "2026-08-31T00:00:00Z",
+            )
+        compose.setContent {
+            val events = if (sessionId == MobileAuthSessionId(1L)) firstEvents else secondEvents
+            PutioTheme {
+                MobileShell(
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    transfersState = transfersState,
+                    transfersSessionId = sessionId,
+                    account = Account,
+                    sessionId = Session,
+                    onFilesEvent = filesEvents::add,
+                    onTransfersEvent = events::add,
+                    resolveTransferFile = {
+                        withContext(NonCancellable) {
+                            resolutionStarted.complete(Unit)
+                            releaseResolution.await()
+                        }
+                        FilesRepositoryResult.Success(resolvedItem)
+                    },
+                    onAccountSettingsEvent = {},
+                    onSignOut = {},
+                )
+            }
+        }
+
+        compose.waitUntil { resolutionStarted.isCompleted }
+        compose.runOnIdle {
+            sessionId = MobileAuthSessionId(2L)
+            transfersState = TransfersState(TransfersContent.Empty)
+        }
+        compose.runOnIdle { releaseResolution.complete(Unit) }
+
+        compose.waitForIdle()
+        assertEquals(emptyList<TransfersEvent>(), firstEvents)
+        assertEquals(emptyList<TransfersEvent>(), secondEvents)
+        assertEquals(emptyList<FilesBrowserEvent>(), filesEvents)
+    }
+
+    @Test
+    fun newShellDisplaysDurableTransferNoticeUntilAcknowledged() {
+        val events = mutableListOf<TransfersEvent>()
+        var transfersState by mutableStateOf(
+            TransfersState(TransfersContent.Empty).copy(
+                notice = TransferNotice.FilePreparing(TransferId(7L), TransfersRequestId(3L)),
+            ),
+        )
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    transfersState = transfersState,
+                    account = Account,
+                    sessionId = Session,
+                    onFilesEvent = {},
+                    onTransfersEvent = { event ->
+                        events += event
+                        if (event == TransfersEvent.DismissNotice(TransfersRequestId(3L))) {
+                            transfersState = transfersState.copy(notice = null)
+                        }
+                    },
+                    onAccountSettingsEvent = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("File isn’t ready").assertIsDisplayed()
+        compose.onNodeWithText("OK").performClick()
+
+        assertEquals(listOf(TransfersEvent.DismissNotice(TransfersRequestId(3L))), events)
+        compose.onAllNodesWithText("File isn’t ready").assertCountEquals(0)
+    }
+
+    @Test
+    fun newShellProcessesDurableTransferNavigationAlreadyInState() {
+        val events = mutableListOf<TransfersEvent>()
+        val filesEvents = mutableListOf<FilesBrowserEvent>()
+        val resolvedItem =
+            FilesItem(
+                id = FilesItemId(7L),
+                parentId = FilesFolder.Root.id,
+                name = "resolved",
+                type = PutioFileType.FOLDER,
+                sizeBytes = 0L,
+                createdAt = "2026-08-31T00:00:00Z",
+            )
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    transfersState = resolvingTransfersState(),
+                    account = Account,
+                    sessionId = Session,
+                    onFilesEvent = filesEvents::add,
+                    onTransfersEvent = events::add,
+                    resolveTransferFile = { FilesRepositoryResult.Success(resolvedItem) },
+                    onAccountSettingsEvent = {},
+                    onSignOut = {},
+                )
+            }
+        }
+
+        compose.waitUntil(timeoutMillis = 5_000L) {
+            events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L)))
+        }
+        assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(resolvedItem)), filesEvents)
+    }
+
+    @Test
+    fun changingTransferSessionMovesVisibilityToTheNewController() {
+        val firstEvents = mutableListOf<TransfersEvent>()
+        val secondEvents = mutableListOf<TransfersEvent>()
+        var sessionId by mutableStateOf(MobileAuthSessionId(1L))
+        compose.setContent {
+            val events = if (sessionId == MobileAuthSessionId(1L)) firstEvents else secondEvents
+            PutioTheme {
+                MobileShell(
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    transfersSessionId = sessionId,
+                    account = Account,
+                    sessionId = Session,
+                    onFilesEvent = {},
+                    onTransfersEvent = events::add,
+                    onAccountSettingsEvent = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Transfers").performClick()
+        compose.waitUntil(timeoutMillis = 5_000L) {
+            firstEvents.lastOrNull() == TransfersEvent.VisibilityChanged(true)
+        }
+
+        compose.runOnIdle { sessionId = MobileAuthSessionId(2L) }
+        compose.waitForIdle()
+
+        assertEquals(
+            listOf(TransfersEvent.VisibilityChanged(true), TransfersEvent.VisibilityChanged(false)),
+            firstEvents,
+        )
+        assertEquals(listOf(TransfersEvent.VisibilityChanged(true)), secondEvents)
+    }
+
+    @Test
+    fun transferVisibilityStopsAndRestartsWithTheHostLifecycle() {
+        val events = mutableListOf<TransfersEvent>()
+        val lifecycleOwner = ShellLifecycleOwner()
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                TransfersVisibilityEffect(
+                    sessionId = MobileAuthSessionId(1L),
+                    onEvent = events::add,
+                )
+            }
+        }
+
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.STARTED) }
+        compose.waitUntil { events == listOf(TransfersEvent.VisibilityChanged(true)) }
+
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.CREATED) }
+        compose.waitUntil {
+            events ==
+                listOf(
+                    TransfersEvent.VisibilityChanged(true),
+                    TransfersEvent.VisibilityChanged(false),
+                )
+        }
+
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.STARTED) }
+        compose.waitUntil {
+            events ==
+                listOf(
+                    TransfersEvent.VisibilityChanged(true),
+                    TransfersEvent.VisibilityChanged(false),
+                    TransfersEvent.VisibilityChanged(true),
+                )
+        }
+    }
+
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         filesState: FilesBrowserState = emptyFilesState(),
         accountSettingsState: AccountSettingsState = readyAccountSettingsState(),
@@ -448,3 +696,19 @@ private fun readyFilesState(sort: FilesSort): FilesBrowserState {
         ),
     ).state
 }
+
+private class ShellLifecycleOwner : LifecycleOwner {
+    private val registry = LifecycleRegistry(this)
+
+    override val lifecycle: Lifecycle = registry
+
+    fun moveTo(state: Lifecycle.State) {
+        registry.currentState = state
+    }
+}
+
+private fun resolvingTransfersState(): TransfersState =
+    TransfersState(
+        content = TransfersContent.Empty,
+        navigation = TransferNavigation.Resolving(TransferFileId(7L), TransfersRequestId(3L)),
+    )
