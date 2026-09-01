@@ -44,7 +44,7 @@ class SdkPlaybackRepositoryTest {
 
             assertTrue(result.value is PlaybackResolution.Conversion)
             assertEquals(Target.fileId.value, request?.fileId)
-            assertEquals(PlaybackPreference.HLS, request?.preference)
+            assertEquals(PlaybackPreference.MP4, request?.preference)
             assertTrue(request?.useStartFrom == true)
             assertEquals("<redacted media credential>", request?.mediaCredential.toString())
         }

@@ -97,7 +97,7 @@ class SdkPlaybackRepository internal constructor(
                 PlaybackRequest(
                     fileId = target.fileId.value,
                     mediaCredential = PlaybackMediaCredential.downloadToken(downloadToken),
-                    preference = PlaybackPreference.HLS,
+                    preference = PlaybackPreference.MP4,
                     useStartFrom = account.settings.useStartFrom,
                 ),
             )
