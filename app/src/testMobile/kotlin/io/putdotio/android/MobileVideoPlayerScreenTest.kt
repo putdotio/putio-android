@@ -11,12 +11,14 @@ import androidx.compose.ui.test.performClick
 import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.lifecycle.Lifecycle
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
@@ -194,6 +196,29 @@ class MobileVideoPlayerScreenTest {
 @UnstableApi
 class MobileVideoPlayerCodecTest {
     @Test
+    fun subtitleSelectionCanEnableDisableAndReenableUnflaggedText() {
+        val defaults = TrackSelectionParameters.Builder().build()
+        val enabled = defaults.withSubtitlesEnabled(true)
+        assertTrue(enabled.selectTextByDefault)
+        assertFalse(C.TRACK_TYPE_TEXT in enabled.disabledTrackTypes)
+
+        val disabled = enabled.withSubtitlesEnabled(false)
+        assertFalse(disabled.selectTextByDefault)
+        assertTrue(C.TRACK_TYPE_TEXT in disabled.disabledTrackTypes)
+
+        val reenabled = disabled.withSubtitlesEnabled(true)
+        assertTrue(reenabled.selectTextByDefault)
+        assertFalse(C.TRACK_TYPE_TEXT in reenabled.disabledTrackTypes)
+    }
+
+    @Test
+    fun autoplayRequiresAResumedLifecycle() {
+        assertFalse(lifecycleAllowsAutoplay(Lifecycle.State.CREATED))
+        assertFalse(lifecycleAllowsAutoplay(Lifecycle.State.STARTED))
+        assertTrue(lifecycleAllowsAutoplay(Lifecycle.State.RESUMED))
+    }
+
+    @Test
     fun emulatorCodecsDemoteGoldfishDecoders() {
         assertTrue(requiresEmulatorCodecWorkaround(37, "ranchu"))
         assertTrue(requiresEmulatorCodecWorkaround(37, "goldfish"))
@@ -223,6 +248,22 @@ class MobileVideoPlayerCodecTest {
             IllegalStateException("player failed", response).toMediaRequestFailureOrNull() is
                 PlaybackFailure.MediaCredentialUnavailable,
         )
+    }
+
+    @Test
+    fun mediaRequestNotFoundUsesGenericRecovery() {
+        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
+        val response =
+            HttpDataSource.InvalidResponseCodeException(
+                404,
+                "Not Found",
+                IOException("missing"),
+                emptyMap(),
+                dataSpec,
+                ByteArray(0),
+            )
+
+        assertNull(IllegalStateException("player failed", response).toMediaRequestFailureOrNull())
     }
 
     @Test

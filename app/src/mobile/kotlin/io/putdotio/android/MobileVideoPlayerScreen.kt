@@ -32,10 +32,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
@@ -59,6 +61,8 @@ import kotlin.math.roundToLong
 
 internal const val MOBILE_VIDEO_PLAYER_TAG = "mobile-video-player"
 private const val MILLIS_PER_SECOND = 1_000.0
+private const val HTTP_UNAUTHORIZED = 401
+private const val HTTP_FORBIDDEN = 403
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
@@ -133,11 +137,12 @@ private fun MobileReadyVideoPlayer(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
 ) {
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val preparedPlayback = remember(source, title, startPositionMillis) {
         source.preparePlayback(title, startPositionMillis)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
-    val player = remember(context, preparedPlayback) {
+    val player = remember(context, preparedPlayback, lifecycle) {
         val renderersFactory = DefaultRenderersFactory(context)
         if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
             // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
@@ -147,13 +152,20 @@ private fun MobileReadyVideoPlayer(
         }
         ExoPlayer.Builder(context, renderersFactory).build().apply {
             setMediaItem(preparedPlayback.mediaItem, preparedPlayback.startPositionMillis)
+            trackSelectionParameters =
+                trackSelectionParameters.withSubtitlesEnabled(source.hasSubtitles())
             prepare()
-            playWhenReady = true
+            playWhenReady = lifecycleAllowsAutoplay(lifecycle.currentState)
         }
     }
+    var resumeAfterLifecyclePause by remember(player) { mutableStateOf(true) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        resumeAfterLifecyclePause = player.playWhenReady
         player.pause()
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (resumeAfterLifecyclePause) player.play()
     }
     DisposableEffect(player) {
         val listener =
@@ -211,20 +223,21 @@ private fun MobileReadyVideoPlayer(
     )
 }
 
+internal fun lifecycleAllowsAutoplay(state: Lifecycle.State): Boolean =
+    state.isAtLeast(Lifecycle.State.RESUMED)
+
 @Composable
 private fun MobileSubtitleToggle(
     player: Media3Player,
     modifier: Modifier = Modifier,
 ) {
-    var enabled by remember(player) { mutableStateOf(true) }
+    var enabled by remember(player) {
+        mutableStateOf(C.TRACK_TYPE_TEXT !in player.trackSelectionParameters.disabledTrackTypes)
+    }
     TextButton(
         onClick = {
             enabled = !enabled
-            player.trackSelectionParameters =
-                player.trackSelectionParameters
-                    .buildUpon()
-                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
-                    .build()
+            player.trackSelectionParameters = player.trackSelectionParameters.withSubtitlesEnabled(enabled)
         },
         modifier = modifier,
     ) {
@@ -235,6 +248,12 @@ private fun MobileSubtitleToggle(
         )
     }
 }
+
+internal fun TrackSelectionParameters.withSubtitlesEnabled(enabled: Boolean): TrackSelectionParameters =
+    buildUpon()
+        .setSelectTextByDefault(enabled)
+        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
+        .build()
 
 internal fun requiresEmulatorCodecWorkaround(
     sdkInt: Int,
@@ -312,7 +331,9 @@ internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
     while (current != null && visited.add(current)) {
         when (current) {
             is HttpDataSource.InvalidResponseCodeException ->
-                return PlaybackFailure.MediaCredentialUnavailable(this)
+                if (current.responseCode == HTTP_UNAUTHORIZED || current.responseCode == HTTP_FORBIDDEN) {
+                    return PlaybackFailure.MediaCredentialUnavailable(this)
+                }
 
             is HttpDataSource.HttpDataSourceException ->
                 if (current.reason == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
