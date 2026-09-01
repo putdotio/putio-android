@@ -9,12 +9,15 @@ tmpdir="$(mktemp -d)"
 fake_sdk="${tmpdir}/sdk"
 state="${tmpdir}/state"
 cleanup() {
-  local pid
-  pid="$(cat "${state}/emulator-pid" 2>/dev/null || true)"
-  if [[ "${pid}" =~ ^[0-9]+$ ]]; then
+  local pid attempt
+  while read -r pid; do
+    [[ "${pid}" =~ ^[0-9]+$ ]] || continue
     kill "${pid}" 2>/dev/null || true
-    wait "${pid}" 2>/dev/null || true
-  fi
+    for attempt in {1..50}; do
+      kill -0 "${pid}" 2>/dev/null || break
+      sleep 0.02
+    done
+  done < "${state}/emulator-pids" 2>/dev/null || true
   rm -rf "${tmpdir}"
 }
 trap cleanup EXIT
@@ -151,6 +154,7 @@ while [[ $# -gt 0 ]]; do
 done
 printf '%s\n' "${name}" > "${state}/name"
 printf '%s\n' "$$" > "${state}/emulator-pid"
+printf '%s\n' "$$" >> "${state}/emulator-pids"
 echo 1 > "${state}/running"
 stop() { echo 0 > "${state}/running"; rm -f "${state}/emulator-pid"; exit 0; }
 trap stop INT TERM
