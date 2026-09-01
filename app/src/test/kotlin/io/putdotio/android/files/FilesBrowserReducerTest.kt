@@ -200,6 +200,271 @@ class FilesBrowserReducerTest {
     }
 
     @Test
+    fun refreshKeepsVisibleItemsAndReplacesTheFirstPage() {
+        val oldItem = item(1L, "old.mkv", PutioFileType.VIDEO)
+        val freshItem = item(2L, "fresh.mkv", PutioFileType.VIDEO)
+        val viewport = FilesViewportPosition(4, 18)
+        val root =
+            FilesBrowserReducer.reduce(
+                loadedRoot(listOf(oldItem), FilesCursor("old-next")),
+                FilesBrowserEvent.ViewportChanged(viewport),
+            ).state
+        val paging = FilesBrowserReducer.reduce(root, FilesBrowserEvent.LoadNextPage)
+        val stalePagingRequest = (paging.effect as FilesBrowserEffect.LoadNextPage).requestId
+
+        val refreshing = FilesBrowserReducer.reduce(paging.state, FilesBrowserEvent.Refresh)
+        val refreshEffect = refreshing.effect as FilesBrowserEffect.LoadFolder
+        val visible = refreshing.state.current.content as FilesContent.Ready
+
+        assertEquals(listOf(oldItem), visible.items)
+        assertEquals(FilesPaging.Available(FilesCursor("old-next")), visible.paging)
+        assertEquals(
+            FilesFolderOperation.Loading(
+                refreshEffect.requestId,
+                FilesFolderOperationIntent.Refresh,
+                FilesFolderOperationPhase.RELOADING,
+            ),
+            refreshing.state.current.operation,
+        )
+
+        val stale =
+            FilesBrowserReducer.reduce(
+                refreshing.state,
+                FilesBrowserEvent.LoadSucceeded(stalePagingRequest, FilesPage(listOf(oldItem), null)),
+            )
+        assertFalse(stale.consumed)
+        assertSame(refreshing.state, stale.state)
+
+        val refreshed =
+            FilesBrowserReducer.reduce(
+                refreshing.state,
+                FilesBrowserEvent.LoadSucceeded(
+                    refreshEffect.requestId,
+                    FilesPage(listOf(freshItem), FilesCursor("fresh-next"), FilesSort.DATE_ADDED_DESCENDING),
+                ),
+            ).state
+        val refreshedContent = refreshed.current.content as FilesContent.Ready
+        assertEquals(listOf(freshItem), refreshedContent.items)
+        assertEquals(FilesPaging.Available(FilesCursor("fresh-next")), refreshedContent.paging)
+        assertEquals(viewport, refreshedContent.viewport)
+        assertEquals(FilesSort.DATE_ADDED_DESCENDING, refreshed.current.folder.sort)
+        assertEquals(0L, refreshed.current.viewportGeneration)
+        assertEquals(FilesFolderOperation.Idle, refreshed.current.operation)
+    }
+
+    @Test
+    fun sortPersistsThenReloadsAndResetsTheViewport() {
+        val original = item(1L, "one.mkv", PutioFileType.VIDEO)
+        val sorted = item(2L, "two.mkv", PutioFileType.VIDEO)
+        val root =
+            FilesBrowserReducer.reduce(
+                loadedRoot(listOf(original), null, FilesSort.NAME_ASCENDING),
+                FilesBrowserEvent.ViewportChanged(FilesViewportPosition(7, 20)),
+            ).state
+
+        val persisting =
+            FilesBrowserReducer.reduce(
+                root,
+                FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING),
+            )
+        val persistEffect = persisting.effect as FilesBrowserEffect.PersistSort
+        assertEquals(FilesItemId(0L), persistEffect.folderId)
+        assertEquals(FilesSort.SIZE_DESCENDING, persistEffect.sort)
+        assertEquals(listOf(original), (persisting.state.current.content as FilesContent.Ready).items)
+
+        val reloading =
+            FilesBrowserReducer.reduce(
+                persisting.state,
+                FilesBrowserEvent.SortPersisted(persistEffect.requestId),
+            )
+        val reloadEffect = reloading.effect as FilesBrowserEffect.LoadFolder
+        assertEquals(FilesSort.NAME_ASCENDING, reloading.state.current.folder.sort)
+        assertEquals(
+            FilesFolderOperationPhase.RELOADING,
+            (reloading.state.current.operation as FilesFolderOperation.Loading).phase,
+        )
+
+        val completed =
+            FilesBrowserReducer.reduce(
+                reloading.state,
+                FilesBrowserEvent.LoadSucceeded(
+                    reloadEffect.requestId,
+                    FilesPage(listOf(sorted), null, FilesSort.SIZE_DESCENDING),
+                ),
+            ).state
+        val content = completed.current.content as FilesContent.Ready
+        assertEquals(listOf(sorted), content.items)
+        assertEquals(FilesViewportPosition(), content.viewport)
+        assertEquals(FilesSort.SIZE_DESCENDING, completed.current.folder.sort)
+        assertEquals(1L, completed.current.viewportGeneration)
+        assertEquals(FilesFolderOperation.Idle, completed.current.operation)
+    }
+
+    @Test
+    fun failedSortKeepsRowsAndRetriesTheFailedPhase() {
+        val original = item(1L, "one.mkv", PutioFileType.VIDEO)
+        val root = loadedRoot(listOf(original), FilesCursor("next"), FilesSort.NAME_ASCENDING)
+        val persisting =
+            FilesBrowserReducer.reduce(
+                root,
+                FilesBrowserEvent.SelectSort(FilesSort.TYPE_ASCENDING),
+            )
+        val persistEffect = persisting.effect as FilesBrowserEffect.PersistSort
+        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failed =
+            FilesBrowserReducer.reduce(
+                persisting.state,
+                FilesBrowserEvent.LoadFailed(persistEffect.requestId, failure),
+            ).state
+
+        assertEquals(listOf(original), (failed.current.content as FilesContent.Ready).items)
+        assertEquals(
+            FilesFolderOperation.Failed(
+                failure,
+                FilesFolderOperationIntent.Sort(FilesSort.TYPE_ASCENDING),
+                FilesFolderOperationPhase.PERSISTING_SORT,
+            ),
+            failed.current.operation,
+        )
+
+        val pagingWhileFailed = FilesBrowserReducer.reduce(failed, FilesBrowserEvent.LoadNextPage)
+        assertFalse(pagingWhileFailed.consumed)
+        assertNull(pagingWhileFailed.effect)
+        assertSame(failed, pagingWhileFailed.state)
+
+        val retried = FilesBrowserReducer.reduce(failed, FilesBrowserEvent.Retry)
+        val retryEffect = retried.effect as FilesBrowserEffect.PersistSort
+        assertEquals(FilesSort.TYPE_ASCENDING, retryEffect.sort)
+    }
+
+    @Test
+    fun failedSortReloadCanRevertToTheDisplayedSort() {
+        val original = item(1L, "one.mkv", PutioFileType.VIDEO)
+        val root = loadedRoot(listOf(original), null, FilesSort.NAME_ASCENDING)
+        val persisting = FilesBrowserReducer.reduce(
+            root,
+            FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING),
+        )
+        val persistEffect = persisting.effect as FilesBrowserEffect.PersistSort
+        val reloading = FilesBrowserReducer.reduce(
+            persisting.state,
+            FilesBrowserEvent.SortPersisted(persistEffect.requestId),
+        )
+        val reloadEffect = reloading.effect as FilesBrowserEffect.LoadFolder
+        val failed = FilesBrowserReducer.reduce(
+            reloading.state,
+            FilesBrowserEvent.LoadFailed(
+                reloadEffect.requestId,
+                FilesFailure.Unexpected(IllegalStateException("offline")),
+            ),
+        ).state
+
+        val reverted = FilesBrowserReducer.reduce(
+            failed,
+            FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING),
+        )
+        val revertEffect = reverted.effect as FilesBrowserEffect.PersistSort
+
+        assertEquals(FilesSort.NAME_ASCENDING, revertEffect.sort)
+        assertEquals(
+            FilesFolderOperationIntent.Sort(FilesSort.NAME_ASCENDING),
+            (reverted.state.current.operation as FilesFolderOperation.Loading).intent,
+        )
+    }
+
+    @Test
+    fun failedRefreshKeepsRowsAndRetriesTheReload() {
+        val original = item(1L, "one.mkv", PutioFileType.VIDEO)
+        val root = loadedRoot(listOf(original), FilesCursor("next"), FilesSort.NAME_ASCENDING)
+        val refreshing = FilesBrowserReducer.reduce(root, FilesBrowserEvent.Refresh)
+        val refreshEffect = refreshing.effect as FilesBrowserEffect.LoadFolder
+        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failed =
+            FilesBrowserReducer.reduce(
+                refreshing.state,
+                FilesBrowserEvent.LoadFailed(refreshEffect.requestId, failure),
+            ).state
+
+        assertEquals(listOf(original), (failed.current.content as FilesContent.Ready).items)
+        assertEquals(
+            FilesFolderOperation.Failed(
+                failure,
+                FilesFolderOperationIntent.Refresh,
+                FilesFolderOperationPhase.RELOADING,
+            ),
+            failed.current.operation,
+        )
+
+        val retried = FilesBrowserReducer.reduce(failed, FilesBrowserEvent.Retry)
+        val retryEffect = retried.effect as FilesBrowserEffect.LoadFolder
+        assertEquals(FilesFolder.Root.id, retryEffect.folderId)
+        assertEquals(
+            FilesFolderOperationIntent.Refresh,
+            (retried.state.current.operation as FilesFolderOperation.Loading).intent,
+        )
+    }
+
+    @Test
+    fun pagingRetryCannotRaceAnActiveRefresh() {
+        val original = item(1L, "one.mkv", PutioFileType.VIDEO)
+        val root = loadedRoot(listOf(original), FilesCursor("next"))
+        val paging = FilesBrowserReducer.reduce(root, FilesBrowserEvent.LoadNextPage)
+        val pagingEffect = paging.effect as FilesBrowserEffect.LoadNextPage
+        val pagingFailure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failedPaging =
+            FilesBrowserReducer.reduce(
+                paging.state,
+                FilesBrowserEvent.LoadFailed(pagingEffect.requestId, pagingFailure),
+            ).state
+        val refreshing = FilesBrowserReducer.reduce(failedPaging, FilesBrowserEvent.Refresh)
+
+        val retryWhileRefreshing = FilesBrowserReducer.reduce(refreshing.state, FilesBrowserEvent.Retry)
+
+        assertFalse(retryWhileRefreshing.consumed)
+        assertNull(retryWhileRefreshing.effect)
+        assertSame(refreshing.state, retryWhileRefreshing.state)
+    }
+
+    @Test
+    fun failedSortReloadRetriesWithoutPersistingAgainAndRejectsLateResults() {
+        val original = item(1L, "one.mkv", PutioFileType.VIDEO)
+        val root = loadedRoot(listOf(original), null, FilesSort.NAME_ASCENDING)
+        val persisting =
+            FilesBrowserReducer.reduce(
+                root,
+                FilesBrowserEvent.SelectSort(FilesSort.SIZE_ASCENDING),
+            )
+        val persistEffect = persisting.effect as FilesBrowserEffect.PersistSort
+        val reloading =
+            FilesBrowserReducer.reduce(
+                persisting.state,
+                FilesBrowserEvent.SortPersisted(persistEffect.requestId),
+            )
+        val reloadEffect = reloading.effect as FilesBrowserEffect.LoadFolder
+        val latePersist =
+            FilesBrowserReducer.reduce(
+                reloading.state,
+                FilesBrowserEvent.SortPersisted(persistEffect.requestId),
+            )
+        assertFalse(latePersist.consumed)
+        assertSame(reloading.state, latePersist.state)
+
+        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failed =
+            FilesBrowserReducer.reduce(
+                reloading.state,
+                FilesBrowserEvent.LoadFailed(reloadEffect.requestId, failure),
+            ).state
+        val retried = FilesBrowserReducer.reduce(failed, FilesBrowserEvent.Retry)
+
+        assertTrue(retried.effect is FilesBrowserEffect.LoadFolder)
+        assertEquals(
+            FilesFolderOperationPhase.RELOADING,
+            (retried.state.current.operation as FilesFolderOperation.Loading).phase,
+        )
+    }
+
+    @Test
     fun leavesRootBackForTheHostToHandle() {
         val root = loadedRoot(items = emptyList(), nextCursor = null)
 
@@ -209,15 +474,39 @@ class FilesBrowserReducerTest {
         assertSame(root, back.state)
     }
 
+    @Test
+    fun externalFolderResultOpensDirectlyFromRoot() {
+        val root = loadedRoot(items = emptyList(), nextCursor = null)
+        val folder = item(70L, "Search result", PutioFileType.FOLDER)
+
+        val opened = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenExternalItem(folder))
+
+        assertEquals(FilesItemId(70L), opened.state.current.folder.id)
+        assertEquals(FilesItemId(70L), (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
+        assertTrue(opened.state.canNavigateBack)
+    }
+
+    @Test
+    fun externalFileResultOpensItsContainingFolder() {
+        val root = loadedRoot(items = emptyList(), nextCursor = null)
+        val file = item(71L, "movie.mkv", PutioFileType.VIDEO).copy(parentId = FilesItemId(44L))
+
+        val opened = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenExternalItem(file))
+
+        assertEquals(FilesItemId(44L), opened.state.current.folder.id)
+        assertEquals(FilesItemId(44L), (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
+    }
+
     private fun loadedRoot(
         items: List<FilesItem>,
         nextCursor: FilesCursor?,
+        sort: FilesSort? = null,
     ): FilesBrowserState {
         val start = FilesBrowserReducer.start()
         val request = start.effect as FilesBrowserEffect.LoadFolder
         return FilesBrowserReducer.reduce(
             start.state,
-            FilesBrowserEvent.LoadSucceeded(request.requestId, FilesPage(items, nextCursor)),
+            FilesBrowserEvent.LoadSucceeded(request.requestId, FilesPage(items, nextCursor, sort)),
         ).state
     }
 

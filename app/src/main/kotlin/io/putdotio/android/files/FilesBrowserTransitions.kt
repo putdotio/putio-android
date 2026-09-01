@@ -18,6 +18,35 @@ internal fun FilesBrowserState.openFolder(itemId: FilesItemId): FilesBrowserTran
     }
 }
 
+internal fun FilesBrowserState.openExternalItem(item: FilesItem): FilesBrowserTransition {
+    val destination =
+        if (item.isFolder) {
+            FilesFolder(id = item.id, name = item.name)
+        } else {
+            item.parentId?.let { FilesFolder(id = it, name = null) }
+        }
+    return if (destination == null || destination.id == current.folder.id) {
+        FilesBrowserTransition(this, consumed = false)
+    } else {
+        val requestId = FilesRequestId(nextRequestValue)
+        val folder = FilesFolderState(destination, FilesContent.Loading(requestId))
+        val nextStack =
+            if (destination.id == FilesFolder.Root.id) {
+                listOf(folder)
+            } else {
+                listOf(rootFolderState(), folder)
+            }
+        FilesBrowserTransition(
+            state = copy(stack = nextStack, nextRequestValue = nextRequestValue + 1),
+            effect = FilesBrowserEffect.LoadFolder(destination.id, requestId),
+        )
+    }
+}
+
+private fun FilesBrowserState.rootFolderState(): FilesFolderState =
+    stack.firstOrNull { it.folder.id == FilesFolder.Root.id }
+        ?: FilesFolderState(FilesFolder.Root, FilesContent.Empty(FilesPaging.Complete))
+
 internal fun FilesBrowserState.navigateBack(): FilesBrowserTransition =
     if (canNavigateBack) {
         FilesBrowserTransition(copy(stack = stack.dropLast(1)))
@@ -26,6 +55,9 @@ internal fun FilesBrowserState.navigateBack(): FilesBrowserTransition =
     }
 
 internal fun FilesBrowserState.loadNextPage(): FilesBrowserTransition {
+    if (current.operation != FilesFolderOperation.Idle) {
+        return FilesBrowserTransition(this, consumed = false)
+    }
     val available = current.content.paging() as? FilesPaging.Available
     val requestId = FilesRequestId(nextRequestValue)
     val updatedContent = available?.let { current.content.withPaging(FilesPaging.Loading(it.cursor, requestId)) }
@@ -43,7 +75,14 @@ internal fun FilesBrowserState.loadNextPage(): FilesBrowserTransition {
     }
 }
 
-internal fun FilesBrowserState.retry(): FilesBrowserTransition {
+internal fun FilesBrowserState.retry(): FilesBrowserTransition =
+    when (val operation = current.operation) {
+        is FilesFolderOperation.Failed -> startFailedOperation(operation)
+        is FilesFolderOperation.Loading -> FilesBrowserTransition(this, consumed = false)
+        FilesFolderOperation.Idle -> retryContent()
+    }
+
+private fun FilesBrowserState.retryContent(): FilesBrowserTransition {
     val requestId = FilesRequestId(nextRequestValue)
     return when (val content = current.content) {
         is FilesContent.Failed ->

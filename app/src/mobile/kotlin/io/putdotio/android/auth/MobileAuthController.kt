@@ -13,6 +13,7 @@ data class MobileAccount(
     val userId: Long,
     val username: String,
     val email: String,
+    val historyEnabled: Boolean = false,
     val avatarUrl: String? = null,
     val storage: MobileAccountStorage = MobileAccountStorage(),
 )
@@ -109,8 +110,12 @@ class MobileAuthController internal constructor(
     }
 
     suspend fun beginSignIn(): OAuthLaunchResult = operationMutex.withLock {
-        if (mutableState.value !is MobileAuthState.SignedOut) {
+        val signedOutState = mutableState.value as? MobileAuthState.SignedOut
+        if (signedOutState == null) {
             return@withLock OAuthLaunchResult.NotAllowed
+        }
+        if (signedOutState.reason == MobileSignedOutReason.SecureStorageUnavailable) {
+            return@withLock OAuthLaunchResult.StorageUnavailable
         }
 
         val configuration = oauthConfiguration as? MobileOAuthConfiguration.Configured
@@ -240,9 +245,18 @@ class MobileAuthController internal constructor(
         validateConfiguredSession(SessionValidationSource.OAUTH_CALLBACK)
     }
 
+    // Gateway implementations are process boundaries; cancellation remains control flow.
+    @Suppress("TooGenericExceptionCaught")
     private suspend fun validateConfiguredSession(source: SessionValidationSource) {
         mutableState.value = MobileAuthState.ValidatingSession(source)
-        when (val result = sessionGateway.validateSession()) {
+        val result = try {
+            sessionGateway.validateSession()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            SessionValidationResult.Unavailable(error)
+        }
+        when (result) {
             is SessionValidationResult.Valid -> {
                 sessionSequence = Math.incrementExact(sessionSequence)
                 mutableState.value = MobileAuthState.SignedIn(
@@ -325,9 +339,11 @@ class MobileAuthController internal constructor(
         }
 
     private fun rejectCallbackWithoutPendingAttempt() {
+        val currentState = mutableState.value
         if (
-            mutableState.value == MobileAuthState.AwaitingOAuthCallback ||
-            mutableState.value is MobileAuthState.SignedOut
+            currentState == MobileAuthState.AwaitingOAuthCallback ||
+            currentState is MobileAuthState.SignedOut &&
+            currentState.reason != MobileSignedOutReason.SecureStorageUnavailable
         ) {
             mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SignInFailed)
         }
@@ -346,12 +362,12 @@ private fun MobileOAuthConfiguration.initialSignedOutState(): MobileAuthState.Si
 private fun MobileAuthState.canReceiveOAuthCallback(): Boolean =
     this == MobileAuthState.Initializing ||
         this == MobileAuthState.AwaitingOAuthCallback ||
-        this is MobileAuthState.SignedOut
+        this is MobileAuthState.SignedOut && reason != MobileSignedOutReason.SecureStorageUnavailable
 
 private fun MobileAuthState.canFinishOAuthAttempt(): Boolean =
     this == MobileAuthState.Initializing ||
         this == MobileAuthState.AwaitingOAuthCallback ||
-        this is MobileAuthState.SignedOut
+        this is MobileAuthState.SignedOut && reason != MobileSignedOutReason.SecureStorageUnavailable
 
 private fun PendingOAuthAttempt.isExpired(nowEpochMillis: Long): Boolean {
     val age = nowEpochMillis - createdAtEpochMillis

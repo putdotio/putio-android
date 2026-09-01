@@ -31,7 +31,7 @@ class FilesBrowserController(
     }
 
     fun dispatch(event: FilesBrowserEvent): Boolean {
-        val (transition, jobsToCancel) =
+        val (transition, removedJobs) =
             synchronized(lock) {
                 if (closed) {
                     return false
@@ -40,21 +40,43 @@ class FilesBrowserController(
                 val previousState = mutableState.value
                 val next = FilesBrowserReducer.reduce(previousState, event)
                 mutableState.value = next.state
+                val completedRequestId = event.completedRequestId()
                 val removedJobs =
-                    if (event == FilesBrowserEvent.NavigateBack) {
-                        jobs.keys
-                            .filter { requestId ->
-                                previousState.hasRequest(requestId) && !next.state.hasRequest(requestId)
-                            }.mapNotNull(jobs::remove)
-                    } else {
-                        emptyList()
-                    }
-                next to removedJobs
+                    jobs.keys
+                        .filter { requestId ->
+                            previousState.hasRequest(requestId) && !next.state.hasRequest(requestId)
+                        }.mapNotNull { requestId ->
+                            jobs.remove(requestId)?.let { requestId to it }
+                        }
+                next to RemovedJobs(completedRequestId, removedJobs)
             }
-        jobsToCancel.forEach { it.cancel() }
+        removedJobs.jobs
+            .filterNot { (requestId) -> requestId == removedJobs.completedRequestId }
+            .forEach { (_, job) -> job.cancel() }
         transition.effect?.let(::launchEffect)
         return transition.consumed
     }
+
+    private fun FilesBrowserEvent.completedRequestId(): FilesRequestId? =
+        when (this) {
+            is FilesBrowserEvent.LoadSucceeded -> requestId
+            is FilesBrowserEvent.LoadFailed -> requestId
+            is FilesBrowserEvent.SortPersisted -> requestId
+            is FilesBrowserEvent.LoadNextPage,
+            is FilesBrowserEvent.OpenFolder,
+            is FilesBrowserEvent.OpenExternalItem,
+            is FilesBrowserEvent.SelectSort,
+            is FilesBrowserEvent.ViewportChanged,
+            FilesBrowserEvent.NavigateBack,
+            FilesBrowserEvent.Refresh,
+            FilesBrowserEvent.Retry,
+            -> null
+        }
+
+    private data class RemovedJobs(
+        val completedRequestId: FilesRequestId?,
+        val jobs: List<Pair<FilesRequestId, Job>>,
+    )
 
     override fun close() {
         synchronized(lock) {

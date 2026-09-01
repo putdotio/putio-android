@@ -28,7 +28,7 @@ rest.
 | --- | --- |
 | JDK 21 on PATH | `.java-version` pins 21; `mise install` or `brew install temurin@21` |
 | Homebrew (macOS) | only needed if Android cmdline-tools are absent |
-| Network | first bootstrap downloads ~3 GB of SDK packages plus FFmpeg |
+| Network | first bootstrap downloads several GB of SDK packages plus FFmpeg |
 
 ```bash
 ./scripts/bootstrap.sh
@@ -36,7 +36,8 @@ rest.
 
 Idempotent. Installs cmdline-tools (via Homebrew if missing), accepts
 licenses, installs platform/build-tools for the compileSdk, the emulator, the
-phone + TV system images, creates the two reusable AVDs, and writes
+API 37 Google Play phone image and API 36 Android TV image, creates
+the two reusable AVDs, and writes
 `local.properties` (`sdk.dir` plus `putioSdkKotlinPath`, defaulting to the
 sibling `../putio-sdk-kotlin` checkout, which must be cloned).
 
@@ -54,9 +55,10 @@ SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
 `verify` runs Android Lint (`warningsAsErrors`, config in `app/lint.xml`),
 detekt (config in `detekt.yml`, Compose exemptions only), the local unit
 tests (`app/src/test/`, JUnit4 + Robolectric, Compose UI assertions run on
-the JVM). `:buildSrc:test` covers the design-token codegen; run it alongside
-`verify` (CI does). Fix findings at the source; suppress only with a comment
-stating the platform constraint.
+the JVM), and an unsigned minified `mobileProductionRelease` build that proves
+the composite Kotlin SDK against minSdk 26 and R8. `:buildSrc:test` covers the
+design-token codegen; run it alongside `verify` (CI does). Fix findings at the
+source; suppress only with a comment stating the platform constraint.
 
 Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
 `nightly`). Nightly carries its own application id, label, and the stars
@@ -64,7 +66,8 @@ launcher icon (`scripts/generate-nightly-icon.sh`); Play internal/closed
 tracks ship nightly, the public listing keeps production. Debug application
 ids: `io.put.putio.mobile.debug` (mobileProduction), `io.put.putio.debug`
 (tvProduction), plus `.nightly` before `.debug` for the nightly channel.
-Debug builds only; nothing in this harness needs release credentials.
+Harness launch proof uses debug builds. The minified release verification APK
+is unsigned; nothing in this harness needs release credentials.
 
 ## Design system
 
@@ -77,11 +80,11 @@ Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 ## CI
 
 `.github/workflows/ci.yml` runs on every PR and push to main: `./gradlew
-verify` plus both flavor assembles, uploading the debug APKs as the run's
-`debug-apks` artifact. The `Verify Android app` check is required by branch
-protection on `main`. Conventions mirror `putio-sdk-kotlin`: pinned action
-SHAs, Temurin 21, `gradle/actions/setup-gradle` caching, concurrency
-cancellation.
+verify` (including the minified SDK-consumer build) plus both debug flavor
+assembles, uploading the debug APKs as the run's `debug-apks` artifact. The
+`Verify Android app` check is required by branch protection on `main`.
+Conventions mirror `putio-sdk-kotlin`: pinned action SHAs, Temurin 21,
+`gradle/actions/setup-gradle` caching, concurrency cancellation.
 
 The private `putio-sdk-kotlin` composite build is checked out as a sibling
 using a read-only deploy key stored as the `PUTIO_SDK_KOTLIN_DEPLOY_KEY`
@@ -97,11 +100,11 @@ and flaky to block merges; local proof stays on `scripts/prove.sh`.
 
 ## Emulators
 
-Two reusable AVDs, both API 36 arm64 on Apple Silicon (x86_64 elsewhere):
+Two reusable AVDs, arm64 on Apple Silicon (x86_64 elsewhere):
 
 | AVD | Device profile | System image |
 | --- | --- | --- |
-| `putio-phone` | pixel_7 | `android-36;google_apis` |
+| `putio-phone` | pixel_7 | `android-37.0;google_apis_playstore` |
 | `putio-tv` | tv_1080p | `android-36;android-tv` |
 
 ```bash
@@ -116,6 +119,14 @@ completion, failure, SIGINT, and SIGTERM; it confirms the owned serial is gone
 from `adb devices` before returning; preexisting emulators are reused, never
 stopped; AVD registrations are deleted only if the flow created them via
 `--ephemeral`. No process-name or blanket emulator cleanup, ever.
+
+Every phone boot, including reuse, also verifies API 37, selects the bundled
+Chrome as the browser role holder, and requires its AndroidX Auth Tab service
+category. The harness fails closed before install when that secure OAuth
+transport is unavailable. TV and the CI managed device remain API 36.
+
+Bootstrap never replaces a mismatched AVD. It fails with an explicit command;
+stop and delete that exact profile yourself before rerunning bootstrap.
 
 ## Launch Proof
 
@@ -166,17 +177,19 @@ near-black captures fail and are quarantined as `*.black.*` unless
 `--allow-dark` is passed for legitimately dark content (playback, dark
 scenes). Quarantined files are never printed as evidence paths.
 
-Never commit evidence files. Publish them with the attach CLI and link the
-preview URL from the PR and issue:
+Never commit evidence files. Eyeball each validated capture before publishing
+it with the wrapper. The wrapper selects installed `attach` first, falls back
+to `gh attach`, rejects quarantined files, and never invokes login or touches
+`gh auth`:
 
 ```bash
-attach put .evidence/<file> --repo putdotio/putio-android --pr <number>
+./scripts/publish-evidence.sh .evidence/<file> --pr <number>
 ```
 
 Follow the installed `attach-cli` skill for login and safe handling; use
-`--markdown` only when the PR needs an inline embed. Deeper harness
-integration is tracked in
-[#50](https://github.com/putdotio/putio-android/issues/50).
+`--markdown` only when the PR needs an inline embed. The harness deliberately
+fails closed on a missing CLI, custom deployment client id, authentication, or
+allowlist error while preserving the validated local capture.
 
 ## Live API Proof (putio CLI)
 

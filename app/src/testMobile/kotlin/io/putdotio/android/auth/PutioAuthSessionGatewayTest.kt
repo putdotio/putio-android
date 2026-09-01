@@ -25,6 +25,7 @@ class PutioAuthSessionGatewayTest {
                     userId = 42,
                     username = "user",
                     email = "user@example.com",
+                    historyEnabled = true,
                     avatarUrl = "https://example.com/avatar.png",
                     storage = MobileAccountStorage(availableBytes = 1, sizeBytes = 2, usedBytes = 1),
                 ),
@@ -120,7 +121,7 @@ class PutioAuthSessionGatewayTest {
             mail = "user@example.com",
             avatarUrl = "https://example.com/avatar.png",
             disk = AccountDisk(available = 1, size = 2, used = 1),
-            settings = AccountSettings(sortBy = "NAME_ASC"),
+            settings = AccountSettings(sortBy = "NAME_ASC", historyEnabled = true),
             accountStatus = "active",
         )
     }

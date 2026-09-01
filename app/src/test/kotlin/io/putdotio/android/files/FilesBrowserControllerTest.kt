@@ -32,6 +32,11 @@ class FilesBrowserControllerTest {
 
                     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
                         pagingResult.await()
+
+                    override suspend fun persistSort(
+                        folderId: FilesItemId,
+                        sort: FilesSort,
+                    ): FilesRepositoryResult<Unit> = FilesRepositoryResult.Success(Unit)
                 }
             val controller = FilesBrowserController(repository, this)
 
@@ -89,6 +94,11 @@ class FilesBrowserControllerTest {
 
                     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
                         error("No continuation expected")
+
+                    override suspend fun persistSort(
+                        folderId: FilesItemId,
+                        sort: FilesSort,
+                    ): FilesRepositoryResult<Unit> = FilesRepositoryResult.Success(Unit)
                 }
             val controller = FilesBrowserController(repository, this)
 
@@ -108,6 +118,57 @@ class FilesBrowserControllerTest {
         }
 
     @Test
+    fun externalNavigationCancelsRequestsRemovedWithThePreviousStack() =
+        runBlocking {
+            val childStarted = CompletableDeferred<Unit>()
+            val childCancelled = CompletableDeferred<Unit>()
+            val folder = item(7L, "Shows", PutioFileType.FOLDER)
+            val repository =
+                object : FilesRepository {
+                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                        when (folderId.value) {
+                            FilesFolder.Root.id.value -> FilesRepositoryResult.Success(FilesPage(listOf(folder), null))
+                            folder.id.value -> {
+                                childStarted.complete(Unit)
+                                try {
+                                    awaitCancellation()
+                                } finally {
+                                    childCancelled.complete(Unit)
+                                }
+                            }
+                            44L -> FilesRepositoryResult.Success(FilesPage(emptyList(), null))
+                            else -> error("Unexpected folder $folderId")
+                        }
+
+                    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
+                        error("No continuation expected")
+
+                    override suspend fun persistSort(
+                        folderId: FilesItemId,
+                        sort: FilesSort,
+                    ): FilesRepositoryResult<Unit> = error("No sort expected")
+                }
+            val controller = FilesBrowserController(repository, this)
+
+            try {
+                controller.awaitState { it.current.content is FilesContent.Ready }
+                assertTrue(controller.dispatch(FilesBrowserEvent.OpenFolder(folder.id)))
+                withTimeout(TEST_TIMEOUT_MILLIS) { childStarted.await() }
+
+                val externalFile = item(99L, "movie.mkv", PutioFileType.VIDEO).copy(parentId = FilesItemId(44L))
+                assertTrue(controller.dispatch(FilesBrowserEvent.OpenExternalItem(externalFile)))
+
+                withTimeout(TEST_TIMEOUT_MILLIS) { childCancelled.await() }
+                controller.awaitState {
+                    it.current.folder.id == FilesItemId(44L) && it.current.content is FilesContent.Empty
+                }
+                assertEquals(listOf(FilesItemId(0L), FilesItemId(44L)), controller.state.value.path.map { it.id })
+            } finally {
+                controller.close()
+            }
+        }
+
+    @Test
     fun reportsUnhandledRootBackAndDoesNotCancelItsParentScope() =
         runBlocking {
             val repository =
@@ -117,6 +178,11 @@ class FilesBrowserControllerTest {
 
                     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
                         error("No continuation expected")
+
+                    override suspend fun persistSort(
+                        folderId: FilesItemId,
+                        sort: FilesSort,
+                    ): FilesRepositoryResult<Unit> = FilesRepositoryResult.Success(Unit)
                 }
             val controller = FilesBrowserController(repository, this)
 
@@ -125,6 +191,140 @@ class FilesBrowserControllerTest {
             controller.close()
 
             assertTrue(coroutineContext[Job]?.isActive == true)
+        }
+
+    @Test
+    fun refreshCancelsTheSupersededPagingRequest() =
+        runBlocking {
+            val pagingStarted = CompletableDeferred<Unit>()
+            val pagingCancelled = CompletableDeferred<Unit>()
+            var folderLoads = 0
+            val repository =
+                object : FilesRepository {
+                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+                        folderLoads += 1
+                        return FilesRepositoryResult.Success(
+                            if (folderLoads == 1) {
+                                FilesPage(listOf(item(1L, "old.mkv", PutioFileType.VIDEO)), FilesCursor("next"))
+                            } else {
+                                FilesPage(listOf(item(2L, "fresh.mkv", PutioFileType.VIDEO)), null)
+                            },
+                        )
+                    }
+
+                    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+                        pagingStarted.complete(Unit)
+                        try {
+                            awaitCancellation()
+                        } finally {
+                            pagingCancelled.complete(Unit)
+                        }
+                    }
+
+                    override suspend fun persistSort(
+                        folderId: FilesItemId,
+                        sort: FilesSort,
+                    ): FilesRepositoryResult<Unit> = FilesRepositoryResult.Success(Unit)
+                }
+            val controller = FilesBrowserController(repository, this)
+
+            try {
+                controller.awaitState { it.current.content is FilesContent.Ready }
+                assertTrue(controller.dispatch(FilesBrowserEvent.LoadNextPage))
+                withTimeout(TEST_TIMEOUT_MILLIS) { pagingStarted.await() }
+
+                assertTrue(controller.dispatch(FilesBrowserEvent.Refresh))
+
+                withTimeout(TEST_TIMEOUT_MILLIS) { pagingCancelled.await() }
+                val refreshed = controller.awaitState {
+                    val content = it.current.content as? FilesContent.Ready
+                    content?.items?.singleOrNull()?.name == "fresh.mkv"
+                }
+                assertEquals(FilesFolderOperation.Idle, refreshed.current.operation)
+            } finally {
+                controller.close()
+            }
+        }
+
+    @Test
+    fun sortRetriesPersistenceAndRecoversFromReloadFailure() =
+        runBlocking {
+            val original = item(1L, "old.mkv", PutioFileType.VIDEO)
+            var folderLoads = 0
+            val persistedSorts = mutableListOf<FilesSort>()
+            val repository =
+                object : FilesRepository {
+                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+                        folderLoads += 1
+                        return when (folderLoads) {
+                            1 -> FilesRepositoryResult.Success(
+                                FilesPage(listOf(original), null, FilesSort.NAME_ASCENDING),
+                            )
+
+                            2 -> FilesRepositoryResult.Failure(
+                                FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                            )
+
+                            else -> FilesRepositoryResult.Success(
+                                FilesPage(listOf(original), null, FilesSort.NAME_ASCENDING),
+                            )
+                        }
+                    }
+
+                    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
+                        error("No continuation expected")
+
+                    override suspend fun persistSort(
+                        folderId: FilesItemId,
+                        sort: FilesSort,
+                    ): FilesRepositoryResult<Unit> {
+                        persistedSorts += sort
+                        return if (persistedSorts.size == 1) {
+                            FilesRepositoryResult.Failure(
+                                FilesFailure.Unexpected(IllegalStateException("persist failed")),
+                            )
+                        } else {
+                            FilesRepositoryResult.Success(Unit)
+                        }
+                    }
+                }
+            val controller = FilesBrowserController(repository, this)
+
+            try {
+                controller.awaitState { it.current.content is FilesContent.Ready }
+                assertTrue(controller.dispatch(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING)))
+
+                val persistenceFailed = controller.awaitState {
+                    (it.current.operation as? FilesFolderOperation.Failed)?.phase ==
+                        FilesFolderOperationPhase.PERSISTING_SORT
+                }
+                assertEquals(listOf(original), (persistenceFailed.current.content as FilesContent.Ready).items)
+
+                assertTrue(controller.dispatch(FilesBrowserEvent.Retry))
+                val reloadFailed = controller.awaitState {
+                    (it.current.operation as? FilesFolderOperation.Failed)?.phase ==
+                        FilesFolderOperationPhase.RELOADING
+                }
+                assertEquals(listOf(original), (reloadFailed.current.content as FilesContent.Ready).items)
+
+                assertTrue(controller.dispatch(FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING)))
+                val recovered = controller.awaitState {
+                    it.current.operation == FilesFolderOperation.Idle && folderLoads == 3
+                }
+
+                assertEquals(
+                    listOf(
+                        FilesSort.SIZE_DESCENDING,
+                        FilesSort.SIZE_DESCENDING,
+                        FilesSort.NAME_ASCENDING,
+                    ),
+                    persistedSorts,
+                )
+                assertEquals(FilesSort.NAME_ASCENDING, recovered.current.folder.sort)
+                assertEquals(listOf(original), (recovered.current.content as FilesContent.Ready).items)
+            } finally {
+                controller.close()
+            }
         }
 
     private suspend fun FilesBrowserController.awaitState(

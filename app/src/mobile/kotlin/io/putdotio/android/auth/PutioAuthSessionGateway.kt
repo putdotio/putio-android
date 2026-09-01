@@ -164,6 +164,7 @@ private fun AccountInfo.toMobileAccount(): MobileAccount =
         userId = userId,
         username = username,
         email = mail,
+        historyEnabled = settings.historyEnabled,
         avatarUrl = avatarUrl,
         storage =
             MobileAccountStorage(

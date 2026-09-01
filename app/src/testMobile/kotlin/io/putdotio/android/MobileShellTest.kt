@@ -6,8 +6,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -30,18 +38,26 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
+import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesFolderOperation
+import io.putdotio.android.files.FilesFolderOperationIntent
+import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
-import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.AccountSettingsChange
+import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -75,6 +91,188 @@ class MobileShellTest {
         compose.onNodeWithText("Transfers").performClick()
 
         compose.onAllNodes(hasText("Transfers")).assertCountEquals(2)
+    }
+
+    @Test
+    fun nestedFolderUsesItsNameAndBackAction() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(
+            filesState = nestedFilesState(),
+            onFilesEvent = events::add,
+        )
+
+        compose.onNodeWithText("Shows").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick()
+
+        assertEquals(listOf(FilesBrowserEvent.NavigateBack), events)
+    }
+
+    @Test
+    fun tabletWidthUsesNavigationRail() {
+        compose.setContent {
+            PutioTheme {
+                Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
+                    MobileShell(
+                        filesState = emptyFilesState(),
+                        accountSettingsState = readyAccountSettingsState(),
+                        account = Account,
+                        sessionId = Session,
+                        onFilesEvent = {},
+                        onAccountSettingsEvent = {},
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_NAV_RAIL_TAG).assertExists()
+        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun filesTopBarSelectsSortAndOtherDestinationsHideIt() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(
+            filesState = readyFilesState(FilesSort.NAME_ASCENDING),
+            onFilesEvent = events::add,
+        )
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG)
+            .assertIsEnabled()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.StateDescription,
+                    "Name, A–Z",
+                ),
+            )
+            .performClick()
+        val sortOptions = listOf(
+            "Name, A–Z",
+            "Name, Z–A",
+            "Size, smallest first",
+            "Size, largest first",
+            "Date added, oldest first",
+            "Date added, newest first",
+            "Date modified, oldest first",
+            "Date modified, newest first",
+            "Type, A–Z",
+            "Type, Z–A",
+            "Unwatched first",
+            "Watched first",
+        )
+        sortOptions.forEachIndexed { index, label ->
+            val option = compose.onNodeWithText(label)
+                .assertExists()
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+            if (index == 0) {
+                option.assertIsSelected()
+            } else {
+                option.assertIsNotSelected()
+            }
+        }
+        compose.onNodeWithText("Size, largest first").performClick()
+
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING), events.last())
+
+        compose.onNodeWithText("Transfers").performClick()
+        compose.onAllNodesWithTag(MOBILE_FILES_SORT_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun filesSortIsDisabledWhileARefreshIsRunning() {
+        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
+        val refreshing = ready.copy(
+            stack = ready.stack.dropLast(1) + ready.current.copy(
+                operation = FilesFolderOperation.Loading(
+                    requestId = FilesRequestId(12L),
+                    intent = FilesFolderOperationIntent.Refresh,
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            ),
+        )
+        compose.setShell(filesState = refreshing)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun failedSortReloadCanSelectTheDisplayedSort() {
+        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
+        val failed = ready.copy(
+            stack = ready.stack.dropLast(1) + ready.current.copy(
+                operation = FilesFolderOperation.Failed(
+                    failure = FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                    intent = FilesFolderOperationIntent.Sort(FilesSort.SIZE_DESCENDING),
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            ),
+        )
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(filesState = failed, onFilesEvent = events::add)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsEnabled().performClick()
+        compose.onNodeWithText("Name, A–Z").assertIsSelected().performClick()
+
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING), events.last())
+    }
+
+    @Test
+    fun openFilesSortMenuClosesWhenLoadingStarts() {
+        var filesState by mutableStateOf(readyFilesState(FilesSort.NAME_ASCENDING))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = filesState,
+                    accountSettingsState = readyAccountSettingsState(),
+                    account = Account,
+                    sessionId = Session,
+                    onFilesEvent = events::add,
+                    onAccountSettingsEvent = {},
+                    onSignOut = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText("Size, largest first").assertIsDisplayed()
+
+        compose.runOnIdle {
+            filesState = filesState.copy(
+                stack = filesState.stack.dropLast(1) + filesState.current.copy(
+                    operation = FilesFolderOperation.Loading(
+                        requestId = FilesRequestId(13L),
+                        intent = FilesFolderOperationIntent.Refresh,
+                        phase = FilesFolderOperationPhase.RELOADING,
+                    ),
+                ),
+            )
+        }
+
+        compose.onAllNodesWithText("Size, largest first").assertCountEquals(0)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun sortMenuVisibilityClosesSynchronouslyWhenDisabled() {
+        assertTrue(shouldShowFilesSortMenu(expanded = true, enabled = true))
+        assertFalse(shouldShowFilesSortMenu(expanded = true, enabled = false))
+    }
+
+    @Test
+    fun secureStorageFailureHidesSignInWhenOAuthIsConfigured() {
+        compose.setContent {
+            PutioTheme {
+                MobileSignedOutScreen(
+                    reason = MobileSignedOutReason.SecureStorageUnavailable,
+                    canSignIn = true,
+                    onSignIn = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
+        compose.onAllNodesWithText("Sign in").assertCountEquals(0)
     }
 
     @Test
@@ -139,42 +337,6 @@ class MobileShellTest {
     }
 
     @Test
-    fun nestedFolderUsesItsNameAndBackAction() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setShell(
-            filesState = nestedFilesState(),
-            onFilesEvent = events::add,
-        )
-
-        compose.onNodeWithText("Shows").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Back").performClick()
-
-        assertEquals(listOf(FilesBrowserEvent.NavigateBack), events)
-    }
-
-    @Test
-    fun tabletWidthUsesNavigationRail() {
-        compose.setContent {
-            PutioTheme {
-                Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
-                    MobileShell(
-                        filesState = emptyFilesState(),
-                        accountSettingsState = readyAccountSettingsState(),
-                        account = Account,
-                        sessionId = Session,
-                        onFilesEvent = {},
-                        onAccountSettingsEvent = {},
-                        onSignOut = {},
-                    )
-                }
-            }
-        }
-
-        compose.onNodeWithTag(MOBILE_NAV_RAIL_TAG).assertExists()
-        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
-    }
-
-    @Test
     fun tabletShellForwardsAccountSettingEvents() {
         val events = mutableListOf<AccountSettingsEvent>()
         compose.setContent {
@@ -204,22 +366,6 @@ class MobileShellTest {
             ),
             events,
         )
-    }
-
-    @Test
-    fun secureStorageFailureHidesSignInWhenOAuthIsConfigured() {
-        compose.setContent {
-            PutioTheme {
-                MobileSignedOutScreen(
-                    reason = MobileSignedOutReason.SecureStorageUnavailable,
-                    canSignIn = true,
-                    onSignIn = {},
-                )
-            }
-        }
-
-        compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
-        compose.onAllNodesWithText("Sign in").assertCountEquals(0)
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
@@ -276,4 +422,29 @@ private fun nestedFilesState(): FilesBrowserState {
     val nested = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenFolder(folder.id)).state
     check(nested.current.content is FilesContent.Loading)
     return nested
+}
+
+private fun readyFilesState(sort: FilesSort): FilesBrowserState {
+    val initial = FilesBrowserReducer.start()
+    val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
+    return FilesBrowserReducer.reduce(
+        initial.state,
+        FilesBrowserEvent.LoadSucceeded(
+            requestId,
+            FilesPage(
+                items = listOf(
+                    FilesItem(
+                        id = FilesItemId(9L),
+                        parentId = FilesFolder.Root.id,
+                        name = "movie.mkv",
+                        type = PutioFileType.VIDEO,
+                        sizeBytes = 42L,
+                        createdAt = "2026-08-29T00:00:00Z",
+                    ),
+                ),
+                nextCursor = null,
+                sort = sort,
+            ),
+        ),
+    ).state
 }
