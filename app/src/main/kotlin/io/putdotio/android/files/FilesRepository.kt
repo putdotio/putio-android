@@ -8,6 +8,8 @@ import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
+import io.putdotio.sdk.files.FilesContinueQuery
+import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
 import java.util.concurrent.CancellationException
@@ -69,6 +71,11 @@ interface FilesRepository {
     suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage>
 
     suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage>
+
+    suspend fun persistSort(
+        folderId: FilesItemId,
+        sort: FilesSort,
+    ): FilesRepositoryResult<Unit>
 }
 
 interface FilesItemResolver {
@@ -76,21 +83,31 @@ interface FilesItemResolver {
 }
 
 class SdkFilesRepository internal constructor(
-    private val listFolder: suspend (Long) -> FilesListResponse,
-    private val continueListing: suspend (String) -> FilesListResponse,
+    private val listFolder: suspend (Long, FilesListQuery) -> FilesListResponse,
+    private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse,
+    private val setSort: suspend (Long, String) -> Unit,
     private val getFile: suspend (Long) -> PutioFile,
 ) : FilesRepository, FilesItemResolver {
     constructor(client: PutioClient) : this(
-        listFolder = { folderId -> client.files.list(parentId = folderId) },
-        continueListing = { cursor -> client.files.continueList(cursor = cursor) },
+        listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
+        continueListing = { cursor, query -> client.files.continueList(cursor = cursor, query = query) },
+        setSort = { folderId, sort ->
+            client.files.setSortBy(fileId = folderId, sortBy = sort)
+            Unit
+        },
         getFile = { fileId -> client.files.get(fileId) },
     )
 
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
-        requestPage { listFolder(folderId.value) }
+        requestPage { listFolder(folderId.value, FilesListQuery(perPage = FILES_PAGE_SIZE)) }
 
     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
-        requestPage { continueListing(cursor.value) }
+        requestPage { continueListing(cursor.value, FilesContinueQuery(perPage = FILES_PAGE_SIZE)) }
+
+    override suspend fun persistSort(
+        folderId: FilesItemId,
+        sort: FilesSort,
+    ): FilesRepositoryResult<Unit> = request { setSort(folderId.value, sort.apiValue) }
 
     override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
         request { getFile(itemId.value).toFilesItem() }
@@ -118,6 +135,7 @@ private fun FilesListResponse.toFilesPage(): FilesPage =
     FilesPage(
         items = files.map(PutioFile::toFilesItem),
         nextCursor = cursor?.takeIf(String::isNotBlank)?.let(::FilesCursor),
+        sort = FilesSort.fromApiValue(parent?.sortBy),
     )
 
 internal fun PutioFile.toFilesItem(): FilesItem =
@@ -173,3 +191,4 @@ private const val HTTP_TOO_MANY_REQUESTS = 429
 private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
 private const val HTTP_SERVER_ERROR_START = 500
 private const val HTTP_SERVER_ERROR_END = 599
+private const val FILES_PAGE_SIZE = 50

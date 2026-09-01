@@ -5,10 +5,11 @@
 #   - macOS or Linux with a JDK 21 on PATH (this repo pins `.java-version` 21;
 #     `mise install` or Homebrew temurin@21 both work)
 #   - Homebrew on macOS if the Android cmdline-tools are not yet installed
-#   - Network access for SDK package downloads (~3 GB on first run)
+#   - Network access for several GB of SDK packages on first run
 #
-# Installs: platform/build-tools for the compileSdk, emulator, phone + TV
-# system images, and the two reusable AVDs. Writes local.properties.
+# Installs: platform/build-tools for the compileSdk, emulator, the API 37
+# Google Play phone image, the API 36 Android TV image, and both reusable
+# AVDs. Writes local.properties.
 # Idempotent: safe to re-run; already-installed packages are skipped.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -42,7 +43,7 @@ if [[ "${packages_missing}" == "1" ]]; then
   # turn that into a bootstrap failure.
   (yes || true) | "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --licenses >/dev/null
 
-  log "installing SDK packages (first run downloads ~3 GB)"
+  log "installing SDK packages (first run downloads several GB)"
   "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --install \
     "platform-tools" \
     "emulator" \

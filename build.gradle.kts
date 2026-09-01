@@ -10,8 +10,34 @@ val testEvidence = tasks.register<Exec>("testEvidence") {
     commandLine("bash", "scripts/test-evidence.sh")
 }
 
+val testEmulatorHarness = tasks.register<Exec>("testEmulatorHarness") {
+    group = "verification"
+    description = "Run emulator provisioning and readiness contract tests"
+    commandLine("bash", "scripts/test-emulator.sh")
+}
+
+val checkIcons = tasks.register<Exec>("checkIcons") {
+    group = "verification"
+    description = "Verify locked Phosphor drawables without network access"
+    commandLine("bash", "scripts/generate-icons.sh", "--check")
+}
+
+val testIconPipeline = tasks.register<Exec>("testIconPipeline") {
+    group = "verification"
+    description = "Test the Phosphor lock and drift contracts"
+    environment("PYTHONDONTWRITEBYTECODE", "1")
+    commandLine("python3", "scripts/test_phosphor_icons.py")
+}
+
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
-    dependsOn(":app:check", testEvidence)
+    dependsOn(
+        ":app:check",
+        ":app:assembleMobileProductionRelease",
+        checkIcons,
+        testEmulatorHarness,
+        testEvidence,
+        testIconPipeline,
+    )
 }

@@ -2,8 +2,8 @@ package io.putdotio.android
 
 import android.app.Application
 import android.content.Intent
-import androidx.activity.compose.BackHandler
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -58,6 +58,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -424,6 +425,13 @@ internal fun MobileShell(
         }
     }
 
+    LaunchedEffect(contentNavigation) {
+        contentNavigation.collect { item ->
+            onFilesEvent(FilesBrowserEvent.OpenExternalItem(item))
+            navController.navigateTo(MobileDestination.Files)
+        }
+    }
+
     BackHandler(
         enabled = selectedDestination == MobileDestination.Files && filesState.canNavigateBack,
     ) {
@@ -535,6 +543,7 @@ private fun PhoneShell(
                 destination = selectedDestination,
                 filesState = filesState,
                 onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
+                onFilesEvent = onFilesEvent,
             )
         },
         bottomBar = {
@@ -599,6 +608,7 @@ private fun TabletShell(
                     destination = selectedDestination,
                     filesState = filesState,
                     onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
+                    onFilesEvent = onFilesEvent,
                 )
             },
         ) { padding ->
@@ -625,6 +635,7 @@ private fun MobileTopBar(
     destination: MobileDestination,
     filesState: FilesBrowserState,
     onFilesBack: () -> Unit,
+    onFilesEvent: (FilesBrowserEvent) -> Unit,
 ) {
     val filesFolderName = filesState.current.folder.name?.takeIf(String::isNotBlank)
     TopAppBar(
@@ -645,6 +656,17 @@ private fun MobileTopBar(
                         contentDescription = stringResource(R.string.mobile_action_back),
                     )
                 }
+            }
+        },
+        actions = {
+            if (
+                destination == MobileDestination.Files &&
+                (filesState.current.content is FilesContent.Empty || filesState.current.content is FilesContent.Ready)
+            ) {
+                MobileFilesSortMenu(
+                    folder = filesState.current,
+                    onSelect = { onFilesEvent(FilesBrowserEvent.SelectSort(it)) },
+                )
             }
         },
     )
@@ -736,13 +758,15 @@ internal fun TransfersVisibilityEffect(
 
 internal fun FilesBrowserState.authoritativeSessionFailure(): FilesFailure? =
     stack.asReversed().firstNotNullOfOrNull { folder ->
-        val failure = when (val content = folder.content) {
+        val contentFailure = when (val content = folder.content) {
             is FilesContent.Failed -> content.failure
             is FilesContent.Empty -> (content.paging as? FilesPaging.Failed)?.failure
             is FilesContent.Ready -> (content.paging as? FilesPaging.Failed)?.failure
             is FilesContent.Loading -> null
         }
-        failure?.takeIf { it is FilesFailure.AuthenticationRequired }
+        val operationFailure = (folder.operation as? FilesFolderOperation.Failed)?.failure
+        listOfNotNull(contentFailure, operationFailure)
+            .firstOrNull { it is FilesFailure.AuthenticationRequired }
     }
 
 internal fun SearchState.authoritativeSessionFailure(): FilesFailure? =

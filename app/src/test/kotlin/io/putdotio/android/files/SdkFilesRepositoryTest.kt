@@ -26,10 +26,12 @@ class SdkFilesRepositoryTest {
     fun listsRootThroughSdkAndMapsRawFileData() =
         runBlocking {
             var requestedFolder: Long? = null
+            var requestedPageSize: Int? = null
             val repository =
                 SdkFilesRepository(
-                    listFolder = { folderId ->
+                    listFolder = { folderId, query ->
                         requestedFolder = folderId
+                        requestedPageSize = query.perPage
                         response(
                             files =
                                 listOf(
@@ -40,37 +42,50 @@ class SdkFilesRepositoryTest {
                                     ),
                                 ),
                             cursor = "next",
+                            parent = sdkFile(
+                                id = 0L,
+                                name = "Files",
+                                type = PutioFileType.FOLDER,
+                                sort = "NAME_DESC",
+                            ),
                         )
                     },
-                    continueListing = { error("Unexpected continuation") },
+                    continueListing = { _, _ -> error("Unexpected continuation") },
+                    setSort = { _, _ -> error("Unexpected sort") },
                     getFile = { error("Unexpected file resolution") },
                 )
 
             val result = repository.loadFolder(FilesFolder.Root.id) as FilesRepositoryResult.Success
 
             assertEquals(0L, requestedFolder)
+            assertEquals(50, requestedPageSize)
             assertEquals("  raw name.mkv  ", result.value.items.single().name)
             assertEquals(PutioFileType.VIDEO, result.value.items.single().type)
             assertEquals(FilesCursor("next"), result.value.nextCursor)
+            assertEquals(FilesSort.NAME_DESCENDING, result.value.sort)
         }
 
     @Test
     fun continuesThroughSdkAndNormalizesBlankCursor() =
         runBlocking {
             var requestedCursor: String? = null
+            var requestedPageSize: Int? = null
             val repository =
                 SdkFilesRepository(
-                    listFolder = { error("Unexpected folder load") },
-                    continueListing = { cursor ->
+                    listFolder = { _, _ -> error("Unexpected folder load") },
+                    continueListing = { cursor, query ->
                         requestedCursor = cursor
+                        requestedPageSize = query.perPage
                         response(cursor = "  ")
                     },
+                    setSort = { _, _ -> error("Unexpected sort") },
                     getFile = { error("Unexpected file resolution") },
                 )
 
             val result = repository.loadNextPage(FilesCursor("opaque-cursor")) as FilesRepositoryResult.Success
 
             assertEquals("opaque-cursor", requestedCursor)
+            assertEquals(50, requestedPageSize)
             assertNull(result.value.nextCursor)
         }
 
@@ -85,6 +100,9 @@ class SdkFilesRepositoryTest {
                     cause = IOException("offline"),
                 )
             val network = repositoryThrowing(operationFailure(transport)).loadFolder(FilesFolder.Root.id)
+            val sortFailure =
+                repositoryThrowing(operationFailure(transport))
+                    .persistSort(FilesFolder.Root.id, FilesSort.NAME_ASCENDING)
 
             assertTrue((unauthorized as FilesRepositoryResult.Failure).failure is FilesFailure.AuthenticationRequired)
             assertEquals(
@@ -92,6 +110,7 @@ class SdkFilesRepositoryTest {
                 ((unavailable as FilesRepositoryResult.Failure).failure as FilesFailure.ServerUnavailable).statusCode,
             )
             assertTrue((network as FilesRepositoryResult.Failure).failure is FilesFailure.NetworkUnavailable)
+            assertTrue((sortFailure as FilesRepositoryResult.Failure).failure is FilesFailure.NetworkUnavailable)
         }
 
     @Test
@@ -100,8 +119,9 @@ class SdkFilesRepositoryTest {
             var requestedFileId: Long? = null
             val repository =
                 SdkFilesRepository(
-                    listFolder = { error("Unexpected folder load") },
-                    continueListing = { error("Unexpected continuation") },
+                    listFolder = { _, _ -> error("Unexpected folder load") },
+                    continueListing = { _, _ -> error("Unexpected continuation") },
+                    setSort = { _, _ -> error("Unexpected sort") },
                     getFile = { fileId ->
                         requestedFileId = fileId
                         sdkFile(fileId, "movie.mkv", PutioFileType.VIDEO)
@@ -183,10 +203,62 @@ class SdkFilesRepositoryTest {
         }
     }
 
+    @Test
+    fun neverConvertsSortCancellationIntoAUiFailure() {
+        val cancellation = CancellationException("screen closed")
+        try {
+            runBlocking {
+                repositoryThrowing(cancellation)
+                    .persistSort(FilesFolder.Root.id, FilesSort.DATE_ADDED_DESCENDING)
+            }
+            fail("Expected cancellation")
+        } catch (actual: CancellationException) {
+            assertSame(cancellation, actual)
+        }
+    }
+
+    @Test
+    fun persistsOnlyBoundedSortValuesThroughTheSdk() =
+        runBlocking {
+            val expected = listOf(
+                FilesSort.NAME_ASCENDING to "NAME_ASC",
+                FilesSort.NAME_DESCENDING to "NAME_DESC",
+                FilesSort.SIZE_ASCENDING to "SIZE_ASC",
+                FilesSort.SIZE_DESCENDING to "SIZE_DESC",
+                FilesSort.DATE_ADDED_ASCENDING to "DATE_ASC",
+                FilesSort.DATE_ADDED_DESCENDING to "DATE_DESC",
+                FilesSort.DATE_MODIFIED_ASCENDING to "MODIFIED_ASC",
+                FilesSort.DATE_MODIFIED_DESCENDING to "MODIFIED_DESC",
+                FilesSort.TYPE_ASCENDING to "TYPE_ASC",
+                FilesSort.TYPE_DESCENDING to "TYPE_DESC",
+                FilesSort.WATCH_STATUS_ASCENDING to "WATCH_ASC",
+                FilesSort.WATCH_STATUS_DESCENDING to "WATCH_DESC",
+            )
+            val persisted = mutableListOf<Pair<Long, String>>()
+            val repository =
+                SdkFilesRepository(
+                    listFolder = { _, _ -> response() },
+                    continueListing = { _, _ -> response() },
+                    setSort = { folderId, sort -> persisted += folderId to sort },
+                    getFile = { error("Unexpected file resolution") },
+                )
+
+            assertEquals(12, FilesSort.entries.size)
+            expected.forEach { (sort, apiValue) ->
+                assertEquals(sort, FilesSort.fromApiValue(apiValue))
+                assertTrue(repository.persistSort(FilesItemId(42L), sort) is FilesRepositoryResult.Success)
+            }
+            assertNull(FilesSort.fromApiValue(null))
+            assertNull(FilesSort.fromApiValue("UNKNOWN"))
+
+            assertEquals(expected.map { 42L to it.second }, persisted)
+        }
+
     private fun repositoryThrowing(error: Throwable): SdkFilesRepository =
         SdkFilesRepository(
-            listFolder = { throw error },
-            continueListing = { throw error },
+            listFolder = { _, _ -> throw error },
+            continueListing = { _, _ -> throw error },
+            setSort = { _, _ -> throw error },
             getFile = { throw error },
         )
 
@@ -224,8 +296,10 @@ class SdkFilesRepositoryTest {
     private fun response(
         files: List<PutioFile> = emptyList(),
         cursor: String? = null,
+        parent: PutioFile? = null,
     ): FilesListResponse =
         FilesListResponse(
+            parent = parent,
             files = files,
             cursor = cursor,
             status = "OK",
@@ -235,6 +309,7 @@ class SdkFilesRepositoryTest {
         id: Long,
         name: String,
         type: PutioFileType,
+        sort: String? = null,
     ): PutioFile =
         PutioFile(
             id = id,
@@ -243,5 +318,6 @@ class SdkFilesRepositoryTest {
             size = 42L,
             createdAt = "2026-08-29T00:00:00Z",
             fileType = type,
+            sortBy = sort,
         )
 }
