@@ -26,6 +26,9 @@ internal fun FilesBrowserState.navigateBack(): FilesBrowserTransition =
     }
 
 internal fun FilesBrowserState.loadNextPage(): FilesBrowserTransition {
+    if (current.operation != FilesFolderOperation.Idle) {
+        return FilesBrowserTransition(this, consumed = false)
+    }
     val available = current.content.paging() as? FilesPaging.Available
     val requestId = FilesRequestId(nextRequestValue)
     val updatedContent = available?.let { current.content.withPaging(FilesPaging.Loading(it.cursor, requestId)) }
@@ -43,7 +46,14 @@ internal fun FilesBrowserState.loadNextPage(): FilesBrowserTransition {
     }
 }
 
-internal fun FilesBrowserState.retry(): FilesBrowserTransition {
+internal fun FilesBrowserState.retry(): FilesBrowserTransition =
+    when (val operation = current.operation) {
+        is FilesFolderOperation.Failed -> startFailedOperation(operation)
+        is FilesFolderOperation.Loading -> FilesBrowserTransition(this, consumed = false)
+        FilesFolderOperation.Idle -> retryContent()
+    }
+
+private fun FilesBrowserState.retryContent(): FilesBrowserTransition {
     val requestId = FilesRequestId(nextRequestValue)
     return when (val content = current.content) {
         is FilesContent.Failed ->
