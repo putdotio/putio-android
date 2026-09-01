@@ -35,6 +35,7 @@ import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackConversionState
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -187,7 +188,7 @@ class MobileShellTest {
                     target: PlaybackTarget,
                 ): PlaybackRepositoryResult<PlaybackResolution> =
                     PlaybackRepositoryResult.Failure(
-                        PlaybackFailure.AuthenticationRequired(IllegalStateException("session expired")),
+                        PlaybackFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
                     )
             }
     }

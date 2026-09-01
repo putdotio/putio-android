@@ -29,7 +29,7 @@ sealed interface PlaybackFailure {
     val cause: Throwable
 
     data class AuthenticationRequired(
-        override val cause: Throwable,
+        override val cause: PutioException,
     ) : PlaybackFailure
 
     data class AccessDenied(
@@ -52,7 +52,7 @@ sealed interface PlaybackFailure {
     ) : PlaybackFailure
 
     data class NetworkUnavailable(
-        override val cause: PutioException,
+        override val cause: Throwable,
     ) : PlaybackFailure
 
     data class InvalidResponse(

@@ -140,7 +140,7 @@ private fun MobileReadyVideoPlayer(
         }
     }
 
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         player.pause()
     }
     DisposableEffect(player) {
@@ -235,17 +235,13 @@ internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
     while (current != null && visited.add(current)) {
         when (current) {
             is HttpDataSource.InvalidResponseCodeException ->
-                return if (current.responseCode == 401) {
-                    PlaybackFailure.AuthenticationRequired(this)
-                } else {
-                    PlaybackFailure.MediaCredentialUnavailable(this)
-                }
+                return PlaybackFailure.MediaCredentialUnavailable(this)
 
             is HttpDataSource.HttpDataSourceException -> dataSourceFailure = current
         }
         current = current.cause
     }
-    return dataSourceFailure?.let { PlaybackFailure.MediaCredentialUnavailable(this) }
+    return dataSourceFailure?.let { PlaybackFailure.NetworkUnavailable(this) }
 }
 
 private fun Double.toPlaybackMillis(): Long =

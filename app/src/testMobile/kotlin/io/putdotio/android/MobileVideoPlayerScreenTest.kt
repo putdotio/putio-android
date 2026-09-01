@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
@@ -175,7 +176,7 @@ class MobileVideoPlayerCodecTest {
     }
 
     @Test
-    fun mediaRequestUnauthorizedRequiresAuthentication() {
+    fun mediaRequestUnauthorizedRefreshesThePlaybackCredential() {
         val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
         val response =
             HttpDataSource.InvalidResponseCodeException(
@@ -189,7 +190,24 @@ class MobileVideoPlayerCodecTest {
 
         assertTrue(
             IllegalStateException("player failed", response).toMediaRequestFailureOrNull() is
-                PlaybackFailure.AuthenticationRequired,
+                PlaybackFailure.MediaCredentialUnavailable,
+        )
+    }
+
+    @Test
+    fun mediaRequestTransportFailureReportsNetworkUnavailable() {
+        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
+        val transport =
+            HttpDataSource.HttpDataSourceException(
+                IOException("offline"),
+                dataSpec,
+                HttpDataSource.HttpDataSourceException.TYPE_OPEN,
+                PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            )
+
+        assertTrue(
+            IllegalStateException("player failed", transport).toMediaRequestFailureOrNull() is
+                PlaybackFailure.NetworkUnavailable,
         )
     }
 }
