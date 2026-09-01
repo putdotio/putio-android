@@ -6,12 +6,15 @@ import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -22,10 +25,16 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -39,6 +48,9 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.C
 import androidx.media3.common.text.Cue
@@ -142,8 +154,15 @@ private fun MobileReadyVideoPlayer(
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val preparedPlayback = remember(source, title, startPositionMillis) {
+    val initialPlayback = remember(source, title, startPositionMillis) {
         source.preparePlayback(title, startPositionMillis)
+    }
+    var retainedPositionMillis by rememberSaveable(source.fileId) {
+        mutableStateOf(initialPlayback.startPositionMillis)
+    }
+    var resumeAfterLifecyclePause by rememberSaveable(source.fileId) { mutableStateOf(true) }
+    val preparedPlayback = remember(source, title) {
+        source.preparePlayback(title, retainedPositionMillis)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val player = remember(context, preparedPlayback, lifecycle) {
@@ -162,11 +181,12 @@ private fun MobileReadyVideoPlayer(
             playWhenReady = lifecycleAllowsAutoplay(lifecycle.currentState)
         }
     }
-    var resumeAfterLifecyclePause by remember(player) { mutableStateOf(true) }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        resumeAfterLifecyclePause = player.playWhenReady
+        val retained = retainPlaybackOnPause(player.currentPosition, player.playWhenReady)
+        retainedPositionMillis = retained.positionMillis
+        resumeAfterLifecyclePause = retained.resumeAfterLifecyclePause
         player.pause()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -188,6 +208,7 @@ private fun MobileReadyVideoPlayer(
             }
         player.addListener(listener)
         onDispose {
+            retainedPositionMillis = player.currentPosition.coerceAtLeast(0L)
             player.removeListener(listener)
             player.release()
         }
@@ -212,7 +233,7 @@ private fun MobileReadyVideoPlayer(
                             .padding(8.dp),
                 ) {
                     if (source.hasSelectableSubtitles() && it != null) {
-                        MobileSubtitleToggle(
+                        MobileSubtitleControls(
                             player = it,
                             modifier = Modifier.align(Alignment.TopEnd),
                         )
@@ -271,20 +292,109 @@ internal fun MobileSubtitleCueOverlay(
 internal fun lifecycleAllowsAutoplay(state: Lifecycle.State): Boolean =
     state.isAtLeast(Lifecycle.State.RESUMED)
 
+internal data class RetainedPlayback(
+    val positionMillis: Long,
+    val resumeAfterLifecyclePause: Boolean,
+)
+
+internal fun retainPlaybackOnPause(
+    positionMillis: Long,
+    playWhenReady: Boolean,
+): RetainedPlayback =
+    RetainedPlayback(
+        positionMillis = positionMillis.coerceAtLeast(0L),
+        resumeAfterLifecyclePause = playWhenReady,
+    )
+
 @Composable
-private fun MobileSubtitleToggle(
+private fun MobileSubtitleControls(
     player: Media3Player,
     modifier: Modifier = Modifier,
 ) {
     var enabled by remember(player) {
         mutableStateOf(C.TRACK_TYPE_TEXT !in player.trackSelectionParameters.disabledTrackTypes)
     }
+    var tracks by remember(player) { mutableStateOf(player.mobileSubtitleTracks()) }
+    var menuExpanded by remember(player) { mutableStateOf(false) }
+
+    DisposableEffect(player) {
+        val listener =
+            object : Media3Player.Listener {
+                override fun onTracksChanged(currentTracks: Tracks) {
+                    tracks = currentTracks.mobileSubtitleTracks()
+                }
+
+                override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
+                    enabled = C.TRACK_TYPE_TEXT !in parameters.disabledTrackTypes
+                    tracks = player.mobileSubtitleTracks()
+                }
+            }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        MobileSubtitleToggle(
+            enabled = enabled,
+            onToggle = { subtitlesEnabled ->
+                enabled = subtitlesEnabled
+                player.trackSelectionParameters =
+                    player.trackSelectionParameters.withSubtitlesEnabled(subtitlesEnabled)
+            },
+        )
+        if (tracks.size > 1) {
+            Box {
+                TextButton(onClick = { menuExpanded = true }) {
+                    Text(stringResource(R.string.mobile_playback_choose_subtitles))
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                ) {
+                    tracks.forEach { track ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    track.label
+                                        ?: stringResource(
+                                            R.string.mobile_playback_subtitle_track,
+                                            track.trackIndex + 1,
+                                        ),
+                                )
+                            },
+                            trailingIcon =
+                                if (track.selected) {
+                                    { Text(stringResource(R.string.mobile_playback_subtitle_selected)) }
+                                } else {
+                                    null
+                                },
+                            onClick = {
+                                enabled = true
+                                player.trackSelectionParameters =
+                                    player.trackSelectionParameters.withSubtitleTrack(track)
+                                menuExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun MobileSubtitleToggle(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     TextButton(
-        onClick = {
-            enabled = !enabled
-            player.trackSelectionParameters = player.trackSelectionParameters.withSubtitlesEnabled(enabled)
-        },
-        modifier = modifier,
+        onClick = { onToggle(!enabled) },
+        modifier =
+            modifier.semantics {
+                role = Role.Switch
+                toggleableState = if (enabled) ToggleableState.On else ToggleableState.Off
+            },
     ) {
         Text(
             stringResource(
@@ -293,6 +403,40 @@ private fun MobileSubtitleToggle(
         )
     }
 }
+
+internal data class MobileSubtitleTrack(
+    val group: TrackGroup,
+    val trackIndex: Int,
+    val label: String?,
+    val selected: Boolean,
+)
+
+internal fun Media3Player.mobileSubtitleTracks(): List<MobileSubtitleTrack> =
+    currentTracks.mobileSubtitleTracks()
+
+internal fun Tracks.mobileSubtitleTracks(): List<MobileSubtitleTrack> =
+    groups
+        .filter { it.type == C.TRACK_TYPE_TEXT }
+        .flatMap { group ->
+            (0 until group.length)
+                .filter { group.isTrackSupported(it) }
+                .map { trackIndex ->
+                    val format = group.getTrackFormat(trackIndex)
+                    MobileSubtitleTrack(
+                        group = group.mediaTrackGroup,
+                        trackIndex = trackIndex,
+                        label = format.label ?: format.language,
+                        selected = group.isTrackSelected(trackIndex),
+                    )
+                }
+        }
+
+internal fun TrackSelectionParameters.withSubtitleTrack(track: MobileSubtitleTrack): TrackSelectionParameters =
+    buildUpon()
+        .setSelectTextByDefault(true)
+        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+        .setOverrideForType(TrackSelectionOverride(track.group, track.trackIndex))
+        .build()
 
 internal fun TrackSelectionParameters.withSubtitlesEnabled(enabled: Boolean): TrackSelectionParameters =
     buildUpon()
@@ -348,12 +492,14 @@ internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
             .orEmpty()
             .mapNotNull { subtitle ->
                 val mimeType = subtitle.format.toSubtitleMimeType() ?: return@mapNotNull null
+                subtitle to mimeType
+            }.mapIndexed { index, (subtitle, mimeType) ->
                 MediaItem.SubtitleConfiguration.Builder(subtitle.url.value.toUri())
                     .setId(subtitle.key)
                     .setLabel(subtitle.name)
                     .setLanguage(subtitle.languageCode)
                     .setMimeType(mimeType)
-                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                    .setSelectionFlags(if (index == 0) C.SELECTION_FLAG_DEFAULT else 0)
                     .build()
             }
 

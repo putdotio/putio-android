@@ -2,16 +2,24 @@ package io.putdotio.android
 
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.TrackGroup
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
@@ -129,6 +137,22 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun subtitleToggleExposesAndUpdatesCheckedState() {
+        compose.setContent {
+            var enabled by remember { mutableStateOf(true) }
+            PutioTheme {
+                MobileSubtitleToggle(
+                    enabled = enabled,
+                    onToggle = { enabled = it },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Subtitles on").assertIsOn().performClick()
+        compose.onNodeWithText("Subtitles off").assertIsOff()
+    }
+
+    @Test
     @UnstableApi
     fun mediaItemPreservesHlsMetadataAndKnownSidecarSubtitles() {
         val source = PlaybackSource(
@@ -140,6 +164,7 @@ class MobileVideoPlayerScreenTest {
                 PlaybackSubtitles.Sidecar(
                     listOf(
                         subtitle("English", "en", "srt"),
+                        subtitle("German", "de", "vtt"),
                         subtitle("Unknown", "und", "future-format"),
                     ),
                 ),
@@ -152,10 +177,11 @@ class MobileVideoPlayerScreenTest {
         assertEquals(12_500L, preparedPlayback.startPositionMillis)
         assertEquals(MimeTypes.APPLICATION_M3U8, local.mimeType)
         assertEquals("episode.mkv", item.mediaMetadata.title)
-        assertEquals(1, local.subtitleConfigurations.size)
-        assertEquals(MimeTypes.APPLICATION_SUBRIP, local.subtitleConfigurations.single().mimeType)
-        assertEquals("en", local.subtitleConfigurations.single().language)
-        assertEquals(C.SELECTION_FLAG_DEFAULT, local.subtitleConfigurations.single().selectionFlags)
+        assertEquals(2, local.subtitleConfigurations.size)
+        assertEquals(MimeTypes.APPLICATION_SUBRIP, local.subtitleConfigurations.first().mimeType)
+        assertEquals("en", local.subtitleConfigurations.first().language)
+        assertEquals(C.SELECTION_FLAG_DEFAULT, local.subtitleConfigurations.first().selectionFlags)
+        assertEquals(0, local.subtitleConfigurations.last().selectionFlags)
         assertEquals(54_321L, source.preparePlayback(Target.name, 54_321L).startPositionMillis)
         assertTrue(source.hasSelectableSubtitles())
         assertFalse(
@@ -237,6 +263,40 @@ class MobileVideoPlayerCodecTest {
         assertFalse(lifecycleAllowsAutoplay(Lifecycle.State.CREATED))
         assertFalse(lifecycleAllowsAutoplay(Lifecycle.State.STARTED))
         assertTrue(lifecycleAllowsAutoplay(Lifecycle.State.RESUMED))
+    }
+
+    @Test
+    fun lifecyclePauseRetainsPositionAndManualPauseIntent() {
+        assertEquals(
+            RetainedPlayback(positionMillis = 12_345L, resumeAfterLifecyclePause = true),
+            retainPlaybackOnPause(positionMillis = 12_345L, playWhenReady = true),
+        )
+        assertEquals(
+            RetainedPlayback(positionMillis = 54_321L, resumeAfterLifecyclePause = false),
+            retainPlaybackOnPause(positionMillis = 54_321L, playWhenReady = false),
+        )
+    }
+
+    @Test
+    fun selectingSubtitleTrackEnablesTextAndPinsTheRequestedTrack() {
+        val group =
+            TrackGroup(
+                Format.Builder().setId("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+                Format.Builder().setId("de").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+            )
+        val selected =
+            TrackSelectionParameters.Builder().build().withSubtitleTrack(
+                MobileSubtitleTrack(
+                    group = group,
+                    trackIndex = 1,
+                    label = "German",
+                    selected = false,
+                ),
+            )
+
+        assertTrue(selected.selectTextByDefault)
+        assertFalse(C.TRACK_TYPE_TEXT in selected.disabledTrackTypes)
+        assertEquals(listOf(1), selected.overrides.getValue(group).trackIndices)
     }
 
     @Test
