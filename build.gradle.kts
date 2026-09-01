@@ -13,5 +13,5 @@ val testEvidence = tasks.register<Exec>("testEvidence") {
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
-    dependsOn(":app:check", testEvidence)
+    dependsOn(":app:check", ":app:assembleMobileProductionRelease", testEvidence)
 }

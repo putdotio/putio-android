@@ -48,5 +48,8 @@ Available inputs:
 ./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof + evidence
 ```
 
+`verify` also assembles an unsigned, minified mobile production release APK to
+prove the composite Kotlin SDK survives Android minSdk 26 and R8.
+
 [AGENTS.md](./AGENTS.md) is the operating manual for setup, emulator flows,
 and evidence conventions.
