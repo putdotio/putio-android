@@ -1,7 +1,6 @@
 package io.putdotio.android
 
 import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.net.Uri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +12,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
@@ -45,7 +47,6 @@ import androidx.media3.datasource.HttpDataSource
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.core.app.ApplicationProvider
 import androidx.lifecycle.Lifecycle
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
@@ -71,10 +72,11 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.IOException
 
-private fun Bitmap.hasVisiblePixel(): Boolean {
+private fun ImageBitmap.hasVisiblePixel(): Boolean {
+    val pixels = toPixelMap()
     for (y in 0 until height) {
         for (x in 0 until width) {
-            if (android.graphics.Color.alpha(getPixel(x, y)) > 0) return true
+            if (pixels[x, y].alpha > 0f) return true
         }
     }
     return false
@@ -167,9 +169,7 @@ class MobileVideoPlayerScreenTest {
             .assertIsDisplayed()
             .assertWidthIsEqualTo(320.dp)
             .assertHeightIsEqualTo(180.dp)
-        assertTrue(
-            renderSubtitleCues(listOf(cue)).hasVisiblePixel(),
-        )
+        assertTrue(compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
     }
 
     @Test
@@ -199,9 +199,7 @@ class MobileVideoPlayerScreenTest {
             .assertIsDisplayed()
             .assertWidthIsEqualTo(320.dp)
             .assertHeightIsEqualTo(180.dp)
-        assertTrue(
-            renderSubtitleCues(listOf(cue)).hasVisiblePixel(),
-        )
+        assertTrue(compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
     }
 
     @Test
@@ -274,6 +272,51 @@ class MobileVideoPlayerScreenTest {
             assertTrue(C.TRACK_TYPE_TEXT in restored.disabledTrackTypes)
             assertEquals(54_321L, preferences.positionMillis)
         }
+    }
+
+    @Test
+    fun readyPlayerSubtreeCanBeRemovedAndRecreated() {
+        var content by mutableStateOf<PlaybackContent>(
+            PlaybackContent.Ready(
+                PlaybackSource(
+                    fileId = Target.fileId.value,
+                    kind = PlaybackSourceKind.MP4,
+                    url = credentialUrl("https://example.com/video.mp4"),
+                    startFromSeconds = 12.345,
+                    subtitles = PlaybackSubtitles.None,
+                ),
+            ),
+        )
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = state(content),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+
+        compose.runOnIdle {
+            content = PlaybackContent.Failed(PlaybackFailure.NetworkUnavailable(IOException("offline")))
+        }
+        compose.onNodeWithText("Check your connection and try again.").assertIsDisplayed()
+
+        compose.runOnIdle {
+            content =
+                PlaybackContent.Ready(
+                    PlaybackSource(
+                        fileId = Target.fileId.value,
+                        kind = PlaybackSourceKind.MP4,
+                        url = credentialUrl("https://example.com/video.mp4"),
+                        startFromSeconds = 12.345,
+                        subtitles = PlaybackSubtitles.None,
+                    ),
+                )
+        }
+        compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
     }
 
     @Test
@@ -363,16 +406,6 @@ class MobileVideoPlayerScreenTest {
             content = content,
             nextRequestValue = 2L,
         )
-
-    private fun renderSubtitleCues(cues: List<Cue>): Bitmap =
-        Bitmap.createBitmap(640, 360, Bitmap.Config.ARGB_8888).also { bitmap ->
-            SubtitleCueRenderer(ApplicationProvider.getApplicationContext()).draw(
-                cues = cues,
-                width = bitmap.width,
-                height = bitmap.height,
-                canvas = Canvas(bitmap),
-            )
-        }
 
     private fun subtitle(
         name: String,
@@ -520,6 +553,13 @@ class MobileVideoPlayerCodecTest {
         assertFalse(playbackKeepsScreenOn(playWhenReady = false, Media3Player.STATE_READY))
         assertFalse(playbackKeepsScreenOn(playWhenReady = true, Media3Player.STATE_IDLE))
         assertFalse(playbackKeepsScreenOn(playWhenReady = true, Media3Player.STATE_ENDED))
+        assertFalse(
+            playbackKeepsScreenOn(
+                playWhenReady = true,
+                playbackState = Media3Player.STATE_READY,
+                playbackSuppressionReason = Media3Player.PLAYBACK_SUPPRESSION_REASON_TRANSIENT_AUDIO_FOCUS_LOSS,
+            ),
+        )
     }
 
     @Test

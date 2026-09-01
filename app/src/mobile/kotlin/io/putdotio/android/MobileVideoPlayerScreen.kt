@@ -7,6 +7,7 @@ import androidx.annotation.StringRes
 import androidx.core.net.toUri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -37,20 +38,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.AudioAttributes
@@ -73,9 +76,9 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.ui.SubtitleView
+import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
-import androidx.media3.ui.compose.material3.Player
 import androidx.media3.ui.compose.material3.PlayerDefaults
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
@@ -85,6 +88,7 @@ import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PlaybackSubtitles
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -93,6 +97,7 @@ internal const val MOBILE_SUBTITLE_CUES_TAG = "mobile-subtitle-cues"
 private const val MILLIS_PER_SECOND = 1_000.0
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
+private const val MOBILE_CONTROLS_HIDE_DELAY_MILLIS = 3_000L
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
@@ -229,6 +234,14 @@ private fun MobileReadyVideoPlayer(
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var lifecycleState by remember(lifecycle) { mutableStateOf(lifecycle.currentState) }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, _ -> lifecycleState = lifecycle.currentState }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    if (!lifecycleState.isAtLeast(Lifecycle.State.STARTED)) return
+
     val initialPlayback = remember(source, title, startPositionMillis) {
         source.preparePlayback(title, startPositionMillis)
     }
@@ -259,6 +272,8 @@ private fun MobileReadyVideoPlayer(
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     var keepScreenOn by remember(player) { mutableStateOf(player.shouldKeepScreenOn()) }
+    var controlsVisible by rememberSaveable(source.fileId) { mutableStateOf(true) }
+    var playerWantsToPlay by remember(player) { mutableStateOf(player.playWhenReady) }
     val hostView = LocalView.current
 
     LaunchedEffect(player, preparedPlayback) {
@@ -283,14 +298,23 @@ private fun MobileReadyVideoPlayer(
         activeFileId = source.fileId
         player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
         player.prepare()
-        player.playWhenReady =
+        playerWantsToPlay =
             lifecycleAllowsAutoplay(lifecycle.currentState, resumeAfterLifecyclePause)
+        player.playWhenReady = playerWantsToPlay
+    }
+
+    LaunchedEffect(controlsVisible, playerWantsToPlay) {
+        if (controlsVisible && playerWantsToPlay) {
+            delay(MOBILE_CONTROLS_HIDE_DELAY_MILLIS)
+            controlsVisible = false
+        }
     }
 
     DisposableEffect(hostView, keepScreenOn) {
-        if (keepScreenOn) hostView.keepScreenOn = true
+        val inheritedKeepScreenOn = hostView.keepScreenOn
+        if (keepScreenOn && !inheritedKeepScreenOn) hostView.keepScreenOn = true
         onDispose {
-            if (keepScreenOn) hostView.keepScreenOn = false
+            if (keepScreenOn && !inheritedKeepScreenOn) hostView.keepScreenOn = false
         }
     }
 
@@ -307,9 +331,12 @@ private fun MobileReadyVideoPlayer(
         val listener =
             object : Media3Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
-                    currentOnPlaybackRetained.value(
-                        retainPlaybackOnPause(player.currentPosition, player.playWhenReady),
-                    )
+                    retainPlaybackWhileActive(
+                        lifecycleState = lifecycle.currentState,
+                        positionMillis = player.currentPosition,
+                        playWhenReady = player.playWhenReady,
+                    )?.let(currentOnPlaybackRetained.value)
+                        ?: currentOnPositionChanged.value(player.currentPosition.coerceAtLeast(0L))
                     currentOnPlayerFailure.value(
                         error.toPlaybackFailure(),
                         player.currentPosition,
@@ -328,10 +355,15 @@ private fun MobileReadyVideoPlayer(
                     keepScreenOn = player.shouldKeepScreenOn()
                 }
 
+                override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
+                    keepScreenOn = player.shouldKeepScreenOn()
+                }
+
                 override fun onPlayWhenReadyChanged(
                     playWhenReady: Boolean,
                     reason: Int,
                 ) {
+                    playerWantsToPlay = playWhenReady
                     keepScreenOn = player.shouldKeepScreenOn()
                     retainPlaybackWhileActive(
                         lifecycleState = lifecycle.currentState,
@@ -354,59 +386,71 @@ private fun MobileReadyVideoPlayer(
         }
     }
 
-    Player(
-        player = player,
-        modifier =
+    Box(
+        Modifier
+            .fillMaxSize()
+            .testTag(MOBILE_VIDEO_PLAYER_TAG),
+    ) {
+        ContentFrame(
+            player = player,
+            modifier = Modifier.fillMaxSize(),
+            surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
+        )
+        Box(
             Modifier
                 .fillMaxSize()
-                .testTag(MOBILE_VIDEO_PLAYER_TAG),
-        surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
-        showControls = true,
-        topControls = { controlledPlayer, visible ->
-            PlayerDefaults.TopControls(
-                player = controlledPlayer,
-                visible = visible,
-                modifier =
-                    Modifier
-                        .zIndex(2f)
-                        .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
-                        .padding(8.dp),
-            ) {
-                if (source.hasSelectableSubtitles() && it != null) {
-                    MobileSubtitleControls(
-                        player = it,
-                        onTrackSelectionChanged = onTrackSelectionChanged,
-                        modifier = Modifier.align(Alignment.TopEnd),
-                    )
-                }
+                .zIndex(0.5f)
+                .pointerInput(Unit) {
+                    detectTapGestures { controlsVisible = !controlsVisible }
+                },
+        )
+        MobileSubtitleCueOverlay(
+            cues = cues,
+            videoAspectRatio = videoSize.displayAspectRatioOrNull(),
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .zIndex(1f),
+        )
+        PlayerDefaults.TopControls(
+            player = player,
+            visible = controlsVisible,
+            modifier =
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .zIndex(2f)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(8.dp),
+        ) {
+            if (source.hasSelectableSubtitles() && it != null) {
+                MobileSubtitleControls(
+                    player = it,
+                    onTrackSelectionChanged = onTrackSelectionChanged,
+                    modifier = Modifier.align(Alignment.TopEnd),
+                )
             }
-        },
-        centerControls = { controlledPlayer, visible ->
-            MobileSubtitleCueOverlay(
-                cues = cues,
-                videoAspectRatio = videoSize.displayAspectRatioOrNull(),
-                modifier = Modifier.zIndex(1f),
-            )
-            PlayerDefaults.CenterControls(
-                player = controlledPlayer,
-                visible = visible,
-                modifier = Modifier.zIndex(2f),
-            )
-        },
-        bottomControls = { controlledPlayer, visible ->
-            PlayerDefaults.BottomControls(
-                player = controlledPlayer,
-                visible = visible,
-                modifier =
-                    Modifier
-                        .zIndex(2f)
-                        .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
-                        .padding(8.dp),
-            )
-        },
-    )
+        }
+        PlayerDefaults.CenterControls(
+            player = player,
+            visible = controlsVisible,
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .zIndex(2f),
+        )
+        PlayerDefaults.BottomControls(
+            player = player,
+            visible = controlsVisible,
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .zIndex(2f)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(8.dp),
+        )
+    }
 }
 
 @Composable
@@ -523,13 +567,17 @@ internal fun lifecycleAllowsAutoplay(
 ): Boolean = resumeAfterLifecyclePause && state.isAtLeast(Lifecycle.State.RESUMED)
 
 internal fun Media3Player.shouldKeepScreenOn(): Boolean =
-    playbackKeepsScreenOn(playWhenReady, playbackState)
+    playbackKeepsScreenOn(playWhenReady, playbackState, playbackSuppressionReason)
 
 internal fun playbackKeepsScreenOn(
     playWhenReady: Boolean,
     playbackState: Int,
+    playbackSuppressionReason: Int = Media3Player.PLAYBACK_SUPPRESSION_REASON_NONE,
 ): Boolean =
-    playWhenReady && playbackState != Media3Player.STATE_IDLE && playbackState != Media3Player.STATE_ENDED
+    playWhenReady &&
+        playbackSuppressionReason == Media3Player.PLAYBACK_SUPPRESSION_REASON_NONE &&
+        playbackState != Media3Player.STATE_IDLE &&
+        playbackState != Media3Player.STATE_ENDED
 
 internal data class RetainedPlayback(
     val positionMillis: Long,
