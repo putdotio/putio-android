@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "@phosphor-icons/core",
+    "version": "2.1.1",
+    "tarball": "https://registry.npmjs.org/@phosphor-icons/core/-/core-2.1.1.tgz",
+    "integrity": "sha512-v4ARvrip4qBCImOE5rmPUylOEK4iiED9ZyKjcvzuezqMaiRASCHKcRIuvvxL/twvLpkfnEODCOJp5dM4eZilxQ=="
+  },
+  "icons": [
+    {
+      "sourceSet": "main",
+      "resource": "ic_ph_file_audio_fill",
+      "asset": "assets/fill/file-audio-fill.svg",
+      "sourceSha256": "835c6bfde42e68d716db3dd4db0e02843f6a7bd704a4377287a4b022d80ace7a",
+      "outputSha256": "af04777a3d7a2ea000f6e9e650a7c0016d40e458a70afc300e83da09e65ac7e9"
+    },
+    {
+      "sourceSet": "main",
+      "resource": "ic_ph_file_code_fill",
+      "asset": "assets/fill/file-code-fill.svg",
+      "sourceSha256": "127044e7395681d5306c7553cc2287e16c63f9d4578f4f6fe7710f277e5b7624",
+      "outputSha256": "35723cc4611828b962532810316913a0930049e7c8345fdbc1031c4e1bff8e91"
+    },
+    {
+      "sourceSet": "main",
+      "resource": "ic_ph_file_fill",
+      "asset": "assets/fill/file-fill.svg",
+      "sourceSha256": "d6fe00691e45b5e9b87ccc5a8fc9022485935408167ab1234817915df4fd1ca4",
+      "outputSha256": "688e754acd9e306a95f55b665b2b3a7c1ae9a00c98656463991e2f7abf9030ec"
+    },
+    {
+      "sourceSet": "main",
+      "resource": "ic_ph_file_image_fill",
+      "asset": "assets/fill/file-image-fill.svg",
+      "sourceSha256": "0266eb983ed5cec9152d76691152123b92b2cb84d8c139c37793d0870df3f601",
+      "outputSha256": "34c0be681637079942e0c275d4b2f454495c4f0f8dfa7e807cc0cd8457e209d7"
+    },
+    {
+      "sourceSet": "main",
+      "resource": "ic_ph_file_pdf_fill",
+      "asset": "assets/fill/file-pdf-fill.svg",
+      "sourceSha256": "12622b293b9a1efa1f56969ca74ab88085d388c4be926f81cfcb49406a8da05d",
+      "outputSha256": "d9ad3ea68d63123ea25473d5eb14abe137ea2426056922a246a5610e8e97d39b"
+    },
+    {
+      "sourceSet": "main",
+      "resource": "ic_ph_file_text_fill",
+      "asset": "assets/fill/file-text-fill.svg",
+      "sourceSha256": "8c6f36452a441d39886ad7929778c2a90ea66cca519490da4918e7da7bade242",
+      "outputSha256": "62e7a4f0d4e19a34d63a9f14eabbd1a97cc2455412ee42df6ab921cc97c0af28"
+    },
+    {
+      "sourceSet": "main",
+      "resource": "ic_ph_file_video_fill",
+      "asset": "assets/fill/file-video-fill.svg",
+      "sourceSha256": "2940d83bf3560f389d6a826ca639741a9098d5bfe8910ea371fdc4c83790b827",
+      "outputSha256": "bd5be8e331788e48bb8049388bed6ed0bdc596c2789f2bc88bedc03d13788553"
+    },
+    {
+      "sourceSet": "main",
+      "resource": "ic_ph_file_zip_fill",
+      "asset": "assets/fill/file-zip-fill.svg",
+      "sourceSha256": "3b4355954bef19b2572639dcb619e0e81513118dd76c3c2fc8bab6d9a23c9032",
+      "outputSha256": "97dd12818b7ec242e201fec8d58445536ddc65fb41922ae6f286f73215e9d2a9"
+    },
+    {
+      "sourceSet": "main",
+      "resource": "ic_ph_folder_fill",
+      "asset": "assets/fill/folder-fill.svg",
+      "sourceSha256": "2217bd2f730884d7a8aec3e3358eb7500448b0e3d86f33a63142f40f0622bfe9",
+      "outputSha256": "c520ea1b82c836a845a2abda98a13fa0d624797ece794047900a0e1479e7a456"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_arrow_circle_down",
+      "asset": "assets/regular/arrow-circle-down.svg",
+      "sourceSha256": "023031c9c7858af9f614b5bc5e8f5f511d59dc4990cfab5ef5c6cd65d1b90f3b",
+      "outputSha256": "68c2a0eb3a6f60a3632306fa772a6b8bd2b46d73a71b13052ee355c6be94e9fa"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_arrow_circle_down_fill",
+      "asset": "assets/fill/arrow-circle-down-fill.svg",
+      "sourceSha256": "55ad201e30ef64bd200bdb261d2f78a64bfac03958fe93994b07606b5dee2927",
+      "outputSha256": "196338e5911488d6fe49f8ff70147fdd4c0d8a2edfa4be2bc5baaecdabdf3b23"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_arrow_left",
+      "asset": "assets/regular/arrow-left.svg",
+      "sourceSha256": "3c2001cf957d182fc54927e4b286cc8cf66dd97830f441ca2650d42a63a9006a",
+      "outputSha256": "fbd4030ac270365580ac8035afefbcbf5d010947cf7eed5ac7b807444e71e10f"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_folder",
+      "asset": "assets/regular/folder.svg",
+      "sourceSha256": "4a882bcd4a91ae0a01887024f08d358932f183b6b171e87a3e48c5910364d507",
+      "outputSha256": "a92b95b4c51e4d49eeef4927c633adef0cc60897b7cf3dc8b9d9f10e467e78f4"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_magnifying_glass",
+      "asset": "assets/regular/magnifying-glass.svg",
+      "sourceSha256": "f9fa2561978a9a3291e8ae0ebfcb651104f5069fade8f84871627bca68889cde",
+      "outputSha256": "472bc34c4cc5f9f9eb92934cc05e13356361ea1f37c2479f6e9fe307095c78c4"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_magnifying_glass_fill",
+      "asset": "assets/fill/magnifying-glass-fill.svg",
+      "sourceSha256": "e7cf953bb787af2a4b11f8a248f35b56aab2f2b44f535d03593f490a4a633244",
+      "outputSha256": "416338f45ea5f43b6f83d098eeb9773b64c8267335e2c9394240056810e3b8de"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_sort_ascending",
+      "asset": "assets/regular/sort-ascending.svg",
+      "sourceSha256": "a9791208ad848f553cc7eb38a6adaf3dedcbb5922841dd05c683d123fd6272f6",
+      "outputSha256": "55c11f6b84b5770e3cf17faef89ad0e5fec5fa58e3d2e140f7f349ec5fba1efa"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_user_circle",
+      "asset": "assets/regular/user-circle.svg",
+      "sourceSha256": "5aee25838c1915058940900df322afc36b76f4ea7e48499c33603cf121258b2a",
+      "outputSha256": "323cc60328b68258d1d4769385f3072a6b936345e95fce41891d041352074067"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_user_circle_fill",
+      "asset": "assets/fill/user-circle-fill.svg",
+      "sourceSha256": "4e16cdba116195993e6398bb097e7c4b354fb129fafdf2b56fd4b7c069f440d3",
+      "outputSha256": "5a75cd6827f05ea5d9e204ade07ad11b94c6d2c2076f4c4d009f225876263518"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_arrow_circle_down_fill",
+      "asset": "assets/fill/arrow-circle-down-fill.svg",
+      "sourceSha256": "55ad201e30ef64bd200bdb261d2f78a64bfac03958fe93994b07606b5dee2927",
+      "outputSha256": "196338e5911488d6fe49f8ff70147fdd4c0d8a2edfa4be2bc5baaecdabdf3b23"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_gear_fill",
+      "asset": "assets/fill/gear-fill.svg",
+      "sourceSha256": "564f53f72b0bd4371dc14a3d39a3fcf4c5a1a74d285eb56fff465a954f993ec8",
+      "outputSha256": "479d5dc5efb4b4452e26b8a5d1bc101a99f59b1bdd81f874cd0fdfb9de019f83"
+    }
+  ]
+}
