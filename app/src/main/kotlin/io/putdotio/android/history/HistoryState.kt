@@ -38,6 +38,7 @@ data class HistoryState internal constructor(
 )
 
 sealed interface HistoryEvent {
+    data class SetEnabled(val enabled: Boolean) : HistoryEvent
     data object LoadNextPage : HistoryEvent
     data object Retry : HistoryEvent
     data object RequestClear : HistoryEvent
@@ -74,6 +75,7 @@ object HistoryReducer {
 
     fun reduce(state: HistoryState, event: HistoryEvent): HistoryTransition =
         when (event) {
+            is HistoryEvent.SetEnabled -> state.setEnabled(event.enabled)
             HistoryEvent.LoadNextPage -> state.loadNextPage()
             HistoryEvent.Retry -> state.retry()
             HistoryEvent.RequestClear -> state.requestClear()

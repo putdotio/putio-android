@@ -25,6 +25,22 @@ class HistoryControllerTest {
     }
 
     @Test
+    fun enablingDisabledControllerLoadsAndDisablingDropsLoadedHistory() = runBlocking {
+        var calls = 0
+        val controller = HistoryController(repository { calls += 1 }, historyEnabled = false, parentScope = this)
+        try {
+            assertTrue(controller.dispatch(HistoryEvent.SetEnabled(true)))
+            controller.awaitState { it.content == HistoryContent.Empty }
+            assertEquals(1, calls)
+
+            assertTrue(controller.dispatch(HistoryEvent.SetEnabled(false)))
+            assertEquals(HistoryContent.Disabled, controller.state.value.content)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
     fun controllerLoadsClearsOnlyAfterConfirmationAndPublishesNavigation() = runBlocking {
         var clears = 0
         val repository = object : HistoryRepository {

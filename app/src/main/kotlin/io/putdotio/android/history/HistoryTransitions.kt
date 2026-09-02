@@ -1,5 +1,33 @@
 package io.putdotio.android.history
 
+internal fun HistoryState.setEnabled(enabled: Boolean): HistoryTransition {
+    val currentlyEnabled = content !is HistoryContent.Disabled
+    return when {
+        enabled == currentlyEnabled -> HistoryTransition(this, consumed = false)
+        !enabled ->
+            HistoryTransition(
+                copy(
+                    content = HistoryContent.Disabled,
+                    clearing = HistoryClearing.Idle,
+                    consumedBefore = emptySet(),
+                ),
+            )
+        else -> {
+            val requestId = HistoryRequestId(nextRequestValue)
+            HistoryTransition(
+                state =
+                    copy(
+                        content = HistoryContent.Loading(requestId),
+                        clearing = HistoryClearing.Idle,
+                        consumedBefore = emptySet(),
+                        nextRequestValue = requestId.value + 1,
+                    ),
+                effect = HistoryEffect.Load(before = null, requestId),
+            )
+        }
+    }
+}
+
 internal fun HistoryState.loadNextPage(): HistoryTransition {
     val ready = content as? HistoryContent.Ready
     val paging = ready?.paging as? HistoryPaging.Available

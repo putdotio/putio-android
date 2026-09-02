@@ -40,6 +40,45 @@ class HistoryReducerTest {
     }
 
     @Test
+    fun settingEnabledReloadsWithAMonotonicRequestAndRejectsStaleResults() {
+        val start = HistoryReducer.start(historyEnabled = true)
+        val firstRequest = start.effect as HistoryEffect.Load
+        val disabled = HistoryReducer.reduce(start.state, HistoryEvent.SetEnabled(false))
+
+        assertEquals(HistoryContent.Disabled, disabled.state.content)
+        assertEquals(HistoryClearing.Idle, disabled.state.clearing)
+
+        val enabled = HistoryReducer.reduce(disabled.state, HistoryEvent.SetEnabled(true))
+        val secondRequest = enabled.effect as HistoryEffect.Load
+        assertTrue(secondRequest.requestId.value > firstRequest.requestId.value)
+        assertEquals(secondRequest.requestId, (enabled.state.content as HistoryContent.Loading).requestId)
+
+        val stale =
+            HistoryReducer.reduce(
+                enabled.state,
+                HistoryEvent.LoadSucceeded(firstRequest.requestId, HistoryPage(listOf(item(1L)), false)),
+            )
+        assertFalse(stale.consumed)
+        assertEquals(enabled.state, stale.state)
+
+        val loaded =
+            HistoryReducer.reduce(
+                enabled.state,
+                HistoryEvent.LoadSucceeded(secondRequest.requestId, HistoryPage(listOf(item(2L)), false)),
+            )
+        assertEquals(listOf(2L), (loaded.state.content as HistoryContent.Ready).items.map { it.id.value })
+    }
+
+    @Test
+    fun settingCurrentHistoryAvailabilityIsANoOp() {
+        val disabled = HistoryReducer.start(historyEnabled = false).state
+        val enabled = HistoryReducer.start(historyEnabled = true).state
+
+        assertFalse(HistoryReducer.reduce(disabled, HistoryEvent.SetEnabled(false)).consumed)
+        assertFalse(HistoryReducer.reduce(enabled, HistoryEvent.SetEnabled(true)).consumed)
+    }
+
+    @Test
     fun pagesByLastEventIdDeduplicatesRowsAndStopsCursorCycles() {
         val initial = loaded(listOf(item(9L), item(8L)), hasMore = true)
         val first = HistoryReducer.reduce(initial, HistoryEvent.LoadNextPage)

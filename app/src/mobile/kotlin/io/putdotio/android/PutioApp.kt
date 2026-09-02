@@ -88,6 +88,7 @@ import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
+import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryState
@@ -395,6 +396,7 @@ internal fun SignedInMobileRoot(
     val transfersState by transfersController.state.collectAsStateWithLifecycle()
     val navigationFailure by searchHistorySession.navigationFailure.collectAsStateWithLifecycle()
     val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
+    val confirmedHistoryEnabled = accountSettingsState.confirmedHistoryEnabled()
     val authoritativeFailure =
         filesState.authoritativeSessionFailure()
             ?: searchState.authoritativeSessionFailure()
@@ -410,6 +412,12 @@ internal fun SignedInMobileRoot(
         ),
         onReject = authController::rejectAuthoritativeSession,
     )
+
+    LaunchedEffect(searchHistorySession, confirmedHistoryEnabled) {
+        confirmedHistoryEnabled?.let { enabled ->
+            searchHistorySession.history.dispatch(HistoryEvent.SetEnabled(enabled))
+        }
+    }
 
     MobileShell(
         trashController = trashController,

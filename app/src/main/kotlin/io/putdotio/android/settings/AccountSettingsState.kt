@@ -168,4 +168,11 @@ internal fun AccountSettingsState.authoritativeSessionFailure(): AccountSettings
     ).filterIsInstance<AccountSettingsFailure.AuthenticationRequired>()
         .firstOrNull()
 
+internal fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
+    if (mutation is AccountSettingsMutation.Idle) {
+        (content as? AccountSettingsContent.Ready)?.preferences?.historyEnabled
+    } else {
+        null
+    }
+
 private const val INITIAL_REQUEST_VALUE = 1L
