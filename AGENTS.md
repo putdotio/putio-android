@@ -193,12 +193,13 @@ allowlist error while preserving the validated local capture.
 
 ## Live API Proof (putio CLI)
 
-For fixtures and live API state checks, use the `putio` CLI with a dedicated
-test profile. Never a personal default profile, never tokens in the repo:
+For fixtures and live API state checks, use the `putio` CLI with the shared
+frontend test identity `devs-fe-auto`, the same profile the web, iOS, and TV
+harnesses use. Never a personal profile, never tokens in the repo:
 
 ```bash
-putio auth login --profile putio-android-test   # device-code flow; approve at the printed URL
-putio auth status                               # verify before relying on it
+putio auth login --profile devs-fe-auto   # device-code flow; approve at the printed URL
+putio auth status --profile devs-fe-auto  # verify before relying on it
 putio auth profiles list
 ```
 
