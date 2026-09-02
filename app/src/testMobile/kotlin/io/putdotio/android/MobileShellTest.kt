@@ -65,6 +65,9 @@ import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.AndroidAppConfigChange
+import io.putdotio.android.settings.AndroidAppConfigEvent
+import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferNavigation
@@ -304,12 +307,19 @@ class MobileShellTest {
     }
 
     @Test
-    fun phoneShellForwardsAccountSettingEvents() {
-        val events = mutableListOf<AccountSettingsEvent>()
-        compose.setShell(onAccountSettingsEvent = events::add)
+    fun phoneShellForwardsAccountAndAppSettingEvents() {
+        val accountEvents = mutableListOf<AccountSettingsEvent>()
+        val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
+        compose.setShell(
+            appConfigState = readyAndroidAppConfigState(),
+            onAccountSettingsEvent = accountEvents::add,
+            onAppConfigEvent = appConfigEvents::add,
+        )
 
         compose.onNodeWithText("Account").performClick()
         compose.onNodeWithText("Show subtitles").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(10)
+        compose.onNodeWithText("Autoplay next video").performClick()
 
         assertEquals(
             listOf(
@@ -317,7 +327,15 @@ class MobileShellTest {
                     AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
                 ),
             ),
-            events,
+            accountEvents,
+        )
+        assertEquals(
+            listOf(
+                AndroidAppConfigEvent.ChangeRequested(
+                    AndroidAppConfigChange.AutoplayNextVideo(enabled = true),
+                ),
+            ),
+            appConfigEvents,
         )
     }
 
@@ -367,19 +385,22 @@ class MobileShellTest {
     }
 
     @Test
-    fun tabletShellForwardsAccountSettingEvents() {
-        val events = mutableListOf<AccountSettingsEvent>()
+    fun tabletShellForwardsAccountAndAppSettingEvents() {
+        val accountEvents = mutableListOf<AccountSettingsEvent>()
+        val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
         compose.setContent {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
                     MobileShell(
                         filesState = emptyFilesState(),
                         accountSettingsState = readyAccountSettingsState(),
+                        appConfigState = readyAndroidAppConfigState(),
                         account = Account,
                         playbackRepository = ConversionRepository,
                         sessionId = Session,
                         onFilesEvent = {},
-                        onAccountSettingsEvent = events::add,
+                        onAccountSettingsEvent = accountEvents::add,
+                        onAppConfigEvent = appConfigEvents::add,
                         onPlaybackAuthenticationRequired = {},
                         onSignOut = {},
                     )
@@ -389,6 +410,8 @@ class MobileShellTest {
 
         compose.onNodeWithText("Account").performClick()
         compose.onNodeWithText("Show subtitles").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(10)
+        compose.onNodeWithText("Autoplay next video").performClick()
 
         assertEquals(
             listOf(
@@ -396,7 +419,15 @@ class MobileShellTest {
                     AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
                 ),
             ),
-            events,
+            accountEvents,
+        )
+        assertEquals(
+            listOf(
+                AndroidAppConfigEvent.ChangeRequested(
+                    AndroidAppConfigChange.AutoplayNextVideo(enabled = true),
+                ),
+            ),
+            appConfigEvents,
         )
     }
 
@@ -670,9 +701,11 @@ class MobileShellTest {
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         filesState: FilesBrowserState = emptyFilesState(),
         accountSettingsState: AccountSettingsState = readyAccountSettingsState(),
+        appConfigState: AndroidAppConfigState = readyAndroidAppConfigState(),
         playbackRepository: PlaybackRepository = ConversionRepository,
         onFilesEvent: (FilesBrowserEvent) -> Unit = {},
         onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
+        onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
         onPlaybackAuthenticationRequired: suspend () -> Unit = {},
     ) {
         setContent {
@@ -680,11 +713,13 @@ class MobileShellTest {
                 MobileShell(
                     filesState = filesState,
                     accountSettingsState = accountSettingsState,
+                    appConfigState = appConfigState,
                     account = Account,
                     playbackRepository = playbackRepository,
                     sessionId = Session,
                     onFilesEvent = onFilesEvent,
                     onAccountSettingsEvent = onAccountSettingsEvent,
+                    onAppConfigEvent = onAppConfigEvent,
                     onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                     onSignOut = {},
                 )
