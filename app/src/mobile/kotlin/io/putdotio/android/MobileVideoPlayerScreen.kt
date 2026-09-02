@@ -416,7 +416,11 @@ private fun MobileReadyVideoPlayer(
         }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (!playerReleased && retainedPlayIntent) player.play()
+        if (playerReleased) {
+            playerGeneration += 1
+        } else if (retainedPlayIntent) {
+            player.play()
+        }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         if (!playerReleased) {
@@ -428,7 +432,6 @@ private fun MobileReadyVideoPlayer(
             currentOnPositionChanged.value(retainedPositionMillis)
             playerReleased = true
             player.release()
-            playerGeneration += 1
         }
     }
     DisposableEffect(player) {
