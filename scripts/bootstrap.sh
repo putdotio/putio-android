@@ -89,6 +89,7 @@ if ! command -v lsof >/dev/null 2>&1; then
       apt_prefix=(sudo)
     fi
     log "installing lsof for emulator port discovery"
+    "${apt_prefix[@]}" apt-get update
     "${apt_prefix[@]}" apt-get install -y lsof
   else
     die "lsof missing; install it with your system package manager and re-run"
