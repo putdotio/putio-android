@@ -445,6 +445,7 @@ private fun MobileReadyVideoPlayer(
         val listener =
             object : Media3Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
+                    if (playerReleased) return
                     val errorPositionMillis = player.currentPosition.coerceAtLeast(0L)
                     retainedPositionMillis = errorPositionMillis
                     failurePositionMillis = errorPositionMillis

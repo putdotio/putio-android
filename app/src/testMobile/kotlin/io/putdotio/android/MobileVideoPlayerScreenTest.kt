@@ -446,15 +446,24 @@ class MobileVideoPlayerScreenTest {
     fun playerReleasesSynchronouslyOnStopAndRecreatesOnStart() {
         val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
         val players = mutableListOf<RecordingPlayer>()
+        val failures = mutableListOf<PlaybackFailure>()
+        val releaseError =
+            PlaybackException(
+                "renderer release timed out",
+                null,
+                PlaybackException.ERROR_CODE_TIMEOUT,
+            )
         compose.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PutioTheme {
                     MobileVideoPlayerScreen(
                         state = state(PlaybackContent.Ready(videoSource())),
                         onRetry = {},
-                        onPlayerFailure = { _, _ -> },
+                        onPlayerFailure = { failure, _ -> failures += failure },
                         onBack = {},
-                        playerFactory = MobilePlayerFactory { RecordingPlayer().also(players::add) },
+                        playerFactory = MobilePlayerFactory {
+                            RecordingPlayer(releaseError).also(players::add)
+                        },
                     )
                 }
             }
@@ -469,6 +478,7 @@ class MobileVideoPlayerScreenTest {
             players.single().movePositionTo(54_321L)
             lifecycleOwner.moveTo(Lifecycle.State.CREATED)
             assertTrue(players.single().released)
+            assertTrue(failures.isEmpty())
         }
         compose.runOnIdle { assertEquals(1, players.size) }
         compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
@@ -667,7 +677,9 @@ private class PlayerLifecycleOwner : LifecycleOwner {
 }
 
 @UnstableApi
-private class RecordingPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
+private class RecordingPlayer(
+    private val releaseError: PlaybackException? = null,
+) : SimpleBasePlayer(Looper.getMainLooper()) {
     private var state =
         State.Builder()
             .setAvailableCommands(Media3Player.Commands.Builder().addAllCommands().build())
@@ -753,6 +765,7 @@ private class RecordingPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
         Futures.immediateVoidFuture()
 
     override fun handleRelease(): ListenableFuture<*> {
+        releaseError?.let(::fail)
         released = true
         return Futures.immediateVoidFuture()
     }
