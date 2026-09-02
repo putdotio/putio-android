@@ -51,6 +51,7 @@ internal class AndroidAppConfigController(
         controllerScope.cancel()
     }
 
+    // This controller boundary contains repository implementations that escape the declared result contract.
     @Suppress("TooGenericExceptionCaught")
     private fun launchEffect(effect: AndroidAppConfigEffect) {
         val job =

@@ -64,6 +64,7 @@ internal class SdkAndroidAppConfigRepository(
     override suspend fun save(change: AndroidAppConfigChange): AndroidAppConfigRepositoryResult<Unit> =
         request { saveConfig(change.toUpdate()) }
 
+    // This SDK boundary converts unexpected implementation failures into the app's stable failure taxonomy.
     @Suppress("TooGenericExceptionCaught")
     private suspend fun <T> request(block: suspend () -> T): AndroidAppConfigRepositoryResult<T> =
         try {
