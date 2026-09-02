@@ -80,7 +80,7 @@ class HistoryReducerTest {
     }
 
     @Test
-    fun inFlightClearReconcilesAcrossDisableAndReenable() {
+    fun inFlightClearReloadsAuthoritativeHistoryAcrossDisableAndReenable() {
         val initial = loaded(listOf(item(1L)), hasMore = false)
         val requested = HistoryReducer.reduce(initial, HistoryEvent.RequestClear)
         val clearing = HistoryReducer.reduce(requested.state, HistoryEvent.ConfirmClear)
@@ -97,8 +97,21 @@ class HistoryReducerTest {
         assertTrue(reloaded.state.content is HistoryContent.Ready)
 
         val cleared = HistoryReducer.reduce(reloaded.state, HistoryEvent.ClearSucceeded(clearRequest.requestId))
-        assertEquals(HistoryContent.Empty, cleared.state.content)
+        val reconciliationLoad = cleared.effect as HistoryEffect.Load
+        assertNull(reconciliationLoad.before)
+        assertTrue(reconciliationLoad.requestId.value > loadRequest.requestId.value)
+        assertEquals(HistoryContent.Loading(reconciliationLoad.requestId), cleared.state.content)
         assertEquals(HistoryClearing.Idle, cleared.state.clearing)
+
+        val reconciled =
+            HistoryReducer.reduce(
+                cleared.state,
+                HistoryEvent.LoadSucceeded(
+                    reconciliationLoad.requestId,
+                    HistoryPage(listOf(item(3L)), false),
+                ),
+            )
+        assertEquals(listOf(3L), (reconciled.state.content as HistoryContent.Ready).items.map { it.id.value })
     }
 
     @Test
@@ -174,15 +187,23 @@ class HistoryReducerTest {
     }
 
     @Test
-    fun successfulClearEmptiesHistoryAndFileEventsEmitNavigation() {
+    fun successfulClearReloadsHistoryAndFileEventsEmitNavigation() {
         val initial = loaded(listOf(item(1L)), hasMore = false)
         val requested = HistoryReducer.reduce(initial, HistoryEvent.RequestClear)
         val confirmed = HistoryReducer.reduce(requested.state, HistoryEvent.ConfirmClear)
         val requestId = (confirmed.effect as HistoryEffect.Clear).requestId
         val cleared = HistoryReducer.reduce(confirmed.state, HistoryEvent.ClearSucceeded(requestId))
-        assertEquals(HistoryContent.Empty, cleared.state.content)
+        val reload = cleared.effect as HistoryEffect.Load
+        assertEquals(HistoryContent.Loading(reload.requestId), cleared.state.content)
 
-        val navigation = HistoryReducer.reduce(cleared.state, HistoryEvent.OpenFile(HistoryFileId(42L)))
+        val empty =
+            HistoryReducer.reduce(
+                cleared.state,
+                HistoryEvent.LoadSucceeded(reload.requestId, HistoryPage(emptyList(), false)),
+            )
+        assertEquals(HistoryContent.Empty, empty.state.content)
+
+        val navigation = HistoryReducer.reduce(empty.state, HistoryEvent.OpenFile(HistoryFileId(42L)))
         assertEquals(HistoryEffect.NavigateToFile(HistoryFileId(42L)), navigation.effect)
     }
 
