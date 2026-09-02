@@ -78,10 +78,12 @@ import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
+import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -102,6 +104,7 @@ import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersRefresh
 import io.putdotio.android.transfers.TransfersState
+import io.putdotio.sdk.files.PlaybackPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -306,9 +309,6 @@ private fun SignedInMobileRoot(
     val filesRepository = remember(runtime.putioClient) {
         SdkFilesRepository(runtime.putioClient)
     }
-    val playbackRepository = remember(runtime.putioClient) {
-        SdkPlaybackRepository(runtime.putioClient)
-    }
     val filesController = remember(filesViewModel, filesRepository, account.userId, sessionId) {
         filesViewModel.controllerFor(
             userId = account.userId,
@@ -368,6 +368,11 @@ private fun SignedInMobileRoot(
     ) {
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
+    }
+    val playbackRepository = remember(runtime.putioClient, appConfigController) {
+        SdkPlaybackRepository(runtime.putioClient) {
+            appConfigController.state.value.playbackPreference()
+        }
     }
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
@@ -439,6 +444,14 @@ private fun SignedInMobileRoot(
         onSignOut = { rootScope.launch { authController.logout() } },
     )
 }
+
+internal fun AndroidAppConfigState.playbackPreference(): PlaybackPreference =
+    when ((content as? AndroidAppConfigContent.Ready)?.preferences?.videoPlaybackType) {
+        VideoPlaybackType.Mp4 -> PlaybackPreference.MP4
+        VideoPlaybackType.Hls,
+        null,
+        -> PlaybackPreference.HLS
+    }
 
 internal fun settingsRequireSessionRejection(
     accountSettingsState: AccountSettingsState,
