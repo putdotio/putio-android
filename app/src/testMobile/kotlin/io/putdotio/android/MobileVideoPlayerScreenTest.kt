@@ -664,6 +664,10 @@ class MobileVideoPlayerCodecTest {
         assertEquals(C.SELECTION_FLAG_DEFAULT, restored.ignoredTextSelectionFlags)
         assertFalse(restored.subtitlesEnabled(emptyList()))
         assertTrue(captionsEnabled.selectTextByDefault)
+
+        val automatic = restored.withSubtitleSelection(SubtitleSelection.Automatic, emptyList())
+        assertEquals(0, automatic.ignoredTextSelectionFlags)
+        assertTrue(automatic.selectTextByDefault)
         assertFalse(C.TRACK_TYPE_TEXT in captionsEnabled.disabledTrackTypes)
     }
 

@@ -8,3 +8,7 @@ local.properties
 app/build/
 
 .evidence/
+
+# JVM crash dumps
+hs_err_pid*.log
+replay_pid*.log

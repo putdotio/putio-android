@@ -307,6 +307,11 @@ private fun MobileReadyVideoPlayer(
     }
 
     val touchExplorationEnabled = rememberTouchExplorationEnabled()
+    // The tap layer has no accessibility click semantics, so a service enabled
+    // mid-playback needs the controls back on screen to reach them.
+    LaunchedEffect(touchExplorationEnabled) {
+        if (touchExplorationEnabled) controlsVisible = true
+    }
     LaunchedEffect(
         controlsVisible,
         playbackActive,
@@ -1052,6 +1057,7 @@ internal fun TrackSelectionParameters.withSubtitleSelection(
     val builder =
         buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .setIgnoredTextSelectionFlags(0)
     return when (selection) {
         SubtitleSelection.Off ->
             builder

@@ -101,6 +101,28 @@ for quarantined_name in proof.png.corrupt proof.black.png proof.mp4.idle proof.u
   [[ ! -e "${args_file}" ]]
 done
 
+for unfinished_name in proof.png.pending proof.mp4.normalized.pending proof.mp4.raw; do
+  unfinished="${tmpdir}/${unfinished_name}"
+  printf 'unfinished fixture' > "${unfinished}"
+  rm -f "${args_file}"
+  if PATH="${fake_bin}:/usr/bin:/bin" ATTACH_ARGS_FILE="${args_file}" \
+    "${SCRIPT}" "${unfinished}" --pr 50 >"${tmpdir}/unfinished.out" 2>&1; then
+    echo "expected unfinished capture to fail: ${unfinished_name}" >&2
+    exit 1
+  fi
+  grep -qF "refusing to publish an unfinished capture: ${unfinished}" "${tmpdir}/unfinished.out"
+  [[ ! -e "${args_file}" ]]
+done
+
+rm -f "${args_file}"
+if PATH="${fake_bin}:/usr/bin:/bin" ATTACH_ARGS_FILE="${args_file}" ATTACH_API_BASE="" \
+  "${SCRIPT}" "${fixture}" --pr 50 >"${tmpdir}/empty-base.out" 2>&1; then
+  echo "expected an explicitly empty ATTACH_API_BASE to fail" >&2
+  exit 1
+fi
+grep -q 'ATTACH_API_BASE must not be empty' "${tmpdir}/empty-base.out"
+[[ ! -e "${args_file}" ]]
+
 output="$(PATH="${fake_bin}:/usr/bin:/bin" ATTACH_ARGS_FILE="${args_file}" \
   ATTACH_API_BASE="https://attach.uinaf.dev/" \
   "${SCRIPT}" "${fixture}" --pr 50)"

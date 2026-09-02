@@ -55,6 +55,9 @@ case "${file##*/}" in
   *.corrupt|*.black.*|*.idle|*.unverified.*)
     fail "refusing to publish quarantined evidence: ${file}"
     ;;
+  *.pending|*.raw)
+    fail "refusing to publish an unfinished capture: ${file}"
+    ;;
 esac
 [[ "${repo}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "--repo must be OWNER/NAME"
 [[ "${pr}" =~ ^[1-9][0-9]*$ ]] || fail "--pr must be a positive integer"
@@ -67,7 +70,9 @@ if [[ "${markdown}" == "1" ]] &&
   fail "evidence filename cannot be represented safely in Markdown: ${file}"
 fi
 
-attach_origin="${ATTACH_API_BASE:-https://attach.uinaf.dev}"
+# `-` rather than `:-`: an explicitly empty base must fail closed, not fall
+# back to production.
+attach_origin="${ATTACH_API_BASE-https://attach.uinaf.dev}"
 while [[ "${attach_origin}" == */ ]]; do attach_origin="${attach_origin%/}"; done
 [[ -n "${attach_origin}" ]] || fail "ATTACH_API_BASE must not be empty"
 if [[ "${attach_origin}" != "https://attach.uinaf.dev" && -z "${ATTACH_GITHUB_CLIENT_ID:-}" ]]; then

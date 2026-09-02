@@ -253,6 +253,26 @@ class FilesBrowserReducerTest {
     }
 
     @Test
+    fun refreshIntoAnEmptyFolderDropsTheStaleViewport() {
+        val oldItem = item(1L, "old.mkv", PutioFileType.VIDEO)
+        val root =
+            FilesBrowserReducer.reduce(
+                loadedRoot(listOf(oldItem), null),
+                FilesBrowserEvent.ViewportChanged(FilesViewportPosition(4, 18)),
+            ).state
+        val refreshing = FilesBrowserReducer.reduce(root, FilesBrowserEvent.Refresh)
+        val refreshEffect = refreshing.effect as FilesBrowserEffect.LoadFolder
+
+        val emptied =
+            FilesBrowserReducer.reduce(
+                refreshing.state,
+                FilesBrowserEvent.LoadSucceeded(refreshEffect.requestId, FilesPage(emptyList(), null)),
+            ).state
+
+        assertEquals(FilesContent.Empty(FilesPaging.Complete), emptied.current.content)
+    }
+
+    @Test
     fun sortPersistsThenReloadsAndResetsTheViewport() {
         val original = item(1L, "one.mkv", PutioFileType.VIDEO)
         val sorted = item(2L, "two.mkv", PutioFileType.VIDEO)

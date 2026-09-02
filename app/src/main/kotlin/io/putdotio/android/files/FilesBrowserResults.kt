@@ -123,7 +123,9 @@ internal fun contentFor(
     viewport: FilesViewportPosition = FilesViewportPosition(),
 ): FilesContent =
     if (items.isEmpty()) {
-        FilesContent.Empty(paging = paging, viewport = viewport)
+        // An empty page has nothing to scroll to; a retained index would reopen a
+        // later repopulated folder far below its first item.
+        FilesContent.Empty(paging = paging)
     } else {
         FilesContent.Ready(items = items.distinctBy(FilesItem::id), paging = paging, viewport = viewport)
     }
