@@ -380,8 +380,6 @@ private fun SignedInMobileRoot(
     val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
     val authoritativeFailure =
         filesState.authoritativeSessionFailure()
-            ?: accountSettingsState.authoritativeSessionFailure()
-            ?: appConfigState.authoritativeSessionFailure()
             ?: searchState.authoritativeSessionFailure()
             ?: historyState.authoritativeSessionFailure()
             ?: transfersState.authoritativeSessionFailure()
@@ -389,7 +387,10 @@ private fun SignedInMobileRoot(
             ?: navigationFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
 
     AuthoritativeSessionFailureEffect(
-        shouldReject = authoritativeFailure != null,
+        shouldReject = authoritativeFailure != null || settingsRequireSessionRejection(
+            accountSettingsState = accountSettingsState,
+            appConfigState = appConfigState,
+        ),
         onReject = authController::rejectAuthoritativeSession,
     )
 
@@ -439,6 +440,13 @@ private fun SignedInMobileRoot(
         onSignOut = { rootScope.launch { authController.logout() } },
     )
 }
+
+internal fun settingsRequireSessionRejection(
+    accountSettingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
+): Boolean =
+    accountSettingsState.authoritativeSessionFailure() != null ||
+        appConfigState.authoritativeSessionFailure() != null
 
 @Composable
 internal fun AuthoritativeSessionFailureEffect(

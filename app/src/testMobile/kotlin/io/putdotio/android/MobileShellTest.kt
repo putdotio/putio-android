@@ -71,7 +71,6 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigState
-import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferNavigation
@@ -118,7 +117,10 @@ class MobileShellTest {
 
         compose.setContent {
             AuthoritativeSessionFailureEffect(
-                shouldReject = state.authoritativeSessionFailure() != null,
+                shouldReject = settingsRequireSessionRejection(
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = state,
+                ),
                 onReject = { rejections += 1 },
             )
         }

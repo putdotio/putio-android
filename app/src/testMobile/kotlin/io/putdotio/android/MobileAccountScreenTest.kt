@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertRangeInfoEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -394,8 +395,19 @@ class MobileAccountScreenTest {
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(9)
         compose.onNodeWithText("Video playback").performClick()
+        compose.onNode(
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.SelectableGroup),
+            useUnmergedTree = true,
+        ).assertExists()
         compose.onAllNodesWithText("Adaptive (HLS)").assertCountEquals(2)
-        compose.onNodeWithText("Direct MP4").performClick()
+        compose.onNodeWithText("Direct MP4")
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.Role,
+                    androidx.compose.ui.semantics.Role.RadioButton,
+                ),
+            )
+            .performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(10)
         compose.onNodeWithText("Autoplay next video").performClick()
 
@@ -453,6 +465,13 @@ class MobileAccountScreenTest {
                 )
         }
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(9)
+        compose.onNode(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.LiveRegion,
+                LiveRegionMode.Polite,
+            ),
+            useUnmergedTree = true,
+        ).assertExists()
         compose.onNodeWithText("This app doesn’t have access to playback settings.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
 
