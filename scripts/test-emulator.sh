@@ -8,6 +8,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmpdir="$(mktemp -d)"
 fake_sdk="${tmpdir}/sdk"
 state="${tmpdir}/state"
+finish_signal_code=""
+finishing=0
 is_owned_fake_emulator() {
   local pid="$1" command
   [[ "${pid}" =~ ^[0-9]+$ ]] || return 1
@@ -49,15 +51,22 @@ cleanup() {
 }
 finish() {
   local code=$?
+  finishing=1
   trap - EXIT
   if ! cleanup; then
-    exit 1
+    code=1
   fi
+  [[ -z "${finish_signal_code}" ]] || code="${finish_signal_code}"
+  trap - INT TERM
   exit "${code}"
 }
+handle_signal() {
+  finish_signal_code="$1"
+  [[ "${finishing}" == "1" ]] || exit "$1"
+}
 trap finish EXIT
-trap 'trap - INT TERM; exit 130' INT
-trap 'trap - INT TERM; exit 143' TERM
+trap 'handle_signal 130' INT
+trap 'handle_signal 143' TERM
 
 mkdir -p \
   "${fake_sdk}/platform-tools" \
