@@ -8,16 +8,39 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmpdir="$(mktemp -d)"
 fake_sdk="${tmpdir}/sdk"
 state="${tmpdir}/state"
+is_owned_fake_emulator() {
+  local pid="$1" command
+  [[ "${pid}" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "${pid}" 2>/dev/null || return 1
+  command="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
+  [[ "${command}" == *"${fake_sdk}/emulator/emulator"* ]]
+}
 cleanup() {
-  local pid attempt
+  local pid attempt cleanup_failed=0
   while read -r pid; do
     [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+    is_owned_fake_emulator "${pid}" || continue
     kill "${pid}" 2>/dev/null || true
     for attempt in {1..50}; do
       kill -0 "${pid}" 2>/dev/null || break
       sleep 0.02
     done
+    if is_owned_fake_emulator "${pid}"; then
+      kill -KILL "${pid}" 2>/dev/null || true
+      for attempt in {1..50}; do
+        kill -0 "${pid}" 2>/dev/null || break
+        sleep 0.02
+      done
+    fi
+    if is_owned_fake_emulator "${pid}"; then
+      echo "emulator contract cleanup failed: owned fake emulator ${pid} survived" >&2
+      cleanup_failed=1
+    fi
   done < "${state}/emulator-pids" 2>/dev/null || true
+  if [[ "${cleanup_failed}" == "1" ]]; then
+    echo "preserving failed cleanup state at ${tmpdir}" >&2
+    return 1
+  fi
   rm -rf "${tmpdir}"
 }
 trap cleanup EXIT
