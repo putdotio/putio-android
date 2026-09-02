@@ -210,7 +210,7 @@ private val RetainedPlayerPreferencesSaver =
         },
         restore = { saved ->
             RetainedPlayerPreferences(
-                resumeAfterLifecyclePause = saved.getBoolean("resumeAfterLifecyclePause"),
+                resumeAfterLifecyclePause = saved.getBoolean("resumeAfterLifecyclePause", true),
                 subtitleSelection = saved.getBundle("subtitleSelection")?.toSubtitleSelection(),
                 positionMillis = saved.getLong("positionMillis").takeIf { saved.containsKey("positionMillis") },
             )
@@ -268,7 +268,7 @@ private fun MobileReadyVideoPlayer(
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     var keepScreenOn by remember(player) { mutableStateOf(player.shouldKeepScreenOn()) }
     var controlsVisible by rememberSaveable(source.fileId) { mutableStateOf(true) }
-    var playerWantsToPlay by remember(player) { mutableStateOf(player.playWhenReady) }
+    var playbackActive by remember(player) { mutableStateOf(player.playbackHidesControls()) }
     var controlsInteracting by remember { mutableStateOf(false) }
     var topControlsFocused by remember { mutableStateOf(false) }
     var centerControlsFocused by remember { mutableStateOf(false) }
@@ -301,15 +301,15 @@ private fun MobileReadyVideoPlayer(
         activeFileId = source.fileId
         player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
         player.prepare()
-        playerWantsToPlay =
+        player.playWhenReady =
             lifecycleAllowsAutoplay(lifecycle.currentState, currentResumeAfterLifecyclePause.value)
-        player.playWhenReady = playerWantsToPlay
+        playbackActive = player.playbackHidesControls()
     }
 
     val touchExplorationEnabled = rememberTouchExplorationEnabled()
     LaunchedEffect(
         controlsVisible,
-        playerWantsToPlay,
+        playbackActive,
         controlsInteracting,
         controlsFocused,
         controlsMenuOpen,
@@ -318,7 +318,7 @@ private fun MobileReadyVideoPlayer(
     ) {
         if (controlsShouldAutoHide(
                 controlsVisible = controlsVisible,
-                playerWantsToPlay = playerWantsToPlay,
+                playbackActive = playbackActive,
                 pointerInteracting = controlsInteracting,
                 controlsFocused = controlsFocused,
                 menuOpen = controlsMenuOpen,
@@ -405,6 +405,8 @@ private fun MobileReadyVideoPlayer(
 
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     keepScreenOn = player.shouldKeepScreenOn()
+                    playbackActive = player.playbackHidesControls()
+                    if (playbackState == Media3Player.STATE_ENDED) controlsVisible = true
                 }
 
                 override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
@@ -415,7 +417,7 @@ private fun MobileReadyVideoPlayer(
                     playWhenReady: Boolean,
                     reason: Int,
                 ) {
-                    playerWantsToPlay = playWhenReady
+                    playbackActive = player.playbackHidesControls()
                     keepScreenOn = player.shouldKeepScreenOn()
                     playerRetentionUpdate(
                         event = PlayerRetentionEvent.PlayIntentChanged,
@@ -590,14 +592,14 @@ internal fun isPlayerControlActivity(type: KeyEventType): Boolean = type == KeyE
 
 internal fun controlsShouldAutoHide(
     controlsVisible: Boolean,
-    playerWantsToPlay: Boolean,
+    playbackActive: Boolean,
     pointerInteracting: Boolean,
     controlsFocused: Boolean,
     menuOpen: Boolean,
     touchExplorationEnabled: Boolean,
 ): Boolean =
     controlsVisible &&
-        playerWantsToPlay &&
+        playbackActive &&
         !pointerInteracting &&
         !controlsFocused &&
         !menuOpen &&
@@ -731,6 +733,15 @@ internal fun lifecycleAllowsAutoplay(
     state: Lifecycle.State,
     resumeAfterLifecyclePause: Boolean = true,
 ): Boolean = resumeAfterLifecyclePause && state.isAtLeast(Lifecycle.State.RESUMED)
+
+internal fun Media3Player.playbackHidesControls(): Boolean =
+    playbackHidesControls(playWhenReady, playbackState)
+
+/** An ended item keeps its controls on screen so replay and navigation stay reachable. */
+internal fun playbackHidesControls(
+    playWhenReady: Boolean,
+    playbackState: Int,
+): Boolean = playWhenReady && playbackState != Media3Player.STATE_ENDED
 
 internal fun Media3Player.shouldKeepScreenOn(): Boolean =
     playbackKeepsScreenOn(playWhenReady, playbackState, playbackSuppressionReason)
@@ -1091,8 +1102,20 @@ internal fun restoreSubtitleSelection(
         ?: if (systemCaptionsEnabled) {
             defaults.withSubtitleSelection(SubtitleSelection.Automatic, emptyList())
         } else {
-            defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
+            defaults.withForcedSubtitlesOnly()
         }
+
+/**
+ * Captions off is an accessibility preference; forced tracks are part of the content, so text
+ * stays enabled for forced cues matching the audio language while default captions are ignored.
+ */
+internal fun TrackSelectionParameters.withForcedSubtitlesOnly(): TrackSelectionParameters =
+    buildUpon()
+        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+        .setSelectTextByDefault(false)
+        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+        .setIgnoredTextSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+        .build()
 
 private fun SubtitleSelection.toBundle(): Bundle =
     Bundle().apply {

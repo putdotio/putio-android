@@ -659,7 +659,9 @@ class MobileVideoPlayerCodecTest {
                 systemCaptionsEnabled = true,
             )
 
-        assertTrue(C.TRACK_TYPE_TEXT in restored.disabledTrackTypes)
+        assertFalse(C.TRACK_TYPE_TEXT in restored.disabledTrackTypes)
+        assertFalse(restored.selectTextByDefault)
+        assertEquals(C.SELECTION_FLAG_DEFAULT, restored.ignoredTextSelectionFlags)
         assertFalse(restored.subtitlesEnabled(emptyList()))
         assertTrue(captionsEnabled.selectTextByDefault)
         assertFalse(C.TRACK_TYPE_TEXT in captionsEnabled.disabledTrackTypes)
@@ -917,13 +919,20 @@ class MobileVideoPlayerCodecTest {
     }
 
     @Test
+    fun endedPlaybackKeepsControlsVisible() {
+        assertTrue(playbackHidesControls(playWhenReady = true, playbackState = Media3Player.STATE_READY))
+        assertFalse(playbackHidesControls(playWhenReady = true, playbackState = Media3Player.STATE_ENDED))
+        assertFalse(playbackHidesControls(playWhenReady = false, playbackState = Media3Player.STATE_READY))
+    }
+
+    @Test
     fun activeNonTouchInteractionPreventsControlAutoHide() {
         assertTrue(isPlayerControlActivity(KeyEventType.KeyDown))
         assertFalse(isPlayerControlActivity(KeyEventType.KeyUp))
         assertTrue(
             controlsShouldAutoHide(
                 controlsVisible = true,
-                playerWantsToPlay = true,
+                playbackActive = true,
                 pointerInteracting = false,
                 controlsFocused = false,
                 menuOpen = false,
@@ -933,7 +942,7 @@ class MobileVideoPlayerCodecTest {
         assertFalse(
             controlsShouldAutoHide(
                 controlsVisible = true,
-                playerWantsToPlay = true,
+                playbackActive = true,
                 pointerInteracting = false,
                 controlsFocused = true,
                 menuOpen = false,
@@ -943,7 +952,7 @@ class MobileVideoPlayerCodecTest {
         assertFalse(
             controlsShouldAutoHide(
                 controlsVisible = true,
-                playerWantsToPlay = true,
+                playbackActive = true,
                 pointerInteracting = false,
                 controlsFocused = false,
                 menuOpen = false,
