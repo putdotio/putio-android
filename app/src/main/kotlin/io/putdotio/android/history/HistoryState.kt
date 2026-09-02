@@ -33,6 +33,7 @@ sealed interface HistoryClearing {
 data class HistoryState internal constructor(
     val content: HistoryContent,
     val clearing: HistoryClearing = HistoryClearing.Idle,
+    internal val authoritativeFailure: FilesFailure.AuthenticationRequired? = null,
     internal val consumedBefore: Set<HistoryEventId> = emptySet(),
     internal val nextRequestValue: Long = 1L,
 )

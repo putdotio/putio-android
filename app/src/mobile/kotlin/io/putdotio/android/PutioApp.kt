@@ -1174,6 +1174,7 @@ internal fun SearchState.authoritativeSessionFailure(): FilesFailure? =
 
 internal fun HistoryState.authoritativeSessionFailure(): FilesFailure? =
     listOfNotNull(
+        authoritativeFailure,
         when (val value = content) {
             is HistoryContent.Failed -> value.failure
             is HistoryContent.Ready ->

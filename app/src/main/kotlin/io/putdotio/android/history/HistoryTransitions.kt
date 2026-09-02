@@ -2,13 +2,14 @@ package io.putdotio.android.history
 
 internal fun HistoryState.setEnabled(enabled: Boolean): HistoryTransition {
     val currentlyEnabled = content !is HistoryContent.Disabled
+    val retainedClearing = clearing.takeIf { it is HistoryClearing.Clearing } ?: HistoryClearing.Idle
     return when {
         enabled == currentlyEnabled -> HistoryTransition(this, consumed = false)
         !enabled ->
             HistoryTransition(
                 copy(
                     content = HistoryContent.Disabled,
-                    clearing = HistoryClearing.Idle,
+                    clearing = retainedClearing,
                     consumedBefore = emptySet(),
                 ),
             )
@@ -18,7 +19,7 @@ internal fun HistoryState.setEnabled(enabled: Boolean): HistoryTransition {
                 state =
                     copy(
                         content = HistoryContent.Loading(requestId),
-                        clearing = HistoryClearing.Idle,
+                        clearing = retainedClearing,
                         consumedBefore = emptySet(),
                         nextRequestValue = requestId.value + 1,
                     ),
@@ -113,6 +114,9 @@ private fun List<HistoryItem>.toContent(
     }
 
 internal fun HistoryState.loadFailed(event: HistoryEvent.LoadFailed): HistoryTransition {
+    (event.failure as? io.putdotio.android.files.FilesFailure.AuthenticationRequired)?.let {
+        return HistoryTransition(copy(authoritativeFailure = it))
+    }
     val initial = content as? HistoryContent.Loading
     val ready = content as? HistoryContent.Ready
     val loading = ready?.paging as? HistoryPaging.Loading

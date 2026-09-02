@@ -1,6 +1,7 @@
 package io.putdotio.android.history
 
 import io.putdotio.android.files.FilesFailure
+import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -76,6 +77,42 @@ class HistoryReducerTest {
 
         assertFalse(HistoryReducer.reduce(disabled, HistoryEvent.SetEnabled(false)).consumed)
         assertFalse(HistoryReducer.reduce(enabled, HistoryEvent.SetEnabled(true)).consumed)
+    }
+
+    @Test
+    fun inFlightClearReconcilesAcrossDisableAndReenable() {
+        val initial = loaded(listOf(item(1L)), hasMore = false)
+        val requested = HistoryReducer.reduce(initial, HistoryEvent.RequestClear)
+        val clearing = HistoryReducer.reduce(requested.state, HistoryEvent.ConfirmClear)
+        val clearRequest = clearing.effect as HistoryEffect.Clear
+        val disabled = HistoryReducer.reduce(clearing.state, HistoryEvent.SetEnabled(false))
+        val reenabled = HistoryReducer.reduce(disabled.state, HistoryEvent.SetEnabled(true))
+        val loadRequest = reenabled.effect as HistoryEffect.Load
+
+        val reloaded =
+            HistoryReducer.reduce(
+                reenabled.state,
+                HistoryEvent.LoadSucceeded(loadRequest.requestId, HistoryPage(listOf(item(2L)), false)),
+            )
+        assertTrue(reloaded.state.content is HistoryContent.Ready)
+
+        val cleared = HistoryReducer.reduce(reloaded.state, HistoryEvent.ClearSucceeded(clearRequest.requestId))
+        assertEquals(HistoryContent.Empty, cleared.state.content)
+        assertEquals(HistoryClearing.Idle, cleared.state.clearing)
+    }
+
+    @Test
+    fun staleAuthenticationFailureSurvivesDisable() {
+        val start = HistoryReducer.start(historyEnabled = true)
+        val request = start.effect as HistoryEffect.Load
+        val disabled = HistoryReducer.reduce(start.state, HistoryEvent.SetEnabled(false))
+        val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+
+        val rejected = HistoryReducer.reduce(disabled.state, HistoryEvent.LoadFailed(request.requestId, failure))
+
+        assertTrue(rejected.consumed)
+        assertEquals(HistoryContent.Disabled, rejected.state.content)
+        assertEquals(failure, rejected.state.authoritativeFailure)
     }
 
     @Test
