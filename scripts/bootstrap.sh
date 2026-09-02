@@ -102,23 +102,6 @@ grep -q ' freezedetect ' <<<"${ffmpeg_filters}" || die "ffmpeg is missing the fr
 ffmpeg_encoders="$(ffmpeg -hide_banner -encoders 2>/dev/null)"
 grep -q ' libx264 ' <<<"${ffmpeg_encoders}" || die "ffmpeg is missing the libx264 encoder"
 
-if ! locale -a | grep -Ei '^de_DE[.]utf-?8$' >/dev/null; then
-  if command -v apt-get >/dev/null 2>&1; then
-    apt_prefix=()
-    if [[ "$(id -u)" -ne 0 ]]; then
-      command -v sudo >/dev/null 2>&1 || die "de_DE.UTF-8 locale missing; install locales and re-run"
-      apt_prefix=(sudo)
-    fi
-    log "installing de_DE.UTF-8 locale for evidence regression tests"
-    "${apt_prefix[@]}" apt-get update
-    "${apt_prefix[@]}" apt-get install -y locales
-    "${apt_prefix[@]}" locale-gen de_DE.UTF-8
-  else
-    die "de_DE.UTF-8 locale missing; generate it and re-run"
-  fi
-fi
-locale -a | grep -Ei '^de_DE[.]utf-?8$' >/dev/null || die "de_DE.UTF-8 locale generation failed"
-
 log "writing local.properties"
 SDK_KOTLIN_DEFAULT="$(cd "${REPO_ROOT}/.." 2>/dev/null && pwd)/putio-sdk-kotlin"
 if [[ ! -f "${REPO_ROOT}/local.properties" ]]; then
