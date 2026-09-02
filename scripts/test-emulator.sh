@@ -13,7 +13,11 @@ is_owned_fake_emulator() {
   [[ "${pid}" =~ ^[0-9]+$ ]] || return 1
   kill -0 "${pid}" 2>/dev/null || return 1
   command="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
-  [[ "${command}" == *"${fake_sdk}/emulator/emulator"* ]]
+  [[ "${command}" == "/usr/bin/env bash ${fake_sdk}/emulator/emulator "* ||
+    "${command}" == "/usr/bin/bash ${fake_sdk}/emulator/emulator "* ||
+    "${command}" == "/bin/bash ${fake_sdk}/emulator/emulator "* ||
+    "${command}" == "bash ${fake_sdk}/emulator/emulator "* ||
+    "${command}" == "${fake_sdk}/emulator/emulator "* ]]
 }
 cleanup() {
   local pid attempt cleanup_failed=0
@@ -184,8 +188,8 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 printf '%s\n' "${name}" > "${state}/name"
-printf '%s\n' "$$" > "${state}/emulator-pid"
 printf '%s\n' "$$" >> "${state}/emulator-pids"
+printf '%s\n' "$$" > "${state}/emulator-pid"
 echo 1 > "${state}/running"
 stop() { echo 0 > "${state}/running"; rm -f "${state}/emulator-pid"; exit 0; }
 trap stop INT TERM
