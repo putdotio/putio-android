@@ -2,11 +2,15 @@ package io.putdotio.android
 
 import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
+import android.view.accessibility.AccessibilityManager
+import android.view.accessibility.CaptioningManager
 import androidx.annotation.StringRes
-import androidx.core.net.toUri
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,65 +27,79 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.core.view.ViewCompat
 import androidx.media3.common.AudioAttributes
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.C
 import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.ui.SubtitleView
+import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
-import androidx.media3.ui.compose.material3.Player
 import androidx.media3.ui.compose.material3.PlayerDefaults
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackState
+import io.putdotio.android.playback.hasSelectableSubtitles
+import io.putdotio.android.playback.preparePlayback
+import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
-import io.putdotio.sdk.files.PlaybackSourceKind
-import io.putdotio.sdk.files.PlaybackSubtitles
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
-import kotlin.math.roundToLong
 
 internal const val MOBILE_VIDEO_PLAYER_TAG = "mobile-video-player"
 internal const val MOBILE_SUBTITLE_CUES_TAG = "mobile-subtitle-cues"
-private const val MILLIS_PER_SECOND = 1_000.0
-private const val HTTP_UNAUTHORIZED = 401
-private const val HTTP_FORBIDDEN = 403
+private const val MOBILE_CONTROLS_HIDE_DELAY_MILLIS = 3_000L
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
@@ -91,12 +109,9 @@ internal fun MobileVideoPlayerScreen(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    playerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
 ) {
-    // Track selection lives at screen level so a retry (Ready -> Failed -> Ready)
-    // cannot drop the user's subtitle choice with the removed player subtree.
-    var retainedTrackSelection by rememberSaveable(state.target) {
-        mutableStateOf<Bundle?>(null)
-    }
+    val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -110,10 +125,20 @@ internal fun MobileVideoPlayerScreen(
                 MobileReadyVideoPlayer(
                     source = content.source,
                     title = state.target.name,
-                    startPositionMillis = state.resumePositionMillis,
-                    retainedTrackSelection = retainedTrackSelection,
-                    onTrackSelectionRetained = { retainedTrackSelection = it },
-                    onPlayerFailure = onPlayerFailure,
+                    startPositionMillis =
+                        preferredPlaybackPosition(
+                            retainedPositionMillis = preferences.positionMillis,
+                            requestedPositionMillis = state.resumePositionMillis,
+                        ),
+                    resumeAfterLifecyclePause = preferences.resumeAfterLifecyclePause,
+                    retainedSubtitleSelection = preferences.subtitleSelection,
+                    onPlaybackRetained = preferences::retainPlayback,
+                    onPositionChanged = preferences::retainPosition,
+                    onSubtitleSelectionChanged = { preferences.subtitleSelection = it },
+                    onPlayerFailure = { failure, positionMillis ->
+                        onPlayerFailure(failure, positionMillis)
+                    },
+                    playerFactory = playerFactory,
                 )
 
             is PlaybackContent.Conversion ->
@@ -154,76 +179,212 @@ internal fun MobileVideoPlayerScreen(
     }
 }
 
+@Stable
+internal class RetainedPlayerPreferences(
+    resumeAfterLifecyclePause: Boolean = true,
+    subtitleSelection: SubtitleSelection? = null,
+    positionMillis: Long? = null,
+) {
+    var resumeAfterLifecyclePause by mutableStateOf(resumeAfterLifecyclePause)
+    var subtitleSelection by mutableStateOf(subtitleSelection)
+    var positionMillis by mutableStateOf(positionMillis)
+
+    fun retainPlayback(playback: RetainedPlayback) {
+        positionMillis = playback.positionMillis
+        resumeAfterLifecyclePause = playback.resumeAfterLifecyclePause
+    }
+
+    fun retainPosition(positionMillis: Long) {
+        this.positionMillis = positionMillis.coerceAtLeast(0L)
+    }
+}
+
+private val RetainedPlayerPreferencesSaver =
+    Saver<RetainedPlayerPreferences, Bundle>(
+        save = { preferences ->
+            Bundle().apply {
+                putBoolean("resumeAfterLifecyclePause", preferences.resumeAfterLifecyclePause)
+                preferences.subtitleSelection?.let { putBundle("subtitleSelection", it.toBundle()) }
+                preferences.positionMillis?.let { putLong("positionMillis", it) }
+            }
+        },
+        restore = { saved ->
+            RetainedPlayerPreferences(
+                resumeAfterLifecyclePause = saved.getBoolean("resumeAfterLifecyclePause", true),
+                subtitleSelection = saved.getBundle("subtitleSelection")?.toSubtitleSelection(),
+                positionMillis = saved.getLong("positionMillis").takeIf { saved.containsKey("positionMillis") },
+            )
+        },
+    )
+
+@Composable
+internal fun rememberRetainedPlayerPreferences(fileId: Long): RetainedPlayerPreferences =
+    rememberSaveable(fileId, saver = RetainedPlayerPreferencesSaver) {
+        RetainedPlayerPreferences()
+    }
+
 @UnstableApi
 @Composable
 private fun MobileReadyVideoPlayer(
     source: PlaybackSource,
     title: String,
     startPositionMillis: Long?,
-    retainedTrackSelection: Bundle?,
-    onTrackSelectionRetained: (Bundle) -> Unit,
+    resumeAfterLifecyclePause: Boolean,
+    retainedSubtitleSelection: SubtitleSelection?,
+    onPlaybackRetained: (RetainedPlayback) -> Unit,
+    onPositionChanged: (Long) -> Unit,
+    onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
+    playerFactory: MobilePlayerFactory,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val view = LocalView.current
+    var lifecycleState by remember(lifecycle) { mutableStateOf(lifecycle.currentState) }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, _ -> lifecycleState = lifecycle.currentState }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    if (!lifecycleState.isAtLeast(Lifecycle.State.STARTED)) return
+
     val initialPlayback = remember(source, title, startPositionMillis) {
         source.preparePlayback(title, startPositionMillis)
     }
     var retainedPositionMillis by rememberSaveable(source.fileId) {
-        mutableStateOf(initialPlayback.startPositionMillis)
+        mutableLongStateOf(initialPlayback.startPositionMillis)
     }
-    var resumeAfterLifecyclePause by rememberSaveable(source.fileId) { mutableStateOf(true) }
     val preparedPlayback = remember(source, title) {
         source.preparePlayback(title, retainedPositionMillis)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
-    val player = remember(context, preparedPlayback, lifecycle) {
-        val renderersFactory = DefaultRenderersFactory(context)
-        if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
-            // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
-            renderersFactory
-                .setMediaCodecSelector(EmulatorMediaCodecSelector)
-                .setEnableDecoderFallback(true)
-        }
-        ExoPlayer.Builder(context, renderersFactory).build().apply {
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                    .build(),
-                /* handleAudioFocus = */ true,
+    val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
+    val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
+    val currentResumeAfterLifecyclePause = rememberUpdatedState(resumeAfterLifecyclePause)
+    val currentRetainedSubtitleSelection = rememberUpdatedState(retainedSubtitleSelection)
+    val player = remember(context, lifecycle, playerFactory) { playerFactory.create(context) }
+    val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
+    var activeFileId by remember(player) { mutableStateOf<Long?>(null) }
+    var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
+    var videoSize by remember(player) { mutableStateOf(player.videoSize) }
+    var keepScreenOn by remember(player) { mutableStateOf(player.shouldKeepScreenOn()) }
+    var controlsVisible by rememberSaveable(source.fileId) { mutableStateOf(true) }
+    var playbackActive by remember(player) { mutableStateOf(player.playbackHidesControls()) }
+    var controlsInteracting by remember { mutableStateOf(false) }
+    var topControlsFocused by remember { mutableStateOf(false) }
+    var centerControlsFocused by remember { mutableStateOf(false) }
+    var bottomControlsFocused by remember { mutableStateOf(false) }
+    var controlsMenuOpen by remember { mutableStateOf(false) }
+    var controlsActivity by remember { mutableIntStateOf(0) }
+    var failurePositionMillis by remember(player) { mutableStateOf<Long?>(null) }
+    val hostView = LocalView.current
+    val controlsFocused = topControlsFocused || centerControlsFocused || bottomControlsFocused
+
+    LaunchedEffect(player, preparedPlayback) {
+        val replacingFileId = activeFileId
+        val replacementPosition =
+            replacementPositionMillis(
+                activeFileId = replacingFileId,
+                replacementFileId = source.fileId,
+                livePositionMillis = player.currentPosition,
+                preparedPositionMillis = preparedPlayback.startPositionMillis,
             )
-            setHandleAudioBecomingNoisy(true)
-            setMediaItem(preparedPlayback.mediaItem, preparedPlayback.startPositionMillis)
-            trackSelectionParameters =
-                retainedTrackSelection?.let(TrackSelectionParameters::fromBundle)
-                    ?: trackSelectionParameters.withSubtitlesEnabled(source.hasSelectableSubtitles())
-            prepare()
-            playWhenReady =
-                lifecycleAllowsAutoplay(lifecycle.currentState, resumeAfterLifecyclePause)
+        retainedPositionMillis = replacementPosition
+        currentOnPositionChanged.value(replacementPosition)
+        if (replacingFileId != source.fileId || retainedSubtitleSelection == null) {
+            player.trackSelectionParameters =
+                restoreSubtitleSelection(
+                    defaults = defaultTrackSelection,
+                    retained = retainedSubtitleSelection,
+                    systemCaptionsEnabled = context.systemCaptionsEnabled(),
+                )
+        }
+        activeFileId = source.fileId
+        player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
+        player.prepare()
+        player.playWhenReady =
+            lifecycleAllowsAutoplay(lifecycle.currentState, currentResumeAfterLifecyclePause.value)
+        playbackActive = player.playbackHidesControls()
+    }
+
+    val touchExplorationEnabled = rememberTouchExplorationEnabled()
+    LaunchedEffect(
+        controlsVisible,
+        playbackActive,
+        controlsInteracting,
+        controlsFocused,
+        controlsMenuOpen,
+        touchExplorationEnabled,
+        controlsActivity,
+    ) {
+        if (controlsShouldAutoHide(
+                controlsVisible = controlsVisible,
+                playbackActive = playbackActive,
+                pointerInteracting = controlsInteracting,
+                controlsFocused = controlsFocused,
+                menuOpen = controlsMenuOpen,
+                touchExplorationEnabled = touchExplorationEnabled,
+            )
+        ) {
+            delay(MOBILE_CONTROLS_HIDE_DELAY_MILLIS)
+            controlsVisible = false
         }
     }
-    var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
 
-    DisposableEffect(view) {
-        view.keepScreenOn = true
-        onDispose { view.keepScreenOn = false }
+    DisposableEffect(hostView, keepScreenOn) {
+        val inheritedKeepScreenOn = hostView.keepScreenOn
+        if (keepScreenOn && !inheritedKeepScreenOn) hostView.keepScreenOn = true
+        onDispose {
+            if (keepScreenOn && !inheritedKeepScreenOn) hostView.keepScreenOn = false
+        }
+    }
+
+    DisposableEffect(hostView) {
+        val listener = ViewCompat.OnUnhandledKeyEventListenerCompat { _, event ->
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                controlsVisible = true
+                controlsActivity += 1
+            }
+            false
+        }
+        ViewCompat.addOnUnhandledKeyEventListener(hostView, listener)
+        onDispose { ViewCompat.removeOnUnhandledKeyEventListener(hostView, listener) }
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        val retained = retainPlaybackOnPause(player.currentPosition, player.playWhenReady)
-        retainedPositionMillis = retained.positionMillis
-        resumeAfterLifecyclePause = retained.resumeAfterLifecyclePause
+        val update =
+            playerRetentionUpdate(
+                event = PlayerRetentionEvent.LifecyclePause,
+                lifecycleState = lifecycle.currentState,
+                positionMillis = player.currentPosition,
+                playWhenReady = player.playWhenReady,
+            )
+        retainedPositionMillis = update.positionMillis
+        update.dispatch(onPlaybackRetained, onPositionChanged)
         player.pause()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (resumeAfterLifecyclePause) player.play()
+        if (currentResumeAfterLifecyclePause.value) player.play()
     }
     DisposableEffect(player) {
+        fun resolveRetainedSubtitleSelection(tracks: List<MobileSubtitleTrack>) {
+            val selection = currentRetainedSubtitleSelection.value as? SubtitleSelection.Track ?: return
+            val parameters = player.trackSelectionParameters.withSubtitleSelection(selection, tracks)
+            if (parameters != player.trackSelectionParameters) {
+                player.trackSelectionParameters = parameters
+            }
+        }
         val listener =
             object : Media3Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
+                    val errorPositionMillis = player.currentPosition.coerceAtLeast(0L)
+                    retainedPositionMillis = errorPositionMillis
+                    failurePositionMillis = errorPositionMillis
+                    playerRetentionUpdate(
+                        event = PlayerRetentionEvent.PlayerError,
+                        lifecycleState = lifecycle.currentState,
+                        positionMillis = errorPositionMillis,
+                        playWhenReady = player.playWhenReady,
+                    ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
                     currentOnPlayerFailure.value(
                         error.toPlaybackFailure(),
                         player.currentPosition,
@@ -234,90 +395,337 @@ private fun MobileReadyVideoPlayer(
                     cues = cueGroup.cues
                 }
 
-                override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
-                    onTrackSelectionRetained(parameters.toBundle())
+                override fun onVideoSizeChanged(size: VideoSize) {
+                    videoSize = size
+                }
+
+                override fun onTracksChanged(tracks: Tracks) {
+                    resolveRetainedSubtitleSelection(tracks.mobileSubtitleTracks())
+                }
+
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    keepScreenOn = player.shouldKeepScreenOn()
+                    playbackActive = player.playbackHidesControls()
+                    if (playbackState == Media3Player.STATE_ENDED) controlsVisible = true
+                }
+
+                override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
+                    keepScreenOn = player.shouldKeepScreenOn()
+                }
+
+                override fun onPlayWhenReadyChanged(
+                    playWhenReady: Boolean,
+                    reason: Int,
+                ) {
+                    playbackActive = player.playbackHidesControls()
+                    keepScreenOn = player.shouldKeepScreenOn()
+                    playerRetentionUpdate(
+                        event = PlayerRetentionEvent.PlayIntentChanged,
+                        lifecycleState = lifecycle.currentState,
+                        positionMillis = player.currentPosition,
+                        playWhenReady = playWhenReady,
+                    ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
                 }
             }
         player.addListener(listener)
+        resolveRetainedSubtitleSelection(player.mobileSubtitleTracks())
         onDispose {
-            retainedPositionMillis = player.currentPosition.coerceAtLeast(0L)
+            retainedPositionMillis =
+                retainedPositionOnDispose(
+                    failurePositionMillis = failurePositionMillis,
+                    livePositionMillis = player.currentPosition,
+                )
+            playerRetentionUpdate(
+                event = PlayerRetentionEvent.PlayerDisposed,
+                lifecycleState = lifecycle.currentState,
+                positionMillis = retainedPositionMillis,
+                playWhenReady = player.playWhenReady,
+            ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
             player.removeListener(listener)
             player.release()
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Player(
+    Box(
+        Modifier
+            .fillMaxSize()
+            .focusGroup()
+            .testTag(MOBILE_VIDEO_PLAYER_TAG)
+            .observePlayerControlInteraction(
+                onInteractionChanged = { controlsInteracting = it },
+                onActivity = { controlsActivity += 1 },
+            )
+            .observePlayerControlKeyActivity {
+                controlsVisible = true
+                controlsActivity += 1
+            },
+    ) {
+        ContentFrame(
             player = player,
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag(MOBILE_VIDEO_PLAYER_TAG),
+            modifier = Modifier.fillMaxSize(),
             surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
-            showControls = true,
-            topControls = { controlledPlayer, visible ->
-                PlayerDefaults.TopControls(
-                    player = controlledPlayer,
-                    visible = visible,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .windowInsetsPadding(WindowInsets.safeDrawing)
-                            .padding(8.dp),
-                ) {
-                    if (source.hasSelectableSubtitles() && it != null) {
-                        MobileSubtitleControls(
-                            player = it,
-                            modifier = Modifier.align(Alignment.TopEnd),
-                        )
-                    }
-                }
-            },
-            bottomControls = { controlledPlayer, visible ->
-                PlayerDefaults.BottomControls(
-                    player = controlledPlayer,
-                    visible = visible,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .windowInsetsPadding(WindowInsets.safeDrawing)
-                            .padding(8.dp),
-                )
-            },
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .zIndex(0.5f)
+                .pointerInput(Unit) {
+                    detectTapGestures { controlsVisible = !controlsVisible }
+                },
         )
         MobileSubtitleCueOverlay(
             cues = cues,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            videoAspectRatio = videoSize.displayAspectRatioOrNull(),
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .zIndex(1f),
         )
+        Box(
+            modifier =
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .zIndex(2f)
+                    .fillMaxWidth(),
+        ) {
+            PlayerDefaults.TopControls(
+                player = player,
+                visible = controlsVisible,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .observePlayerControlKeyActivity {
+                            controlsVisible = true
+                            controlsActivity += 1
+                        }
+                        .onFocusChanged {
+                            topControlsFocused = it.hasFocus
+                            if (it.hasFocus) controlsVisible = true
+                        }
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(8.dp),
+            ) {
+                if (source.hasSelectableSubtitles() && it != null) {
+                    MobileSubtitleControls(
+                        player = it,
+                        onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+                        onMenuVisibilityChanged = { controlsMenuOpen = it },
+                        modifier = Modifier.align(Alignment.TopEnd),
+                    )
+                }
+            }
+        }
+        Box(
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .zIndex(2f),
+        ) {
+            PlayerDefaults.CenterControls(
+                player = player,
+                visible = controlsVisible,
+                modifier =
+                    Modifier
+                        .observePlayerControlKeyActivity {
+                            controlsVisible = true
+                            controlsActivity += 1
+                        }.onFocusChanged {
+                            centerControlsFocused = it.hasFocus
+                            if (it.hasFocus) controlsVisible = true
+                        },
+            )
+        }
+        Box(
+            modifier =
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .zIndex(2f)
+                    .fillMaxWidth(),
+        ) {
+            PlayerDefaults.BottomControls(
+                player = player,
+                visible = controlsVisible,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .observePlayerControlKeyActivity {
+                            controlsVisible = true
+                            controlsActivity += 1
+                        }
+                        .onFocusChanged {
+                            bottomControlsFocused = it.hasFocus
+                            if (it.hasFocus) controlsVisible = true
+                        }
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(8.dp),
+            )
+        }
     }
 }
 
+internal fun Modifier.observePlayerControlInteraction(
+    onInteractionChanged: (Boolean) -> Unit,
+    onActivity: () -> Unit,
+): Modifier =
+    pointerInput(Unit) {
+        awaitPointerEventScope {
+            var wasPressed = false
+            while (true) {
+                val isPressed =
+                    awaitPointerEvent(PointerEventPass.Initial)
+                        .changes
+                        .any { it.pressed }
+                if (isPressed && !wasPressed) onActivity()
+                onInteractionChanged(isPressed)
+                wasPressed = isPressed
+            }
+        }
+    }
+
+internal fun Modifier.observePlayerControlKeyActivity(onActivity: () -> Unit): Modifier =
+    onPreviewKeyEvent { event ->
+        if (isPlayerControlActivity(event.type)) onActivity()
+        false
+    }
+
+internal fun isPlayerControlActivity(type: KeyEventType): Boolean = type == KeyEventType.KeyDown
+
+internal fun controlsShouldAutoHide(
+    controlsVisible: Boolean,
+    playbackActive: Boolean,
+    pointerInteracting: Boolean,
+    controlsFocused: Boolean,
+    menuOpen: Boolean,
+    touchExplorationEnabled: Boolean,
+): Boolean =
+    controlsVisible &&
+        playbackActive &&
+        !pointerInteracting &&
+        !controlsFocused &&
+        !menuOpen &&
+        !touchExplorationEnabled
+
 @Composable
+private fun rememberTouchExplorationEnabled(): Boolean {
+    val context = LocalContext.current
+    val manager = remember(context) {
+        context.getSystemService(android.content.Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+    }
+    var enabled by remember(manager) { mutableStateOf(manager?.isTouchExplorationEnabled == true) }
+    DisposableEffect(manager) {
+        if (manager == null) return@DisposableEffect onDispose {}
+        val listener = AccessibilityManager.TouchExplorationStateChangeListener { enabled = it }
+        manager.addTouchExplorationStateChangeListener(listener)
+        onDispose { manager.removeTouchExplorationStateChangeListener(listener) }
+    }
+    return enabled
+}
+
+@Composable
+@UnstableApi
 internal fun MobileSubtitleCueOverlay(
     cues: List<Cue>,
     modifier: Modifier = Modifier,
+    videoAspectRatio: Float? = null,
 ) {
-    val textCues = cues.mapNotNull { it.text?.toString()?.takeIf(String::isNotBlank) }
-    if (textCues.isEmpty()) return
+    if (cues.isEmpty()) return
+    val context = LocalContext.current
+    val renderer = remember(context) { SubtitleCueRenderer(context) }
 
-    Column(
-        modifier =
-            modifier
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 24.dp, vertical = 96.dp)
-                .testTag(MOBILE_SUBTITLE_CUES_TAG),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
     ) {
-        textCues.forEach { cue ->
-            Text(
-                text = cue,
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleMedium,
-                modifier =
-                    Modifier
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-            )
+        Canvas(
+            modifier =
+                Modifier
+                    .fitInsideAspectRatio(videoAspectRatio)
+                    .testTag(MOBILE_SUBTITLE_CUES_TAG),
+        ) {
+            drawIntoCanvas { canvas ->
+                renderer.draw(
+                    cues = cues,
+                    width = size.width.roundToInt(),
+                    height = size.height.roundToInt(),
+                    canvas = canvas.nativeCanvas,
+                )
+            }
         }
+    }
+}
+
+@UnstableApi
+internal class SubtitleCueRenderer(
+    context: android.content.Context,
+) {
+    private val subtitleView =
+        SubtitleView(context).apply {
+            setUserDefaultStyle()
+            setUserDefaultTextSize()
+        }
+    private var renderedCues: List<Cue> = emptyList()
+    private var renderedWidth = 0
+    private var renderedHeight = 0
+
+    fun draw(
+        cues: List<Cue>,
+        width: Int,
+        height: Int,
+        canvas: android.graphics.Canvas,
+    ) {
+        val safeWidth = width.coerceAtLeast(1)
+        val safeHeight = height.coerceAtLeast(1)
+        if (renderedCues != cues) {
+            renderedCues = cues
+            subtitleView.setCues(cues)
+        }
+        if (renderedWidth != safeWidth || renderedHeight != safeHeight) {
+            renderedWidth = safeWidth
+            renderedHeight = safeHeight
+            subtitleView.measure(
+                android.view.View.MeasureSpec.makeMeasureSpec(safeWidth, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(safeHeight, android.view.View.MeasureSpec.EXACTLY),
+            )
+            subtitleView.layout(0, 0, safeWidth, safeHeight)
+        }
+        subtitleView.draw(canvas)
+    }
+}
+
+internal fun VideoSize.displayAspectRatioOrNull(): Float? {
+    if (width <= 0 || height <= 0 || !pixelWidthHeightRatio.isFinite() || pixelWidthHeightRatio <= 0f) {
+        return null
+    }
+    return width.toFloat() * pixelWidthHeightRatio / height.toFloat()
+}
+
+private fun Modifier.fitInsideAspectRatio(aspectRatio: Float?): Modifier =
+    if (aspectRatio == null || !aspectRatio.isFinite() || aspectRatio <= 0f) {
+        fillMaxSize()
+    } else {
+        layout { measurable, constraints ->
+            val fitted = fitInside(constraints.maxWidth, constraints.maxHeight, aspectRatio)
+            val placeable =
+                measurable.measure(
+                    androidx.compose.ui.unit.Constraints.fixed(fitted.width, fitted.height),
+                )
+            layout(fitted.width, fitted.height) { placeable.place(0, 0) }
+        }
+    }
+
+internal data class FittedVideoSize(val width: Int, val height: Int)
+
+internal fun fitInside(
+    availableWidth: Int,
+    availableHeight: Int,
+    aspectRatio: Float,
+): FittedVideoSize {
+    if (availableWidth <= 0 || availableHeight <= 0) return FittedVideoSize(0, 0)
+    val availableRatio = availableWidth.toFloat() / availableHeight.toFloat()
+    return if (aspectRatio >= availableRatio) {
+        FittedVideoSize(availableWidth, (availableWidth / aspectRatio).roundToInt())
+    } else {
+        FittedVideoSize((availableHeight * aspectRatio).roundToInt(), availableHeight)
     }
 }
 
@@ -325,6 +733,28 @@ internal fun lifecycleAllowsAutoplay(
     state: Lifecycle.State,
     resumeAfterLifecyclePause: Boolean = true,
 ): Boolean = resumeAfterLifecyclePause && state.isAtLeast(Lifecycle.State.RESUMED)
+
+internal fun Media3Player.playbackHidesControls(): Boolean =
+    playbackHidesControls(playWhenReady, playbackState)
+
+/** An ended item keeps its controls on screen so replay and navigation stay reachable. */
+internal fun playbackHidesControls(
+    playWhenReady: Boolean,
+    playbackState: Int,
+): Boolean = playWhenReady && playbackState != Media3Player.STATE_ENDED
+
+internal fun Media3Player.shouldKeepScreenOn(): Boolean =
+    playbackKeepsScreenOn(playWhenReady, playbackState, playbackSuppressionReason)
+
+internal fun playbackKeepsScreenOn(
+    playWhenReady: Boolean,
+    playbackState: Int,
+    playbackSuppressionReason: Int = Media3Player.PLAYBACK_SUPPRESSION_REASON_NONE,
+): Boolean =
+    playWhenReady &&
+        playbackSuppressionReason == Media3Player.PLAYBACK_SUPPRESSION_REASON_NONE &&
+        playbackState != Media3Player.STATE_IDLE &&
+        playbackState != Media3Player.STATE_ENDED
 
 internal data class RetainedPlayback(
     val positionMillis: Long,
@@ -340,27 +770,99 @@ internal fun retainPlaybackOnPause(
         resumeAfterLifecyclePause = playWhenReady,
     )
 
+internal enum class PlayerRetentionEvent {
+    LifecyclePause,
+    PlayerError,
+    PlayerDisposed,
+    PlayIntentChanged,
+}
+
+internal sealed interface PlayerRetentionUpdate {
+    val positionMillis: Long
+
+    data class Playback(val retained: RetainedPlayback) : PlayerRetentionUpdate {
+        override val positionMillis: Long = retained.positionMillis
+    }
+
+    data class Position(override val positionMillis: Long) : PlayerRetentionUpdate
+}
+
+internal fun playerRetentionUpdate(
+    event: PlayerRetentionEvent,
+    lifecycleState: Lifecycle.State,
+    positionMillis: Long,
+    playWhenReady: Boolean,
+): PlayerRetentionUpdate {
+    val retained = retainPlaybackOnPause(positionMillis, playWhenReady)
+    return if (event == PlayerRetentionEvent.LifecyclePause ||
+        lifecycleState.isAtLeast(Lifecycle.State.RESUMED)
+    ) {
+        PlayerRetentionUpdate.Playback(retained)
+    } else {
+        PlayerRetentionUpdate.Position(retained.positionMillis)
+    }
+}
+
+private fun PlayerRetentionUpdate.dispatch(
+    onPlaybackRetained: (RetainedPlayback) -> Unit,
+    onPositionChanged: (Long) -> Unit,
+) {
+    when (this) {
+        is PlayerRetentionUpdate.Playback -> onPlaybackRetained(retained)
+        is PlayerRetentionUpdate.Position -> onPositionChanged(positionMillis)
+    }
+}
+
+internal fun replacementPositionMillis(
+    activeFileId: Long?,
+    replacementFileId: Long,
+    livePositionMillis: Long,
+    preparedPositionMillis: Long,
+): Long =
+    if (activeFileId == replacementFileId) {
+        livePositionMillis.coerceAtLeast(0L)
+    } else {
+        preparedPositionMillis.coerceAtLeast(0L)
+    }
+
+internal fun preferredPlaybackPosition(
+    retainedPositionMillis: Long?,
+    requestedPositionMillis: Long?,
+): Long? = retainedPositionMillis ?: requestedPositionMillis
+
+internal fun retainedPositionOnDispose(
+    failurePositionMillis: Long?,
+    livePositionMillis: Long,
+): Long = failurePositionMillis ?: livePositionMillis.coerceAtLeast(0L)
+
 @Composable
 private fun MobileSubtitleControls(
     player: Media3Player,
+    onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
+    onMenuVisibilityChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var enabled by remember(player) {
-        mutableStateOf(C.TRACK_TYPE_TEXT !in player.trackSelectionParameters.disabledTrackTypes)
-    }
     var tracks by remember(player) { mutableStateOf(player.mobileSubtitleTracks()) }
+    var enabled by remember(player) {
+        mutableStateOf(player.trackSelectionParameters.subtitlesEnabled(tracks))
+    }
     var menuExpanded by remember(player) { mutableStateOf(false) }
+
+    DisposableEffect(onMenuVisibilityChanged) {
+        onDispose { onMenuVisibilityChanged(false) }
+    }
 
     DisposableEffect(player) {
         val listener =
             object : Media3Player.Listener {
                 override fun onTracksChanged(currentTracks: Tracks) {
                     tracks = currentTracks.mobileSubtitleTracks()
+                    enabled = player.trackSelectionParameters.subtitlesEnabled(tracks)
                 }
 
                 override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
-                    enabled = C.TRACK_TYPE_TEXT !in parameters.disabledTrackTypes
                     tracks = player.mobileSubtitleTracks()
+                    enabled = parameters.subtitlesEnabled(tracks)
                 }
             }
         player.addListener(listener)
@@ -372,41 +874,42 @@ private fun MobileSubtitleControls(
             enabled = enabled,
             onToggle = { subtitlesEnabled ->
                 enabled = subtitlesEnabled
-                player.trackSelectionParameters =
-                    player.trackSelectionParameters.withSubtitlesEnabled(subtitlesEnabled)
+                val selection =
+                    if (subtitlesEnabled) SubtitleSelection.Automatic else SubtitleSelection.Off
+                val parameters = player.trackSelectionParameters.withSubtitleSelection(selection, tracks)
+                player.trackSelectionParameters = parameters
+                onSubtitleSelectionChanged(selection)
             },
         )
         if (tracks.size > 1) {
             Box {
-                TextButton(onClick = { menuExpanded = true }) {
+                TextButton(
+                    onClick = {
+                        menuExpanded = true
+                        onMenuVisibilityChanged(true)
+                    },
+                ) {
                     Text(stringResource(R.string.mobile_playback_choose_subtitles))
                 }
                 DropdownMenu(
                     expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
+                    onDismissRequest = {
+                        menuExpanded = false
+                        onMenuVisibilityChanged(false)
+                    },
                 ) {
                     tracks.forEach { track ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    track.label
-                                        ?: stringResource(
-                                            R.string.mobile_playback_subtitle_track,
-                                            track.trackIndex + 1,
-                                        ),
-                                )
-                            },
-                            trailingIcon =
-                                if (track.selected) {
-                                    { Text(stringResource(R.string.mobile_playback_subtitle_selected)) }
-                                } else {
-                                    null
-                                },
+                        MobileSubtitleTrackOption(
+                            track = track,
                             onClick = {
                                 enabled = true
-                                player.trackSelectionParameters =
-                                    player.trackSelectionParameters.withSubtitleTrack(track)
+                                val selection = SubtitleSelection.Track(track.identity)
+                                val parameters =
+                                    player.trackSelectionParameters.withSubtitleSelection(selection, tracks)
+                                player.trackSelectionParameters = parameters
+                                onSubtitleSelectionChanged(selection)
                                 menuExpanded = false
+                                onMenuVisibilityChanged(false)
                             },
                         )
                     }
@@ -414,6 +917,36 @@ private fun MobileSubtitleControls(
             }
         }
     }
+}
+
+@Composable
+internal fun MobileSubtitleTrackOption(
+    track: MobileSubtitleTrack,
+    onClick: () -> Unit,
+) {
+    DropdownMenuItem(
+        text = {
+            Text(
+                track.label
+                    ?: stringResource(
+                        R.string.mobile_playback_subtitle_track,
+                        track.trackIndex + 1,
+                    ),
+            )
+        },
+        trailingIcon =
+            if (track.selected) {
+                { Text(stringResource(R.string.mobile_playback_subtitle_selected)) }
+            } else {
+                null
+            },
+        onClick = onClick,
+        modifier =
+            Modifier.semantics {
+                role = Role.RadioButton
+                toggleableState = if (track.selected) ToggleableState.On else ToggleableState.Off
+            },
+    )
 }
 
 @Composable
@@ -438,12 +971,45 @@ internal fun MobileSubtitleToggle(
     }
 }
 
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal data class MobileSubtitleTrack(
     val group: TrackGroup,
     val trackIndex: Int,
+    val identity: SubtitleTrackIdentity = group.getFormat(trackIndex).toSubtitleTrackIdentity(),
     val label: String?,
     val selected: Boolean,
 )
+
+internal data class SubtitleTrackIdentity(
+    val id: String?,
+    val language: String?,
+    val label: String?,
+    val sampleMimeType: String?,
+    val roleFlags: Int,
+    val selectionFlags: Int,
+    val accessibilityChannel: Int,
+) {
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun matches(format: androidx.media3.common.Format): Boolean =
+        if (id != null) {
+            id == format.id
+        } else {
+            language == format.language &&
+                label == format.label &&
+                sampleMimeType == format.sampleMimeType &&
+                roleFlags == format.roleFlags &&
+                selectionFlags == format.selectionFlags &&
+                accessibilityChannel == format.accessibilityChannel
+        }
+}
+
+internal sealed interface SubtitleSelection {
+    data object Off : SubtitleSelection
+
+    data object Automatic : SubtitleSelection
+
+    data class Track(val identity: SubtitleTrackIdentity) : SubtitleSelection
+}
 
 internal fun Media3Player.mobileSubtitleTracks(): List<MobileSubtitleTrack> =
     currentTracks.mobileSubtitleTracks()
@@ -459,23 +1025,163 @@ internal fun Tracks.mobileSubtitleTracks(): List<MobileSubtitleTrack> =
                     MobileSubtitleTrack(
                         group = group.mediaTrackGroup,
                         trackIndex = trackIndex,
+                        identity = format.toSubtitleTrackIdentity(),
                         label = format.label ?: format.language,
                         selected = group.isTrackSelected(trackIndex),
                     )
                 }
         }
 
-internal fun TrackSelectionParameters.withSubtitleTrack(track: MobileSubtitleTrack): TrackSelectionParameters =
-    buildUpon()
-        .setSelectTextByDefault(true)
-        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-        .setOverrideForType(TrackSelectionOverride(track.group, track.trackIndex))
-        .build()
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun androidx.media3.common.Format.toSubtitleTrackIdentity(): SubtitleTrackIdentity =
+    SubtitleTrackIdentity(
+        id = id,
+        language = language,
+        label = label,
+        sampleMimeType = sampleMimeType,
+        roleFlags = roleFlags,
+        selectionFlags = selectionFlags,
+        accessibilityChannel = accessibilityChannel,
+    )
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun TrackSelectionParameters.withSubtitleSelection(
+    selection: SubtitleSelection,
+    tracks: List<MobileSubtitleTrack>,
+): TrackSelectionParameters {
+    val builder =
+        buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+    return when (selection) {
+        SubtitleSelection.Off ->
+            builder
+                .setSelectTextByDefault(false)
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                .build()
+
+        SubtitleSelection.Automatic ->
+            builder
+                .setSelectTextByDefault(true)
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .build()
+
+        is SubtitleSelection.Track -> {
+            val track = tracks.firstOrNull { selection.identity.matches(it.group.getFormat(it.trackIndex)) }
+            if (track == null) {
+                builder
+                    .setSelectTextByDefault(false)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .build()
+            } else {
+                builder
+                    .setSelectTextByDefault(true)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .setOverrideForType(TrackSelectionOverride(track.group, track.trackIndex))
+                    .build()
+            }
+        }
+    }
+}
 
 internal fun TrackSelectionParameters.withSubtitlesEnabled(enabled: Boolean): TrackSelectionParameters =
+    withSubtitleSelection(
+        selection = if (enabled) SubtitleSelection.Automatic else SubtitleSelection.Off,
+        tracks = emptyList(),
+    )
+
+internal fun TrackSelectionParameters.subtitlesEnabled(tracks: List<MobileSubtitleTrack>): Boolean =
+    C.TRACK_TYPE_TEXT !in disabledTrackTypes &&
+        (selectTextByDefault || tracks.any(MobileSubtitleTrack::selected))
+
+internal fun restoreSubtitleSelection(
+    defaults: TrackSelectionParameters,
+    retained: SubtitleSelection?,
+    systemCaptionsEnabled: Boolean,
+): TrackSelectionParameters =
+    retained?.let { defaults.withSubtitleSelection(it, emptyList()) }
+        ?: if (systemCaptionsEnabled) {
+            defaults.withSubtitleSelection(SubtitleSelection.Automatic, emptyList())
+        } else {
+            defaults.withForcedSubtitlesOnly()
+        }
+
+/**
+ * Captions off is an accessibility preference; forced tracks are part of the content, so text
+ * stays enabled for forced cues matching the audio language while default captions are ignored.
+ */
+internal fun TrackSelectionParameters.withForcedSubtitlesOnly(): TrackSelectionParameters =
     buildUpon()
-        .setSelectTextByDefault(enabled)
-        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
+        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+        .setSelectTextByDefault(false)
+        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+        .setIgnoredTextSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+        .build()
+
+private fun SubtitleSelection.toBundle(): Bundle =
+    Bundle().apply {
+        when (this@toBundle) {
+            SubtitleSelection.Off -> putString("kind", "off")
+            SubtitleSelection.Automatic -> putString("kind", "automatic")
+            is SubtitleSelection.Track -> {
+                putString("kind", "track")
+                putString("id", identity.id)
+                putString("language", identity.language)
+                putString("label", identity.label)
+                putString("sampleMimeType", identity.sampleMimeType)
+                putInt("roleFlags", identity.roleFlags)
+                putInt("selectionFlags", identity.selectionFlags)
+                putInt("accessibilityChannel", identity.accessibilityChannel)
+            }
+        }
+    }
+
+private fun Bundle.toSubtitleSelection(): SubtitleSelection? =
+    when (getString("kind")) {
+        "off" -> SubtitleSelection.Off
+        "automatic" -> SubtitleSelection.Automatic
+        "track" ->
+            SubtitleSelection.Track(
+                SubtitleTrackIdentity(
+                    id = getString("id"),
+                    language = getString("language"),
+                    label = getString("label"),
+                    sampleMimeType = getString("sampleMimeType"),
+                    roleFlags = getInt("roleFlags"),
+                    selectionFlags = getInt("selectionFlags"),
+                    accessibilityChannel = getInt("accessibilityChannel"),
+                ),
+            )
+        else -> null
+    }
+
+internal fun android.content.Context.systemCaptionsEnabled(): Boolean =
+    (getSystemService(android.content.Context.CAPTIONING_SERVICE) as? CaptioningManager)?.isEnabled == true
+
+internal fun interface MobilePlayerFactory {
+    fun create(context: android.content.Context): Media3Player
+}
+
+private object DefaultMobilePlayerFactory : MobilePlayerFactory {
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    override fun create(context: android.content.Context): Media3Player {
+        val renderersFactory = DefaultRenderersFactory(context)
+        if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
+            // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
+            renderersFactory
+                .setMediaCodecSelector(EmulatorMediaCodecSelector)
+                .setEnableDecoderFallback(true)
+        }
+        return ExoPlayer.Builder(context, renderersFactory)
+            .setAudioAttributes(MobileVideoAudioAttributes, true)
+            .setHandleAudioBecomingNoisy(true)
+            .build()
+    }
+}
+
+internal val MobileVideoAudioAttributes: AudioAttributes =
+    AudioAttributes.Builder()
+        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+        .setUsage(C.USAGE_MEDIA)
         .build()
 
 internal fun requiresEmulatorCodecWorkaround(
@@ -503,92 +1209,6 @@ private val EmulatorMediaCodecSelector =
         MediaCodecSelector.DEFAULT
             .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
             .sortedBy { emulatorCodecPriority(it.name) }
-    }
-
-internal data class PreparedPlayback(
-    val mediaItem: MediaItem,
-    val startPositionMillis: Long,
-)
-
-internal fun PlaybackSource.preparePlayback(
-    title: String,
-    resumePositionMillis: Long? = null,
-): PreparedPlayback =
-    PreparedPlayback(
-        mediaItem = toMediaItem(title),
-        startPositionMillis = resumePositionMillis ?: startFromSeconds.toPlaybackMillis(),
-    )
-
-internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
-    val subtitleConfigurations =
-        (subtitles as? PlaybackSubtitles.Sidecar)
-            ?.tracks
-            .orEmpty()
-            .mapNotNull { subtitle ->
-                val mimeType = subtitle.format.toSubtitleMimeType() ?: return@mapNotNull null
-                subtitle to mimeType
-            }.mapIndexed { index, (subtitle, mimeType) ->
-                MediaItem.SubtitleConfiguration.Builder(subtitle.url.value.toUri())
-                    .setId(subtitle.key)
-                    .setLabel(subtitle.name)
-                    .setLanguage(subtitle.languageCode)
-                    .setMimeType(mimeType)
-                    .setSelectionFlags(if (index == 0) C.SELECTION_FLAG_DEFAULT else 0)
-                    .build()
-            }
-
-    return MediaItem.Builder()
-        .setUri(url.value)
-        .setMimeType(if (kind == PlaybackSourceKind.HLS) MimeTypes.APPLICATION_M3U8 else null)
-        .setMediaMetadata(MediaMetadata.Builder().setTitle(title).build())
-        .setSubtitleConfigurations(subtitleConfigurations)
-        .build()
-}
-
-internal fun PlaybackSource.hasSelectableSubtitles(): Boolean =
-    subtitles is PlaybackSubtitles.Embedded ||
-        (subtitles as? PlaybackSubtitles.Sidecar)
-            ?.tracks
-            ?.any { it.format.toSubtitleMimeType() != null } == true
-
-internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
-    var current: Throwable? = this
-    val visited = mutableSetOf<Throwable>()
-    var networkFailure: HttpDataSource.HttpDataSourceException? = null
-    while (current != null && visited.add(current)) {
-        when (current) {
-            is HttpDataSource.InvalidResponseCodeException ->
-                if (current.responseCode == HTTP_UNAUTHORIZED || current.responseCode == HTTP_FORBIDDEN) {
-                    return PlaybackFailure.MediaCredentialUnavailable(this)
-                }
-
-            is HttpDataSource.HttpDataSourceException ->
-                if (current.reason == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-                    current.reason == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
-                ) {
-                    networkFailure = current
-                }
-        }
-        current = current.cause
-    }
-    return networkFailure?.let { PlaybackFailure.NetworkUnavailable(this) }
-}
-
-internal fun PlaybackException.toPlaybackFailure(): PlaybackFailure =
-    toMediaRequestFailureOrNull() ?: PlaybackFailure.Unexpected(this)
-
-private fun Double.toPlaybackMillis(): Long =
-    (this * MILLIS_PER_SECOND)
-        .coerceIn(0.0, Long.MAX_VALUE.toDouble())
-        .roundToLong()
-
-private fun String?.toSubtitleMimeType(): String? =
-    when (this?.lowercase()) {
-        "srt", "subrip" -> MimeTypes.APPLICATION_SUBRIP
-        "vtt", "webvtt" -> MimeTypes.TEXT_VTT
-        "ssa", "ass" -> MimeTypes.TEXT_SSA
-        "ttml" -> MimeTypes.APPLICATION_TTML
-        else -> null
     }
 
 @Composable
