@@ -11,6 +11,13 @@ class DesignTokenCodegenTest {
     }
 
     @Test
+    fun compositeTokensAreRejected() {
+        val error =
+            runCatching { DesignTokenCodegen.hslToArgb("0 1px 2px hsla(0, 0%, 0%, 0.05)") }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+    }
+
+    @Test
     fun hslaCarriesAlpha() {
         assertEquals(0x66000000L, DesignTokenCodegen.hslToArgb("hsla(0, 0%, 0%, 0.4)"))
         assertEquals(0xFFFFFFFFL, DesignTokenCodegen.hslToArgb("hsla(0, 0%, 100%, 1)"))

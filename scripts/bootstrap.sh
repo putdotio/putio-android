@@ -79,6 +79,22 @@ if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; 
   fi
 fi
 command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg install did not put ffmpeg on PATH"
+
+# emulator.sh needs lsof to find a free console port; macOS ships it, Debian images do not.
+if ! command -v lsof >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    apt_prefix=()
+    if [[ "$(id -u)" -ne 0 ]]; then
+      command -v sudo >/dev/null 2>&1 || die "lsof missing; install it with your system package manager and re-run"
+      apt_prefix=(sudo)
+    fi
+    log "installing lsof for emulator port discovery"
+    "${apt_prefix[@]}" apt-get install -y lsof
+  else
+    die "lsof missing; install it with your system package manager and re-run"
+  fi
+fi
+command -v lsof >/dev/null 2>&1 || die "lsof install did not put lsof on PATH"
 command -v ffprobe >/dev/null 2>&1 || die "ffmpeg install did not put ffprobe on PATH"
 ffmpeg_filters="$(ffmpeg -hide_banner -filters 2>/dev/null)"
 grep -q ' freezedetect ' <<<"${ffmpeg_filters}" || die "ffmpeg is missing the freezedetect filter"

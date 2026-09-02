@@ -148,7 +148,7 @@ object DesignTokenCodegen {
     fun hslToArgb(hsl: String): Long {
         val match =
             Regex("""hsla?\(\s*([0-9.]+)\s*,\s*([0-9.]+)%\s*,\s*([0-9.]+)%\s*(?:,\s*([0-9.]+)\s*)?\)""")
-                .find(hsl)
+                .matchEntire(hsl.trim())
                 ?: error("expected an hsl() or hsla() color, got '$hsl'")
         val (h, s, l) = match.groupValues.drop(1).take(3).map { it.toDouble() }
         val alpha = match.groupValues[4].takeIf { it.isNotEmpty() }?.toDouble() ?: 1.0
