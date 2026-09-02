@@ -189,8 +189,8 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-printf '%s\n' "${name}" > "${state}/name"
 printf '%s\n' "$$" >> "${state}/emulator-pids"
+printf '%s\n' "${name}" > "${state}/name"
 printf '%s\n' "$$" > "${state}/emulator-pid"
 echo 1 > "${state}/running"
 stop() { echo 0 > "${state}/running"; rm -f "${state}/emulator-pid"; exit 0; }
