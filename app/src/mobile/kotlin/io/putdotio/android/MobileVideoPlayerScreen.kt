@@ -260,6 +260,7 @@ private fun MobileReadyVideoPlayer(
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
     val currentResumeAfterLifecyclePause = rememberUpdatedState(resumeAfterLifecyclePause)
+    val currentRetainedSubtitleSelection = rememberUpdatedState(retainedSubtitleSelection)
     val player = remember(context, lifecycle, playerFactory) { playerFactory.create(context) }
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
     var activeFileId by remember(player) { mutableStateOf<Long?>(null) }
@@ -365,6 +366,13 @@ private fun MobileReadyVideoPlayer(
         if (currentResumeAfterLifecyclePause.value) player.play()
     }
     DisposableEffect(player) {
+        fun resolveRetainedSubtitleSelection(tracks: List<MobileSubtitleTrack>) {
+            val selection = currentRetainedSubtitleSelection.value as? SubtitleSelection.Track ?: return
+            val parameters = player.trackSelectionParameters.withSubtitleSelection(selection, tracks)
+            if (parameters != player.trackSelectionParameters) {
+                player.trackSelectionParameters = parameters
+            }
+        }
         val listener =
             object : Media3Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
@@ -391,6 +399,10 @@ private fun MobileReadyVideoPlayer(
                     videoSize = size
                 }
 
+                override fun onTracksChanged(tracks: Tracks) {
+                    resolveRetainedSubtitleSelection(tracks.mobileSubtitleTracks())
+                }
+
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     keepScreenOn = player.shouldKeepScreenOn()
                 }
@@ -414,6 +426,7 @@ private fun MobileReadyVideoPlayer(
                 }
             }
         player.addListener(listener)
+        resolveRetainedSubtitleSelection(player.mobileSubtitleTracks())
         onDispose {
             retainedPositionMillis =
                 retainedPositionOnDispose(
@@ -493,7 +506,6 @@ private fun MobileReadyVideoPlayer(
                 if (source.hasSelectableSubtitles() && it != null) {
                     MobileSubtitleControls(
                         player = it,
-                        retainedSelection = retainedSubtitleSelection,
                         onSubtitleSelectionChanged = onSubtitleSelectionChanged,
                         onMenuVisibilityChanged = { controlsMenuOpen = it },
                         modifier = Modifier.align(Alignment.TopEnd),
@@ -815,7 +827,6 @@ internal fun retainedPositionOnDispose(
 @Composable
 private fun MobileSubtitleControls(
     player: Media3Player,
-    retainedSelection: SubtitleSelection?,
     onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
     onMenuVisibilityChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -830,20 +841,11 @@ private fun MobileSubtitleControls(
         onDispose { onMenuVisibilityChanged(false) }
     }
 
-    DisposableEffect(player, retainedSelection) {
-        fun applyRetainedSelection(currentTracks: List<MobileSubtitleTrack>) {
-            val selection = retainedSelection as? SubtitleSelection.Track ?: return
-            val parameters =
-                player.trackSelectionParameters.withSubtitleSelection(selection, currentTracks)
-            if (parameters != player.trackSelectionParameters) {
-                player.trackSelectionParameters = parameters
-            }
-        }
+    DisposableEffect(player) {
         val listener =
             object : Media3Player.Listener {
                 override fun onTracksChanged(currentTracks: Tracks) {
                     tracks = currentTracks.mobileSubtitleTracks()
-                    applyRetainedSelection(tracks)
                     enabled = player.trackSelectionParameters.subtitlesEnabled(tracks)
                 }
 
@@ -853,7 +855,6 @@ private fun MobileSubtitleControls(
                 }
             }
         player.addListener(listener)
-        applyRetainedSelection(tracks)
         onDispose { player.removeListener(listener) }
     }
 
