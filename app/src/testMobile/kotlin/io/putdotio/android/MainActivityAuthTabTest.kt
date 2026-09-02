@@ -44,7 +44,7 @@ class MainActivityAuthTabTest {
         assertResultConsumedAfterRecreation(
             AuthTabResult(
                 resultCode = AuthTabIntent.RESULT_OK,
-                resultUri = "putio://auth#state=wrong-state&access_token=token",
+                resultUri = "putio://auth#state=expected-state&access_token=",
             ),
         )
     }

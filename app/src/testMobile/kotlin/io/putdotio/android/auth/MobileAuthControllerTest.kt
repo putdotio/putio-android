@@ -88,21 +88,31 @@ class MobileAuthControllerTest {
     }
 
     @Test
-    fun `mismatched Auth Tab callback stores nothing and consumes pending attempt`() = runBlocking {
-        val fixture = Fixture()
+    fun `stale Auth Tab callback preserves a newer pending attempt`() = runBlocking {
+        val states = ArrayDeque(listOf("older-oauth-state", "newer-oauth-state"))
+        val fixture = Fixture(stateGenerator = OAuthStateGenerator { states.removeFirst() })
         fixture.controller.restoreSession()
+        fixture.controller.beginSignIn()
+        fixture.controller.cancelSignIn()
         fixture.controller.beginSignIn()
 
         val result = fixture.controller.handleOAuthCallback(
-            "putio://auth?state=wrong-state#access_token=$TOKEN&state=wrong-state",
+            "putio://auth?state=older-oauth-state#access_token=$TOKEN&state=older-oauth-state",
         )
 
         assertEquals(OAuthCallbackHandlingResult.REJECTED, result)
         assertNull(fixture.tokenStore.token)
         assertNull(fixture.gateway.configuredToken)
-        assertNull(fixture.pendingAttemptStore.attempt)
-        assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.SignInFailed), fixture.controller.state.value)
-        assertFalse(fixture.controller.cancelSignIn())
+        assertEquals("newer-oauth-state", fixture.pendingAttemptStore.attempt?.state)
+        assertEquals(MobileAuthState.AwaitingOAuthCallback, fixture.controller.state.value)
+
+        assertEquals(
+            OAuthCallbackHandlingResult.ACCEPTED,
+            fixture.controller.handleOAuthCallback(
+                "putio://auth?state=newer-oauth-state#access_token=$TOKEN&state=newer-oauth-state",
+            ),
+        )
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
     }
 
     @Test
@@ -700,8 +710,7 @@ class MobileAuthControllerTest {
         override fun buildLoginUrl(redirectUri: String, state: String): String {
             calls += "build-url"
             assertEquals(MOBILE_OAUTH_REDIRECT_URI, redirectUri)
-            assertEquals(OAUTH_STATE, state)
-            return AUTHORIZATION_URL
+            return "https://app.put.io/authenticate?state=$state"
         }
 
         override fun setAccessToken(accessToken: AccessToken) {

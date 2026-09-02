@@ -173,6 +173,12 @@ class MobileAuthController internal constructor(
             }
 
             val callback = OAuthCallbackParser.parse(rawCallbackUri, pendingAttempt.state)
+            if (
+                callback is OAuthCallbackParseResult.Failure &&
+                callback.reason == OAuthCallbackFailure.StateMismatch
+            ) {
+                return@withLock OAuthCallbackHandlingResult.REJECTED
+            }
             if (!clearPendingOAuthAttempt()) {
                 mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
                 return@withLock OAuthCallbackHandlingResult.REJECTED
