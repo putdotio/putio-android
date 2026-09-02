@@ -401,20 +401,22 @@ private fun MobileReadyVideoPlayer(
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        val update =
-            playerRetentionUpdate(
-                event = PlayerRetentionEvent.LifecyclePause,
-                lifecycleState = lifecycle.currentState,
-                positionMillis = player.currentPosition,
-                playWhenReady = player.playWhenReady,
-            )
-        retainedPlayIntent = (update as PlayerRetentionUpdate.Playback).retained.resumeAfterLifecyclePause
-        retainedPositionMillis = update.positionMillis
-        update.dispatch(onPlaybackRetained, onPositionChanged)
-        player.pause()
+        if (!playerReleased) {
+            val update =
+                playerRetentionUpdate(
+                    event = PlayerRetentionEvent.LifecyclePause,
+                    lifecycleState = lifecycle.currentState,
+                    positionMillis = player.currentPosition,
+                    playWhenReady = player.playWhenReady,
+                )
+            retainedPlayIntent = (update as PlayerRetentionUpdate.Playback).retained.resumeAfterLifecyclePause
+            retainedPositionMillis = update.positionMillis
+            update.dispatch(onPlaybackRetained, onPositionChanged)
+            player.pause()
+        }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (retainedPlayIntent) player.play()
+        if (!playerReleased && retainedPlayIntent) player.play()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         if (!playerReleased) {

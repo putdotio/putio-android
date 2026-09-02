@@ -485,6 +485,7 @@ class MobileVideoPlayerScreenTest {
             assertTrue(players.last().released)
             assertEquals(2, players.size)
             lifecycleOwner.moveTo(Lifecycle.State.RESUMED)
+            assertEquals(0, players.last().playStateUpdatesAfterRelease)
         }
         compose.runOnIdle {
             assertEquals(3, players.size)
@@ -679,6 +680,8 @@ private class RecordingPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
         private set
     var released = false
         private set
+    var playStateUpdatesAfterRelease = 0
+        private set
 
     override fun getState(): State = state
 
@@ -726,6 +729,7 @@ private class RecordingPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
     }
 
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
+        if (released) playStateUpdatesAfterRelease += 1
         state =
             state.buildUpon()
                 .setPlayWhenReady(playWhenReady, Media3Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
