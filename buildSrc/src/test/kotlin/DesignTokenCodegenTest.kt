@@ -11,6 +11,12 @@ class DesignTokenCodegenTest {
     }
 
     @Test
+    fun hslaCarriesAlpha() {
+        assertEquals(0x66000000L, DesignTokenCodegen.hslToArgb("hsla(0, 0%, 0%, 0.4)"))
+        assertEquals(0xFFFFFFFFL, DesignTokenCodegen.hslToArgb("hsla(0, 0%, 100%, 1)"))
+    }
+
+    @Test
     fun achromaticGrays() {
         assertEquals(0xFF161616L, DesignTokenCodegen.hslToArgb("hsl(0, 0%, 8.5%)"))
         assertEquals(0xFFEDEDEDL, DesignTokenCodegen.hslToArgb("hsl(0, 0%, 93.0%)"))

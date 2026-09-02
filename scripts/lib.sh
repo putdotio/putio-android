@@ -187,6 +187,7 @@ serial_for_avd() {
 # First free even console port in the emulator range.
 free_emulator_port() {
   local port
+  command -v lsof >/dev/null 2>&1 || die "lsof is required to find a free emulator console port"
   for port in $(seq 5554 2 5584); do
     if ! lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1; then
       echo "${port}"

@@ -146,9 +146,12 @@ object DesignTokenCodegen {
     }
 
     fun hslToArgb(hsl: String): Long {
-        val match = Regex("""hsla?\(\s*([0-9.]+)\s*,\s*([0-9.]+)%\s*,\s*([0-9.]+)%\s*\)""").find(hsl)
-            ?: error("expected an hsl() color, got '$hsl'")
-        val (h, s, l) = match.destructured.toList().map { it.toDouble() }
+        val match =
+            Regex("""hsla?\(\s*([0-9.]+)\s*,\s*([0-9.]+)%\s*,\s*([0-9.]+)%\s*(?:,\s*([0-9.]+)\s*)?\)""")
+                .find(hsl)
+                ?: error("expected an hsl() or hsla() color, got '$hsl'")
+        val (h, s, l) = match.groupValues.drop(1).take(3).map { it.toDouble() }
+        val alpha = match.groupValues[4].takeIf { it.isNotEmpty() }?.toDouble() ?: 1.0
         val c = (1.0 - kotlin.math.abs(2.0 * l / 100.0 - 1.0)) * (s / 100.0)
         val hp = (h % 360.0) / 60.0
         val x = c * (1.0 - kotlin.math.abs(hp % 2.0 - 1.0))
@@ -161,8 +164,8 @@ object DesignTokenCodegen {
             else -> Triple(c, 0.0, x)
         }
         val m = l / 100.0 - c / 2.0
-        fun channel(v: Double): Long = Math.round((v + m) * 255.0)
-        return 0xFF000000L or (channel(r1) shl 16) or (channel(g1) shl 8) or channel(b1)
+        fun channel(v: Double): Long = Math.round(v * 255.0).coerceIn(0L, 255L)
+        return (channel(alpha) shl 24) or (channel(r1 + m) shl 16) or (channel(g1 + m) shl 8) or channel(b1 + m)
     }
 
     private fun render(resolved: Map<String, Long>, designVersion: String): String = buildString {
