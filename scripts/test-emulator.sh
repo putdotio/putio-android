@@ -8,16 +8,68 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmpdir="$(mktemp -d)"
 fake_sdk="${tmpdir}/sdk"
 state="${tmpdir}/state"
+finish_signal_code=""
+finishing=0
+is_owned_fake_emulator() {
+  local pid="$1" command
+  [[ "${pid}" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "${pid}" 2>/dev/null || return 1
+  command="$(ps -ww -p "${pid}" -o command= 2>/dev/null || true)"
+  [[ "${command}" == "/usr/bin/env bash ${fake_sdk}/emulator/emulator "* ||
+    "${command}" == "/usr/bin/bash ${fake_sdk}/emulator/emulator "* ||
+    "${command}" == "/bin/bash ${fake_sdk}/emulator/emulator "* ||
+    "${command}" == "bash ${fake_sdk}/emulator/emulator "* ||
+    "${command}" == "${fake_sdk}/emulator/emulator "* ]]
+}
 cleanup() {
-  local pid
-  pid="$(cat "${state}/emulator-pid" 2>/dev/null || true)"
-  if [[ "${pid}" =~ ^[0-9]+$ ]]; then
+  local pid attempt cleanup_failed=0
+  while read -r pid; do
+    [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+    is_owned_fake_emulator "${pid}" || continue
     kill "${pid}" 2>/dev/null || true
-    wait "${pid}" 2>/dev/null || true
+    for attempt in {1..50}; do
+      kill -0 "${pid}" 2>/dev/null || break
+      sleep 0.02
+    done
+    if is_owned_fake_emulator "${pid}"; then
+      kill -KILL "${pid}" 2>/dev/null || true
+      for attempt in {1..50}; do
+        kill -0 "${pid}" 2>/dev/null || break
+        sleep 0.02
+      done
+    fi
+    if is_owned_fake_emulator "${pid}"; then
+      echo "emulator contract cleanup failed: owned fake emulator ${pid} survived" >&2
+      cleanup_failed=1
+    fi
+  done < "${state}/emulator-pids" 2>/dev/null || true
+  if [[ "${cleanup_failed}" == "1" ]]; then
+    echo "preserving failed cleanup state at ${tmpdir}" >&2
+    return 1
   fi
   rm -rf "${tmpdir}"
 }
-trap cleanup EXIT
+finish() {
+  local code=$?
+  finishing=1
+  trap - EXIT
+  # A cleanup failure must stay visible even when a signal interrupted the
+  # run; the signal code only replaces the status of a fully cleaned-up run.
+  if ! cleanup; then
+    code=1
+  elif [[ -n "${finish_signal_code}" ]]; then
+    code="${finish_signal_code}"
+  fi
+  trap - INT TERM
+  exit "${code}"
+}
+handle_signal() {
+  finish_signal_code="$1"
+  [[ "${finishing}" == "1" ]] || exit "$1"
+}
+trap finish EXIT
+trap 'handle_signal 130' INT
+trap 'handle_signal 143' TERM
 
 mkdir -p \
   "${fake_sdk}/platform-tools" \
@@ -149,6 +201,7 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+printf '%s\n' "$$" >> "${state}/emulator-pids"
 printf '%s\n' "${name}" > "${state}/name"
 printf '%s\n' "$$" > "${state}/emulator-pid"
 echo 1 > "${state}/running"
