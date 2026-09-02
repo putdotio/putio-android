@@ -113,6 +113,98 @@ class PlaybackReducerTest {
         assertEquals(PlaybackRequestId(2L), retry.effect?.requestId)
     }
 
+    @Test
+    fun endedPlaybackFindsAndResolvesAnUnvisitedNextVideo() {
+        val ready = readyState()
+
+        val finding = PlaybackReducer.reduce(ready, PlaybackEvent.PlayerEnded)
+        val next = PlaybackTarget(FilesItemId(43L), "next.mkv")
+        val resolving = PlaybackReducer.reduce(
+            finding.state,
+            PlaybackEvent.NextFound(PlaybackRequestId(2L), next),
+        )
+
+        assertEquals(PlaybackContent.FindingNext(PlaybackRequestId(2L)), finding.state.content)
+        assertEquals(PlaybackEffect.FindNext(Target, PlaybackRequestId(2L)), finding.effect)
+        assertEquals(next, resolving.state.target)
+        assertEquals(setOf(Target.fileId, next.fileId), resolving.state.visitedFileIds)
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(3L)), resolving.state.content)
+        assertEquals(PlaybackEffect.Resolve(next, PlaybackRequestId(3L)), resolving.effect)
+        assertNull(resolving.state.resumePositionMillis)
+    }
+
+    @Test
+    fun duplicateEndsAndStaleNextResultsCannotStartAnotherResolution() {
+        val finding = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerEnded)
+        val duplicate = PlaybackReducer.reduce(finding.state, PlaybackEvent.PlayerEnded)
+        val stale = PlaybackReducer.reduce(
+            finding.state,
+            PlaybackEvent.NextFound(
+                PlaybackRequestId(99L),
+                PlaybackTarget(FilesItemId(43L), "next.mkv"),
+            ),
+        )
+
+        assertFalse(duplicate.consumed)
+        assertNull(duplicate.effect)
+        assertFalse(stale.consumed)
+        assertNull(stale.effect)
+        assertEquals(finding.state, stale.state)
+    }
+
+    @Test
+    fun wrappingToAVisitedVideoEndsThePlaybackSession() {
+        val next = PlaybackTarget(FilesItemId(43L), "next.mkv")
+        val findingFirst = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerEnded)
+        val resolvingNext = PlaybackReducer.reduce(
+            findingFirst.state,
+            PlaybackEvent.NextFound(PlaybackRequestId(2L), next),
+        )
+        val nextReady = PlaybackReducer.reduce(
+            resolvingNext.state,
+            PlaybackEvent.ResolveSucceeded(PlaybackRequestId(3L), PlaybackResolution.Ready(playbackSource())),
+        )
+        val findingAfterNext = PlaybackReducer.reduce(nextReady.state, PlaybackEvent.PlayerEnded)
+
+        val wrapped = PlaybackReducer.reduce(
+            findingAfterNext.state,
+            PlaybackEvent.NextFound(PlaybackRequestId(4L), Target),
+        )
+
+        assertEquals(PlaybackContent.Ended, wrapped.state.content)
+        assertNull(wrapped.effect)
+    }
+
+    @Test
+    fun missingNextEndsWhileLookupFailureRetriesLookup() {
+        val finding = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerEnded)
+        val failure = PlaybackFailure.NetworkUnavailable(IllegalStateException("offline"))
+        val failed = PlaybackReducer.reduce(
+            finding.state,
+            PlaybackEvent.NextFailed(PlaybackRequestId(2L), failure),
+        )
+        val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
+        val ended = PlaybackReducer.reduce(
+            retry.state,
+            PlaybackEvent.NextEnded(PlaybackRequestId(3L)),
+        )
+
+        assertEquals(PlaybackContent.NextFailed(failure), failed.state.content)
+        assertEquals(PlaybackEffect.FindNext(Target, PlaybackRequestId(3L)), retry.effect)
+        assertEquals(PlaybackContent.Ended, ended.state.content)
+    }
+
+    private fun readyState(): PlaybackState {
+        val start = PlaybackReducer.start(Target)
+        return PlaybackReducer.reduce(
+            start.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource()),
+            ),
+        ).state
+    }
+
     private fun playbackSource(): PlaybackSource =
         PlaybackSource(
             fileId = Target.fileId.value,

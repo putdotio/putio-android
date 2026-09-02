@@ -62,17 +62,14 @@ class PlaybackController(
             controllerScope.launch(start = CoroutineStart.LAZY) {
                 val event =
                     try {
-                        when (val result = repository.resolve(effect.target)) {
-                            is PlaybackRepositoryResult.Success ->
-                                PlaybackEvent.ResolveSucceeded(effect.requestId, result.value)
-
-                            is PlaybackRepositoryResult.Failure ->
-                                PlaybackEvent.ResolveFailed(effect.requestId, result.failure)
+                        when (effect) {
+                            is PlaybackEffect.Resolve -> effect.resolveEvent()
+                            is PlaybackEffect.FindNext -> effect.findNextEvent()
                         }
                     } catch (error: CancellationException) {
                         throw error
                     } catch (unexpected: Exception) {
-                        PlaybackEvent.ResolveFailed(effect.requestId, PlaybackFailure.Unexpected(unexpected))
+                        effect.failureEvent(PlaybackFailure.Unexpected(unexpected))
                     }
                 synchronized(lock) {
                     if (activeJob === coroutineContext[Job]) {
@@ -86,7 +83,7 @@ class PlaybackController(
             synchronized(lock) {
                 when {
                     closed -> false
-                    (mutableState.value.content as? PlaybackContent.Loading)?.requestId != effect.requestId -> false
+                    !mutableState.value.isActive(effect) -> false
                     activeJob != null -> false
                     else -> {
                         activeJob = job
@@ -108,4 +105,29 @@ class PlaybackController(
         }
         job.start()
     }
+
+    private suspend fun PlaybackEffect.Resolve.resolveEvent(): PlaybackEvent =
+        when (val result = repository.resolve(target)) {
+            is PlaybackRepositoryResult.Success -> PlaybackEvent.ResolveSucceeded(requestId, result.value)
+            is PlaybackRepositoryResult.Failure -> PlaybackEvent.ResolveFailed(requestId, result.failure)
+        }
+
+    private suspend fun PlaybackEffect.FindNext.findNextEvent(): PlaybackEvent =
+        when (val result = repository.findNextVideo(target)) {
+            is PlaybackNextResult.Found -> PlaybackEvent.NextFound(requestId, result.target)
+            PlaybackNextResult.Ended -> PlaybackEvent.NextEnded(requestId)
+            is PlaybackNextResult.Failure -> PlaybackEvent.NextFailed(requestId, result.failure)
+        }
 }
+
+private fun PlaybackState.isActive(effect: PlaybackEffect): Boolean =
+    when (effect) {
+        is PlaybackEffect.Resolve -> (content as? PlaybackContent.Loading)?.requestId == effect.requestId
+        is PlaybackEffect.FindNext -> (content as? PlaybackContent.FindingNext)?.requestId == effect.requestId
+    }
+
+private fun PlaybackEffect.failureEvent(failure: PlaybackFailure): PlaybackEvent =
+    when (this) {
+        is PlaybackEffect.Resolve -> PlaybackEvent.ResolveFailed(requestId, failure)
+        is PlaybackEffect.FindNext -> PlaybackEvent.NextFailed(requestId, failure)
+    }

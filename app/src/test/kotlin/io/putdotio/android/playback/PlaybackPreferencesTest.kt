@@ -7,11 +7,14 @@ import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigReducer
+import io.putdotio.android.settings.AndroidAppConfigRequestId
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackPreference
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaybackPreferencesTest {
@@ -119,13 +122,48 @@ class PlaybackPreferencesTest {
         assertEquals(PlaybackPreference.HLS, refreshed.state.playbackPreference())
     }
 
+    @Test
+    fun autoplayUsesOnlyTheLastConfirmedPreference() {
+        val enabled = AndroidAppConfigPreferences(autoplayNextVideo = true)
+        val disabled = AndroidAppConfigPreferences(autoplayNextVideo = false)
+        val requestId = AndroidAppConfigRequestId(2L)
+
+        assertTrue(readyState(enabled).confirmedAutoplayNextVideo())
+        assertFalse(AndroidAppConfigReducer.start().state.confirmedAutoplayNextVideo())
+        assertFalse(
+            readyState(
+                preferences = enabled,
+                mutation =
+                    AndroidAppConfigMutation.Saving(
+                        requestId = requestId,
+                        change = AndroidAppConfigChange.AutoplayNextVideo(true),
+                        previousPreferences = disabled,
+                        operation = AndroidAppConfigMutation.Operation.Save,
+                    ),
+            ).confirmedAutoplayNextVideo(),
+        )
+        assertTrue(
+            readyState(
+                preferences = disabled,
+                mutation =
+                    AndroidAppConfigMutation.Failed(
+                        change = AndroidAppConfigChange.AutoplayNextVideo(false),
+                        failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("refresh failed")),
+                        previousPreferences = enabled,
+                        operation = AndroidAppConfigMutation.Operation.Refresh,
+                    ),
+            ).confirmedAutoplayNextVideo(),
+        )
+    }
+
     private fun readyState(
         preferences: AndroidAppConfigPreferences = AndroidAppConfigPreferences(),
+        mutation: AndroidAppConfigMutation = AndroidAppConfigMutation.Idle,
     ): AndroidAppConfigState {
         val loading = AndroidAppConfigReducer.start()
         return AndroidAppConfigReducer.reduce(
             loading.state,
             AndroidAppConfigEvent.LoadSucceeded(requireNotNull(loading.effect).requestId, preferences),
-        ).state
+        ).state.copy(mutation = mutation)
     }
 }

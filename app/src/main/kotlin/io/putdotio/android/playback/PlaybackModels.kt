@@ -24,6 +24,16 @@ sealed interface PlaybackContent {
         val source: PlaybackSource,
     ) : PlaybackContent
 
+    data class FindingNext(
+        val requestId: PlaybackRequestId,
+    ) : PlaybackContent
+
+    data class NextFailed(
+        val failure: PlaybackFailure,
+    ) : PlaybackContent
+
+    data object Ended : PlaybackContent
+
     data class Conversion(
         val state: PlaybackConversionState,
     ) : PlaybackContent
@@ -42,10 +52,13 @@ data class PlaybackState(
     val content: PlaybackContent,
     internal val nextRequestValue: Long,
     val resumePositionMillis: Long? = null,
+    val visitedFileIds: Set<FilesItemId> = setOf(target.fileId),
 )
 
 sealed interface PlaybackEvent {
     data object Retry : PlaybackEvent
+
+    data object PlayerEnded : PlaybackEvent
 
     data class PlayerFailed(
         val failure: PlaybackFailure,
@@ -61,12 +74,36 @@ sealed interface PlaybackEvent {
         val requestId: PlaybackRequestId,
         val failure: PlaybackFailure,
     ) : PlaybackEvent
+
+    data class NextFound(
+        val requestId: PlaybackRequestId,
+        val target: PlaybackTarget,
+    ) : PlaybackEvent
+
+    data class NextEnded(
+        val requestId: PlaybackRequestId,
+    ) : PlaybackEvent
+
+    data class NextFailed(
+        val requestId: PlaybackRequestId,
+        val failure: PlaybackFailure,
+    ) : PlaybackEvent
 }
 
-data class PlaybackEffect(
-    val target: PlaybackTarget,
-    val requestId: PlaybackRequestId,
-)
+sealed interface PlaybackEffect {
+    val target: PlaybackTarget
+    val requestId: PlaybackRequestId
+
+    data class Resolve(
+        override val target: PlaybackTarget,
+        override val requestId: PlaybackRequestId,
+    ) : PlaybackEffect
+
+    data class FindNext(
+        override val target: PlaybackTarget,
+        override val requestId: PlaybackRequestId,
+    ) : PlaybackEffect
+}
 
 data class PlaybackTransition(
     val state: PlaybackState,
@@ -83,7 +120,7 @@ object PlaybackReducer {
                 content = PlaybackContent.Loading(requestId),
                 nextRequestValue = INITIAL_REQUEST_VALUE + 1,
             ),
-            effect = PlaybackEffect(target, requestId),
+            effect = PlaybackEffect.Resolve(target, requestId),
         )
     }
 
@@ -93,9 +130,13 @@ object PlaybackReducer {
     ): PlaybackTransition =
         when (event) {
             PlaybackEvent.Retry -> state.retry()
+            PlaybackEvent.PlayerEnded -> state.playerEnded()
             is PlaybackEvent.PlayerFailed -> state.playerFailed(event)
             is PlaybackEvent.ResolveSucceeded -> state.resolveSucceeded(event)
             is PlaybackEvent.ResolveFailed -> state.resolveFailed(event)
+            is PlaybackEvent.NextFound -> state.nextFound(event)
+            is PlaybackEvent.NextEnded -> state.nextEnded(event)
+            is PlaybackEvent.NextFailed -> state.nextFailed(event)
         }
 }
 
@@ -112,18 +153,30 @@ private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): Playb
 }
 
 private fun PlaybackState.retry(): PlaybackTransition {
-    val retryable = content is PlaybackContent.Failed || content is PlaybackContent.Conversion
-    if (!retryable) {
-        return PlaybackTransition(this, consumed = false)
-    }
     val requestId = PlaybackRequestId(nextRequestValue)
-    return PlaybackTransition(
-        state = copy(
-            content = PlaybackContent.Loading(requestId),
-            nextRequestValue = nextRequestValue + 1,
-        ),
-        effect = PlaybackEffect(target, requestId),
-    )
+    return when (content) {
+        is PlaybackContent.Failed,
+        is PlaybackContent.Conversion,
+        ->
+            PlaybackTransition(
+                state = copy(
+                    content = PlaybackContent.Loading(requestId),
+                    nextRequestValue = nextRequestValue + 1,
+                ),
+                effect = PlaybackEffect.Resolve(target, requestId),
+            )
+
+        is PlaybackContent.NextFailed ->
+            PlaybackTransition(
+                state = copy(
+                    content = PlaybackContent.FindingNext(requestId),
+                    nextRequestValue = nextRequestValue + 1,
+                ),
+                effect = PlaybackEffect.FindNext(target, requestId),
+            )
+
+        else -> PlaybackTransition(this, consumed = false)
+    }
 }
 
 private fun PlaybackState.resolveSucceeded(

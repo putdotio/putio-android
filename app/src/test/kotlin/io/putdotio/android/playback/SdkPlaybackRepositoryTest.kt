@@ -10,6 +10,8 @@ import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioRequestData
+import io.putdotio.sdk.files.NextFile
+import io.putdotio.sdk.files.NextFileType
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
@@ -183,6 +185,66 @@ class SdkPlaybackRepositoryTest {
             assertEquals(listOf(PlaybackPreference.HLS, PlaybackPreference.MP4), requests.map { it.preference })
             assertEquals(2, providerCalls)
         }
+
+    @Test
+    fun findsTheNextVideoThroughTheSdkContract() =
+        runBlocking {
+            var requestedFileId: Long? = null
+            var requestedType: NextFileType? = null
+            val repository =
+                SdkPlaybackRepository(
+                    playbackPreference = { PlaybackPreference.HLS },
+                    loadAccount = { error("Account must not load") },
+                    resolvePlayback = { error("Playback must not resolve") },
+                    findNextVideo = { fileId, fileType ->
+                        requestedFileId = fileId
+                        requestedType = fileType
+                        NextFile(id = 43L, name = "next.mkv", parentId = 7L, fileType = NextFileType.VIDEO)
+                    },
+                )
+
+            val result = repository.findNextVideo(Target) as PlaybackNextResult.Found
+
+            assertEquals(Target.fileId.value, requestedFileId)
+            assertEquals(NextFileType.VIDEO, requestedType)
+            assertEquals(PlaybackTarget(FilesItemId(43L), "next.mkv"), result.target)
+        }
+
+    @Test
+    fun actualNotFoundEndsButAuthenticationStillFails() =
+        runBlocking {
+            val notFound = apiFailure(404)
+            val contradictory = apiFailure(
+                httpStatusCode = 401,
+                envelopeStatusCode = 404,
+                reason = PutioOperationErrorReason.StatusCode(404),
+            )
+            val ended = nextFailureRepository(notFound).findNextVideo(Target)
+            val rejected = nextFailureRepository(contradictory).findNextVideo(Target) as PlaybackNextResult.Failure
+
+            assertEquals(PlaybackNextResult.Ended, ended)
+            assertTrue(rejected.failure is PlaybackFailure.AuthenticationRequired)
+            assertSame(contradictory, rejected.failure.cause)
+        }
+
+    @Test
+    fun nextVideoLookupPreservesCancellation() {
+        val cancellation = CancellationException("route closed")
+        try {
+            runBlocking { nextFailureRepository(cancellation).findNextVideo(Target) }
+            fail("Expected cancellation")
+        } catch (actual: CancellationException) {
+            assertSame(cancellation, actual)
+        }
+    }
+
+    private fun nextFailureRepository(error: Throwable): SdkPlaybackRepository =
+        SdkPlaybackRepository(
+            playbackPreference = { PlaybackPreference.HLS },
+            loadAccount = { error("Account must not load") },
+            resolvePlayback = { error("Playback must not resolve") },
+            findNextVideo = { _, _ -> throw error },
+        )
 
     private fun account(
         downloadToken: AccountDownloadToken?,

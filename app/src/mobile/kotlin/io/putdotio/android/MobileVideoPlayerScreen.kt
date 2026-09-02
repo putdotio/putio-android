@@ -107,6 +107,8 @@ internal fun MobileVideoPlayerScreen(
     onRetry: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onBack: () -> Unit,
+    autoplayNextVideo: Boolean = false,
+    onPlaybackEnded: () -> Unit = {},
     modifier: Modifier = Modifier,
     playerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
@@ -147,7 +149,26 @@ internal fun MobileVideoPlayerScreen(
                     onPlayerFailure = { failure, positionMillis ->
                         onPlayerFailure(failure, positionMillis)
                     },
+                    autoplayNextVideo = autoplayNextVideo,
+                    onPlaybackEnded = onPlaybackEnded,
                     playerFactory = playerFactory,
+                )
+
+            is PlaybackContent.FindingNext ->
+                MobileLoadingState(stringResource(R.string.mobile_playback_finding_next))
+
+            is PlaybackContent.NextFailed ->
+                MobileErrorState(
+                    title = stringResource(R.string.mobile_playback_next_error_title),
+                    message = stringResource(content.failure.messageResource()),
+                    retryLabel = stringResource(R.string.mobile_action_retry),
+                    onRetry = onRetry,
+                )
+
+            PlaybackContent.Ended ->
+                MobileEmptyState(
+                    title = stringResource(R.string.mobile_playback_ended_title),
+                    message = stringResource(R.string.mobile_playback_ended_message),
                 )
 
             is PlaybackContent.Conversion ->
@@ -254,6 +275,8 @@ private fun MobileReadyVideoPlayer(
     onKeyboardNavigation: () -> Unit,
     onPointerNavigation: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
+    autoplayNextVideo: Boolean,
+    onPlaybackEnded: () -> Unit,
     playerFactory: MobilePlayerFactory,
 ) {
     val context = LocalContext.current
@@ -277,6 +300,8 @@ private fun MobileReadyVideoPlayer(
         source.preparePlayback(title, retainedPositionMillis)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
+    val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
+    val currentOnPlaybackEnded = rememberUpdatedState(onPlaybackEnded)
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
     val currentRetainedSubtitleSelection = rememberUpdatedState(retainedSubtitleSelection)
@@ -295,6 +320,7 @@ private fun MobileReadyVideoPlayer(
     var controlsMenuOpen by remember { mutableStateOf(false) }
     var controlsActivity by remember { mutableIntStateOf(0) }
     var failurePositionMillis by remember(player) { mutableStateOf<Long?>(null) }
+    var endedReported by remember(player) { mutableStateOf(false) }
     val hostView = LocalView.current
     LaunchedEffect(player, resumeAfterLifecyclePause) {
         retainedPlayIntent = resumeAfterLifecyclePause
@@ -480,6 +506,14 @@ private fun MobileReadyVideoPlayer(
                     playbackState = newPlaybackState
                     controlsVisible = controlsVisibleForPlaybackState(controlsVisible, newPlaybackState)
                     keepScreenOn = player.shouldKeepScreenOn()
+                    if (newPlaybackState == Media3Player.STATE_ENDED) {
+                        if (!endedReported) {
+                            endedReported = true
+                            if (currentAutoplayNextVideo.value) currentOnPlaybackEnded.value()
+                        }
+                    } else {
+                        endedReported = false
+                    }
                 }
 
                 override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {

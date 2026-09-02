@@ -10,6 +10,8 @@ import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
+import io.putdotio.sdk.files.NextFile
+import io.putdotio.sdk.files.NextFileType
 import io.putdotio.sdk.files.PlaybackMediaCredential
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
@@ -74,12 +76,29 @@ sealed interface PlaybackFailure {
 
 interface PlaybackRepository {
     suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution>
+
+    suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
+}
+
+sealed interface PlaybackNextResult {
+    data class Found(
+        val target: PlaybackTarget,
+    ) : PlaybackNextResult
+
+    data object Ended : PlaybackNextResult
+
+    data class Failure(
+        val failure: PlaybackFailure,
+    ) : PlaybackNextResult
 }
 
 class SdkPlaybackRepository internal constructor(
     private val playbackPreference: () -> PlaybackPreference,
     private val loadAccount: suspend () -> AccountInfo,
     private val resolvePlayback: suspend (PlaybackRequest) -> io.putdotio.sdk.files.PlaybackResolution,
+    private val findNextVideo: suspend (Long, NextFileType) -> NextFile = { _, _ ->
+        error("Next-video lookup is not configured")
+    },
 ) : PlaybackRepository {
     constructor(
         client: PutioClient,
@@ -88,6 +107,7 @@ class SdkPlaybackRepository internal constructor(
         playbackPreference = playbackPreference,
         loadAccount = { client.account.getInfo(AccountInfoQuery(downloadToken = true)) },
         resolvePlayback = client.files::resolvePlayback,
+        findNextVideo = client.files::findNextFile,
     )
 
     @Suppress("TooGenericExceptionCaught")
@@ -114,6 +134,28 @@ class SdkPlaybackRepository internal constructor(
             PlaybackRepositoryResult.Failure(error.toPlaybackFailure())
         } catch (unexpected: Exception) {
             PlaybackRepositoryResult.Failure(PlaybackFailure.Unexpected(unexpected))
+        }
+
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
+        try {
+            val next = findNextVideo(target.fileId.value, NextFileType.VIDEO)
+            PlaybackNextResult.Found(
+                PlaybackTarget(
+                    fileId = io.putdotio.android.files.FilesItemId(next.id),
+                    name = next.name,
+                ),
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: PutioException) {
+            if (error.hasHttpStatusCode(HTTP_NOT_FOUND)) {
+                PlaybackNextResult.Ended
+            } else {
+                PlaybackNextResult.Failure(error.toPlaybackFailure())
+            }
+        } catch (unexpected: Exception) {
+            PlaybackNextResult.Failure(PlaybackFailure.Unexpected(unexpected))
         }
 }
 
@@ -156,6 +198,15 @@ private fun PutioException.toPlaybackFailure(): PlaybackFailure {
     }
 }
 
+private fun PutioException.hasHttpStatusCode(statusCode: Int): Boolean {
+    var current: PutioException = this
+    val visited = mutableSetOf<PutioException>()
+    while (current is PutioOperationException && visited.add(current)) {
+        current = current.underlyingError
+    }
+    return (current as? PutioApiException)?.httpStatusCode == statusCode
+}
+
 private fun PutioOperationException.reasonFailure(context: PutioException): PlaybackFailure? =
     when ((reason as? PutioOperationErrorReason.StatusCode)?.statusCode) {
         HTTP_UNAUTHORIZED -> PlaybackFailure.AuthenticationRequired(context)
@@ -182,6 +233,7 @@ private fun PutioException.leafFailure(context: PutioException): PlaybackFailure
 
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
+private const val HTTP_NOT_FOUND = 404
 private const val HTTP_TOO_MANY_REQUESTS = 429
 private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
 private const val HTTP_SERVER_ERROR_START = 500

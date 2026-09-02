@@ -55,6 +55,7 @@ import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
@@ -776,6 +777,8 @@ class MobileShellTest {
                     PlaybackRepositoryResult.Success(
                         PlaybackResolution.Conversion(PlaybackConversionState.Queued),
                     )
+
+                override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
             }
         val AuthenticationFailureRepository =
             object : PlaybackRepository {
@@ -785,6 +788,8 @@ class MobileShellTest {
                     PlaybackRepositoryResult.Failure(
                         PlaybackFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
                     )
+
+                override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
             }
     }
 }

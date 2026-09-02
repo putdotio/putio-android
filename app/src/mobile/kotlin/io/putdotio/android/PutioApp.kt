@@ -73,6 +73,7 @@ import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SdkPlaybackRepository
+import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
@@ -948,6 +949,7 @@ private fun MobileNavHost(
                 target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name),
                 repository = playbackRepository,
                 subtitleStartupPolicy = subtitleStartupPolicy,
+                autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
                 onAuthenticationRequired = onPlaybackAuthenticationRequired,
                 onBack = navController::popBackStack,
             )
@@ -960,6 +962,7 @@ private fun MobilePlaybackRoute(
     target: PlaybackTarget,
     repository: PlaybackRepository,
     subtitleStartupPolicy: SubtitleStartupPolicy?,
+    autoplayNextVideo: Boolean,
     onAuthenticationRequired: suspend () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -969,9 +972,11 @@ private fun MobilePlaybackRoute(
     }
     val state by controller.state.collectAsStateWithLifecycle()
     val authenticationFailure =
-        (state.content as? PlaybackContent.Failed)
-            ?.failure
-            ?.takeIf { it is PlaybackFailure.AuthenticationRequired }
+        when (val content = state.content) {
+            is PlaybackContent.Failed -> content.failure
+            is PlaybackContent.NextFailed -> content.failure
+            else -> null
+        }?.takeIf { it is PlaybackFailure.AuthenticationRequired }
 
     DisposableEffect(controller) {
         onDispose(controller::close)
@@ -980,6 +985,9 @@ private fun MobilePlaybackRoute(
         if (authenticationFailure != null) {
             onAuthenticationRequired()
         }
+    }
+    LaunchedEffect(state.content) {
+        if (state.content is PlaybackContent.Ended) onBack()
     }
 
     MobileVideoPlayerScreen(
@@ -990,6 +998,8 @@ private fun MobilePlaybackRoute(
         },
         onBack = onBack,
         subtitleStartupPolicy = subtitleStartupPolicy,
+        autoplayNextVideo = autoplayNextVideo,
+        onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
     )
 }
 
