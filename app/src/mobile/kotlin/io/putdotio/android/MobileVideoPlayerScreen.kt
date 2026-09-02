@@ -107,9 +107,9 @@ internal fun MobileVideoPlayerScreen(
     onRetry: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onBack: () -> Unit,
+    modifier: Modifier = Modifier,
     autoplayNextVideo: Boolean = false,
     onPlaybackEnded: () -> Unit = {},
-    modifier: Modifier = Modifier,
     playerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
 ) {
