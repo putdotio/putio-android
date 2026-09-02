@@ -53,10 +53,13 @@ finish() {
   local code=$?
   finishing=1
   trap - EXIT
+  # A cleanup failure must stay visible even when a signal interrupted the
+  # run; the signal code only replaces the status of a fully cleaned-up run.
   if ! cleanup; then
     code=1
+  elif [[ -n "${finish_signal_code}" ]]; then
+    code="${finish_signal_code}"
   fi
-  [[ -z "${finish_signal_code}" ]] || code="${finish_signal_code}"
   trap - INT TERM
   exit "${code}"
 }
