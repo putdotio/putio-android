@@ -427,45 +427,60 @@ private fun MobileReadyVideoPlayer(
                     .align(Alignment.Center)
                     .zIndex(1f),
         )
-        PlayerDefaults.TopControls(
-            player = player,
-            visible = controlsVisible,
+        Box(
             modifier =
                 Modifier
                     .align(Alignment.TopCenter)
                     .zIndex(2f)
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(8.dp),
+                    .fillMaxWidth(),
         ) {
-            if (source.hasSelectableSubtitles() && it != null) {
-                MobileSubtitleControls(
-                    player = it,
-                    onTrackSelectionChanged = onTrackSelectionChanged,
-                    onMenuVisibilityChanged = { controlsMenuOpen = it },
-                    modifier = Modifier.align(Alignment.TopEnd),
-                )
+            PlayerDefaults.TopControls(
+                player = player,
+                visible = controlsVisible,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(8.dp),
+            ) {
+                if (source.hasSelectableSubtitles() && it != null) {
+                    MobileSubtitleControls(
+                        player = it,
+                        onTrackSelectionChanged = onTrackSelectionChanged,
+                        onMenuVisibilityChanged = { controlsMenuOpen = it },
+                        modifier = Modifier.align(Alignment.TopEnd),
+                    )
+                }
             }
         }
-        PlayerDefaults.CenterControls(
-            player = player,
-            visible = controlsVisible,
+        Box(
             modifier =
                 Modifier
                     .align(Alignment.Center)
                     .zIndex(2f),
-        )
-        PlayerDefaults.BottomControls(
-            player = player,
-            visible = controlsVisible,
+        ) {
+            PlayerDefaults.CenterControls(
+                player = player,
+                visible = controlsVisible,
+            )
+        }
+        Box(
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
                     .zIndex(2f)
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .padding(8.dp),
-        )
+                    .fillMaxWidth(),
+        ) {
+            PlayerDefaults.BottomControls(
+                player = player,
+                visible = controlsVisible,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(8.dp),
+            )
+        }
     }
 }
 
@@ -705,6 +720,10 @@ private fun MobileSubtitleControls(
         mutableStateOf(player.trackSelectionParameters.subtitlesEnabled(tracks))
     }
     var menuExpanded by remember(player) { mutableStateOf(false) }
+
+    DisposableEffect(onMenuVisibilityChanged) {
+        onDispose { onMenuVisibilityChanged(false) }
+    }
 
     DisposableEffect(player) {
         val listener =

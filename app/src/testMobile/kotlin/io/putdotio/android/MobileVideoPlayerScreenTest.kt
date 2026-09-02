@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
@@ -14,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
@@ -225,22 +227,16 @@ class MobileVideoPlayerScreenTest {
                     Box(
                         Modifier
                             .fillMaxSize()
-                            .zIndex(0.5f),
+                            .zIndex(0.5f)
+                            .testTag("player-touch-target")
+                            .pointerInput(Unit) {
+                                detectTapGestures { taps += 1 }
+                            },
                     )
                     MobileSubtitleCueOverlay(
                         cues = listOf(Cue.Builder().setText("Visible subtitle").build()),
                         modifier = Modifier.zIndex(1f),
                     )
-                    Button(
-                        onClick = { taps += 1 },
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .zIndex(2f)
-                                .testTag("player-touch-target"),
-                    ) {
-                        Text("Player")
-                    }
                 }
             }
         }
