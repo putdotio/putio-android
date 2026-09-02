@@ -2,11 +2,11 @@ package io.putdotio.android
 
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Looper
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertHeightIsEqualTo
@@ -39,6 +40,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.VideoSize
@@ -79,6 +81,8 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.IOException
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 
 private fun ImageBitmap.hasVisiblePixel(): Boolean {
     val pixels = toPixelMap()
@@ -267,8 +271,6 @@ class MobileVideoPlayerScreenTest {
         val restoration = StateRestorationTester(compose)
         lateinit var preferences: RetainedPlayerPreferences
         var showReady by mutableStateOf(true)
-        val disabled = TrackSelectionParameters.Builder().build().withSubtitlesEnabled(false)
-
         restoration.setContent {
             preferences = rememberRetainedPlayerPreferences(42L)
             if (showReady) {
@@ -279,7 +281,7 @@ class MobileVideoPlayerScreenTest {
             preferences.retainPlayback(
                 retainPlaybackOnPause(positionMillis = 54_321L, playWhenReady = false),
             )
-            preferences.trackSelection = disabled.toBundle()
+            preferences.subtitleSelection = SubtitleSelection.Off
             showReady = false
         }
         compose.runOnIdle { showReady = true }
@@ -289,14 +291,17 @@ class MobileVideoPlayerScreenTest {
 
         compose.onNodeWithText("paused").assertIsDisplayed()
         compose.runOnIdle {
-            val restored = TrackSelectionParameters.fromBundle(requireNotNull(preferences.trackSelection))
-            assertTrue(C.TRACK_TYPE_TEXT in restored.disabledTrackTypes)
+            assertEquals(SubtitleSelection.Off, preferences.subtitleSelection)
             assertEquals(54_321L, preferences.positionMillis)
         }
     }
 
     @Test
     fun readyPlayerSubtreeCanBeRemovedAndRecreated() {
+        val players = mutableListOf<RecordingPlayer>()
+        val playerFactory = MobilePlayerFactory {
+            RecordingPlayer().also(players::add)
+        }
         var content by mutableStateOf<PlaybackContent>(
             PlaybackContent.Ready(
                 PlaybackSource(
@@ -313,12 +318,48 @@ class MobileVideoPlayerScreenTest {
                 MobileVideoPlayerScreen(
                     state = state(content),
                     onRetry = {},
-                    onPlayerFailure = { _, _ -> },
+                    onPlayerFailure = { failure, _ -> content = PlaybackContent.Failed(failure) },
                     onBack = {},
+                    playerFactory = playerFactory,
                 )
             }
         }
         compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(1, players.size)
+            assertEquals(1, players.single().mediaItemUpdates)
+            assertEquals(1, players.single().prepareCalls)
+            assertTrue(players.single().playWhenReady)
+        }
+
+        compose.runOnIdle {
+            content =
+                PlaybackContent.Ready(
+                    PlaybackSource(
+                        fileId = Target.fileId.value,
+                        kind = PlaybackSourceKind.MP4,
+                        url = credentialUrl("https://example.com/replaced-video.mp4"),
+                        startFromSeconds = 0.0,
+                        subtitles = PlaybackSubtitles.None,
+                    ),
+                )
+        }
+        compose.runOnIdle {
+            assertEquals(1, players.size)
+            assertEquals(2, players.single().mediaItemUpdates)
+        }
+
+        compose.runOnIdle {
+            players.single().fail(
+                PlaybackException(
+                    "decoder failed",
+                    null,
+                    PlaybackException.ERROR_CODE_DECODING_FAILED,
+                ),
+            )
+        }
+        compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
+        compose.runOnIdle { assertTrue(players.single().released) }
 
         compose.runOnIdle {
             content = PlaybackContent.Failed(PlaybackFailure.NetworkUnavailable(IOException("offline")))
@@ -338,6 +379,11 @@ class MobileVideoPlayerScreenTest {
                 )
         }
         compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(2, players.size)
+            assertFalse(players.last().released)
+            assertEquals(1, players.last().mediaItemUpdates)
+        }
     }
 
     @Test
@@ -455,6 +501,86 @@ class MobileVideoPlayerScreenTest {
     }
 }
 
+@UnstableApi
+private class RecordingPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
+    private var state =
+        State.Builder()
+            .setAvailableCommands(Media3Player.Commands.Builder().addAllCommands().build())
+            .setPlaybackState(Media3Player.STATE_IDLE)
+            .build()
+
+    var mediaItemUpdates = 0
+        private set
+    var prepareCalls = 0
+        private set
+    var released = false
+        private set
+
+    override fun getState(): State = state
+
+    fun fail(error: PlaybackException) {
+        state =
+            state.buildUpon()
+                .setPlayerError(error)
+                .setPlaybackState(Media3Player.STATE_IDLE)
+                .build()
+        invalidateState()
+    }
+
+    override fun handleSetMediaItems(
+        mediaItems: List<androidx.media3.common.MediaItem>,
+        startIndex: Int,
+        startPositionMs: Long,
+    ): ListenableFuture<*> {
+        mediaItemUpdates += 1
+        val playlist =
+            mediaItems.mapIndexed { index, mediaItem ->
+                MediaItemData.Builder(index)
+                    .setMediaItem(mediaItem)
+                    .build()
+            }
+        state =
+            state.buildUpon()
+                .setPlaylist(playlist)
+                .setCurrentMediaItemIndex(startIndex)
+                .setContentPositionMs(startPositionMs)
+                .build()
+        return Futures.immediateVoidFuture()
+    }
+
+    override fun handlePrepare(): ListenableFuture<*> {
+        prepareCalls += 1
+        state = state.buildUpon().setPlaybackState(Media3Player.STATE_READY).build()
+        return Futures.immediateVoidFuture()
+    }
+
+    override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
+        state =
+            state.buildUpon()
+                .setPlayWhenReady(playWhenReady, Media3Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+                .build()
+        return Futures.immediateVoidFuture()
+    }
+
+    override fun handleSetTrackSelectionParameters(
+        trackSelectionParameters: TrackSelectionParameters,
+    ): ListenableFuture<*> {
+        state = state.buildUpon().setTrackSelectionParameters(trackSelectionParameters).build()
+        return Futures.immediateVoidFuture()
+    }
+
+    override fun handleSetVideoOutput(videoOutput: Any): ListenableFuture<*> =
+        Futures.immediateVoidFuture()
+
+    override fun handleClearVideoOutput(videoOutput: Any?): ListenableFuture<*> =
+        Futures.immediateVoidFuture()
+
+    override fun handleRelease(): ListenableFuture<*> {
+        released = true
+        return Futures.immediateVoidFuture()
+    }
+}
+
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 @UnstableApi
@@ -481,9 +607,9 @@ class MobileVideoPlayerCodecTest {
         val disabled = defaults.withSubtitlesEnabled(false)
 
         val restored =
-            restoreTrackSelection(
+            restoreSubtitleSelection(
                 defaults = defaults,
-                retained = disabled.toBundle(),
+                retained = SubtitleSelection.Off,
                 systemCaptionsEnabled = true,
             )
 
@@ -495,21 +621,19 @@ class MobileVideoPlayerCodecTest {
                 Format.Builder().setId("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
                 Format.Builder().setId("de").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
             )
-        val selected =
-            defaults.withSubtitleTrack(
-                MobileSubtitleTrack(
-                    group = group,
-                    trackIndex = 1,
-                    label = "German",
-                    selected = false,
-                ),
+        val track =
+            MobileSubtitleTrack(
+                group = group,
+                trackIndex = 1,
+                label = "German",
+                selected = false,
             )
         val restoredSelection =
-            restoreTrackSelection(
+            restoreSubtitleSelection(
                 defaults = defaults,
-                retained = selected.toBundle(),
+                retained = SubtitleSelection.Track(track.identity),
                 systemCaptionsEnabled = false,
-            )
+            ).withSubtitleSelection(SubtitleSelection.Track(track.identity), listOf(track))
 
         assertEquals(listOf(1), restoredSelection.overrides.getValue(group).trackIndices)
     }
@@ -523,13 +647,13 @@ class MobileVideoPlayerCodecTest {
                 .build()
 
         val restored =
-            restoreTrackSelection(
+            restoreSubtitleSelection(
                 captionsDisabled,
                 retained = null,
                 systemCaptionsEnabled = false,
             )
         val captionsEnabled =
-            restoreTrackSelection(
+            restoreSubtitleSelection(
                 captionsDisabled,
                 retained = null,
                 systemCaptionsEnabled = true,
@@ -696,18 +820,86 @@ class MobileVideoPlayerCodecTest {
                 Format.Builder().setId("de").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
             )
         val selected =
-            TrackSelectionParameters.Builder().build().withSubtitleTrack(
-                MobileSubtitleTrack(
-                    group = group,
-                    trackIndex = 1,
-                    label = "German",
-                    selected = false,
+            TrackSelectionParameters.Builder().build().withSubtitleSelection(
+                SubtitleSelection.Track(group.getFormat(1).toSubtitleTrackIdentity()),
+                listOf(
+                    MobileSubtitleTrack(
+                        group = group,
+                        trackIndex = 1,
+                        label = "German",
+                        selected = false,
+                    ),
                 ),
             )
 
         assertTrue(selected.selectTextByDefault)
         assertFalse(C.TRACK_TYPE_TEXT in selected.disabledTrackTypes)
         assertEquals(listOf(1), selected.overrides.getValue(group).trackIndices)
+    }
+
+    @Test
+    fun retainedSubtitleIdentityResolvesAgainstReplacementTracks() {
+        val oldGroup =
+            TrackGroup(
+                Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+                Format.Builder().setId("de").setLanguage("de").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+            )
+        val replacementGroup =
+            TrackGroup(
+                Format.Builder().setId("en").setLanguage("en").setLabel("English").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+                Format.Builder().setId("de").setLanguage("de").setLabel("Deutsch").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+            )
+        val selection = SubtitleSelection.Track(oldGroup.getFormat(1).toSubtitleTrackIdentity())
+        val oldParameters =
+            TrackSelectionParameters.Builder().build().withSubtitleSelection(
+                selection,
+                listOf(MobileSubtitleTrack(oldGroup, 1, label = "German", selected = false)),
+            )
+
+        val replacementParameters =
+            oldParameters.withSubtitleSelection(
+                selection,
+                listOf(MobileSubtitleTrack(replacementGroup, 1, label = "German", selected = false)),
+            )
+
+        assertFalse(oldGroup in replacementParameters.overrides)
+        assertEquals(listOf(1), replacementParameters.overrides.getValue(replacementGroup).trackIndices)
+    }
+
+    @Test
+    fun activeNonTouchInteractionPreventsControlAutoHide() {
+        assertTrue(isPlayerControlActivity(KeyEventType.KeyDown))
+        assertFalse(isPlayerControlActivity(KeyEventType.KeyUp))
+        assertTrue(
+            controlsShouldAutoHide(
+                controlsVisible = true,
+                playerWantsToPlay = true,
+                pointerInteracting = false,
+                controlsFocused = false,
+                menuOpen = false,
+                touchExplorationEnabled = false,
+            ),
+        )
+        assertFalse(
+            controlsShouldAutoHide(
+                controlsVisible = true,
+                playerWantsToPlay = true,
+                pointerInteracting = false,
+                controlsFocused = true,
+                menuOpen = false,
+                touchExplorationEnabled = false,
+            ),
+        )
+        assertFalse(
+            controlsShouldAutoHide(
+                controlsVisible = true,
+                playerWantsToPlay = true,
+                pointerInteracting = false,
+                controlsFocused = false,
+                menuOpen = false,
+                touchExplorationEnabled = true,
+            ),
+        )
     }
 
     @Test
