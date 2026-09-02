@@ -43,7 +43,15 @@ cleanup() {
   fi
   rm -rf "${tmpdir}"
 }
-trap cleanup EXIT
+finish() {
+  local code=$?
+  trap - EXIT
+  if ! cleanup; then
+    exit 1
+  fi
+  exit "${code}"
+}
+trap finish EXIT
 
 mkdir -p \
   "${fake_sdk}/platform-tools" \
