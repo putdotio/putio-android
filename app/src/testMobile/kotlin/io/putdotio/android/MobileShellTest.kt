@@ -66,8 +66,12 @@ import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigChange
+import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
+import io.putdotio.android.settings.AndroidAppConfigFailure
+import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferNavigation
@@ -99,6 +103,29 @@ class MobileShellTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun appConfigAuthenticationFailureTriggersRootSessionRejection() {
+        var rejections = 0
+        val failure = AndroidAppConfigFailure.AuthenticationRequired(
+            PutioConfigurationException("expired"),
+        )
+        val state = AndroidAppConfigState(
+            content = AndroidAppConfigContent.Failed(failure),
+            mutation = AndroidAppConfigMutation.Idle,
+            nextRequestValue = 2L,
+        )
+
+        compose.setContent {
+            AuthoritativeSessionFailureEffect(
+                shouldReject = state.authoritativeSessionFailure() != null,
+                onReject = { rejections += 1 },
+            )
+        }
+
+        compose.waitForIdle()
+        assertEquals(1, rejections)
+    }
 
     @Test
     fun shellRendersTheContractDestinations() {

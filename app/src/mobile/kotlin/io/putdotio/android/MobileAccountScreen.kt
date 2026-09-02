@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
@@ -533,7 +534,7 @@ private fun MobilePlaybackTypeDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.mobile_settings_video_playback_type)) },
         text = {
-            Column {
+            Column(modifier = Modifier.selectableGroup()) {
                 VideoPlaybackType.entries.forEach { playbackType ->
                     Row(
                         modifier = Modifier
@@ -591,6 +592,7 @@ private fun MobileAppConfigLoadError(
     onRetry: () -> Unit,
 ) {
     ListItem(
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         headlineContent = { Text(stringResource(R.string.mobile_settings_playback_error_title)) },
         supportingContent = { Text(stringResource(failure.messageResource())) },
         trailingContent = {

@@ -388,11 +388,10 @@ private fun SignedInMobileRoot(
             ?: recentSearchFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
             ?: navigationFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
 
-    LaunchedEffect(authoritativeFailure) {
-        if (authoritativeFailure != null) {
-            authController.rejectAuthoritativeSession()
-        }
-    }
+    AuthoritativeSessionFailureEffect(
+        shouldReject = authoritativeFailure != null,
+        onReject = authController::rejectAuthoritativeSession,
+    )
 
     MobileShell(
         filesState = filesState,
@@ -439,6 +438,18 @@ private fun SignedInMobileRoot(
         onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
         onSignOut = { rootScope.launch { authController.logout() } },
     )
+}
+
+@Composable
+internal fun AuthoritativeSessionFailureEffect(
+    shouldReject: Boolean,
+    onReject: suspend () -> Unit,
+) {
+    LaunchedEffect(shouldReject) {
+        if (shouldReject) {
+            onReject()
+        }
+    }
 }
 
 @Composable
