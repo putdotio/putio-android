@@ -73,17 +73,16 @@ import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SdkPlaybackRepository
+import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsState
-import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
-import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -104,7 +103,6 @@ import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersRefresh
 import io.putdotio.android.transfers.TransfersState
-import io.putdotio.sdk.files.PlaybackPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -444,14 +442,6 @@ private fun SignedInMobileRoot(
         onSignOut = { rootScope.launch { authController.logout() } },
     )
 }
-
-internal fun AndroidAppConfigState.playbackPreference(): PlaybackPreference =
-    when ((content as? AndroidAppConfigContent.Ready)?.preferences?.videoPlaybackType) {
-        VideoPlaybackType.Mp4 -> PlaybackPreference.MP4
-        VideoPlaybackType.Hls,
-        null,
-        -> PlaybackPreference.HLS
-    }
 
 internal fun settingsRequireSessionRejection(
     accountSettingsState: AccountSettingsState,

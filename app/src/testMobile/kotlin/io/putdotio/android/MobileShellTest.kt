@@ -70,10 +70,8 @@ import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
-import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigState
-import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferNavigation
@@ -84,7 +82,6 @@ import io.putdotio.android.transfers.TransfersRequestId
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackConversionState
-import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
@@ -106,28 +103,6 @@ class MobileShellTest {
 
     @get:Rule
     val compose = createComposeRule()
-
-    @Test
-    fun appConfigMapsPlaybackTypeAndFallsBackToHlsUntilReady() {
-        assertEquals(PlaybackPreference.HLS, readyAndroidAppConfigState().playbackPreference())
-        assertEquals(
-            PlaybackPreference.MP4,
-            readyAndroidAppConfigState(
-                AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4),
-            ).playbackPreference(),
-        )
-        assertEquals(PlaybackPreference.HLS, AndroidAppConfigReducer.start().state.playbackPreference())
-        assertEquals(
-            PlaybackPreference.HLS,
-            AndroidAppConfigState(
-                content = AndroidAppConfigContent.Failed(
-                    AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
-                ),
-                mutation = AndroidAppConfigMutation.Idle,
-                nextRequestValue = 2L,
-            ).playbackPreference(),
-        )
-    }
 
     @Test
     fun appConfigAuthenticationFailureTriggersRootSessionRejection() {
