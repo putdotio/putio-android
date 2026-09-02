@@ -12,7 +12,7 @@ is_owned_fake_emulator() {
   local pid="$1" command
   [[ "${pid}" =~ ^[0-9]+$ ]] || return 1
   kill -0 "${pid}" 2>/dev/null || return 1
-  command="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
+  command="$(ps -ww -p "${pid}" -o command= 2>/dev/null || true)"
   [[ "${command}" == "/usr/bin/env bash ${fake_sdk}/emulator/emulator "* ||
     "${command}" == "/usr/bin/bash ${fake_sdk}/emulator/emulator "* ||
     "${command}" == "/bin/bash ${fake_sdk}/emulator/emulator "* ||
@@ -56,6 +56,8 @@ finish() {
   exit "${code}"
 }
 trap finish EXIT
+trap 'trap - INT TERM; exit 130' INT
+trap 'trap - INT TERM; exit 143' TERM
 
 mkdir -p \
   "${fake_sdk}/platform-tools" \
