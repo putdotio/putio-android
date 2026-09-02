@@ -505,6 +505,41 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun playerRecreatesAfterCoalescedStopAndStartWithoutResume() {
+        val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
+        val players = mutableListOf<RecordingPlayer>()
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                PutioTheme {
+                    MobileVideoPlayerScreen(
+                        state = state(PlaybackContent.Ready(videoSource())),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory { RecordingPlayer().also(players::add) },
+                    )
+                }
+            }
+        }
+        compose.runOnIdle { assertEquals(1, players.size) }
+
+        compose.runOnIdle {
+            players.single().movePositionTo(54_321L)
+            lifecycleOwner.moveTo(Lifecycle.State.STARTED)
+            lifecycleOwner.moveTo(Lifecycle.State.CREATED)
+            lifecycleOwner.moveTo(Lifecycle.State.STARTED)
+            assertTrue(players.single().released)
+            assertEquals(1, players.size)
+        }
+        compose.runOnIdle {
+            assertEquals(2, players.size)
+            assertFalse(players.last().released)
+            assertTrue(players.last().currentPosition in 54_321L..54_500L)
+            assertFalse(players.last().playWhenReady)
+        }
+    }
+
+    @Test
     fun selectedSubtitleTrackExposesCheckedState() {
         val group =
             TrackGroup(

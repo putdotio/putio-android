@@ -415,10 +415,13 @@ private fun MobileReadyVideoPlayer(
             player.pause()
         }
     }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+    LifecycleEventEffect(Lifecycle.Event.ON_START) {
         if (playerReleased) {
             playerGeneration += 1
-        } else if (retainedPlayIntent) {
+        }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (!playerReleased && retainedPlayIntent) {
             player.play()
         }
     }
