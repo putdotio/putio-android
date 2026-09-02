@@ -867,6 +867,56 @@ class MobileVideoPlayerCodecTest {
     }
 
     @Test
+    fun unmatchedRetainedSubtitleStaysDisabledUntilItsTrackAppears() {
+        val selectedFormat =
+            Format.Builder()
+                .setId("de")
+                .setLanguage("de")
+                .setSampleMimeType(MimeTypes.TEXT_VTT)
+                .build()
+        val selection = SubtitleSelection.Track(selectedFormat.toSubtitleTrackIdentity())
+
+        val pending =
+            TrackSelectionParameters.Builder().build().withSubtitleSelection(selection, emptyList())
+
+        assertFalse(pending.selectTextByDefault)
+        assertTrue(C.TRACK_TYPE_TEXT in pending.disabledTrackTypes)
+        assertTrue(pending.overrides.isEmpty())
+
+        val replacementGroup = TrackGroup(selectedFormat)
+        val resolved =
+            pending.withSubtitleSelection(
+                selection,
+                listOf(MobileSubtitleTrack(replacementGroup, 0, label = "German", selected = false)),
+            )
+
+        assertTrue(resolved.selectTextByDefault)
+        assertFalse(C.TRACK_TYPE_TEXT in resolved.disabledTrackTypes)
+        assertEquals(listOf(0), resolved.overrides.getValue(replacementGroup).trackIndices)
+    }
+
+    @Test
+    fun idlessSubtitleIdentityDistinguishesFlagsAndAccessibilityChannel() {
+        val forced =
+            Format.Builder()
+                .setLanguage("en")
+                .setLabel("English")
+                .setSampleMimeType(MimeTypes.APPLICATION_CEA608)
+                .setSelectionFlags(C.SELECTION_FLAG_FORCED)
+                .setAccessibilityChannel(1)
+                .build()
+        val full =
+            forced.buildUpon()
+                .setSelectionFlags(0)
+                .setAccessibilityChannel(2)
+                .build()
+        val forcedIdentity = forced.toSubtitleTrackIdentity()
+
+        assertTrue(forcedIdentity.matches(forced))
+        assertFalse(forcedIdentity.matches(full))
+    }
+
+    @Test
     fun activeNonTouchInteractionPreventsControlAutoHide() {
         assertTrue(isPlayerControlActivity(KeyEventType.KeyDown))
         assertFalse(isPlayerControlActivity(KeyEventType.KeyUp))

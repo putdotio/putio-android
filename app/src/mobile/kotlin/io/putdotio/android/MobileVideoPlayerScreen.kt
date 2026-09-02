@@ -831,19 +831,19 @@ private fun MobileSubtitleControls(
     }
 
     DisposableEffect(player, retainedSelection) {
+        fun applyRetainedSelection(currentTracks: List<MobileSubtitleTrack>) {
+            val selection = retainedSelection as? SubtitleSelection.Track ?: return
+            val parameters =
+                player.trackSelectionParameters.withSubtitleSelection(selection, currentTracks)
+            if (parameters != player.trackSelectionParameters) {
+                player.trackSelectionParameters = parameters
+            }
+        }
         val listener =
             object : Media3Player.Listener {
                 override fun onTracksChanged(currentTracks: Tracks) {
                     tracks = currentTracks.mobileSubtitleTracks()
-                    retainedSelection
-                        ?.takeIf { it is SubtitleSelection.Track }
-                        ?.let { selection ->
-                            val parameters =
-                                player.trackSelectionParameters.withSubtitleSelection(selection, tracks)
-                            if (parameters != player.trackSelectionParameters) {
-                                player.trackSelectionParameters = parameters
-                            }
-                        }
+                    applyRetainedSelection(tracks)
                     enabled = player.trackSelectionParameters.subtitlesEnabled(tracks)
                 }
 
@@ -853,6 +853,7 @@ private fun MobileSubtitleControls(
                 }
             }
         player.addListener(listener)
+        applyRetainedSelection(tracks)
         onDispose { player.removeListener(listener) }
     }
 
@@ -973,7 +974,10 @@ internal data class SubtitleTrackIdentity(
     val label: String?,
     val sampleMimeType: String?,
     val roleFlags: Int,
+    val selectionFlags: Int,
+    val accessibilityChannel: Int,
 ) {
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     fun matches(format: androidx.media3.common.Format): Boolean =
         if (id != null) {
             id == format.id
@@ -981,7 +985,9 @@ internal data class SubtitleTrackIdentity(
             language == format.language &&
                 label == format.label &&
                 sampleMimeType == format.sampleMimeType &&
-                roleFlags == format.roleFlags
+                roleFlags == format.roleFlags &&
+                selectionFlags == format.selectionFlags &&
+                accessibilityChannel == format.accessibilityChannel
         }
 }
 
@@ -1014,6 +1020,7 @@ internal fun Tracks.mobileSubtitleTracks(): List<MobileSubtitleTrack> =
                 }
         }
 
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun androidx.media3.common.Format.toSubtitleTrackIdentity(): SubtitleTrackIdentity =
     SubtitleTrackIdentity(
         id = id,
@@ -1021,6 +1028,8 @@ internal fun androidx.media3.common.Format.toSubtitleTrackIdentity(): SubtitleTr
         label = label,
         sampleMimeType = sampleMimeType,
         roleFlags = roleFlags,
+        selectionFlags = selectionFlags,
+        accessibilityChannel = accessibilityChannel,
     )
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -1046,14 +1055,18 @@ internal fun TrackSelectionParameters.withSubtitleSelection(
 
         is SubtitleSelection.Track -> {
             val track = tracks.firstOrNull { selection.identity.matches(it.group.getFormat(it.trackIndex)) }
-            builder
-                .setSelectTextByDefault(true)
-                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                .apply {
-                    if (track != null) {
-                        setOverrideForType(TrackSelectionOverride(track.group, track.trackIndex))
-                    }
-                }.build()
+            if (track == null) {
+                builder
+                    .setSelectTextByDefault(false)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    .build()
+            } else {
+                builder
+                    .setSelectTextByDefault(true)
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                    .setOverrideForType(TrackSelectionOverride(track.group, track.trackIndex))
+                    .build()
+            }
         }
     }
 }
@@ -1092,6 +1105,8 @@ private fun SubtitleSelection.toBundle(): Bundle =
                 putString("label", identity.label)
                 putString("sampleMimeType", identity.sampleMimeType)
                 putInt("roleFlags", identity.roleFlags)
+                putInt("selectionFlags", identity.selectionFlags)
+                putInt("accessibilityChannel", identity.accessibilityChannel)
             }
         }
     }
@@ -1108,6 +1123,8 @@ private fun Bundle.toSubtitleSelection(): SubtitleSelection? =
                     label = getString("label"),
                     sampleMimeType = getString("sampleMimeType"),
                     roleFlags = getInt("roleFlags"),
+                    selectionFlags = getInt("selectionFlags"),
+                    accessibilityChannel = getInt("accessibilityChannel"),
                 ),
             )
         else -> null
