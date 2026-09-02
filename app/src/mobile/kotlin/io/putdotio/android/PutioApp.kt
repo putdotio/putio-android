@@ -79,7 +79,6 @@ import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigEvent
-import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
@@ -464,7 +463,7 @@ internal fun AuthoritativeSessionFailureEffect(
 internal fun MobileShell(
     filesState: FilesBrowserState,
     accountSettingsState: AccountSettingsState,
-    appConfigState: AndroidAppConfigState = AndroidAppConfigReducer.start().state,
+    appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
     transfersState: TransfersState = emptyTransfersState(),
     transfersSessionId: MobileAuthSessionId? = null,

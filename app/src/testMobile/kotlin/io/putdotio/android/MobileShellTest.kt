@@ -171,6 +171,7 @@ class MobileShellTest {
                     MobileShell(
                         filesState = emptyFilesState(),
                         accountSettingsState = readyAccountSettingsState(),
+                        appConfigState = readyAndroidAppConfigState(),
                         account = Account,
                         playbackRepository = ConversionRepository,
                         sessionId = Session,
@@ -283,6 +284,7 @@ class MobileShellTest {
                 MobileShell(
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -377,6 +379,7 @@ class MobileShellTest {
                     MobileShell(
                         filesState = emptyFilesState(),
                         accountSettingsState = settingsState,
+                        appConfigState = readyAndroidAppConfigState(),
                         account = Account,
                         playbackRepository = ConversionRepository,
                         sessionId = Session,
@@ -469,6 +472,7 @@ class MobileShellTest {
                 MobileShell(
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
                     transfersState = resolvingTransfersState(),
                     account = Account,
                     playbackRepository = ConversionRepository,
@@ -517,6 +521,7 @@ class MobileShellTest {
                 MobileShell(
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
                     transfersState = transfersState,
                     transfersSessionId = sessionId,
                     account = Account,
@@ -564,6 +569,7 @@ class MobileShellTest {
                 MobileShell(
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
                     transfersState = transfersState,
                     account = Account,
                     playbackRepository = ConversionRepository,
@@ -606,6 +612,7 @@ class MobileShellTest {
                 MobileShell(
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
                     transfersState = resolvingTransfersState(),
                     account = Account,
                     playbackRepository = ConversionRepository,
@@ -637,6 +644,7 @@ class MobileShellTest {
                 MobileShell(
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
                     transfersSessionId = sessionId,
                     account = Account,
                     playbackRepository = ConversionRepository,
