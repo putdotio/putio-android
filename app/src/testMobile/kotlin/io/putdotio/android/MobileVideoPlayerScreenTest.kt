@@ -807,7 +807,7 @@ private class PlayerLifecycleOwner : LifecycleOwner {
 }
 
 @UnstableApi
-private class RecordingPlayer(
+internal class RecordingPlayer(
     private val releaseError: PlaybackException? = null,
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
     private var state =

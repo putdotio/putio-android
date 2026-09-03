@@ -4,6 +4,8 @@ import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigFailure
+import io.putdotio.android.settings.AndroidAppConfigEffect
+import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigReducer
@@ -140,6 +142,7 @@ class PlaybackPreferencesTest {
                         previousPreferences = disabled,
                         operation = AndroidAppConfigMutation.Operation.Save,
                     ),
+                confirmedPreferences = disabled,
             ).confirmedAutoplayNextVideo(),
         )
         assertTrue(
@@ -152,18 +155,81 @@ class PlaybackPreferencesTest {
                         previousPreferences = enabled,
                         operation = AndroidAppConfigMutation.Operation.Refresh,
                     ),
+                confirmedPreferences = enabled,
             ).confirmedAutoplayNextVideo(),
         )
+    }
+
+    @Test
+    fun chainedMutationsDoNotPromoteAnUnconfirmedAutoplayValue() {
+        val start = AndroidAppConfigReducer.start()
+        val loadRequestId = (start.effect as AndroidAppConfigEffect.Load).requestId
+        val loaded =
+            AndroidAppConfigReducer.reduce(
+                start.state,
+                AndroidAppConfigEvent.LoadSucceeded(
+                    loadRequestId,
+                    AndroidAppConfigPreferences(autoplayNextVideo = false),
+                ),
+            )
+        val savingAutoplay =
+            AndroidAppConfigReducer.reduce(
+                loaded.state,
+                AndroidAppConfigEvent.ChangeRequested(
+                    AndroidAppConfigChange.AutoplayNextVideo(true),
+                ),
+            )
+        val autoplayRequestId =
+            (savingAutoplay.effect as AndroidAppConfigEffect.Save).requestId
+        val refreshingAutoplay =
+            AndroidAppConfigReducer.reduce(
+                savingAutoplay.state,
+                AndroidAppConfigEvent.SaveSucceeded(autoplayRequestId),
+            )
+        val refreshFailed =
+            AndroidAppConfigReducer.reduce(
+                refreshingAutoplay.state,
+                AndroidAppConfigEvent.RefreshFailed(
+                    autoplayRequestId,
+                    AndroidAppConfigFailure.Unexpected(IllegalStateException("refresh failed")),
+                ),
+            )
+        val savingPlaybackType =
+            AndroidAppConfigReducer.reduce(
+                refreshFailed.state,
+                AndroidAppConfigEvent.ChangeRequested(
+                    AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
+                ),
+            )
+        val playbackTypeRequestId =
+            (savingPlaybackType.effect as AndroidAppConfigEffect.Save).requestId
+        val saveFailed =
+            AndroidAppConfigReducer.reduce(
+                savingPlaybackType.state,
+                AndroidAppConfigEvent.SaveFailed(
+                    playbackTypeRequestId,
+                    AndroidAppConfigFailure.Unexpected(IllegalStateException("save failed")),
+                ),
+            )
+
+        assertFalse(refreshFailed.state.confirmedAutoplayNextVideo())
+        assertFalse(savingPlaybackType.state.confirmedAutoplayNextVideo())
+        assertFalse(saveFailed.state.confirmedAutoplayNextVideo())
+        assertTrue((saveFailed.state.content as AndroidAppConfigContent.Ready).preferences.autoplayNextVideo)
     }
 
     private fun readyState(
         preferences: AndroidAppConfigPreferences = AndroidAppConfigPreferences(),
         mutation: AndroidAppConfigMutation = AndroidAppConfigMutation.Idle,
+        confirmedPreferences: AndroidAppConfigPreferences = preferences,
     ): AndroidAppConfigState {
         val loading = AndroidAppConfigReducer.start()
         return AndroidAppConfigReducer.reduce(
             loading.state,
             AndroidAppConfigEvent.LoadSucceeded(requireNotNull(loading.effect).requestId, preferences),
-        ).state.copy(mutation = mutation)
+        ).state.copy(
+            mutation = mutation,
+            confirmedPreferences = confirmedPreferences,
+        )
     }
 }

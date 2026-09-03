@@ -22,7 +22,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -473,6 +472,7 @@ internal fun MobileShell(
     transfersSessionId: MobileAuthSessionId? = null,
     account: MobileAccount,
     playbackRepository: PlaybackRepository,
+    playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
@@ -557,6 +557,7 @@ internal fun MobileShell(
             account = account,
             sessionId = sessionId,
             playbackRepository = playbackRepository,
+            playbackPlayerFactory = playbackPlayerFactory,
             onFilesEvent = onFilesEvent,
             onAccountSettingsEvent = onAccountSettingsEvent,
             onAppConfigEvent = onAppConfigEvent,
@@ -584,6 +585,7 @@ internal fun MobileShell(
                     account = account,
                     sessionId = sessionId,
                     playbackRepository = playbackRepository,
+                    playbackPlayerFactory = playbackPlayerFactory,
                     onFilesEvent = onFilesEvent,
                     onAccountSettingsEvent = onAccountSettingsEvent,
                     onAppConfigEvent = onAppConfigEvent,
@@ -605,6 +607,7 @@ internal fun MobileShell(
                     account = account,
                     sessionId = sessionId,
                     playbackRepository = playbackRepository,
+                    playbackPlayerFactory = playbackPlayerFactory,
                     onFilesEvent = onFilesEvent,
                     onAccountSettingsEvent = onAccountSettingsEvent,
                     onAppConfigEvent = onAppConfigEvent,
@@ -680,6 +683,7 @@ private fun PhoneShell(
     transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
     playbackRepository: PlaybackRepository,
+    playbackPlayerFactory: MobilePlayerFactory,
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
@@ -721,6 +725,7 @@ private fun PhoneShell(
             transfersSessionId = transfersSessionId,
             account = account,
             playbackRepository = playbackRepository,
+            playbackPlayerFactory = playbackPlayerFactory,
             sessionId = sessionId,
             onFilesEvent = onFilesEvent,
             onAccountSettingsEvent = onAccountSettingsEvent,
@@ -747,6 +752,7 @@ private fun TabletShell(
     transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
     playbackRepository: PlaybackRepository,
+    playbackPlayerFactory: MobilePlayerFactory,
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
@@ -788,6 +794,7 @@ private fun TabletShell(
                 transfersSessionId = transfersSessionId,
                 account = account,
                 playbackRepository = playbackRepository,
+                playbackPlayerFactory = playbackPlayerFactory,
                 sessionId = sessionId,
                 onFilesEvent = onFilesEvent,
                 onAccountSettingsEvent = onAccountSettingsEvent,
@@ -867,6 +874,7 @@ private fun MobileNavHost(
     transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
     playbackRepository: PlaybackRepository,
+    playbackPlayerFactory: MobilePlayerFactory,
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
@@ -945,13 +953,19 @@ private fun MobileNavHost(
                 (accountSettingsState.content as? AccountSettingsContent.Ready)
                     ?.preferences
                     ?.let { SubtitleStartupPolicy(it.showSubtitles, it.autoSelectSubtitles) }
+            val target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name)
+            val playbackViewModel: MobilePlaybackViewModel =
+                viewModel(
+                    viewModelStoreOwner = backStackEntry,
+                    factory = mobilePlaybackViewModelFactory(target, playbackRepository),
+                )
             MobilePlaybackRoute(
-                target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name),
-                repository = playbackRepository,
+                controller = playbackViewModel.controller,
                 subtitleStartupPolicy = subtitleStartupPolicy,
                 autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
                 onAuthenticationRequired = onPlaybackAuthenticationRequired,
                 onBack = navController::popBackStack,
+                playerFactory = playbackPlayerFactory,
             )
         }
     }
@@ -959,17 +973,13 @@ private fun MobileNavHost(
 
 @Composable
 private fun MobilePlaybackRoute(
-    target: PlaybackTarget,
-    repository: PlaybackRepository,
+    controller: PlaybackController,
     subtitleStartupPolicy: SubtitleStartupPolicy?,
     autoplayNextVideo: Boolean,
     onAuthenticationRequired: suspend () -> Unit,
     onBack: () -> Unit,
+    playerFactory: MobilePlayerFactory,
 ) {
-    val routeScope = rememberCoroutineScope()
-    val controller = remember(target, repository, routeScope) {
-        PlaybackController(target, repository, routeScope)
-    }
     val state by controller.state.collectAsStateWithLifecycle()
     val authenticationFailure =
         when (val content = state.content) {
@@ -978,9 +988,6 @@ private fun MobilePlaybackRoute(
             else -> null
         }?.takeIf { it is PlaybackFailure.AuthenticationRequired }
 
-    DisposableEffect(controller) {
-        onDispose(controller::close)
-    }
     LaunchedEffect(authenticationFailure) {
         if (authenticationFailure != null) {
             onAuthenticationRequired()
@@ -1000,6 +1007,7 @@ private fun MobilePlaybackRoute(
         subtitleStartupPolicy = subtitleStartupPolicy,
         autoplayNextVideo = autoplayNextVideo,
         onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
+        playerFactory = playerFactory,
     )
 }
 

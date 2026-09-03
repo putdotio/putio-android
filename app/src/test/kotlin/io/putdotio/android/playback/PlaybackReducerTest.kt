@@ -134,6 +134,30 @@ class PlaybackReducerTest {
     }
 
     @Test
+    fun failedResolutionAfterAutoplayRetriesTheAdvancedTarget() {
+        val finding = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerEnded)
+        val next = PlaybackTarget(FilesItemId(43L), "next.mkv")
+        val resolving =
+            PlaybackReducer.reduce(
+                finding.state,
+                PlaybackEvent.NextFound(PlaybackRequestId(2L), next),
+            )
+        val failure = PlaybackFailure.NetworkUnavailable(IllegalStateException("offline"))
+        val failed =
+            PlaybackReducer.reduce(
+                resolving.state,
+                PlaybackEvent.ResolveFailed(PlaybackRequestId(3L), failure),
+            )
+        val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
+
+        assertEquals(failure, (failed.state.content as PlaybackContent.Failed).failure)
+        assertEquals(next, retry.state.target)
+        assertEquals(setOf(Target.fileId, next.fileId), retry.state.visitedFileIds)
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(4L)), retry.state.content)
+        assertEquals(PlaybackEffect.Resolve(next, PlaybackRequestId(4L)), retry.effect)
+    }
+
+    @Test
     fun duplicateEndsAndStaleNextResultsCannotStartAnotherResolution() {
         val finding = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerEnded)
         val duplicate = PlaybackReducer.reduce(finding.state, PlaybackEvent.PlayerEnded)
@@ -154,24 +178,38 @@ class PlaybackReducerTest {
 
     @Test
     fun wrappingToAVisitedVideoEndsThePlaybackSession() {
-        val next = PlaybackTarget(FilesItemId(43L), "next.mkv")
+        val firstNext = PlaybackTarget(FilesItemId(43L), "first-next.mkv")
+        val secondNext = PlaybackTarget(FilesItemId(44L), "second-next.mkv")
         val findingFirst = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerEnded)
-        val resolvingNext = PlaybackReducer.reduce(
+        val resolvingFirstNext = PlaybackReducer.reduce(
             findingFirst.state,
-            PlaybackEvent.NextFound(PlaybackRequestId(2L), next),
+            PlaybackEvent.NextFound(PlaybackRequestId(2L), firstNext),
         )
-        val nextReady = PlaybackReducer.reduce(
-            resolvingNext.state,
+        val firstNextReady = PlaybackReducer.reduce(
+            resolvingFirstNext.state,
             PlaybackEvent.ResolveSucceeded(PlaybackRequestId(3L), PlaybackResolution.Ready(playbackSource())),
         )
-        val findingAfterNext = PlaybackReducer.reduce(nextReady.state, PlaybackEvent.PlayerEnded)
+        val findingSecond = PlaybackReducer.reduce(firstNextReady.state, PlaybackEvent.PlayerEnded)
+        val resolvingSecondNext =
+            PlaybackReducer.reduce(
+                findingSecond.state,
+                PlaybackEvent.NextFound(PlaybackRequestId(4L), secondNext),
+            )
+        val secondNextReady =
+            PlaybackReducer.reduce(
+                resolvingSecondNext.state,
+                PlaybackEvent.ResolveSucceeded(PlaybackRequestId(5L), PlaybackResolution.Ready(playbackSource())),
+            )
+        val findingWrapped = PlaybackReducer.reduce(secondNextReady.state, PlaybackEvent.PlayerEnded)
 
         val wrapped = PlaybackReducer.reduce(
-            findingAfterNext.state,
-            PlaybackEvent.NextFound(PlaybackRequestId(4L), Target),
+            findingWrapped.state,
+            PlaybackEvent.NextFound(PlaybackRequestId(6L), firstNext),
         )
 
         assertEquals(PlaybackContent.Ended, wrapped.state.content)
+        assertEquals(secondNext, wrapped.state.target)
+        assertEquals(setOf(Target.fileId, firstNext.fileId, secondNext.fileId), wrapped.state.visitedFileIds)
         assertNull(wrapped.effect)
     }
 
