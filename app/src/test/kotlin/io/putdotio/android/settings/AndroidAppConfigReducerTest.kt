@@ -17,6 +17,7 @@ class AndroidAppConfigReducerTest {
         val effect = transition.effect as AndroidAppConfigEffect.Load
         assertEquals(loading.requestId, effect.requestId)
         assertEquals(AndroidAppConfigMutation.Idle, transition.state.mutation)
+        assertNull(transition.state.confirmedPreferences)
     }
 
     @Test
@@ -36,6 +37,7 @@ class AndroidAppConfigReducerTest {
             val saving = transition.state.mutation as AndroidAppConfigMutation.Saving
             val effect = transition.effect as AndroidAppConfigEffect.Save
             assertEquals(expected, transition.state.readyPreferences())
+            assertEquals(Preferences, transition.state.confirmedPreferences)
             assertEquals(change, saving.change)
             assertEquals(Preferences, saving.previousPreferences)
             assertEquals(AndroidAppConfigMutation.Operation.Save, saving.operation)
@@ -130,6 +132,7 @@ class AndroidAppConfigReducerTest {
                 AndroidAppConfigEvent.RefreshSucceeded(requestId, authoritative),
             )
         assertEquals(authoritative, refreshed.state.readyPreferences())
+        assertEquals(authoritative, refreshed.state.confirmedPreferences)
         assertEquals(AndroidAppConfigMutation.Idle, refreshed.state.mutation)
     }
 
@@ -151,6 +154,7 @@ class AndroidAppConfigReducerTest {
             )
 
         assertEquals(VideoPlaybackType.Mp4, failed.state.readyPreferences().videoPlaybackType)
+        assertEquals(Preferences, failed.state.confirmedPreferences)
         assertEquals(
             AndroidAppConfigMutation.Operation.Refresh,
             (failed.state.mutation as AndroidAppConfigMutation.Failed).operation,

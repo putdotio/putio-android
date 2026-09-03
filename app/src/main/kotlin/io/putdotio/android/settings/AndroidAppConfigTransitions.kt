@@ -101,7 +101,12 @@ internal fun AndroidAppConfigState.loadSucceeded(
 ): AndroidAppConfigTransition {
     val loading = content as? AndroidAppConfigContent.Loading
     return if (loading?.requestId == event.requestId) {
-        AndroidAppConfigTransition(copy(content = AndroidAppConfigContent.Ready(event.preferences)))
+        AndroidAppConfigTransition(
+            copy(
+                content = AndroidAppConfigContent.Ready(event.preferences),
+                confirmedPreferences = event.preferences,
+            ),
+        )
     } else {
         AndroidAppConfigTransition(this, consumed = false)
     }
@@ -172,6 +177,7 @@ internal fun AndroidAppConfigState.refreshSucceeded(
             copy(
                 content = AndroidAppConfigContent.Ready(event.preferences),
                 mutation = AndroidAppConfigMutation.Idle,
+                confirmedPreferences = event.preferences,
             ),
         )
     } else {

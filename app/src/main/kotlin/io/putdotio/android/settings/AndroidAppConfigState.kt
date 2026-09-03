@@ -77,6 +77,8 @@ internal data class AndroidAppConfigState internal constructor(
     val content: AndroidAppConfigContent,
     val mutation: AndroidAppConfigMutation,
     internal val nextRequestValue: Long,
+    val confirmedPreferences: AndroidAppConfigPreferences? =
+        (content as? AndroidAppConfigContent.Ready)?.preferences,
 )
 
 internal sealed interface AndroidAppConfigEvent {
