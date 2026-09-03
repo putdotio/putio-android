@@ -759,11 +759,17 @@ internal fun nextPendingSeek(
                     basePosition + MOBILE_SEEK_INTERVAL_MILLIS
                 }
         }
+    val movedMillis =
+        when (direction) {
+            SeekDirection.Backward -> basePosition - targetPosition
+            SeekDirection.Forward -> targetPosition - basePosition
+        }
+    if (movedMillis == 0L) return null
     val accumulated =
         if (previous?.direction == direction) {
-            previous.accumulatedMillis + MOBILE_SEEK_INTERVAL_MILLIS
+            previous.accumulatedMillis + movedMillis
         } else {
-            MOBILE_SEEK_INTERVAL_MILLIS
+            movedMillis
         }
     return PendingSeek(
         direction = direction,

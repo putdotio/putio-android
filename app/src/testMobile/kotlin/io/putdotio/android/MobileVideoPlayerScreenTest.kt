@@ -600,6 +600,14 @@ class MobileVideoPlayerScreenTest {
             }
         }
 
+        compose.waitForIdle()
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+            assertFalse(player.currentSeekWindow().available)
+            assertEquals(60_000L, player.duration)
+            assertFalse(player.isCurrentMediaItemSeekable)
+        }
         compose.onNodeWithTag(MOBILE_SEEK_BACK_TAG).assertIsNotEnabled()
         compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsNotEnabled()
         compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
@@ -862,27 +870,24 @@ class MobileVideoPlayerCodecTest {
                     direction = SeekDirection.Forward,
                     requestId = 1L,
                 ),
-            )
+        )
         assertEquals(100_000L, first.targetPositionMillis)
-        assertEquals(10_000L, first.accumulatedMillis)
+        assertEquals(5_000L, first.accumulatedMillis)
 
-        val second =
-            requireNotNull(
-                nextPendingSeek(
-                    previous = first,
-                    currentPositionMillis = 95_000L,
-                    durationMillis = 100_000L,
-                    direction = SeekDirection.Forward,
-                    requestId = 2L,
-                ),
-            )
-        assertEquals(100_000L, second.targetPositionMillis)
-        assertEquals(20_000L, second.accumulatedMillis)
+        assertNull(
+            nextPendingSeek(
+                previous = first,
+                currentPositionMillis = 95_000L,
+                durationMillis = 100_000L,
+                direction = SeekDirection.Forward,
+                requestId = 2L,
+            ),
+        )
 
         val reversed =
             requireNotNull(
                 nextPendingSeek(
-                    previous = second,
+                    previous = first,
                     currentPositionMillis = 95_000L,
                     durationMillis = 100_000L,
                     direction = SeekDirection.Backward,
@@ -900,9 +905,9 @@ class MobileVideoPlayerCodecTest {
                     direction = SeekDirection.Backward,
                     requestId = 4L,
                 ),
-            )
+        )
         assertEquals(0L, clampedBackward.targetPositionMillis)
-        assertEquals(10_000L, clampedBackward.accumulatedMillis)
+        assertEquals(5_000L, clampedBackward.accumulatedMillis)
         assertNull(
             nextPendingSeek(
                 previous = null,
