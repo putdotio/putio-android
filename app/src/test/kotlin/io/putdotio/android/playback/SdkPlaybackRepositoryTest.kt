@@ -196,7 +196,7 @@ class SdkPlaybackRepositoryTest {
                     playbackPreference = { PlaybackPreference.HLS },
                     loadAccount = { error("Account must not load") },
                     resolvePlayback = { error("Playback must not resolve") },
-                    findNextVideo = { fileId, fileType ->
+                    lookupNextFile = { fileId, fileType ->
                         requestedFileId = fileId
                         requestedType = fileType
                         NextFile(id = 43L, name = "next.mkv", parentId = 7L, fileType = NextFileType.VIDEO)
@@ -243,7 +243,7 @@ class SdkPlaybackRepositoryTest {
             playbackPreference = { PlaybackPreference.HLS },
             loadAccount = { error("Account must not load") },
             resolvePlayback = { error("Playback must not resolve") },
-            findNextVideo = { _, _ -> throw error },
+            lookupNextFile = { _, _ -> throw error },
         )
 
     private fun account(

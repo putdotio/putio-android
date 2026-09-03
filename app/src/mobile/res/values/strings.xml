@@ -25,8 +25,6 @@
     <string name="mobile_playback_loading">Preparing video</string>
     <string name="mobile_playback_finding_next">Finding next video</string>
     <string name="mobile_playback_next_error_title">Couldn’t find the next video</string>
-    <string name="mobile_playback_ended_title">Playback finished</string>
-    <string name="mobile_playback_ended_message">Returning to Files.</string>
     <string name="mobile_playback_conversion_title">Video is being prepared</string>
     <string name="mobile_playback_conversion_queued">Conversion is queued.</string>
     <string name="mobile_playback_conversion_progress">Conversion is in progress. %1$s</string>

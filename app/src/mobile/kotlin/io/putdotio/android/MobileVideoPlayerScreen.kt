@@ -165,11 +165,7 @@ internal fun MobileVideoPlayerScreen(
                     onRetry = onRetry,
                 )
 
-            PlaybackContent.Ended ->
-                MobileEmptyState(
-                    title = stringResource(R.string.mobile_playback_ended_title),
-                    message = stringResource(R.string.mobile_playback_ended_message),
-                )
+            PlaybackContent.Ended -> Unit
 
             is PlaybackContent.Conversion ->
                 MobileErrorState(

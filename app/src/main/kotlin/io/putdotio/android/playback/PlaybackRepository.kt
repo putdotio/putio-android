@@ -96,7 +96,7 @@ class SdkPlaybackRepository internal constructor(
     private val playbackPreference: () -> PlaybackPreference,
     private val loadAccount: suspend () -> AccountInfo,
     private val resolvePlayback: suspend (PlaybackRequest) -> io.putdotio.sdk.files.PlaybackResolution,
-    private val findNextVideo: suspend (Long, NextFileType) -> NextFile = { _, _ ->
+    private val lookupNextFile: suspend (Long, NextFileType) -> NextFile = { _, _ ->
         error("Next-video lookup is not configured")
     },
 ) : PlaybackRepository {
@@ -107,7 +107,7 @@ class SdkPlaybackRepository internal constructor(
         playbackPreference = playbackPreference,
         loadAccount = { client.account.getInfo(AccountInfoQuery(downloadToken = true)) },
         resolvePlayback = client.files::resolvePlayback,
-        findNextVideo = client.files::findNextFile,
+        lookupNextFile = client.files::findNextFile,
     )
 
     @Suppress("TooGenericExceptionCaught")
@@ -139,7 +139,7 @@ class SdkPlaybackRepository internal constructor(
     @Suppress("TooGenericExceptionCaught")
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
         try {
-            val next = findNextVideo(target.fileId.value, NextFileType.VIDEO)
+            val next = lookupNextFile(target.fileId.value, NextFileType.VIDEO)
             PlaybackNextResult.Found(
                 PlaybackTarget(
                     fileId = io.putdotio.android.files.FilesItemId(next.id),
