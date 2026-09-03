@@ -830,15 +830,25 @@ internal fun MobileSeekFeedback(
     val accumulatedSeconds = (request.accumulatedMillis / 1_000L).toInt()
     Text(
         text =
-            pluralStringResource(
-                if (request.direction == SeekDirection.Backward) {
-                    R.plurals.mobile_playback_seek_back
-                } else {
-                    R.plurals.mobile_playback_seek_forward
-                },
-                accumulatedSeconds,
-                accumulatedSeconds,
-            ),
+            if (accumulatedSeconds == 0) {
+                stringResource(
+                    if (request.direction == SeekDirection.Backward) {
+                        R.string.mobile_playback_seek_back_less_than_second
+                    } else {
+                        R.string.mobile_playback_seek_forward_less_than_second
+                    },
+                )
+            } else {
+                pluralStringResource(
+                    if (request.direction == SeekDirection.Backward) {
+                        R.plurals.mobile_playback_seek_back
+                    } else {
+                        R.plurals.mobile_playback_seek_forward
+                    },
+                    accumulatedSeconds,
+                    accumulatedSeconds,
+                )
+            },
         color = MaterialTheme.colorScheme.onSurface,
         modifier =
             modifier

@@ -583,6 +583,32 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun subSecondSeekFeedbackAnnouncesTheBoundaryMovement() {
+        compose.setContent {
+            PutioTheme {
+                MobileSeekFeedback(
+                    PendingSeek(
+                        direction = SeekDirection.Forward,
+                        targetPositionMillis = 30_000L,
+                        accumulatedMillis = 500L,
+                        requestId = 1L,
+                    ),
+                )
+            }
+        }
+
+        compose
+            .onNodeWithText("Forward less than 1 second")
+            .assertIsDisplayed()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.LiveRegion,
+                    LiveRegionMode.Polite,
+                ),
+            )
+    }
+
+    @Test
     fun nonSeekableMediaDisablesControlsAndIgnoresDoubleTap() {
         lateinit var player: RecordingPlayer
         compose.setContent {
