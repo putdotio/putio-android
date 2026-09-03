@@ -968,6 +968,41 @@ class MobileVideoPlayerCodecTest {
     }
 
     @Test
+    fun pendingSeekClearsWhenTheSeekWindowDurationChangesOrBecomesUnavailable() {
+        val pending =
+            PendingSeek(
+                direction = SeekDirection.Forward,
+                targetPositionMillis = 100_000L,
+                accumulatedMillis = 5_000L,
+                requestId = 1L,
+            )
+        val initialWindow = PlayerSeekWindow(available = true, durationMillis = 100_000L)
+
+        assertEquals(
+            pending,
+            pendingSeekAfterWindowUpdate(
+                pending = pending,
+                previousWindow = initialWindow,
+                updatedWindow = initialWindow,
+            ),
+        )
+        assertNull(
+            pendingSeekAfterWindowUpdate(
+                pending = pending,
+                previousWindow = initialWindow,
+                updatedWindow = PlayerSeekWindow(available = true, durationMillis = 80_000L),
+            ),
+        )
+        assertNull(
+            pendingSeekAfterWindowUpdate(
+                pending = pending,
+                previousWindow = initialWindow,
+                updatedWindow = PlayerSeekWindow(available = false, durationMillis = 0L),
+            ),
+        )
+    }
+
+    @Test
     fun mobileVideoFactoryAppliesMovieAudioAttributes() {
         val player = DefaultMobilePlayerFactory.create(ApplicationProvider.getApplicationContext())
         try {

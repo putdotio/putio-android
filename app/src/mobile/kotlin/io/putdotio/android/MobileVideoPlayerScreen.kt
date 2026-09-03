@@ -475,7 +475,14 @@ private fun MobileReadyVideoPlayer(
                     player: Media3Player,
                     events: Media3Player.Events,
                 ) {
-                    seekWindow = player.currentSeekWindow()
+                    val updatedSeekWindow = player.currentSeekWindow()
+                    pendingSeek =
+                        pendingSeekAfterWindowUpdate(
+                            pending = pendingSeek,
+                            previousWindow = seekWindow,
+                            updatedWindow = updatedSeekWindow,
+                        )
+                    seekWindow = updatedSeekWindow
                 }
 
                 override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
@@ -708,6 +715,17 @@ internal data class PlayerSeekWindow(
     val available: Boolean,
     val durationMillis: Long,
 )
+
+internal fun pendingSeekAfterWindowUpdate(
+    pending: PendingSeek?,
+    previousWindow: PlayerSeekWindow,
+    updatedWindow: PlayerSeekWindow,
+): PendingSeek? =
+    pending?.takeIf {
+        updatedWindow.available &&
+            updatedWindow.durationMillis == previousWindow.durationMillis &&
+            it.targetPositionMillis <= updatedWindow.durationMillis
+    }
 
 internal fun Media3Player.currentSeekWindow(): PlayerSeekWindow {
     val canReadCurrentItem = isCommandAvailable(Media3Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
