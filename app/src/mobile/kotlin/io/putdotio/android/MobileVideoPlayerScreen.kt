@@ -12,11 +12,15 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.safeGestures
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -38,8 +42,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -48,6 +57,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.core.view.ViewCompat
+import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
@@ -68,7 +78,13 @@ import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
 internal const val MOBILE_VIDEO_PLAYER_TAG = "mobile-video-player"
+internal const val MOBILE_PLAYER_GESTURE_TAG = "mobile-player-gesture"
+internal const val MOBILE_SEEK_BACK_TAG = "mobile-seek-back"
+internal const val MOBILE_SEEK_FORWARD_TAG = "mobile-seek-forward"
+internal const val MOBILE_SEEK_FEEDBACK_TAG = "mobile-seek-feedback"
 private const val MOBILE_CONTROLS_HIDE_DELAY_MILLIS = 3_000L
+private const val MOBILE_SEEK_FEEDBACK_DELAY_MILLIS = 800L
+internal const val MOBILE_SEEK_INTERVAL_MILLIS = 10_000L
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
@@ -233,10 +249,31 @@ private fun MobileReadyVideoPlayer(
     var controlsActivity by remember { mutableIntStateOf(0) }
     var failurePositionMillis by remember(player) { mutableStateOf<Long?>(null) }
     var endedReported by remember(player) { mutableStateOf(false) }
+    var seekWindow by remember(player) { mutableStateOf(player.currentSeekWindow()) }
+    var pendingSeek by remember(player, source.fileId) { mutableStateOf<PendingSeek?>(null) }
+    var nextSeekRequestId by remember(player) { mutableLongStateOf(0L) }
     val hostView = LocalView.current
     LaunchedEffect(player, resumeAfterLifecyclePause) {
         retainedPlayIntent = resumeAfterLifecyclePause
     }
+    fun seek(direction: SeekDirection) {
+        val currentWindow = player.currentSeekWindow()
+        seekWindow = currentWindow
+        if (!currentWindow.available) return
+        val request =
+            nextPendingSeek(
+                previous = pendingSeek,
+                currentPositionMillis = player.currentPosition,
+                durationMillis = currentWindow.durationMillis,
+                direction = direction,
+                requestId = ++nextSeekRequestId,
+            ) ?: return
+        pendingSeek = request
+        retainedPositionMillis = request.targetPositionMillis
+        currentOnPositionChanged.value(request.targetPositionMillis)
+        player.seekTo(request.targetPositionMillis)
+    }
+
     LaunchedEffect(player, preparedPlayback) {
         val replacingFileId = activeFileId
         val replacementPosition =
@@ -260,6 +297,7 @@ private fun MobileReadyVideoPlayer(
         activeFileId = source.fileId
         player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
         player.prepare()
+        seekWindow = player.currentSeekWindow()
         playerWantsToPlay =
             lifecycleAllowsAutoplay(lifecycle.currentState, retainedPlayIntent)
         player.playWhenReady = playerWantsToPlay
@@ -313,6 +351,12 @@ private fun MobileReadyVideoPlayer(
         ) {
             delay(MOBILE_CONTROLS_HIDE_DELAY_MILLIS)
             controlsVisible = false
+        }
+    }
+    LaunchedEffect(pendingSeek?.requestId) {
+        if (pendingSeek != null) {
+            delay(MOBILE_SEEK_FEEDBACK_DELAY_MILLIS)
+            pendingSeek = null
         }
     }
 
@@ -427,6 +471,13 @@ private fun MobileReadyVideoPlayer(
                     }
                 }
 
+                override fun onEvents(
+                    player: Media3Player,
+                    events: Media3Player.Events,
+                ) {
+                    seekWindow = player.currentSeekWindow()
+                }
+
                 override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
                     keepScreenOn = player.shouldKeepScreenOn()
                 }
@@ -496,16 +547,33 @@ private fun MobileReadyVideoPlayer(
             Modifier
                 .fillMaxSize()
                 .zIndex(0.5f)
-                .pointerInput(playbackState, touchExplorationEnabled) {
-                    detectTapGestures {
-                        onPointerNavigation()
-                        controlsVisible =
-                            controlsVisibleAfterTap(
+                .windowInsetsPadding(WindowInsets.safeGestures)
+                .testTag(MOBILE_PLAYER_GESTURE_TAG)
+                .pointerInput(player, source.fileId, seekWindow, playbackState, touchExplorationEnabled) {
+                    detectTapGestures(
+                        onDoubleTap = { position ->
+                            onPointerNavigation()
+                            if (seekWindow.available) {
+                                seek(
+                                    if (position.x < size.width / 2f) {
+                                        SeekDirection.Backward
+                                    } else {
+                                        SeekDirection.Forward
+                                    },
+                                )
+                            } else {
+                                controlsVisible = true
+                            }
+                        },
+                        onTap = {
+                            onPointerNavigation()
+                            controlsVisible = controlsVisibleAfterTap(
                                 controlsVisible = controlsVisible,
                                 playbackState = playbackState,
                                 touchExplorationEnabled = touchExplorationEnabled,
                             )
-                    }
+                        },
+                    )
                 },
         )
         MobileSubtitleCueOverlay(
@@ -566,6 +634,37 @@ private fun MobileReadyVideoPlayer(
                             controlsVisible = true
                             controlsActivity += 1
                         },
+                back = {
+                    MobileSeekButton(
+                        direction = SeekDirection.Backward,
+                        enabled = seekWindow.available,
+                        onClick = { seek(SeekDirection.Backward) },
+                    )
+                },
+                forward = {
+                    MobileSeekButton(
+                        direction = SeekDirection.Forward,
+                        enabled = seekWindow.available,
+                        onClick = { seek(SeekDirection.Forward) },
+                    )
+                },
+            )
+        }
+        pendingSeek?.let { request ->
+            MobileSeekFeedback(
+                request = request,
+                modifier =
+                    Modifier
+                        .align(
+                            if (request.direction == SeekDirection.Backward) {
+                                Alignment.CenterStart
+                            } else {
+                                Alignment.CenterEnd
+                            },
+                        )
+                        .zIndex(3f)
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        .padding(horizontal = 32.dp, vertical = 88.dp),
             )
         }
         Box(
@@ -591,6 +690,159 @@ private fun MobileReadyVideoPlayer(
             )
         }
     }
+}
+
+internal enum class SeekDirection {
+    Backward,
+    Forward,
+}
+
+internal data class PendingSeek(
+    val direction: SeekDirection,
+    val targetPositionMillis: Long,
+    val accumulatedMillis: Long,
+    val requestId: Long,
+)
+
+internal data class PlayerSeekWindow(
+    val available: Boolean,
+    val durationMillis: Long,
+)
+
+internal fun Media3Player.currentSeekWindow(): PlayerSeekWindow {
+    val canReadCurrentItem = isCommandAvailable(Media3Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
+    val knownDuration = if (canReadCurrentItem) duration else C.TIME_UNSET
+    return playerSeekWindow(
+        canReadCurrentItem = canReadCurrentItem,
+        durationMillis = knownDuration,
+        seekable = canReadCurrentItem && isCurrentMediaItemSeekable,
+        live = canReadCurrentItem && isCurrentMediaItemLive,
+        canSeek = isCommandAvailable(Media3Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM),
+    )
+}
+
+internal fun playerSeekWindow(
+    canReadCurrentItem: Boolean,
+    durationMillis: Long,
+    seekable: Boolean,
+    live: Boolean,
+    canSeek: Boolean,
+): PlayerSeekWindow {
+    val knownDuration = durationMillis.takeIf { it != C.TIME_UNSET && it > 0L } ?: 0L
+    return PlayerSeekWindow(
+        available =
+            canReadCurrentItem &&
+                knownDuration > 0L &&
+                seekable &&
+                !live &&
+                canSeek,
+        durationMillis = knownDuration,
+    )
+}
+
+internal fun nextPendingSeek(
+    previous: PendingSeek?,
+    currentPositionMillis: Long,
+    durationMillis: Long,
+    direction: SeekDirection,
+    requestId: Long,
+): PendingSeek? {
+    if (durationMillis <= 0L) return null
+    val basePosition = (previous?.targetPositionMillis ?: currentPositionMillis).coerceIn(0L, durationMillis)
+    val targetPosition =
+        when (direction) {
+            SeekDirection.Backward -> (basePosition - MOBILE_SEEK_INTERVAL_MILLIS).coerceAtLeast(0L)
+            SeekDirection.Forward ->
+                if (durationMillis - basePosition <= MOBILE_SEEK_INTERVAL_MILLIS) {
+                    durationMillis
+                } else {
+                    basePosition + MOBILE_SEEK_INTERVAL_MILLIS
+                }
+        }
+    val accumulated =
+        if (previous?.direction == direction) {
+            previous.accumulatedMillis + MOBILE_SEEK_INTERVAL_MILLIS
+        } else {
+            MOBILE_SEEK_INTERVAL_MILLIS
+        }
+    return PendingSeek(
+        direction = direction,
+        targetPositionMillis = targetPosition,
+        accumulatedMillis = accumulated,
+        requestId = requestId,
+    )
+}
+
+@Composable
+private fun MobileSeekButton(
+    direction: SeekDirection,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val intervalSeconds = (MOBILE_SEEK_INTERVAL_MILLIS / 1_000L).toInt()
+    val description =
+        pluralStringResource(
+            if (direction == SeekDirection.Backward) {
+                R.plurals.mobile_playback_seek_back
+            } else {
+                R.plurals.mobile_playback_seek_forward
+            },
+            intervalSeconds,
+            intervalSeconds,
+        )
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier =
+            modifier
+                .requiredSize(48.dp)
+                .testTag(
+                    if (direction == SeekDirection.Backward) {
+                        MOBILE_SEEK_BACK_TAG
+                    } else {
+                        MOBILE_SEEK_FORWARD_TAG
+                    },
+                ).semantics { contentDescription = description },
+    ) {
+        Text(
+            if (direction == SeekDirection.Backward) {
+                "−10"
+            } else {
+                "+10"
+            },
+            modifier = Modifier.clearAndSetSemantics {},
+        )
+    }
+}
+
+@Composable
+internal fun MobileSeekFeedback(
+    request: PendingSeek,
+    modifier: Modifier = Modifier,
+) {
+    val accumulatedSeconds = (request.accumulatedMillis / 1_000L).toInt()
+    Text(
+        text =
+            pluralStringResource(
+                if (request.direction == SeekDirection.Backward) {
+                    R.plurals.mobile_playback_seek_back
+                } else {
+                    R.plurals.mobile_playback_seek_forward
+                },
+                accumulatedSeconds,
+                accumulatedSeconds,
+            ),
+        color = MaterialTheme.colorScheme.onSurface,
+        modifier =
+            modifier
+                .background(
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    shape = MaterialTheme.shapes.large,
+                ).padding(horizontal = 16.dp, vertical = 12.dp)
+                .testTag(MOBILE_SEEK_FEEDBACK_TAG)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+    )
 }
 
 internal fun Modifier.observePlayerControlInteraction(

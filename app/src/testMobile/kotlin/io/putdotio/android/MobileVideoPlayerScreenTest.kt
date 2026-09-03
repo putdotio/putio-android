@@ -8,13 +8,38 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.InputModeManager
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.doubleClick
+import androidx.compose.ui.test.percentOffset
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.media3.common.C
@@ -458,6 +483,132 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun visibleSeekControlsAccumulateAndClampAtTheDuration() {
+        lateinit var player: RecordingPlayer
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = readyState(startFromSeconds = 12.345),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory =
+                        MobilePlayerFactory {
+                            RecordingPlayer(durationMillis = 30_000L).also { player = it }
+                        },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+            assertTrue(
+                "duration=${player.duration}, seekable=${player.isCurrentMediaItemSeekable}, " +
+                    "live=${player.isCurrentMediaItemLive}, commands=${player.availableCommands}",
+                player.currentSeekWindow().available,
+            )
+        }
+        compose.onNodeWithContentDescription("Forward 10 seconds")
+            .assertIsEnabled()
+            .performClick()
+        compose.onNodeWithContentDescription("Forward 10 seconds").performClick()
+
+        compose.runOnIdle { assertEquals(listOf(22_345L, 30_000L), player.seekPositions) }
+    }
+
+    @Test
+    fun doubleTapSeeksBySideAndSingleTapStillTogglesControls() {
+        lateinit var player: RecordingPlayer
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = readyState(startFromSeconds = 20.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory =
+                        MobilePlayerFactory {
+                            RecordingPlayer(durationMillis = 60_000L).also { player = it }
+                        },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+        }
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            click(percentOffset(0.5f, 0.25f))
+        }
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onAllNodesWithTag(MOBILE_SEEK_FORWARD_TAG).assertCountEquals(0)
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.25f))
+            doubleClick(percentOffset(0.25f, 0.25f))
+        }
+
+        compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L), player.seekPositions) }
+    }
+
+    @Test
+    fun accumulatedSeekFeedbackIsVisible() {
+        compose.setContent {
+            PutioTheme {
+                MobileSeekFeedback(
+                    PendingSeek(
+                        direction = SeekDirection.Forward,
+                        targetPositionMillis = 30_000L,
+                        accumulatedMillis = 20_000L,
+                        requestId = 2L,
+                    ),
+                )
+            }
+        }
+
+        compose
+            .onNodeWithText("Forward 20 seconds")
+            .assertIsDisplayed()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.LiveRegion,
+                    LiveRegionMode.Polite,
+                ),
+            )
+    }
+
+    @Test
+    fun nonSeekableMediaDisablesControlsAndIgnoresDoubleTap() {
+        lateinit var player: RecordingPlayer
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = readyState(startFromSeconds = 12.345),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory =
+                        MobilePlayerFactory {
+                            RecordingPlayer(seekable = false).also { player = it }
+                        },
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_SEEK_BACK_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle { assertTrue(player.seekPositions.isEmpty()) }
+    }
+
+    @Test
     @UnstableApi
     fun mediaItemPreservesHlsMetadataAndKnownSidecarSubtitles() {
         val source = PlaybackSource(
@@ -521,6 +672,19 @@ class MobileVideoPlayerScreenTest {
             nextRequestValue = 2L,
         )
 
+    private fun readyState(startFromSeconds: Double): PlaybackState =
+        state(
+            PlaybackContent.Ready(
+                PlaybackSource(
+                    fileId = Target.fileId.value,
+                    kind = PlaybackSourceKind.MP4,
+                    url = credentialUrl("https://example.com/video.mp4"),
+                    startFromSeconds = startFromSeconds,
+                    subtitles = PlaybackSubtitles.None,
+                ),
+            ),
+        )
+
     private fun subtitle(
         name: String,
         languageCode: String,
@@ -570,6 +734,8 @@ private class PlayerLifecycleOwner : LifecycleOwner {
 @UnstableApi
 internal class RecordingPlayer(
     private val releaseError: PlaybackException? = null,
+    private val durationMillis: Long = 60_000L,
+    private val seekable: Boolean = true,
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
     private var state =
         State.Builder()
@@ -585,6 +751,7 @@ internal class RecordingPlayer(
         private set
     var playStateUpdatesAfterRelease = 0
         private set
+    val seekPositions = mutableListOf<Long>()
 
     override fun getState(): State = state
 
@@ -617,6 +784,8 @@ internal class RecordingPlayer(
             mediaItems.mapIndexed { index, mediaItem ->
                 MediaItemData.Builder(index)
                     .setMediaItem(mediaItem)
+                    .setDurationUs(durationMillis * 1_000L)
+                    .setIsSeekable(seekable)
                     .build()
             }
         state =
@@ -654,6 +823,17 @@ internal class RecordingPlayer(
         return Futures.immediateVoidFuture()
     }
 
+    override fun handleSeek(
+        mediaItemIndex: Int,
+        positionMs: Long,
+        seekCommand: Int,
+    ): ListenableFuture<*> {
+        seekPositions += positionMs
+        state = state.buildUpon().setContentPositionMs(positionMs).build()
+        invalidateState()
+        return Futures.immediateVoidFuture()
+    }
+
     override fun handleSetVideoOutput(videoOutput: Any): ListenableFuture<*> =
         Futures.immediateVoidFuture()
 
@@ -671,6 +851,91 @@ internal class RecordingPlayer(
 @Config(sdk = [35])
 @UnstableApi
 class MobileVideoPlayerCodecTest {
+    @Test
+    fun pendingSeekAccumulatesRequestedStepsFromThePendingTargetAndClamps() {
+        val first =
+            requireNotNull(
+                nextPendingSeek(
+                    previous = null,
+                    currentPositionMillis = 95_000L,
+                    durationMillis = 100_000L,
+                    direction = SeekDirection.Forward,
+                    requestId = 1L,
+                ),
+            )
+        assertEquals(100_000L, first.targetPositionMillis)
+        assertEquals(10_000L, first.accumulatedMillis)
+
+        val second =
+            requireNotNull(
+                nextPendingSeek(
+                    previous = first,
+                    currentPositionMillis = 95_000L,
+                    durationMillis = 100_000L,
+                    direction = SeekDirection.Forward,
+                    requestId = 2L,
+                ),
+            )
+        assertEquals(100_000L, second.targetPositionMillis)
+        assertEquals(20_000L, second.accumulatedMillis)
+
+        val reversed =
+            requireNotNull(
+                nextPendingSeek(
+                    previous = second,
+                    currentPositionMillis = 95_000L,
+                    durationMillis = 100_000L,
+                    direction = SeekDirection.Backward,
+                    requestId = 3L,
+                ),
+            )
+        assertEquals(90_000L, reversed.targetPositionMillis)
+        assertEquals(10_000L, reversed.accumulatedMillis)
+        val clampedBackward =
+            requireNotNull(
+                nextPendingSeek(
+                    previous = null,
+                    currentPositionMillis = 5_000L,
+                    durationMillis = 100_000L,
+                    direction = SeekDirection.Backward,
+                    requestId = 4L,
+                ),
+            )
+        assertEquals(0L, clampedBackward.targetPositionMillis)
+        assertEquals(10_000L, clampedBackward.accumulatedMillis)
+        assertNull(
+            nextPendingSeek(
+                previous = null,
+                currentPositionMillis = 1L,
+                durationMillis = 0L,
+                direction = SeekDirection.Backward,
+                requestId = 5L,
+            ),
+        )
+    }
+
+    @Test
+    fun seekWindowRejectsUnreadableUnknownLiveNonSeekableAndUnavailableMedia() {
+        assertTrue(
+            playerSeekWindow(
+                canReadCurrentItem = true,
+                durationMillis = 60_000L,
+                seekable = true,
+                live = false,
+                canSeek = true,
+            ).available,
+        )
+        listOf(
+            playerSeekWindow(false, 60_000L, seekable = true, live = false, canSeek = true),
+            playerSeekWindow(true, C.TIME_UNSET, seekable = true, live = false, canSeek = true),
+            playerSeekWindow(true, 60_000L, seekable = true, live = true, canSeek = true),
+            playerSeekWindow(true, 60_000L, seekable = false, live = false, canSeek = true),
+            playerSeekWindow(true, 60_000L, seekable = true, live = false, canSeek = false),
+        ).forEach { window ->
+            assertFalse(window.available)
+        }
+    }
+
     @Test
     fun mobileVideoFactoryAppliesMovieAudioAttributes() {
         val player = DefaultMobilePlayerFactory.create(ApplicationProvider.getApplicationContext())
