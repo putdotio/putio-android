@@ -88,6 +88,7 @@ class AndroidAppConfigReducerTest {
             )
 
         assertEquals(Preferences, failed.state.readyPreferences())
+        assertEquals(Preferences, failed.state.confirmedPreferences)
         assertEquals(
             AndroidAppConfigMutation.Failed(
                 change = change,
@@ -101,6 +102,7 @@ class AndroidAppConfigReducerTest {
         val retried = AndroidAppConfigReducer.reduce(failed.state, AndroidAppConfigEvent.RetryChange)
         val retryEffect = retried.effect as AndroidAppConfigEffect.Save
         assertTrue(retried.state.readyPreferences().autoplayNextVideo)
+        assertEquals(Preferences, retried.state.confirmedPreferences)
         assertEquals(change, retryEffect.change)
         assertTrue(retryEffect.requestId.value > requestId.value)
         assertEquals(
@@ -181,6 +183,7 @@ class AndroidAppConfigReducerTest {
             assertTrue(superseded.consumed)
             assertEquals(replacement, (superseded.effect as AndroidAppConfigEffect.Save).change)
             assertTrue(superseded.state.readyPreferences().autoplayNextVideo)
+            assertEquals(Preferences, superseded.state.confirmedPreferences)
         }
 
         val authenticationFailure =
