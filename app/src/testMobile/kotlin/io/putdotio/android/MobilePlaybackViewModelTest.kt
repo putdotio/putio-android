@@ -16,7 +16,9 @@ import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -31,7 +33,7 @@ import org.robolectric.annotation.Config
 class MobilePlaybackViewModelTest {
     @Test
     fun advancedTargetAndVisitedFilesSurviveActivityRecreation() {
-        val repository = AdvancingRepository()
+        val repository = ControlledRepository()
         val activityController = Robolectric.buildActivity(PlaybackHostActivity::class.java).setup()
 
         try {
@@ -40,21 +42,46 @@ class MobilePlaybackViewModelTest {
             shadowOf(Looper.getMainLooper()).idle()
             assertTrue(beforeViewModel.controller.dispatch(PlaybackEvent.PlayerEnded))
             shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(repository.findNextStarted.isCompleted)
 
             activityController.recreate()
 
             val afterActivity = activityController.get()
             val afterViewModel = afterActivity.playbackViewModel(repository)
+            repository.nextResult.complete(PlaybackNextResult.Found(NextTarget))
+            shadowOf(Looper.getMainLooper()).idle()
             val state = afterViewModel.controller.state.value
             assertNotSame(beforeActivity, afterActivity)
             assertSame(beforeViewModel, afterViewModel)
             assertSame(beforeViewModel.controller, afterViewModel.controller)
             assertEquals(NextTarget, state.target)
             assertEquals(setOf(InitialTarget.fileId, NextTarget.fileId), state.visitedFileIds)
+            assertEquals(4L, state.nextRequestValue)
             assertTrue(state.content is PlaybackContent.Ready)
+            assertEquals(listOf(InitialTarget, NextTarget), repository.resolvedTargets)
         } finally {
             activityController.close()
         }
+    }
+
+    @Test
+    fun permanentOwnerDestructionCancelsPendingPlaybackWork() {
+        val repository = ControlledRepository()
+        val activityController = Robolectric.buildActivity(PlaybackHostActivity::class.java).setup()
+        val viewModel = activityController.get().playbackViewModel(repository)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(viewModel.controller.dispatch(PlaybackEvent.PlayerEnded))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(repository.findNextStarted.isCompleted)
+
+        activityController.close()
+        repository.nextResult.complete(PlaybackNextResult.Found(NextTarget))
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(listOf(InitialTarget), repository.resolvedTargets)
+        assertEquals(InitialTarget, viewModel.controller.state.value.target)
+        assertTrue(viewModel.controller.state.value.content is PlaybackContent.FindingNext)
+        assertFalse(viewModel.controller.dispatch(PlaybackEvent.Retry))
     }
 
     private fun PlaybackHostActivity.playbackViewModel(
@@ -67,11 +94,16 @@ class MobilePlaybackViewModelTest {
 
     class PlaybackHostActivity : ComponentActivity()
 
-    private class AdvancingRepository : PlaybackRepository {
+    private class ControlledRepository : PlaybackRepository {
+        val findNextStarted = CompletableDeferred<Unit>()
+        val nextResult = CompletableDeferred<PlaybackNextResult>()
+        val resolvedTargets = mutableListOf<PlaybackTarget>()
+
         override suspend fun resolve(
             target: PlaybackTarget,
-        ): PlaybackRepositoryResult<PlaybackResolution> =
-            PlaybackRepositoryResult.Success(
+        ): PlaybackRepositoryResult<PlaybackResolution> {
+            resolvedTargets += target
+            return PlaybackRepositoryResult.Success(
                 PlaybackResolution.Ready(
                     PlaybackSource(
                         fileId = target.fileId.value,
@@ -82,9 +114,12 @@ class MobilePlaybackViewModelTest {
                     ),
                 ),
             )
+        }
 
-        override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
-            PlaybackNextResult.Found(NextTarget)
+        override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult {
+            findNextStarted.complete(Unit)
+            return nextResult.await()
+        }
     }
 
     private companion object {
