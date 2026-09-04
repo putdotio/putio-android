@@ -71,7 +71,7 @@ private fun FilesFolderState.appendPage(
         null
     } else {
         val updatedConsumedCursors = consumedCursors + loading.cursor
-        val items = (state.items() + page.items).distinctBy(FilesItem::id)
+        val items = state.items() + page.items
         copy(
             content =
                 contentFor(
