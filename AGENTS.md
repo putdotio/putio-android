@@ -81,10 +81,11 @@ Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 
 `.github/workflows/ci.yml` runs on every PR and push to main: `./gradlew
 verify` (including the minified SDK-consumer build) plus both debug flavor
-assembles, uploading the debug APKs as the run's `debug-apks` artifact. The
-`Verify Android app` check is required by branch protection on `main`.
-Conventions mirror `putio-sdk-kotlin`: pinned action SHAs, Temurin 21,
-`gradle/actions/setup-gradle` caching, concurrency cancellation.
+assembles. Manual workflow dispatches additionally upload all four debug APKs
+as a one-day `debug-apks` artifact. The `Verify Android app` check is required
+by branch protection on `main`. Conventions mirror `putio-sdk-kotlin`: pinned
+action SHAs, Temurin 21, `gradle/actions/setup-gradle` caching, concurrency
+cancellation.
 
 The private `putio-sdk-kotlin` composite build is checked out as a sibling
 using a read-only deploy key stored as the `PUTIO_SDK_KOTLIN_DEPLOY_KEY`
