@@ -59,6 +59,9 @@ the JVM), and an unsigned minified `mobileProductionRelease` build that proves
 the composite Kotlin SDK against minSdk 26 and R8. `:buildSrc:test` covers the
 design-token codegen; run it alongside `verify` (CI does). Fix findings at the
 source; suppress only with a comment stating the platform constraint.
+The evidence regression wraps the installed FFmpeg tools to assert that
+recording normalization pins `LC_ALL=C`; it does not require or generate a
+host locale.
 
 Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
 `nightly`). Nightly carries its own application id, label, and the stars

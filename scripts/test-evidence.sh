@@ -32,15 +32,26 @@ awk -v value="${normalized_duration}" \
   exit 1
 }
 
-locale -a | grep -Ei '^de_DE[.]utf-?8$' >/dev/null || {
-  echo "de_DE.UTF-8 locale required; run scripts/bootstrap.sh" >&2
-  exit 1
-}
-LC_ALL=de_DE.UTF-8 normalize_recording \
-  "${tmpdir}/idle-edges.mp4" "${tmpdir}/idle-edges-locale-normalized.mp4"
-locale_duration="$(duration "${tmpdir}/idle-edges-locale-normalized.mp4")"
-awk -v value="${locale_duration}" 'BEGIN { exit !(value >= 3 && value <= 5) }' || {
-  echo "expected locale-safe normalization to produce 3-5s, got ${locale_duration}s" >&2
+real_ffmpeg="$(command -v ffmpeg)"
+real_ffprobe="$(command -v ffprobe)"
+locale_bin="${tmpdir}/locale-bin"
+mkdir "${locale_bin}"
+cat > "${locale_bin}/ffmpeg" <<'EOF'
+#!/usr/bin/env bash
+[[ "${LC_ALL:-}" == "C" ]] || { echo "normalize_recording did not pin LC_ALL=C" >&2; exit 1; }
+exec "${REAL_FFMPEG:?}" "$@"
+EOF
+cat > "${locale_bin}/ffprobe" <<'EOF'
+#!/usr/bin/env bash
+[[ "${LC_ALL:-}" == "C" ]] || { echo "normalize_recording did not pin LC_ALL=C" >&2; exit 1; }
+exec "${REAL_FFPROBE:?}" "$@"
+EOF
+chmod +x "${locale_bin}/ffmpeg" "${locale_bin}/ffprobe"
+PATH="${locale_bin}:${PATH}" REAL_FFMPEG="${real_ffmpeg}" REAL_FFPROBE="${real_ffprobe}" LC_ALL=POSIX \
+  normalize_recording "${tmpdir}/idle-edges.mp4" "${tmpdir}/idle-edges-locale-normalized.mp4"
+locale_safe_duration="$(duration "${tmpdir}/idle-edges-locale-normalized.mp4")"
+awk -v value="${locale_safe_duration}" 'BEGIN { exit !(value >= 3 && value <= 5) }' || {
+  echo "expected locale-safe normalization to produce 3-5s, got ${locale_safe_duration}s" >&2
   exit 1
 }
 
