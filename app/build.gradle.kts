@@ -97,6 +97,17 @@ val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDes
     outputDir.set(layout.buildDirectory.dir("generated/designTokens/kotlin"))
 }
 
+for (surface in listOf("Mobile", "Tv")) {
+    tasks.register<VerifyLaunchProofTask>("verify${surface}LaunchProof") {
+        group = "verification"
+        description = "Require a successful ${surface.lowercase()} launch smoke test result"
+        dependsOn("connected${surface}ProductionDebugAndroidTest")
+        resultsDirectory.set(layout.buildDirectory.dir(
+            "outputs/androidTest-results/connected/debug/flavors/${surface.lowercase()}Production",
+        ))
+    }
+}
+
 androidComponents {
     onVariants { variant ->
         variant.sources.kotlin?.addGeneratedSourceDirectory(

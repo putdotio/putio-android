@@ -145,7 +145,10 @@ Verification is the instrumented smoke test (`LaunchSmokeTest`), run through
 `connectedAndroidTest` on the booted emulator. It asserts RESUMED state, a
 3 s stability window, and real composited pixels (mean luma) via platform
 test APIs; a crash or ANR fails the instrumentation. The exit code is the
-proof. One automatic retry covers the cold-boot render flake, where the
+proof. The `verifyMobileLaunchProof` and `verifyTvLaunchProof` tasks also
+require the named smoke test's successful XML result; an empty, skipped, or
+missing result fails even when instrumentation exits successfully.
+One automatic retry covers the cold-boot render flake, where the
 emulator composites the app window black for the first minute. Exit 0 pass ·
 1 fail · 70 cleanup failure · 130/143 interrupted. Machine-readable stdout
 markers: `BOOTED <serial>`, `EVIDENCE <path>`, `PROOF PASS|FAIL <flavor>`.

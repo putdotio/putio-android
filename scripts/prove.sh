@@ -239,8 +239,8 @@ rec_out=""
 # the instrumentation. One retry covers the cold-boot black-render flake,
 # which heals once post-boot churn settles.
 case "${FLAVOR}" in
-  mobile) CONNECTED_TASK=":app:connectedMobileProductionDebugAndroidTest" ;;
-  tv) CONNECTED_TASK=":app:connectedTvProductionDebugAndroidTest" ;;
+  mobile) CONNECTED_TASK=":app:verifyMobileLaunchProof" ;;
+  tv) CONNECTED_TASK=":app:verifyTvLaunchProof" ;;
 esac
 
 smoke_out="$(mktemp)"
