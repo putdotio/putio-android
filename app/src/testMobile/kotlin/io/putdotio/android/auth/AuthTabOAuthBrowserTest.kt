@@ -50,6 +50,19 @@ class AuthTabOAuthBrowserTest {
     }
 
     @Test
+    fun `AndroidX result contract preserves the successful callback URI`() {
+        val callback = Uri.parse("putio://auth#state=state&access_token=synthetic-token")
+
+        val result = AuthTabIntent.AuthenticateUserResultContract().parseResult(
+            AuthTabIntent.RESULT_OK,
+            Intent().setData(callback),
+        )
+
+        assertEquals(AuthTabIntent.RESULT_OK, result.resultCode)
+        assertEquals(callback, result.resultUri)
+    }
+
+    @Test
     fun `missing Auth Tab provider fails closed without launching`() {
         var launched = false
         val browser = browser(
