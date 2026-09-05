@@ -11,3 +11,6 @@ internal fun AndroidAppConfigState.playbackPreference(): PlaybackPreference =
         null,
         -> PlaybackPreference.HLS
     }
+
+internal fun AndroidAppConfigState.confirmedAutoplayNextVideo(): Boolean =
+    confirmedPreferences?.autoplayNextVideo == true

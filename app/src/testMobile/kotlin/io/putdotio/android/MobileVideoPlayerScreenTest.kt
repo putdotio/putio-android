@@ -185,6 +185,30 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun nextVideoLookupFailureOffersRetry() {
+        var retries = 0
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state =
+                        state(
+                            PlaybackContent.NextFailed(
+                                PlaybackFailure.NetworkUnavailable(IllegalStateException("offline")),
+                            ),
+                        ),
+                    onRetry = { retries += 1 },
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Couldn’t find the next video").assertIsDisplayed()
+        compose.onNodeWithText("Try again").performClick()
+        assertEquals(1, retries)
+    }
+
+    @Test
     fun selectedSubtitleCueIsRendered() {
         val cue = Cue.Builder().setText("A rendered subtitle").build()
         compose.setContent {
@@ -567,6 +591,50 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun endedPlayerRequestsAutoplayOnceOnlyWhenEnabled() {
+        lateinit var player: RecordingPlayer
+        var autoplayEnabled by mutableStateOf(true)
+        var endedCalls = 0
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = state(
+                        PlaybackContent.Ready(
+                            PlaybackSource(
+                                fileId = Target.fileId.value,
+                                kind = PlaybackSourceKind.MP4,
+                                url = credentialUrl("https://example.com/video.mp4"),
+                                startFromSeconds = 0.0,
+                                subtitles = PlaybackSubtitles.None,
+                            ),
+                        ),
+                    ),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    autoplayNextVideo = autoplayEnabled,
+                    onPlaybackEnded = { endedCalls += 1 },
+                    playerFactory = MobilePlayerFactory { RecordingPlayer().also { player = it } },
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_ENDED)
+            player.updatePlaybackState(Media3Player.STATE_ENDED)
+        }
+        compose.runOnIdle { assertEquals(1, endedCalls) }
+
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_READY)
+            autoplayEnabled = false
+        }
+        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
+        compose.runOnIdle { assertEquals(1, endedCalls) }
+    }
+
+    @Test
     fun selectedSubtitleTrackExposesCheckedState() {
         val group =
             TrackGroup(
@@ -739,7 +807,7 @@ private class PlayerLifecycleOwner : LifecycleOwner {
 }
 
 @UnstableApi
-private class RecordingPlayer(
+internal class RecordingPlayer(
     private val releaseError: PlaybackException? = null,
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
     private var state =
@@ -770,6 +838,11 @@ private class RecordingPlayer(
                 .setPlayerError(error)
                 .setPlaybackState(Media3Player.STATE_IDLE)
                 .build()
+        invalidateState()
+    }
+
+    fun updatePlaybackState(playbackState: Int) {
+        state = state.buildUpon().setPlaybackState(playbackState).build()
         invalidateState()
     }
 

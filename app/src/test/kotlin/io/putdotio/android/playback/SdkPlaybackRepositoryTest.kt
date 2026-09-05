@@ -10,6 +10,10 @@ import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioRequestData
+import io.putdotio.sdk.files.FilesContinueQuery
+import io.putdotio.sdk.files.FilesListQuery
+import io.putdotio.sdk.files.FilesListResponse
+import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
@@ -183,6 +187,223 @@ class SdkPlaybackRepositoryTest {
             assertEquals(listOf(PlaybackPreference.HLS, PlaybackPreference.MP4), requests.map { it.preference })
             assertEquals(2, providerCalls)
         }
+
+    @Test
+    fun findsNextVideoInExplicitFolderOrderAcrossPages() =
+        runBlocking {
+            val pages = mutableListOf<String>()
+            val repository = nextRepository(
+                listFolder = { parentId, query ->
+                    assertEquals(7L, parentId)
+                    assertEquals(PutioFileType.VIDEO, query.fileType)
+                    assertEquals("NAME_ASC", query.sortBy)
+                    assertEquals(200, query.perPage)
+                    filePage(video(40L), cursor = "page-two")
+                },
+                continueListing = { cursor, query ->
+                    pages += cursor
+                    assertEquals(200, query.perPage)
+                    when (cursor) {
+                        "page-two" -> filePage(video(42L), cursor = "page-three")
+                        "page-three" -> filePage(
+                            video(99L, parentId = 8L),
+                            video(100L).copy(fileType = PutioFileType.FOLDER),
+                            video(43L),
+                            cursor = "unused-page",
+                        )
+                        else -> error("Must stop after finding the next video")
+                    }
+                },
+            )
+
+            assertEquals(
+                PlaybackNextResult.Found(PlaybackTarget(FilesItemId(43L), "video-43.mp4")),
+                repository.findNextVideo(Target),
+            )
+            assertEquals(listOf("page-two", "page-three"), pages)
+        }
+
+    @Test
+    fun lastSingletonAndMissingVideosEndWithoutWrapping() =
+        runBlocking {
+            for (files in listOf(listOf(video(40L), video(42L)), listOf(video(42L)), listOf(video(40L)))) {
+                val repository = nextRepository(
+                    listFolder = { _, _ -> FilesListResponse(files = files, status = "OK") },
+                )
+                assertEquals(PlaybackNextResult.Ended, repository.findNextVideo(Target))
+            }
+        }
+
+    @Test
+    fun rootFolderAndDuplicateNamesUseFileIdentity() =
+        runBlocking {
+            val repository = nextRepository(
+                current = video(42L, parentId = 0L),
+                listFolder = { parentId, _ ->
+                    assertEquals(0L, parentId)
+                    filePage(
+                        video(42L, parentId = 0L).copy(name = "same.mp4"),
+                        video(43L, parentId = 0L).copy(name = "same.mp4"),
+                    )
+                },
+            )
+            assertEquals(
+                PlaybackNextResult.Found(PlaybackTarget(FilesItemId(43L), "same.mp4")),
+                repository.findNextVideo(Target),
+            )
+        }
+
+    @Test
+    fun paginationFailurePreservesCauseAndRetryStartsFresh() =
+        runBlocking {
+            val failure = apiFailure(503)
+            var attempts = 0
+            val repository = nextRepository(
+                listFolder = { _, _ -> filePage(video(42L), cursor = "next") },
+                continueListing = { _, _ ->
+                    if (attempts++ == 0) throw failure
+                    filePage(video(43L))
+                },
+            )
+            val failed = repository.findNextVideo(Target) as PlaybackNextResult.Failure
+            assertSame(failure, failed.failure.cause)
+            assertTrue(repository.findNextVideo(Target) is PlaybackNextResult.Found)
+        }
+
+    @Test
+    fun repeatedCursorFailsInsteadOfLooping() =
+        runBlocking {
+            var continuations = 0
+            val repository = nextRepository(
+                listFolder = { _, _ -> filePage(video(40L), cursor = "repeated") },
+                continueListing = { _, _ ->
+                    continuations++
+                    filePage(video(41L), cursor = "repeated")
+                },
+            )
+            val result = repository.findNextVideo(Target) as PlaybackNextResult.Failure
+            assertTrue(result.failure is PlaybackFailure.Unexpected)
+            assertEquals(1, continuations)
+        }
+
+    @Test
+    fun repeatedPageAfterCurrentCannotSelectAnEarlierVideo() =
+        runBlocking {
+            val repeated = filePage(video(40L), video(42L), cursor = "repeated")
+            val repository = nextRepository(
+                listFolder = { _, _ -> repeated },
+                continueListing = { _, _ -> repeated },
+            )
+            val result = repository.findNextVideo(Target)
+            assertTrue(result is PlaybackNextResult.Failure)
+        }
+
+    @Test
+    fun overlappingTerminalPageSkipsEarlierVideosAndFindsTheSuccessor() =
+        runBlocking {
+            val repository = nextRepository(
+                listFolder = { _, _ -> filePage(video(40L), video(42L), cursor = "next") },
+                continueListing = { _, _ -> filePage(video(40L), video(42L), video(43L)) },
+            )
+            assertEquals(
+                PlaybackNextResult.Found(PlaybackTarget(FilesItemId(43L), "video-43.mp4")),
+                repository.findNextVideo(Target),
+            )
+        }
+
+    @Test
+    fun missingContinuationIsRecoverableRatherThanEndOfFolder() =
+        runBlocking {
+            val failure = apiFailure(404)
+            val repository = nextRepository(
+                listFolder = { _, _ -> filePage(video(42L), cursor = "expired") },
+                continueListing = { _, _ -> throw failure },
+            )
+            val result = repository.findNextVideo(Target) as PlaybackNextResult.Failure
+            assertSame(failure, result.failure.cause)
+        }
+
+    @Test
+    fun paginationCancellationPropagates() {
+        val cancellation = CancellationException("route closed")
+        val repository = nextRepository(
+            listFolder = { _, _ -> filePage(video(42L), cursor = "next") },
+            continueListing = { _, _ -> throw cancellation },
+        )
+        try {
+            runBlocking { repository.findNextVideo(Target) }
+            fail("Expected cancellation")
+        } catch (actual: CancellationException) {
+            assertSame(cancellation, actual)
+        }
+    }
+
+    @Test
+    fun actualNotFoundEndsButAuthenticationStillFails() =
+        runBlocking {
+            val notFound = apiFailure(404)
+            val contradictory = apiFailure(
+                httpStatusCode = 401,
+                envelopeStatusCode = 404,
+                reason = PutioOperationErrorReason.StatusCode(404),
+            )
+            val ended = nextFailureRepository(notFound).findNextVideo(Target)
+            val rejected = nextFailureRepository(contradictory).findNextVideo(Target) as PlaybackNextResult.Failure
+
+            assertEquals(PlaybackNextResult.Ended, ended)
+            assertTrue(rejected.failure is PlaybackFailure.AuthenticationRequired)
+            assertSame(contradictory, rejected.failure.cause)
+        }
+
+    @Test
+    fun nextVideoLookupPreservesCancellation() {
+        val cancellation = CancellationException("route closed")
+        try {
+            runBlocking { nextFailureRepository(cancellation).findNextVideo(Target) }
+            fail("Expected cancellation")
+        } catch (actual: CancellationException) {
+            assertSame(cancellation, actual)
+        }
+    }
+
+    private fun nextFailureRepository(error: Throwable): SdkPlaybackRepository =
+        SdkPlaybackRepository(
+            playbackPreference = { PlaybackPreference.HLS },
+            loadAccount = { error("Account must not load") },
+            resolvePlayback = { error("Playback must not resolve") },
+            loadFile = { throw error },
+        )
+
+    private fun nextRepository(
+        current: PutioFile = video(42L),
+        listFolder: suspend (Long, FilesListQuery) -> FilesListResponse,
+        continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse = { _, _ ->
+            error("Unexpected pagination")
+        },
+    ): SdkPlaybackRepository =
+        SdkPlaybackRepository(
+            playbackPreference = { PlaybackPreference.HLS },
+            loadAccount = { error("Account must not load") },
+            resolvePlayback = { error("Playback must not resolve") },
+            loadFile = { id ->
+                assertEquals(Target.fileId.value, id)
+                current
+            },
+            listFolder = listFolder,
+            continueListing = continueListing,
+        )
+
+    private fun video(id: Long, parentId: Long = 7L): PutioFile =
+        PutioFile(
+            id = id,
+            name = "video-$id.mp4",
+            parentId = parentId,
+            createdAt = "2026-09-05",
+            fileType = PutioFileType.VIDEO,
+        )
+
+    private fun filePage(vararg files: PutioFile, cursor: String? = null): FilesListResponse =
+        FilesListResponse(files = files.toList(), cursor = cursor, status = "OK")
 
     private fun account(
         downloadToken: AccountDownloadToken?,

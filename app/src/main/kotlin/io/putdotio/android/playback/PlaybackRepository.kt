@@ -10,9 +10,17 @@ import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
+import io.putdotio.sdk.files.FileDetailsQuery
+import io.putdotio.sdk.files.FilesContinueQuery
+import io.putdotio.sdk.files.FilesListQuery
+import io.putdotio.sdk.files.FilesListResponse
+import io.putdotio.sdk.files.PutioFile
+import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PlaybackMediaCredential
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.util.concurrent.CancellationException
 
 sealed interface PlaybackRepositoryResult<out T> {
@@ -74,12 +82,33 @@ sealed interface PlaybackFailure {
 
 interface PlaybackRepository {
     suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution>
+
+    suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
+}
+
+sealed interface PlaybackNextResult {
+    data class Found(
+        val target: PlaybackTarget,
+    ) : PlaybackNextResult
+
+    data object Ended : PlaybackNextResult
+
+    data class Failure(
+        val failure: PlaybackFailure,
+    ) : PlaybackNextResult
 }
 
 class SdkPlaybackRepository internal constructor(
     private val playbackPreference: () -> PlaybackPreference,
     private val loadAccount: suspend () -> AccountInfo,
     private val resolvePlayback: suspend (PlaybackRequest) -> io.putdotio.sdk.files.PlaybackResolution,
+    private val loadFile: suspend (Long) -> PutioFile = { error("File lookup is not configured") },
+    private val listFolder: suspend (Long, FilesListQuery) -> FilesListResponse = { _, _ ->
+        error("Folder listing is not configured")
+    },
+    private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse = { _, _ ->
+        error("Folder pagination is not configured")
+    },
 ) : PlaybackRepository {
     constructor(
         client: PutioClient,
@@ -88,6 +117,14 @@ class SdkPlaybackRepository internal constructor(
         playbackPreference = playbackPreference,
         loadAccount = { client.account.getInfo(AccountInfoQuery(downloadToken = true)) },
         resolvePlayback = client.files::resolvePlayback,
+        loadFile = { fileId ->
+            client.files.get(
+                fileId,
+                FileDetailsQuery(mp4Size = false, startFrom = false, streamUrl = false, mp4StreamUrl = false),
+            )
+        },
+        listFolder = client.files::list,
+        continueListing = client.files::continueList,
     )
 
     @Suppress("TooGenericExceptionCaught")
@@ -115,7 +152,64 @@ class SdkPlaybackRepository internal constructor(
         } catch (unexpected: Exception) {
             PlaybackRepositoryResult.Failure(PlaybackFailure.Unexpected(unexpected))
         }
+
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
+        try {
+            val current = try {
+                loadFile(target.fileId.value)
+            } catch (error: PutioException) {
+                if (!error.hasHttpStatusCode(HTTP_NOT_FOUND)) throw error
+                null
+            }
+            if (current == null) {
+                PlaybackNextResult.Ended
+            } else {
+                findNextInFolder(target, requireNotNull(current.parentId))
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: PutioException) {
+            PlaybackNextResult.Failure(error.toPlaybackFailure())
+        } catch (unexpected: Exception) {
+            PlaybackNextResult.Failure(PlaybackFailure.Unexpected(unexpected))
+        }
+
+    private suspend fun findNextInFolder(target: PlaybackTarget, parentId: Long): PlaybackNextResult {
+        // The next-file endpoint can cross folders and fall back to a random account video.
+        // Walk the server's explicit name ordering instead, stopping at this folder's end.
+        var page = listFolder(
+            parentId,
+            FilesListQuery(perPage = AUTOPLAY_PAGE_SIZE, fileType = PutioFileType.VIDEO, sortBy = "NAME_ASC"),
+        )
+        var foundCurrent = false
+        val cursors = mutableSetOf<String>()
+        val seenFileIds = mutableSetOf<Long>()
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            val cursor = page.cursor?.takeIf(String::isNotBlank)
+            check(cursor == null || cursors.add(cursor)) { "Folder listing repeated its cursor" }
+            for (file in page.files) {
+                if (file.fileType != PutioFileType.VIDEO ||
+                    file.parentId != parentId ||
+                    !seenFileIds.add(file.id)
+                ) continue
+                if (file.id == target.fileId.value) {
+                    foundCurrent = true
+                } else if (foundCurrent) {
+                    return PlaybackNextResult.Found(
+                        PlaybackTarget(io.putdotio.android.files.FilesItemId(file.id), file.name),
+                    )
+                }
+            }
+            if (cursor == null) break
+            page = continueListing(cursor, FilesContinueQuery(perPage = AUTOPLAY_PAGE_SIZE))
+        }
+        return PlaybackNextResult.Ended
+    }
 }
+
+private const val AUTOPLAY_PAGE_SIZE = 200
 
 internal class MissingPlaybackCredentialException : IllegalStateException("Playback credential is unavailable")
 
@@ -156,6 +250,15 @@ private fun PutioException.toPlaybackFailure(): PlaybackFailure {
     }
 }
 
+private fun PutioException.hasHttpStatusCode(statusCode: Int): Boolean {
+    var current: PutioException = this
+    val visited = mutableSetOf<PutioException>()
+    while (current is PutioOperationException && visited.add(current)) {
+        current = current.underlyingError
+    }
+    return (current as? PutioApiException)?.httpStatusCode == statusCode
+}
+
 private fun PutioOperationException.reasonFailure(context: PutioException): PlaybackFailure? =
     when ((reason as? PutioOperationErrorReason.StatusCode)?.statusCode) {
         HTTP_UNAUTHORIZED -> PlaybackFailure.AuthenticationRequired(context)
@@ -182,6 +285,7 @@ private fun PutioException.leafFailure(context: PutioException): PlaybackFailure
 
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
+private const val HTTP_NOT_FOUND = 404
 private const val HTTP_TOO_MANY_REQUESTS = 429
 private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
 private const val HTTP_SERVER_ERROR_START = 500
