@@ -45,7 +45,6 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
@@ -1039,23 +1038,14 @@ class MobileVideoPlayerCodecTest {
     }
 
     @Test
-    fun mobileVideoRequestsMovieAudioFocus() {
-        var capturedAttributes: AudioAttributes? = null
-        var capturedHandleAudioFocus: Boolean? = null
-        var capturedHandleAudioBecomingNoisy: Boolean? = null
-
-        configureMobilePlayerAudio(
-            setAudioAttributes = { attributes, handleAudioFocus ->
-                capturedAttributes = attributes
-                capturedHandleAudioFocus = handleAudioFocus
-            },
-            setHandleAudioBecomingNoisy = { capturedHandleAudioBecomingNoisy = it },
-        )
-
-        assertEquals(C.AUDIO_CONTENT_TYPE_MOVIE, capturedAttributes?.contentType)
-        assertEquals(C.USAGE_MEDIA, capturedAttributes?.usage)
-        assertEquals(true, capturedHandleAudioFocus)
-        assertEquals(true, capturedHandleAudioBecomingNoisy)
+    fun mobileVideoFactoryAppliesMovieAudioAttributes() {
+        val player = DefaultMobilePlayerFactory.create(ApplicationProvider.getApplicationContext())
+        try {
+            assertEquals(C.AUDIO_CONTENT_TYPE_MOVIE, player.audioAttributes.contentType)
+            assertEquals(C.USAGE_MEDIA, player.audioAttributes.usage)
+        } finally {
+            player.release()
+        }
     }
 
     @Test

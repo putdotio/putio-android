@@ -1315,7 +1315,7 @@ internal fun interface MobilePlayerFactory {
     fun create(context: android.content.Context): Media3Player
 }
 
-private object DefaultMobilePlayerFactory : MobilePlayerFactory {
+internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun create(context: android.content.Context): Media3Player {
         val renderersFactory = DefaultRenderersFactory(context)
@@ -1325,12 +1325,10 @@ private object DefaultMobilePlayerFactory : MobilePlayerFactory {
                 .setMediaCodecSelector(EmulatorMediaCodecSelector)
                 .setEnableDecoderFallback(true)
         }
-        val builder = ExoPlayer.Builder(context, renderersFactory)
-        configureMobilePlayerAudio(
-            setAudioAttributes = builder::setAudioAttributes,
-            setHandleAudioBecomingNoisy = builder::setHandleAudioBecomingNoisy,
-        )
-        return builder.build()
+        return ExoPlayer.Builder(context, renderersFactory)
+            .setAudioAttributes(MobileVideoAudioAttributes, true)
+            .setHandleAudioBecomingNoisy(true)
+            .build()
     }
 }
 
@@ -1339,14 +1337,6 @@ internal val MobileVideoAudioAttributes: AudioAttributes =
         .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
         .setUsage(C.USAGE_MEDIA)
         .build()
-
-internal fun configureMobilePlayerAudio(
-    setAudioAttributes: (AudioAttributes, Boolean) -> Unit,
-    setHandleAudioBecomingNoisy: (Boolean) -> Unit,
-) {
-    setAudioAttributes(MobileVideoAudioAttributes, true)
-    setHandleAudioBecomingNoisy(true)
-}
 
 internal fun requiresEmulatorCodecWorkaround(
     sdkInt: Int,
