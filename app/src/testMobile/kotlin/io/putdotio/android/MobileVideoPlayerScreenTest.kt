@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Bundle
 import android.os.Looper
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -9,14 +10,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.InputModeManager
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
@@ -32,6 +39,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -41,6 +50,7 @@ import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.SimpleBasePlayer
+import androidx.media3.common.Timeline
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.VideoSize
@@ -49,10 +59,19 @@ import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
+import androidx.media3.exoplayer.RendererCapabilities
+import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.TrackGroupArray
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
@@ -172,6 +191,7 @@ class MobileVideoPlayerScreenTest {
             PutioTheme {
                 MobileSubtitleCueOverlay(
                     cues = listOf(cue),
+                    videoAspectRatio = 16f / 9f,
                     modifier = Modifier.requiredSize(320.dp, 180.dp),
                 )
             }
@@ -182,6 +202,31 @@ class MobileVideoPlayerScreenTest {
             .assertWidthIsEqualTo(320.dp)
             .assertHeightIsEqualTo(180.dp)
         assertTrue(compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
+    }
+
+    @Test
+    fun subtitleCuesWaitForVideoDimensionsAfterPlayerReplacement() {
+        var aspectRatio by mutableStateOf<Float?>(null)
+        val cues = listOf(Cue.Builder().setText("A retained subtitle").build())
+        compose.setContent {
+            PutioTheme {
+                MobileSubtitleCueOverlay(
+                    cues = cues,
+                    videoAspectRatio = aspectRatio,
+                    modifier = Modifier.requiredSize(320.dp, 640.dp),
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).assertDoesNotExist()
+        compose.runOnIdle { aspectRatio = 16f / 9f }
+        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG)
+            .assertIsDisplayed()
+            .assertWidthIsEqualTo(320.dp)
+            .assertHeightIsEqualTo(180.dp)
+        assertTrue(compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
+        compose.runOnIdle { aspectRatio = null }
+        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).assertDoesNotExist()
     }
 
     @Test
@@ -202,6 +247,7 @@ class MobileVideoPlayerScreenTest {
             PutioTheme {
                 MobileSubtitleCueOverlay(
                     cues = listOf(cue),
+                    videoAspectRatio = 16f / 9f,
                     modifier = Modifier.requiredSize(320.dp, 180.dp),
                 )
             }
@@ -239,6 +285,7 @@ class MobileVideoPlayerScreenTest {
                     )
                     MobileSubtitleCueOverlay(
                         cues = listOf(Cue.Builder().setText("Visible subtitle").build()),
+                        videoAspectRatio = 16f / 9f,
                         modifier = Modifier.zIndex(1f),
                     )
                 }
@@ -297,6 +344,13 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun retainedPreferencesDefaultToResumeWhenOlderStateHasNoPlayIntent() {
+        val preferences = Bundle().toRetainedPlayerPreferences()
+
+        assertTrue(preferences.resumeAfterLifecyclePause)
+    }
+
+    @Test
     fun readyPlayerSubtreeCanBeRemovedAndRecreated() {
         val players = mutableListOf<RecordingPlayer>()
         val playerFactory = MobilePlayerFactory {
@@ -321,6 +375,8 @@ class MobileVideoPlayerScreenTest {
                     onPlayerFailure = { failure, _ -> content = PlaybackContent.Failed(failure) },
                     onBack = {},
                     playerFactory = playerFactory,
+                    subtitleStartupPolicy =
+                        SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
                 )
             }
         }
@@ -330,6 +386,8 @@ class MobileVideoPlayerScreenTest {
             assertEquals(1, players.single().mediaItemUpdates)
             assertEquals(1, players.single().prepareCalls)
             assertTrue(players.single().playWhenReady)
+            assertFalse(players.single().trackSelectionParameters.selectTextByDefault)
+            assertFalse(C.TRACK_TYPE_TEXT in players.single().trackSelectionParameters.disabledTrackTypes)
         }
 
         compose.runOnIdle {
@@ -387,6 +445,128 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun accountSubtitlePolicyAppliesWhenSettingsBecomeReady() {
+        val player = RecordingPlayer()
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { player },
+                    subtitleStartupPolicy = policy,
+                )
+            }
+        }
+        compose.runOnIdle {
+            assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+            policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false)
+        }
+        compose.runOnIdle {
+            assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+        }
+    }
+
+    @Test
+    fun playerReleasesSynchronouslyOnStopAndRecreatesOnStart() {
+        val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
+        val players = mutableListOf<RecordingPlayer>()
+        val failures = mutableListOf<PlaybackFailure>()
+        val releaseError =
+            PlaybackException(
+                "renderer release timed out",
+                null,
+                PlaybackException.ERROR_CODE_TIMEOUT,
+            )
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                PutioTheme {
+                    MobileVideoPlayerScreen(
+                        state = state(PlaybackContent.Ready(videoSource())),
+                        onRetry = {},
+                        onPlayerFailure = { failure, _ -> failures += failure },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory {
+                            RecordingPlayer(releaseError).also(players::add)
+                        },
+                    )
+                }
+            }
+        }
+        compose.runOnIdle { assertEquals(1, players.size) }
+
+        compose.runOnIdle { players.single().pause() }
+        compose.runOnIdle {
+            players.single().play()
+            assertTrue(players.single().playWhenReady)
+            lifecycleOwner.moveTo(Lifecycle.State.STARTED)
+            players.single().movePositionTo(54_321L)
+            lifecycleOwner.moveTo(Lifecycle.State.CREATED)
+            assertTrue(players.single().released)
+            assertTrue(failures.isEmpty())
+        }
+        compose.runOnIdle { assertEquals(1, players.size) }
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
+        compose.runOnIdle {
+            assertEquals(2, players.size)
+            assertFalse(players.last().released)
+            assertEquals(54_321L, players.last().currentPosition)
+            assertTrue(players.last().playWhenReady)
+        }
+
+        compose.runOnIdle {
+            lifecycleOwner.moveTo(Lifecycle.State.STARTED)
+            lifecycleOwner.moveTo(Lifecycle.State.CREATED)
+            assertTrue(players.last().released)
+            assertEquals(2, players.size)
+            lifecycleOwner.moveTo(Lifecycle.State.RESUMED)
+            assertEquals(0, players.last().playStateUpdatesAfterRelease)
+        }
+        compose.runOnIdle {
+            assertEquals(3, players.size)
+            assertFalse(players.last().released)
+            assertEquals(54_321L, players.last().currentPosition)
+        }
+    }
+
+    @Test
+    fun playerRecreatesAfterCoalescedStopAndStartWithoutResume() {
+        val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
+        val players = mutableListOf<RecordingPlayer>()
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                PutioTheme {
+                    MobileVideoPlayerScreen(
+                        state = state(PlaybackContent.Ready(videoSource())),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory { RecordingPlayer().also(players::add) },
+                    )
+                }
+            }
+        }
+        compose.runOnIdle { assertEquals(1, players.size) }
+
+        compose.runOnIdle {
+            players.single().movePositionTo(54_321L)
+            lifecycleOwner.moveTo(Lifecycle.State.STARTED)
+            lifecycleOwner.moveTo(Lifecycle.State.CREATED)
+            lifecycleOwner.moveTo(Lifecycle.State.STARTED)
+            assertTrue(players.single().released)
+            assertEquals(1, players.size)
+        }
+        compose.runOnIdle {
+            assertEquals(2, players.size)
+            assertFalse(players.last().released)
+            assertTrue(players.last().currentPosition in 54_321L..54_500L)
+            assertFalse(players.last().playWhenReady)
+        }
+    }
+
+    @Test
     fun selectedSubtitleTrackExposesCheckedState() {
         val group =
             TrackGroup(
@@ -408,6 +588,44 @@ class MobileVideoPlayerScreenTest {
         }
 
         compose.onNodeWithText("English").assertIsOn()
+    }
+
+    @Test
+    fun subtitleTrackOptionForwardsPointerAndKeyboardModality() {
+        val group =
+            TrackGroup(
+                Format.Builder().setId("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+            )
+        var pointerEvents = 0
+        var keyEvents = 0
+        lateinit var inputModeManager: InputModeManager
+        compose.setContent {
+            inputModeManager = LocalInputModeManager.current
+            PutioTheme {
+                MobileSubtitleTrackOption(
+                    track = MobileSubtitleTrack(group, 0, label = "English", selected = false),
+                    onClick = {},
+                    modifier =
+                        Modifier
+                            .observePlayerControlInteraction(
+                                onInteractionChanged = { if (it) pointerEvents += 1 },
+                                onActivity = {},
+                            ).observePlayerControlKeyActivity { keyEvents += 1 },
+                )
+            }
+        }
+
+        compose.onNodeWithText("English").performTouchInput { click() }
+        compose.runOnIdle { assertTrue(inputModeManager.requestInputMode(InputMode.Keyboard)) }
+        compose.onNodeWithText("English")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+            .performKeyInput {
+                keyDown(Key.DirectionDown)
+                keyUp(Key.DirectionDown)
+            }
+
+        assertEquals(1, pointerEvents)
+        assertEquals(1, keyEvents)
     }
 
     @Test
@@ -496,13 +714,34 @@ class MobileVideoPlayerScreenTest {
             .getDeclaredConstructor(String::class.java)
             .newInstance(value)
 
+    private fun videoSource(): PlaybackSource =
+        PlaybackSource(
+            fileId = Target.fileId.value,
+            kind = PlaybackSourceKind.MP4,
+            url = credentialUrl("https://example.com/video.mp4"),
+            startFromSeconds = 12.345,
+            subtitles = PlaybackSubtitles.None,
+        )
+
     private companion object {
         val Target = PlaybackTarget(FilesItemId(42L), "episode.mkv")
     }
 }
 
+private class PlayerLifecycleOwner : LifecycleOwner {
+    private val registry = LifecycleRegistry(this)
+
+    override val lifecycle: Lifecycle = registry
+
+    fun moveTo(state: Lifecycle.State) {
+        registry.currentState = state
+    }
+}
+
 @UnstableApi
-private class RecordingPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
+private class RecordingPlayer(
+    private val releaseError: PlaybackException? = null,
+) : SimpleBasePlayer(Looper.getMainLooper()) {
     private var state =
         State.Builder()
             .setAvailableCommands(Media3Player.Commands.Builder().addAllCommands().build())
@@ -515,8 +754,15 @@ private class RecordingPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
         private set
     var released = false
         private set
+    var playStateUpdatesAfterRelease = 0
+        private set
 
     override fun getState(): State = state
+
+    fun movePositionTo(positionMillis: Long) {
+        state = state.buildUpon().setContentPositionMs(positionMillis).build()
+        invalidateState()
+    }
 
     fun fail(error: PlaybackException) {
         state =
@@ -545,20 +791,24 @@ private class RecordingPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
                 .setCurrentMediaItemIndex(startIndex)
                 .setContentPositionMs(startPositionMs)
                 .build()
+        invalidateState()
         return Futures.immediateVoidFuture()
     }
 
     override fun handlePrepare(): ListenableFuture<*> {
         prepareCalls += 1
         state = state.buildUpon().setPlaybackState(Media3Player.STATE_READY).build()
+        invalidateState()
         return Futures.immediateVoidFuture()
     }
 
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
+        if (released) playStateUpdatesAfterRelease += 1
         state =
             state.buildUpon()
                 .setPlayWhenReady(playWhenReady, Media3Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
                 .build()
+        invalidateState()
         return Futures.immediateVoidFuture()
     }
 
@@ -566,6 +816,7 @@ private class RecordingPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
         trackSelectionParameters: TrackSelectionParameters,
     ): ListenableFuture<*> {
         state = state.buildUpon().setTrackSelectionParameters(trackSelectionParameters).build()
+        invalidateState()
         return Futures.immediateVoidFuture()
     }
 
@@ -576,10 +827,29 @@ private class RecordingPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
         Futures.immediateVoidFuture()
 
     override fun handleRelease(): ListenableFuture<*> {
+        releaseError?.let(::fail)
         released = true
         return Futures.immediateVoidFuture()
     }
 }
+
+private fun rendererCapabilities(trackType: Int): RendererCapabilities =
+    object : RendererCapabilities {
+        override fun getName(): String = "test-$trackType"
+
+        override fun getTrackType(): Int = trackType
+
+        override fun supportsFormat(format: Format): Int =
+            RendererCapabilities.create(
+                if (MimeTypes.getTrackType(format.sampleMimeType) == trackType) {
+                    C.FORMAT_HANDLED
+                } else {
+                    C.FORMAT_UNSUPPORTED_TYPE
+                },
+            )
+
+        override fun supportsMixedMimeTypeAdaptation(): Int = RendererCapabilities.ADAPTIVE_NOT_SUPPORTED
+    }
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -660,8 +930,6 @@ class MobileVideoPlayerCodecTest {
             )
 
         assertFalse(C.TRACK_TYPE_TEXT in restored.disabledTrackTypes)
-        assertFalse(restored.selectTextByDefault)
-        assertEquals(C.SELECTION_FLAG_DEFAULT, restored.ignoredTextSelectionFlags)
         assertFalse(restored.subtitlesEnabled(emptyList()))
         assertTrue(captionsEnabled.selectTextByDefault)
 
@@ -672,9 +940,140 @@ class MobileVideoPlayerCodecTest {
     }
 
     @Test
-    fun mobileVideoRequestsMovieAudioFocus() {
-        assertEquals(C.AUDIO_CONTENT_TYPE_MOVIE, MobileVideoAudioAttributes.contentType)
-        assertEquals(C.USAGE_MEDIA, MobileVideoAudioAttributes.usage)
+    fun accountSubtitlePolicySeedsPlayerDefaults() {
+        val defaults = TrackSelectionParameters.Builder().build()
+        val hidden =
+            restoreSubtitleSelection(
+                defaults = defaults,
+                retained = null,
+                systemCaptionsEnabled = true,
+                startupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
+            )
+        val forcedOnly =
+            restoreSubtitleSelection(
+                defaults = defaults,
+                retained = null,
+                systemCaptionsEnabled = true,
+                startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
+            )
+        val automatic =
+            restoreSubtitleSelection(
+                defaults = defaults,
+                retained = null,
+                systemCaptionsEnabled = false,
+                startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+            )
+        val retained =
+            restoreSubtitleSelection(
+                defaults = defaults,
+                retained = SubtitleSelection.Automatic,
+                systemCaptionsEnabled = false,
+                startupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false),
+            )
+
+        assertFalse(hidden.selectTextByDefault)
+        assertTrue(C.TRACK_TYPE_TEXT in hidden.disabledTrackTypes)
+        assertFalse(forcedOnly.selectTextByDefault)
+        assertFalse(C.TRACK_TYPE_TEXT in forcedOnly.disabledTrackTypes)
+        assertTrue(automatic.selectTextByDefault)
+        assertFalse(C.TRACK_TYPE_TEXT in automatic.disabledTrackTypes)
+        assertTrue(retained.selectTextByDefault)
+        assertFalse(C.TRACK_TYPE_TEXT in retained.disabledTrackTypes)
+    }
+
+    @Test
+    fun forcedOnlyPolicySelectsForcedTrackInsteadOfDefaultCaption() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val defaults =
+            TrackSelectionParameters.Builder()
+                .setPreferredTextLanguages("en")
+                .setPreferredTextRoleFlags(C.ROLE_FLAG_CAPTION)
+                .setPreferredTextLabels("English")
+                .setIgnoredTextSelectionFlags(C.SELECTION_FLAG_FORCED)
+                .setSelectUndeterminedTextLanguage(true)
+                .build()
+        val audio =
+            Format.Builder()
+                .setId("audio")
+                .setSampleMimeType(MimeTypes.AUDIO_AAC)
+                .setLanguage("en")
+                .build()
+        val ordinary =
+            Format.Builder()
+                .setId("ordinary")
+                .setSampleMimeType(MimeTypes.TEXT_VTT)
+                .setLanguage("en")
+                .setLabel("English")
+                .setRoleFlags(C.ROLE_FLAG_CAPTION)
+                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                .build()
+        val forced =
+            Format.Builder()
+                .setId("forced")
+                .setSampleMimeType(MimeTypes.TEXT_VTT)
+                .setLanguage("en")
+                .setSelectionFlags(C.SELECTION_FLAG_FORCED)
+                .build()
+        val trackGroups = TrackGroupArray(TrackGroup(audio), TrackGroup(ordinary, forced))
+        fun selectedTextId(parameters: TrackSelectionParameters): String? {
+            val selector = DefaultTrackSelector(context, parameters)
+            selector.init({ _ -> }, DefaultBandwidthMeter.getSingletonInstance(context))
+            val result =
+                selector.selectTracks(
+                    arrayOf(rendererCapabilities(C.TRACK_TYPE_AUDIO), rendererCapabilities(C.TRACK_TYPE_TEXT)),
+                    trackGroups,
+                    MediaSource.MediaPeriodId(Any()),
+                    Timeline.EMPTY,
+                )
+            return result.selections[1]?.selectedFormat?.id.also { selector.release() }
+        }
+        val forcedOnly =
+            restoreSubtitleSelection(
+                defaults = defaults,
+                retained = null,
+                systemCaptionsEnabled = true,
+                startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
+            )
+        val noPolicyFallback =
+            restoreSubtitleSelection(
+                defaults = defaults,
+                retained = null,
+                systemCaptionsEnabled = false,
+            )
+        val automatic =
+            forcedOnly
+                .withSubtitleSelection(SubtitleSelection.Off, emptyList(), defaults)
+                .withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaults)
+
+        assertEquals("forced", selectedTextId(forcedOnly))
+        assertEquals("forced", selectedTextId(noPolicyFallback))
+        assertEquals("ordinary", selectedTextId(automatic))
+        assertEquals(listOf("en"), automatic.preferredTextLanguages)
+        assertEquals(C.ROLE_FLAG_CAPTION, automatic.preferredTextRoleFlags)
+        assertEquals(listOf("English"), automatic.preferredTextLabels)
+        assertEquals(C.SELECTION_FLAG_FORCED, automatic.ignoredTextSelectionFlags)
+        assertTrue(automatic.selectUndeterminedTextLanguage)
+
+        val captionManagerDefaults =
+            TrackSelectionParameters.Builder()
+                .setPreferredTextLanguageAndRoleFlagsToCaptioningManagerSettings()
+                .build()
+        val captionManagerAutomatic =
+            captionManagerDefaults
+                .withSubtitleSelection(SubtitleSelection.Off, emptyList(), captionManagerDefaults)
+                .withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), captionManagerDefaults)
+        assertTrue(captionManagerAutomatic.usePreferredTextLanguagesAndRoleFlagsFromCaptioningManager)
+    }
+
+    @Test
+    fun mobileVideoFactoryAppliesMovieAudioAttributes() {
+        val player = DefaultMobilePlayerFactory.create(ApplicationProvider.getApplicationContext())
+        try {
+            assertEquals(C.AUDIO_CONTENT_TYPE_MOVIE, player.audioAttributes.contentType)
+            assertEquals(C.USAGE_MEDIA, player.audioAttributes.usage)
+        } finally {
+            player.release()
+        }
     }
 
     @Test
@@ -918,15 +1317,36 @@ class MobileVideoPlayerCodecTest {
                 .build()
         val forcedIdentity = forced.toSubtitleTrackIdentity()
 
-        assertTrue(forcedIdentity.matches(forced))
-        assertFalse(forcedIdentity.matches(full))
+        assertTrue(forcedIdentity.exactlyMatches(forced))
+        assertFalse(forcedIdentity.exactlyMatches(full))
+        assertNull(
+            listOf(MobileSubtitleTrack(TrackGroup(full), 0, label = "English", selected = false))
+                .resolve(forcedIdentity),
+        )
     }
 
     @Test
-    fun endedPlaybackKeepsControlsVisible() {
-        assertTrue(playbackHidesControls(playWhenReady = true, playbackState = Media3Player.STATE_READY))
-        assertFalse(playbackHidesControls(playWhenReady = true, playbackState = Media3Player.STATE_ENDED))
-        assertFalse(playbackHidesControls(playWhenReady = false, playbackState = Media3Player.STATE_READY))
+    fun duplicateSubtitleIdsRequireTheRemainingIdentityToMatch() {
+        val selected =
+            Format.Builder()
+                .setId("subtitle")
+                .setLanguage("en")
+                .setSampleMimeType(MimeTypes.TEXT_VTT)
+                .build()
+        val duplicate =
+            selected.buildUpon()
+                .setLanguage("de")
+                .build()
+        val selectedGroup = TrackGroup(selected)
+        val duplicateGroup = TrackGroup(duplicate)
+
+        val resolved =
+            listOf(
+                MobileSubtitleTrack(duplicateGroup, 0, label = "German", selected = false),
+                MobileSubtitleTrack(selectedGroup, 0, label = "English", selected = false),
+            ).resolve(selected.toSubtitleTrackIdentity())
+
+        assertEquals(selectedGroup, resolved?.group)
     }
 
     @Test
@@ -936,9 +1356,9 @@ class MobileVideoPlayerCodecTest {
         assertTrue(
             controlsShouldAutoHide(
                 controlsVisible = true,
-                playbackActive = true,
+                playerWantsToPlay = true,
                 pointerInteracting = false,
-                controlsFocused = false,
+                keyboardNavigationActive = false,
                 menuOpen = false,
                 touchExplorationEnabled = false,
             ),
@@ -946,9 +1366,9 @@ class MobileVideoPlayerCodecTest {
         assertFalse(
             controlsShouldAutoHide(
                 controlsVisible = true,
-                playbackActive = true,
+                playerWantsToPlay = true,
                 pointerInteracting = false,
-                controlsFocused = true,
+                keyboardNavigationActive = true,
                 menuOpen = false,
                 touchExplorationEnabled = false,
             ),
@@ -956,13 +1376,36 @@ class MobileVideoPlayerCodecTest {
         assertFalse(
             controlsShouldAutoHide(
                 controlsVisible = true,
-                playbackActive = true,
+                playerWantsToPlay = true,
                 pointerInteracting = false,
-                controlsFocused = false,
+                keyboardNavigationActive = false,
                 menuOpen = false,
                 touchExplorationEnabled = true,
             ),
         )
+        assertFalse(
+            controlsShouldAutoHide(
+                controlsVisible = true,
+                playerWantsToPlay = true,
+                playbackState = Media3Player.STATE_ENDED,
+                pointerInteracting = false,
+                keyboardNavigationActive = false,
+                menuOpen = false,
+                touchExplorationEnabled = false,
+            ),
+        )
+        assertTrue(controlsVisibleForTouchExploration(false, true))
+        assertTrue(controlsVisibleForPlaybackState(false, Media3Player.STATE_ENDED))
+    }
+
+    @Test
+    fun mandatoryControlsCannotBeHiddenByTaps() {
+        assertFalse(controlsVisibleAfterTap(true, Media3Player.STATE_READY, false))
+        assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_READY, false))
+        assertTrue(controlsVisibleAfterTap(true, Media3Player.STATE_ENDED, false))
+        assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_ENDED, false))
+        assertTrue(controlsVisibleAfterTap(true, Media3Player.STATE_READY, true))
+        assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_READY, true))
     }
 
     @Test

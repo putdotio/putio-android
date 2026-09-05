@@ -75,6 +75,7 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SdkPlaybackRepository
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
@@ -873,9 +874,14 @@ private fun MobileNavHost(
         ) { backStackEntry ->
             val fileId = requireNotNull(backStackEntry.arguments?.getLong("fileId"))
             val name = backStackEntry.arguments?.getString("name").orEmpty()
+            val subtitleStartupPolicy =
+                (accountSettingsState.content as? AccountSettingsContent.Ready)
+                    ?.preferences
+                    ?.let { SubtitleStartupPolicy(it.showSubtitles, it.autoSelectSubtitles) }
             MobilePlaybackRoute(
                 target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name),
                 repository = playbackRepository,
+                subtitleStartupPolicy = subtitleStartupPolicy,
                 onAuthenticationRequired = onPlaybackAuthenticationRequired,
                 onBack = navController::popBackStack,
             )
@@ -887,6 +893,7 @@ private fun MobileNavHost(
 private fun MobilePlaybackRoute(
     target: PlaybackTarget,
     repository: PlaybackRepository,
+    subtitleStartupPolicy: SubtitleStartupPolicy?,
     onAuthenticationRequired: suspend () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -916,6 +923,7 @@ private fun MobilePlaybackRoute(
             controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))
         },
         onBack = onBack,
+        subtitleStartupPolicy = subtitleStartupPolicy,
     )
 }
 
