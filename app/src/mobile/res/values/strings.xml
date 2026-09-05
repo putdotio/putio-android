@@ -1,4 +1,12 @@
 <resources>
+    <string name="mobile_files_actions">Actions for %1$s</string>
+    <string name="mobile_files_rename">Rename</string>
+    <string name="mobile_files_name">Name</string>
+    <string name="mobile_files_save">Save</string>
+    <string name="mobile_files_renaming">Renaming…</string>
+    <string name="mobile_files_rename_reloading">Name saved. Refreshing files…</string>
+    <string name="mobile_files_rename_error">Couldn’t rename. Try again or edit the name.</string>
+    <string name="mobile_files_rename_reload_error">Name saved, but couldn’t reload files.</string>
     <string name="mobile_destination_files">Files</string>
     <string name="mobile_destination_search">Search</string>
     <string name="mobile_destination_transfers">Transfers</string>

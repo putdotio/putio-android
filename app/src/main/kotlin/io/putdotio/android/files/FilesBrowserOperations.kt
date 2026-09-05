@@ -1,5 +1,23 @@
 package io.putdotio.android.files
 
+internal fun FilesBrowserState.rename(event: FilesBrowserEvent.Rename): FilesBrowserTransition {
+    val item = current.content.items().firstOrNull { it.id == event.itemId && it.id.value > 0L }
+    val failed = current.operation as? FilesFolderOperation.Failed
+    val awaitingRenameReload = failed?.intent is FilesFolderOperationIntent.Rename &&
+        failed.phase == FilesFolderOperationPhase.RELOADING
+    if (event.folderId != current.folder.id || item == null) {
+        return FilesBrowserTransition(this, consumed = false)
+    }
+    return if (item.name == event.name || awaitingRenameReload) {
+        FilesBrowserTransition(this, consumed = false)
+    } else {
+        startOperation(
+            intent = FilesFolderOperationIntent.Rename(item.id, event.name),
+            phase = FilesFolderOperationPhase.RENAMING,
+        )
+    }
+}
+
 internal fun FilesBrowserState.refresh(): FilesBrowserTransition =
     startOperation(
         intent = FilesFolderOperationIntent.Refresh,
@@ -61,10 +79,12 @@ private fun effectFor(
     intent: FilesFolderOperationIntent,
     phase: FilesFolderOperationPhase,
 ): FilesBrowserEffect =
-    when (phase) {
-        FilesFolderOperationPhase.RELOADING -> FilesBrowserEffect.LoadFolder(folderId, requestId)
-        FilesFolderOperationPhase.PERSISTING_SORT -> {
-            val sort = (intent as FilesFolderOperationIntent.Sort).sort
-            FilesBrowserEffect.PersistSort(folderId, sort, requestId)
+    if (phase == FilesFolderOperationPhase.RELOADING) {
+        FilesBrowserEffect.LoadFolder(folderId, requestId)
+    } else {
+        when (intent) {
+            FilesFolderOperationIntent.Refresh -> FilesBrowserEffect.LoadFolder(folderId, requestId)
+            is FilesFolderOperationIntent.Sort -> FilesBrowserEffect.PersistSort(folderId, intent.sort, requestId)
+            is FilesFolderOperationIntent.Rename -> FilesBrowserEffect.Rename(intent.itemId, intent.name, requestId)
         }
     }

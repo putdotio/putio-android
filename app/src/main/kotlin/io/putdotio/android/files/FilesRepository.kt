@@ -76,6 +76,8 @@ interface FilesRepository {
         folderId: FilesItemId,
         sort: FilesSort,
     ): FilesRepositoryResult<Unit>
+
+    suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit>
 }
 
 interface FilesItemResolver {
@@ -87,6 +89,7 @@ class SdkFilesRepository internal constructor(
     private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse,
     private val setSort: suspend (Long, String) -> Unit,
     private val getFile: suspend (Long) -> PutioFile,
+    private val renameFile: suspend (Long, String) -> Unit,
 ) : FilesRepository, FilesItemResolver {
     constructor(client: PutioClient) : this(
         listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
@@ -96,6 +99,10 @@ class SdkFilesRepository internal constructor(
             Unit
         },
         getFile = { fileId -> client.files.get(fileId) },
+        renameFile = { fileId, name ->
+            client.files.rename(fileId, name)
+            Unit
+        },
     )
 
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
@@ -111,6 +118,9 @@ class SdkFilesRepository internal constructor(
 
     override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
         request { getFile(itemId.value).toFilesItem() }
+
+    override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
+        request { renameFile(itemId.value, name) }
 
     // Kotlin/JVM has no typed throws contract, so the SDK boundary converts
     // unknown failures after preserving cancellation.

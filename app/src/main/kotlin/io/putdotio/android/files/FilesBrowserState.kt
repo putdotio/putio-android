@@ -59,10 +59,16 @@ sealed interface FilesFolderOperationIntent {
     data class Sort(
         val sort: FilesSort,
     ) : FilesFolderOperationIntent
+
+    data class Rename(
+        val itemId: FilesItemId,
+        val name: String,
+    ) : FilesFolderOperationIntent
 }
 
 enum class FilesFolderOperationPhase {
     PERSISTING_SORT,
+    RENAMING,
     RELOADING,
 }
 
@@ -128,6 +134,12 @@ sealed interface FilesBrowserEvent {
         val sort: FilesSort,
     ) : FilesBrowserEvent
 
+    data class Rename(
+        val folderId: FilesItemId,
+        val itemId: FilesItemId,
+        val name: String,
+    ) : FilesBrowserEvent
+
     data object Retry : FilesBrowserEvent
 
     data class ViewportChanged(
@@ -145,6 +157,10 @@ sealed interface FilesBrowserEvent {
     ) : FilesBrowserEvent
 
     data class SortPersisted(
+        val requestId: FilesRequestId,
+    ) : FilesBrowserEvent
+
+    data class Renamed(
         val requestId: FilesRequestId,
     ) : FilesBrowserEvent
 }
@@ -165,6 +181,12 @@ sealed interface FilesBrowserEffect {
     data class PersistSort(
         val folderId: FilesItemId,
         val sort: FilesSort,
+        override val requestId: FilesRequestId,
+    ) : FilesBrowserEffect
+
+    data class Rename(
+        val itemId: FilesItemId,
+        val name: String,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 }
@@ -207,32 +229,36 @@ object FilesBrowserReducer {
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
             FilesBrowserEvent.Refresh -> state.refresh()
             is FilesBrowserEvent.SelectSort -> state.selectSort(event.sort)
+            is FilesBrowserEvent.Rename -> state.rename(event)
             FilesBrowserEvent.Retry -> state.retry()
             is FilesBrowserEvent.ViewportChanged -> state.rememberViewport(event.position)
             is FilesBrowserEvent.LoadSucceeded -> state.loadSucceeded(event)
             is FilesBrowserEvent.LoadFailed -> state.loadFailed(event)
             is FilesBrowserEvent.SortPersisted -> state.sortPersisted(event)
+            is FilesBrowserEvent.Renamed -> state.renamed(event)
         }
 }
 
-suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesBrowserEvent {
-    val result =
-        when (effect) {
-            is FilesBrowserEffect.LoadFolder -> loadFolder(effect.folderId)
-            is FilesBrowserEffect.LoadNextPage -> loadNextPage(effect.cursor)
-            is FilesBrowserEffect.PersistSort -> {
-                return when (val persisted = persistSort(effect.folderId, effect.sort)) {
-                    is FilesRepositoryResult.Success -> FilesBrowserEvent.SortPersisted(effect.requestId)
-                    is FilesRepositoryResult.Failure ->
-                        FilesBrowserEvent.LoadFailed(effect.requestId, persisted.failure)
-                }
+suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesBrowserEvent =
+    when (effect) {
+        is FilesBrowserEffect.LoadFolder -> loadFolder(effect.folderId).toLoadEvent(effect.requestId)
+        is FilesBrowserEffect.LoadNextPage -> loadNextPage(effect.cursor).toLoadEvent(effect.requestId)
+        is FilesBrowserEffect.Rename ->
+            when (val renamed = rename(effect.itemId, effect.name)) {
+                is FilesRepositoryResult.Success -> FilesBrowserEvent.Renamed(effect.requestId)
+                is FilesRepositoryResult.Failure -> FilesBrowserEvent.LoadFailed(effect.requestId, renamed.failure)
             }
-        }
-
-    return when (result) {
-        is FilesRepositoryResult.Success -> FilesBrowserEvent.LoadSucceeded(effect.requestId, result.value)
-        is FilesRepositoryResult.Failure -> FilesBrowserEvent.LoadFailed(effect.requestId, result.failure)
+        is FilesBrowserEffect.PersistSort ->
+            when (val persisted = persistSort(effect.folderId, effect.sort)) {
+                is FilesRepositoryResult.Success -> FilesBrowserEvent.SortPersisted(effect.requestId)
+                is FilesRepositoryResult.Failure -> FilesBrowserEvent.LoadFailed(effect.requestId, persisted.failure)
+            }
     }
-}
+
+private fun FilesRepositoryResult<FilesPage>.toLoadEvent(requestId: FilesRequestId): FilesBrowserEvent =
+    when (this) {
+        is FilesRepositoryResult.Success -> FilesBrowserEvent.LoadSucceeded(requestId, value)
+        is FilesRepositoryResult.Failure -> FilesBrowserEvent.LoadFailed(requestId, failure)
+    }
 
 private const val INITIAL_REQUEST_VALUE = 1L

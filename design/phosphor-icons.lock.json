@@ -100,6 +100,13 @@
     },
     {
       "sourceSet": "mobile",
+      "resource": "ic_ph_dots_three_vertical",
+      "asset": "assets/regular/dots-three-vertical.svg",
+      "sourceSha256": "85fdecd2193efcd7e80a83607b66d2680fef8f3d1e93380c26f9851b24edbd01",
+      "outputSha256": "e24b83db74a8f6eeb1969ef6c340763460eeed6c6e5c52f3ace914ca049d1527"
+    },
+    {
+      "sourceSet": "mobile",
       "resource": "ic_ph_folder",
       "asset": "assets/regular/folder.svg",
       "sourceSha256": "4a882bcd4a91ae0a01887024f08d358932f183b6b171e87a3e48c5910364d507",
