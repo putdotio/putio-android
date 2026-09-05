@@ -292,7 +292,7 @@ internal fun MobileSignedOutScreen(
 }
 
 @Composable
-private fun SignedInMobileRoot(
+internal fun SignedInMobileRoot(
     runtime: MobileOAuthRuntime,
     account: MobileAccount,
     sessionId: MobileAuthSessionId,
