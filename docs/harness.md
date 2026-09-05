@@ -202,7 +202,11 @@ before another run.
 The emulator, app installation, authentication, and fixture ledger remain intact.
 Cleanup has its own 20-second command budget and preserves failure causes.
 Use `--no-daemon` for this manual runtime lane so interruption reaches its
-single-use Gradle process; confirm cleanup output before another attempt.
+single-use Gradle process. SIGINT can disconnect the client before `CLEANUP FAIL`
+reaches its output. Inspect the single-use daemon log under
+`$GRADLE_USER_HOME/daemon/<version>/daemon-<pid>.out.log` (default
+`~/.gradle/daemon/<version>/daemon-<pid>.out.log`) for cleanup diagnostics, and
+confirm instrumentation is idle before another attempt.
 
 Run logs and raw capture remain under `.evidence/rename-<run-id>/`. Raw captures
 are not publication evidence. The existing capture gates validate and normalize
