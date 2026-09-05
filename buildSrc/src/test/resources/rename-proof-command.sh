@@ -42,6 +42,7 @@ case "${0##*/}" in
         case "$script" in
           'getprop ro.build.version.sdk') echo 37 ;;
           "dumpsys activity processes 'io.put.putio.mobile.debug'")
+            if [ "$mode" = unreadable-ownership ] && [ -f "$state/instrumentation-started" ]; then exit 17; fi
             printf '%s\n' 'ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)'
             if [ -f "$state/instrumentation" ]; then
               printf '%s\n' '  Active instrumentation:' '    * ActiveInstrumentation{abc123 io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner}' '      mClass=ComponentInfo{io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner} mFinished=false'
@@ -63,10 +64,12 @@ case "${0##*/}" in
             if [ -f "$state/recorder" ]; then printf 'screenrecord\000--time-limit\000180\000%s\000' "$(cat "$state/capture")"; else printf absent; fi
             ;;
           "'am' 'instrument'"*)
+            echo "$$" > "$state/instrumentation-host-pid"
             touch "$state/instrumentation" "$state/instrumentation-started"
+            [ "$mode" != replacement ] || printf foreign-run > "$state/instrumentation"
             case "$mode" in
-              adb-exit) exit 17 ;;
-              oversized-result) head -c 1048577 /dev/zero | tr '\000' x ;;
+              adb-exit|replacement|unreadable-ownership) exit 17 ;;
+              oversized-result) rm -f "$state/instrumentation"; head -c 1048577 /dev/zero | tr '\000' x ;;
               interrupt) while [ -f "$state/instrumentation" ]; do sleep 0.1; done ;;
               *)
                 class=io.putdotio.android.AuthenticatedFilesRenameTest
@@ -76,6 +79,7 @@ case "${0##*/}" in
                   if [ "$mode" = skipped ]; then code=-3; else code=-2; fi
                   printf 'INSTRUMENTATION_STATUS: class=%s\nINSTRUMENTATION_STATUS: test=%s\nINSTRUMENTATION_STATUS_CODE: %s\n' "$class" "$method" "$code"
                 fi
+                rm -f "$state/instrumentation"
                 printf 'INSTRUMENTATION_CODE: -1\n'
                 ;;
             esac

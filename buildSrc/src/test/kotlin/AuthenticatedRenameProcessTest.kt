@@ -2,6 +2,7 @@ import java.io.File
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import org.gradle.testkit.runner.GradleRunner
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -12,7 +13,7 @@ class AuthenticatedRenameProcessTest {
     @get:Rule val temporaryFolder = TemporaryFolder()
 
     @Test
-    fun testFailureSkipAndMissingResultStopOwnedRemoteProcesses() {
+    fun completedFailureSkipAndMissingResultCleanUpOwnedRecorder() {
         for (mode in listOf("assertion", "skipped", "missing-result")) {
             val fixture = fixture(mode)
             val output = runFailure(fixture)
@@ -22,18 +23,41 @@ class AuthenticatedRenameProcessTest {
     }
 
     @Test
-    fun hostAdbFailureStillStopsTheRemoteInstrumentation() {
+    fun hostAdbFailurePreservesInstrumentationWhoseOwnershipIsUnknown() {
         val fixture = fixture("adb-exit")
-        assertTrue(runFailure(fixture).contains("instrumentation failed"))
-        assertOwnedCleanup(fixture)
+        val output = runFailure(fixture)
+        assertTrue(output, output.contains("instrumentation failed"))
+        assertUnownedInstrumentationPreserved(fixture, output)
     }
 
     @Test
-    fun interruptionAfterRemoteStartCleansUpAndPreservesTheSession() {
+    fun unreadableOwnershipReportsSanitizedFailureAndPreservesInstrumentation() {
+        val fixture = fixture("unreadable-ownership")
+        val output = runFailure(fixture)
+        assertTrue(output, output.contains("CLEANUP FAIL Instrumentation ownership check failed"))
+        assertTrue(output, output.contains("Authenticated proof cleanup failed"))
+        assertTrue(File(fixture, "state/instrumentation").exists())
+        assertFalse(File(fixture, "state/recorder").exists())
+        assertTrue(File(fixture, "state/remote-files-removed").isFile)
+        assertSafeCommands(fixture)
+    }
+
+    @Test
+    fun sameRunnerReplacementIsNotMistakenForOwnedInstrumentation() {
+        val fixture = fixture("replacement")
+        val output = runFailure(fixture)
+        assertEquals("foreign-run", File(fixture, "state/instrumentation").readText())
+        assertUnownedInstrumentationPreserved(fixture, output)
+    }
+
+    @Test
+    fun interruptionPreservesUnverifiableInstrumentationAndReportsCleanupFailure() {
         val fixture = fixture("interrupt")
-        runFailure(fixture)
+        val output = runFailure(fixture)
         assertTrue(File(fixture, "state/instrumentation-started").isFile)
-        assertOwnedCleanup(fixture)
+        assertUnownedInstrumentationPreserved(fixture, output)
+        val hostPid = File(fixture, "state/instrumentation-host-pid").readText().trim().toLong()
+        assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
     }
 
     @Test
@@ -97,19 +121,27 @@ class AuthenticatedRenameProcessTest {
         assertFalse(File(fixture, "state/instrumentation-started").exists())
     }
 
+    private fun assertUnownedInstrumentationPreserved(fixture: File, output: String) {
+        assertTrue(output, output.contains("Active instrumentation preserved: run ownership cannot be established"))
+        assertTrue(output, output.contains("Authenticated proof cleanup failed"))
+        assertTrue(File(fixture, "state/instrumentation").exists())
+        assertFalse(File(fixture, "state/recorder").exists())
+        assertTrue(File(fixture, "state/remote-files-removed").isFile)
+        assertSafeCommands(fixture)
+    }
+
     private fun assertOwnedCleanup(fixture: File) {
         assertFalse(File(fixture, "state/instrumentation").exists())
         assertFalse(File(fixture, "state/recorder").exists())
         assertTrue(File(fixture, "state/remote-files-removed").isFile)
         val commands = File(fixture, "state/commands").readText()
-        assertTrue(commands, commands.contains("am force-stop 'io.put.putio.mobile.debug'"))
         assertTrue(commands, commands.contains("kill -INT 27182"))
         assertSafeCommands(fixture)
     }
 
     private fun assertSafeCommands(fixture: File) {
         val commands = File(fixture, "state/commands").readText()
-        for (forbidden in listOf("uninstall", "pm clear", "emu kill", "kill-server", "pkill", "killall")) {
+        for (forbidden in listOf("am force-stop", "uninstall", "pm clear", "emu kill", "kill-server", "pkill", "killall")) {
             assertFalse(commands, commands.contains(forbidden))
         }
         assertFalse(commands, commands.contains("PROOF PASS"))

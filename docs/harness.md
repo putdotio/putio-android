@@ -190,10 +190,17 @@ Host preflight, install, instrumentation, and capture processing share a
 240-second deadline after assembly. Instrumentation output is limited to 1 MiB
 before decoding. A failed, skipped, absent, interrupted,
 or incomplete named test fails the task. Recording starts before instrumentation
-and uses a unique guest path with a checked process ID. Cleanup stops only the
-owned instrumentation/recorder, removes only that run's guest capture files,
-and leaves the emulator, app installation, authentication, and fixture ledger
-intact. Cleanup has its own 20-second command budget and reports failure separately.
+and uses a unique guest path with a checked process ID. Cleanup reaps owned host
+processes and the verified recorder, and removes only that run's guest capture
+files. It never force-stops the app. If instrumentation remains active, even with
+the same runner component, cleanup preserves it and explicitly fails: API 37
+process dumps can hide arguments in a parcelled Bundle, so the harness cannot
+establish which invocation owns that instrumentation. Interruption therefore does
+not guarantee remote instrumentation has stopped; inspect the reported state
+before another run.
+
+The emulator, app installation, authentication, and fixture ledger remain intact.
+Cleanup has its own 20-second command budget and preserves failure causes.
 Use `--no-daemon` for this manual runtime lane so interruption reaches its
 single-use Gradle process; confirm cleanup output before another attempt.
 

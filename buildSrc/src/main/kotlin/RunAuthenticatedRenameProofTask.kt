@@ -73,6 +73,7 @@ private class AuthenticatedRenameRun(
     private var targetPackage: String? = null
     private var runnerComponent: String? = null
     private var completed = false
+    private val cleanupFailures = mutableListOf<Exception>()
 
     fun run(fixtureFile: File, app: File, test: File) {
         val cleanupHook = Thread({ cleanup() }, "putio-rename-cleanup-$runId")
@@ -141,6 +142,7 @@ private class AuthenticatedRenameRun(
             Runtime.getRuntime().removeShutdownHook(cleanupHook)
             if (!clean) {
                 val cleanupFailure = GradleException("Authenticated proof cleanup failed; inspect owned run $runId")
+                cleanupFailures.forEach(cleanupFailure::addSuppressed)
                 if (failure != null) failure.addSuppressed(cleanupFailure) else throw cleanupFailure
             }
         }
@@ -232,6 +234,7 @@ private class AuthenticatedRenameRun(
     @Synchronized
     private fun cleanup(): Boolean {
         val interrupted = Thread.interrupted()
+        cleanupFailures.clear()
         cleanupDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20)
         return try {
             cleanupOwnedProcesses()
@@ -244,15 +247,21 @@ private class AuthenticatedRenameRun(
         if (!::adb.isInitialized) return true
         var clean = true
         fun attempt(block: () -> Unit) {
-            try { block() } catch (_: Exception) { clean = false }
+            try { block() } catch (error: Exception) { cleanupFailures += error; clean = false }
         }
         if (instrumentationStarted) attempt {
-            val active = activeInstrumentation(cleanup = true)
-            if (active == setOf(runnerComponent)) {
-                shell("stop owned instrumentation", "am force-stop ${proofShellQuote(requireNotNull(targetPackage))}", cleanup = true)
-                requireProof(activeInstrumentation(cleanup = true).isEmpty(), "Owned instrumentation did not stop")
-            } else {
-                requireProof(active.isEmpty(), "Cannot verify exclusive instrumentation ownership during cleanup")
+            val active = try {
+                activeInstrumentation(cleanup = true)
+            } catch (error: Exception) {
+                report("CLEANUP FAIL Instrumentation ownership check failed; active instrumentation was not signaled")
+                throw error
+            }
+            if (active.isNotEmpty()) {
+                // The same runner can belong to a replacement invocation. API 37
+                // dumps keep arguments parcelled, so no per-run identity is visible.
+                val message = "Active instrumentation preserved: run ownership cannot be established"
+                report("CLEANUP FAIL $message")
+                throw GradleException(message)
             }
         }
         attempt { instrumentation?.let(::reapHostProcess) }
