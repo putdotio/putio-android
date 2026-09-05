@@ -5,6 +5,7 @@ import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -22,6 +23,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,13 +34,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -58,6 +65,7 @@ import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.android.files.canStartOperation
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -84,8 +92,6 @@ internal fun MobileFilesScreen(
                 modifier = modifier,
             )
 
-        is FilesContent.Empty -> MobileRefreshableFilesContent(state, content, onEvent, onPlayVideo, modifier)
-
         is FilesContent.Failed ->
             MobileErrorState(
                 title = stringResource(R.string.mobile_state_error_title),
@@ -95,7 +101,11 @@ internal fun MobileFilesScreen(
                 modifier = modifier,
             )
 
-        is FilesContent.Ready -> MobileRefreshableFilesContent(state, content, onEvent, onPlayVideo, modifier)
+        is FilesContent.Empty,
+        is FilesContent.Ready,
+        -> key(current.folder.id.value) {
+            MobileRefreshableFilesContent(state, content, onEvent, onPlayVideo, modifier)
+        }
     }
 }
 
@@ -108,20 +118,42 @@ private fun MobileRefreshableFilesContent(
     modifier: Modifier = Modifier,
 ) {
     val operation = state.current.operation
+    val currentOperation by rememberUpdatedState(operation)
+    var selectedItemId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val selectedItem = (content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == selectedItemId }
+    LaunchedEffect(selectedItemId, selectedItem) {
+        if (selectedItem == null) selectedItemId = null
+    }
+    if (selectedItem != null) {
+        key(selectedItem.id.value) {
+            MobileFilesActions(
+                item = selectedItem,
+                folderId = state.current.folder.id,
+                operation = operation,
+                renameCompletion = state.current.renameCompletion,
+                onEvent = onEvent,
+                onDismiss = { selectedItemId = null },
+            )
+        }
+    }
     val isRefreshing =
         operation is FilesFolderOperation.Loading &&
             operation.intent == FilesFolderOperationIntent.Refresh
     val refreshLabel = stringResource(R.string.mobile_files_refresh)
     val refreshAction = CustomAccessibilityAction(refreshLabel) {
-        onEvent(FilesBrowserEvent.Refresh)
-        true
+        if (selectedItemId == null && currentOperation.canStartOperation) {
+            onEvent(FilesBrowserEvent.Refresh)
+            true
+        } else {
+            false
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
-                if (operation !is FilesFolderOperation.Loading) {
+                if (selectedItemId == null && currentOperation.canStartOperation) {
                     onEvent(FilesBrowserEvent.Refresh)
                 }
             },
@@ -130,7 +162,7 @@ private fun MobileRefreshableFilesContent(
                 .fillMaxWidth()
                 .testTag(MOBILE_FILES_REFRESH_TAG)
                 .semantics {
-                    if (operation !is FilesFolderOperation.Loading) {
+                    if (selectedItemId == null && operation.canStartOperation) {
                         customActions = listOf(refreshAction)
                     }
                 },
@@ -148,6 +180,8 @@ private fun MobileRefreshableFilesContent(
                             pagingEnabled = operation == FilesFolderOperation.Idle,
                             onEvent = onEvent,
                             onPlayVideo = onPlayVideo,
+                            onActions = { selectedItemId = it.id.value },
+                            operation = operation,
                         )
                     }
 
@@ -205,8 +239,18 @@ private fun MobileFilesOperationStatus(
     when (operation) {
         FilesFolderOperation.Idle -> Unit
         is FilesFolderOperation.Loading -> {
-            if (operation.intent is FilesFolderOperationIntent.Sort) {
-                val message = stringResource(R.string.mobile_files_sorting)
+            val messageResource = when (operation.intent) {
+                FilesFolderOperationIntent.Refresh -> null
+                is FilesFolderOperationIntent.Sort -> R.string.mobile_files_sorting
+                is FilesFolderOperationIntent.Rename ->
+                    if (operation.phase == FilesFolderOperationPhase.RENAMING) {
+                        R.string.mobile_files_renaming
+                    } else {
+                        R.string.mobile_files_rename_reloading
+                    }
+            }
+            if (messageResource != null) {
+                val message = stringResource(messageResource)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -231,6 +275,8 @@ private fun MobileFilesOperationStatus(
                 when {
                     operation.intent == FilesFolderOperationIntent.Refresh -> R.string.mobile_files_refresh_error
                     operation.phase == FilesFolderOperationPhase.PERSISTING_SORT -> R.string.mobile_files_sort_error
+                    operation.phase == FilesFolderOperationPhase.RENAMING -> R.string.mobile_files_rename_error
+                    operation.intent is FilesFolderOperationIntent.Rename -> R.string.mobile_files_rename_reload_error
                     else -> R.string.mobile_files_reload_error
                 },
             )
@@ -265,6 +311,8 @@ private fun MobileFilesList(
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
     onPlayVideo: (FilesItem) -> Unit,
+    onActions: (FilesItem) -> Unit,
+    operation: FilesFolderOperation,
     modifier: Modifier = Modifier,
 ) {
     val viewport = content.viewport
@@ -273,6 +321,12 @@ private fun MobileFilesList(
         initialFirstVisibleItemScrollOffset = viewport.firstVisibleItemScrollOffset,
     )
     val currentOnEvent by rememberUpdatedState(onEvent)
+    val reloadingRename = when (operation) {
+        is FilesFolderOperation.Loading -> operation.intent.takeIf { operation.phase == FilesFolderOperationPhase.RELOADING }
+        is FilesFolderOperation.Failed -> operation.intent.takeIf { operation.phase == FilesFolderOperationPhase.RELOADING }
+        FilesFolderOperation.Idle -> null
+    } as? FilesFolderOperationIntent.Rename
+    val actionsEnabled = operation.canStartOperation
 
     LaunchedEffect(listState) {
         // Report only settled positions: per-frame offsets during a fling would
@@ -305,7 +359,10 @@ private fun MobileFilesList(
         ) { item ->
             MobileFilesRow(
                 item = item,
+                onActions = if (item.id.value > 0L) { { onActions(item) } } else null,
+                actionsEnabled = actionsEnabled,
                 onClick = when {
+                    item.id == reloadingRename?.itemId -> null
                     item.isFolder -> {
                         { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
                     }
@@ -345,9 +402,20 @@ internal fun MobileFilesRow(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     onClickLabel: String? = null,
+    onActions: (() -> Unit)? = null,
+    actionsEnabled: Boolean = true,
 ) {
     val metadata = formatFilesItemMetadata(LocalContext.current, item)
-    val interaction = if (onClick != null) {
+    val actionsLabel = stringResource(R.string.mobile_files_actions, item.name)
+    val interaction = if (onActions != null && actionsEnabled) {
+        Modifier.combinedClickable(
+            onClickLabel = onClickLabel,
+            role = Role.Button,
+            onClick = onClick ?: onActions,
+            onLongClickLabel = actionsLabel,
+            onLongClick = onActions,
+        )
+    } else if (onClick != null) {
         Modifier.clickable(
             onClickLabel = onClickLabel,
             role = Role.Button,
@@ -386,6 +454,16 @@ internal fun MobileFilesRow(
                     type = item.type,
                     modifier = Modifier.size(FILES_ICON_SIZE),
                 )
+            }
+        },
+        trailingContent = onActions?.let { action ->
+            {
+                IconButton(onClick = action, enabled = actionsEnabled) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
+                        contentDescription = actionsLabel,
+                    )
+                }
             }
         },
     )

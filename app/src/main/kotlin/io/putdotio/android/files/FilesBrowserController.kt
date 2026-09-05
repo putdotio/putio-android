@@ -61,7 +61,9 @@ class FilesBrowserController(
         when (this) {
             is FilesBrowserEvent.LoadSucceeded -> requestId
             is FilesBrowserEvent.LoadFailed -> requestId
-            is FilesBrowserEvent.SortPersisted -> requestId
+            is FilesBrowserEvent.MutationSucceeded -> requestId
+            is FilesBrowserEvent.Rename,
+            is FilesBrowserEvent.AbandonRename,
             is FilesBrowserEvent.LoadNextPage,
             is FilesBrowserEvent.OpenFolder,
             is FilesBrowserEvent.OpenExternalItem,

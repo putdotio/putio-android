@@ -23,6 +23,43 @@ import java.util.concurrent.CancellationException
 class SdkFilesRepositoryTest {
 
     @Test
+    fun renamesThroughSdkWithoutChangingTheWholeName() = runBlocking {
+        val renamed = mutableListOf<Pair<Long, String>>()
+        val repository = SdkFilesRepository(
+            listFolder = { _, _ -> error("Unexpected folder load") },
+            continueListing = { _, _ -> error("Unexpected continuation") },
+            setSort = { _, _ -> error("Unexpected sort") },
+            getFile = { error("Unexpected file resolution") },
+            renameFile = { id, name -> renamed += id to name },
+        )
+        for (name in listOf("  Türkçe [raw].mkv  ", "", "folder.name")) {
+            assertEquals(FilesRepositoryResult.Success(Unit), repository.rename(FilesItemId(42L), name))
+        }
+        assertEquals(listOf(42L to "  Türkçe [raw].mkv  ", 42L to "", 42L to "folder.name"), renamed)
+    }
+
+    @Test
+    fun renamePreservesTypedRejectionAndCancellation() = runBlocking {
+        for (status in listOf(401, 403)) {
+            val error = apiFailure(status)
+            val result = repositoryThrowing(error).rename(FilesItemId(42L), "new.mkv") as FilesRepositoryResult.Failure
+            if (status == 401) {
+                assertTrue(result.failure is FilesFailure.AuthenticationRequired)
+            } else {
+                assertTrue(result.failure is FilesFailure.AccessDenied)
+            }
+            assertSame(error, result.failure.cause)
+        }
+        val cancellation = CancellationException("cancelled rename")
+        try {
+            repositoryThrowing(cancellation).rename(FilesItemId(42L), "new.mkv")
+            fail("Cancellation must propagate")
+        } catch (caught: CancellationException) {
+            assertSame(cancellation, caught)
+        }
+    }
+
+    @Test
     fun listsRootThroughSdkAndMapsRawFileData() =
         runBlocking {
             var requestedFolder: Long? = null
@@ -52,6 +89,7 @@ class SdkFilesRepositoryTest {
                     },
                     continueListing = { _, _ -> error("Unexpected continuation") },
                     setSort = { _, _ -> error("Unexpected sort") },
+                    renameFile = { _, _ -> error("Unexpected rename") },
                     getFile = { error("Unexpected file resolution") },
                 )
 
@@ -79,6 +117,7 @@ class SdkFilesRepositoryTest {
                         response(cursor = "  ")
                     },
                     setSort = { _, _ -> error("Unexpected sort") },
+                    renameFile = { _, _ -> error("Unexpected rename") },
                     getFile = { error("Unexpected file resolution") },
                 )
 
@@ -122,6 +161,7 @@ class SdkFilesRepositoryTest {
                     listFolder = { _, _ -> error("Unexpected folder load") },
                     continueListing = { _, _ -> error("Unexpected continuation") },
                     setSort = { _, _ -> error("Unexpected sort") },
+                    renameFile = { _, _ -> error("Unexpected rename") },
                     getFile = { fileId ->
                         requestedFileId = fileId
                         sdkFile(fileId, "movie.mkv", PutioFileType.VIDEO)
@@ -240,6 +280,7 @@ class SdkFilesRepositoryTest {
                     listFolder = { _, _ -> response() },
                     continueListing = { _, _ -> response() },
                     setSort = { folderId, sort -> persisted += folderId to sort },
+                    renameFile = { _, _ -> error("Unexpected rename") },
                     getFile = { error("Unexpected file resolution") },
                 )
 
@@ -259,6 +300,7 @@ class SdkFilesRepositoryTest {
             listFolder = { _, _ -> throw error },
             continueListing = { _, _ -> throw error },
             setSort = { _, _ -> throw error },
+            renameFile = { _, _ -> throw error },
             getFile = { throw error },
         )
 

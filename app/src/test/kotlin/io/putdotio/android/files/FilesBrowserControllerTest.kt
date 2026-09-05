@@ -15,6 +15,103 @@ import org.junit.Test
 class FilesBrowserControllerTest {
 
     @Test
+    fun renameOwnsItsRequestCancelsPagingAndRetriesOnlyFailedReload() = runBlocking {
+        val original = item(7L, "old.mkv", PutioFileType.VIDEO)
+        val renameResult = CompletableDeferred<FilesRepositoryResult<Unit>>()
+        val pagingStarted = CompletableDeferred<Unit>()
+        val pagingCancelled = CompletableDeferred<Unit>()
+        val renamed = mutableListOf<Pair<FilesItemId, String>>()
+        var folderLoads = 0
+        val repository = object : FilesRepository {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+                folderLoads += 1
+                return when (folderLoads) {
+                    1 -> FilesRepositoryResult.Success(FilesPage(listOf(original), FilesCursor("old")))
+                    2 -> FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("reload failed")))
+                    else -> FilesRepositoryResult.Success(FilesPage(listOf(original.copy(name = "new.mkv")), null))
+                }
+            }
+
+            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+                pagingStarted.complete(Unit)
+                try {
+                    awaitCancellation()
+                } finally {
+                    pagingCancelled.complete(Unit)
+                }
+            }
+
+            override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort): FilesRepositoryResult<Unit> =
+                error("No sort expected")
+
+            override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> {
+                renamed += itemId to name
+                return renameResult.await()
+            }
+        }
+        val controller = FilesBrowserController(repository, this)
+        try {
+            controller.awaitState { it.current.content is FilesContent.Ready }
+            controller.dispatch(FilesBrowserEvent.LoadNextPage)
+            withTimeout(TEST_TIMEOUT_MILLIS) { pagingStarted.await() }
+            val event = FilesBrowserEvent.Rename(FilesFolder.Root.id, original.id, "new.mkv")
+            assertTrue(controller.dispatch(event))
+            assertFalse(controller.dispatch(event))
+            withTimeout(TEST_TIMEOUT_MILLIS) { pagingCancelled.await() }
+            renameResult.complete(FilesRepositoryResult.Success(Unit))
+            val failed = controller.awaitState { it.current.operation is FilesFolderOperation.Failed }
+            assertEquals(
+                FilesFolderOperationPhase.RELOADING,
+                (failed.current.operation as FilesFolderOperation.Failed).phase,
+            )
+            assertEquals(listOf(original), (failed.current.content as FilesContent.Ready).items)
+            controller.dispatch(FilesBrowserEvent.Retry)
+            val completed = controller.awaitState { it.current.operation == FilesFolderOperation.Idle }
+            assertEquals("new.mkv", (completed.current.content as FilesContent.Ready).items.single().name)
+            assertEquals(listOf(original.id to "new.mkv"), renamed)
+            assertEquals(3, folderLoads)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun closingCancelsAnInFlightRename() = runBlocking {
+        val original = item(7L, "old.mkv", PutioFileType.VIDEO)
+        val started = CompletableDeferred<Unit>()
+        val cancelled = CompletableDeferred<Unit>()
+        val repository = object : FilesRepository {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                FilesRepositoryResult.Success(FilesPage(listOf(original), null))
+
+            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
+                error("No continuation expected")
+
+            override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort): FilesRepositoryResult<Unit> =
+                error("No sort expected")
+
+            override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> {
+                started.complete(Unit)
+                try {
+                    awaitCancellation()
+                } finally {
+                    cancelled.complete(Unit)
+                }
+            }
+        }
+        val controller = FilesBrowserController(repository, this)
+        try {
+            controller.awaitState { it.current.content is FilesContent.Ready }
+            controller.dispatch(FilesBrowserEvent.Rename(FilesFolder.Root.id, original.id, "new.mkv"))
+            withTimeout(TEST_TIMEOUT_MILLIS) { started.await() }
+        } finally {
+            controller.close()
+        }
+        withTimeout(TEST_TIMEOUT_MILLIS) { cancelled.await() }
+        assertFalse(controller.dispatch(FilesBrowserEvent.Retry))
+    }
+
+    @Test
     fun navigateBackPreservesParentPagingRequest() =
         runBlocking {
             val pagingResult = CompletableDeferred<FilesRepositoryResult<FilesPage>>()
@@ -32,6 +129,9 @@ class FilesBrowserControllerTest {
 
                     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
                         pagingResult.await()
+
+                    override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
+                        error("No rename expected")
 
                     override suspend fun persistSort(
                         folderId: FilesItemId,
@@ -95,6 +195,9 @@ class FilesBrowserControllerTest {
                     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
                         error("No continuation expected")
 
+                    override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
+                        error("No rename expected")
+
                     override suspend fun persistSort(
                         folderId: FilesItemId,
                         sort: FilesSort,
@@ -143,6 +246,9 @@ class FilesBrowserControllerTest {
                     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
                         error("No continuation expected")
 
+                    override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
+                        error("No rename expected")
+
                     override suspend fun persistSort(
                         folderId: FilesItemId,
                         sort: FilesSort,
@@ -178,6 +284,9 @@ class FilesBrowserControllerTest {
 
                     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
                         error("No continuation expected")
+
+                    override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
+                        error("No rename expected")
 
                     override suspend fun persistSort(
                         folderId: FilesItemId,
@@ -220,6 +329,9 @@ class FilesBrowserControllerTest {
                             pagingCancelled.complete(Unit)
                         }
                     }
+
+                    override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
+                        error("No rename expected")
 
                     override suspend fun persistSort(
                         folderId: FilesItemId,
@@ -273,6 +385,9 @@ class FilesBrowserControllerTest {
 
                     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
                         error("No continuation expected")
+
+                    override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
+                        error("No rename expected")
 
                     override suspend fun persistSort(
                         folderId: FilesItemId,

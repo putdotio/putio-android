@@ -1,23 +1,27 @@
 package io.putdotio.android.files
 
-internal fun FilesBrowserState.sortPersisted(event: FilesBrowserEvent.SortPersisted): FilesBrowserTransition {
+internal fun FilesBrowserState.mutationSucceeded(
+    requestId: FilesRequestId,
+): FilesBrowserTransition {
     val index = stack.indexOfFirst {
-        (it.operation as? FilesFolderOperation.Loading)?.requestId == event.requestId
+        (it.operation as? FilesFolderOperation.Loading)?.requestId == requestId
     }
     val folderState = stack.getOrNull(index)
     val loading = folderState?.operation as? FilesFolderOperation.Loading
-    val intent = loading?.intent as? FilesFolderOperationIntent.Sort
-    if (loading == null || intent == null || loading.phase != FilesFolderOperationPhase.PERSISTING_SORT) {
+    if (loading == null || loading.phase == FilesFolderOperationPhase.RELOADING) {
         return FilesBrowserTransition(this, consumed = false)
     }
 
     val reloadRequestId = FilesRequestId(nextRequestValue)
     val updated =
         folderState.copy(
+            renameCompletion = (loading.intent as? FilesFolderOperationIntent.Rename)
+                ?.let { FilesRenameCompletion(requestId, it) }
+                ?: folderState.renameCompletion,
             operation =
                 FilesFolderOperation.Loading(
                     requestId = reloadRequestId,
-                    intent = intent,
+                    intent = loading.intent,
                     phase = FilesFolderOperationPhase.RELOADING,
                 ),
         )
@@ -38,6 +42,7 @@ internal fun FilesFolderState.replaceFirstPage(
     val viewport =
         when (loading.intent) {
             FilesFolderOperationIntent.Refresh -> content.viewport()
+            is FilesFolderOperationIntent.Rename -> content.viewport()
             is FilesFolderOperationIntent.Sort -> FilesViewportPosition()
         }
     // folder.sort changes only when the reordered rows replace the list, while the
@@ -50,6 +55,7 @@ internal fun FilesFolderState.replaceFirstPage(
         viewportGeneration =
             when (loading.intent) {
                 FilesFolderOperationIntent.Refresh -> viewportGeneration
+                is FilesFolderOperationIntent.Rename -> viewportGeneration
                 is FilesFolderOperationIntent.Sort -> viewportGeneration + 1
             },
         consumedCursors = emptySet(),

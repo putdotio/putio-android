@@ -212,6 +212,9 @@ class MobileFilesViewModelTest {
             cursor: io.putdotio.android.files.FilesCursor,
         ): FilesRepositoryResult<FilesPage> = error("No continuation expected")
 
+        override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
+            error("No rename expected")
+
         override suspend fun persistSort(
             folderId: FilesItemId,
             sort: io.putdotio.android.files.FilesSort,

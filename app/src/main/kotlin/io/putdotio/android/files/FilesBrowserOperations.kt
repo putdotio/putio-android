@@ -1,5 +1,39 @@
 package io.putdotio.android.files
 
+internal val FilesFolderOperation.canStartOperation: Boolean
+    get() = when (this) {
+        FilesFolderOperation.Idle -> true
+        is FilesFolderOperation.Loading -> false
+        is FilesFolderOperation.Failed -> intent !is FilesFolderOperationIntent.Rename ||
+            phase != FilesFolderOperationPhase.RELOADING
+    }
+
+internal fun FilesBrowserState.abandonRename(event: FilesBrowserEvent.AbandonRename): FilesBrowserTransition {
+    val failed = current.operation as? FilesFolderOperation.Failed
+    return if (event.folderId == current.folder.id && failed?.intent == event.intent &&
+        failed.phase == FilesFolderOperationPhase.RENAMING
+    ) {
+        FilesBrowserTransition(copy(stack = stack.replaceLast(current.copy(operation = FilesFolderOperation.Idle))))
+    } else {
+        FilesBrowserTransition(this, consumed = false)
+    }
+}
+
+internal fun FilesBrowserState.rename(event: FilesBrowserEvent.Rename): FilesBrowserTransition {
+    val item = current.content.items().firstOrNull { it.id == event.itemId && it.id.value > 0L }
+    if (event.folderId != current.folder.id || item == null) {
+        return FilesBrowserTransition(this, consumed = false)
+    }
+    return if (item.name == event.name) {
+        FilesBrowserTransition(this, consumed = false)
+    } else {
+        startOperation(
+            intent = FilesFolderOperationIntent.Rename(item.id, event.name),
+            phase = FilesFolderOperationPhase.RENAMING,
+        )
+    }
+}
+
 internal fun FilesBrowserState.refresh(): FilesBrowserTransition =
     startOperation(
         intent = FilesFolderOperationIntent.Refresh,
@@ -21,7 +55,7 @@ private fun FilesBrowserState.startOperation(
     phase: FilesFolderOperationPhase,
 ): FilesBrowserTransition {
     val hasVisibleContent = current.content is FilesContent.Empty || current.content is FilesContent.Ready
-    if (current.operation is FilesFolderOperation.Loading || !hasVisibleContent) {
+    if (!current.operation.canStartOperation || !hasVisibleContent) {
         return FilesBrowserTransition(this, consumed = false)
     }
     val requestId = FilesRequestId(nextRequestValue)
@@ -61,10 +95,12 @@ private fun effectFor(
     intent: FilesFolderOperationIntent,
     phase: FilesFolderOperationPhase,
 ): FilesBrowserEffect =
-    when (phase) {
-        FilesFolderOperationPhase.RELOADING -> FilesBrowserEffect.LoadFolder(folderId, requestId)
-        FilesFolderOperationPhase.PERSISTING_SORT -> {
-            val sort = (intent as FilesFolderOperationIntent.Sort).sort
-            FilesBrowserEffect.PersistSort(folderId, sort, requestId)
+    if (phase == FilesFolderOperationPhase.RELOADING) {
+        FilesBrowserEffect.LoadFolder(folderId, requestId)
+    } else {
+        when (intent) {
+            FilesFolderOperationIntent.Refresh -> FilesBrowserEffect.LoadFolder(folderId, requestId)
+            is FilesFolderOperationIntent.Sort -> FilesBrowserEffect.PersistSort(folderId, intent.sort, requestId)
+            is FilesFolderOperationIntent.Rename -> FilesBrowserEffect.Rename(intent.itemId, intent.name, requestId)
         }
     }

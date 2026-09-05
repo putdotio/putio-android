@@ -7,12 +7,19 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
@@ -55,6 +62,124 @@ class MobileFilesScreenTest {
     val compose = createComposeRule()
 
     @Test
+    fun renameDraftSurvivesRecreationButDoesNotFollowNavigation() {
+        val original = filesItem(7L, "old.mkv", PutioFileType.VIDEO)
+        val sentinel = filesItem(0L, "root", PutioFileType.FOLDER)
+        var state by mutableStateOf(browserState(FilesContent.Ready(listOf(original, sentinel), FilesPaging.Complete)))
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            PutioTheme {
+                MobileFilesScreen(state, onEvent = { state = FilesBrowserReducer.reduce(state, it).state }, onPlayVideo = {})
+            }
+        }
+        compose.onNodeWithContentDescription("Actions for root").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
+        compose.onNodeWithText("Rename").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("  unsaved.txt  ")
+        restoration.emulateSavedInstanceStateRestore()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).assertTextContains("  unsaved.txt  ")
+        compose.runOnIdle {
+            val navigation = FilesBrowserReducer.reduce(state, FilesBrowserEvent.OpenExternalItem(
+                filesItem(44L, "Other folder", PutioFileType.FOLDER),
+            ))
+            state = FilesBrowserReducer.reduce(navigation.state, FilesBrowserEvent.LoadSucceeded(
+                checkNotNull(navigation.effect).requestId,
+                FilesPage(listOf(original.copy(parentId = FilesItemId(44L), name = "other.mkv")), null),
+            )).state
+        }
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).assertDoesNotExist()
+        compose.onNodeWithText("other.mkv").assertIsDisplayed()
+    }
+
+    @Test
+    fun overflowRenamePreservesDraftOnFailureAndReloadRetryDoesNotRenameAgain() {
+        val original = filesItem(7L, "old.mkv", PutioFileType.VIDEO)
+        var state by mutableStateOf(browserState(FilesContent.Ready(listOf(original), FilesPaging.Complete)))
+        val effects = mutableListOf<FilesBrowserEffect>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state, onEvent = {
+                    val transition = FilesBrowserReducer.reduce(state, it)
+                    state = transition.state
+                    transition.effect?.let(effects::add)
+                }, onPlayVideo = {})
+            }
+        }
+        compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
+        compose.onNodeWithText("Rename").performClick()
+        val field = compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG)
+        field.assertTextContains("old.mkv").assertIsFocused()
+        field.performTextReplacement("  Türkçe.mp4  ")
+        field.performImeAction()
+        compose.onNodeWithText("Save").assertDoesNotExist()
+        field.assertIsNotEnabled()
+        compose.runOnIdle {
+            assertEquals(1, effects.size)
+            val rename = effects.single() as FilesBrowserEffect.Rename
+            assertEquals("  Türkçe.mp4  ", rename.name)
+            state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadFailed(
+                rename.requestId, FilesFailure.Unexpected(IllegalStateException("offline")),
+            )).state
+        }
+        field.assertIsEnabled().assertTextContains("  Türkçe.mp4  ")
+        compose.onNodeWithText("Save").performClick()
+        compose.runOnIdle {
+            val renamed = effects.last() as FilesBrowserEffect.Rename
+            val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.MutationSucceeded(renamed.requestId))
+            state = reload.state
+            effects += checkNotNull(reload.effect)
+        }
+        field.assertDoesNotExist()
+        compose.runOnIdle {
+            state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadFailed(
+                effects.last().requestId, FilesFailure.Unexpected(IllegalStateException("reload failed")),
+            )).state
+        }
+        compose.onNodeWithText("Name saved, but couldn’t reload files.").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).performClick()
+        compose.runOnIdle {
+            assertTrue(effects.last() is FilesBrowserEffect.LoadFolder)
+            assertEquals(2, effects.filterIsInstance<FilesBrowserEffect.Rename>().size)
+        }
+    }
+
+    @Test
+    fun longPressRenameCancelsWithoutChangingTheFolderAndFastSuccessClosesEditor() {
+        val original = filesItem(7L, "folder", PutioFileType.FOLDER)
+        var state by mutableStateOf(browserState(FilesContent.Ready(listOf(original), FilesPaging.Complete)))
+        val renamed = mutableListOf<FilesBrowserEffect.Rename>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state, onEvent = {
+                    val transition = FilesBrowserReducer.reduce(state, it)
+                    state = transition.state
+                    val effect = transition.effect
+                    if (effect is FilesBrowserEffect.Rename) {
+                        renamed += effect
+                        val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.MutationSucceeded(effect.requestId))
+                        state = FilesBrowserReducer.reduce(reload.state, FilesBrowserEvent.LoadSucceeded(
+                            checkNotNull(reload.effect).requestId,
+                            FilesPage(listOf(original.copy(name = effect.name)), null),
+                        )).state
+                    }
+                }, onPlayVideo = {})
+            }
+        }
+        compose.onNodeWithText("folder").performTouchInput { longClick() }
+        compose.onNodeWithText("Rename").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("cancelled")
+        compose.onNodeWithText("Cancel").performClick()
+        compose.runOnIdle { assertTrue(renamed.isEmpty()) }
+        compose.onNodeWithText("folder").assertIsDisplayed().performTouchInput { longClick() }
+        compose.onNodeWithText("Rename").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).assertTextContains("folder").performTextReplacement("renamed folder")
+        compose.onNodeWithText("Save").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).assertDoesNotExist()
+        compose.onNodeWithText("renamed folder").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(1, renamed.size) }
+    }
+
+    @Test
     fun readyContentPreservesNamesAndOpensFolders() {
         val folder = filesItem(
             id = 7L,
@@ -67,13 +192,14 @@ class MobileFilesScreenTest {
             type = PutioFileType.VIDEO,
             sizeBytes = 1_048_576L,
         )
+        val textFile = filesItem(id = 9L, name = "notes.txt")
         val events = mutableListOf<FilesBrowserEvent>()
         val played = mutableListOf<FilesItem>()
 
         setFilesContent(
             state = browserState(
                 FilesContent.Ready(
-                    items = listOf(folder, video),
+                    items = listOf(folder, video, textFile),
                     paging = FilesPaging.Complete,
                 ),
             ),
@@ -87,6 +213,8 @@ class MobileFilesScreenTest {
 
         assertEquals(FilesBrowserEvent.OpenFolder(folder.id), events.last())
         assertEquals(listOf(video), played)
+        compose.onNodeWithText(textFile.name).performClick()
+        compose.onNodeWithText("Rename").assertIsDisplayed()
     }
 
     @Test
