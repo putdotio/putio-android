@@ -191,6 +191,7 @@ class MobileVideoPlayerScreenTest {
             PutioTheme {
                 MobileSubtitleCueOverlay(
                     cues = listOf(cue),
+                    videoAspectRatio = 16f / 9f,
                     modifier = Modifier.requiredSize(320.dp, 180.dp),
                 )
             }
@@ -201,6 +202,31 @@ class MobileVideoPlayerScreenTest {
             .assertWidthIsEqualTo(320.dp)
             .assertHeightIsEqualTo(180.dp)
         assertTrue(compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
+    }
+
+    @Test
+    fun subtitleCuesWaitForVideoDimensionsAfterPlayerReplacement() {
+        var aspectRatio by mutableStateOf<Float?>(null)
+        val cues = listOf(Cue.Builder().setText("A retained subtitle").build())
+        compose.setContent {
+            PutioTheme {
+                MobileSubtitleCueOverlay(
+                    cues = cues,
+                    videoAspectRatio = aspectRatio,
+                    modifier = Modifier.requiredSize(320.dp, 640.dp),
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).assertDoesNotExist()
+        compose.runOnIdle { aspectRatio = 16f / 9f }
+        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG)
+            .assertIsDisplayed()
+            .assertWidthIsEqualTo(320.dp)
+            .assertHeightIsEqualTo(180.dp)
+        assertTrue(compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
+        compose.runOnIdle { aspectRatio = null }
+        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).assertDoesNotExist()
     }
 
     @Test
@@ -221,6 +247,7 @@ class MobileVideoPlayerScreenTest {
             PutioTheme {
                 MobileSubtitleCueOverlay(
                     cues = listOf(cue),
+                    videoAspectRatio = 16f / 9f,
                     modifier = Modifier.requiredSize(320.dp, 180.dp),
                 )
             }
@@ -258,6 +285,7 @@ class MobileVideoPlayerScreenTest {
                     )
                     MobileSubtitleCueOverlay(
                         cues = listOf(Cue.Builder().setText("Visible subtitle").build()),
+                        videoAspectRatio = 16f / 9f,
                         modifier = Modifier.zIndex(1f),
                     )
                 }

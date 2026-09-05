@@ -733,10 +733,11 @@ private fun rememberTouchExplorationEnabled(): Boolean {
 @UnstableApi
 internal fun MobileSubtitleCueOverlay(
     cues: List<Cue>,
+    videoAspectRatio: Float?,
     modifier: Modifier = Modifier,
-    videoAspectRatio: Float? = null,
 ) {
-    if (cues.isEmpty()) return
+    // Replacement players can deliver retained cues before their video dimensions.
+    if (cues.isEmpty() || videoAspectRatio == null || !videoAspectRatio.isFinite() || videoAspectRatio <= 0f) return
     val context = LocalContext.current
     val renderer = remember(context) { SubtitleCueRenderer(context) }
 
@@ -807,18 +808,14 @@ internal fun VideoSize.displayAspectRatioOrNull(): Float? {
     return width.toFloat() * pixelWidthHeightRatio / height.toFloat()
 }
 
-private fun Modifier.fitInsideAspectRatio(aspectRatio: Float?): Modifier =
-    if (aspectRatio == null || !aspectRatio.isFinite() || aspectRatio <= 0f) {
-        fillMaxSize()
-    } else {
-        layout { measurable, constraints ->
-            val fitted = fitInside(constraints.maxWidth, constraints.maxHeight, aspectRatio)
-            val placeable =
-                measurable.measure(
-                    androidx.compose.ui.unit.Constraints.fixed(fitted.width, fitted.height),
-                )
-            layout(fitted.width, fitted.height) { placeable.place(0, 0) }
-        }
+private fun Modifier.fitInsideAspectRatio(aspectRatio: Float): Modifier =
+    layout { measurable, constraints ->
+        val fitted = fitInside(constraints.maxWidth, constraints.maxHeight, aspectRatio)
+        val placeable =
+            measurable.measure(
+                androidx.compose.ui.unit.Constraints.fixed(fitted.width, fitted.height),
+            )
+        layout(fitted.width, fitted.height) { placeable.place(0, 0) }
     }
 
 internal data class FittedVideoSize(val width: Int, val height: Int)
