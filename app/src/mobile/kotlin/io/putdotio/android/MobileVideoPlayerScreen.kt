@@ -556,7 +556,7 @@ private fun MobileReadyVideoPlayer(
                 .zIndex(0.5f)
                 .windowInsetsPadding(WindowInsets.safeGestures)
                 .testTag(MOBILE_PLAYER_GESTURE_TAG)
-                .pointerInput(player, source.fileId, seekWindow, playbackState, touchExplorationEnabled) {
+                .pointerInput(player, source.fileId, seekWindow, touchExplorationEnabled) {
                     detectTapGestures(
                         onDoubleTap = { position ->
                             onPointerNavigation()

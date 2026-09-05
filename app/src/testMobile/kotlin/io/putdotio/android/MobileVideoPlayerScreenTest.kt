@@ -557,6 +557,63 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun doubleTapStillAccumulatesWhenPlaybackBuffersBetweenTaps() {
+        lateinit var player: RecordingPlayer
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = readyState(startFromSeconds = 20.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory =
+                        MobilePlayerFactory {
+                            RecordingPlayer(durationMillis = 60_000L).also { player = it }
+                        },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        val seekWindow = player.currentSeekWindow()
+        assertTrue(seekWindow.available)
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            click(percentOffset(0.5f, 0.25f))
+        }
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onAllNodesWithTag(MOBILE_SEEK_FORWARD_TAG).assertCountEquals(0)
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle { assertEquals(listOf(30_000L), player.seekPositions) }
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            click(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_BUFFERING) }
+        compose.mainClock.advanceTimeByFrame()
+        compose.runOnIdle {
+            assertEquals(Media3Player.STATE_BUFFERING, player.playbackState)
+            assertEquals(seekWindow, player.currentSeekWindow())
+        }
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            advanceEventTime(64L)
+            click(percentOffset(0.75f, 0.25f))
+        }
+
+        compose.runOnIdle { assertEquals(listOf(30_000L, 40_000L), player.seekPositions) }
+        compose.mainClock.autoAdvance = true
+        compose.onNodeWithText("Forward 20 seconds").assertIsDisplayed()
+    }
+
+    @Test
     fun accumulatedSeekFeedbackIsVisible() {
         compose.setContent {
             PutioTheme {
