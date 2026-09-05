@@ -80,6 +80,8 @@ private class AuthenticatedRenameRun(
     private var targetPackage: String? = null
     private var runnerComponent: String? = null
     private var completed = false
+    private var cleanupStarted = false
+    private var activeCommand: Process? = null
     private val cleanupFailures = mutableListOf<Exception>()
 
     fun run(fixtureFile: File, app: File, test: File) {
@@ -121,6 +123,7 @@ private class AuthenticatedRenameRun(
                 requireNotNull(runnerComponent))
             val output = File(evidence, "instrumentation.txt")
             synchronized(this) {
+                requireProof(!cleanupStarted, "Authenticated proof cleanup has started")
                 instrumentation = start(listOf(adb, "-s", serial, "shell", args.joinToString(" ", transform = ::proofShellQuote)), output)
                 instrumentationStarted = true
             }
@@ -202,6 +205,7 @@ private class AuthenticatedRenameRun(
         // The shell PID survives exec, so the owner record names the actual screenrecord process.
         val script = "echo \$\$ > ${proofShellQuote(remotePid)}; exec screenrecord --time-limit 180 ${proofShellQuote(remoteCapture)}"
         synchronized(this) {
+            requireProof(!cleanupStarted, "Authenticated proof cleanup has started")
             recorder = start(listOf(adb, "-s", serial, "shell", "sh -c ${proofShellQuote(script)}"), out)
             recordingStarted = true
         }
@@ -242,6 +246,7 @@ private class AuthenticatedRenameRun(
 
     @Synchronized
     private fun cleanup(): Boolean {
+        cleanupStarted = true
         val interrupted = Thread.interrupted()
         cleanupFailures.clear()
         cleanupDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(20)
@@ -253,11 +258,15 @@ private class AuthenticatedRenameRun(
     }
 
     private fun cleanupOwnedProcesses(): Boolean {
-        if (!::adb.isInitialized) return true
         var clean = true
         fun attempt(block: () -> Unit) {
             try { block() } catch (error: Exception) { cleanupFailures += error; clean = false }
         }
+        attempt {
+            activeCommand?.let(::reapHostProcess)
+            activeCommand = null
+        }
+        if (!::adb.isInitialized) return clean
         if (instrumentationStarted) attempt {
             val active = try {
                 activeInstrumentation(cleanup = true)
@@ -309,12 +318,19 @@ private class AuthenticatedRenameRun(
             minOf(3_000L, TimeUnit.NANOSECONDS.toMillis(cleanupDeadline - System.nanoTime()))
         } else remainingMillis()
         requireProof(timeout > 0, "$stage cleanup deadline expired")
-        val process = ProcessBuilder(args).directory(root).redirectErrorStream(true).apply {
-            if (cli) {
-                environment().remove("PUTIO_CLI_TOKEN")
-                environment()["PUTIO_CLI_PROFILE"] = "devs-auto"
+        val process = synchronized(this) {
+            requireProof(cleanup || !cleanupStarted, "Authenticated proof cleanup has started")
+            ProcessBuilder(args).directory(root).redirectErrorStream(true).apply {
+                if (cli) {
+                    environment().remove("PUTIO_CLI_TOKEN")
+                    environment()["PUTIO_CLI_PROFILE"] = "devs-auto"
+                }
+            }.start().also {
+                // Cleanup commands already run under cleanup's monitor. Keep the
+                // foreground command reachable if the JVM skips its finally block.
+                if (!cleanup) activeCommand = it
             }
-        }.start()
+        }
         val bytes = ByteArrayOutputStream()
         var outputOverflow = false
         var readerFailure: Exception? = null
@@ -351,7 +367,13 @@ private class AuthenticatedRenameRun(
             requireProof(allowFailure || process.exitValue() == 0, "$stage failed")
             return bytes.toString(Charsets.UTF_8.name())
         } finally {
-            if (process.isAlive) reapHostProcess(process)
+            try {
+                if (process.isAlive) reapHostProcess(process)
+            } finally {
+                synchronized(this) {
+                    if (activeCommand === process) activeCommand = null
+                }
+            }
         }
     }
 

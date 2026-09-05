@@ -63,6 +63,43 @@ class AuthenticatedRenameProcessTest {
     }
 
     @Test(timeout = 120_000)
+    fun shutdownDuringSdkResolutionReapsTheSynchronousCommandTree() {
+        val fixture = fixture("shutdown-sdk-command")
+        File(fixture, "scripts/lib.sh").writeText("""
+            resolve_sdk_root() {
+                echo ${'$'}${'$'} > "${'$'}FAKE_PROOF_DIR/state/resolver-pid"
+                sh "${'$'}FAKE_PROOF_DIR/sdk-child.sh"
+                :
+            }
+        """.trimIndent())
+        File(fixture, "sdk-child.sh").writeText("""
+            echo ${'$'}${'$'} > "${'$'}FAKE_PROOF_DIR/state/sdk-child-pid"
+            touch "${'$'}FAKE_PROOF_DIR/state/sdk-command-started"
+            while :; do sleep 1; done
+        """.trimIndent())
+        val testKit = File(fixture, "test-kit").apply { mkdirs() }
+        try {
+            assertThrows(Exception::class.java) { runner(fixture).withTestKitDir(testKit).build() }
+            assertTrue(File(fixture, "state/sdk-command-started").isFile)
+            for (name in listOf("sdk-child-pid", "resolver-pid")) {
+                val pid = File(fixture, "state/$name").readText().trim().toLong()
+                assertFalse("Owned $name survived JVM shutdown", ProcessHandle.of(pid).map { it.isAlive }.orElse(false))
+            }
+            assertFalse(File(fixture, "state/commands").exists())
+        } finally {
+            // A failing regression must not leave its isolated JVM or exact helpers behind.
+            for (name in listOf("sdk-child-pid", "resolver-pid", "shutdown-jvm-pid")) {
+                val pidFile = File(fixture, "state/$name")
+                if (pidFile.isFile) ProcessHandle.of(pidFile.readText().trim().toLong()).ifPresent { process ->
+                    val owned = process.descendants().use { it.toList().asReversed() } + process
+                    owned.forEach { it.destroyForcibly() }
+                    owned.forEach { it.onExit().get(5, TimeUnit.SECONDS) }
+                }
+            }
+        }
+    }
+
+    @Test(timeout = 120_000)
     fun shutdownHookReportsCaptureRemovalFailureWithoutExposingPayloads() {
         val fixture = fixture("shutdown-remove-failure")
         val testKit = File(fixture, "test-kit").apply { mkdirs() }
@@ -264,17 +301,17 @@ class AuthenticatedRenameProcessTest {
                 repositoryDirectory.set(layout.projectDirectory)
                 apkDirectory.set(layout.projectDirectory.dir('app'))
                 testApkDirectory.set(layout.projectDirectory.dir('test'))
-                if ('$mode' == 'interrupt' || '$mode' == 'shutdown-remove-failure') {
+                if ('$mode' == 'interrupt' || '$mode'.startsWith('shutdown-')) {
                     doFirst {
                         def owner = Thread.currentThread()
-                        if ('$mode' == 'shutdown-remove-failure') {
+                        if ('$mode'.startsWith('shutdown-')) {
                             file('state/shutdown-jvm-pid').text = ProcessHandle.current().pid().toString()
                         }
-                        def marker = file('state/instrumentation-started')
+                        def marker = file('$mode' == 'shutdown-sdk-command' ? 'state/sdk-command-started' : 'state/instrumentation-started')
                         def interrupter = new Thread({
                             def deadline = System.nanoTime() + 30_000_000_000L
                             while (!marker.exists() && System.nanoTime() < deadline) Thread.sleep(25)
-                            if ('$mode' == 'shutdown-remove-failure') System.exit(17)
+                            if ('$mode'.startsWith('shutdown-')) System.exit(17)
                             else if (marker.exists()) owner.interrupt()
                         })
                         interrupter.daemon = true
