@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -41,6 +42,75 @@ import org.robolectric.annotation.GraphicsMode
 class MobileFilesRenameTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun renamedFolderWaitsForAuthoritativeReloadBeforeOpening() =
+        assertRenamedItemWaitsForReload(PutioFileType.FOLDER)
+
+    @Test
+    fun renamedVideoWaitsForAuthoritativeReloadBeforePlaying() =
+        assertRenamedItemWaitsForReload(PutioFileType.VIDEO)
+
+    private fun assertRenamedItemWaitsForReload(type: PutioFileType) {
+        val target = file.copy(type = type)
+        val otherFolder = file.copy(id = FilesItemId(8L), name = "other folder", type = PutioFileType.FOLDER)
+        val otherVideo = file.copy(id = FilesItemId(9L), name = "other.mkv")
+        val items = listOf(target, otherFolder, otherVideo)
+        val initial = FilesBrowserReducer.start()
+        var state by mutableStateOf(FilesBrowserReducer.reduce(initial.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(initial.effect).requestId, FilesPage(items, null),
+        )).state)
+        val effects = mutableListOf<FilesBrowserEffect>()
+        val played = mutableListOf<FilesItem>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state, onEvent = {
+                    val transition = FilesBrowserReducer.reduce(state, it)
+                    state = transition.state
+                    transition.effect?.let(effects::add)
+                }, onPlayVideo = played::add)
+            }
+        }
+        compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
+        compose.onNodeWithText("Rename").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("saved.mkv")
+        compose.onNodeWithText("Save").performClick()
+        compose.runOnIdle {
+            val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.MutationSucceeded(effects.single().requestId))
+            state = reload.state
+            effects += checkNotNull(reload.effect)
+        }
+        val reloadRequest = effects.last().requestId
+        compose.onNodeWithText(target.name).assertHasNoClickAction()
+        compose.onNodeWithText(otherVideo.name).performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(otherVideo), played)
+            state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadFailed(
+                reloadRequest, FilesFailure.Unexpected(IllegalStateException("reload failed")),
+            )).state
+        }
+        compose.onNodeWithText(target.name).assertHasNoClickAction()
+        compose.onNodeWithText(otherFolder.name).performClick()
+        compose.runOnIdle {
+            assertEquals(otherFolder.id, state.current.folder.id)
+            state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.NavigateBack).state
+        }
+        compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).performClick()
+        compose.runOnIdle {
+            state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadSucceeded(
+                effects.last().requestId, FilesPage(items.map { if (it.id == target.id) it.copy(name = "saved.mkv") else it }, null),
+            )).state
+        }
+        compose.onNodeWithText("saved.mkv").performClick()
+        compose.runOnIdle {
+            if (type == PutioFileType.FOLDER) {
+                assertEquals(target.id, state.current.folder.id)
+                assertEquals("saved.mkv", state.current.folder.name)
+            } else {
+                assertEquals(target.copy(name = "saved.mkv"), played.last())
+            }
+        }
+    }
 
     @Test
     fun aQueuedRefreshCannotReplaceThePageWhileEditing() {

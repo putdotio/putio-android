@@ -134,10 +134,6 @@ private fun MobileRefreshableFilesContent(
             )
         }
     }
-    val awaitingRenameReload = operation is FilesFolderOperation.Failed &&
-        operation.intent is FilesFolderOperationIntent.Rename &&
-        operation.phase == FilesFolderOperationPhase.RELOADING
-    val actionsEnabled = operation !is FilesFolderOperation.Loading && !awaitingRenameReload
     val isRefreshing =
         operation is FilesFolderOperation.Loading &&
             operation.intent == FilesFolderOperationIntent.Refresh
@@ -183,7 +179,7 @@ private fun MobileRefreshableFilesContent(
                             onEvent = onEvent,
                             onPlayVideo = onPlayVideo,
                             onActions = { selectedItemId = it.id.value },
-                            actionsEnabled = actionsEnabled,
+                            operation = operation,
                         )
                     }
 
@@ -314,7 +310,7 @@ private fun MobileFilesList(
     onEvent: (FilesBrowserEvent) -> Unit,
     onPlayVideo: (FilesItem) -> Unit,
     onActions: (FilesItem) -> Unit,
-    actionsEnabled: Boolean,
+    operation: FilesFolderOperation,
     modifier: Modifier = Modifier,
 ) {
     val viewport = content.viewport
@@ -323,6 +319,12 @@ private fun MobileFilesList(
         initialFirstVisibleItemScrollOffset = viewport.firstVisibleItemScrollOffset,
     )
     val currentOnEvent by rememberUpdatedState(onEvent)
+    val reloadingRename = when (operation) {
+        is FilesFolderOperation.Loading -> operation.intent.takeIf { operation.phase == FilesFolderOperationPhase.RELOADING }
+        is FilesFolderOperation.Failed -> operation.intent.takeIf { operation.phase == FilesFolderOperationPhase.RELOADING }
+        FilesFolderOperation.Idle -> null
+    } as? FilesFolderOperationIntent.Rename
+    val actionsEnabled = operation !is FilesFolderOperation.Loading && reloadingRename == null
 
     LaunchedEffect(listState) {
         // Report only settled positions: per-frame offsets during a fling would
@@ -358,6 +360,7 @@ private fun MobileFilesList(
                 onActions = if (item.id.value > 0L) { { onActions(item) } } else null,
                 actionsEnabled = actionsEnabled,
                 onClick = when {
+                    item.id == reloadingRename?.itemId -> null
                     item.isFolder -> {
                         { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
                     }
