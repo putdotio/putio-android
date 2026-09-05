@@ -88,21 +88,81 @@ class MobileAuthControllerTest {
     }
 
     @Test
-    fun `mismatched Auth Tab callback stores nothing and consumes pending attempt`() = runBlocking {
-        val fixture = Fixture()
+    fun `stale Auth Tab callback preserves a newer pending attempt`() = runBlocking {
+        val states = ArrayDeque(listOf("older-oauth-state", "newer-oauth-state"))
+        val fixture = Fixture(stateGenerator = OAuthStateGenerator { states.removeFirst() })
         fixture.controller.restoreSession()
+        fixture.controller.beginSignIn()
+        fixture.controller.cancelSignIn()
         fixture.controller.beginSignIn()
 
         val result = fixture.controller.handleOAuthCallback(
-            "putio://auth?state=wrong-state#access_token=$TOKEN&state=wrong-state",
+            "putio://auth?state=older-oauth-state#access_token=$TOKEN&state=older-oauth-state",
         )
 
         assertEquals(OAuthCallbackHandlingResult.REJECTED, result)
         assertNull(fixture.tokenStore.token)
         assertNull(fixture.gateway.configuredToken)
-        assertNull(fixture.pendingAttemptStore.attempt)
-        assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.SignInFailed), fixture.controller.state.value)
-        assertFalse(fixture.controller.cancelSignIn())
+        assertEquals("newer-oauth-state", fixture.pendingAttemptStore.attempt?.state)
+        assertEquals(MobileAuthState.AwaitingOAuthCallback, fixture.controller.state.value)
+
+        assertEquals(
+            OAuthCallbackHandlingResult.ACCEPTED,
+            fixture.controller.handleOAuthCallback(
+                "putio://auth?state=newer-oauth-state#access_token=$TOKEN&state=newer-oauth-state",
+            ),
+        )
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
+    }
+
+    @Test
+    fun `stale callback after process recreation restores awaiting state before or after session restore`() = runBlocking {
+        listOf(false, true).forEach { restoreBeforeCallback ->
+            val pendingStore = FakePendingOAuthAttemptStore()
+            val firstProcess = Fixture(pendingAttemptStore = pendingStore)
+            firstProcess.controller.restoreSession()
+            firstProcess.controller.beginSignIn()
+            val currentAttempt = pendingStore.attempt
+            val restoredProcess = Fixture(pendingAttemptStore = pendingStore)
+            if (restoreBeforeCallback) restoredProcess.controller.restoreSession()
+
+            val result = restoredProcess.controller.handleOAuthCallback(
+                "putio://auth#state=older-oauth-state&access_token=$TOKEN",
+            )
+            restoredProcess.controller.restoreSession()
+
+            assertEquals(OAuthCallbackHandlingResult.REJECTED, result)
+            assertEquals(MobileAuthState.AwaitingOAuthCallback, restoredProcess.controller.state.value)
+            assertEquals(OAuthLaunchResult.NotAllowed, restoredProcess.controller.beginSignIn())
+            assertEquals(currentAttempt, pendingStore.attempt)
+            assertNull(restoredProcess.tokenStore.token)
+            assertEquals(
+                OAuthCallbackHandlingResult.ACCEPTED,
+                restoredProcess.controller.handleOAuthCallback(VALID_CALLBACK),
+            )
+            assertNull(pendingStore.attempt)
+            assertEquals(SIGNED_IN, restoredProcess.controller.state.value)
+        }
+    }
+
+    @Test
+    fun `contradictory query and fragment states consume the matching pending attempt`() = runBlocking {
+        listOf(
+            "putio://auth?state=older-oauth-state#state=$OAUTH_STATE&access_token=$TOKEN",
+            "putio://auth?state=$OAUTH_STATE#state=older-oauth-state&access_token=$TOKEN",
+        ).forEach { callback ->
+            val fixture = Fixture()
+            fixture.controller.restoreSession()
+            fixture.controller.beginSignIn()
+
+            val result = fixture.controller.handleOAuthCallback(callback)
+
+            assertEquals(OAuthCallbackHandlingResult.REJECTED, result)
+            assertNull(fixture.pendingAttemptStore.attempt)
+            assertNull(fixture.tokenStore.token)
+            assertNull(fixture.gateway.configuredToken)
+            assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.SignInFailed), fixture.controller.state.value)
+        }
     }
 
     @Test
@@ -700,8 +760,7 @@ class MobileAuthControllerTest {
         override fun buildLoginUrl(redirectUri: String, state: String): String {
             calls += "build-url"
             assertEquals(MOBILE_OAUTH_REDIRECT_URI, redirectUri)
-            assertEquals(OAUTH_STATE, state)
-            return AUTHORIZATION_URL
+            return "https://app.put.io/authenticate?state=$state"
         }
 
         override fun setAccessToken(accessToken: AccessToken) {

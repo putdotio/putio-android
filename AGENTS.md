@@ -153,6 +153,12 @@ emulator composites the app window black for the first minute. Exit 0 pass ·
 1 fail · 70 cleanup failure · 130/143 interrupted. Machine-readable stdout
 markers: `BOOTED <serial>`, `EVIDENCE <path>`, `PROOF PASS|FAIL <flavor>`.
 
+The connected suite uninstalls the tested apps afterward; `prove.sh` reinstalls
+the app for capture. Authenticate after launch proof for interactive feature
+checks, and do not run `connectedAndroidTest` or `prove.sh` between authenticated
+steps. The device auth tests use separate preferences and Keystore aliases so
+their own setup and cleanup do not touch an existing session.
+
 Flags: `--keep` (leave emulator running), `--ephemeral` (throwaway AVD,
 deleted on exit), `--window` (headed), `--skip-build`, `--record`,
 `--seconds N` (recording length, max 180).
