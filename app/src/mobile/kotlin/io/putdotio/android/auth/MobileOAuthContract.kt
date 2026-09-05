@@ -18,21 +18,15 @@ internal sealed interface MobileOAuthConfiguration {
 
     companion object {
         fun fromClientId(clientId: String?): MobileOAuthConfiguration {
-            if (clientId.isNullOrEmpty()) {
-                return Unavailable(OAuthConfigurationProblem.MissingClientId)
+            val numericClientId = clientId?.toLongOrNull()
+            return when {
+                clientId.isNullOrEmpty() -> Unavailable(OAuthConfigurationProblem.MissingClientId)
+                clientId != clientId.trim() || numericClientId == null || numericClientId <= 0 ->
+                    Unavailable(OAuthConfigurationProblem.InvalidClientId)
+                numericClientId in FORBIDDEN_TV_CLIENT_IDS -> Unavailable(OAuthConfigurationProblem.ForbiddenTvClientId)
+                clientId != numericClientId.toString() -> Unavailable(OAuthConfigurationProblem.InvalidClientId)
+                else -> Configured(clientId)
             }
-            val numericClientId = clientId.toLongOrNull()
-            if (clientId != clientId.trim() || numericClientId == null || numericClientId <= 0) {
-                return Unavailable(OAuthConfigurationProblem.InvalidClientId)
-            }
-            if (numericClientId in FORBIDDEN_TV_CLIENT_IDS) {
-                return Unavailable(OAuthConfigurationProblem.ForbiddenTvClientId)
-            }
-            if (clientId != numericClientId.toString()) {
-                return Unavailable(OAuthConfigurationProblem.InvalidClientId)
-            }
-
-            return Configured(clientId)
         }
     }
 }
@@ -77,4 +71,6 @@ internal const val MOBILE_OAUTH_REDIRECT_URI = "$MOBILE_OAUTH_SCHEME://$MOBILE_O
 internal const val MOBILE_OAUTH_CLIENT_NAME = "put.io Android"
 
 private const val OAUTH_STATE_BYTE_COUNT = 32
-private val FORBIDDEN_TV_CLIENT_IDS = setOf(6221L, 6233L)
+private const val LEGACY_ANDROID_TV_CLIENT_ID = 6221L
+private const val LEGACY_FIRE_TV_CLIENT_ID = 6233L
+private val FORBIDDEN_TV_CLIENT_IDS = setOf(LEGACY_ANDROID_TV_CLIENT_ID, LEGACY_FIRE_TV_CLIENT_ID)

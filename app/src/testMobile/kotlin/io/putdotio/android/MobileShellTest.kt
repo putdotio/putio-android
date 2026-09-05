@@ -66,7 +66,6 @@ import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
-import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
@@ -90,6 +89,10 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -350,7 +353,6 @@ class MobileShellTest {
         val accountEvents = mutableListOf<AccountSettingsEvent>()
         val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
         compose.setShell(
-            appConfigState = readyAndroidAppConfigState(),
             onAccountSettingsEvent = accountEvents::add,
             onAppConfigEvent = appConfigEvents::add,
         )
@@ -470,6 +472,89 @@ class MobileShellTest {
             appConfigEvents,
         )
     }
+
+    @Test
+    fun contentNavigationCollectsOnceAndUsesTheCurrentFilesCallback() {
+        val deliveries = Channel<FilesItem>(Channel.UNLIMITED)
+        var subscriptions = 0
+        val navigation = flow {
+            subscriptions += 1
+            emitAll(deliveries.receiveAsFlow())
+        }
+        val oldEvents = mutableListOf<FilesBrowserEvent>()
+        val currentEvents = mutableListOf<FilesBrowserEvent>()
+        var useCurrentCallback by mutableStateOf(false)
+        val item = (videoFilesState().current.content as FilesContent.Ready).items.single()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = if (useCurrentCallback) {
+                        { event -> currentEvents.add(event) }
+                    } else {
+                        { event -> oldEvents.add(event) }
+                    },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    contentNavigation = navigation,
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.runOnIdle {
+            assertEquals(1, subscriptions)
+            useCurrentCallback = true
+        }
+        compose.runOnIdle {
+            assertEquals(1, subscriptions)
+            assertTrue(deliveries.trySend(item).isSuccess)
+        }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertTrue(oldEvents.isEmpty())
+            assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(item)), currentEvents)
+            assertEquals(1, subscriptions)
+            deliveries.close()
+        }
+    }
+
+    private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
+        filesState: FilesBrowserState = emptyFilesState(),
+        onFilesEvent: (FilesBrowserEvent) -> Unit = {},
+        onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
+        onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
+    ) {
+        setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = filesState,
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = onFilesEvent,
+                    onAccountSettingsEvent = onAccountSettingsEvent,
+                    onAppConfigEvent = onAppConfigEvent,
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35])
+class MobileShellTransfersTest {
+    @get:Rule
+    val compose = createComposeRule()
 
     @Test
     fun transferFileAuthenticationFailureRejectsTheSession() {
@@ -715,10 +800,18 @@ class MobileShellTest {
                 )
         }
     }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35])
+class MobileShellPlaybackTest {
+    @get:Rule
+    val compose = createComposeRule()
 
     @Test
     fun videoRowsOpenAFullScreenPlaybackStateAndNavigateBack() {
-        compose.setShell(filesState = videoFilesState())
+        compose.setPlaybackShell()
 
         compose.onNodeWithText("episode.mkv").performClick()
 
@@ -731,8 +824,7 @@ class MobileShellTest {
     @Test
     fun terminalAutoplayRestoresTheFilesRoute() {
         lateinit var player: RecordingPlayer
-        compose.setShell(
-            filesState = videoFilesState(),
+        compose.setPlaybackShell(
             appConfigState =
                 readyAndroidAppConfigState(
                     AndroidAppConfigPreferences(autoplayNextVideo = true),
@@ -753,8 +845,7 @@ class MobileShellTest {
     @Test
     fun authoritativePlaybackFailureRejectsTheSessionOnce() {
         var rejections = 0
-        compose.setShell(
-            filesState = videoFilesState(),
+        compose.setPlaybackShell(
             playbackRepository = AuthenticationFailureRepository,
             onPlaybackAuthenticationRequired = { rejections += 1 },
         )
@@ -765,88 +856,80 @@ class MobileShellTest {
         assertEquals(1, rejections)
     }
 
-    private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
-        filesState: FilesBrowserState = emptyFilesState(),
-        accountSettingsState: AccountSettingsState = readyAccountSettingsState(),
+    private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setPlaybackShell(
         appConfigState: AndroidAppConfigState = readyAndroidAppConfigState(),
         playbackRepository: PlaybackRepository = ConversionRepository,
         playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
-        onFilesEvent: (FilesBrowserEvent) -> Unit = {},
-        onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
-        onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
         onPlaybackAuthenticationRequired: suspend () -> Unit = {},
     ) {
         setContent {
             PutioTheme {
                 MobileShell(
-                    filesState = filesState,
-                    accountSettingsState = accountSettingsState,
+                    filesState = videoFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
                     appConfigState = appConfigState,
                     account = Account,
                     playbackRepository = playbackRepository,
                     playbackPlayerFactory = playbackPlayerFactory,
                     sessionId = Session,
-                    onFilesEvent = onFilesEvent,
-                    onAccountSettingsEvent = onAccountSettingsEvent,
-                    onAppConfigEvent = onAppConfigEvent,
+                    onFilesEvent = {},
+                    onAccountSettingsEvent = {},
                     onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                     onSignOut = {},
                 )
             }
         }
     }
-
-    private companion object {
-        val Account = MobileAccount(userId = 42L, username = "user", email = "user@example.com")
-        val Session = MobileAuthSessionId(1L)
-        val ConversionRepository =
-            object : PlaybackRepository {
-                override suspend fun resolve(
-                    target: PlaybackTarget,
-                ): PlaybackRepositoryResult<PlaybackResolution> =
-                    PlaybackRepositoryResult.Success(
-                        PlaybackResolution.Conversion(PlaybackConversionState.Queued),
-                    )
-
-                override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
-            }
-        val AuthenticationFailureRepository =
-            object : PlaybackRepository {
-                override suspend fun resolve(
-                    target: PlaybackTarget,
-                ): PlaybackRepositoryResult<PlaybackResolution> =
-                    PlaybackRepositoryResult.Failure(
-                        PlaybackFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
-                    )
-
-                override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
-            }
-        val EndingPlaybackRepository =
-            object : PlaybackRepository {
-                override suspend fun resolve(
-                    target: PlaybackTarget,
-                ): PlaybackRepositoryResult<PlaybackResolution> =
-                    PlaybackRepositoryResult.Success(
-                        PlaybackResolution.Ready(
-                            PlaybackSource(
-                                fileId = target.fileId.value,
-                                kind = PlaybackSourceKind.MP4,
-                                url = credentialUrl("https://example.com/video.mp4"),
-                                startFromSeconds = 0.0,
-                                subtitles = PlaybackSubtitles.None,
-                            ),
-                        ),
-                    )
-
-                override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
-            }
-
-        fun credentialUrl(value: String): PutioCredentialUrl =
-            PutioCredentialUrl::class.java
-                .getDeclaredConstructor(String::class.java)
-                .newInstance(value)
-    }
 }
+
+private val Account = MobileAccount(userId = 42L, username = "user", email = "user@example.com")
+private val Session = MobileAuthSessionId(1L)
+private val ConversionRepository =
+    object : PlaybackRepository {
+        override suspend fun resolve(
+            target: PlaybackTarget,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
+            PlaybackRepositoryResult.Success(
+                PlaybackResolution.Conversion(PlaybackConversionState.Queued),
+            )
+
+        override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
+    }
+private val AuthenticationFailureRepository =
+    object : PlaybackRepository {
+        override suspend fun resolve(
+            target: PlaybackTarget,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
+            PlaybackRepositoryResult.Failure(
+                PlaybackFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
+            )
+
+        override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
+    }
+private val EndingPlaybackRepository =
+    object : PlaybackRepository {
+        override suspend fun resolve(
+            target: PlaybackTarget,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
+            PlaybackRepositoryResult.Success(
+                PlaybackResolution.Ready(
+                    PlaybackSource(
+                        fileId = target.fileId.value,
+                        kind = PlaybackSourceKind.MP4,
+                        url = credentialUrl("https://example.com/video.mp4"),
+                        startFromSeconds = 0.0,
+                        subtitles = PlaybackSubtitles.None,
+                    ),
+                ),
+            )
+
+        override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
+    }
+
+private fun credentialUrl(value: String): PutioCredentialUrl =
+    PutioCredentialUrl::class.java
+        .getDeclaredConstructor(String::class.java)
+        .newInstance(value)
 
 private fun emptyFilesState(): FilesBrowserState {
     val initial = FilesBrowserReducer.start()

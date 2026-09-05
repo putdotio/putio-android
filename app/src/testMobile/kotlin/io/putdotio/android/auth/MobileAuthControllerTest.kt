@@ -116,7 +116,7 @@ class MobileAuthControllerTest {
     }
 
     @Test
-    fun `stale callback after process recreation restores awaiting state before or after session restore`() = runBlocking {
+    fun `stale callback restores awaiting state across process recreation`() = runBlocking {
         listOf(false, true).forEach { restoreBeforeCallback ->
             val pendingStore = FakePendingOAuthAttemptStore()
             val firstProcess = Fixture(pendingAttemptStore = pendingStore)
@@ -586,7 +586,10 @@ class MobileAuthControllerTest {
         fixture.controller.restoreSession()
 
         assertEquals(TOKEN, fixture.tokenStore.token?.reveal())
-        assertEquals(MobileAuthState.ValidationUnavailable(SessionValidationSource.RESTORE), fixture.controller.state.value)
+        assertEquals(
+            MobileAuthState.ValidationUnavailable(SessionValidationSource.RESTORE),
+            fixture.controller.state.value,
+        )
         assertTrue(fixture.controller.retryValidation())
         assertEquals(SIGNED_IN, fixture.controller.state.value)
     }
@@ -609,7 +612,10 @@ class MobileAuthControllerTest {
             // The caller owns cancellation; the controller owns a retryable state.
         }
 
-        assertEquals(MobileAuthState.ValidationUnavailable(SessionValidationSource.RESTORE), fixture.controller.state.value)
+        assertEquals(
+            MobileAuthState.ValidationUnavailable(SessionValidationSource.RESTORE),
+            fixture.controller.state.value,
+        )
         assertNull(fixture.gateway.configuredToken)
         fixture.gateway.validationFailure = null
         assertTrue(fixture.controller.retryValidation())
@@ -666,7 +672,10 @@ class MobileAuthControllerTest {
         assertEquals(OAuthLaunchResult.NotConfigured, result)
         assertFalse(generated)
         assertFalse(fixture.controller.isOAuthConfigured)
-        assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.OAuthNotConfigured), fixture.controller.state.value)
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.OAuthNotConfigured),
+            fixture.controller.state.value,
+        )
     }
 
     private class Fixture(

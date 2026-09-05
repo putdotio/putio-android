@@ -223,8 +223,7 @@ private fun MobileAuthRoot(
         is MobileAuthState.SignedIn ->
             SignedInMobileRoot(
                 runtime = runtime,
-                account = state.account,
-                sessionId = state.sessionId,
+                signedIn = state,
                 filesViewModel = filesViewModel,
                 accountSettingsViewModel = accountSettingsViewModel,
                 appConfigViewModel = appConfigViewModel,
@@ -294,8 +293,7 @@ internal fun MobileSignedOutScreen(
 @Composable
 internal fun SignedInMobileRoot(
     runtime: MobileOAuthRuntime,
-    account: MobileAccount,
-    sessionId: MobileAuthSessionId,
+    signedIn: MobileAuthState.SignedIn,
     filesViewModel: MobileFilesViewModel,
     accountSettingsViewModel: MobileAccountSettingsViewModel,
     appConfigViewModel: MobileAndroidAppConfigViewModel,
@@ -304,6 +302,8 @@ internal fun SignedInMobileRoot(
     authController: MobileAuthController,
     rootScope: CoroutineScope,
 ) {
+    val account = signedIn.account
+    val sessionId = signedIn.sessionId
     val filesRepository = remember(runtime.putioClient) {
         SdkFilesRepository(runtime.putioClient)
     }
@@ -342,9 +342,7 @@ internal fun SignedInMobileRoot(
     val searchHistorySession =
         remember(searchHistoryViewModel, runtime.putioClient, account, sessionId) {
             searchHistoryViewModel.controllersFor(
-                userId = account.userId,
-                sessionId = sessionId,
-                historyEnabled = account.historyEnabled,
+                session = signedIn,
                 putioClient = runtime.putioClient,
                 searchRepository = searchRepository,
                 historyRepository = historyRepository,
@@ -532,13 +530,6 @@ internal fun MobileShell(
         }
     }
 
-    LaunchedEffect(contentNavigation) {
-        contentNavigation.collect { item ->
-            onFilesEvent(FilesBrowserEvent.OpenExternalItem(item))
-            navController.navigateTo(MobileDestination.Files)
-        }
-    }
-
     BackHandler(
         enabled = !isPlayback && selectedDestination == MobileDestination.Files && filesState.canNavigateBack,
     ) {
@@ -619,6 +610,21 @@ internal fun MobileShell(
             }
         }
     }
+    MobileNavigationAlerts(
+        navigationFailure = navigationFailure,
+        transfersState = transfersState,
+        onDismissNavigationFailure = onDismissNavigationFailure,
+        onTransfersEvent = onTransfersEvent,
+    )
+}
+
+@Composable
+private fun MobileNavigationAlerts(
+    navigationFailure: FilesFailure?,
+    transfersState: TransfersState,
+    onDismissNavigationFailure: () -> Unit,
+    onTransfersEvent: (TransfersEvent) -> Unit,
+) {
     if (navigationFailure != null && navigationFailure !is FilesFailure.AuthenticationRequired) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = onDismissNavigationFailure,

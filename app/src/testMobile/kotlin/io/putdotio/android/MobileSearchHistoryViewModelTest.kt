@@ -229,9 +229,7 @@ class MobileSearchHistoryViewModelTest {
         client: PutioClient,
     ): ActiveSearchHistorySession? =
         controllersFor(
-            userId = USER_ID,
-            sessionId = sessionId,
-            historyEnabled = true,
+            session = signedIn(sessionId),
             putioClient = client,
             searchRepository = searchRepository,
             historyRepository = EmptyHistoryRepository,
@@ -275,7 +273,9 @@ class MobileSearchHistoryViewModelTest {
     }
 
     private object EmptyHistoryRepository : HistoryRepository {
-        override suspend fun load(before: io.putdotio.android.history.HistoryEventId?): HistoryRepositoryResult<HistoryPage> =
+        override suspend fun load(
+            before: io.putdotio.android.history.HistoryEventId?,
+        ): HistoryRepositoryResult<HistoryPage> =
             HistoryRepositoryResult.Success(HistoryPage(emptyList(), hasMore = false))
 
         override suspend fun clear(): HistoryRepositoryResult<Unit> = HistoryRepositoryResult.Success(Unit)

@@ -61,7 +61,10 @@ class MobileFilesViewModelTest {
             assertNotSame(beforeActivity, afterActivity)
             assertSame(beforeViewModel, afterViewModel)
             assertSame(beforeController, afterController)
-            assertEquals(listOf(FilesFolder.Root, FilesFolder(Folder.id, Folder.name)), afterController.state.value.path)
+            assertEquals(
+                listOf(FilesFolder.Root, FilesFolder(Folder.id, Folder.name)),
+                afterController.state.value.path,
+            )
             assertEquals(Viewport, content.viewport)
             assertEquals(listOf(FilesFolder.Root.id, Folder.id), repository.loadedFolderIds)
         } finally {

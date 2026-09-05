@@ -120,7 +120,7 @@ internal const val PENDING_OAUTH_STATE_KEY = "pending_oauth_state_v1"
 internal const val PENDING_OAUTH_CREATED_AT_KEY = "pending_oauth_created_at_v1"
 
 private const val MAX_OAUTH_STATE_LENGTH = 1_024
-private val OAUTH_STATE_CHARACTER_RANGE = 0x21..0x7e
+private val OAUTH_STATE_CHARACTER_RANGE = '!'.code..'~'.code
 private const val PENDING_ATTEMPT_READ_OPERATION = "read"
 private const val PENDING_ATTEMPT_WRITE_OPERATION = "write"
 private const val PENDING_ATTEMPT_CLEAR_OPERATION = "clear"
