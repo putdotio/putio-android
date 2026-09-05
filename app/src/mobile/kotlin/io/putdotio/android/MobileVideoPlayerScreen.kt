@@ -33,6 +33,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -258,6 +259,12 @@ private fun MobileReadyVideoPlayer(
     }
     fun seek(direction: SeekDirection) {
         val currentWindow = player.currentSeekWindow()
+        pendingSeek =
+            pendingSeekAfterWindowUpdate(
+                pending = pendingSeek,
+                previousWindow = seekWindow,
+                updatedWindow = currentWindow,
+            )
         seekWindow = currentWindow
         if (!currentWindow.available) return
         val request =
@@ -664,9 +671,9 @@ private fun MobileReadyVideoPlayer(
                     Modifier
                         .align(
                             if (request.direction == SeekDirection.Backward) {
-                                Alignment.CenterStart
+                                AbsoluteAlignment.CenterLeft
                             } else {
-                                Alignment.CenterEnd
+                                AbsoluteAlignment.CenterRight
                             },
                         )
                         .zIndex(3f)
