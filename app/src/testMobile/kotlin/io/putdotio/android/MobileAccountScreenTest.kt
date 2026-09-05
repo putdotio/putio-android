@@ -482,17 +482,13 @@ class MobileAccountScreenTest {
     fun playbackMutationFailuresRetryAndAuthenticationFailureDisablesControls() {
         val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
         val change = AndroidAppConfigChange.AutoplayNextVideo(enabled = true)
-        var appConfigState by mutableStateOf(
-            readyAndroidAppConfigState(
-                mutation =
-                    AndroidAppConfigMutation.Failed(
-                        change = change,
-                        failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("offline")),
-                        previousPreferences = DefaultAndroidAppConfigPreferences,
-                        operation = AndroidAppConfigMutation.Operation.Save,
-                    ),
-            ),
+        val saveFailure = AndroidAppConfigMutation.Failed(
+            change = change,
+            failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("offline")),
+            previousPreferences = DefaultAndroidAppConfigPreferences,
+            operation = AndroidAppConfigMutation.Operation.Save,
         )
+        var appConfigState by mutableStateOf(readyAndroidAppConfigState(mutation = saveFailure))
         compose.setContent {
             PutioTheme {
                 MobileAccountScreen(
@@ -516,13 +512,7 @@ class MobileAccountScreenTest {
             appConfigEvents.clear()
             appConfigState =
                 readyAndroidAppConfigState(
-                    mutation =
-                        AndroidAppConfigMutation.Failed(
-                            change = change,
-                            failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("offline")),
-                            previousPreferences = DefaultAndroidAppConfigPreferences,
-                            operation = AndroidAppConfigMutation.Operation.Refresh,
-                        ),
+                    mutation = saveFailure.copy(operation = AndroidAppConfigMutation.Operation.Refresh),
                 )
         }
         compose.onNodeWithText("Saved, but couldn’t confirm this setting").assertIsDisplayed()
@@ -533,14 +523,11 @@ class MobileAccountScreenTest {
             appConfigState =
                 readyAndroidAppConfigState(
                     mutation =
-                        AndroidAppConfigMutation.Failed(
-                            change = change,
+                        saveFailure.copy(
                             failure =
                                 AndroidAppConfigFailure.AuthenticationRequired(
                                     PutioConfigurationException("invalid token"),
                                 ),
-                            previousPreferences = DefaultAndroidAppConfigPreferences,
-                            operation = AndroidAppConfigMutation.Operation.Save,
                         ),
                 )
         }
@@ -553,7 +540,6 @@ class MobileAccountScreenTest {
         events: MutableList<AccountSettingsEvent>,
         onSignOut: () -> Unit = {},
         account: MobileAccount = Account,
-        appConfigState: AndroidAppConfigState = readyAndroidAppConfigState(),
         appConfigEvents: MutableList<AndroidAppConfigEvent> = mutableListOf(),
     ) {
         compose.setContent {
@@ -562,7 +548,7 @@ class MobileAccountScreenTest {
                     account = account,
                     sessionId = SessionOne,
                     settingsState = state,
-                    appConfigState = appConfigState,
+                    appConfigState = readyAndroidAppConfigState(),
                     onSettingsEvent = events::add,
                     onAppConfigEvent = appConfigEvents::add,
                     onSignOut = onSignOut,

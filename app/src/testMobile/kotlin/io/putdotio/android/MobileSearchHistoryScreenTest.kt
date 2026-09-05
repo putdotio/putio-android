@@ -43,7 +43,7 @@ class MobileSearchHistoryScreenTest {
         val opened = mutableListOf<FilesItem>()
         setScreen(
             search = searchState(SearchContent.Ready(SearchTerm("movie"), listOf(item), SearchPaging.Complete)),
-            onSearchResult = opened::add,
+            actions = MobileSearchHistoryActions(onResult = opened::add),
         )
 
         compose.onNodeWithText(item.name).assertIsDisplayed().performClick()
@@ -57,8 +57,7 @@ class MobileSearchHistoryScreenTest {
         val edits = mutableListOf<io.putdotio.android.search.RecentSearchEdit>()
         setScreen(
             search = searchState(SearchContent.Idle, listOf(SearchTerm("documentary"))),
-            onRecentSearch = searches::add,
-            onRecentEdit = edits::add,
+            actions = MobileSearchHistoryActions(onRecentSearch = searches::add, onRecentEdit = edits::add),
         )
 
         compose.onNodeWithText("documentary").performClick()
@@ -74,7 +73,7 @@ class MobileSearchHistoryScreenTest {
         setScreen(
             search = searchState(SearchContent.Idle, listOf(SearchTerm("documentary"))),
             recentSearchFailure = FilesFailure.Unexpected(IllegalStateException("offline")),
-            onRecentRetry = { retries += 1 },
+            actions = MobileSearchHistoryActions(onRecentRetry = { retries += 1 }),
         )
 
         compose.onNodeWithText("Couldn’t update recent searches").assertIsDisplayed()
@@ -102,7 +101,7 @@ class MobileSearchHistoryScreenTest {
                     ),
                 clearing = HistoryClearing.AwaitingConfirmation,
             )
-        setScreen(history = history, onHistoryEvent = events::add)
+        setScreen(history = history, actions = MobileSearchHistoryActions(onHistoryEvent = events::add))
 
         compose.onNodeWithText("History").performClick()
         compose.onNodeWithText("movie.mkv").assertIsDisplayed()
@@ -133,7 +132,7 @@ class MobileSearchHistoryScreenTest {
                         HistoryPaging.Complete,
                     ),
             )
-        setScreen(history = history, onHistoryEvent = events::add)
+        setScreen(history = history, actions = MobileSearchHistoryActions(onHistoryEvent = events::add))
 
         compose.onNodeWithText("History").performClick()
         compose.onNodeWithText("movie.mkv").performClick()
@@ -145,11 +144,7 @@ class MobileSearchHistoryScreenTest {
         search: SearchState = searchState(SearchContent.Idle),
         history: HistoryState = HistoryState(HistoryContent.Disabled),
         recentSearchFailure: FilesFailure? = null,
-        onSearchResult: (FilesItem) -> Unit = {},
-        onRecentSearch: (SearchTerm) -> Unit = {},
-        onRecentEdit: (io.putdotio.android.search.RecentSearchEdit) -> Unit = {},
-        onRecentRetry: () -> Unit = {},
-        onHistoryEvent: (HistoryEvent) -> Unit = {},
+        actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     ) {
         compose.setContent {
             PutioTheme {
@@ -159,13 +154,13 @@ class MobileSearchHistoryScreenTest {
                     recentSearchFailure = recentSearchFailure,
                     onSearchQueryChanged = {},
                     onSearchSubmit = {},
-                    onSearchResult = onSearchResult,
+                    onSearchResult = actions.onResult,
                     onSearchNextPage = {},
                     onSearchRetry = {},
-                    onRecentSearch = onRecentSearch,
-                    onRecentEdit = onRecentEdit,
-                    onRecentRetry = onRecentRetry,
-                    onHistoryEvent = onHistoryEvent,
+                    onRecentSearch = actions.onRecentSearch,
+                    onRecentEdit = actions.onRecentEdit,
+                    onRecentRetry = actions.onRecentRetry,
+                    onHistoryEvent = actions.onHistoryEvent,
                 )
             }
         }

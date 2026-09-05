@@ -78,32 +78,7 @@ internal fun MobileTransfersScreen(
     modifier: Modifier = Modifier,
     sessionId: MobileAuthSessionId? = null,
 ) {
-    var showAddSheet by rememberSaveable(sessionId) { mutableStateOf(false) }
-    var addInput by rememberSaveable(sessionId) { mutableStateOf("") }
-    var addValidationFailed by rememberSaveable(sessionId) { mutableStateOf(false) }
-    var handledSuccessfulAddRequestValue by rememberSaveable(sessionId) {
-        mutableStateOf(state.lastSuccessfulAddRequestId?.value)
-    }
     var confirmation by remember(sessionId) { mutableStateOf<TransferConfirmation?>(null) }
-
-    LaunchedEffect(state.lastSuccessfulAddRequestId) {
-        val requestId = state.lastSuccessfulAddRequestId ?: return@LaunchedEffect
-        if (handledSuccessfulAddRequestValue != requestId.value) {
-            showAddSheet = false
-            addInput = ""
-            addValidationFailed = false
-            handledSuccessfulAddRequestValue = requestId.value
-        }
-    }
-
-    LaunchedEffect(state.mutation) {
-        val mutation = state.mutation as? TransferMutation.Failed
-        val action = mutation?.action
-        if (action is TransferAction.Add) {
-            showAddSheet = true
-            if (addInput.isBlank()) addInput = action.submission.value
-        }
-    }
 
     val controlsEnabled =
         state.mutation !is TransferMutation.Running &&
@@ -142,12 +117,12 @@ internal fun MobileTransfersScreen(
                     Text(stringResource(R.string.mobile_transfers_clean))
                 }
             }
-            Button(
-                onClick = { showAddSheet = true },
+            MobileAddTransfer(
+                state = state,
+                onEvent = onEvent,
                 enabled = controlsEnabled,
-            ) {
-                Text(stringResource(R.string.mobile_transfers_add))
-            }
+                sessionId = sessionId,
+            )
         }
 
         MobileTransfersRefreshFailure(state.refresh, controlsEnabled, onEvent)
@@ -165,38 +140,6 @@ internal fun MobileTransfersScreen(
                 onConfirmation = { confirmation = it },
             )
         }
-    }
-
-    if (showAddSheet) {
-        val addFailure = (state.mutation as? TransferMutation.Failed)?.takeIf { it.action is TransferAction.Add }
-        val adding = (state.mutation as? TransferMutation.Running)?.action is TransferAction.Add
-        MobileAddTransferSheet(
-            input = addInput,
-            validationFailed = addValidationFailed,
-            failure = addFailure,
-            adding = adding,
-            onInputChanged = {
-                addInput = it
-                addValidationFailed = false
-                if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
-            },
-            onDismiss = {
-                if (!adding) {
-                    showAddSheet = false
-                    if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
-                }
-            },
-            onSubmit = {
-                val normalized = addInput.trim()
-                if (TransferSubmission.parse(normalized) != null) {
-                    addInput = normalized
-                    if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
-                    onEvent(TransfersEvent.Add(normalized))
-                } else {
-                    addValidationFailed = true
-                }
-            },
-        )
     }
 
     confirmation?.let { pending ->
@@ -295,13 +238,13 @@ private fun MobileTransferRow(
         supportingContent = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(item.statusLabel())
-                item.percentDone?.takeIf { it in 0.0..100.0 }?.let { percent ->
+                item.percentDone?.takeIf { it in 0.0..PERCENTAGE_SCALE }?.let { percent ->
                     LinearProgressIndicator(
-                        progress = { (percent / 100.0).toFloat() },
+                        progress = { (percent / PERCENTAGE_SCALE).toFloat() },
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
-                        text = NumberFormat.getPercentInstance().format(percent / 100.0),
+                        text = NumberFormat.getPercentInstance().format(percent / PERCENTAGE_SCALE),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -447,6 +390,79 @@ private fun MobileTransfersRefreshFailure(
     }
 }
 
+@Composable
+private fun MobileAddTransfer(
+    state: TransfersState,
+    onEvent: (TransfersEvent) -> Unit,
+    enabled: Boolean,
+    sessionId: MobileAuthSessionId?,
+) {
+    var showAddSheet by rememberSaveable(sessionId) { mutableStateOf(false) }
+    var addInput by rememberSaveable(sessionId) { mutableStateOf("") }
+    var addValidationFailed by rememberSaveable(sessionId) { mutableStateOf(false) }
+    var handledSuccessfulAddRequestValue by rememberSaveable(sessionId) {
+        mutableStateOf(state.lastSuccessfulAddRequestId?.value)
+    }
+
+    LaunchedEffect(state.lastSuccessfulAddRequestId) {
+        val requestId = state.lastSuccessfulAddRequestId ?: return@LaunchedEffect
+        if (handledSuccessfulAddRequestValue != requestId.value) {
+            showAddSheet = false
+            addInput = ""
+            addValidationFailed = false
+            handledSuccessfulAddRequestValue = requestId.value
+        }
+    }
+
+    LaunchedEffect(state.mutation) {
+        val mutation = state.mutation as? TransferMutation.Failed
+        val action = mutation?.action
+        if (action is TransferAction.Add) {
+            showAddSheet = true
+            if (addInput.isBlank()) addInput = action.submission.value
+        }
+    }
+
+    Button(
+        onClick = { showAddSheet = true },
+        enabled = enabled,
+    ) {
+        Text(stringResource(R.string.mobile_transfers_add))
+    }
+
+    if (showAddSheet) {
+        val addFailure = (state.mutation as? TransferMutation.Failed)?.takeIf { it.action is TransferAction.Add }
+        val adding = (state.mutation as? TransferMutation.Running)?.action is TransferAction.Add
+        MobileAddTransferSheet(
+            input = addInput,
+            validationFailed = addValidationFailed,
+            failure = addFailure,
+            adding = adding,
+            onInputChanged = {
+                addInput = it
+                addValidationFailed = false
+                if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
+            },
+            onDismiss = {
+                if (!adding) {
+                    showAddSheet = false
+                    if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
+                }
+            },
+            onSubmit = {
+                val normalized = addInput.trim()
+                if (TransferSubmission.parse(normalized) != null) {
+                    addInput = normalized
+                    if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
+                    onEvent(TransfersEvent.Add(normalized))
+                } else {
+                    addValidationFailed = true
+                }
+            },
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MobileAddTransferSheet(
@@ -538,7 +554,8 @@ private fun MobileTransferConfirmation(
         }
     val message =
         when (confirmation) {
-            is TransferConfirmation.Cancel -> stringResource(R.string.mobile_transfers_cancel_message, confirmation.name)
+            is TransferConfirmation.Cancel ->
+                stringResource(R.string.mobile_transfers_cancel_message, confirmation.name)
             is TransferConfirmation.Retry -> stringResource(R.string.mobile_transfers_retry_message, confirmation.name)
             is TransferConfirmation.Clean -> stringResource(R.string.mobile_transfers_clean_message)
         }
@@ -561,26 +578,29 @@ private fun MobileTransferConfirmation(
 
 @Composable
 private fun TransferItem.statusLabel(): String =
-    when (status) {
-        AppTransferStatus.Waiting -> stringResource(R.string.mobile_transfer_status_waiting)
-        AppTransferStatus.PreparingDownload -> stringResource(R.string.mobile_transfer_status_preparing)
-        AppTransferStatus.Queued -> stringResource(R.string.mobile_transfer_status_queued)
-        AppTransferStatus.Downloading -> stringResource(R.string.mobile_transfer_status_downloading)
-        AppTransferStatus.WaitingForCompleteQueue -> stringResource(R.string.mobile_transfer_status_finishing)
-        AppTransferStatus.WaitingForDownloader -> stringResource(R.string.mobile_transfer_status_waiting_for_downloader)
-        AppTransferStatus.Completing -> stringResource(R.string.mobile_transfer_status_finishing)
-        AppTransferStatus.Stopping -> stringResource(R.string.mobile_transfer_status_stopping)
-        AppTransferStatus.Seeding -> stringResource(R.string.mobile_transfer_status_seeding)
-        AppTransferStatus.PreparingSeed -> stringResource(R.string.mobile_transfer_status_preparing_seed)
-        AppTransferStatus.Completed ->
-            when {
-                userFileExists == false -> stringResource(R.string.mobile_transfer_file_unavailable)
-                fileId == null -> stringResource(R.string.mobile_transfer_file_preparing)
-                else -> stringResource(R.string.mobile_transfer_status_completed)
-            }
-        AppTransferStatus.Failed -> stringResource(R.string.mobile_transfer_status_failed)
-        is AppTransferStatus.Unknown -> stringResource(R.string.mobile_transfer_status_updating)
-    }
+    stringResource(
+        when (status) {
+            AppTransferStatus.Waiting -> R.string.mobile_transfer_status_waiting
+            AppTransferStatus.PreparingDownload -> R.string.mobile_transfer_status_preparing
+            AppTransferStatus.Queued -> R.string.mobile_transfer_status_queued
+            AppTransferStatus.Downloading -> R.string.mobile_transfer_status_downloading
+            AppTransferStatus.WaitingForCompleteQueue,
+            AppTransferStatus.Completing,
+            -> R.string.mobile_transfer_status_finishing
+            AppTransferStatus.WaitingForDownloader -> R.string.mobile_transfer_status_waiting_for_downloader
+            AppTransferStatus.Stopping -> R.string.mobile_transfer_status_stopping
+            AppTransferStatus.Seeding -> R.string.mobile_transfer_status_seeding
+            AppTransferStatus.PreparingSeed -> R.string.mobile_transfer_status_preparing_seed
+            AppTransferStatus.Completed ->
+                when {
+                    userFileExists == false -> R.string.mobile_transfer_file_unavailable
+                    fileId == null -> R.string.mobile_transfer_file_preparing
+                    else -> R.string.mobile_transfer_status_completed
+                }
+            AppTransferStatus.Failed -> R.string.mobile_transfer_status_failed
+            is AppTransferStatus.Unknown -> R.string.mobile_transfer_status_updating
+        },
+    )
 
 private fun TransferItem.details(context: Context): String =
     buildList {
@@ -588,16 +608,26 @@ private fun TransferItem.details(context: Context): String =
             add(Formatter.formatShortFileSize(context, it.toLong()))
         }
         downloadSpeedBytesPerSecond?.takeIf { it > 0.0 }?.let {
-            add(context.getString(R.string.mobile_transfer_download_speed, Formatter.formatShortFileSize(context, it.toLong())))
+            add(
+                context.getString(
+                    R.string.mobile_transfer_download_speed,
+                    Formatter.formatShortFileSize(context, it.toLong()),
+                ),
+            )
         }
         uploadSpeedBytesPerSecond?.takeIf { it > 0.0 }?.let {
-            add(context.getString(R.string.mobile_transfer_upload_speed, Formatter.formatShortFileSize(context, it.toLong())))
+            add(
+                context.getString(
+                    R.string.mobile_transfer_upload_speed,
+                    Formatter.formatShortFileSize(context, it.toLong()),
+                ),
+            )
         }
         estimatedSecondsRemaining?.takeIf { it > 0.0 }?.let {
             add(context.getString(R.string.mobile_transfer_eta, DateUtils.formatElapsedTime(it.toLong())))
         }
-        availability?.takeIf { it in 0.0..100.0 }?.let {
-            val percentage = NumberFormat.getPercentInstance().format(it / 100.0)
+        availability?.takeIf { it in 0.0..PERCENTAGE_SCALE }?.let {
+            val percentage = NumberFormat.getPercentInstance().format(it / PERCENTAGE_SCALE)
             add(context.getString(R.string.mobile_transfer_availability, percentage))
         }
     }.joinToString(" · ")
@@ -634,3 +664,5 @@ private sealed interface TransferConfirmation {
         override val event = TransfersEvent.CleanCompleted
     }
 }
+
+private const val PERCENTAGE_SCALE = 100.0

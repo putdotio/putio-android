@@ -269,16 +269,15 @@ private fun MobileAccountAvatarFallback(modifier: Modifier) {
 
 internal fun String.isSupportedAvatarUrl(): Boolean {
     val uri = runCatching { URI(this) }.getOrNull() ?: return false
-    if (
-        !uri.scheme.equals("https", ignoreCase = true) ||
-        uri.host.isNullOrBlank() ||
-        uri.userInfo != null ||
-        uri.rawAuthority?.endsWith(':') == true
-    ) {
-        return false
+    return when {
+        !uri.scheme.equals("https", ignoreCase = true) -> false
+        uri.host.isNullOrBlank() -> false
+        uri.userInfo != null -> false
+        uri.rawAuthority?.endsWith(':') == true -> false
+        else -> toHttpUrlOrNull()?.let { url ->
+            url.isHttps && url.username.isEmpty() && url.password.isEmpty()
+        } ?: false
     }
-    val url = toHttpUrlOrNull() ?: return false
-    return url.isHttps && url.username.isEmpty() && url.password.isEmpty()
 }
 
 private fun MobileAccountStorage.usedFraction(): Float {
@@ -292,15 +291,6 @@ private fun LazyListScope.accountSettingsItems(
     onChange: (AccountSettingsChange) -> Unit,
     onRetryChange: () -> Unit,
 ) {
-    val enabled =
-        when (mutation) {
-            AccountSettingsMutation.Idle -> true
-            is AccountSettingsMutation.Saving -> false
-            is AccountSettingsMutation.Failed ->
-                mutation.failure !is AccountSettingsFailure.AuthenticationRequired
-        }
-    val savingKey = (mutation as? AccountSettingsMutation.Saving)?.change?.key
-    val failedMutation = mutation as? AccountSettingsMutation.Failed
     item(key = SUBTITLES_HEADER_KEY) {
         MobileAccountSectionHeader(R.string.mobile_settings_section_subtitles)
     }
@@ -310,13 +300,10 @@ private fun LazyListScope.accountSettingsItems(
             description = R.string.mobile_settings_show_subtitles_description,
             icon = R.drawable.ic_ph_subtitles,
             checked = preferences.showSubtitles,
-            enabled = enabled,
-            saving = savingKey == AccountSettingsKey.ShowSubtitles,
-            failure = failedMutation?.takeIf { it.change.key == AccountSettingsKey.ShowSubtitles },
+            key = AccountSettingsKey.ShowSubtitles,
+            mutation = mutation,
             onRetry = onRetryChange,
-            onCheckedChange = {
-                onChange(AccountSettingsChange(AccountSettingsKey.ShowSubtitles, it))
-            },
+            onChange = onChange,
         )
     }
     if (preferences.showSubtitles) {
@@ -326,13 +313,10 @@ private fun LazyListScope.accountSettingsItems(
                 description = R.string.mobile_settings_auto_select_subtitles_description,
                 icon = R.drawable.ic_ph_list_checks,
                 checked = preferences.autoSelectSubtitles,
-                enabled = enabled,
-                saving = savingKey == AccountSettingsKey.AutoSelectSubtitles,
-                failure = failedMutation?.takeIf { it.change.key == AccountSettingsKey.AutoSelectSubtitles },
+                key = AccountSettingsKey.AutoSelectSubtitles,
+                mutation = mutation,
                 onRetry = onRetryChange,
-                onCheckedChange = {
-                    onChange(AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, it))
-                },
+                onChange = onChange,
             )
         }
     }
@@ -345,13 +329,10 @@ private fun LazyListScope.accountSettingsItems(
             description = R.string.mobile_settings_history_description,
             icon = R.drawable.ic_ph_clock_counter_clockwise,
             checked = preferences.historyEnabled,
-            enabled = enabled,
-            saving = savingKey == AccountSettingsKey.History,
-            failure = failedMutation?.takeIf { it.change.key == AccountSettingsKey.History },
+            key = AccountSettingsKey.History,
+            mutation = mutation,
             onRetry = onRetryChange,
-            onCheckedChange = {
-                onChange(AccountSettingsChange(AccountSettingsKey.History, it))
-            },
+            onChange = onChange,
         )
     }
     item(key = AccountSettingsKey.Trash) {
@@ -360,13 +341,10 @@ private fun LazyListScope.accountSettingsItems(
             description = R.string.mobile_settings_trash_description,
             icon = R.drawable.ic_ph_trash,
             checked = preferences.trashEnabled,
-            enabled = enabled,
-            saving = savingKey == AccountSettingsKey.Trash,
-            failure = failedMutation?.takeIf { it.change.key == AccountSettingsKey.Trash },
+            key = AccountSettingsKey.Trash,
+            mutation = mutation,
             onRetry = onRetryChange,
-            onCheckedChange = {
-                onChange(AccountSettingsChange(AccountSettingsKey.Trash, it))
-            },
+            onChange = onChange,
         )
     }
 }
@@ -667,12 +645,18 @@ private fun MobileAccountSettingRow(
     @StringRes description: Int,
     @DrawableRes icon: Int,
     checked: Boolean,
-    enabled: Boolean,
-    saving: Boolean,
-    failure: AccountSettingsMutation.Failed?,
+    key: AccountSettingsKey,
+    mutation: AccountSettingsMutation,
     onRetry: () -> Unit,
-    onCheckedChange: (Boolean) -> Unit,
+    onChange: (AccountSettingsChange) -> Unit,
 ) {
+    val enabled = when (mutation) {
+        AccountSettingsMutation.Idle -> true
+        is AccountSettingsMutation.Saving -> false
+        is AccountSettingsMutation.Failed -> mutation.failure !is AccountSettingsFailure.AuthenticationRequired
+    }
+    val saving = (mutation as? AccountSettingsMutation.Saving)?.change?.key == key
+    val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { it.change.key == key }
     Column(modifier = Modifier.fillMaxWidth()) {
         ListItem(
             headlineContent = { Text(stringResource(title)) },
@@ -707,7 +691,7 @@ private fun MobileAccountSettingRow(
                     value = checked,
                     enabled = enabled,
                     role = Role.Switch,
-                    onValueChange = onCheckedChange,
+                    onValueChange = { onChange(AccountSettingsChange(key, it)) },
                 ),
         )
         failure?.let {

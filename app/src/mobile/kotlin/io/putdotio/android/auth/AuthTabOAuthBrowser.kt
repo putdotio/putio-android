@@ -47,6 +47,9 @@ internal class AuthTabOAuthBrowser internal constructor(
         },
     )
 
+    // PackageManager and activity-launch Binder calls can propagate RuntimeException;
+    // preserve the platform cause so the auth flow can recover from a failed launch.
+    @Suppress("TooGenericExceptionCaught")
     fun launch(authorization: OAuthLaunchResult.Ready): OAuthBrowserLaunchResult {
         return try {
             val authorizationUri = authorization.authorizationUrl.toUri()

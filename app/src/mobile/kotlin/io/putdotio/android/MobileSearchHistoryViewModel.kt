@@ -47,16 +47,14 @@ internal class MobileSearchHistoryViewModel(
     }
 
     fun controllersFor(
-        userId: Long,
-        sessionId: MobileAuthSessionId,
-        historyEnabled: Boolean,
+        session: MobileAuthState.SignedIn,
         putioClient: PutioClient,
         searchRepository: SearchRepository,
         historyRepository: HistoryRepository,
         filesItemResolver: FilesItemResolver,
     ): ActiveSearchHistorySession? =
         synchronized(lock) {
-            val key = SessionKey(userId, sessionId)
+            val key = SessionKey(session.account.userId, session.sessionId)
             if (authState.value.sessionKey() != key) return@synchronized null
             activeSession?.takeIf { it.key == key }?.let { return@synchronized it }
 
@@ -78,7 +76,7 @@ internal class MobileSearchHistoryViewModel(
                     history =
                         HistoryController(
                             repository = historyRepository,
-                            historyEnabled = historyEnabled,
+                            historyEnabled = session.account.historyEnabled,
                             parentScope = viewModelScope,
                         ),
                     parentScope = viewModelScope,

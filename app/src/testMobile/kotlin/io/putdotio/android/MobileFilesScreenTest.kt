@@ -368,7 +368,7 @@ class MobileFilesScreenTest {
     }
 
     @Test
-    fun refreshIsAccessibleAndOperationFailureKeepsRowsRecoverable() {
+    fun refreshIsAccessibleAndDisabledDuringFolderOperations() {
         val content = FilesContent.Ready(
             items = listOf(filesItem(id = 1L, name = "visible.txt")),
             paging = FilesPaging.Complete,
@@ -406,6 +406,22 @@ class MobileFilesScreenTest {
         compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
         compose.runOnIdle { assertTrue(FilesBrowserEvent.Refresh !in events) }
 
+    }
+
+    @Test
+    fun operationFailuresKeepRowsAndRefreshRecoverable() {
+        val content = FilesContent.Ready(
+            items = listOf(filesItem(id = 1L, name = "visible.txt")),
+            paging = FilesPaging.Complete,
+        )
+        var state by mutableStateOf(browserState(content))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = events::add, onPlayVideo = {})
+            }
+        }
+
         compose.runOnIdle {
             state = browserState(
                 content = content,
@@ -431,6 +447,22 @@ class MobileFilesScreenTest {
 
         compose.onNodeWithText("Try again").performClick()
         assertEquals(FilesBrowserEvent.Retry, events.last())
+
+    }
+
+    @Test
+    fun sortFailuresDistinguishReloadFromPersistence() {
+        val content = FilesContent.Ready(
+            items = listOf(filesItem(id = 1L, name = "visible.txt")),
+            paging = FilesPaging.Complete,
+        )
+        var state by mutableStateOf(browserState(content))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = events::add, onPlayVideo = {})
+            }
+        }
 
         compose.runOnIdle {
             state = browserState(

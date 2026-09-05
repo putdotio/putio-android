@@ -58,9 +58,10 @@ class MobileTransfersScreenTest {
             transfer(
                 id = 1L,
                 status = AppTransferStatus.Downloading,
+            ).copy(
                 percentDone = 42.0,
-                downloadSpeed = 1_024.0,
-                eta = 90.0,
+                downloadSpeedBytesPerSecond = 1_024.0,
+                estimatedSecondsRemaining = 90.0,
                 availability = 94.0,
             )
         setScreen(state(TransfersContent.Ready(listOf(item), TransfersPaging.Complete)), events::add)
@@ -218,9 +219,44 @@ class MobileTransfersScreenTest {
     }
 
     @Test
+    fun addDraftSurvivesToolbarChangesAndResetsWithTheSession() {
+        var sessionId by mutableStateOf(MobileAuthSessionId(1L))
+        var current by mutableStateOf(state(TransfersContent.Empty))
+        compose.setContent {
+            PutioTheme {
+                MobileTransfersScreen(state = current, onEvent = {}, sessionId = sessionId)
+            }
+        }
+
+        compose.onNodeWithText("Add transfer").performClick()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performTextInput("unfinished link")
+        compose.onNodeWithText("Add").performClick()
+        compose.onNodeWithText("Enter a valid HTTP URL or magnet link.").assertIsDisplayed()
+
+        compose.runOnIdle {
+            current = current.copy(
+                content = TransfersContent.Ready(
+                    listOf(transfer(1L, AppTransferStatus.Downloading)),
+                    TransfersPaging.Complete,
+                ),
+            )
+        }
+        assertAddInput("unfinished link")
+        compose.onNodeWithText("Enter a valid HTTP URL or magnet link.").assertIsDisplayed()
+
+        compose.runOnIdle { sessionId = MobileAuthSessionId(2L) }
+        compose.onAllNodesWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertCountEquals(0)
+        compose.onNodeWithText("Add transfer").performClick()
+        assertAddInput("")
+        compose.onAllNodesWithText("Enter a valid HTTP URL or magnet link.").assertCountEquals(0)
+    }
+
+    @Test
     fun changingSessionDismissesAStaleConfirmation() {
         var sessionId by mutableStateOf(MobileAuthSessionId(1L))
-        val current = state(TransfersContent.Ready(listOf(transfer(1L, AppTransferStatus.Completed)), TransfersPaging.Complete))
+        val current = state(
+            TransfersContent.Ready(listOf(transfer(1L, AppTransferStatus.Completed)), TransfersPaging.Complete),
+        )
         compose.setContent {
             PutioTheme {
                 MobileTransfersScreen(
@@ -522,10 +558,6 @@ class MobileTransfersScreenTest {
         status: AppTransferStatus,
         fileId: Long? = null,
         userFileExists: Boolean? = null,
-        percentDone: Double? = null,
-        downloadSpeed: Double? = null,
-        eta: Double? = null,
-        availability: Double? = null,
     ): TransferItem =
         TransferItem(
             id = TransferId(id),
@@ -533,11 +565,11 @@ class MobileTransfersScreenTest {
             status = status,
             fileId = fileId?.let(::TransferFileId),
             sizeBytes = 1_048_576.0,
-            percentDone = percentDone,
-            downloadSpeedBytesPerSecond = downloadSpeed,
+            percentDone = null,
+            downloadSpeedBytesPerSecond = null,
             uploadSpeedBytesPerSecond = null,
-            estimatedSecondsRemaining = eta,
-            availability = availability,
+            estimatedSecondsRemaining = null,
+            availability = null,
             hasError = status == AppTransferStatus.Failed,
             createdAt = "2026-08-30T00:00:00Z",
             userFileExists = userFileExists,

@@ -59,44 +59,49 @@ class MobilePlaybackConfigIntegrationTest {
     val compose = createComposeRule()
 
     @Test
-    fun confirmedFormatChangeKeepsActivePlaybackAndAppliesToNextResolution() = withPlaybackConfigRootFixture { fixture ->
-        var mounted by mutableStateOf(true)
-        try {
-            compose.setContent { if (mounted) fixture.Content() }
-            compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == VideoPlaybackType.Hls } }
-            compose.waitUntil(5_000L) { compose.onAllNodesWithText("episode.mkv").fetchSemanticsNodes().isNotEmpty() }
-            compose.onNodeWithText("episode.mkv").performClick()
-            awaitMediaRequest(fixture.server, "/v2/files/42/hls/media.m3u8")
-            compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
-            assertEquals(listOf("/v2/files/42"), fixture.server.resolutions.toList())
+    fun confirmedFormatChangeKeepsActivePlaybackAndAppliesToNextResolution() =
+        withPlaybackConfigRootFixture { fixture ->
+            var mounted by mutableStateOf(true)
+            try {
+                compose.setContent { if (mounted) fixture.Content() }
+                compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == VideoPlaybackType.Hls } }
+                compose.waitUntil(5_000L) {
+                    compose.onAllNodesWithText("episode.mkv").fetchSemanticsNodes().isNotEmpty()
+                }
+                compose.onNodeWithText("episode.mkv").performClick()
+                awaitMediaRequest(fixture.server, "/v2/files/42/hls/media.m3u8")
+                compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+                assertEquals(listOf("/v2/files/42"), fixture.server.resolutions.toList())
 
-            compose.runOnIdle {
-                assertTrue(
-                    fixture.appConfigController.dispatch(
-                        AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)),
-                    ),
+                compose.runOnIdle {
+                    assertTrue(
+                        fixture.appConfigController.dispatch(
+                            AndroidAppConfigEvent.ChangeRequested(
+                                AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
+                            ),
+                        ),
+                    )
+                }
+                compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == VideoPlaybackType.Mp4 } }
+                compose.waitForIdle()
+                compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+                assertEquals(listOf("/v2/files/42"), fixture.server.resolutions.toList())
+                assertEquals(listOf("/v2/files/42/hls/media.m3u8"), fixture.server.mediaRequests.distinct())
+
+                compose.onNodeWithContentDescription("Back").performClick()
+                compose.onNodeWithText("episode.mkv").performClick()
+                awaitMediaRequest(fixture.server, "/v2/files/42/mp4/stream")
+                assertEquals(listOf("/v2/files/42", "/v2/files/42"), fixture.server.resolutions.toList())
+                assertEquals(
+                    listOf("/v2/files/42/hls/media.m3u8", "/v2/files/42/mp4/stream"),
+                    fixture.server.mediaRequests.distinct(),
                 )
+                assertEquals(emptyList<String>(), fixture.server.unexpectedRequests.toList())
+            } finally {
+                compose.runOnIdle { mounted = false }
+                compose.waitForIdle()
             }
-            compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == VideoPlaybackType.Mp4 } }
-            compose.waitForIdle()
-            compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
-            assertEquals(listOf("/v2/files/42"), fixture.server.resolutions.toList())
-            assertEquals(listOf("/v2/files/42/hls/media.m3u8"), fixture.server.mediaRequests.distinct())
-
-            compose.onNodeWithContentDescription("Back").performClick()
-            compose.onNodeWithText("episode.mkv").performClick()
-            awaitMediaRequest(fixture.server, "/v2/files/42/mp4/stream")
-            assertEquals(listOf("/v2/files/42", "/v2/files/42"), fixture.server.resolutions.toList())
-            assertEquals(
-                listOf("/v2/files/42/hls/media.m3u8", "/v2/files/42/mp4/stream"),
-                fixture.server.mediaRequests.distinct(),
-            )
-            assertEquals(emptyList<String>(), fixture.server.unexpectedRequests.toList())
-        } finally {
-            compose.runOnIdle { mounted = false }
-            compose.waitForIdle()
         }
-    }
 
     private fun awaitMediaRequest(server: PlaybackConfigHttpFixture, path: String) {
         try {
@@ -160,7 +165,9 @@ private class PlaybackConfigRootFixture(
     private val runtime = MobileOAuthRuntime(client, authController, scope)
 
     val appConfigController
-        get() = requireNotNull(appConfig.controllerFor(account.userId, sessionId, SdkAndroidAppConfigRepository(client)))
+        get() = requireNotNull(
+            appConfig.controllerFor(account.userId, sessionId, SdkAndroidAppConfigRepository(client)),
+        )
 
     val confirmedFormat: VideoPlaybackType?
         get() = appConfigController.state.value.let { state ->
@@ -176,8 +183,7 @@ private class PlaybackConfigRootFixture(
         PutioTheme {
             SignedInMobileRoot(
                 runtime = runtime,
-                account = account,
-                sessionId = sessionId,
+                signedIn = MobileAuthState.SignedIn(account, sessionId),
                 filesViewModel = files,
                 accountSettingsViewModel = settings,
                 appConfigViewModel = appConfig,

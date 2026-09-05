@@ -151,7 +151,7 @@ class MobileAuthController internal constructor(
 
     suspend fun handleOAuthCallback(rawCallbackUri: String?): OAuthCallbackHandlingResult =
         operationMutex.withLock {
-            if (!mutableState.value.canReceiveOAuthCallback()) {
+            if (!mutableState.value.canHandleOAuthAttempt()) {
                 rejectCallbackWithoutPendingAttempt()
                 return@withLock OAuthCallbackHandlingResult.REJECTED
             }
@@ -313,28 +313,25 @@ class MobileAuthController internal constructor(
 
     private suspend fun finishPendingSignIn(reason: MobileSignedOutReason?): Boolean {
         val currentState = mutableState.value
-        if (!currentState.canFinishOAuthAttempt()) {
+        if (!currentState.canHandleOAuthAttempt()) {
             return false
         }
 
-        if (currentState != MobileAuthState.AwaitingOAuthCallback) {
-            val persistedAttempt = try {
-                pendingOAuthAttemptStore.read()
-            } catch (_: PendingOAuthAttemptStorageException) {
-                mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
-                return true
+        return try {
+            val hasPendingAttempt = currentState == MobileAuthState.AwaitingOAuthCallback ||
+                pendingOAuthAttemptStore.read() != null
+            if (hasPendingAttempt) {
+                mutableState.value = if (clearPendingOAuthAttempt()) {
+                    MobileAuthState.SignedOut(reason)
+                } else {
+                    MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
+                }
             }
-            if (persistedAttempt == null) {
-                return false
-            }
+            hasPendingAttempt
+        } catch (_: PendingOAuthAttemptStorageException) {
+            mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
+            true
         }
-
-        mutableState.value = if (clearPendingOAuthAttempt()) {
-            MobileAuthState.SignedOut(reason)
-        } else {
-            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
-        }
-        return true
     }
 
     private suspend fun clearPendingOAuthAttempt(): Boolean =
@@ -366,12 +363,7 @@ private fun MobileOAuthConfiguration.initialSignedOutState(): MobileAuthState.Si
         },
     )
 
-private fun MobileAuthState.canReceiveOAuthCallback(): Boolean =
-    this == MobileAuthState.Initializing ||
-        this == MobileAuthState.AwaitingOAuthCallback ||
-        this is MobileAuthState.SignedOut && reason != MobileSignedOutReason.SecureStorageUnavailable
-
-private fun MobileAuthState.canFinishOAuthAttempt(): Boolean =
+private fun MobileAuthState.canHandleOAuthAttempt(): Boolean =
     this == MobileAuthState.Initializing ||
         this == MobileAuthState.AwaitingOAuthCallback ||
         this is MobileAuthState.SignedOut && reason != MobileSignedOutReason.SecureStorageUnavailable
