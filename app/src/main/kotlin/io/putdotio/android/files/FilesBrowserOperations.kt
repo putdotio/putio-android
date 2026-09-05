@@ -1,5 +1,16 @@
 package io.putdotio.android.files
 
+internal fun FilesBrowserState.abandonRename(event: FilesBrowserEvent.AbandonRename): FilesBrowserTransition {
+    val failed = current.operation as? FilesFolderOperation.Failed
+    return if (event.folderId == current.folder.id && failed?.intent == event.intent &&
+        failed.phase == FilesFolderOperationPhase.RENAMING
+    ) {
+        FilesBrowserTransition(copy(stack = stack.replaceLast(current.copy(operation = FilesFolderOperation.Idle))))
+    } else {
+        FilesBrowserTransition(this, consumed = false)
+    }
+}
+
 internal fun FilesBrowserState.rename(event: FilesBrowserEvent.Rename): FilesBrowserTransition {
     val item = current.content.items().firstOrNull { it.id == event.itemId && it.id.value > 0L }
     val failed = current.operation as? FilesFolderOperation.Failed

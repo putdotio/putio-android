@@ -1,27 +1,23 @@
 package io.putdotio.android.files
 
-internal fun FilesBrowserState.sortPersisted(event: FilesBrowserEvent.SortPersisted): FilesBrowserTransition =
-    mutationSucceeded(event.requestId, FilesFolderOperationPhase.PERSISTING_SORT)
-
-internal fun FilesBrowserState.renamed(event: FilesBrowserEvent.Renamed): FilesBrowserTransition =
-    mutationSucceeded(event.requestId, FilesFolderOperationPhase.RENAMING)
-
-private fun FilesBrowserState.mutationSucceeded(
+internal fun FilesBrowserState.mutationSucceeded(
     requestId: FilesRequestId,
-    phase: FilesFolderOperationPhase,
 ): FilesBrowserTransition {
     val index = stack.indexOfFirst {
         (it.operation as? FilesFolderOperation.Loading)?.requestId == requestId
     }
     val folderState = stack.getOrNull(index)
     val loading = folderState?.operation as? FilesFolderOperation.Loading
-    if (loading == null || loading.phase != phase) {
+    if (loading == null || loading.phase == FilesFolderOperationPhase.RELOADING) {
         return FilesBrowserTransition(this, consumed = false)
     }
 
     val reloadRequestId = FilesRequestId(nextRequestValue)
     val updated =
         folderState.copy(
+            renameCompletion = (loading.intent as? FilesFolderOperationIntent.Rename)
+                ?.let { FilesRenameCompletion(requestId, it) }
+                ?: folderState.renameCompletion,
             operation =
                 FilesFolderOperation.Loading(
                     requestId = reloadRequestId,

@@ -40,6 +40,7 @@ import io.putdotio.android.files.FilesFolderOperationIntent
 import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesRenameCompletion
 
 internal const val MOBILE_FILES_RENAME_FIELD_TAG = "mobile-files-rename-field"
 
@@ -49,7 +50,7 @@ internal fun MobileFilesActions(
     item: FilesItem,
     folderId: FilesItemId,
     operation: FilesFolderOperation,
-    nextRequestValue: Long,
+    renameCompletion: FilesRenameCompletion?,
     onEvent: (FilesBrowserEvent) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -57,7 +58,12 @@ internal fun MobileFilesActions(
     val failedRename = (failed?.intent as? FilesFolderOperationIntent.Rename)?.takeIf { it.itemId == item.id }
     var editing by rememberSaveable { mutableStateOf(false) }
     var draft by rememberSaveable { mutableStateOf(failedRename?.name ?: item.name) }
-    var submittedRequestValue by rememberSaveable { mutableStateOf<Long?>(null) }
+    var submittedName by rememberSaveable { mutableStateOf<String?>(null) }
+    var previousCompletionRequestValue by rememberSaveable { mutableStateOf<Long?>(null) }
+    val dismiss = {
+        if (failedRename != null) onEvent(FilesBrowserEvent.AbandonRename(folderId, failedRename))
+        onDismiss()
+    }
     val pending = operation is FilesFolderOperation.Loading
     val reloadStarted = when (operation) {
         is FilesFolderOperation.Loading -> operation.intent is FilesFolderOperationIntent.Rename &&
@@ -66,26 +72,28 @@ internal fun MobileFilesActions(
             operation.phase == FilesFolderOperationPhase.RELOADING
         FilesFolderOperation.Idle -> false
     }
-    LaunchedEffect(reloadStarted, operation, nextRequestValue, submittedRequestValue) {
-        // Save and reload can both finish between frames, without rendering the reload phase.
-        val completed = submittedRequestValue?.let { nextRequestValue > it } == true &&
-            operation == FilesFolderOperation.Idle
-        if (reloadStarted || completed) onDismiss()
+    LaunchedEffect(renameCompletion, submittedName, previousCompletionRequestValue) {
+        // Keep the confirmed mutation across frames even when save and reload finish together.
+        val submitted = submittedName
+        val matchesSubmission = submitted != null &&
+            renameCompletion?.intent == FilesFolderOperationIntent.Rename(item.id, submitted)
+        if (matchesSubmission && renameCompletion.requestId.value != previousCompletionRequestValue) onDismiss()
     }
     if (editing) {
         val focusRequester = remember { FocusRequester() }
         val submit = {
             if (!pending && !reloadStarted) {
                 if (draft == item.name) {
-                    onDismiss()
+                    dismiss()
                 } else {
-                    submittedRequestValue = nextRequestValue
+                    submittedName = draft
+                    previousCompletionRequestValue = renameCompletion?.requestId?.value
                     onEvent(FilesBrowserEvent.Rename(folderId, item.id, draft))
                 }
             }
         }
         AlertDialog(
-            onDismissRequest = { if (!pending) onDismiss() },
+            onDismissRequest = { if (!pending) dismiss() },
             title = { Text(stringResource(R.string.mobile_files_rename)) },
             text = {
                 LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -119,13 +127,13 @@ internal fun MobileFilesActions(
                 }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss, enabled = !pending) {
+                TextButton(onClick = dismiss, enabled = !pending) {
                     Text(stringResource(R.string.mobile_action_cancel))
                 }
             },
         )
     } else {
-        ModalBottomSheet(onDismissRequest = onDismiss) {
+        ModalBottomSheet(onDismissRequest = dismiss) {
             Text(
                 text = item.name,
                 style = MaterialTheme.typography.titleLarge,

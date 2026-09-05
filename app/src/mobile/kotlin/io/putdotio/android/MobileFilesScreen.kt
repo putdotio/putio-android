@@ -128,7 +128,7 @@ private fun MobileRefreshableFilesContent(
                 item = selectedItem,
                 folderId = state.current.folder.id,
                 operation = operation,
-                nextRequestValue = state.nextRequestValue,
+                renameCompletion = state.current.renameCompletion,
                 onEvent = onEvent,
                 onDismiss = { selectedItemId = null },
             )

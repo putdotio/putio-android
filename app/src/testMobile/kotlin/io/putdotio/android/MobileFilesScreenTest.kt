@@ -125,7 +125,7 @@ class MobileFilesScreenTest {
         compose.onNodeWithText("Save").performClick()
         compose.runOnIdle {
             val renamed = effects.last() as FilesBrowserEffect.Rename
-            val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.Renamed(renamed.requestId))
+            val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.MutationSucceeded(renamed.requestId))
             state = reload.state
             effects += checkNotNull(reload.effect)
         }
@@ -156,7 +156,7 @@ class MobileFilesScreenTest {
                     val effect = transition.effect
                     if (effect is FilesBrowserEffect.Rename) {
                         renamed += effect
-                        val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.Renamed(effect.requestId))
+                        val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.MutationSucceeded(effect.requestId))
                         state = FilesBrowserReducer.reduce(reload.state, FilesBrowserEvent.LoadSucceeded(
                             checkNotNull(reload.effect).requestId,
                             FilesPage(listOf(original.copy(name = effect.name)), null),
@@ -192,13 +192,14 @@ class MobileFilesScreenTest {
             type = PutioFileType.VIDEO,
             sizeBytes = 1_048_576L,
         )
+        val textFile = filesItem(id = 9L, name = "notes.txt")
         val events = mutableListOf<FilesBrowserEvent>()
         val played = mutableListOf<FilesItem>()
 
         setFilesContent(
             state = browserState(
                 FilesContent.Ready(
-                    items = listOf(folder, video),
+                    items = listOf(folder, video, textFile),
                     paging = FilesPaging.Complete,
                 ),
             ),
@@ -212,6 +213,8 @@ class MobileFilesScreenTest {
 
         assertEquals(FilesBrowserEvent.OpenFolder(folder.id), events.last())
         assertEquals(listOf(video), played)
+        compose.onNodeWithText(textFile.name).performClick()
+        compose.onNodeWithText("Rename").assertIsDisplayed()
     }
 
     @Test

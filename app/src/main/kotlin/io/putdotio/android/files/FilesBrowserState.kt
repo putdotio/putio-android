@@ -88,11 +88,17 @@ sealed interface FilesFolderOperation {
     ) : FilesFolderOperation
 }
 
+data class FilesRenameCompletion(
+    val requestId: FilesRequestId,
+    val intent: FilesFolderOperationIntent.Rename,
+)
+
 data class FilesFolderState(
     val folder: FilesFolder,
     val content: FilesContent,
     val operation: FilesFolderOperation = FilesFolderOperation.Idle,
     val viewportGeneration: Long = 0L,
+    val renameCompletion: FilesRenameCompletion? = null,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
 )
 
@@ -140,6 +146,11 @@ sealed interface FilesBrowserEvent {
         val name: String,
     ) : FilesBrowserEvent
 
+    data class AbandonRename(
+        val folderId: FilesItemId,
+        val intent: FilesFolderOperationIntent.Rename,
+    ) : FilesBrowserEvent
+
     data object Retry : FilesBrowserEvent
 
     data class ViewportChanged(
@@ -156,11 +167,7 @@ sealed interface FilesBrowserEvent {
         val failure: FilesFailure,
     ) : FilesBrowserEvent
 
-    data class SortPersisted(
-        val requestId: FilesRequestId,
-    ) : FilesBrowserEvent
-
-    data class Renamed(
+    data class MutationSucceeded(
         val requestId: FilesRequestId,
     ) : FilesBrowserEvent
 }
@@ -230,12 +237,12 @@ object FilesBrowserReducer {
             FilesBrowserEvent.Refresh -> state.refresh()
             is FilesBrowserEvent.SelectSort -> state.selectSort(event.sort)
             is FilesBrowserEvent.Rename -> state.rename(event)
+            is FilesBrowserEvent.AbandonRename -> state.abandonRename(event)
             FilesBrowserEvent.Retry -> state.retry()
             is FilesBrowserEvent.ViewportChanged -> state.rememberViewport(event.position)
             is FilesBrowserEvent.LoadSucceeded -> state.loadSucceeded(event)
             is FilesBrowserEvent.LoadFailed -> state.loadFailed(event)
-            is FilesBrowserEvent.SortPersisted -> state.sortPersisted(event)
-            is FilesBrowserEvent.Renamed -> state.renamed(event)
+            is FilesBrowserEvent.MutationSucceeded -> state.mutationSucceeded(event.requestId)
         }
 }
 
@@ -245,12 +252,12 @@ suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesBrowserEve
         is FilesBrowserEffect.LoadNextPage -> loadNextPage(effect.cursor).toLoadEvent(effect.requestId)
         is FilesBrowserEffect.Rename ->
             when (val renamed = rename(effect.itemId, effect.name)) {
-                is FilesRepositoryResult.Success -> FilesBrowserEvent.Renamed(effect.requestId)
+                is FilesRepositoryResult.Success -> FilesBrowserEvent.MutationSucceeded(effect.requestId)
                 is FilesRepositoryResult.Failure -> FilesBrowserEvent.LoadFailed(effect.requestId, renamed.failure)
             }
         is FilesBrowserEffect.PersistSort ->
             when (val persisted = persistSort(effect.folderId, effect.sort)) {
-                is FilesRepositoryResult.Success -> FilesBrowserEvent.SortPersisted(effect.requestId)
+                is FilesRepositoryResult.Success -> FilesBrowserEvent.MutationSucceeded(effect.requestId)
                 is FilesRepositoryResult.Failure -> FilesBrowserEvent.LoadFailed(effect.requestId, persisted.failure)
             }
     }

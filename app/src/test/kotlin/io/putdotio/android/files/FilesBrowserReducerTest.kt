@@ -295,7 +295,7 @@ class FilesBrowserReducerTest {
         val reloading =
             FilesBrowserReducer.reduce(
                 persisting.state,
-                FilesBrowserEvent.SortPersisted(persistEffect.requestId),
+                FilesBrowserEvent.MutationSucceeded(persistEffect.requestId),
             )
         val reloadEffect = reloading.effect as FilesBrowserEffect.LoadFolder
         assertEquals(FilesSort.NAME_ASCENDING, reloading.state.current.folder.sort)
@@ -368,7 +368,7 @@ class FilesBrowserReducerTest {
         val persistEffect = persisting.effect as FilesBrowserEffect.PersistSort
         val reloading = FilesBrowserReducer.reduce(
             persisting.state,
-            FilesBrowserEvent.SortPersisted(persistEffect.requestId),
+            FilesBrowserEvent.MutationSucceeded(persistEffect.requestId),
         )
         val reloadEffect = reloading.effect as FilesBrowserEffect.LoadFolder
         val failed = FilesBrowserReducer.reduce(
@@ -458,13 +458,13 @@ class FilesBrowserReducerTest {
         val reloading =
             FilesBrowserReducer.reduce(
                 persisting.state,
-                FilesBrowserEvent.SortPersisted(persistEffect.requestId),
+                FilesBrowserEvent.MutationSucceeded(persistEffect.requestId),
             )
         val reloadEffect = reloading.effect as FilesBrowserEffect.LoadFolder
         val latePersist =
             FilesBrowserReducer.reduce(
                 reloading.state,
-                FilesBrowserEvent.SortPersisted(persistEffect.requestId),
+                FilesBrowserEvent.MutationSucceeded(persistEffect.requestId),
             )
         assertFalse(latePersist.consumed)
         assertSame(reloading.state, latePersist.state)

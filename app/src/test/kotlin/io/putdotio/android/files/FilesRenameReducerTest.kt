@@ -34,13 +34,18 @@ class FilesRenameReducerTest {
                 FilesBrowserEvent.LoadSucceeded(pendingPage.requestId, FilesPage(listOf(original), null)),
             ).consumed,
         )
-        val wrongCompletion = FilesBrowserEvent.SortPersisted(rename.requestId)
+        val wrongCompletion = FilesBrowserEvent.LoadSucceeded(rename.requestId, FilesPage(listOf(original), null))
         assertFalse(FilesBrowserReducer.reduce(saving.state, wrongCompletion).consumed)
 
-        val reloading = FilesBrowserReducer.reduce(saving.state, FilesBrowserEvent.Renamed(rename.requestId))
+        val reloading = FilesBrowserReducer.reduce(saving.state, FilesBrowserEvent.MutationSucceeded(rename.requestId))
         val reload = reloading.effect as FilesBrowserEffect.LoadFolder
+        val completion = FilesRenameCompletion(
+            rename.requestId, FilesFolderOperationIntent.Rename(original.id, event.name),
+        )
+        assertEquals(completion, reloading.state.current.renameCompletion)
         assertTrue(reload.requestId != rename.requestId)
-        assertFalse(FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.Renamed(rename.requestId)).consumed)
+        val lateCompletion = FilesBrowserEvent.MutationSucceeded(rename.requestId)
+        assertFalse(FilesBrowserReducer.reduce(reloading.state, lateCompletion).consumed)
         val serverRows = listOf(item(8L, "first.txt", PutioFileType.TEXT), original.copy(name = event.name))
         val result = FilesBrowserReducer.reduce(
             reloading.state,
@@ -55,6 +60,7 @@ class FilesRenameReducerTest {
         assertEquals(FilesPaging.Available(FilesCursor("new-cursor")), result.content.paging)
         assertEquals(FilesSort.NAME_DESCENDING, result.folder.sort)
         assertTrue(result.consumedCursors.isEmpty())
+        assertEquals(completion, result.renameCompletion)
     }
 
     @Test
@@ -77,7 +83,9 @@ class FilesRenameReducerTest {
         val retryRequest = retry.effect as FilesBrowserEffect.Rename
         assertEquals("", retryRequest.name)
         assertEquals(original.id, retryRequest.itemId)
-        val reloading = FilesBrowserReducer.reduce(retry.state, FilesBrowserEvent.Renamed(retryRequest.requestId))
+        val reloading = FilesBrowserReducer.reduce(
+            retry.state, FilesBrowserEvent.MutationSucceeded(retryRequest.requestId),
+        )
         val reload = reloading.effect as FilesBrowserEffect.LoadFolder
         val reloadFailed = FilesBrowserReducer.reduce(
             reloading.state,
@@ -116,8 +124,38 @@ class FilesRenameReducerTest {
         val childRename = FilesBrowserEvent.Rename(folder.id, FilesItemId(8L), "new child")
         val saving = FilesBrowserReducer.reduce(loaded, childRename)
         val back = FilesBrowserReducer.reduce(saving.state, FilesBrowserEvent.NavigateBack).state
-        val lateRename = FilesBrowserEvent.Renamed((saving.effect as FilesBrowserEffect.Rename).requestId)
+        val lateRename = FilesBrowserEvent.MutationSucceeded((saving.effect as FilesBrowserEffect.Rename).requestId)
         assertFalse(FilesBrowserReducer.reduce(back, lateRename).consumed)
+    }
+
+    @Test
+    fun abandonmentOnlyClearsTheMatchingFailedMutationAndPreservesReloadRecovery() {
+        val original = item(7L, "old.mkv", PutioFileType.VIDEO)
+        val intent = FilesFolderOperationIntent.Rename(original.id, "new.mkv")
+        val abandon = FilesBrowserEvent.AbandonRename(FilesFolder.Root.id, intent)
+        val saving = FilesBrowserReducer.reduce(
+            loadedRoot(listOf(original), FilesCursor("next")),
+            FilesBrowserEvent.Rename(FilesFolder.Root.id, original.id, intent.name),
+        )
+        val requestId = checkNotNull(saving.effect).requestId
+        assertFalse(FilesBrowserReducer.reduce(saving.state, abandon).consumed)
+        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failed = FilesBrowserReducer.reduce(saving.state, FilesBrowserEvent.LoadFailed(requestId, failure)).state
+        assertFalse(FilesBrowserReducer.reduce(failed, abandon.copy(folderId = FilesItemId(99L))).consumed)
+        assertFalse(FilesBrowserReducer.reduce(failed, abandon.copy(intent = intent.copy(name = "stale"))).consumed)
+        val abandoned = FilesBrowserReducer.reduce(failed, abandon).state
+        assertEquals(FilesFolderOperation.Idle, abandoned.current.operation)
+        assertEquals(failed.current.content, abandoned.current.content)
+        assertTrue(FilesBrowserReducer.reduce(abandoned, FilesBrowserEvent.Retry).effect == null)
+
+        val reloading = FilesBrowserReducer.reduce(saving.state, FilesBrowserEvent.MutationSucceeded(requestId))
+        val reloadFailed = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadFailed(
+            checkNotNull(reloading.effect).requestId, failure,
+        )).state
+        assertFalse(FilesBrowserReducer.reduce(reloadFailed, abandon).consumed)
+        val retry = FilesBrowserReducer.reduce(reloadFailed, FilesBrowserEvent.Retry)
+        assertTrue(retry.effect is FilesBrowserEffect.LoadFolder)
+        assertEquals(reloading.state.current.renameCompletion, retry.state.current.renameCompletion)
     }
 
     private fun loadedRoot(
