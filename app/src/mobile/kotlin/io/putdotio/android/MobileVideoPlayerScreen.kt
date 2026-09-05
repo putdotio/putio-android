@@ -9,6 +9,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -40,6 +41,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -252,6 +254,8 @@ private fun MobileReadyVideoPlayer(
     var endedReported by remember(player) { mutableStateOf(false) }
     var seekWindow by remember(player) { mutableStateOf(player.currentSeekWindow()) }
     var pendingSeek by remember(player, source.fileId) { mutableStateOf<PendingSeek?>(null) }
+    var seekAccumulating by remember(player, source.fileId) { mutableStateOf(false) }
+    val accessibilityManager = LocalAccessibilityManager.current
     var nextSeekRequestId by remember(player) { mutableLongStateOf(0L) }
     val hostView = LocalView.current
     LaunchedEffect(player, resumeAfterLifecyclePause) {
@@ -269,13 +273,14 @@ private fun MobileReadyVideoPlayer(
         if (!currentWindow.available) return
         val request =
             nextPendingSeek(
-                previous = pendingSeek,
+                previous = pendingSeek.takeIf { seekAccumulating },
                 currentPositionMillis = player.currentPosition,
                 durationMillis = currentWindow.durationMillis,
                 direction = direction,
                 requestId = ++nextSeekRequestId,
             ) ?: return
         pendingSeek = request
+        seekAccumulating = true
         retainedPositionMillis = request.targetPositionMillis
         currentOnPositionChanged.value(request.targetPositionMillis)
         player.seekTo(request.targetPositionMillis)
@@ -362,7 +367,14 @@ private fun MobileReadyVideoPlayer(
     }
     LaunchedEffect(pendingSeek?.requestId) {
         if (pendingSeek != null) {
+            val feedbackTimeout = accessibilityManager?.calculateRecommendedTimeoutMillis(
+                originalTimeoutMillis = MOBILE_SEEK_FEEDBACK_DELAY_MILLIS,
+                containsText = true,
+            ) ?: MOBILE_SEEK_FEEDBACK_DELAY_MILLIS
             delay(MOBILE_SEEK_FEEDBACK_DELAY_MILLIS)
+            // Accessible text may remain longer without extending the seek accumulation window.
+            seekAccumulating = false
+            delay((feedbackTimeout - MOBILE_SEEK_FEEDBACK_DELAY_MILLIS).coerceAtLeast(0L))
             pendingSeek = null
         }
     }
@@ -562,34 +574,44 @@ private fun MobileReadyVideoPlayer(
                 .fillMaxSize()
                 .zIndex(0.5f)
                 .windowInsetsPadding(WindowInsets.safeGestures)
-                .testTag(MOBILE_PLAYER_GESTURE_TAG)
-                .pointerInput(player, source.fileId, seekWindow, touchExplorationEnabled) {
-                    detectTapGestures(
-                        onDoubleTap = { position ->
-                            onPointerNavigation()
-                            if (seekWindow.available) {
-                                seek(
-                                    if (position.x < size.width / 2f) {
-                                        SeekDirection.Backward
-                                    } else {
-                                        SeekDirection.Forward
-                                    },
-                                )
+                .testTag(MOBILE_PLAYER_GESTURE_TAG),
+        ) {
+            // Separate physical regions keep taps across the midpoint as independent single taps.
+            for (direction in SeekDirection.entries) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(0.5f)
+                        .align(
+                            if (direction == SeekDirection.Backward) {
+                                AbsoluteAlignment.CenterLeft
                             } else {
-                                controlsVisible = true
-                            }
-                        },
-                        onTap = {
-                            onPointerNavigation()
-                            controlsVisible = controlsVisibleAfterTap(
-                                controlsVisible = controlsVisible,
-                                playbackState = playbackState,
-                                touchExplorationEnabled = touchExplorationEnabled,
+                                AbsoluteAlignment.CenterRight
+                            },
+                        )
+                        .pointerInput(player, source.fileId, seekWindow, touchExplorationEnabled) {
+                            detectTapGestures(
+                                onDoubleTap = {
+                                    onPointerNavigation()
+                                    if (seekWindow.available) {
+                                        seek(direction)
+                                    } else {
+                                        controlsVisible = true
+                                    }
+                                },
+                                onTap = {
+                                    onPointerNavigation()
+                                    controlsVisible = controlsVisibleAfterTap(
+                                        controlsVisible = controlsVisible,
+                                        playbackState = playbackState,
+                                        touchExplorationEnabled = touchExplorationEnabled,
+                                    )
+                                },
                             )
                         },
-                    )
-                },
-        )
+                )
+            }
+        }
         MobileSubtitleCueOverlay(
             cues = cues,
             videoAspectRatio = videoSize.displayAspectRatioOrNull(),
@@ -852,28 +874,22 @@ internal fun MobileSeekFeedback(
     request: PendingSeek,
     modifier: Modifier = Modifier,
 ) {
-    val accumulatedSeconds = (request.accumulatedMillis / 1_000L).toInt()
+    val fractionalMovement = request.accumulatedMillis % 1_000L != 0L
+    val seconds = (request.accumulatedMillis / 1_000L).toInt() + if (fractionalMovement) 1 else 0
+    val message = when (request.direction) {
+        SeekDirection.Backward -> if (fractionalMovement) {
+            R.plurals.mobile_playback_seek_back_less_than
+        } else {
+            R.plurals.mobile_playback_seek_back
+        }
+        SeekDirection.Forward -> if (fractionalMovement) {
+            R.plurals.mobile_playback_seek_forward_less_than
+        } else {
+            R.plurals.mobile_playback_seek_forward
+        }
+    }
     Text(
-        text =
-            if (accumulatedSeconds == 0) {
-                stringResource(
-                    if (request.direction == SeekDirection.Backward) {
-                        R.string.mobile_playback_seek_back_less_than_second
-                    } else {
-                        R.string.mobile_playback_seek_forward_less_than_second
-                    },
-                )
-            } else {
-                pluralStringResource(
-                    if (request.direction == SeekDirection.Backward) {
-                        R.plurals.mobile_playback_seek_back
-                    } else {
-                        R.plurals.mobile_playback_seek_forward
-                    },
-                    accumulatedSeconds,
-                    accumulatedSeconds,
-                )
-            },
+        text = pluralStringResource(message, seconds, seconds),
         color = MaterialTheme.colorScheme.onSurface,
         modifier =
             modifier

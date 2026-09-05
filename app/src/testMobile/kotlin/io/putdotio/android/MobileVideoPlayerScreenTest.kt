@@ -16,6 +16,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
+import androidx.compose.ui.platform.AccessibilityManager
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.SemanticsActions
@@ -563,6 +565,17 @@ class MobileVideoPlayerScreenTest {
         }
 
         compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L), player.seekPositions) }
+
+        for ((first, second) in listOf(0.25f to 0.75f, 0.75f to 0.25f)) {
+            compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+                click(percentOffset(first, 0.25f))
+                advanceEventTime(64L)
+                click(percentOffset(second, 0.25f))
+            }
+            compose.mainClock.advanceTimeBy(1_000L)
+            compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L), player.seekPositions) }
+            compose.onAllNodesWithTag(MOBILE_SEEK_FORWARD_TAG).assertCountEquals(0)
+        }
     }
 
     @Test
@@ -649,14 +662,15 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
-    fun subSecondSeekFeedbackAnnouncesTheBoundaryMovement() {
+    fun fractionalSeekFeedbackAnnouncesTheBoundaryMovement() {
+        var movement by mutableStateOf(500L)
         compose.setContent {
             PutioTheme {
                 MobileSeekFeedback(
                     PendingSeek(
                         direction = SeekDirection.Forward,
                         targetPositionMillis = 30_000L,
-                        accumulatedMillis = 500L,
+                        accumulatedMillis = movement,
                         requestId = 1L,
                     ),
                 )
@@ -672,6 +686,58 @@ class MobileVideoPlayerScreenTest {
                     LiveRegionMode.Polite,
                 ),
             )
+        compose.runOnIdle { movement = 1_600L }
+        compose.onNodeWithText("Forward less than 2 seconds").assertIsDisplayed()
+    }
+
+    @Test
+    fun accessibleFeedbackOutlivesAccumulationWithoutReusingTheOldTarget() {
+        lateinit var player: RecordingPlayer
+        val accessibility = object : AccessibilityManager {
+            override fun calculateRecommendedTimeoutMillis(
+                originalTimeoutMillis: Long,
+                containsIcons: Boolean,
+                containsText: Boolean,
+                containsControls: Boolean,
+            ): Long = 5_000L
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalAccessibilityManager provides accessibility) {
+                PutioTheme {
+                    MobileVideoPlayerScreen(
+                        state = readyState(startFromSeconds = 20.0),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory {
+                            RecordingPlayer(durationMillis = 60_000L).also { player = it }
+                        },
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            player.pause()
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+            player.seekTo(20_000L)
+            player.seekPositions.clear()
+        }
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithContentDescription("Forward 10 seconds").performClick()
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onNodeWithText("Forward 10 seconds").assertIsDisplayed()
+
+        compose.runOnIdle { player.seekTo(34_000L) }
+        compose.onNodeWithContentDescription("Forward 10 seconds").performClick()
+        compose.mainClock.advanceTimeByFrame()
+        compose.runOnIdle { assertEquals(listOf(30_000L, 34_000L, 44_000L), player.seekPositions) }
+        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 10 seconds")
+        compose.mainClock.advanceTimeBy(4_100L)
+        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onAllNodesWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertCountEquals(0)
     }
 
     @Test

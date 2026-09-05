@@ -94,8 +94,14 @@
         <item quantity="one">Forward %1$d second</item>
         <item quantity="other">Forward %1$d seconds</item>
     </plurals>
-    <string name="mobile_playback_seek_back_less_than_second">Back less than 1 second</string>
-    <string name="mobile_playback_seek_forward_less_than_second">Forward less than 1 second</string>
+    <plurals name="mobile_playback_seek_back_less_than">
+        <item quantity="one">Back less than %d second</item>
+        <item quantity="other">Back less than %d seconds</item>
+    </plurals>
+    <plurals name="mobile_playback_seek_forward_less_than">
+        <item quantity="one">Forward less than %d second</item>
+        <item quantity="other">Forward less than %d seconds</item>
+    </plurals>
     <string name="mobile_files_refresh">Refresh files</string>
     <string name="mobile_files_refresh_error">Couldn’t refresh files.</string>
     <string name="mobile_files_reload_error">Couldn’t reload files.</string>
