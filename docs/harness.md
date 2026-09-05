@@ -122,16 +122,6 @@ Tokens live in the CLI's own config (`~/.config/putio/`), outside the repo.
 The harness is secret-free by default: nothing in bootstrap, build, or proof
 requires authentication.
 
-## Definition of Done
-
-Every change ships with:
-
-1. `./gradlew verify` plus both flavor assembles green
-2. The behavior exercised on the local harness (`scripts/prove.sh` or a
-   feature-specific flow on the emulator)
-3. Visual proof captured from the harness and published from the PR via the
-   attach CLI
-
 ## Headless / Devbox Notes
 
 - `--headless` boots with `-no-window -gpu swiftshader_indirect -no-audio -no-boot-anim`. Software rendering is slower than `auto-no-window` but deterministic; host-GPU headless mode intermittently composites app windows black, which fails the pixel assertion. `screencap`/`screenrecord` capture fine without a window

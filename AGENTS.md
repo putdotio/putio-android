@@ -150,6 +150,16 @@ The exit code is the proof. Emulator lifecycle, flags, recording, evidence
 validation and publishing, live API proof with the `putio` CLI, and headless
 notes: [Harness](./docs/harness.md).
 
+## Definition of Done
+
+Every change ships with:
+
+1. `./gradlew verify` plus both flavor assembles green
+2. The behavior exercised on the local harness (`scripts/prove.sh` or a
+   feature-specific flow on the emulator)
+3. Visual proof captured from the harness and published from the PR via the
+   attach CLI
+
 ## Worktrees
 
 `.worktreeinclude` carries `local.properties` into Codex and Claude worktrees.
