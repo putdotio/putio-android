@@ -217,8 +217,16 @@ prepare_device() {
   recreate_command="$(avd_recreate_command "${profile}" "${avd_name}")"
   recovery="explicitly run scripts/emulator.sh stop ${serial}, then ${delete_command}, then ${recreate_command}"
   local api_level role_holders auth_tab_services chrome_version
-  api_level="$("${ADB}" -s "${serial}" shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r')" || \
-    die "could not read the API level from ${serial}; ${recovery}"
+  local api_deadline="${4:-$(date +%s)}" remaining
+  # adb can briefly go offline after boot_completed and pm readiness. Reuse
+  # the caller's boot budget; a returned API mismatch is never retried.
+  until api_level="$("${ADB}" -s "${serial}" shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r')"; do
+    remaining=$(( api_deadline - $(date +%s) ))
+    (( remaining > 0 )) || die "could not read the API level from ${serial} before the boot deadline; ${recovery}"
+    if (( remaining > 2 )); then remaining=2; fi
+    sleep "${remaining}"
+    (( $(date +%s) < api_deadline )) || die "could not read the API level from ${serial} before the boot deadline; ${recovery}"
+  done
   [[ "${api_level}" == "${PHONE_API_LEVEL}" ]] || \
     die "phone emulator ${serial} is API ${api_level:-unknown}; expected API ${PHONE_API_LEVEL}; ${recovery}"
 

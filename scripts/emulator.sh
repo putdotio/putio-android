@@ -101,7 +101,7 @@ do_boot() {
       (( $(date +%s) < reuse_deadline )) || die "reused emulator ${existing}: package manager not ready within ${BOOT_TIMEOUT_SECONDS}s"
       sleep 2
     done
-    prepare_device "${existing}" "${PROFILE}" "${NAME}"
+    prepare_device "${existing}" "${PROFILE}" "${NAME}" "${reuse_deadline}"
     echo "${existing}"
     return 0
   fi
@@ -182,7 +182,7 @@ do_boot() {
     sleep 2
   done
 
-  prepare_device "${serial}" "${PROFILE}" "${NAME}"
+  prepare_device "${serial}" "${PROFILE}" "${NAME}" "${deadline}"
 
   trap - EXIT INT TERM
   log "booted ${NAME} on ${serial} (pid ${pid}); stop with scripts/emulator.sh stop ${PROFILE}"

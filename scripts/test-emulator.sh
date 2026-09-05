@@ -108,6 +108,11 @@ case "$*" in
   *" settings put global hide_error_dialogs 1") ;;
   *" getprop sys.boot_completed") echo 1 ;;
   *" getprop ro.build.version.sdk")
+    failures="$(<"${state}/api-query-failures")"
+    if (( failures > 0 )); then
+      echo "$(( failures - 1 ))" > "${state}/api-query-failures"
+      exit 1
+    fi
     [[ "$(<"${state}/api-query-succeeds")" == "1" ]] || exit 1
     cat "${state}/api-level"
     ;;
@@ -245,6 +250,7 @@ reset_runtime() {
   printf '%s\n' "${4:-com.android.chrome}" > "${state}/role-holder"
   printf '%s\n' "${5-com.android.chrome}" > "${state}/auth-tab-package"
   printf '1\n' > "${state}/api-query-succeeds"
+  printf '0\n' > "${state}/api-query-failures"
   printf '1\n' > "${state}/role-query-succeeds"
   printf '1\n' > "${state}/auth-tab-query-succeeds"
   printf '1\n' > "${state}/version-query-succeeds"
@@ -348,7 +354,62 @@ grep -q '^start-server$' "${state}/adb-calls" && fail "image mismatch reached ad
 reset_runtime
 prepare_device emulator-5554 phone >/dev/null 2>&1 || fail "valid phone runtime was rejected"
 
+# A transient transport failure after pm readiness must recover within the
+# existing budget on both fresh boot and reuse, without stopping reused state.
+for running in 0 1; do
+  reset_avd "${PHONE_AVD}" "${target_image}" "${running}"
+  reset_runtime
+  printf '1\n' > "${state}/api-query-failures"
+  "${REPO_ROOT}/scripts/emulator.sh" boot phone --headless >"${tmpdir}/api-retry.log" 2>&1 || \
+    fail "API read did not recover (preexisting=${running})"
+  [[ "$(grep -c 'getprop ro.build.version.sdk$' "${state}/adb-calls")" == "2" ]] || \
+    fail "API recovery did not retry exactly once"
+  [[ "$(<"${state}/running")" == "1" ]] || fail "API recovery stopped the emulator"
+  grep -q " emu kill" "${state}/adb-calls" && fail "API recovery killed the emulator"
+  "${REPO_ROOT}/scripts/emulator.sh" stop phone >/dev/null 2>&1
+  # The fake adb clears the serial before its emulator handles TERM. Wait for
+  # that owned process to finish before resetting state for the next case.
+  for attempt in {1..100}; do
+    [[ ! -f "${state}/emulator-pid" ]] && break
+    sleep 0.02
+  done
+  [[ ! -f "${state}/emulator-pid" ]] || fail "fake emulator did not finish stopping"
+done
+
+# Cancellation during API retry must return promptly and preserve reused state.
+reset_avd "${PHONE_AVD}" "${target_image}" 1
+reset_runtime
+printf '0\n' > "${state}/api-query-succeeds"
+"${REPO_ROOT}/scripts/emulator.sh" boot phone --headless >"${tmpdir}/api-interrupt.log" 2>&1 &
+retry_pid=$!
+for (( attempt=0; attempt<200; attempt++ )); do
+  grep -q 'getprop ro.build.version.sdk$' "${state}/adb-calls" && break
+  sleep 0.02
+done
+retry_started="$(grep -c 'getprop ro.build.version.sdk$' "${state}/adb-calls" || true)"
+retry_interrupted="$(date +%s)"
+kill -TERM "${retry_pid}" 2>/dev/null || true
+retry_code=0
+wait "${retry_pid}" || retry_code=$?
+[[ "${retry_started}" != "0" ]] || fail "cancellation never reached API retry"
+[[ "${retry_code}" == "143" ]] || fail "API retry cancellation returned ${retry_code}"
+(( $(date +%s) - retry_interrupted <= 5 )) || fail "API retry cancellation did not return promptly"
+[[ "$(<"${state}/running")" == "1" ]] || fail "API retry cancellation stopped reused state"
+grep -q " emu kill" "${state}/adb-calls" && fail "API retry cancellation killed reused state"
+
 runtime_out="${tmpdir}/runtime-readiness.log"
+reset_runtime
+printf '0\n' > "${state}/api-query-succeeds"
+api_started="$(date +%s)"
+if (prepare_device emulator-5554 phone "${PHONE_AVD}" "$(( api_started + 3 ))") >"${runtime_out}" 2>&1; then
+  fail "permanent API transport failure passed readiness"
+fi
+api_elapsed=$(( $(date +%s) - api_started ))
+(( api_elapsed >= 3 && api_elapsed <= 5 )) || fail "API retry did not honor its existing deadline (${api_elapsed}s)"
+(( $(grep -c 'getprop ro.build.version.sdk$' "${state}/adb-calls") >= 2 )) || fail "API transport failure was not retried"
+grep -q "before the boot deadline" "${runtime_out}" || fail "API exhaustion omitted its deadline diagnostic"
+grep -q "pm path" "${state}/adb-calls" && fail "API exhaustion reached Chrome preparation"
+
 reset_runtime
 printf '0\n' > "${state}/api-query-succeeds"
 if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
@@ -406,9 +467,10 @@ grep -Fq "explicitly run scripts/emulator.sh stop emulator-5554, then scripts/em
 grep -q " install " "${state}/adb-calls" && fail "failed Auth Tab query reached app install"
 
 reset_runtime 36
-if (prepare_device emulator-5554 phone) >/dev/null 2>&1; then
+if (prepare_device emulator-5554 phone "${PHONE_AVD}" "$(( $(date +%s) + 30 ))") >/dev/null 2>&1; then
   fail "wrong API level passed readiness"
 fi
+[[ "$(grep -c 'getprop ro.build.version.sdk$' "${state}/adb-calls")" == "1" ]] || fail "API mismatch was retried"
 grep -q "pm path" "${state}/adb-calls" && fail "wrong API level reached Chrome preparation"
 
 reset_runtime 37 1 0
