@@ -59,8 +59,7 @@ class MobilePlaybackConfigIntegrationTest {
     val compose = createComposeRule()
 
     @Test
-    fun confirmedFormatChangeKeepsActivePlaybackAndAppliesToNextResolution() {
-        val fixture = PlaybackConfigRootFixture()
+    fun confirmedFormatChangeKeepsActivePlaybackAndAppliesToNextResolution() = withPlaybackConfigRootFixture { fixture ->
         var mounted by mutableStateOf(true)
         try {
             compose.setContent { if (mounted) fixture.Content() }
@@ -94,12 +93,8 @@ class MobilePlaybackConfigIntegrationTest {
             )
             assertEquals(emptyList<String>(), fixture.server.unexpectedRequests.toList())
         } finally {
-            try {
-                compose.runOnIdle { mounted = false }
-                compose.waitForIdle()
-            } finally {
-                fixture.close()
-            }
+            compose.runOnIdle { mounted = false }
+            compose.waitForIdle()
         }
     }
 
@@ -116,16 +111,41 @@ class MobilePlaybackConfigIntegrationTest {
     }
 }
 
-private class PlaybackConfigRootFixture : Closeable {
-    val server = PlaybackConfigHttpFixture()
-    private val client = PutioClient(PutioConfig(accessToken = "synthetic-token", baseUrl = server.baseUrl))
+private fun withPlaybackConfigRootFixture(block: (PlaybackConfigRootFixture) -> Unit) {
+    PlaybackConfigHttpFixture().use { server ->
+        PutioClient(PutioConfig(accessToken = "synthetic-token", baseUrl = server.baseUrl)).use { client ->
+            val viewModels = ViewModelStore()
+            val job = SupervisorJob()
+            Closeable {
+                try {
+                    InstrumentationRegistry.getInstrumentation().runOnMainSync { viewModels.clear() }
+                } finally {
+                    runBlocking { withTimeout(2_000L) { job.cancelAndJoin() } }
+                }
+            }.use {
+                block(
+                    PlaybackConfigRootFixture(
+                        server,
+                        client,
+                        viewModels,
+                        CoroutineScope(Dispatchers.Main.immediate + job),
+                    ),
+                )
+            }
+        }
+    }
+}
+
+private class PlaybackConfigRootFixture(
+    val server: PlaybackConfigHttpFixture,
+    private val client: PutioClient,
+    private val viewModels: ViewModelStore,
+    private val scope: CoroutineScope,
+) {
     private val application = RuntimeEnvironment.getApplication()
-    private val job = SupervisorJob()
-    private val scope = CoroutineScope(Dispatchers.Main.immediate + job)
     private val account = MobileAccount(42L, "test-user", "test@example.invalid")
     private val sessionId = MobileAuthSessionId(1L)
     private val authState = MutableStateFlow<MobileAuthState>(MobileAuthState.SignedIn(account, sessionId))
-    private val viewModels = ViewModelStore()
     private val files = own(MobileFilesViewModel(authState))
     private val settings = own(MobileAccountSettingsViewModel(authState))
     private val appConfig = own(MobileAndroidAppConfigViewModel(authState))
@@ -166,22 +186,6 @@ private class PlaybackConfigRootFixture : Closeable {
                 authController = authController,
                 rootScope = scope,
             )
-        }
-    }
-
-    override fun close() {
-        try {
-            InstrumentationRegistry.getInstrumentation().runOnMainSync { viewModels.clear() }
-        } finally {
-            try {
-                runBlocking { withTimeout(2_000L) { job.cancelAndJoin() } }
-            } finally {
-                try {
-                    client.close()
-                } finally {
-                    server.close()
-                }
-            }
         }
     }
 
