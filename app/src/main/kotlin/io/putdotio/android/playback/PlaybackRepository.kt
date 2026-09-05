@@ -184,10 +184,16 @@ class SdkPlaybackRepository internal constructor(
         )
         var foundCurrent = false
         val cursors = mutableSetOf<String>()
+        val seenFileIds = mutableSetOf<Long>()
         while (true) {
             currentCoroutineContext().ensureActive()
+            val cursor = page.cursor?.takeIf(String::isNotBlank)
+            check(cursor == null || cursors.add(cursor)) { "Folder listing repeated its cursor" }
             for (file in page.files) {
-                if (file.fileType != PutioFileType.VIDEO || file.parentId != parentId) continue
+                if (file.fileType != PutioFileType.VIDEO ||
+                    file.parentId != parentId ||
+                    !seenFileIds.add(file.id)
+                ) continue
                 if (file.id == target.fileId.value) {
                     foundCurrent = true
                 } else if (foundCurrent) {
@@ -196,8 +202,7 @@ class SdkPlaybackRepository internal constructor(
                     )
                 }
             }
-            val cursor = page.cursor?.takeIf(String::isNotBlank) ?: break
-            check(cursors.add(cursor)) { "Folder listing repeated its cursor" }
+            if (cursor == null) break
             page = continueListing(cursor, FilesContinueQuery(perPage = AUTOPLAY_PAGE_SIZE))
         }
         return PlaybackNextResult.Ended

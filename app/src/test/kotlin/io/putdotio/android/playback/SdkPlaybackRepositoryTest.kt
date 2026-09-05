@@ -287,6 +287,31 @@ class SdkPlaybackRepositoryTest {
         }
 
     @Test
+    fun repeatedPageAfterCurrentCannotSelectAnEarlierVideo() =
+        runBlocking {
+            val repeated = filePage(video(40L), video(42L), cursor = "repeated")
+            val repository = nextRepository(
+                listFolder = { _, _ -> repeated },
+                continueListing = { _, _ -> repeated },
+            )
+            val result = repository.findNextVideo(Target)
+            assertTrue(result is PlaybackNextResult.Failure)
+        }
+
+    @Test
+    fun overlappingTerminalPageSkipsEarlierVideosAndFindsTheSuccessor() =
+        runBlocking {
+            val repository = nextRepository(
+                listFolder = { _, _ -> filePage(video(40L), video(42L), cursor = "next") },
+                continueListing = { _, _ -> filePage(video(40L), video(42L), video(43L)) },
+            )
+            assertEquals(
+                PlaybackNextResult.Found(PlaybackTarget(FilesItemId(43L), "video-43.mp4")),
+                repository.findNextVideo(Target),
+            )
+        }
+
+    @Test
     fun missingContinuationIsRecoverableRatherThanEndOfFolder() =
         runBlocking {
             val failure = apiFailure(404)
