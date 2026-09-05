@@ -145,6 +145,35 @@ class AuthenticatedRenameProcessTest {
     }
 
     @Test
+    fun cleanupEscalatesVerifiedRecorderAfterItsHostClientHasExited() {
+        val fixture = fixture("exited-recorder-host")
+        val output = runFailure(fixture)
+        assertTrue(output, output.contains("Authenticated instrumentation proof failed"))
+        val hostPid = File(fixture, "state/recorder-host-pid").readText().trim().toLong()
+        assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
+        val commands = File(fixture, "state/commands").readLines()
+        assertEquals(listOf("adb -s emulator-5584 shell kill -INT 27182", "adb -s emulator-5584 shell kill -KILL 27182"),
+            commands.filter { it.contains(" shell kill -") })
+        assertOwnedCleanup(fixture)
+    }
+
+    @Test
+    fun cleanupWaitsForGuestRecorderExitAfterSigintWithoutEscalating() {
+        val fixture = fixture("exited-recorder-host-delayed-int")
+        runFailure(fixture)
+        assertOwnedCleanup(fixture)
+        assertFalse(File(fixture, "state/commands").readText().contains("kill -KILL"))
+    }
+
+    @Test
+    fun cleanupWaitsForGuestRecorderExitAfterVerifiedKill() {
+        val fixture = fixture("exited-recorder-host-delayed-kill")
+        runFailure(fixture)
+        assertTrue(File(fixture, "state/commands").readText().contains("kill -KILL 27182"))
+        assertOwnedCleanup(fixture)
+    }
+
+    @Test
     fun missingRecorderPidReportsCleanupFailureWithoutKillingAnUnknownProcess() {
         val fixture = fixture("missing-pid")
         val output = runFailure(fixture)
@@ -155,6 +184,21 @@ class AuthenticatedRenameProcessTest {
         assertFalse(File(fixture, "state/remote-files-removed").exists())
         val hostPid = File(fixture, "state/recorder-host-pid").readText().trim().toLong()
         assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
+        assertSafeCommands(fixture)
+    }
+
+    @Test
+    fun missingRecorderPidAfterHostExitPreservesUnverifiableGuestAndCapture() {
+        val fixture = fixture("missing-pid-exited-host")
+        val output = runFailure(fixture)
+        val hostPid = File(fixture, "state/recorder-host-pid").readText().trim().toLong()
+        assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
+        assertTrue(output, output.contains("Recorder exited before capture started"))
+        assertTrue(output, output.contains("Authenticated proof cleanup failed"))
+        assertTrue(File(fixture, "state/recorder").isFile)
+        assertTrue(File(fixture, "state/capture").isFile)
+        assertFalse(File(fixture, "state/remote-files-removed").exists())
+        assertFalse(File(fixture, "state/commands").readText().contains(" shell kill -"))
         assertSafeCommands(fixture)
     }
 

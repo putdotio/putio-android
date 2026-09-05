@@ -61,19 +61,32 @@ case "${0##*/}" in
             test -n "$capture"
             printf '%s' "$capture" > "$state/capture"
             touch "$state/recorder"
-            [ "$mode" = missing-pid ] || echo 27182 > "$state/pid"
+            case "$mode" in missing-pid|missing-pid-exited-host) ;; *) echo 27182 > "$state/pid" ;; esac
             echo "$$" > "$state/recorder-host-pid"
-            while [ -f "$state/recorder" ]; do sleep 0.1; done
+            [ "$mode" != missing-pid-exited-host ] || exit 17
+            while [ -f "$state/recorder" ] && [ ! -f "$state/exit-recorder-host" ]; do sleep 0.1; done
             ;;
           "cat '/data/local/tmp/putio-rename-"*'.pid'*) cat "$state/pid" 2>/dev/null ;;
           "test -s '/data/local/tmp/putio-rename-"*) [ ! -f "$state/recorder" ] || echo ready ;;
           'if test -d /proc/27182; then cat /proc/27182/cmdline; else printf absent; fi')
+            if [ -f "$state/stop-reads" ]; then
+              reads=$(cat "$state/stop-reads")
+              if [ "$reads" -eq 1 ]; then rm -f "$state/recorder" "$state/stop-reads"; else echo $((reads - 1)) > "$state/stop-reads"; fi
+            fi
             if [ -f "$state/recorder" ]; then printf 'screenrecord\000--time-limit\000180\000%s\000' "$(cat "$state/capture")"; else printf absent; fi
             ;;
           "'am' 'instrument'"*)
             echo "$$" > "$state/instrumentation-host-pid"
             [ "$mode" = interrupt-delayed-instrumentation ] || touch "$state/instrumentation"
             touch "$state/instrumentation-started"
+            case "$mode" in exited-recorder-host*)
+              touch "$state/exit-recorder-host"
+              attempts=50
+              while kill -0 "$(cat "$state/recorder-host-pid")" 2>/dev/null; do
+                attempts=$((attempts - 1)); [ "$attempts" -gt 0 ] || exit 18
+                sleep 0.1
+              done
+              ;; esac
             [ "$mode" != replacement ] || printf foreign-run > "$state/instrumentation"
             case "$mode" in
               adb-exit|replacement|unreadable-ownership) exit 17 ;;
@@ -97,9 +110,18 @@ case "${0##*/}" in
             esac
             ;;
           "am force-stop 'io.put.putio.mobile.debug'") rm -f "$state/instrumentation" ;;
-          'kill -INT 27182'|'kill -KILL 27182') rm -f "$state/recorder" ;;
+          'kill -INT 27182')
+            case "$mode" in
+              exited-recorder-host-delayed-int) echo 2 > "$state/stop-reads" ;;
+              exited-recorder-host*) ;;
+              *) rm -f "$state/recorder" ;;
+            esac
+            ;;
+          'kill -KILL 27182')
+            if [ "$mode" = exited-recorder-host-delayed-kill ]; then echo 2 > "$state/stop-reads"; else rm -f "$state/recorder"; fi
+            ;;
           "rm -f '/data/local/tmp/putio-rename-"*)
-            test ! -f "$state/recorder"
+            [ "$mode" = missing-pid-exited-host ] || test ! -f "$state/recorder"
             if [ "$mode" = shutdown-remove-failure ]; then
               touch "$state/remove-attempted"
               echo synthetic-sensitive-removal-detail >&2

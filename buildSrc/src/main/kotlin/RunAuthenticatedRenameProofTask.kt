@@ -229,6 +229,16 @@ private class AuthenticatedRenameRun(
         return cmdline.split('\u0000').let { it.firstOrNull()?.substringAfterLast('/') == "screenrecord" && remoteCapture in it }
     }
 
+    private fun awaitRecorderExit(pid: Long): Boolean {
+        val stopDeadline = minOf(cleanupDeadline, System.nanoTime() + TimeUnit.SECONDS.toNanos(2))
+        while (ownsRecorder(pid, cleanup = true)) {
+            val waitMillis = minOf(100L, TimeUnit.NANOSECONDS.toMillis(stopDeadline - System.nanoTime()))
+            if (waitMillis <= 0) return false
+            Thread.sleep(waitMillis)
+        }
+        return true
+    }
+
     private fun stopRecording() {
         val pid = recorderPid ?: throw GradleException("Recorder owner is missing")
         requireProof(ownsRecorder(pid, cleanup = false), "Recorder ownership changed")
@@ -287,16 +297,20 @@ private class AuthenticatedRenameRun(
         instrumentationStarted = false
         if (recordingStarted) attempt {
             val pid = recorderPid ?: shell("recorder cleanup owner", "cat ${proofShellQuote(remotePid)}", allowFailure = true, cleanup = true).trim().toLongOrNull()
-            requireProof(pid != null || recorder?.isAlive != true, "Cannot recover live recorder ownership")
-            if (pid != null && !ownsRecorder(pid, cleanup = true) && recorder?.isAlive == true) {
+                ?: throw GradleException("Cannot recover recorder ownership")
+            requireProof(pid > 0, "Invalid recorder process ID")
+            if (!ownsRecorder(pid, cleanup = true) && recorder?.isAlive == true) {
                 throw GradleException("Live recorder ownership could not be verified")
             }
-            if (pid != null && ownsRecorder(pid, cleanup = true)) {
+            if (ownsRecorder(pid, cleanup = true)) {
                 shell("stop owned recorder", "kill -INT $pid", allowFailure = true, cleanup = true)
-                if (recorder?.waitFor(2, TimeUnit.SECONDS) == false && ownsRecorder(pid, cleanup = true)) {
-                    shell("stop stalled owned recorder", "kill -KILL $pid", cleanup = true)
+                // Host adb exit does not establish that the guest recorder stopped.
+                if (!awaitRecorderExit(pid)) {
+                    if (ownsRecorder(pid, cleanup = true)) {
+                        shell("stop stalled owned recorder", "kill -KILL $pid", cleanup = true)
+                    }
+                    requireProof(awaitRecorderExit(pid), "Owned recorder did not stop")
                 }
-                requireProof(!ownsRecorder(pid, cleanup = true), "Owned recorder did not stop")
             }
             recorderPid = null
             shell("remove owned capture", "rm -f ${proofShellQuote(remoteCapture)} ${proofShellQuote(remotePid)}", cleanup = true)
