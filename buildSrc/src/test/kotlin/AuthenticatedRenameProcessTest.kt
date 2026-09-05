@@ -62,6 +62,20 @@ class AuthenticatedRenameProcessTest {
         assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
     }
 
+    @Test
+    fun interruptionDetectsInstrumentationVisibleAfterItsHostClientExits() {
+        val fixture = fixture("interrupt-delayed-instrumentation")
+        val output = runFailure(fixture)
+        assertTrue(File(fixture, "state/instrumentation-started").isFile)
+        val hostPid = File(fixture, "state/instrumentation-host-pid").readText().trim().toLong()
+        assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
+        assertFalse(File(fixture, "state/recorder").exists())
+        assertTrue(File(fixture, "state/remote-files-removed").isFile)
+        assertTrue("Guest instrumentation was not checked after its host client exited",
+            File(fixture, "state/ownership-read-after-host-exit").isFile)
+        assertUnownedInstrumentationPreserved(fixture, output)
+    }
+
     @Test(timeout = 120_000)
     fun shutdownDuringSdkResolutionReapsTheSynchronousCommandTree() {
         val fixture = fixture("shutdown-sdk-command")
@@ -301,7 +315,7 @@ class AuthenticatedRenameProcessTest {
                 repositoryDirectory.set(layout.projectDirectory)
                 apkDirectory.set(layout.projectDirectory.dir('app'))
                 testApkDirectory.set(layout.projectDirectory.dir('test'))
-                if ('$mode' == 'interrupt' || '$mode'.startsWith('shutdown-')) {
+                if ('$mode'.startsWith('interrupt') || '$mode'.startsWith('shutdown-')) {
                     doFirst {
                         def owner = Thread.currentThread()
                         if ('$mode'.startsWith('shutdown-')) {

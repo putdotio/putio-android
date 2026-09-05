@@ -43,6 +43,13 @@ case "${0##*/}" in
           'getprop ro.build.version.sdk') echo 37 ;;
           "dumpsys activity processes 'io.put.putio.mobile.debug'")
             if [ "$mode" = unreadable-ownership ] && [ -f "$state/instrumentation-started" ]; then exit 17; fi
+            if [ "$mode" = interrupt-delayed-instrumentation ] && [ -f "$state/instrumentation-started" ]; then
+              if kill -0 "$(cat "$state/instrumentation-host-pid")" 2>/dev/null; then
+                touch "$state/ownership-read-before-host-exit"
+              else
+                touch "$state/instrumentation" "$state/ownership-read-after-host-exit"
+              fi
+            fi
             printf '%s\n' 'ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)'
             if [ -f "$state/instrumentation" ]; then
               printf '%s\n' '  Active instrumentation:' '    * ActiveInstrumentation{abc123 io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner}' '      mClass=ComponentInfo{io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner} mFinished=false'
@@ -65,12 +72,13 @@ case "${0##*/}" in
             ;;
           "'am' 'instrument'"*)
             echo "$$" > "$state/instrumentation-host-pid"
-            touch "$state/instrumentation" "$state/instrumentation-started"
+            [ "$mode" = interrupt-delayed-instrumentation ] || touch "$state/instrumentation"
+            touch "$state/instrumentation-started"
             [ "$mode" != replacement ] || printf foreign-run > "$state/instrumentation"
             case "$mode" in
               adb-exit|replacement|unreadable-ownership) exit 17 ;;
               oversized-result) rm -f "$state/instrumentation"; head -c 1048577 /dev/zero | tr '\000' x ;;
-              interrupt) while [ -f "$state/instrumentation" ]; do sleep 0.1; done ;;
+              interrupt|interrupt-delayed-instrumentation) while [ -f "$state/instrumentation-started" ]; do sleep 0.1; done ;;
               shutdown-remove-failure)
                 rm -f "$state/instrumentation"
                 while [ -f "$state/recorder" ]; do sleep 0.1; done

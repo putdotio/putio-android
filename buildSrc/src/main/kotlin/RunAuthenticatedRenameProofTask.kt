@@ -267,6 +267,8 @@ private class AuthenticatedRenameRun(
             activeCommand = null
         }
         if (!::adb.isInitialized) return clean
+        attempt { instrumentation?.let(::reapHostProcess) }
+        instrumentation = null
         if (instrumentationStarted) attempt {
             val active = try {
                 activeInstrumentation(cleanup = true)
@@ -282,8 +284,6 @@ private class AuthenticatedRenameRun(
                 throw GradleException(message)
             }
         }
-        attempt { instrumentation?.let(::reapHostProcess) }
-        instrumentation = null
         instrumentationStarted = false
         if (recordingStarted) attempt {
             val pid = recorderPid ?: shell("recorder cleanup owner", "cat ${proofShellQuote(remotePid)}", allowFailure = true, cleanup = true).trim().toLongOrNull()
@@ -354,6 +354,7 @@ private class AuthenticatedRenameRun(
                 readerFailure = error
             }
         }.apply { isDaemon = true; start() }
+        var failure: Throwable? = null
         try {
             requireProof(process.waitFor(timeout, TimeUnit.MILLISECONDS), "$stage timed out")
             // Overflow cleanup includes the existing two-second owned-process reap.
@@ -366,13 +367,17 @@ private class AuthenticatedRenameRun(
             requireProof(!outputOverflow, "$stage output exceeded its limit")
             requireProof(allowFailure || process.exitValue() == 0, "$stage failed")
             return bytes.toString(Charsets.UTF_8.name())
+        } catch (error: Throwable) {
+            failure = error
+            throw error
         } finally {
             try {
                 if (process.isAlive) reapHostProcess(process)
-            } finally {
                 synchronized(this) {
                     if (activeCommand === process) activeCommand = null
                 }
+            } catch (cleanupFailure: Exception) {
+                if (failure != null) failure.addSuppressed(cleanupFailure) else throw cleanupFailure
             }
         }
     }
