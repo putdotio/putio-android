@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.performClick
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.KeystoreAuthTokenStore
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthController
@@ -65,7 +67,7 @@ class MobilePlaybackConfigIntegrationTest {
             compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == VideoPlaybackType.Hls } }
             compose.waitUntil(5_000L) { compose.onAllNodesWithText("episode.mkv").fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithText("episode.mkv").performClick()
-            compose.waitUntil(5_000L) { fixture.server.mediaRequests.contains("/v2/files/42/hls/media.m3u8") }
+            awaitMediaRequest(fixture.server, "/v2/files/42/hls/media.m3u8")
             compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
             assertEquals(listOf("/v2/files/42"), fixture.server.resolutions.toList())
 
@@ -80,15 +82,15 @@ class MobilePlaybackConfigIntegrationTest {
             compose.waitForIdle()
             compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
             assertEquals(listOf("/v2/files/42"), fixture.server.resolutions.toList())
-            assertEquals(listOf("/v2/files/42/hls/media.m3u8"), fixture.server.mediaRequests.toList())
+            assertEquals(listOf("/v2/files/42/hls/media.m3u8"), fixture.server.mediaRequests.distinct())
 
             compose.onNodeWithContentDescription("Back").performClick()
             compose.onNodeWithText("episode.mkv").performClick()
-            compose.waitUntil(5_000L) { fixture.server.mediaRequests.contains("/v2/files/42/mp4/stream") }
+            awaitMediaRequest(fixture.server, "/v2/files/42/mp4/stream")
             assertEquals(listOf("/v2/files/42", "/v2/files/42"), fixture.server.resolutions.toList())
             assertEquals(
                 listOf("/v2/files/42/hls/media.m3u8", "/v2/files/42/mp4/stream"),
-                fixture.server.mediaRequests.toList(),
+                fixture.server.mediaRequests.distinct(),
             )
             assertEquals(emptyList<String>(), fixture.server.unexpectedRequests.toList())
         } finally {
@@ -96,8 +98,20 @@ class MobilePlaybackConfigIntegrationTest {
                 compose.runOnIdle { mounted = false }
                 compose.waitForIdle()
             } finally {
-                compose.runOnIdle { fixture.close() }
+                fixture.close()
             }
+        }
+    }
+
+    private fun awaitMediaRequest(server: PlaybackConfigHttpFixture, path: String) {
+        try {
+            compose.waitUntil(5_000L) { compose.runOnIdle { server.mediaRequests.contains(path) } }
+        } catch (timeout: ComposeTimeoutException) {
+            throw AssertionError(
+                "Expected media path $path; resolved=${server.resolutions.toList()}; " +
+                    "media=${server.mediaRequests.toList()}; unexpected=${server.unexpectedRequests.toList()}",
+                timeout,
+            )
         }
     }
 }
@@ -156,10 +170,19 @@ private class PlaybackConfigRootFixture : Closeable {
     }
 
     override fun close() {
-        viewModels.clear()
-        runBlocking { withTimeout(2_000L) { job.cancelAndJoin() } }
-        client.close()
-        server.close()
+        try {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { viewModels.clear() }
+        } finally {
+            try {
+                runBlocking { withTimeout(2_000L) { job.cancelAndJoin() } }
+            } finally {
+                try {
+                    client.close()
+                } finally {
+                    server.close()
+                }
+            }
+        }
     }
 
     private fun <T : ViewModel> own(viewModel: T): T =

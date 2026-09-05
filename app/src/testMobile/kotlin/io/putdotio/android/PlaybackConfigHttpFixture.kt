@@ -12,7 +12,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/** Synthetic SDK responses; media reads stay suspended so this test covers source ownership without decoding. */
+/** Synthetic SDK responses and an empty live playlist keep source-ownership proof independent of decoding. */
 internal class PlaybackConfigHttpFixture : Closeable {
     val resolutions = ConcurrentLinkedQueue<String>()
     val mediaRequests = ConcurrentLinkedQueue<String>()
@@ -30,18 +30,24 @@ internal class PlaybackConfigHttpFixture : Closeable {
     private fun respond(exchange: HttpExchange) {
         exchange.use {
             val path = exchange.requestURI.path
-            if (path == "/v2/files/42/hls/media.m3u8" || path == "/v2/files/42/mp4/stream") {
+            if (path == "/v2/files/42/mp4/stream") {
                 mediaRequests.add(path)
                 check(releaseMedia.await(30, TimeUnit.SECONDS)) { "Media fixture was not released" }
                 return
             }
-            val body = responseBody(exchange)
+            val body = if (path == "/v2/files/42/hls/media.m3u8") {
+                mediaRequests.add(path)
+                "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXT-X-MEDIA-SEQUENCE:0\n"
+            } else {
+                responseBody(exchange)
+            }
             if (body == null) {
                 unexpectedRequests.add("${exchange.requestMethod} $path")
                 exchange.sendResponseHeaders(404, -1)
             } else {
                 val bytes = body.toByteArray(Charsets.UTF_8)
-                exchange.responseHeaders.add("Content-Type", "application/json")
+                val contentType = if (path.endsWith(".m3u8")) "application/vnd.apple.mpegurl" else "application/json"
+                exchange.responseHeaders.add("Content-Type", contentType)
                 exchange.sendResponseHeaders(200, bytes.size.toLong())
                 exchange.responseBody.write(bytes)
             }
@@ -70,9 +76,12 @@ internal class PlaybackConfigHttpFixture : Closeable {
 
     override fun close() {
         releaseMedia.countDown()
-        server.stop(0)
-        executor.shutdownNow()
-        check(executor.awaitTermination(2, TimeUnit.SECONDS)) { "HTTP fixture threads did not stop" }
+        try {
+            server.stop(0)
+        } finally {
+            executor.shutdownNow()
+            check(executor.awaitTermination(2, TimeUnit.SECONDS)) { "HTTP fixture threads did not stop" }
+        }
     }
 
     private companion object {
