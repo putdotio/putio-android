@@ -47,14 +47,20 @@ if "${ADB}" devices | awk '$1 ~ /^emulator-/ {found=1} END {exit !found}'; then
   fail "precondition: emulators already running; stop them first (scripts/emulator.sh status)"
 fi
 
-tmpdir="$(mktemp -d)"
+mkdir -p "${REPO_ROOT}/.evidence/logs"
+tmpdir="$(mktemp -d "${REPO_ROOT}/.evidence/logs/lifecycle.XXXXXX")"
 PRE_SERIAL=""
 cleanup_suite() {
-  rm -rf "${tmpdir}"
+  local exit_code=$?
   # The suite must honor the contract it proves: stop the case-4 emulator it
   # booted even when an assertion fails mid-case.
   if [[ -n "${PRE_SERIAL}" ]] && "${ADB}" devices | awk '{print $1}' | grep -qx "${PRE_SERIAL}"; then
     "${EMU}" stop "${PRE_SERIAL}" || true
+  fi
+  if [[ "${exit_code}" -eq 0 ]]; then
+    rm -rf "${tmpdir}"
+  else
+    log "lifecycle case logs retained at ${tmpdir}"
   fi
 }
 trap cleanup_suite EXIT
