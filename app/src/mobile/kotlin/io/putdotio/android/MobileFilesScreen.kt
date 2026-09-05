@@ -143,15 +143,19 @@ private fun MobileRefreshableFilesContent(
             operation.intent == FilesFolderOperationIntent.Refresh
     val refreshLabel = stringResource(R.string.mobile_files_refresh)
     val refreshAction = CustomAccessibilityAction(refreshLabel) {
-        onEvent(FilesBrowserEvent.Refresh)
-        true
+        if (selectedItemId == null) {
+            onEvent(FilesBrowserEvent.Refresh)
+            true
+        } else {
+            false
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
-                if (operation !is FilesFolderOperation.Loading) {
+                if (selectedItemId == null && operation !is FilesFolderOperation.Loading) {
                     onEvent(FilesBrowserEvent.Refresh)
                 }
             },
@@ -160,7 +164,7 @@ private fun MobileRefreshableFilesContent(
                 .fillMaxWidth()
                 .testTag(MOBILE_FILES_REFRESH_TAG)
                 .semantics {
-                    if (operation !is FilesFolderOperation.Loading) {
+                    if (selectedItemId == null && operation !is FilesFolderOperation.Loading) {
                         customActions = listOf(refreshAction)
                     }
                 },

@@ -18,6 +18,7 @@ import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
@@ -40,6 +41,44 @@ import org.robolectric.annotation.GraphicsMode
 class MobileFilesRenameTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun aQueuedRefreshCannotReplaceThePageWhileEditing() {
+        var state by mutableStateOf(loadedRoot())
+        val effects = mutableListOf<FilesBrowserEffect>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state, onEvent = {
+                    val transition = FilesBrowserReducer.reduce(state, it)
+                    state = transition.state
+                    transition.effect?.let(effects::add)
+                }, onPlayVideo = {})
+            }
+        }
+        val queuedRefresh = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
+            .fetchSemanticsNode().config[SemanticsActions.CustomActions].single().action
+        compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
+        compose.onNodeWithText("Rename").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("unsaved.mkv")
+        compose.runOnIdle {
+            queuedRefresh()
+            effects.singleOrNull()?.let { refresh ->
+                state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadSucceeded(
+                    refresh.requestId,
+                    FilesPage(listOf(file.copy(id = FilesItemId(8L), name = "another.mkv")), FilesCursor("next-page")),
+                )).state
+            }
+        }
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG)
+            .assertIsDisplayed()
+            .assertTextContains("unsaved.mkv")
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEffect>(), effects) }
+        compose.onNodeWithText("Cancel").performClick()
+        compose.runOnIdle {
+            queuedRefresh()
+            assertEquals(1, effects.size)
+        }
+    }
 
     @Test
     fun aQueuedRefreshCannotDismissARejectedRenameDraft() {
