@@ -2,7 +2,6 @@ package io.putdotio.android.playback
 
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigChange
-import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigEffect
 import io.putdotio.android.settings.AndroidAppConfigEvent
