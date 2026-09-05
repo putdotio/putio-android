@@ -366,17 +366,18 @@ private fun MobileReadyVideoPlayer(
         }
     }
     LaunchedEffect(pendingSeek?.requestId) {
-        if (pendingSeek != null) {
-            val feedbackTimeout = accessibilityManager?.calculateRecommendedTimeoutMillis(
-                originalTimeoutMillis = MOBILE_SEEK_FEEDBACK_DELAY_MILLIS,
-                containsText = true,
-            ) ?: MOBILE_SEEK_FEEDBACK_DELAY_MILLIS
-            delay(MOBILE_SEEK_FEEDBACK_DELAY_MILLIS)
-            // Accessible text may remain longer without extending the seek accumulation window.
-            seekAccumulating = false
-            delay((feedbackTimeout - MOBILE_SEEK_FEEDBACK_DELAY_MILLIS).coerceAtLeast(0L))
-            pendingSeek = null
-        }
+        val requestId = pendingSeek?.requestId ?: return@LaunchedEffect
+        val feedbackTimeout = accessibilityManager?.calculateRecommendedTimeoutMillis(
+            originalTimeoutMillis = MOBILE_SEEK_FEEDBACK_DELAY_MILLIS,
+            containsText = true,
+        ) ?: MOBILE_SEEK_FEEDBACK_DELAY_MILLIS
+        delay(MOBILE_SEEK_FEEDBACK_DELAY_MILLIS)
+        // A new seek can arrive before recomposition cancels the previous timer.
+        if (pendingSeek?.requestId != requestId) return@LaunchedEffect
+        // Accessible text may remain longer without extending the seek accumulation window.
+        seekAccumulating = false
+        delay((feedbackTimeout - MOBILE_SEEK_FEEDBACK_DELAY_MILLIS).coerceAtLeast(0L))
+        if (pendingSeek?.requestId == requestId) pendingSeek = null
     }
 
     DisposableEffect(hostView, keepScreenOn) {

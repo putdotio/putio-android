@@ -691,15 +691,68 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
-    fun accessibleFeedbackOutlivesAccumulationWithoutReusingTheOldTarget() {
+    fun accessibleFeedbackOutlivesAccumulationWithoutReusingTheOldTarget() = withAccessibleSeekPlayer { player, _, _ ->
+        compose.onNodeWithContentDescription("Forward 10 seconds").performClick()
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onNodeWithText("Forward 10 seconds").assertIsDisplayed()
+
+        compose.runOnIdle { player.seekTo(34_000L) }
+        compose.onNodeWithContentDescription("Forward 10 seconds").performClick()
+        compose.mainClock.advanceTimeByFrame()
+        compose.runOnIdle { assertEquals(listOf(30_000L, 34_000L, 44_000L), player.seekPositions) }
+        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 10 seconds")
+        compose.mainClock.advanceTimeBy(4_100L)
+        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onAllNodesWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun oldAccumulationTimerCannotExpireANewSeekBetweenFrames() = withAccessibleSeekPlayer { player, starts, seek ->
+        compose.mainClock.autoAdvance = true
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertIsDisplayed()
+        compose.mainClock.autoAdvance = false
+        compose.mainClock.advanceTimeBy(starts.single() + 799L - compose.mainClock.currentTime, true)
+        compose.runOnUiThread { seek() }
+        compose.mainClock.advanceTimeBy(2L, true)
+        compose.runOnUiThread {
+            assertEquals("New seek has not recomposed", 1, starts.size)
+            player.movePositionTo(41_000L)
+            seek()
+            assertEquals(listOf(30_000L, 40_000L, 50_000L), player.seekPositions)
+        }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 30 seconds")
+    }
+
+    @Test
+    fun oldFeedbackTimerCannotClearANewSeekBetweenFrames() = withAccessibleSeekPlayer { _, starts, seek ->
+        compose.mainClock.autoAdvance = true
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertIsDisplayed()
+        compose.mainClock.autoAdvance = false
+        compose.mainClock.advanceTimeBy(starts.single() + 4_999L - compose.mainClock.currentTime, true)
+        compose.runOnUiThread { seek() }
+        compose.mainClock.advanceTimeBy(2L, true)
+        compose.runOnUiThread { assertEquals("New seek has not recomposed", 1, starts.size) }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 10 seconds")
+    }
+
+    private fun withAccessibleSeekPlayer(block: (RecordingPlayer, List<Long>, () -> Boolean) -> Unit) {
         lateinit var player: RecordingPlayer
+        val feedbackStarts = mutableListOf<Long>()
         val accessibility = object : AccessibilityManager {
             override fun calculateRecommendedTimeoutMillis(
                 originalTimeoutMillis: Long,
                 containsIcons: Boolean,
                 containsText: Boolean,
                 containsControls: Boolean,
-            ): Long = 5_000L
+            ): Long {
+                if (containsText && !containsIcons && !containsControls) feedbackStarts += compose.mainClock.currentTime
+                return 5_000L
+            }
         }
         compose.setContent {
             CompositionLocalProvider(LocalAccessibilityManager provides accessibility) {
@@ -724,20 +777,11 @@ class MobileVideoPlayerScreenTest {
             player.seekTo(20_000L)
             player.seekPositions.clear()
         }
+        val seek = requireNotNull(
+            compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).fetchSemanticsNode().config[SemanticsActions.OnClick].action,
+        )
         compose.mainClock.autoAdvance = false
-        compose.onNodeWithContentDescription("Forward 10 seconds").performClick()
-        compose.mainClock.advanceTimeBy(1_000L)
-        compose.onNodeWithText("Forward 10 seconds").assertIsDisplayed()
-
-        compose.runOnIdle { player.seekTo(34_000L) }
-        compose.onNodeWithContentDescription("Forward 10 seconds").performClick()
-        compose.mainClock.advanceTimeByFrame()
-        compose.runOnIdle { assertEquals(listOf(30_000L, 34_000L, 44_000L), player.seekPositions) }
-        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 10 seconds")
-        compose.mainClock.advanceTimeBy(4_100L)
-        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertIsDisplayed()
-        compose.mainClock.advanceTimeBy(1_000L)
-        compose.onAllNodesWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertCountEquals(0)
+        block(player, feedbackStarts, seek)
     }
 
     @Test
