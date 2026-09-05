@@ -71,6 +71,16 @@
     <string name="mobile_settings_error_access_denied">This app doesn’t have access to account settings.</string>
     <string name="mobile_settings_section_subtitles">Subtitles</string>
     <string name="mobile_settings_section_privacy_storage">Privacy and storage</string>
+    <string name="mobile_settings_section_playback">Playback</string>
+    <string name="mobile_settings_playback_loading">Loading playback settings</string>
+    <string name="mobile_settings_playback_error_title">Couldn’t load playback settings</string>
+    <string name="mobile_settings_playback_error_access_denied">This app doesn’t have access to playback settings.</string>
+    <string name="mobile_settings_video_playback_type">Video playback</string>
+    <string name="mobile_settings_video_playback_type_description">Choose how this app streams videos.</string>
+    <string name="mobile_settings_video_playback_hls">Adaptive (HLS)</string>
+    <string name="mobile_settings_video_playback_mp4">Direct MP4</string>
+    <string name="mobile_settings_autoplay_next">Autoplay next video</string>
+    <string name="mobile_settings_autoplay_next_description">Start the next video automatically when playback ends.</string>
     <string name="mobile_settings_show_subtitles">Show subtitles</string>
     <string name="mobile_settings_show_subtitles_description">Show available subtitles during playback.</string>
     <string name="mobile_settings_auto_select_subtitles">Automatically select subtitles</string>

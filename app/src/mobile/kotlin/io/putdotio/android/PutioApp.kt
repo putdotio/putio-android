@@ -78,7 +78,10 @@ import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.AndroidAppConfigEvent
+import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -147,6 +150,9 @@ private fun MobileAuthRoot(
     )
     val accountSettingsViewModel = viewModel<MobileAccountSettingsViewModel>(
         factory = remember(authController) { mobileAccountSettingsViewModelFactory(authController.state) },
+    )
+    val appConfigViewModel = viewModel<MobileAndroidAppConfigViewModel>(
+        factory = remember(authController) { mobileAndroidAppConfigViewModelFactory(authController.state) },
     )
     val searchHistoryViewModel = viewModel<MobileSearchHistoryViewModel>(
         factory = remember(authController, context.applicationContext) {
@@ -220,6 +226,7 @@ private fun MobileAuthRoot(
                 sessionId = state.sessionId,
                 filesViewModel = filesViewModel,
                 accountSettingsViewModel = accountSettingsViewModel,
+                appConfigViewModel = appConfigViewModel,
                 searchHistoryViewModel = searchHistoryViewModel,
                 transfersViewModel = transfersViewModel,
                 authController = authController,
@@ -290,6 +297,7 @@ private fun SignedInMobileRoot(
     sessionId: MobileAuthSessionId,
     filesViewModel: MobileFilesViewModel,
     accountSettingsViewModel: MobileAccountSettingsViewModel,
+    appConfigViewModel: MobileAndroidAppConfigViewModel,
     searchHistoryViewModel: MobileSearchHistoryViewModel,
     transfersViewModel: MobileTransfersViewModel,
     authController: MobileAuthController,
@@ -319,6 +327,17 @@ private fun SignedInMobileRoot(
                 repository = accountSettingsRepository,
             )
         }
+    val appConfigRepository = remember(runtime.putioClient) {
+        SdkAndroidAppConfigRepository(runtime.putioClient)
+    }
+    val appConfigController =
+        remember(appConfigViewModel, appConfigRepository, account.userId, sessionId) {
+            appConfigViewModel.controllerFor(
+                userId = account.userId,
+                sessionId = sessionId,
+                repository = appConfigRepository,
+            )
+        }
     val searchRepository = remember(runtime.putioClient) { SdkSearchRepository(runtime.putioClient) }
     val historyRepository = remember(runtime.putioClient) { SdkHistoryRepository(runtime.putioClient) }
     val transfersRepository = remember(runtime.putioClient) { SdkTransfersRepository(runtime.putioClient) }
@@ -343,6 +362,7 @@ private fun SignedInMobileRoot(
     }
     if (filesController == null ||
         accountSettingsController == null ||
+        appConfigController == null ||
         searchHistorySession == null ||
         transfersController == null
     ) {
@@ -351,6 +371,7 @@ private fun SignedInMobileRoot(
     }
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
+    val appConfigState by appConfigController.state.collectAsStateWithLifecycle()
     val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
     val historyState by searchHistorySession.history.state.collectAsStateWithLifecycle()
     val transfersState by transfersController.state.collectAsStateWithLifecycle()
@@ -358,22 +379,24 @@ private fun SignedInMobileRoot(
     val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
     val authoritativeFailure =
         filesState.authoritativeSessionFailure()
-            ?: accountSettingsState.authoritativeSessionFailure()
             ?: searchState.authoritativeSessionFailure()
             ?: historyState.authoritativeSessionFailure()
             ?: transfersState.authoritativeSessionFailure()
             ?: recentSearchFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
             ?: navigationFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
 
-    LaunchedEffect(authoritativeFailure) {
-        if (authoritativeFailure != null) {
-            authController.rejectAuthoritativeSession()
-        }
-    }
+    AuthoritativeSessionFailureEffect(
+        shouldReject = authoritativeFailure != null || settingsRequireSessionRejection(
+            accountSettingsState = accountSettingsState,
+            appConfigState = appConfigState,
+        ),
+        onReject = authController::rejectAuthoritativeSession,
+    )
 
     MobileShell(
         filesState = filesState,
         accountSettingsState = accountSettingsState,
+        appConfigState = appConfigState,
         searchHistoryState =
             MobileSearchHistoryState(
                 search = searchState,
@@ -388,6 +411,7 @@ private fun SignedInMobileRoot(
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,
+        onAppConfigEvent = appConfigController::dispatch,
         onPlaybackAuthenticationRequired = authController::rejectAuthoritativeSession,
         searchHistoryActions =
             MobileSearchHistoryActions(
@@ -416,10 +440,30 @@ private fun SignedInMobileRoot(
     )
 }
 
+internal fun settingsRequireSessionRejection(
+    accountSettingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
+): Boolean =
+    accountSettingsState.authoritativeSessionFailure() != null ||
+        appConfigState.authoritativeSessionFailure() != null
+
+@Composable
+internal fun AuthoritativeSessionFailureEffect(
+    shouldReject: Boolean,
+    onReject: suspend () -> Unit,
+) {
+    LaunchedEffect(shouldReject) {
+        if (shouldReject) {
+            onReject()
+        }
+    }
+}
+
 @Composable
 internal fun MobileShell(
     filesState: FilesBrowserState,
     accountSettingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
     transfersState: TransfersState = emptyTransfersState(),
     transfersSessionId: MobileAuthSessionId? = null,
@@ -428,6 +472,7 @@ internal fun MobileShell(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     onTransfersEvent: (TransfersEvent) -> Unit = {},
@@ -501,6 +546,7 @@ internal fun MobileShell(
             navController = navController,
             filesState = filesState,
             accountSettingsState = accountSettingsState,
+            appConfigState = appConfigState,
             searchHistoryState = searchHistoryState,
             transfersState = transfersState,
             transfersSessionId = transfersSessionId,
@@ -509,6 +555,7 @@ internal fun MobileShell(
             playbackRepository = playbackRepository,
             onFilesEvent = onFilesEvent,
             onAccountSettingsEvent = onAccountSettingsEvent,
+            onAppConfigEvent = onAppConfigEvent,
             searchHistoryActions = searchHistoryActions,
             onTransfersEvent = onTransfersEvent,
             onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
@@ -526,6 +573,7 @@ internal fun MobileShell(
                     selectedDestination = selectedDestination,
                     filesState = filesState,
                     accountSettingsState = accountSettingsState,
+                    appConfigState = appConfigState,
                     searchHistoryState = searchHistoryState,
                     transfersState = transfersState,
                     transfersSessionId = transfersSessionId,
@@ -534,6 +582,7 @@ internal fun MobileShell(
                     playbackRepository = playbackRepository,
                     onFilesEvent = onFilesEvent,
                     onAccountSettingsEvent = onAccountSettingsEvent,
+                    onAppConfigEvent = onAppConfigEvent,
                     searchHistoryActions = searchHistoryActions,
                     onTransfersEvent = onTransfersEvent,
                     onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
@@ -545,6 +594,7 @@ internal fun MobileShell(
                     selectedDestination = selectedDestination,
                     filesState = filesState,
                     accountSettingsState = accountSettingsState,
+                    appConfigState = appConfigState,
                     searchHistoryState = searchHistoryState,
                     transfersState = transfersState,
                     transfersSessionId = transfersSessionId,
@@ -553,6 +603,7 @@ internal fun MobileShell(
                     playbackRepository = playbackRepository,
                     onFilesEvent = onFilesEvent,
                     onAccountSettingsEvent = onAccountSettingsEvent,
+                    onAppConfigEvent = onAppConfigEvent,
                     searchHistoryActions = searchHistoryActions,
                     onTransfersEvent = onTransfersEvent,
                     onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
@@ -619,6 +670,7 @@ private fun PhoneShell(
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
     accountSettingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
     transfersState: TransfersState,
     transfersSessionId: MobileAuthSessionId?,
@@ -627,6 +679,7 @@ private fun PhoneShell(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
@@ -658,6 +711,7 @@ private fun PhoneShell(
             navController = navController,
             filesState = filesState,
             accountSettingsState = accountSettingsState,
+            appConfigState = appConfigState,
             searchHistoryState = searchHistoryState,
             transfersState = transfersState,
             transfersSessionId = transfersSessionId,
@@ -666,6 +720,7 @@ private fun PhoneShell(
             sessionId = sessionId,
             onFilesEvent = onFilesEvent,
             onAccountSettingsEvent = onAccountSettingsEvent,
+            onAppConfigEvent = onAppConfigEvent,
             onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
             searchHistoryActions = searchHistoryActions,
             onTransfersEvent = onTransfersEvent,
@@ -682,6 +737,7 @@ private fun TabletShell(
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
     accountSettingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
     transfersState: TransfersState,
     transfersSessionId: MobileAuthSessionId?,
@@ -690,6 +746,7 @@ private fun TabletShell(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
@@ -721,6 +778,7 @@ private fun TabletShell(
                 navController = navController,
                 filesState = filesState,
                 accountSettingsState = accountSettingsState,
+                appConfigState = appConfigState,
                 searchHistoryState = searchHistoryState,
                 transfersState = transfersState,
                 transfersSessionId = transfersSessionId,
@@ -729,6 +787,7 @@ private fun TabletShell(
                 sessionId = sessionId,
                 onFilesEvent = onFilesEvent,
                 onAccountSettingsEvent = onAccountSettingsEvent,
+                onAppConfigEvent = onAppConfigEvent,
                 onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                 searchHistoryActions = searchHistoryActions,
                 onTransfersEvent = onTransfersEvent,
@@ -798,6 +857,7 @@ private fun MobileNavHost(
     navController: NavHostController,
     filesState: FilesBrowserState,
     accountSettingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
     transfersState: TransfersState,
     transfersSessionId: MobileAuthSessionId?,
@@ -806,6 +866,7 @@ private fun MobileNavHost(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Unit,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
@@ -857,7 +918,9 @@ private fun MobileNavHost(
                 account = account,
                 sessionId = sessionId,
                 settingsState = accountSettingsState,
+                appConfigState = appConfigState,
                 onSettingsEvent = onAccountSettingsEvent,
+                onAppConfigEvent = onAppConfigEvent,
                 onSignOut = onSignOut,
             )
         }

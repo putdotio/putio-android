@@ -4,6 +4,7 @@ import android.text.format.Formatter
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
@@ -26,6 +29,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,6 +66,14 @@ import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.AndroidAppConfigChange
+import io.putdotio.android.settings.AndroidAppConfigContent
+import io.putdotio.android.settings.AndroidAppConfigEvent
+import io.putdotio.android.settings.AndroidAppConfigFailure
+import io.putdotio.android.settings.AndroidAppConfigMutation
+import io.putdotio.android.settings.AndroidAppConfigPreferences
+import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.VideoPlaybackType
 import java.net.URI
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
@@ -74,11 +86,14 @@ internal fun MobileAccountScreen(
     account: MobileAccount,
     sessionId: MobileAuthSessionId,
     settingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
     onSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmTrashDisable by rememberSaveable(sessionId) { mutableStateOf(false) }
+    var choosePlaybackType by rememberSaveable(sessionId) { mutableStateOf(false) }
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -118,6 +133,11 @@ internal fun MobileAccountScreen(
                     onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
                 )
         }
+        appConfigItems(
+            state = appConfigState,
+            onChoosePlaybackType = { choosePlaybackType = true },
+            onEvent = onAppConfigEvent,
+        )
         item(key = SIGN_OUT_KEY) {
             OutlinedButton(
                 onClick = onSignOut,
@@ -154,6 +174,22 @@ internal fun MobileAccountScreen(
                     Text(stringResource(R.string.mobile_action_cancel))
                 }
             },
+        )
+    }
+
+    val appConfig = appConfigState.content as? AndroidAppConfigContent.Ready
+    if (choosePlaybackType && appConfig != null && appConfigState.appConfigControlsEnabled()) {
+        MobilePlaybackTypeDialog(
+            selected = appConfig.preferences.videoPlaybackType,
+            onSelect = { playbackType ->
+                choosePlaybackType = false
+                onAppConfigEvent(
+                    AndroidAppConfigEvent.ChangeRequested(
+                        AndroidAppConfigChange.VideoPlayback(playbackType),
+                    ),
+                )
+            },
+            onDismiss = { choosePlaybackType = false },
         )
     }
 }
@@ -335,6 +371,286 @@ private fun LazyListScope.accountSettingsItems(
     }
 }
 
+private fun LazyListScope.appConfigItems(
+    state: AndroidAppConfigState,
+    onChoosePlaybackType: () -> Unit,
+    onEvent: (AndroidAppConfigEvent) -> Unit,
+) {
+    item(key = PLAYBACK_HEADER_KEY) {
+        MobileAccountSectionHeader(R.string.mobile_settings_section_playback)
+    }
+    when (val content = state.content) {
+        is AndroidAppConfigContent.Loading ->
+            item(key = APP_CONFIG_LOADING_KEY) {
+                MobileAppConfigLoading()
+            }
+        is AndroidAppConfigContent.Failed ->
+            item(key = APP_CONFIG_ERROR_KEY) {
+                MobileAppConfigLoadError(
+                    failure = content.failure,
+                    onRetry = { onEvent(AndroidAppConfigEvent.RetryLoad) },
+                )
+            }
+        is AndroidAppConfigContent.Ready -> {
+            val mutation = state.mutation
+            val enabled = state.appConfigControlsEnabled()
+            val saving = mutation as? AndroidAppConfigMutation.Saving
+            val failed = mutation as? AndroidAppConfigMutation.Failed
+            item(key = VIDEO_PLAYBACK_TYPE_KEY) {
+                MobilePlaybackTypeRow(
+                    preferences = content.preferences,
+                    enabled = enabled,
+                    saving = saving?.change is AndroidAppConfigChange.VideoPlayback,
+                    failure = failed?.takeIf { it.change is AndroidAppConfigChange.VideoPlayback },
+                    onChoose = onChoosePlaybackType,
+                    onRetry = { onEvent(AndroidAppConfigEvent.RetryChange) },
+                )
+            }
+            item(key = AUTOPLAY_NEXT_VIDEO_KEY) {
+                MobileAppConfigSwitchRow(
+                    title = R.string.mobile_settings_autoplay_next,
+                    description = R.string.mobile_settings_autoplay_next_description,
+                    icon = R.drawable.ic_ph_list_checks,
+                    checked = content.preferences.autoplayNextVideo,
+                    enabled = enabled,
+                    saving = saving?.change is AndroidAppConfigChange.AutoplayNextVideo,
+                    failure = failed?.takeIf { it.change is AndroidAppConfigChange.AutoplayNextVideo },
+                    onRetry = { onEvent(AndroidAppConfigEvent.RetryChange) },
+                    onCheckedChange = {
+                        onEvent(
+                            AndroidAppConfigEvent.ChangeRequested(
+                                AndroidAppConfigChange.AutoplayNextVideo(it),
+                            ),
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+private fun AndroidAppConfigState.appConfigControlsEnabled(): Boolean =
+    when (val currentMutation = mutation) {
+        AndroidAppConfigMutation.Idle -> true
+        is AndroidAppConfigMutation.Saving -> false
+        is AndroidAppConfigMutation.Failed ->
+            currentMutation.failure !is AndroidAppConfigFailure.AuthenticationRequired
+    }
+
+@Composable
+private fun MobilePlaybackTypeRow(
+    preferences: AndroidAppConfigPreferences,
+    enabled: Boolean,
+    saving: Boolean,
+    failure: AndroidAppConfigMutation.Failed?,
+    onChoose: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.mobile_settings_video_playback_type)) },
+            supportingContent = { Text(stringResource(R.string.mobile_settings_video_playback_type_description)) },
+            leadingContent = {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ph_file_video_fill),
+                    contentDescription = null,
+                )
+            },
+            trailingContent = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (saving) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    }
+                    Text(stringResource(preferences.videoPlaybackType.labelResource()))
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    enabled = enabled,
+                    role = Role.Button,
+                    onClick = onChoose,
+                ),
+        )
+        failure?.let {
+            MobileAppConfigMutationError(it.failure, it.operation, onRetry)
+        }
+    }
+}
+
+@Composable
+private fun MobileAppConfigSwitchRow(
+    @StringRes title: Int,
+    @StringRes description: Int,
+    @DrawableRes icon: Int,
+    checked: Boolean,
+    enabled: Boolean,
+    saving: Boolean,
+    failure: AndroidAppConfigMutation.Failed?,
+    onRetry: () -> Unit,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        ListItem(
+            headlineContent = { Text(stringResource(title)) },
+            supportingContent = { Text(stringResource(description)) },
+            leadingContent = { Icon(painterResource(icon), contentDescription = null) },
+            trailingContent = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (saving) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    }
+                    Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = checked,
+                    enabled = enabled,
+                    role = Role.Switch,
+                    onValueChange = onCheckedChange,
+                ),
+        )
+        failure?.let {
+            MobileAppConfigMutationError(it.failure, it.operation, onRetry)
+        }
+    }
+}
+
+@Composable
+private fun MobilePlaybackTypeDialog(
+    selected: VideoPlaybackType,
+    onSelect: (VideoPlaybackType) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.mobile_settings_video_playback_type)) },
+        text = {
+            Column(modifier = Modifier.selectableGroup()) {
+                VideoPlaybackType.entries.forEach { playbackType ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = playbackType == selected,
+                                role = Role.RadioButton,
+                                onClick = { onSelect(playbackType) },
+                            )
+                            .padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = playbackType == selected,
+                            onClick = null,
+                        )
+                        Text(stringResource(playbackType.labelResource()))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.mobile_action_cancel))
+            }
+        },
+    )
+}
+
+@StringRes
+private fun VideoPlaybackType.labelResource(): Int =
+    when (this) {
+        VideoPlaybackType.Hls -> R.string.mobile_settings_video_playback_hls
+        VideoPlaybackType.Mp4 -> R.string.mobile_settings_video_playback_mp4
+    }
+
+@Composable
+private fun MobileAppConfigLoading() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+        Text(stringResource(R.string.mobile_settings_playback_loading))
+    }
+}
+
+@Composable
+private fun MobileAppConfigLoadError(
+    failure: AndroidAppConfigFailure,
+    onRetry: () -> Unit,
+) {
+    ListItem(
+        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        headlineContent = { Text(stringResource(R.string.mobile_settings_playback_error_title)) },
+        supportingContent = { Text(stringResource(failure.messageResource())) },
+        trailingContent = {
+            if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
+                TextButton(onClick = onRetry) {
+                    Text(stringResource(R.string.mobile_action_retry))
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun MobileAppConfigMutationError(
+    failure: AndroidAppConfigFailure,
+    operation: AndroidAppConfigMutation.Operation,
+    onRetry: () -> Unit,
+) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(failure, operation) {
+        bringIntoViewRequester.bringIntoView()
+    }
+    val title =
+        when (operation) {
+            AndroidAppConfigMutation.Operation.Save -> R.string.mobile_settings_save_error
+            AndroidAppConfigMutation.Operation.Refresh -> R.string.mobile_settings_refresh_error
+        }
+    ListItem(
+        modifier = Modifier
+            .bringIntoViewRequester(bringIntoViewRequester)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        headlineContent = { Text(stringResource(title)) },
+        supportingContent = { Text(stringResource(failure.messageResource())) },
+        trailingContent = {
+            if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
+                TextButton(onClick = onRetry) {
+                    Text(stringResource(R.string.mobile_action_retry))
+                }
+            }
+        },
+    )
+}
+
+@StringRes
+private fun AndroidAppConfigFailure.messageResource(): Int =
+    when (this) {
+        is AndroidAppConfigFailure.AuthenticationRequired -> R.string.mobile_state_error_session
+        is AndroidAppConfigFailure.AccessDenied -> R.string.mobile_settings_playback_error_access_denied
+        is AndroidAppConfigFailure.RateLimited -> R.string.mobile_state_error_rate_limited
+        is AndroidAppConfigFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
+        is AndroidAppConfigFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+        is AndroidAppConfigFailure.ApiRejected,
+        is AndroidAppConfigFailure.InvalidResponse,
+        is AndroidAppConfigFailure.Misconfigured,
+        is AndroidAppConfigFailure.Unexpected,
+        -> R.string.mobile_state_error_unavailable
+    }
+
 @Composable
 private fun MobileAccountSectionHeader(@StringRes title: Int) {
     Text(
@@ -488,4 +804,9 @@ private const val SETTINGS_LOADING_KEY = "account-settings-loading"
 private const val SETTINGS_ERROR_KEY = "account-settings-error"
 private const val SUBTITLES_HEADER_KEY = "account-settings-subtitles-header"
 private const val PRIVACY_STORAGE_HEADER_KEY = "account-settings-privacy-storage-header"
+private const val PLAYBACK_HEADER_KEY = "app-config-playback-header"
+private const val APP_CONFIG_LOADING_KEY = "app-config-loading"
+private const val APP_CONFIG_ERROR_KEY = "app-config-error"
+private const val VIDEO_PLAYBACK_TYPE_KEY = "app-config-video-playback-type"
+private const val AUTOPLAY_NEXT_VIDEO_KEY = "app-config-autoplay-next-video"
 private const val SIGN_OUT_KEY = "account-sign-out"
