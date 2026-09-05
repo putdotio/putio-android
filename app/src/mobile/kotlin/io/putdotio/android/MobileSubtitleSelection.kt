@@ -2,7 +2,6 @@ package io.putdotio.android
 
 import android.os.Bundle
 import android.view.accessibility.CaptioningManager
-import androidx.compose.ui.input.key.type
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
