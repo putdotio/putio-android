@@ -13,6 +13,18 @@ import org.junit.Test
 
 class RunAuthenticatedRenameProofTest {
     @Test
+    fun fixtureDecoderPreservesValuesAndRejectsDecodedDuplicateKeys() {
+        val valid = """{"id":12,"name":" été 東京 "}"""
+        assertEquals(Json.parseToJsonElement(valid), Json.decodeFromString(RenameFixtureDecoder, valid))
+        for (duplicate in listOf(
+            """{"id":12,"id":13}""",
+            """{"name":"été","na\u006de":"été"}""",
+        )) {
+            assertThrows(GradleException::class.java) { Json.decodeFromString(RenameFixtureDecoder, duplicate) }
+        }
+    }
+
+    @Test
     fun readsActiveInstrumentationComponentsAndExpandsRelativeRunnerNames() {
         val header = "ACTIVITY MANAGER RUNNING PROCESSES (dumpsys activity processes)\n"
         assertEquals(emptySet<String>(), activeProofInstrumentation(header))

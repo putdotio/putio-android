@@ -206,7 +206,11 @@ single-use Gradle process. SIGINT can disconnect the client before `CLEANUP FAIL
 reaches its output. Inspect the single-use daemon log under
 `$GRADLE_USER_HOME/daemon/<version>/daemon-<pid>.out.log` (default
 `~/.gradle/daemon/<version>/daemon-<pid>.out.log`) for cleanup diagnostics, and
-confirm instrumentation is idle before another attempt.
+confirm guest instrumentation is idle before recovery, another proof attempt, or
+any fixture mutation or deletion. If it does not become idle within the caller's
+bounded wait, stop and confirm shutdown of only an emulator the caller started
+before modifying fixtures. A caller that reused an emulator must preserve it and
+leave fixtures untouched until instrumentation is confirmed idle.
 
 Run logs and raw capture remain under `.evidence/rename-<run-id>/`. Raw captures
 are not publication evidence. The existing capture gates validate and normalize

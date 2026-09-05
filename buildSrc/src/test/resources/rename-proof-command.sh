@@ -71,6 +71,10 @@ case "${0##*/}" in
               adb-exit|replacement|unreadable-ownership) exit 17 ;;
               oversized-result) rm -f "$state/instrumentation"; head -c 1048577 /dev/zero | tr '\000' x ;;
               interrupt) while [ -f "$state/instrumentation" ]; do sleep 0.1; done ;;
+              shutdown-remove-failure)
+                rm -f "$state/instrumentation"
+                while [ -f "$state/recorder" ]; do sleep 0.1; done
+                ;;
               *)
                 class=io.putdotio.android.AuthenticatedFilesRenameTest
                 method=authenticatedRenamePreservesSessionAndCancel
@@ -88,6 +92,11 @@ case "${0##*/}" in
           'kill -INT 27182'|'kill -KILL 27182') rm -f "$state/recorder" ;;
           "rm -f '/data/local/tmp/putio-rename-"*)
             test ! -f "$state/recorder"
+            if [ "$mode" = shutdown-remove-failure ]; then
+              touch "$state/remove-attempted"
+              echo synthetic-sensitive-removal-detail >&2
+              exit 19
+            fi
             rm -f "$state/pid" "$state/capture"
             touch "$state/remote-files-removed"
             ;;

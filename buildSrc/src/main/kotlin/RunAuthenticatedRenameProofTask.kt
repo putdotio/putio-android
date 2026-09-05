@@ -6,8 +6,15 @@ import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.xml.parsers.DocumentBuilderFactory
+import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.encoding.CompositeDecoder
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.decodeStructure
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -76,14 +83,16 @@ private class AuthenticatedRenameRun(
     private val cleanupFailures = mutableListOf<Exception>()
 
     fun run(fixtureFile: File, app: File, test: File) {
-        val cleanupHook = Thread({ cleanup() }, "putio-rename-cleanup-$runId")
+        val cleanupHook = Thread({
+            if (!cleanup()) report("CLEANUP FAIL Authenticated proof shutdown cleanup failed; inspect owned run $runId")
+        }, "putio-rename-cleanup-$runId")
         Runtime.getRuntime().addShutdownHook(cleanupHook)
         var failure: Throwable? = null
         var validatedEvidence: String? = null
         try {
             val raw = fixtureFile.inputStream().use { it.readNBytes(24_577) }
             requireProof(raw.size <= 24_576, "Fixture exceeds proof input limit")
-            val fixture = parseProofObject(raw.decodeToString(throwOnInvalidSequence = true), "fixture")
+            val fixture = Json.decodeFromString(RenameFixtureDecoder, raw.decodeToString(throwOnInvalidSequence = true))
             validateRenameFixture(fixture)
             val sdk = command("SDK resolution", listOf(
                 "bash", "-c", "source \"\$1\"; resolve_sdk_root", "--", File(root, "scripts/lib.sh").path,
@@ -431,6 +440,28 @@ internal fun validateRenameCliContract(contract: JsonObject) {
         requireCapability((input?.get("arguments") as? JsonArray).orEmpty().none {
             (it as? JsonObject)?.get("required") == JsonPrimitive(true)
         }, "$name has an unsupported required argument")
+    }
+}
+
+// JsonObject parsing collapses duplicate keys. Decode fixture entries before
+// building the object so host preflight rejects the same input as the device.
+internal object RenameFixtureDecoder : DeserializationStrategy<JsonObject> {
+    override val descriptor = MapSerializer(String.serializer(), JsonElement.serializer()).descriptor
+
+    override fun deserialize(decoder: Decoder): JsonObject {
+        val fields = linkedMapOf<String, JsonElement>()
+        decoder.decodeStructure(descriptor) {
+            while (true) {
+                val index = decodeElementIndex(descriptor)
+                if (index == CompositeDecoder.DECODE_DONE) break
+                val key = decodeStringElement(descriptor, index)
+                requireProof(key !in fields, "Duplicate fixture field")
+                val valueIndex = decodeElementIndex(descriptor)
+                requireProof(valueIndex == index + 1, "Invalid fixture entry")
+                fields[key] = decodeSerializableElement(descriptor, valueIndex, JsonElement.serializer())
+            }
+        }
+        return JsonObject(fields)
     }
 }
 

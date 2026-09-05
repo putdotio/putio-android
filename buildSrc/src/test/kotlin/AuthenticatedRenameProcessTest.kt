@@ -1,10 +1,12 @@
 import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -60,6 +62,28 @@ class AuthenticatedRenameProcessTest {
         assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
     }
 
+    @Test(timeout = 120_000)
+    fun shutdownHookReportsCaptureRemovalFailureWithoutExposingPayloads() {
+        val fixture = fixture("shutdown-remove-failure")
+        val testKit = File(fixture, "test-kit").apply { mkdirs() }
+        // This build deliberately exits its JVM; keep it away from reusable test daemons.
+        assertThrows(Exception::class.java) { runner(fixture).withTestKitDir(testKit).build() }
+        assertTrue(File(fixture, "state/instrumentation-started").isFile)
+        assertTrue(File(fixture, "state/remove-attempted").isFile)
+        assertFalse(File(fixture, "state/remote-files-removed").exists())
+        assertFalse(File(fixture, "state/recorder").exists())
+        val logs = testKit.walkTopDown().filter { it.isFile && it.name.endsWith(".out.log") }
+            .joinToString("\n") { it.readText() }
+        assertTrue(logs, logs.contains("CLEANUP FAIL Authenticated proof shutdown cleanup failed"))
+        assertFalse(logs, logs.contains("synthetic-sensitive-removal-detail"))
+        for (name in listOf("recorder-host-pid", "instrumentation-host-pid", "shutdown-jvm-pid")) {
+            val pid = File(fixture, "state/$name").readText().trim().toLong()
+            ProcessHandle.of(pid).ifPresent { it.onExit().get(5, TimeUnit.SECONDS) }
+            assertFalse(ProcessHandle.of(pid).map { it.isAlive }.orElse(false))
+        }
+        assertSafeCommands(fixture)
+    }
+
     @Test
     fun recorderStartupFailureDoesNotStartInstrumentation() {
         val fixture = fixture("recorder-exit")
@@ -93,6 +117,16 @@ class AuthenticatedRenameProcessTest {
             assertFalse(File(fixture, "state/remote-files-removed").exists())
             assertSafeCommands(fixture)
         }
+    }
+
+    @Test
+    fun duplicateFixtureKeyFailsBeforeAnyCommand() {
+        val fixture = fixture("duplicate-fixture-key")
+        val input = File(fixture, "fixture.json")
+        input.writeText(input.readText().trimEnd().dropLast(1) + ",\"expectedAccountId\":11}")
+        val output = runFailure(fixture)
+        assertTrue(output, output.contains("Duplicate fixture field"))
+        assertFalse(File(fixture, "state/commands").exists())
     }
 
     @Test
@@ -148,16 +182,19 @@ class AuthenticatedRenameProcessTest {
     }
 
     private fun runFailure(fixture: File): String {
+        val result = runner(fixture).buildAndFail()
+        assertFalse(result.output, result.output.contains("PROOF PASS"))
+        return result.output
+    }
+
+    private fun runner(fixture: File): GradleRunner {
         val environment = System.getenv().toMutableMap().apply {
             put("PATH", File(fixture, "bin").path + File.pathSeparator + getValue("PATH"))
             put("FAKE_PROOF_DIR", fixture.path)
             put("PUTIO_CLI_TOKEN", "synthetic-token-must-be-removed")
         }
-        val result = GradleRunner.create().withProjectDir(fixture).withEnvironment(environment)
+        return GradleRunner.create().withProjectDir(fixture).withEnvironment(environment)
             .withArguments("proof", "--stacktrace", "--console=plain", "--no-configuration-cache")
-            .buildAndFail()
-        assertFalse(result.output, result.output.contains("PROOF PASS"))
-        return result.output
     }
 
     private fun fixture(mode: String): File {
@@ -193,14 +230,18 @@ class AuthenticatedRenameProcessTest {
                 repositoryDirectory.set(layout.projectDirectory)
                 apkDirectory.set(layout.projectDirectory.dir('app'))
                 testApkDirectory.set(layout.projectDirectory.dir('test'))
-                if ('$mode' == 'interrupt') {
+                if ('$mode' == 'interrupt' || '$mode' == 'shutdown-remove-failure') {
                     doFirst {
                         def owner = Thread.currentThread()
+                        if ('$mode' == 'shutdown-remove-failure') {
+                            file('state/shutdown-jvm-pid').text = ProcessHandle.current().pid().toString()
+                        }
                         def marker = file('state/instrumentation-started')
                         def interrupter = new Thread({
                             def deadline = System.nanoTime() + 30_000_000_000L
                             while (!marker.exists() && System.nanoTime() < deadline) Thread.sleep(25)
-                            if (marker.exists()) owner.interrupt()
+                            if ('$mode' == 'shutdown-remove-failure') System.exit(17)
+                            else if (marker.exists()) owner.interrupt()
                         })
                         interrupter.daemon = true
                         interrupter.start()
