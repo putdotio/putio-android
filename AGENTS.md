@@ -56,8 +56,10 @@ SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
 detekt (config in `detekt.yml`, Compose exemptions only), the local unit
 tests (`app/src/test/`, JUnit4 + Robolectric, Compose UI assertions run on
 the JVM), and an unsigned minified `mobileProductionRelease` build that proves
-the composite Kotlin SDK against minSdk 26 and R8. `:buildSrc:test` covers the
-design-token codegen; run it alongside `verify` (CI does). Fix findings at the
+the composite Kotlin SDK against minSdk 26 and R8. It also compiles the mobile
+production debug instrumentation APK without running it. `:buildSrc:test`
+covers design-token codegen and host proof tooling; run it alongside `verify`
+(CI does). Fix findings at the
 source; suppress only with a comment stating the platform constraint.
 The evidence regression wraps the installed FFmpeg tools to assert that
 recording normalization pins `LC_ALL=C`; it does not require or generate a

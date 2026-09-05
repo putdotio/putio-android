@@ -280,4 +280,64 @@ awk -v value="${kept_duration}" 'BEGIN { exit !(value < 1) }' || {
   exit 1
 }
 
+# Imported captures use the same gates without querying or mutating a device.
+validation_sdk="${tmpdir}/validation-sdk"
+mkdir -p "${validation_sdk}/platform-tools"
+cat > "${validation_sdk}/platform-tools/adb" <<'EOF'
+#!/usr/bin/env bash
+echo "validate-recording unexpectedly invoked adb" >&2
+exit 99
+EOF
+chmod +x "${validation_sdk}/platform-tools/adb"
+validation_dir="${tmpdir}/validation-gate"
+validated_path="$(ANDROID_HOME="${validation_sdk}" EVIDENCE_DIR="${validation_dir}" \
+  "${BASH_SOURCE[0]%/*}/evidence.sh" validate-recording --input "${tmpdir}/idle-edges.mp4" 2>/dev/null)"
+[[ -f "${validated_path}" && -f "${tmpdir}/idle-edges.mp4" ]] || {
+  echo "imported recording did not validate or raw input was removed" >&2
+  exit 1
+}
+validated_duration="$(duration "${validated_path}")"
+awk -v value="${validated_duration}" 'BEGIN { exit !(value >= 3 && value <= 5) }' || {
+  echo "imported recording bypassed normalization" >&2
+  exit 1
+}
+if ANDROID_HOME="${validation_sdk}" EVIDENCE_DIR="${validation_dir}" \
+  "${BASH_SOURCE[0]%/*}/evidence.sh" validate-recording --input "${tmpdir}/static.mp4" --label idle \
+  >"${tmpdir}/idle-import-output" 2>/dev/null; then
+  echo "imported idle recording bypassed quarantine" >&2
+  exit 1
+fi
+[[ ! -s "${tmpdir}/idle-import-output" && -f "${tmpdir}/static.mp4" ]] || {
+  echo "failed import printed evidence or deleted raw input" >&2
+  exit 1
+}
+
+# A raw input must never alias the output/staging inode, including links.
+alias_bin="${tmpdir}/alias-bin"
+alias_dir="${tmpdir}/alias-gate"
+mkdir "${alias_bin}" "${alias_dir}"
+cat > "${alias_bin}/date" <<'EOF'
+#!/usr/bin/env bash
+echo 20000101-000000
+EOF
+chmod +x "${alias_bin}/date"
+for alias_kind in direct symlink hardlink; do
+  alias_raw="${tmpdir}/${alias_kind}-raw.mp4"
+  cp "${tmpdir}/idle-edges.mp4" "${alias_raw}"
+  alias_out="${alias_dir}/20000101-000000-${alias_kind}.mp4"
+  case "${alias_kind}" in
+    direct) cp "${alias_raw}" "${alias_out}"; alias_input="${alias_out}" ;;
+    symlink) ln -s "${alias_raw}" "${alias_out}"; alias_input="${alias_raw}" ;;
+    hardlink) ln "${alias_raw}" "${alias_out}.pending"; alias_input="${alias_raw}" ;;
+  esac
+  if PATH="${alias_bin}:${PATH}" ANDROID_HOME="${validation_sdk}" EVIDENCE_DIR="${alias_dir}" \
+    "${BASH_SOURCE[0]%/*}/evidence.sh" validate-recording --input "${alias_input}" --label "${alias_kind}" \
+    >"${tmpdir}/alias-output" 2>/dev/null; then
+    echo "expected ${alias_kind} raw-input alias rejection" >&2
+    exit 1
+  fi
+  cmp "${alias_input}" "${tmpdir}/idle-edges.mp4" || { echo "raw input changed after alias rejection" >&2; exit 1; }
+  [[ ! -s "${tmpdir}/alias-output" ]] || { echo "alias rejection printed evidence" >&2; exit 1; }
+done
+
 echo "evidence recording tests passed"

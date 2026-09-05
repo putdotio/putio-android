@@ -130,3 +130,65 @@ requires authentication.
 - First boot of a fresh AVD is the slow path (~1 min on an M-series Mac); subsequent boots are faster with `-no-snapshot` still enforced for reproducibility
 - On shared machines check `scripts/emulator.sh status` before assuming a free console port; the scripts scan 5554–5584
 
+
+## Authenticated rename proof
+
+After authenticating the mobile production debug app as `devs-auto`, run the
+Files rename flow without `connectedAndroidTest` or `prove.sh`:
+
+```bash
+./gradlew --no-daemon :app:proveAuthenticatedRename \
+  -PputioRenameEnabled=true \
+  -PputioRenameSerial=emulator-5554 \
+  -PputioRenameFixture=/absolute/path/to/owned-rename-fixture.json
+```
+
+The serial must already be running API 37. The task assembles the app and test
+APKs, validates the CLI account and fixtures before installation, resolves APK
+identities with `apkanalyzer`, and installs both with `adb install -r`. Install
+failure stops the flow; it never uninstalls or clears app data. CLI checks force
+`PUTIO_CLI_PROFILE=devs-auto` and remove `PUTIO_CLI_TOKEN` from the child environment.
+The device test separately validates its existing session's account ID through
+the app's SDK client before touching a fixture. No token enters an argument.
+
+The caller creates a small, uniquely named fixture folder, records its exact
+IDs in an ownership ledger, and removes only those owned fixtures afterward.
+The fixture JSON contains exactly these fields:
+
+- `expectedAccountId`: positive account ID returned by the `devs-auto` CLI profile.
+- `containerId`, `renameItemId`, `cancelItemId`: distinct positive IDs from the ledger.
+- `containerName`: exact folder name, unique in its complete search result.
+- `renameOriginalName`, `renameNewName`, `cancelOriginalName`: distinct, nonempty,
+  exact names. Unicode and spaces are preserved; the whole name is replaced.
+
+Both the folder contents and container search must fit a complete 50-item page.
+The two items must belong to that folder, and the new name must be unused.
+Missing, ambiguous, changed, or incorrectly typed fixtures fail closed. The
+flow neither creates fixtures nor interprets readable shared items as owned.
+For a second run, update the ledger's original/new names to the actual current
+state; the same encrypted session is reused without another login.
+
+The device test navigates Search → folder, renames through overflow, confirms
+UI and API readback, then edits a second item through long-press and cancels.
+It checks that Cancel leaves the server name unchanged. It does not replace
+physical keyboard, TalkBack, or live permission-rejection proof. Ordinary
+connected tests skip this opt-in test before launching its Activity rule. The
+canonical `verify` task assembles the mobile production debug test APK without
+running it, so device-test compilation is checked on each CI change.
+
+Host preflight, install, instrumentation, and capture processing share a
+240-second deadline after assembly. A failed, skipped, absent, interrupted,
+or incomplete named test fails the task. Recording starts before instrumentation
+and uses a unique guest path with a checked process ID. Cleanup stops only the
+owned instrumentation/recorder, removes only that run's guest capture files,
+and leaves the emulator, app installation, authentication, and fixture ledger
+intact. Cleanup has its own 20-second command budget and reports failure separately.
+Use `--no-daemon` for this manual runtime lane so interruption reaches its
+single-use Gradle process; confirm cleanup output before another attempt.
+
+Run logs and raw capture remain under `.evidence/rename-<run-id>/`. Raw captures
+are not publication evidence. The existing capture gates validate and normalize
+them through `scripts/evidence.sh validate-recording --input <file>`, and only a
+successful task prints `EVIDENCE <validated-path>` followed by
+`PROOF PASS authenticated-rename`. Inspect the clip before publishing it with the
+repository wrapper. No fixture or credential payload is printed by CLI preflight.
