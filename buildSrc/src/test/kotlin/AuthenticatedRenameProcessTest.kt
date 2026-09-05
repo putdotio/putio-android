@@ -77,6 +77,62 @@ class AuthenticatedRenameProcessTest {
     }
 
     @Test(timeout = 120_000)
+    fun adbOutputOverflowReapsClientAndPreservesSharedServer() {
+        val output = sharedServerFailure("adb-server-overflow", listOf("command"))
+        assertTrue(output, output.contains("output exceeded its limit"))
+    }
+
+    @Test(timeout = 120_000)
+    fun adbCommandInterruptionReapsClientAndPreservesSharedServer() {
+        sharedServerFailure("interrupt-adb-server", listOf("command"))
+    }
+
+    @Test(timeout = 120_000)
+    fun adbCommandShutdownReapsClientAndPreservesSharedServer() {
+        sharedServerFailure("shutdown-adb-server", listOf("command"))
+    }
+
+    @Test(timeout = 120_000)
+    fun instrumentationAndRecorderCleanupPreservesSharedServers() {
+        sharedServerFailure("interrupt-adb-clients", listOf("instrumentation", "recorder"))
+    }
+
+    private fun sharedServerFailure(mode: String, clients: List<String>): String {
+        val fixture = fixture(mode)
+        try {
+            val output = if (mode.startsWith("shutdown-")) {
+                val testKit = File(fixture, "test-kit").apply { mkdirs() }
+                assertThrows(Exception::class.java) { runner(fixture).withTestKitDir(testKit).build() }
+                ""
+            } else runFailure(fixture)
+            for (client in clients) {
+                val pid = File(fixture, "state/$client-client-pid").readText().trim().toLong()
+                assertEquals("Synthetic server must begin as the adb client's direct child", pid,
+                    File(fixture, "state/$client-server-parent").readText().trim().toLong())
+                assertFalse("Owned $client client survived cleanup", ProcessHandle.of(pid).map { it.isAlive }.orElse(false))
+            }
+            val killedServers = clients.filter { client ->
+                val pid = File(fixture, "state/$client-server-pid").readText().trim().toLong()
+                !ProcessHandle.of(pid).map { it.isAlive }.orElse(false)
+            }
+            assertTrue("Shared servers were killed: $killedServers", killedServers.isEmpty())
+            assertSafeCommands(fixture)
+            return output
+        } finally {
+            // The test owns these synthetic servers; the proof owns only their adb clients.
+            val names = clients.flatMap { listOf("$it-server-pid", "$it-client-pid") } + "shutdown-jvm-pid"
+            for (name in names) {
+                val pidFile = File(fixture, "state/$name")
+                if (pidFile.isFile) ProcessHandle.of(pidFile.readText().trim().toLong()).ifPresent { process ->
+                    val owned = process.descendants().use { it.toList().asReversed() } + process
+                    owned.forEach { it.destroyForcibly() }
+                    owned.forEach { it.onExit().get(5, TimeUnit.SECONDS) }
+                }
+            }
+        }
+    }
+
+    @Test(timeout = 120_000)
     fun shutdownDuringSdkResolutionReapsTheSynchronousCommandTree() {
         val fixture = fixture("shutdown-sdk-command")
         File(fixture, "scripts/lib.sh").writeText("""
@@ -365,7 +421,8 @@ class AuthenticatedRenameProcessTest {
                         if ('$mode'.startsWith('shutdown-')) {
                             file('state/shutdown-jvm-pid').text = ProcessHandle.current().pid().toString()
                         }
-                        def marker = file('$mode' == 'shutdown-sdk-command' ? 'state/sdk-command-started' : 'state/instrumentation-started')
+                        def marker = file('$mode' == 'shutdown-sdk-command' ? 'state/sdk-command-started' :
+                            '$mode'.endsWith('adb-server') ? 'state/adb-command-started' : 'state/instrumentation-started')
                         def interrupter = new Thread({
                             def deadline = System.nanoTime() + 30_000_000_000L
                             while (!marker.exists() && System.nanoTime() < deadline) Thread.sleep(25)

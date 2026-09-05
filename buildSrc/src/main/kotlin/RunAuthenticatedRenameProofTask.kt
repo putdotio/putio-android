@@ -82,6 +82,7 @@ private class AuthenticatedRenameRun(
     private var completed = false
     private var cleanupStarted = false
     private var activeCommand: Process? = null
+    private var activeCommandOwnsDescendants = true
     private val cleanupFailures = mutableListOf<Exception>()
 
     fun run(fixtureFile: File, app: File, test: File) {
@@ -100,7 +101,7 @@ private class AuthenticatedRenameRun(
                 "bash", "-c", "source \"\$1\"; resolve_sdk_root", "--", File(root, "scripts/lib.sh").path,
             )).trim()
             adb = File(sdk, "platform-tools/adb").path
-            requireProof(command("device state", listOf(adb, "-s", serial, "get-state")).trim() == "device", "Serial is not running")
+            requireProof(command("device state", listOf(adb, "-s", serial, "get-state"), ownsDescendants = false).trim() == "device", "Serial is not running")
             requireProof(shell("API level", "getprop ro.build.version.sdk").trim() == "37", "Authenticated proof requires API 37")
             validateCliFixture(fixture)
             val analyzer = File(sdk, "cmdline-tools/latest/bin/apkanalyzer")
@@ -113,8 +114,8 @@ private class AuthenticatedRenameRun(
             val runner = testIdentity.runner ?: throw GradleException("Test APK has no instrumentation runner")
             runnerComponent = "${testIdentity.packageName}/$runner"
             requireProof(activeInstrumentation(cleanup = false).isEmpty(), "Existing instrumentation already owns the target app")
-            command("install app", listOf(adb, "-s", serial, "install", "-r", app.path))
-            command("install tests", listOf(adb, "-s", serial, "install", "-r", test.path))
+            command("install app", listOf(adb, "-s", serial, "install", "-r", app.path), ownsDescendants = false)
+            command("install tests", listOf(adb, "-s", serial, "install", "-r", test.path), ownsDescendants = false)
             evidence.mkdirs()
             startRecording()
             val encoded = Base64.getEncoder().encodeToString(raw)
@@ -138,7 +139,7 @@ private class AuthenticatedRenameRun(
             instrumentationStarted = false
             stopRecording()
             val rawCapture = File(evidence, "capture.mp4.raw")
-            command("pull recording", listOf(adb, "-s", serial, "pull", remoteCapture, rawCapture.path))
+            command("pull recording", listOf(adb, "-s", serial, "pull", remoteCapture, rawCapture.path), ownsDescendants = false)
             val validated = command("validate recording", listOf(
                 File(root, "scripts/evidence.sh").path, "validate-recording", "--input", rawCapture.path,
                 "--label", "authenticated-rename-$runId",
@@ -273,11 +274,11 @@ private class AuthenticatedRenameRun(
             try { block() } catch (error: Exception) { cleanupFailures += error; clean = false }
         }
         attempt {
-            activeCommand?.let(::reapHostProcess)
+            activeCommand?.let { reapHostProcess(it, activeCommandOwnsDescendants) }
             activeCommand = null
         }
         if (!::adb.isInitialized) return clean
-        attempt { instrumentation?.let(::reapHostProcess) }
+        attempt { instrumentation?.let { reapHostProcess(it, ownsDescendants = false) } }
         instrumentation = null
         if (instrumentationStarted) attempt {
             val active = try {
@@ -316,18 +317,18 @@ private class AuthenticatedRenameRun(
             shell("remove owned capture", "rm -f ${proofShellQuote(remoteCapture)} ${proofShellQuote(remotePid)}", cleanup = true)
             recordingStarted = false
         }
-        attempt { recorder?.let(::reapHostProcess) }
+        attempt { recorder?.let { reapHostProcess(it, ownsDescendants = false) } }
         recorder = null
         return clean
     }
 
     private fun shell(stage: String, script: String, allowFailure: Boolean = false, cleanup: Boolean = false): String =
-        command(stage, listOf(adb, "-s", serial, "shell", script), allowFailure = allowFailure, cleanup = cleanup)
+        command(stage, listOf(adb, "-s", serial, "shell", script), allowFailure = allowFailure, cleanup = cleanup, ownsDescendants = false)
 
     private fun start(args: List<String>, output: File): Process =
         ProcessBuilder(args).directory(root).redirectErrorStream(true).redirectOutput(output).start()
 
-    private fun command(stage: String, args: List<String>, cli: Boolean = false, allowFailure: Boolean = false, cleanup: Boolean = false): String {
+    private fun command(stage: String, args: List<String>, cli: Boolean = false, allowFailure: Boolean = false, cleanup: Boolean = false, ownsDescendants: Boolean = true): String {
         val timeout = if (cleanup) {
             minOf(3_000L, TimeUnit.NANOSECONDS.toMillis(cleanupDeadline - System.nanoTime()))
         } else remainingMillis()
@@ -342,7 +343,10 @@ private class AuthenticatedRenameRun(
             }.start().also {
                 // Cleanup commands already run under cleanup's monitor. Keep the
                 // foreground command reachable if the JVM skips its finally block.
-                if (!cleanup) activeCommand = it
+                if (!cleanup) {
+                    activeCommand = it
+                    activeCommandOwnsDescendants = ownsDescendants
+                }
             }
         }
         val bytes = ByteArrayOutputStream()
@@ -358,7 +362,7 @@ private class AuthenticatedRenameRun(
                         if (bytes.size() + size > MAX_OUTPUT_BYTES) {
                             outputOverflow = true
                             // Snapshot descendants while their launcher is still alive.
-                            reapHostProcess(process)
+                            reapHostProcess(process, ownsDescendants)
                             break
                         }
                         bytes.write(buffer, 0, size)
@@ -386,7 +390,7 @@ private class AuthenticatedRenameRun(
             throw error
         } finally {
             try {
-                if (process.isAlive) reapHostProcess(process)
+                if (process.isAlive) reapHostProcess(process, ownsDescendants)
                 synchronized(this) {
                     if (activeCommand === process) activeCommand = null
                 }
@@ -404,8 +408,11 @@ private class AuthenticatedRenameRun(
         requireProof(process.exitValue() == 0, "$stage failed")
     }
 
-    private fun reapHostProcess(process: Process) {
-        val owned = process.descendants().use { it.toList().asReversed() } + process.toHandle()
+    private fun reapHostProcess(process: Process, ownsDescendants: Boolean) {
+        // An adb client can start the shared server as its child. Only the client
+        // belongs to this run; SDK/CLI/validation helpers own their foreground trees.
+        val children = if (ownsDescendants) process.descendants().use { it.toList().asReversed() } else emptyList()
+        val owned = children + process.toHandle()
         owned.forEach { it.destroyForcibly() }
         val reapDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2)
         for (handle in owned) {

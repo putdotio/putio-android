@@ -192,7 +192,9 @@ before decoding. A failed, skipped, absent, interrupted,
 or incomplete named test fails the task. Recording starts before instrumentation
 and uses a unique guest path with a checked process ID. Cleanup reaps owned host
 processes and the verified recorder, and removes only that run's guest capture
-files. Recorder shutdown checks the guest PID independently of the host adb
+files. It reaps adb clients without their descendants: a client can start the
+shared adb server. SDK, CLI, and validation helpers retain tree cleanup.
+Recorder shutdown checks the guest PID independently of the host adb
 client, waits for graceful exit, and escalates only while ownership still matches.
 Missing recorder ownership fails cleanup and preserves its capture files.
 It never force-stops the app. If instrumentation remains active, even with

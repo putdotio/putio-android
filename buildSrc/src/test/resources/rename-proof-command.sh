@@ -3,6 +3,13 @@ set -eu
 state="$FAKE_PROOF_DIR/state"
 mode=$(cat "$state/mode")
 printf '%s %s\n' "${0##*/}" "$*" >> "$state/commands"
+start_shared_server() {
+  sleep 120 </dev/null >/dev/null 2>&1 &
+  server=$!
+  echo "$server" > "$state/$1-server-pid"
+  echo "$$" > "$state/$1-client-pid"
+  ps -o ppid= -p "$server" > "$state/$1-server-parent"
+}
 case "${0##*/}" in
   putio)
     test "$PUTIO_CLI_PROFILE" = devs-auto
@@ -35,7 +42,14 @@ case "${0##*/}" in
     test "$1" = -s && test "$2" = emulator-5584
     shift 2
     case "$1" in
-      get-state) echo device ;;
+      get-state)
+        case "$mode" in adb-server-overflow|interrupt-adb-server|shutdown-adb-server)
+          start_shared_server command
+          touch "$state/adb-command-started"
+          [ "$mode" != adb-server-overflow ] || head -c 1048577 /dev/zero
+          while :; do sleep 0.1; done
+          ;; *) echo device ;; esac
+        ;;
       install) test "$2" = -r; echo Success ;;
       shell)
         script=$2
@@ -63,8 +77,9 @@ case "${0##*/}" in
             touch "$state/recorder"
             case "$mode" in missing-pid|missing-pid-exited-host) ;; *) echo 27182 > "$state/pid" ;; esac
             echo "$$" > "$state/recorder-host-pid"
+            [ "$mode" != interrupt-adb-clients ] || start_shared_server recorder
             [ "$mode" != missing-pid-exited-host ] || exit 17
-            while [ -f "$state/recorder" ] && [ ! -f "$state/exit-recorder-host" ]; do sleep 0.1; done
+            while [ "$mode" = interrupt-adb-clients ] || { [ -f "$state/recorder" ] && [ ! -f "$state/exit-recorder-host" ]; }; do sleep 0.1; done
             ;;
           "cat '/data/local/tmp/putio-rename-"*'.pid'*) cat "$state/pid" 2>/dev/null ;;
           "test -s '/data/local/tmp/putio-rename-"*) [ ! -f "$state/recorder" ] || echo ready ;;
@@ -77,6 +92,7 @@ case "${0##*/}" in
             ;;
           "'am' 'instrument'"*)
             echo "$$" > "$state/instrumentation-host-pid"
+            [ "$mode" != interrupt-adb-clients ] || start_shared_server instrumentation
             [ "$mode" = interrupt-delayed-instrumentation ] || touch "$state/instrumentation"
             touch "$state/instrumentation-started"
             case "$mode" in exited-recorder-host*)
@@ -91,7 +107,7 @@ case "${0##*/}" in
             case "$mode" in
               adb-exit|replacement|unreadable-ownership) exit 17 ;;
               oversized-result) rm -f "$state/instrumentation"; head -c 1048577 /dev/zero | tr '\000' x ;;
-              interrupt|interrupt-delayed-instrumentation) while [ -f "$state/instrumentation-started" ]; do sleep 0.1; done ;;
+              interrupt|interrupt-delayed-instrumentation|interrupt-adb-clients) while [ -f "$state/instrumentation-started" ]; do sleep 0.1; done ;;
               shutdown-remove-failure)
                 rm -f "$state/instrumentation"
                 while [ -f "$state/recorder" ]; do sleep 0.1; done
