@@ -60,7 +60,9 @@ jobs:
         run: |
           app_revision=$(git -C putio-android rev-parse HEAD)
           sdk_revision=$(git -C putio-sdk-kotlin rev-parse HEAD)
+          app_parents=$(git -C putio-android cat-file commit HEAD | sed -n '/^$/q; s/^parent /App parent revision: /p')
           printf 'App revision: %s\nKotlin SDK revision: %s\n' "$app_revision" "$sdk_revision" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$app_parents" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Java
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
