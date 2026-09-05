@@ -80,7 +80,7 @@ private class AuthenticatedRenameRun(
         var failure: Throwable? = null
         var validatedEvidence: String? = null
         try {
-            val raw = fixtureFile.readBytes()
+            val raw = fixtureFile.inputStream().use { it.readNBytes(24_577) }
             requireProof(raw.size <= 24_576, "Fixture exceeds proof input limit")
             val fixture = parseProofObject(raw.decodeToString(throwOnInvalidSequence = true), "fixture")
             validateRenameFixture(fixture)
@@ -117,8 +117,9 @@ private class AuthenticatedRenameRun(
             val running = requireNotNull(instrumentation)
             waitFor(running, "instrumentation", output)
             instrumentation = null
-            val result = output.readText()
-            requireProof(result.length <= MAX_OUTPUT_BYTES, "Instrumentation output exceeded its limit")
+            val resultBytes = output.inputStream().use { it.readNBytes(MAX_OUTPUT_BYTES + 1) }
+            requireProof(resultBytes.size <= MAX_OUTPUT_BYTES, "Instrumentation output exceeded its limit")
+            val result = resultBytes.decodeToString(throwOnInvalidSequence = true)
             requireSuccessfulInstrumentation(result, PROOF_CLASS, PROOF_METHOD)
             requireProof(activeInstrumentation(cleanup = false).isEmpty(), "Remote instrumentation remained active after completion")
             instrumentationStarted = false
@@ -154,6 +155,7 @@ private class AuthenticatedRenameRun(
             .map { File(it, "putio") }.firstOrNull { it.isFile && it.canExecute() }
             ?: throw GradleException("putio CLI is missing from PATH")
         fun cli(vararg args: String) = parseProofObject(command("CLI preflight", listOf(cliExecutable.absolutePath) + args, cli = true), "CLI response")
+        validateRenameCliContract(cli("describe", "--output", "json"))
         val auth = cli("auth", "status", "--profile", "devs-auto", "--output", "json")
         requireProof(auth["authenticated"] == JsonPrimitive(true) && proofText(auth, "source") == "profile" &&
             proofText(auth, "profile") == "devs-auto" && proofText(auth, "apiBaseUrl") == "https://api.put.io",
@@ -376,8 +378,51 @@ internal fun validateRenameFixture(fixture: JsonObject) {
     requireProof(fixture.keys == ids + names, "Fixture must contain exactly the eight documented fields")
     ids.forEach { proofId(fixture, it) }
     names.forEach { requireProof(proofText(fixture, it).isNotEmpty(), "Fixture names must be nonempty") }
+    for (key in listOf("renameOriginalName", "renameNewName")) {
+        val name = proofText(fixture, key)
+        requireProof(' ' in name && name.any { it.code > 127 }, "$key must contain a space and a non-ASCII character")
+    }
     requireProof(listOf("containerId", "renameItemId", "cancelItemId").map { proofId(fixture, it) }.distinct().size == 3, "Fixture IDs must be distinct")
     requireProof(listOf("renameOriginalName", "renameNewName", "cancelOriginalName").map { proofText(fixture, it) }.distinct().size == 3, "Fixture names must be distinct")
+}
+
+internal fun validateRenameCliContract(contract: JsonObject) {
+    fun requireCapability(condition: Boolean, detail: String) =
+        requireProof(condition, "putio CLI contract missing or incompatible: $detail; install a CLI supporting the rename proof")
+    requireCapability((contract["auth"] as? JsonObject)?.get("profileEnv") == JsonPrimitive("PUTIO_CLI_PROFILE"),
+        "PUTIO_CLI_PROFILE selection")
+    val commands = contract["commands"] as? JsonArray
+    for (name in listOf("auth status", "whoami", "files list")) {
+        val command = commands?.filterIsInstance<JsonObject>()?.singleOrNull { it["command"] == JsonPrimitive(name) }
+        requireCapability(command != null, "$name command")
+        val selected = requireNotNull(command)
+        val isRead = name != "auth status"
+        requireCapability(selected["kind"] == JsonPrimitive(if (isRead) "read" else "auth") &&
+            (selected["auth"] as? JsonObject)?.get("required") == JsonPrimitive(isRead), "$name operation and auth")
+        if (isRead) requireCapability((selected["capabilities"] as? JsonObject)?.get("fieldSelection") == JsonPrimitive(true),
+            "$name field selection")
+        val requiredFlags = when (name) {
+            "auth status" -> mapOf("output" to "enum", "profile" to "string")
+            "whoami" -> mapOf("output" to "enum", "fields" to "string")
+            else -> mapOf("output" to "enum", "fields" to "string", "parent-id" to "integer", "per-page" to "integer")
+        }
+        val input = selected["input"] as? JsonObject
+        val flags = (input?.get("flags") as? JsonArray)?.filterIsInstance<JsonObject>()
+        requireCapability(flags != null, "$name input flags")
+        for ((flagName, type) in requiredFlags) {
+            val flag = flags?.singleOrNull { it["name"] == JsonPrimitive(flagName) }
+            requireCapability(flag?.get("type") == JsonPrimitive(type) && flag?.get("repeated") == JsonPrimitive(false),
+                "$name --$flagName $type flag")
+            if (flagName == "output") requireCapability((flag?.get("choices") as? JsonArray)?.contains(JsonPrimitive("json")) == true,
+                "$name --output json")
+        }
+        requireCapability(flags.orEmpty().none {
+            it["required"] == JsonPrimitive(true) && (it["name"] as? JsonPrimitive)?.content !in requiredFlags
+        }, "$name has an unsupported required flag")
+        requireCapability((input?.get("arguments") as? JsonArray).orEmpty().none {
+            (it as? JsonObject)?.get("required") == JsonPrimitive(true)
+        }, "$name has an unsupported required argument")
+    }
 }
 
 private fun parseProofObject(raw: String, label: String): JsonObject = try {

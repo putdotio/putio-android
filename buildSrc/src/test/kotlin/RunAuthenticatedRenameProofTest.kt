@@ -1,5 +1,6 @@
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -95,6 +96,66 @@ class RunAuthenticatedRenameProofTest {
                 rejectFixture(replace(key, value))
             }
         }
+    }
+
+    @Test
+    fun requiresSpaceAndNonAsciiInBothRenameNames() {
+        for (key in listOf("renameOriginalName", "renameNewName")) {
+            for (name in listOf("ASCII name.txt", "東京.txt", "été\tfile.txt")) {
+                rejectFixture(replace(key, JsonPrimitive(name)))
+            }
+        }
+    }
+
+    @Test
+    fun acceptsOnlyTheNeededCliCapabilities() {
+        val contract = cliContract()
+        validateRenameCliContract(contract)
+        val commands = contract.getValue("commands") as JsonArray
+        assertThrows(GradleException::class.java) {
+            validateRenameCliContract(JsonObject(contract + ("commands" to JsonArray(commands.dropLast(1)))))
+        }
+        for (replacement in listOf(
+            JsonObject(mapOf("kind" to JsonPrimitive("write"))),
+            JsonObject(mapOf("auth" to JsonObject(mapOf("required" to JsonPrimitive(false))))),
+            JsonObject(mapOf("capabilities" to JsonObject(mapOf("fieldSelection" to JsonPrimitive(false))))),
+            JsonObject(mapOf("input" to JsonObject(mapOf("flags" to JsonArray(emptyList()))))),
+        )) {
+            rejectCliCommand(JsonObject((commands.last() as JsonObject) + replacement))
+        }
+    }
+
+    @Test
+    fun rejectsIncompatibleCliFlagSchemasBeforeUsingCommands() {
+        val command = (cliContract().getValue("commands") as JsonArray).last() as JsonObject
+        val input = command.getValue("input") as JsonObject
+        val flags = input.getValue("flags") as JsonArray
+        for ((flagName, changes) in listOf(
+            "parent-id" to mapOf("type" to JsonPrimitive("string")),
+            "per-page" to mapOf("repeated" to JsonPrimitive(true)),
+            "output" to mapOf("choices" to JsonArray(listOf(JsonPrimitive("text")))),
+        )) {
+            val changed = flags.map { value ->
+                val flag = value as JsonObject
+                if (flag["name"] == JsonPrimitive(flagName)) JsonObject(flag + changes) else flag
+            }
+            rejectCliCommand(JsonObject(command + ("input" to JsonObject(input + ("flags" to JsonArray(changed))))))
+        }
+        val required = JsonObject(mapOf("name" to JsonPrimitive("new-flag"), "required" to JsonPrimitive(true)))
+        rejectCliCommand(JsonObject(command + ("input" to JsonObject(input + ("flags" to JsonArray(flags + required))))))
+    }
+
+    private fun cliContract() = Json.parseToJsonElement(
+        requireNotNull(javaClass.getResource("/rename-proof-cli-contract.json")).readText(),
+    ) as JsonObject
+
+    private fun rejectCliCommand(command: JsonObject) {
+        val contract = cliContract()
+        val commands = contract.getValue("commands") as JsonArray
+        val error = assertThrows(GradleException::class.java) {
+            validateRenameCliContract(JsonObject(contract + ("commands" to JsonArray(commands.dropLast(1) + command))))
+        }
+        assertTrue(error.message.orEmpty().contains("putio CLI contract missing or incompatible"))
     }
 
     @Test

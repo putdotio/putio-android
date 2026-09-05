@@ -148,7 +148,8 @@ Files rename flow without `connectedAndroidTest` or `prove.sh`:
 ```
 
 The serial must already be running API 37. The task assembles the app and test
-APKs, validates the CLI account and fixtures before installation, resolves APK
+APKs, discovers the installed CLI contract with `putio describe --output json`,
+validates the CLI account and fixtures before installation, resolves APK
 identities with `apkanalyzer`, and installs both with `adb install -r`. Install
 failure stops the flow; it never uninstalls or clears app data. CLI checks force
 `PUTIO_CLI_PROFILE=devs-auto` and remove `PUTIO_CLI_TOKEN` from the child environment.
@@ -157,13 +158,14 @@ the app's SDK client before touching a fixture. No token enters an argument.
 
 The caller creates a small, uniquely named fixture folder, records its exact
 IDs in an ownership ledger, and removes only those owned fixtures afterward.
-The fixture JSON contains exactly these fields:
+The fixture JSON is limited to 24 KiB and contains exactly these fields:
 
 - `expectedAccountId`: positive account ID returned by the `devs-auto` CLI profile.
 - `containerId`, `renameItemId`, `cancelItemId`: distinct positive IDs from the ledger.
 - `containerName`: exact folder name, unique in its complete search result.
 - `renameOriginalName`, `renameNewName`, `cancelOriginalName`: distinct, nonempty,
-  exact names. Unicode and spaces are preserved; the whole name is replaced.
+  exact names. Both rename names must contain a literal space and at least one
+  non-ASCII character. Names are preserved exactly; the whole name is replaced.
 
 Both the folder contents and container search must fit a complete 50-item page.
 The two items must belong to that folder, and the new name must be unused.
@@ -174,7 +176,8 @@ state; the same encrypted session is reused without another login.
 
 The device test navigates Search → folder, renames through overflow, confirms
 UI and API readback, then edits a second item through long-press and cancels.
-It checks that Cancel leaves the server name unchanged. It does not replace
+It reads back the exact changed draft before Cancel and checks that Cancel leaves
+the server name unchanged. It does not replace
 physical keyboard, TalkBack, or live permission-rejection proof. Ordinary
 connected tests skip this opt-in test before launching its Activity rule. The
 Android runner reports that opt-out as an assumption; AGP may serialize it as
@@ -184,7 +187,8 @@ canonical `verify` task assembles the mobile production debug test APK without
 running it, so device-test compilation is checked on each CI change.
 
 Host preflight, install, instrumentation, and capture processing share a
-240-second deadline after assembly. A failed, skipped, absent, interrupted,
+240-second deadline after assembly. Instrumentation output is limited to 1 MiB
+before decoding. A failed, skipped, absent, interrupted,
 or incomplete named test fails the task. Recording starts before instrumentation
 and uses a unique guest path with a checked process ID. Cleanup stops only the
 owned instrumentation/recorder, removes only that run's guest capture files,

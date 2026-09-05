@@ -1,0 +1,37 @@
+{
+  "auth": {"profileEnv": "PUTIO_CLI_PROFILE"},
+  "commands": [
+    {
+      "command": "auth status",
+      "kind": "auth",
+      "auth": {"required": false},
+      "capabilities": {"dryRun": false, "fieldSelection": false, "rawJsonInput": false, "streaming": false},
+      "input": {"flags": [
+        {"choices": ["json", "text", "ndjson"], "name": "output", "repeated": false, "required": false, "type": "enum"},
+        {"name": "profile", "repeated": false, "required": false, "type": "string"}
+      ]}
+    },
+    {
+      "command": "whoami",
+      "kind": "read",
+      "auth": {"required": true},
+      "capabilities": {"dryRun": false, "fieldSelection": true, "rawJsonInput": false, "streaming": false},
+      "input": {"flags": [
+        {"name": "fields", "repeated": false, "required": false, "type": "string"},
+        {"choices": ["json", "text", "ndjson"], "name": "output", "repeated": false, "required": false, "type": "enum"}
+      ]}
+    },
+    {
+      "command": "files list",
+      "kind": "read",
+      "auth": {"required": true},
+      "capabilities": {"dryRun": false, "fieldSelection": true, "rawJsonInput": false, "streaming": true},
+      "input": {"flags": [
+        {"name": "fields", "repeated": false, "required": false, "type": "string"},
+        {"choices": ["json", "text", "ndjson"], "name": "output", "repeated": false, "required": false, "type": "enum"},
+        {"name": "parent-id", "repeated": false, "required": false, "type": "integer"},
+        {"name": "per-page", "repeated": false, "required": false, "type": "integer"}
+      ]}
+    }
+  ]
+}

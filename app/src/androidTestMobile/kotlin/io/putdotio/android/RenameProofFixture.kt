@@ -58,6 +58,9 @@ internal data class RenameProofFixture(
                 )
                 require(setOf(fixture.containerId, fixture.renameItemId, fixture.cancelItemId).size == 3)
                 require(setOf(fixture.renameOriginalName, fixture.renameNewName, fixture.cancelOriginalName).size == 3)
+                for (name in listOf(fixture.renameOriginalName, fixture.renameNewName)) {
+                    require(' ' in name && name.any { it.code > 127 })
+                }
                 return fixture
             } catch (error: Exception) {
                 // Parser exceptions may contain the supplied payload; never attach them to runner output.

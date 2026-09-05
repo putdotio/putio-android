@@ -150,8 +150,9 @@ class AuthenticatedFilesRenameTest {
         compose.onNode(cancelRow).performTouchInput { longClick() }
         compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_rename)).performClick()
         requireEditorName(fixture.cancelOriginalName)
-        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG)
-            .performTextReplacement(fixture.cancelOriginalName + " cancelled draft")
+        val draft = fixture.cancelOriginalName + " cancelled draft"
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement(draft)
+        requireEditorName(draft)
         compose.onNodeWithText(compose.activity.getString(R.string.mobile_action_cancel)).performClick()
         compose.waitUntil(TIMEOUT_MILLIS) {
             compose.onAllNodes(hasTestTag(MOBILE_FILES_RENAME_FIELD_TAG)).fetchSemanticsNodes().isEmpty()

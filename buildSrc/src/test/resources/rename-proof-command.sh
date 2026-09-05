@@ -8,6 +8,9 @@ case "${0##*/}" in
     test "$PUTIO_CLI_PROFILE" = devs-auto
     test -z "${PUTIO_CLI_TOKEN+x}"
     case "$1" in
+      describe)
+        if [ "$mode" = missing-capability ]; then printf '%s\n' '{"commands":[]}'; else cat "$state/cli-contract.json"; fi
+        ;;
       auth) printf '%s\n' '{"authenticated":true,"source":"profile","profile":"devs-auto","apiBaseUrl":"https://api.put.io"}' ;;
       whoami)
         if [ "$mode" = wrong-account ]; then id=99; else id=11; fi
@@ -15,7 +18,7 @@ case "${0##*/}" in
         ;;
       files)
         if [ "$mode" = missing-fixture ]; then files='[]'; else
-          files='[{"id":13,"parent_id":12,"name":"Rename me"},{"id":14,"parent_id":12,"name":"Cancel me"}]'
+          files='[{"id":13,"parent_id":12,"name":"Rename été"},{"id":14,"parent_id":12,"name":"Cancel me"}]'
         fi
         printf '{"parent":{"id":12,"name":"Owned container","file_type":"FOLDER"},"files":%s,"cursor":null}\n' "$files"
         ;;
@@ -63,6 +66,7 @@ case "${0##*/}" in
             touch "$state/instrumentation" "$state/instrumentation-started"
             case "$mode" in
               adb-exit) exit 17 ;;
+              oversized-result) head -c 1048577 /dev/zero | tr '\000' x ;;
               interrupt) while [ -f "$state/instrumentation" ]; do sleep 0.1; done ;;
               *)
                 class=io.putdotio.android.AuthenticatedFilesRenameTest

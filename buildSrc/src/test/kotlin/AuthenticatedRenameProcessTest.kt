@@ -71,6 +71,32 @@ class AuthenticatedRenameProcessTest {
         }
     }
 
+    @Test
+    fun oversizedFixtureFailsBeforeAnyCommand() {
+        val fixture = fixture("oversized-fixture")
+        java.io.RandomAccessFile(File(fixture, "fixture.json"), "rw").use { it.setLength(24_577) }
+        assertTrue(runFailure(fixture).contains("Fixture exceeds proof input limit"))
+        assertFalse(File(fixture, "state/commands").exists())
+    }
+
+    @Test
+    fun oversizedFinalInstrumentationOutputFailsAndCleansUp() {
+        val fixture = fixture("oversized-result")
+        assertTrue(runFailure(fixture).contains("output exceeded its limit"))
+        assertOwnedCleanup(fixture)
+    }
+
+    @Test
+    fun missingCliCapabilityFailsBeforeAccountReadsAndInstall() {
+        val fixture = fixture("missing-capability")
+        assertTrue(runFailure(fixture).contains("putio CLI contract missing or incompatible"))
+        val commands = File(fixture, "state/commands").readText()
+        assertTrue(commands, commands.contains("putio describe --output json"))
+        assertFalse(commands, commands.contains("putio auth"))
+        assertFalse(commands, commands.contains(" install "))
+        assertFalse(File(fixture, "state/instrumentation-started").exists())
+    }
+
     private fun assertOwnedCleanup(fixture: File) {
         assertFalse(File(fixture, "state/instrumentation").exists())
         assertFalse(File(fixture, "state/recorder").exists())
@@ -117,10 +143,11 @@ class AuthenticatedRenameProcessTest {
         }
         File(root, "app/app.apk").apply { parentFile.mkdirs(); writeText("fake APK") }
         File(root, "test/test.apk").apply { parentFile.mkdirs(); writeText("fake APK") }
+        File(root, "state/cli-contract.json").writeText(requireNotNull(javaClass.getResource("/rename-proof-cli-contract.json")).readText())
         File(root, "fixture.json").writeText("""
             {"expectedAccountId":11,"containerId":12,"renameItemId":13,"cancelItemId":14,
-             "containerName":"Owned container","renameOriginalName":"Rename me",
-             "renameNewName":"Renamed","cancelOriginalName":"Cancel me"}
+             "containerName":"Owned container","renameOriginalName":"Rename été",
+             "renameNewName":"Renamed 東京","cancelOriginalName":"Cancel me"}
         """.trimIndent())
         val classpath = listOf(RunAuthenticatedRenameProofTask::class.java, Json::class.java, KSerializer::class.java)
             .map { File(it.protectionDomain.codeSource.location.toURI()).path }
