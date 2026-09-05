@@ -65,6 +65,7 @@ import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.android.files.canStartOperation
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -117,6 +118,7 @@ private fun MobileRefreshableFilesContent(
     modifier: Modifier = Modifier,
 ) {
     val operation = state.current.operation
+    val currentOperation by rememberUpdatedState(operation)
     var selectedItemId by rememberSaveable { mutableStateOf<Long?>(null) }
     val selectedItem = (content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == selectedItemId }
     LaunchedEffect(selectedItemId, selectedItem) {
@@ -139,7 +141,7 @@ private fun MobileRefreshableFilesContent(
             operation.intent == FilesFolderOperationIntent.Refresh
     val refreshLabel = stringResource(R.string.mobile_files_refresh)
     val refreshAction = CustomAccessibilityAction(refreshLabel) {
-        if (selectedItemId == null) {
+        if (selectedItemId == null && currentOperation.canStartOperation) {
             onEvent(FilesBrowserEvent.Refresh)
             true
         } else {
@@ -151,7 +153,7 @@ private fun MobileRefreshableFilesContent(
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
-                if (selectedItemId == null && operation !is FilesFolderOperation.Loading) {
+                if (selectedItemId == null && currentOperation.canStartOperation) {
                     onEvent(FilesBrowserEvent.Refresh)
                 }
             },
@@ -160,7 +162,7 @@ private fun MobileRefreshableFilesContent(
                 .fillMaxWidth()
                 .testTag(MOBILE_FILES_REFRESH_TAG)
                 .semantics {
-                    if (selectedItemId == null && operation !is FilesFolderOperation.Loading) {
+                    if (selectedItemId == null && operation.canStartOperation) {
                         customActions = listOf(refreshAction)
                     }
                 },
@@ -324,7 +326,7 @@ private fun MobileFilesList(
         is FilesFolderOperation.Failed -> operation.intent.takeIf { operation.phase == FilesFolderOperationPhase.RELOADING }
         FilesFolderOperation.Idle -> null
     } as? FilesFolderOperationIntent.Rename
-    val actionsEnabled = operation !is FilesFolderOperation.Loading && reloadingRename == null
+    val actionsEnabled = operation.canStartOperation
 
     LaunchedEffect(listState) {
         // Report only settled positions: per-frame offsets during a fling would

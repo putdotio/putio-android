@@ -3,10 +3,47 @@ package io.putdotio.android.files
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FilesRenameReducerTest {
+
+    @Test
+    fun failedRenameReloadCannotBeReplacedByRefresh() =
+        assertFailedRenameReloadRejects(FilesBrowserEvent.Refresh)
+
+    @Test
+    fun failedRenameReloadCannotBeReplacedBySort() =
+        assertFailedRenameReloadRejects(FilesBrowserEvent.SelectSort(FilesSort.SIZE_ASCENDING))
+
+    private fun assertFailedRenameReloadRejects(event: FilesBrowserEvent) {
+        val original = item(7L, "old.mkv", PutioFileType.VIDEO)
+        val saving = FilesBrowserReducer.reduce(
+            loadedRoot(listOf(original), null),
+            FilesBrowserEvent.Rename(FilesFolder.Root.id, original.id, "saved.mkv"),
+        )
+        val requestId = checkNotNull(saving.effect).requestId
+        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failedMutation = FilesBrowserReducer.reduce(
+            saving.state, FilesBrowserEvent.LoadFailed(requestId, failure),
+        ).state
+        assertTrue(FilesBrowserReducer.reduce(failedMutation, event).consumed)
+        val reloading = FilesBrowserReducer.reduce(saving.state, FilesBrowserEvent.MutationSucceeded(requestId))
+        val failedReload = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadFailed(
+            checkNotNull(reloading.effect).requestId, failure,
+        )).state
+        val rejected = FilesBrowserReducer.reduce(failedReload, event)
+        assertFalse(rejected.consumed)
+        assertEquals(failedReload, rejected.state)
+        assertNull(rejected.effect)
+        val retry = FilesBrowserReducer.reduce(failedReload, FilesBrowserEvent.Retry)
+        assertTrue(retry.effect is FilesBrowserEffect.LoadFolder)
+        val recovered = FilesBrowserReducer.reduce(retry.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(retry.effect).requestId, FilesPage(listOf(original.copy(name = "saved.mkv")), null),
+        )).state
+        assertTrue(FilesBrowserReducer.reduce(recovered, event).consumed)
+    }
 
     @Test
     fun renameSupersedesPagingAndReloadsAuthoritativeOrderWithoutResettingViewport() {

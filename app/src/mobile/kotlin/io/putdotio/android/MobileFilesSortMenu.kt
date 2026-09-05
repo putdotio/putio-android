@@ -24,9 +24,9 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.files.canStartOperation
 
 internal const val MOBILE_FILES_SORT_TAG = "mobile-files-sort"
 
@@ -38,7 +38,7 @@ internal fun MobileFilesSortMenu(
     var expanded by remember(folder.folder.id.value) { mutableStateOf(false) }
     val sortLabel = stringResource(R.string.mobile_files_sort)
     val currentLabel = stringResource(folder.folder.sort?.labelResource() ?: R.string.mobile_files_sort_account_default)
-    val enabled = folder.operation !is FilesFolderOperation.Loading
+    val enabled = folder.operation.canStartOperation
 
     LaunchedEffect(enabled) {
         if (!enabled) expanded = false

@@ -1,11 +1,14 @@
 package io.putdotio.android
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -13,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.Modifier
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEffect
@@ -62,15 +66,21 @@ class MobileFilesRenameTest {
         )).state)
         val effects = mutableListOf<FilesBrowserEffect>()
         val played = mutableListOf<FilesItem>()
+        val onEvent: (FilesBrowserEvent) -> Unit = {
+            val transition = FilesBrowserReducer.reduce(state, it)
+            state = transition.state
+            transition.effect?.let(effects::add)
+        }
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state, onEvent = {
-                    val transition = FilesBrowserReducer.reduce(state, it)
-                    state = transition.state
-                    transition.effect?.let(effects::add)
-                }, onPlayVideo = played::add)
+                Column {
+                    MobileFilesSortMenu(state.current, onSelect = { onEvent(FilesBrowserEvent.SelectSort(it)) })
+                    MobileFilesScreen(state, onEvent, onPlayVideo = played::add, modifier = Modifier.weight(1f))
+                }
             }
         }
+        val queuedRefresh = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
+            .fetchSemanticsNode().config[SemanticsActions.CustomActions].single().action
         compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
         compose.onNodeWithText("Rename").performClick()
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("saved.mkv")
@@ -90,6 +100,14 @@ class MobileFilesRenameTest {
             )).state
         }
         compose.onNodeWithText(target.name).assertHasNoClickAction()
+        compose.runOnIdle {
+            val failed = state.current.operation
+            assertFalse(queuedRefresh())
+            assertEquals(failed, state.current.operation)
+        }
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
+        val refreshConfig = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).fetchSemanticsNode().config
+        assertFalse(SemanticsActions.CustomActions in refreshConfig)
         compose.onNodeWithText(otherFolder.name).performClick()
         compose.runOnIdle {
             assertEquals(otherFolder.id, state.current.folder.id)
@@ -101,6 +119,9 @@ class MobileFilesRenameTest {
                 effects.last().requestId, FilesPage(items.map { if (it.id == target.id) it.copy(name = "saved.mkv") else it }, null),
             )).state
         }
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsEnabled()
+        val recoveredRefresh = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).fetchSemanticsNode().config
+        assertEquals(1, recoveredRefresh[SemanticsActions.CustomActions].size)
         compose.onNodeWithText("saved.mkv").performClick()
         compose.runOnIdle {
             if (type == PutioFileType.FOLDER) {

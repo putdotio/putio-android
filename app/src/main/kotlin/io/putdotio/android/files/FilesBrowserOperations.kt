@@ -1,5 +1,13 @@
 package io.putdotio.android.files
 
+internal val FilesFolderOperation.canStartOperation: Boolean
+    get() = when (this) {
+        FilesFolderOperation.Idle -> true
+        is FilesFolderOperation.Loading -> false
+        is FilesFolderOperation.Failed -> intent !is FilesFolderOperationIntent.Rename ||
+            phase != FilesFolderOperationPhase.RELOADING
+    }
+
 internal fun FilesBrowserState.abandonRename(event: FilesBrowserEvent.AbandonRename): FilesBrowserTransition {
     val failed = current.operation as? FilesFolderOperation.Failed
     return if (event.folderId == current.folder.id && failed?.intent == event.intent &&
@@ -13,13 +21,10 @@ internal fun FilesBrowserState.abandonRename(event: FilesBrowserEvent.AbandonRen
 
 internal fun FilesBrowserState.rename(event: FilesBrowserEvent.Rename): FilesBrowserTransition {
     val item = current.content.items().firstOrNull { it.id == event.itemId && it.id.value > 0L }
-    val failed = current.operation as? FilesFolderOperation.Failed
-    val awaitingRenameReload = failed?.intent is FilesFolderOperationIntent.Rename &&
-        failed.phase == FilesFolderOperationPhase.RELOADING
     if (event.folderId != current.folder.id || item == null) {
         return FilesBrowserTransition(this, consumed = false)
     }
-    return if (item.name == event.name || awaitingRenameReload) {
+    return if (item.name == event.name) {
         FilesBrowserTransition(this, consumed = false)
     } else {
         startOperation(
@@ -50,7 +55,7 @@ private fun FilesBrowserState.startOperation(
     phase: FilesFolderOperationPhase,
 ): FilesBrowserTransition {
     val hasVisibleContent = current.content is FilesContent.Empty || current.content is FilesContent.Ready
-    if (current.operation is FilesFolderOperation.Loading || !hasVisibleContent) {
+    if (!current.operation.canStartOperation || !hasVisibleContent) {
         return FilesBrowserTransition(this, consumed = false)
     }
     val requestId = FilesRequestId(nextRequestValue)
