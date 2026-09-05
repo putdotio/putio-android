@@ -26,6 +26,10 @@ from `adb devices` before returning; preexisting emulators are reused, never
 stopped; AVD registrations are deleted only if the flow created them via
 `--ephemeral`. No process-name or blanket emulator cleanup, ever.
 
+Failed lifecycle runs keep their case logs under `.evidence/logs/lifecycle.*`.
+Forced-failure cases require an `INJECTED_FAILURE <stage>` marker, so an
+unrelated failure cannot satisfy them.
+
 Every phone boot, including reuse, also verifies API 37, selects the bundled
 Chrome as the browser role holder, and requires its AndroidX Auth Tab service
 category. The harness fails closed before install when that secure OAuth
@@ -173,6 +177,9 @@ UI and API readback, then edits a second item through long-press and cancels.
 It checks that Cancel leaves the server name unchanged. It does not replace
 physical keyboard, TalkBack, or live permission-rejection proof. Ordinary
 connected tests skip this opt-in test before launching its Activity rule. The
+Android runner reports that opt-out as an assumption; AGP may serialize it as
+an XML failure even when the connected task succeeds. Use the named proof task
+above to establish that the authenticated flow actually ran and passed. The
 canonical `verify` task assembles the mobile production debug test APK without
 running it, so device-test compilation is checked on each CI change.
 

@@ -30,6 +30,7 @@
 # Test hooks: PUTIO_PROVE_FAIL_AT=after-boot|after-install injects a failure
 # at that stage; PUTIO_PROVE_APK supplies a disposable package path for the
 # isolated pre-install contract tests. Neither belongs in normal proof runs.
+# Injection prints INJECTED_FAILURE <stage> before failing.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_sdk_root
@@ -218,6 +219,7 @@ rm -f "${BOOT_STATE}"; BOOT_STATE=""
 echo "BOOTED ${SERIAL}"
 
 if [[ "${PUTIO_PROVE_FAIL_AT:-}" == "after-boot" ]]; then
+  echo "INJECTED_FAILURE after-boot"
   die "injected failure: after-boot"
 fi
 
@@ -226,6 +228,7 @@ log "installing ${APK##*/} on ${SERIAL}"
 install_out="$("${ADB}" -s "${SERIAL}" install -r "${APK}" 2>&1)" || die "install failed: ${install_out}"
 
 if [[ "${PUTIO_PROVE_FAIL_AT:-}" == "after-install" ]]; then
+  echo "INJECTED_FAILURE after-install"
   die "injected failure: after-install"
 fi
 

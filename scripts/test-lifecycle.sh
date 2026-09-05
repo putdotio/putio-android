@@ -84,6 +84,7 @@ out="${tmpdir}/case1.log"
 if PUTIO_PROVE_FAIL_AT=after-boot "${PROVE}" mobile --skip-build >"${out}" 2>&1; then
   fail "case 1: prove.sh unexpectedly succeeded"
 fi
+grep -qx 'INJECTED_FAILURE after-boot' "${out}" || fail "case 1: injected failure was not reached"
 serial="$(booted_serial "${out}")"
 [[ -n "${serial}" ]] || fail "case 1: no BOOTED marker (log: $(cat "${out}"))"
 grep -q "PROOF FAIL mobile" "${out}" || fail "case 1: missing PROOF FAIL marker"
@@ -132,6 +133,7 @@ out="${tmpdir}/case4-reuse.log"
 if PUTIO_PROVE_FAIL_AT=after-boot "${PROVE}" mobile --skip-build >"${out}" 2>&1; then
   fail "case 4: reuse prove.sh unexpectedly succeeded"
 fi
+grep -qx 'INJECTED_FAILURE after-boot' "${out}" || fail "case 4: reuse injected failure was not reached"
 reuse_serial="$(booted_serial "${out}")"
 [[ "${reuse_serial}" == "${PRE_SERIAL}" ]] || \
   fail "case 4: expected reuse of ${PRE_SERIAL}, got ${reuse_serial:-no BOOTED marker} ($(tail -5 "${out}"))"
@@ -141,6 +143,7 @@ out="${tmpdir}/case4-eph.log"
 if PUTIO_PROVE_FAIL_AT=after-install "${PROVE}" mobile --skip-build --ephemeral >"${out}" 2>&1; then
   fail "case 4: ephemeral prove.sh unexpectedly succeeded"
 fi
+grep -qx 'INJECTED_FAILURE after-install' "${out}" || fail "case 4: ephemeral injected failure was not reached"
 eph_serial="$(booted_serial "${out}")"
 [[ -n "${eph_serial}" && "${eph_serial}" != "${PRE_SERIAL}" ]] || fail "case 4: ephemeral run had no distinct serial"
 eph_avd="$(sed -n 's/.*creating ephemeral AVD \(putio-phone-eph-[0-9-]*\).*/\1/p' "${out}" | head -1)"
