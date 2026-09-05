@@ -1,6 +1,8 @@
 package io.putdotio.android.playback
 
 import io.putdotio.android.settings.AndroidAppConfigContent
+import io.putdotio.android.settings.AndroidAppConfigChange
+import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
@@ -36,12 +38,94 @@ class PlaybackPreferencesTest {
         )
     }
 
+    @Test
+    fun playbackKeepsConfirmedFormatThroughSaveAndRefreshFailures() {
+        val saving = AndroidAppConfigReducer.reduce(
+            readyState(),
+            AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)),
+        )
+        val requestId = requireNotNull(saving.effect).requestId
+        val saveFailed = AndroidAppConfigReducer.reduce(
+            saving.state,
+            AndroidAppConfigEvent.SaveFailed(
+                requestId,
+                AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
+            ),
+        )
+        val refreshing = AndroidAppConfigReducer.reduce(
+            saving.state,
+            AndroidAppConfigEvent.SaveSucceeded(requestId),
+        )
+        val refreshFailed = AndroidAppConfigReducer.reduce(
+            refreshing.state,
+            AndroidAppConfigEvent.RefreshFailed(
+                requestId,
+                AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
+            ),
+        )
+        for (state in listOf(saving.state, saveFailed.state, refreshing.state, refreshFailed.state)) {
+            assertEquals("mutation=${state.mutation}", PlaybackPreference.HLS, state.playbackPreference())
+        }
+        val refreshed = AndroidAppConfigReducer.reduce(
+            refreshing.state,
+            AndroidAppConfigEvent.RefreshSucceeded(
+                requestId,
+                AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4),
+            ),
+        )
+        assertEquals(PlaybackPreference.MP4, refreshed.state.playbackPreference())
+    }
+
+    @Test
+    fun anotherSettingSaveDoesNotConfirmAnUnrefreshedPlaybackFormat() {
+        val saving = AndroidAppConfigReducer.reduce(
+            readyState(AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4)),
+            AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Hls)),
+        )
+        val requestId = requireNotNull(saving.effect).requestId
+        val refreshing = AndroidAppConfigReducer.reduce(saving.state, AndroidAppConfigEvent.SaveSucceeded(requestId))
+        val refreshFailed = AndroidAppConfigReducer.reduce(
+            refreshing.state,
+            AndroidAppConfigEvent.RefreshFailed(
+                requestId,
+                AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
+            ),
+        )
+        val autoplaySaving = AndroidAppConfigReducer.reduce(
+            refreshFailed.state,
+            AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.AutoplayNextVideo(true)),
+        )
+        val autoplayRequestId = requireNotNull(autoplaySaving.effect).requestId
+        val autoplaySaveFailed = AndroidAppConfigReducer.reduce(
+            autoplaySaving.state,
+            AndroidAppConfigEvent.SaveFailed(
+                autoplayRequestId,
+                AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
+            ),
+        )
+        assertEquals(PlaybackPreference.MP4, autoplaySaving.state.playbackPreference())
+        assertEquals(PlaybackPreference.MP4, autoplaySaveFailed.state.playbackPreference())
+        val autoplayRefreshing = AndroidAppConfigReducer.reduce(
+            autoplaySaving.state,
+            AndroidAppConfigEvent.SaveSucceeded(autoplayRequestId),
+        )
+        val refreshed = AndroidAppConfigReducer.reduce(
+            autoplayRefreshing.state,
+            AndroidAppConfigEvent.RefreshSucceeded(
+                autoplayRequestId,
+                AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Hls, autoplayNextVideo = true),
+            ),
+        )
+        assertEquals(PlaybackPreference.HLS, refreshed.state.playbackPreference())
+    }
+
     private fun readyState(
         preferences: AndroidAppConfigPreferences = AndroidAppConfigPreferences(),
-    ): AndroidAppConfigState =
-        AndroidAppConfigState(
-            content = AndroidAppConfigContent.Ready(preferences),
-            mutation = AndroidAppConfigMutation.Idle,
-            nextRequestValue = 2L,
-        )
+    ): AndroidAppConfigState {
+        val loading = AndroidAppConfigReducer.start()
+        return AndroidAppConfigReducer.reduce(
+            loading.state,
+            AndroidAppConfigEvent.LoadSucceeded(requireNotNull(loading.effect).requestId, preferences),
+        ).state
+    }
 }
