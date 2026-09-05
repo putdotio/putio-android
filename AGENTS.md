@@ -94,6 +94,32 @@ The private `putio-sdk-kotlin` composite build is checked out as a sibling
 using a read-only deploy key stored as the `PUTIO_SDK_KOTLIN_DEPLOY_KEY`
 Actions secret; no other CI secret exists.
 
+Both CI lanes record the actual app and SDK checkout SHAs in the job log and
+run summary before building. The SDK still follows its default branch; an app
+SHA alone does not identify the composite build used by a previous run.
+For local proof, record both SHAs and worktree status, using the SDK path
+selected by `local.properties` `putioSdkKotlinPath` (or the sibling default):
+
+```bash
+git rev-parse HEAD
+git status --short
+git -C ../putio-sdk-kotlin rev-parse HEAD
+git -C ../putio-sdk-kotlin status --short
+```
+
+To reproduce a CI pair without resetting existing work, create detached
+worktrees at the recorded app and SDK revisions, point the app worktree's
+`putioSdkKotlinPath` at that SDK worktree, and run the same verification lane:
+
+```bash
+git worktree add --detach ../putio-android-repro <app-sha>
+git -C ../putio-sdk-kotlin worktree add --detach ../putio-sdk-kotlin-repro <sdk-sha>
+```
+
+Set `sdk.dir` and the absolute `putioSdkKotlinPath` in the reproduction
+worktree's ignored `local.properties` before running Gradle. Include local
+modifications with a failure report; SHA pairs describe only committed source.
+
 Emulator-on-CI: `.github/workflows/emulator-smoke.yml` (weekly schedule +
 `workflow_dispatch`) runs `LaunchSmokeTest` on a Gradle Managed Device
 (`ciPhone`, Pixel 7, API 36, swiftshader) with KVM enabled on the runner. The
