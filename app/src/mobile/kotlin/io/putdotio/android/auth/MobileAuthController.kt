@@ -177,6 +177,7 @@ class MobileAuthController internal constructor(
                 callback is OAuthCallbackParseResult.Failure &&
                 callback.reason == OAuthCallbackFailure.StateMismatch
             ) {
+                mutableState.value = MobileAuthState.AwaitingOAuthCallback
                 return@withLock OAuthCallbackHandlingResult.REJECTED
             }
             if (!clearPendingOAuthAttempt()) {

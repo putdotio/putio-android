@@ -25,11 +25,9 @@ import org.junit.runner.RunWith
 class StaleOAuthCallbackTest {
     @Test
     fun staleCallbackPreservesNewerAttemptAndMatchingMalformedCallbackConsumesIt() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val context = IsolatedAuthTestContext(InstrumentationRegistry.getInstrumentation().targetContext)
         val tokenStore = KeystoreAuthTokenStore(context)
         val pendingStore = SharedPreferencesPendingOAuthAttemptStore(context)
-        assertNull("Run on a signed-out test installation", tokenStore.read())
-        assertNull("Finish any existing sign-in before running this test", pendingStore.read())
 
         val configuration = MobileOAuthConfiguration.fromClientId(BuildConfig.PUTIO_MOBILE_OAUTH_CLIENT_ID)
         check(configuration is MobileOAuthConfiguration.Configured)
@@ -88,7 +86,11 @@ class StaleOAuthCallbackTest {
             try {
                 pendingStore.clear()
             } finally {
-                tokenStore.clear()
+                try {
+                    tokenStore.clear()
+                } finally {
+                    context.deleteAuthPreferences()
+                }
             }
         }
     }

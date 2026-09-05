@@ -116,6 +116,56 @@ class MobileAuthControllerTest {
     }
 
     @Test
+    fun `stale callback after process recreation restores awaiting state before or after session restore`() = runBlocking {
+        listOf(false, true).forEach { restoreBeforeCallback ->
+            val pendingStore = FakePendingOAuthAttemptStore()
+            val firstProcess = Fixture(pendingAttemptStore = pendingStore)
+            firstProcess.controller.restoreSession()
+            firstProcess.controller.beginSignIn()
+            val currentAttempt = pendingStore.attempt
+            val restoredProcess = Fixture(pendingAttemptStore = pendingStore)
+            if (restoreBeforeCallback) restoredProcess.controller.restoreSession()
+
+            val result = restoredProcess.controller.handleOAuthCallback(
+                "putio://auth#state=older-oauth-state&access_token=$TOKEN",
+            )
+            restoredProcess.controller.restoreSession()
+
+            assertEquals(OAuthCallbackHandlingResult.REJECTED, result)
+            assertEquals(MobileAuthState.AwaitingOAuthCallback, restoredProcess.controller.state.value)
+            assertEquals(OAuthLaunchResult.NotAllowed, restoredProcess.controller.beginSignIn())
+            assertEquals(currentAttempt, pendingStore.attempt)
+            assertNull(restoredProcess.tokenStore.token)
+            assertEquals(
+                OAuthCallbackHandlingResult.ACCEPTED,
+                restoredProcess.controller.handleOAuthCallback(VALID_CALLBACK),
+            )
+            assertNull(pendingStore.attempt)
+            assertEquals(SIGNED_IN, restoredProcess.controller.state.value)
+        }
+    }
+
+    @Test
+    fun `contradictory query and fragment states consume the matching pending attempt`() = runBlocking {
+        listOf(
+            "putio://auth?state=older-oauth-state#state=$OAUTH_STATE&access_token=$TOKEN",
+            "putio://auth?state=$OAUTH_STATE#state=older-oauth-state&access_token=$TOKEN",
+        ).forEach { callback ->
+            val fixture = Fixture()
+            fixture.controller.restoreSession()
+            fixture.controller.beginSignIn()
+
+            val result = fixture.controller.handleOAuthCallback(callback)
+
+            assertEquals(OAuthCallbackHandlingResult.REJECTED, result)
+            assertNull(fixture.pendingAttemptStore.attempt)
+            assertNull(fixture.tokenStore.token)
+            assertNull(fixture.gateway.configuredToken)
+            assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.SignInFailed), fixture.controller.state.value)
+        }
+    }
+
+    @Test
     fun `malformed Auth Tab callback consumes pending attempt`() = runBlocking {
         val fixture = Fixture()
         fixture.controller.restoreSession()

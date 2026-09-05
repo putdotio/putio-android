@@ -16,7 +16,7 @@ import java.security.KeyStore
 class KeystoreAuthTokenStoreInstrumentedTest {
     @Test
     fun productionKeystoreRoundTripRejectsTampering() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val context = IsolatedAuthTestContext(InstrumentationRegistry.getInstrumentation().targetContext)
         val preferences = context.getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE)
         val keyAlias = authTokenKeyAlias(context.packageName)
         deleteKey(keyAlias)
@@ -45,7 +45,11 @@ class KeystoreAuthTokenStoreInstrumentedTest {
                 store.clear()
                 assertFalse(loadKeyStore().containsAlias(keyAlias))
             } finally {
-                deleteKey(keyAlias)
+                try {
+                    deleteKey(keyAlias)
+                } finally {
+                    context.deleteAuthPreferences()
+                }
             }
         }
 

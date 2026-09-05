@@ -71,6 +71,7 @@ internal object OAuthCallbackParser {
         val validatesExpectedState = returnedStates.fold(false) { matches, returnedState ->
             returnedState.constantTimeEquals(expectedState) or matches
         }
+        val queryParameters = callbackUri.rawQuery?.parseParameters()
         if (returnedStates.size != 1) {
             return failure(
                 if (returnedStates.isEmpty()) {
@@ -81,13 +82,19 @@ internal object OAuthCallbackParser {
             )
         }
         if (!validatesExpectedState) {
+            val queryMatchesExpectedState = queryParameters?.values(OAUTH_STATE_PARAMETER)
+                ?.fold(false) { matches, returnedState ->
+                    returnedState.constantTimeEquals(expectedState) or matches
+                } == true
+            if (queryMatchesExpectedState) {
+                return failure(OAuthCallbackFailure.MalformedQuery)
+            }
             return failure(OAuthCallbackFailure.StateMismatch)
         }
         if (parameters.malformed) {
             return failure(OAuthCallbackFailure.MalformedFragment)
         }
-        callbackUri.rawQuery?.let { rawQuery ->
-            val queryParameters = rawQuery.parseParameters()
+        queryParameters?.let {
             val returnedQueryStates = queryParameters.values(OAUTH_STATE_PARAMETER)
             if (
                 queryParameters.malformed ||
@@ -97,7 +104,7 @@ internal object OAuthCallbackParser {
                 return failure(OAuthCallbackFailure.MalformedQuery)
             }
             if (!returnedQueryStates.single().constantTimeEquals(expectedState)) {
-                return failure(OAuthCallbackFailure.StateMismatch)
+                return failure(OAuthCallbackFailure.MalformedQuery)
             }
         }
         if (parameters.contains(OAUTH_ERROR_PARAMETER)) {

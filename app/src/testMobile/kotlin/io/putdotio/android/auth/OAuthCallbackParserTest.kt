@@ -79,8 +79,11 @@ class OAuthCallbackParserTest {
         assertFailure<OAuthCallbackFailure.MalformedUri>(
             "putio://auth?state=%ZZ#access_token=token&state=expected-state",
         )
-        assertFailure<OAuthCallbackFailure.StateMismatch>(
+        assertFailure<OAuthCallbackFailure.MalformedQuery>(
             "putio://auth?state=other-state#access_token=token&state=expected-state",
+        )
+        assertFailure<OAuthCallbackFailure.MalformedQuery>(
+            "putio://auth?state=expected-state#access_token=token&state=other-state",
         )
     }
 
