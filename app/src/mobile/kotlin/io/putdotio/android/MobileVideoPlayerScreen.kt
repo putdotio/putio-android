@@ -9,6 +9,8 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -575,7 +577,6 @@ private fun MobileReadyVideoPlayer(
             Modifier
                 .fillMaxSize()
                 .zIndex(0.5f)
-                .windowInsetsPadding(WindowInsets.safeGestures)
                 .testTag(MOBILE_PLAYER_GESTURE_TAG),
         ) {
             // Separate physical regions keep taps across the midpoint as independent single taps.
@@ -591,15 +592,22 @@ private fun MobileReadyVideoPlayer(
                                 AbsoluteAlignment.CenterRight
                             },
                         )
+                        .windowInsetsPadding(
+                            WindowInsets.safeGestures.only(
+                                WindowInsetsSides.Vertical +
+                                    if (direction == SeekDirection.Backward) {
+                                        WindowInsetsSides.Left
+                                    } else {
+                                        WindowInsetsSides.Right
+                                    },
+                            ),
+                        )
                         .pointerInput(player, source.fileId, seekWindow, touchExplorationEnabled) {
                             detectTapGestures(
                                 onDoubleTap = {
                                     onPointerNavigation()
-                                    if (seekWindow.available) {
-                                        seek(direction)
-                                    } else {
-                                        controlsVisible = true
-                                    }
+                                    seek(direction)
+                                    if (!seekWindow.available) controlsVisible = true
                                 },
                                 onTap = {
                                     onPointerNavigation()

@@ -7,6 +7,15 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
 import android.view.View
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.platform.LocalView
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import android.view.accessibility.AccessibilityEvent
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -880,6 +889,107 @@ class MobileVideoPlayerScreenTest {
             doubleClick(percentOffset(0.75f, 0.25f))
         }
         compose.runOnIdle { assertTrue(player.seekPositions.isEmpty()) }
+    }
+
+    @Test
+    fun doubleTapUsesNewlyAvailableWindowBeforeBatchedEvents() {
+        val player = RecordingPlayer(seekable = false)
+        var timelineEventDelivered = false
+        var updatedBeforeDoubleTap = false
+        compose.setContent {
+            PutioTheme {
+                Box(Modifier.fillMaxSize().pointerInput(Unit) {
+                    var releases = 0
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.changes.any { it.changedToUpIgnoreConsumed() } && ++releases == 2) {
+                                player.updateSeekWindow(durationMillis = 60_000L, seekable = true)
+                                updatedBeforeDoubleTap = true
+                                assertTrue(player.currentSeekWindow().available)
+                                assertFalse(timelineEventDelivered)
+                            }
+                        }
+                    }
+                }) {
+                    MobileVideoPlayerScreen(
+                        state = readyState(startFromSeconds = 20.0),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory { player },
+                    )
+                }
+            }
+        }
+        compose.runOnIdle {
+            player.pause()
+            player.movePositionTo(20_000L)
+            player.addListener(object : Media3Player.Listener {
+                override fun onEvents(player: Media3Player, events: Media3Player.Events) {
+                    if (events.contains(Media3Player.EVENT_TIMELINE_CHANGED)) timelineEventDelivered = true
+                }
+            })
+        }
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle {
+            assertTrue(updatedBeforeDoubleTap)
+            assertTrue(timelineEventDelivered)
+            assertEquals(listOf(30_000L), player.seekPositions)
+        }
+    }
+
+    @Test
+    fun asymmetricSafeGestureInsetsKeepThePhysicalMidpoint() {
+        val player = RecordingPlayer()
+        lateinit var host: View
+        var leftInset = 0
+        var rightInset = 0
+        compose.setContent {
+            host = LocalView.current
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            leftInset = WindowInsets.safeGestures.getLeft(density, LayoutDirection.Ltr)
+            rightInset = WindowInsets.safeGestures.getRight(density, LayoutDirection.Ltr)
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = readyState(startFromSeconds = 20.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { player },
+                )
+            }
+        }
+        compose.runOnIdle {
+            player.pause()
+            player.movePositionTo(20_000L)
+        }
+        for ((left, right) in listOf(80 to 0, 0 to 80)) {
+            compose.runOnIdle {
+                ViewCompat.dispatchApplyWindowInsets(
+                    host,
+                    WindowInsetsCompat.Builder()
+                        .setInsets(
+                            WindowInsetsCompat.Type.systemGestures() or
+                                WindowInsetsCompat.Type.mandatorySystemGestures() or
+                                WindowInsetsCompat.Type.tappableElement(),
+                            Insets.of(left, 0, right, 0),
+                        )
+                        .build(),
+                )
+            }
+            compose.runOnIdle {
+                assertEquals(left, leftInset)
+                assertEquals(right, rightInset)
+            }
+            compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).performTouchInput {
+                doubleClick(Offset(center.x + if (left > 0) 20f else -20f, height * 0.25f))
+            }
+        }
+        compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L), player.seekPositions) }
     }
 
     @Test
