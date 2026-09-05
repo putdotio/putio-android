@@ -1,8 +1,17 @@
 package io.putdotio.android
 
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
+import android.view.View
+import android.view.accessibility.AccessibilityEvent
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.CompositionLocalProvider
@@ -96,6 +105,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.IOException
@@ -705,6 +715,60 @@ class MobileVideoPlayerScreenTest {
         compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertIsDisplayed()
         compose.mainClock.advanceTimeBy(1_000L)
         compose.onAllNodesWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun independentIdenticalSeeksSendFeedbackAccessibilityEvents() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val platformAccessibility = requireNotNull(
+            context.getSystemService(android.view.accessibility.AccessibilityManager::class.java),
+        )
+        val accessibility = shadowOf(platformAccessibility)
+        accessibility.setEnabledAccessibilityServiceList(
+            listOf(AccessibilityServiceInfo().apply { feedbackType = AccessibilityServiceInfo.FEEDBACK_SPOKEN }),
+        )
+        accessibility.setEnabled(true)
+
+        withAccessibleSeekPlayer { player, _, _ ->
+            compose.mainClock.autoAdvance = true
+            compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).performClick()
+            compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 10 seconds")
+            compose.mainClock.autoAdvance = false
+            compose.mainClock.advanceTimeBy(160L)
+            compose.waitForIdle()
+            val firstFeedbackId = compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).fetchSemanticsNode().id
+            assertTrue(
+                "The initial feedback must emit its own accessibility event",
+                accessibility.sentAccessibilityEvents.any { event ->
+                    event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+                        shadowOf(event).virtualDescendantId == firstFeedbackId
+                },
+            )
+
+            compose.mainClock.advanceTimeBy(1_000L)
+            compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertIsDisplayed()
+            val previousEventCount = accessibility.sentAccessibilityEvents.size
+            compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).performClick()
+            compose.mainClock.advanceTimeBy(160L)
+            compose.waitForIdle()
+            compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 10 seconds")
+            compose.runOnIdle { assertEquals(listOf(30_000L, 40_000L), player.seekPositions) }
+
+            val feedbackId = compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).fetchSemanticsNode().id
+            val feedbackEvent = accessibility.sentAccessibilityEvents.drop(previousEventCount).firstOrNull { event ->
+                event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+                    shadowOf(event).virtualDescendantId == feedbackId
+            }
+            assertTrue("The independent seek must notify the feedback node again", feedbackEvent != null)
+            compose.runOnIdle {
+                val eventSource = requireNotNull(shadowOf(requireNotNull(feedbackEvent)).sourceRoot)
+                val feedbackNode = requireNotNull(
+                    requireNotNull(eventSource.accessibilityNodeProvider).createAccessibilityNodeInfo(feedbackId),
+                )
+                assertEquals("Forward 10 seconds", feedbackNode.text.toString())
+                assertEquals(View.ACCESSIBILITY_LIVE_REGION_POLITE, feedbackNode.liveRegion)
+            }
+        }
     }
 
     @Test

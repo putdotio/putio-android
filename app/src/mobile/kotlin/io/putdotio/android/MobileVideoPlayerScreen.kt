@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -688,21 +689,24 @@ private fun MobileReadyVideoPlayer(
             )
         }
         pendingSeek?.let { request ->
-            MobileSeekFeedback(
-                request = request,
-                modifier =
-                    Modifier
-                        .align(
-                            if (request.direction == SeekDirection.Backward) {
-                                AbsoluteAlignment.CenterLeft
-                            } else {
-                                AbsoluteAlignment.CenterRight
-                            },
-                        )
-                        .zIndex(3f)
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
-                        .padding(horizontal = 32.dp, vertical = 88.dp),
-            )
+            // Identical text still needs a fresh accessibility event for each seek.
+            key(request.requestId) {
+                MobileSeekFeedback(
+                    request = request,
+                    modifier =
+                        Modifier
+                            .align(
+                                if (request.direction == SeekDirection.Backward) {
+                                    AbsoluteAlignment.CenterLeft
+                                } else {
+                                    AbsoluteAlignment.CenterRight
+                                },
+                            )
+                            .zIndex(3f)
+                            .windowInsetsPadding(WindowInsets.safeDrawing)
+                            .padding(horizontal = 32.dp, vertical = 88.dp),
+                )
+            }
         }
         Box(
             modifier =
