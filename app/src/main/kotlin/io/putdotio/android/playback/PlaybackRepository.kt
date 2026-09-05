@@ -77,10 +77,15 @@ interface PlaybackRepository {
 }
 
 class SdkPlaybackRepository internal constructor(
+    private val playbackPreference: () -> PlaybackPreference,
     private val loadAccount: suspend () -> AccountInfo,
     private val resolvePlayback: suspend (PlaybackRequest) -> io.putdotio.sdk.files.PlaybackResolution,
 ) : PlaybackRepository {
-    constructor(client: PutioClient) : this(
+    constructor(
+        client: PutioClient,
+        playbackPreference: () -> PlaybackPreference,
+    ) : this(
+        playbackPreference = playbackPreference,
         loadAccount = { client.account.getInfo(AccountInfoQuery(downloadToken = true)) },
         resolvePlayback = client.files::resolvePlayback,
     )
@@ -88,6 +93,7 @@ class SdkPlaybackRepository internal constructor(
     @Suppress("TooGenericExceptionCaught")
     override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
         try {
+            val preference = playbackPreference()
             val account = loadAccount()
             val downloadToken = account.downloadToken
                 ?: return PlaybackRepositoryResult.Failure(
@@ -97,7 +103,7 @@ class SdkPlaybackRepository internal constructor(
                 PlaybackRequest(
                     fileId = target.fileId.value,
                     mediaCredential = PlaybackMediaCredential.downloadToken(downloadToken),
-                    preference = PlaybackPreference.MP4,
+                    preference = preference,
                     useStartFrom = account.settings.useStartFrom,
                 ),
             )

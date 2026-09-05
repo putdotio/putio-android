@@ -73,6 +73,7 @@ import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SdkPlaybackRepository
+import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.settings.AccountSettingsContent
@@ -291,7 +292,7 @@ internal fun MobileSignedOutScreen(
 }
 
 @Composable
-private fun SignedInMobileRoot(
+internal fun SignedInMobileRoot(
     runtime: MobileOAuthRuntime,
     account: MobileAccount,
     sessionId: MobileAuthSessionId,
@@ -305,9 +306,6 @@ private fun SignedInMobileRoot(
 ) {
     val filesRepository = remember(runtime.putioClient) {
         SdkFilesRepository(runtime.putioClient)
-    }
-    val playbackRepository = remember(runtime.putioClient) {
-        SdkPlaybackRepository(runtime.putioClient)
     }
     val filesController = remember(filesViewModel, filesRepository, account.userId, sessionId) {
         filesViewModel.controllerFor(
@@ -368,6 +366,11 @@ private fun SignedInMobileRoot(
     ) {
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
+    }
+    val playbackRepository = remember(runtime.putioClient, appConfigController) {
+        SdkPlaybackRepository(runtime.putioClient) {
+            appConfigController.state.value.playbackPreference()
+        }
     }
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()

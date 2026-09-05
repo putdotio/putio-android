@@ -33,6 +33,7 @@ class SdkPlaybackRepositoryTest {
         runBlocking {
             var request: PlaybackRequest? = null
             val repository = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.HLS },
                 loadAccount = { account(downloadToken = Token, useStartFrom = true) },
                 resolvePlayback = {
                     request = it
@@ -44,7 +45,7 @@ class SdkPlaybackRepositoryTest {
 
             assertTrue(result.value is PlaybackResolution.Conversion)
             assertEquals(Target.fileId.value, request?.fileId)
-            assertEquals(PlaybackPreference.MP4, request?.preference)
+            assertEquals(PlaybackPreference.HLS, request?.preference)
             assertTrue(request?.useStartFrom == true)
             assertEquals("<redacted media credential>", request?.mediaCredential.toString())
         }
@@ -54,6 +55,7 @@ class SdkPlaybackRepositoryTest {
         runBlocking {
             val source = playbackSource()
             val repository = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.MP4 },
                 loadAccount = { account(downloadToken = Token, useStartFrom = true) },
                 resolvePlayback = { io.putdotio.sdk.files.PlaybackResolution.Ready(source) },
             )
@@ -68,6 +70,7 @@ class SdkPlaybackRepositoryTest {
         runBlocking {
             var request: PlaybackRequest? = null
             val repository = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.MP4 },
                 loadAccount = { account(downloadToken = Token, useStartFrom = false) },
                 resolvePlayback = {
                     request = it
@@ -85,6 +88,7 @@ class SdkPlaybackRepositoryTest {
         runBlocking {
             var resolverCalled = false
             val repository = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.MP4 },
                 loadAccount = { account(downloadToken = null, useStartFrom = true) },
                 resolvePlayback = {
                     resolverCalled = true
@@ -105,10 +109,12 @@ class SdkPlaybackRepositoryTest {
             val accountFailure = apiFailure(401)
             val playbackFailure = apiFailure(401)
             val accountResult = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.MP4 },
                 loadAccount = { throw accountFailure },
                 resolvePlayback = { error("Resolver must not run") },
             ).resolve(Target) as PlaybackRepositoryResult.Failure
             val playbackResult = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.MP4 },
                 loadAccount = { account(Token, useStartFrom = true) },
                 resolvePlayback = { throw playbackFailure },
             ).resolve(Target) as PlaybackRepositoryResult.Failure
@@ -126,6 +132,7 @@ class SdkPlaybackRepositoryTest {
                 reason = PutioOperationErrorReason.StatusCode(403),
             )
             val result = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.MP4 },
                 loadAccount = { throw failure },
                 resolvePlayback = { error("Resolver must not run") },
             ).resolve(Target) as PlaybackRepositoryResult.Failure
@@ -140,6 +147,7 @@ class SdkPlaybackRepositoryTest {
         try {
             runBlocking {
                 SdkPlaybackRepository(
+                    playbackPreference = { PlaybackPreference.MP4 },
                     loadAccount = { throw cancellation },
                     resolvePlayback = { error("Resolver must not run") },
                 ).resolve(Target)
@@ -149,6 +157,32 @@ class SdkPlaybackRepositoryTest {
             assertSame(cancellation, actual)
         }
     }
+
+    @Test
+    fun readsTheCurrentPlaybackPreferenceForEachResolution() =
+        runBlocking {
+            var preference = PlaybackPreference.HLS
+            var providerCalls = 0
+            val requests = mutableListOf<PlaybackRequest>()
+            val repository = SdkPlaybackRepository(
+                playbackPreference = {
+                    providerCalls += 1
+                    preference
+                },
+                loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+                resolvePlayback = {
+                    requests += it
+                    io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
+                },
+            )
+
+            repository.resolve(Target)
+            preference = PlaybackPreference.MP4
+            repository.resolve(Target)
+
+            assertEquals(listOf(PlaybackPreference.HLS, PlaybackPreference.MP4), requests.map { it.preference })
+            assertEquals(2, providerCalls)
+        }
 
     private fun account(
         downloadToken: AccountDownloadToken?,
