@@ -316,21 +316,38 @@ private class AuthenticatedRenameRun(
             }
         }.start()
         val bytes = ByteArrayOutputStream()
+        var outputOverflow = false
+        var readerFailure: Exception? = null
         val reader = Thread {
-            process.inputStream.use { input ->
-                val buffer = ByteArray(8192)
-                while (true) {
-                    val size = input.read(buffer)
-                    if (size < 0) break
-                    if (bytes.size() + size <= MAX_OUTPUT_BYTES) bytes.write(buffer, 0, size)
-                    else process.destroyForcibly()
+            try {
+                process.inputStream.use { input ->
+                    val buffer = ByteArray(8192)
+                    while (true) {
+                        val size = input.read(buffer)
+                        if (size < 0) break
+                        if (bytes.size() + size > MAX_OUTPUT_BYTES) {
+                            outputOverflow = true
+                            // Snapshot descendants while their launcher is still alive.
+                            reapHostProcess(process)
+                            break
+                        }
+                        bytes.write(buffer, 0, size)
+                    }
                 }
+            } catch (error: Exception) {
+                readerFailure = error
             }
         }.apply { isDaemon = true; start() }
         try {
             requireProof(process.waitFor(timeout, TimeUnit.MILLISECONDS), "$stage timed out")
-            reader.join(1000)
+            // Overflow cleanup includes the existing two-second owned-process reap.
+            val commandDeadline = if (cleanup) cleanupDeadline else deadline
+            val readerWait = minOf(3_000L, TimeUnit.NANOSECONDS.toMillis(commandDeadline - System.nanoTime()))
+            if (readerWait > 0) reader.join(readerWait)
+            requireProof(System.nanoTime() < commandDeadline, "$stage timed out")
             requireProof(!reader.isAlive, "$stage output did not close")
+            readerFailure?.let { throw GradleException("$stage output cleanup failed", it) }
+            requireProof(!outputOverflow, "$stage output exceeded its limit")
             requireProof(allowFailure || process.exitValue() == 0, "$stage failed")
             return bytes.toString(Charsets.UTF_8.name())
         } finally {

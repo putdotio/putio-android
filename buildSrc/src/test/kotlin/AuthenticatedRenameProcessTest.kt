@@ -129,6 +129,40 @@ class AuthenticatedRenameProcessTest {
         assertFalse(File(fixture, "state/commands").exists())
     }
 
+    @Test(timeout = 60_000)
+    fun sdkOutputOverflowReapsTheForegroundChildBeforeItsLauncher() {
+        val fixture = fixture("sdk-output-overflow")
+        File(fixture, "scripts/lib.sh").writeText("""
+            resolve_sdk_root() {
+                echo ${'$'}${'$'} > "${'$'}FAKE_PROOF_DIR/state/resolver-pid"
+                sh "${'$'}FAKE_PROOF_DIR/overflow-child.sh"
+                :
+            }
+        """.trimIndent())
+        File(fixture, "overflow-child.sh").writeText("""
+            echo ${'$'}${'$'} > "${'$'}FAKE_PROOF_DIR/state/overflow-child-pid"
+            head -c 1048577 /dev/zero
+            while :; do sleep 1; done
+        """.trimIndent())
+        try {
+            val output = runFailure(fixture)
+            for (name in listOf("resolver-pid", "overflow-child-pid")) {
+                val pid = File(fixture, "state/$name").readText().trim().toLong()
+                assertFalse("Owned $name survived output overflow", ProcessHandle.of(pid).map { it.isAlive }.orElse(false))
+            }
+            assertTrue(output, output.contains("SDK resolution output exceeded its limit"))
+            assertFalse(File(fixture, "state/commands").exists())
+        } finally {
+            // Clean the exact synthetic helper if this regression catches a leak.
+            val pidFile = File(fixture, "state/overflow-child-pid")
+            if (pidFile.isFile) ProcessHandle.of(pidFile.readText().trim().toLong()).ifPresent { child ->
+                val owned = child.descendants().use { it.toList().asReversed() } + child
+                owned.forEach { it.destroyForcibly() }
+                owned.forEach { it.onExit().get(5, TimeUnit.SECONDS) }
+            }
+        }
+    }
+
     @Test
     fun oversizedFixtureFailsBeforeAnyCommand() {
         val fixture = fixture("oversized-fixture")
