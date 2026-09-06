@@ -166,7 +166,7 @@ class TrashRestoreUiProofTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val controller = TrashController(repository, scope)
         val files = FilesBrowserState(listOf(FilesFolderState(FilesFolder.Root,
-            FilesContent.Ready(emptyList(), FilesPaging.Complete))), 1)
+            FilesContent.Empty(FilesPaging.Complete))), 1)
         try {
             compose.setContent {
                 val owner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
