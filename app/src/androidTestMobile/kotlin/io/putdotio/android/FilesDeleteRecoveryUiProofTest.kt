@@ -1,5 +1,12 @@
 package io.putdotio.android
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -71,7 +78,16 @@ class FilesDeleteRecoveryUiProofTest {
             nextRequestValue = 2,
         )
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent { PutioTheme { MobileFilesScreen(state, events::add, onPlayVideo = {}, confirmedTrashEnabled = true) } }
+        compose.setContent {
+            PutioTheme {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    MobileFilesScreen(
+                        state, events::add, onPlayVideo = {}, confirmedTrashEnabled = true,
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+                    )
+                }
+            }
+        }
         compose.onNodeWithText(item.name).assertIsDisplayed()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         compose.onNodeWithText(context.getString(R.string.mobile_files_delete_unknown)).assertIsDisplayed()

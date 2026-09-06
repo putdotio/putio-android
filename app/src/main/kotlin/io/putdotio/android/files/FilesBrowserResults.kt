@@ -88,6 +88,7 @@ private fun FilesFolderState.appendPage(
                     viewport = state.viewport(),
                 ),
             consumedCursors = updatedConsumedCursors,
+            deleteOutcome = deleteOutcome?.afterFolderPage(page),
         )
     }
 }

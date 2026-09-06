@@ -102,6 +102,30 @@ class FilesDeleteReducerTest {
     }
 
     @Test
+    fun laterPagePresenceCorrectsAnEarlierNotFoundResultWithoutRetryingDelete() {
+        val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
+        val reloading = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
+        val firstPage = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(reloading.effect).requestId, FilesPage(listOf(file(8L)), FilesCursor("after-delete")),
+        )).state
+        val previousOutcome = checkNotNull(firstPage.current.deleteOutcome)
+        assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, previousOutcome.status)
+        val paging = FilesBrowserReducer.reduce(firstPage, FilesBrowserEvent.LoadNextPage)
+        assertTrue(paging.effect is FilesBrowserEffect.LoadNextPage)
+        val appended = FilesBrowserReducer.reduce(paging.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(paging.effect).requestId, FilesPage(listOf(item), null),
+        ))
+        assertEquals(
+            previousOutcome.copy(status = FilesDeleteStatus.STILL_PRESENT),
+            appended.state.current.deleteOutcome,
+        )
+        assertEquals(listOf(file(8L), item), appended.state.current.content.items())
+        assertEquals(FilesFolderOperation.Idle, appended.state.current.operation)
+        assertNull(appended.effect)
+        assertNull(FilesBrowserReducer.reduce(appended.state, FilesBrowserEvent.Retry).effect)
+    }
+
+    @Test
     fun ambiguousMutationAndReadFailuresRetainCauseAndRetryOnlyExactItemRead() {
         val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
         val originalFailure = unexpected("connection lost after submission")

@@ -55,7 +55,7 @@ internal fun FilesFolderState.replaceFirstPage(
         folder = folder.copy(sort = page.sort ?: persistedSort ?: folder.sort),
         content = contentFor(page.items, page.nextCursor.toPaging(emptySet()), viewport),
         operation = FilesFolderOperation.Idle,
-        deleteOutcome = deleteOutcome?.afterFolderReload(page),
+        deleteOutcome = deleteOutcome?.afterFolderPage(page),
         viewportGeneration =
             when (loading.intent) {
                 FilesFolderOperationIntent.Refresh -> viewportGeneration
@@ -67,7 +67,7 @@ internal fun FilesFolderState.replaceFirstPage(
     )
 }
 
-private fun FilesDeleteOutcome.afterFolderReload(page: FilesPage): FilesDeleteOutcome =
+internal fun FilesDeleteOutcome.afterFolderPage(page: FilesPage): FilesDeleteOutcome =
     if (status == FilesDeleteStatus.NO_LONGER_AVAILABLE && page.items.any { it.id == intent.itemId }) {
         copy(status = FilesDeleteStatus.STILL_PRESENT)
     } else {
