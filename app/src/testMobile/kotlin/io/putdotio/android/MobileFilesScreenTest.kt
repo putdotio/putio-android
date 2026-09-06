@@ -6,6 +6,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -40,6 +44,7 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
@@ -650,6 +655,25 @@ class MobileFilesScreenTest {
             ),
             nextRequestValue = 2L,
         )
+
+    @Test
+    fun watchedMediaMergesTheLabelIntoTheRowAndKeepsTheBarDecorative() {
+        val partly = filesItem(1L, "partly.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(90.0, 360.0))
+        val unknown = filesItem(2L, "unknown.mp3", PutioFileType.AUDIO).copy(playback = FilesPlaybackProgress(5.0, null))
+        val fresh = filesItem(3L, "fresh.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 100.0))
+        val plain = filesItem(4L, "plain.txt")
+        val state = browserState(FilesContent.Ready(listOf(partly, unknown, fresh, plain), FilesPaging.Complete))
+        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = { true }, onPlayVideo = {}) } }
+        compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true).assertCountEquals(2)
+        // One merged row node carries name, metadata, and watched label together.
+        compose.onNode(hasText("partly.mkv") and hasText("128 B", substring = true) and hasText("25% watched"))
+            .assertIsDisplayed()
+        compose.onNode(hasText("unknown.mp3") and hasText("Watched")).assertIsDisplayed()
+        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.25f, 0f..1f))).assertCountEquals(0)
+        compose.onAllNodesWithText("watched", substring = true, ignoreCase = true).assertCountEquals(2)
+        compose.onNode(hasText("fresh.mkv") and hasText("watched", substring = true, ignoreCase = true))
+            .assertDoesNotExist()
+    }
 
     private fun filesItem(
         id: Long,

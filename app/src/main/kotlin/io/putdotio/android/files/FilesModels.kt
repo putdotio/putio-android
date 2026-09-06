@@ -56,9 +56,34 @@ data class FilesItem(
     val type: PutioFileType,
     val sizeBytes: Long,
     val createdAt: String,
+    val playback: FilesPlaybackProgress? = null,
 ) {
     val isFolder: Boolean
         get() = type == PutioFileType.FOLDER
+}
+
+/**
+ * Server-side watch position for media rows. `start_from` is the account's saved
+ * position in seconds; duration comes from video metadata and may be unknown.
+ * Web treats any position above zero as watched, so this does too.
+ */
+data class FilesPlaybackProgress(
+    val startFromSeconds: Double,
+    val durationSeconds: Double?,
+) {
+    init {
+        require(startFromSeconds.isFinite() && startFromSeconds >= 0.0) { "start_from must be finite and nonnegative" }
+        require(durationSeconds == null || (durationSeconds.isFinite() && durationSeconds > 0.0)) {
+            "duration must be finite and positive when present"
+        }
+    }
+
+    val isWatched: Boolean
+        get() = startFromSeconds > 0.0
+
+    /** Fraction in [0, 1] when duration is known; null otherwise. */
+    val fraction: Float?
+        get() = durationSeconds?.let { (startFromSeconds / it).coerceIn(0.0, 1.0).toFloat() }
 }
 
 data class FilesPage(
