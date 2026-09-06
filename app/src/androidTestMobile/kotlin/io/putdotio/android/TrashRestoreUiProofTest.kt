@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.util.Log
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -14,6 +15,9 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
+import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
@@ -195,13 +199,20 @@ class TrashRestoreUiProofTest {
         compose.onNode(hasText("Account") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
         for (tab in listOf("Account", "Files")) {
             compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick().assertIsSelected()
+            Log.i("TrashRestoreProof", "synthetic Back from $tab before: " + compose.onRoot().printToString())
             compose.runOnIdle {
                 assertEquals(Lifecycle.State.RESUMED, backOwner.lifecycle.currentState)
                 backOwner.onBackPressedDispatcher.onBackPressed()
                 assertEquals(0, fallbacks)
                 assertTrue(controller.state.value.hasPendingRestore)
             }
-            compose.waitUntil(10_000) { compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).isDisplayed() }
+            try {
+                compose.waitUntil(10_000) { compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).isDisplayed() }
+            } catch (timeout: ComposeTimeoutException) {
+                Log.i("TrashRestoreProof", "synthetic Back from $tab after: " + compose.onRoot().printToString())
+                trashRestoreScreenshot("synthetic-recovery")
+                throw AssertionError("Back from $tab did not show Trash", timeout)
+            }
         }
     }
 
