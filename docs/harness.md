@@ -306,3 +306,9 @@ read recovery, on both Files and Account. These controlled tests perform no API
 operations; report them as synthetic proof. Screenshots are written to `move-proof-<UUID>/` below the target app's
 external files directory. Pull and inspect these and the validated recording
 before publishing through the repository evidence wrapper.
+
+The debug-only Compose test host handles asset-path configuration changes. API 37
+can update asset overlays during a test; recreating the plain `ComponentActivity`
+loses the content installed by the test and leaves a blank replacement. This
+manifest override applies only to that synthetic host. `MainActivity` keeps its
+normal recreation behavior and installs product content in `onCreate`.

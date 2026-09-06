@@ -3,6 +3,10 @@ package io.putdotio.android
 import android.app.Activity
 import android.app.KeyguardManager
 import android.os.PowerManager
+import android.content.res.Configuration
+import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.core.util.Consumer
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.activity.OnBackPressedCallback
@@ -103,6 +107,16 @@ class FilesMoveNavigationUiProofTest {
                 backOwner = owner
                 val observer = LifecycleEventObserver { _, event -> dispatchTrace += "Lifecycle $event" }
                 owner.lifecycle.addObserver(observer)
+                val activity = owner as ComponentActivity
+                var previousConfiguration = Configuration(activity.resources.configuration)
+                val configurationListener = Consumer<Configuration> { configuration ->
+                    val mask = previousConfiguration.diff(configuration).toUInt().toString(16)
+                    previousConfiguration = Configuration(configuration)
+                    val change = "Configuration activity=${System.identityHashCode(activity)} mask=0x$mask"
+                    dispatchTrace += change
+                    Log.i("MoveBackProof", change)
+                }
+                activity.addOnConfigurationChangedListener(configurationListener)
                 navigationDispatcher = navigationOwner.navigationEventDispatcher
                 // Register before MobileShell so this observes an otherwise unhandled activity Back.
                 val fallback = object : OnBackPressedCallback(true) {
@@ -110,7 +124,10 @@ class FilesMoveNavigationUiProofTest {
                 }
                 fallbackCallback = fallback
                 owner.onBackPressedDispatcher.addCallback(owner, fallback)
-                onDispose { fallback.remove(); owner.lifecycle.removeObserver(observer) }
+                onDispose {
+                    fallback.remove(); owner.lifecycle.removeObserver(observer)
+                    activity.removeOnConfigurationChangedListener(configurationListener)
+                }
             }
             PutioTheme {
                 Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
