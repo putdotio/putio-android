@@ -134,6 +134,7 @@
     <string name="mobile_settings_tunnel_route_default">Direct</string>
     <string name="mobile_settings_tunnel_route_loading">Loading proxies…</string>
     <string name="mobile_settings_tunnel_route_error">Couldn’t load proxies</string>
+    <string name="mobile_settings_tunnel_route_unavailable">That proxy isn’t available for your account. Choose another one.</string>
     <string name="mobile_settings_resume_playback">Resume where you left off</string>
     <string name="mobile_settings_resume_playback_description">Remember playback positions and continue from them on every device.</string>
     <string name="mobile_settings_history">Keep account history</string>

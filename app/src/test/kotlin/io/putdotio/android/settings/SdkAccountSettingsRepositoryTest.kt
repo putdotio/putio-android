@@ -234,7 +234,7 @@ class SdkAccountSettingsRepositoryTest {
         }
 
     @Test
-    fun ineligibleProxyRejectionStaysAnApiRejectionWithoutExpiringTheSession() =
+    fun ineligibleProxyRejectionIsRouteUnavailableWithoutExpiringTheSession() =
         runBlocking {
             val apiError =
                 PutioApiException(
@@ -258,7 +258,7 @@ class SdkAccountSettingsRepositoryTest {
             val result = repository.save(AccountSettingsChange.Route(TunnelRouteName("cdn77")))
                 as AccountSettingsRepositoryResult.Failure
 
-            val rejected = result.failure as AccountSettingsFailure.AccessDenied
+            val rejected = result.failure as AccountSettingsFailure.RouteUnavailable
             assertSame(operationError, rejected.cause)
         }
 

@@ -34,6 +34,11 @@ internal sealed interface AccountSettingsFailure {
         override val cause: PutioException,
     ) : AccountSettingsFailure
 
+    /** The server refused the chosen proxy for this account (403 `UNAVAILABLE_VALUE`). */
+    data class RouteUnavailable(
+        override val cause: PutioException,
+    ) : AccountSettingsFailure
+
     data class RateLimited(
         override val cause: PutioException,
     ) : AccountSettingsFailure
@@ -172,9 +177,11 @@ private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
     }
 
 private fun PutioException.toAccountSettingsFailure(): AccountSettingsFailure {
-    val invalidScope = findPutioApiException()?.errorType == INVALID_SCOPE_ERROR_TYPE
-    return if (invalidScope) {
+    val apiErrorType = findPutioApiException()?.errorType
+    return if (apiErrorType == INVALID_SCOPE_ERROR_TYPE) {
         AccountSettingsFailure.AccessDenied(this)
+    } else if (apiErrorType == UNAVAILABLE_VALUE_ERROR_TYPE) {
+        AccountSettingsFailure.RouteUnavailable(this)
     } else {
         var current: PutioException = this
         var reasonFailure: AccountSettingsFailure? = null
@@ -227,6 +234,7 @@ private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
 private const val HTTP_TOO_MANY_REQUESTS = 429
 private const val INVALID_SCOPE_ERROR_TYPE = "invalid_scope"
+private const val UNAVAILABLE_VALUE_ERROR_TYPE = "UNAVAILABLE_VALUE"
 private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
 private const val HTTP_SERVER_ERROR_START = 500
 private const val HTTP_SERVER_ERROR_END = 599

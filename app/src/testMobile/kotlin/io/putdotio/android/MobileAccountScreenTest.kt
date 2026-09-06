@@ -593,7 +593,7 @@ class MobileAccountScreenTest {
     @Test
     fun rejectedRouteSaveShowsOnTheProxyRowOnlyAndRetriesTheExactRoute() {
         val events = mutableListOf<AccountSettingsEvent>()
-        val failure = AccountSettingsFailure.AccessDenied(PutioConfigurationException("UNAVAILABLE_VALUE"))
+        val failure = AccountSettingsFailure.RouteUnavailable(PutioConfigurationException("UNAVAILABLE_VALUE"))
         setAccountContent(
             state = readyAccountSettingsState(
                 preferences = DefaultAccountSettingsPreferences,
@@ -609,7 +609,7 @@ class MobileAccountScreenTest {
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TUNNEL_ROUTE_ROW_TAG))
         compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).assertTextContains("Direct")
         compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
-        compose.onNodeWithText("This app doesn’t have access to account settings.").assertIsDisplayed()
+        compose.onNodeWithText("That proxy isn’t available for your account. Choose another one.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
         compose.onNodeWithText("Show subtitles").assertIsDisplayed()
