@@ -149,6 +149,13 @@ internal fun MobileAccountScreen(
             state = appConfigState,
             onChoosePlaybackType = { choosePlaybackType = true },
             onEvent = onAppConfigEvent,
+            resumePlaybackItem = {
+                resumePlaybackItem(
+                    settingsState = settingsState,
+                    onChange = { onSettingsEvent(AccountSettingsEvent.ChangeRequested(it)) },
+                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
+                )
+            },
         )
         item(key = SIGN_OUT_KEY) {
             OutlinedButton(
@@ -332,18 +339,6 @@ private fun LazyListScope.accountSettingsItems(
             )
         }
     }
-    item(key = AccountSettingsKey.ResumePlayback) {
-        MobileAccountSettingRow(
-            title = R.string.mobile_settings_resume_playback,
-            description = R.string.mobile_settings_resume_playback_description,
-            icon = R.drawable.ic_ph_clock_counter_clockwise,
-            checked = preferences.resumePlayback,
-            key = AccountSettingsKey.ResumePlayback,
-            mutation = mutation,
-            onRetry = onRetryChange,
-            onChange = onChange,
-        )
-    }
     item(key = PRIVACY_STORAGE_HEADER_KEY) {
         MobileAccountSectionHeader(R.string.mobile_settings_section_privacy_storage)
     }
@@ -373,14 +368,38 @@ private fun LazyListScope.accountSettingsItems(
     }
 }
 
+// Account-wide `use_start_from` sits with the Playback controls even though it is
+// saved through /account/settings rather than the Android-owned /config.
+private fun LazyListScope.resumePlaybackItem(
+    settingsState: AccountSettingsState,
+    onChange: (AccountSettingsChange) -> Unit,
+    onRetryChange: () -> Unit,
+) {
+    val preferences = (settingsState.content as? AccountSettingsContent.Ready)?.preferences ?: return
+    item(key = AccountSettingsKey.ResumePlayback) {
+        MobileAccountSettingRow(
+            title = R.string.mobile_settings_resume_playback,
+            description = R.string.mobile_settings_resume_playback_description,
+            icon = R.drawable.ic_ph_clock_counter_clockwise,
+            checked = preferences.resumePlayback,
+            key = AccountSettingsKey.ResumePlayback,
+            mutation = settingsState.mutation,
+            onRetry = onRetryChange,
+            onChange = onChange,
+        )
+    }
+}
+
 private fun LazyListScope.appConfigItems(
     state: AndroidAppConfigState,
     onChoosePlaybackType: () -> Unit,
     onEvent: (AndroidAppConfigEvent) -> Unit,
+    resumePlaybackItem: LazyListScope.() -> Unit,
 ) {
     item(key = PLAYBACK_HEADER_KEY) {
         MobileAccountSectionHeader(R.string.mobile_settings_section_playback)
     }
+    resumePlaybackItem()
     when (val content = state.content) {
         is AndroidAppConfigContent.Loading ->
             item(key = APP_CONFIG_LOADING_KEY) {
