@@ -442,7 +442,16 @@ internal fun SignedInMobileRoot(
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,
-        loadTunnelRoutes = accountSettingsRepository::loadTunnelRoutes,
+        loadTunnelRoutes = {
+            accountSettingsRepository.loadTunnelRoutes().also { result ->
+                // A 401 here is as authoritative as one from Files or Playback.
+                if (result is AccountSettingsRepositoryResult.Failure &&
+                    result.failure is AccountSettingsFailure.AuthenticationRequired
+                ) {
+                    authController.rejectAuthoritativeSession()
+                }
+            }
+        },
         onAppConfigEvent = appConfigController::dispatch,
         onPlaybackAuthenticationRequired = authController::rejectAuthoritativeSession,
         onFilesAuthenticationRequired = authController::rejectAuthoritativeSession,
@@ -1015,11 +1024,6 @@ private fun MobileNavHost(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
-    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
-        AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
-        )
-    },
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     onFilesAuthenticationRequired: suspend () -> Unit,
@@ -1027,6 +1031,11 @@ private fun MobileNavHost(
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
+        AccountSettingsRepositoryResult.Failure(
+            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+        )
+    },
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)

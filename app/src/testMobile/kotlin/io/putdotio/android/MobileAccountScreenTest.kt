@@ -590,6 +590,33 @@ class MobileAccountScreenTest {
         compose.onNodeWithText("Amsterdam (Direct)").assertDoesNotExist()
     }
 
+    @Test
+    fun rejectedRouteSaveShowsOnTheProxyRowOnlyAndRetriesTheExactRoute() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        val failure = AccountSettingsFailure.AccessDenied(PutioConfigurationException("UNAVAILABLE_VALUE"))
+        setAccountContent(
+            state = readyAccountSettingsState(
+                preferences = DefaultAccountSettingsPreferences,
+                mutation = AccountSettingsMutation.Failed(
+                    change = AccountSettingsChange.Route(TunnelRouteName("cdn77")),
+                    failure = failure,
+                    previousPreferences = DefaultAccountSettingsPreferences,
+                    operation = AccountSettingsMutation.Operation.Save,
+                ),
+            ),
+            events = events,
+        )
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TUNNEL_ROUTE_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).assertTextContains("Direct")
+        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
+        compose.onNodeWithText("This app doesn’t have access to account settings.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
+        compose.onNodeWithText("Show subtitles").assertIsDisplayed()
+        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
+    }
+
     private fun setAccountContent(
         state: AccountSettingsState,
         events: MutableList<AccountSettingsEvent>,

@@ -21,6 +21,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -506,7 +508,10 @@ private fun MobileTunnelRouteDialog(
                         ) { Text(stringResource(R.string.mobile_action_retry)) }
                     }
                 }
-                is AccountSettingsRepositoryResult.Success -> Column(modifier = Modifier.selectableGroup()) {
+                // Route counts and font scale vary; keep every option reachable inside the dialog.
+                is AccountSettingsRepositoryResult.Success -> Column(
+                    modifier = Modifier.selectableGroup().verticalScroll(rememberScrollState()),
+                ) {
                     loaded.value.forEach { option ->
                         Row(
                             modifier = Modifier

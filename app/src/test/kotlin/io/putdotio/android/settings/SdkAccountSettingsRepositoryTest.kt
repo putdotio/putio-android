@@ -234,13 +234,42 @@ class SdkAccountSettingsRepositoryTest {
         }
 
     @Test
-    fun tunnelRoutesKeepServerOrderDropBlankNamesAndRequireDefault() =
+    fun ineligibleProxyRejectionStaysAnApiRejectionWithoutExpiringTheSession() =
+        runBlocking {
+            val apiError =
+                PutioApiException(
+                    request = PutioRequestData("POST", "https://api.put.io/v2/account/settings"),
+                    resolvedStatusCode = 403,
+                    resolvedErrorType = "UNAVAILABLE_VALUE",
+                    envelope = PutioApiErrorEnvelope(statusCode = 403, errorType = "UNAVAILABLE_VALUE"),
+                    responseBody = "{}",
+                    message = "Unavailable value: tunnel_route_name",
+                )
+            val operationError =
+                PutioOperationException(
+                    domain = "account",
+                    operation = "saveSettings",
+                    contract = null,
+                    reason = PutioOperationErrorReason.StatusCode(403),
+                    underlyingError = apiError,
+                )
+            val repository = repository(onSave = { throw operationError })
+
+            val result = repository.save(AccountSettingsChange.Route(TunnelRouteName("cdn77")))
+                as AccountSettingsRepositoryResult.Failure
+
+            val rejected = result.failure as AccountSettingsFailure.AccessDenied
+            assertSame(operationError, rejected.cause)
+        }
+
+    @Test
+    fun tunnelRoutesPutDefaultFirstDropBlankNamesAndRequireDefault() =
         runBlocking {
             val loaded = repository(routes = {
                 listOf(
-                    TunnelRoute("default", "Amsterdam (Direct)"),
                     TunnelRoute("cdn77", " CDN "),
                     TunnelRoute("  ", "blank"),
+                    TunnelRoute("default", "Amsterdam (Direct)"),
                     TunnelRoute("cdn77", "duplicate"),
                 )
             }).loadTunnelRoutes() as AccountSettingsRepositoryResult.Success

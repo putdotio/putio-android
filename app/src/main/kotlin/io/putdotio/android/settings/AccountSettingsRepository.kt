@@ -102,8 +102,9 @@ internal class SdkAccountSettingsRepository(
                 val name = route.name.trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                 TunnelRouteOption(TunnelRouteName(name), route.description.trim())
             }.distinctBy { it.name }
-            require(options.any { it.name == TunnelRouteName.DEFAULT }) { "Tunnel routes must include default" }
-            options
+            val default = options.firstOrNull { it.name == TunnelRouteName.DEFAULT }
+            requireNotNull(default) { "Tunnel routes must include default" }
+            listOf(default) + options.filterNot { it.name == TunnelRouteName.DEFAULT }
         }
 
     // This SDK boundary converts unexpected implementation failures into the app's stable failure taxonomy.
