@@ -9,6 +9,9 @@ import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
 import io.putdotio.sdk.files.FilesContinueQuery
+import io.putdotio.sdk.files.FileMoveError
+import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
@@ -78,6 +81,13 @@ interface FilesRepository {
 
     suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage>
 
+    suspend fun loadMoveDestinations(
+        folderId: FilesItemId,
+        cursor: FilesCursor? = null,
+    ): FilesRepositoryResult<FilesPage>
+
+    suspend fun move(itemId: FilesItemId, destinationId: FilesItemId): FilesRepositoryResult<List<FileMoveError>>
+
     suspend fun persistSort(
         folderId: FilesItemId,
         sort: FilesSort,
@@ -94,13 +104,18 @@ interface FilesItemResolver {
     suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem>
 }
 
+internal class SdkFilesMutations(
+    val rename: suspend (Long, String) -> Unit,
+    val delete: suspend (Long, Boolean) -> FileDeleteResult,
+    val move: suspend (Long, Long) -> List<FileMoveError>,
+)
+
 class SdkFilesRepository internal constructor(
     private val listFolder: suspend (Long, FilesListQuery) -> FilesListResponse,
     private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse,
     private val setSort: suspend (Long, String) -> Unit,
     private val getFile: suspend (Long) -> PutioFile,
-    private val renameFile: suspend (Long, String) -> Unit,
-    private val deleteFile: suspend (Long, Boolean) -> FileDeleteResult,
+    private val mutations: SdkFilesMutations,
 ) : FilesRepository, FilesItemResolver {
     constructor(client: PutioClient) : this(
         listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
@@ -110,13 +125,16 @@ class SdkFilesRepository internal constructor(
             Unit
         },
         getFile = { fileId -> client.files.get(fileId) },
-        renameFile = { fileId, name ->
-            client.files.rename(fileId, name)
-            Unit
-        },
-        deleteFile = { fileId, skipTrash ->
-            client.files.delete(fileIds = listOf(fileId), skipTrash = skipTrash)
-        },
+        mutations = SdkFilesMutations(
+            rename = { fileId, name ->
+                client.files.rename(fileId, name)
+                Unit
+            },
+            delete = { fileId, skipTrash ->
+                client.files.delete(fileIds = listOf(fileId), skipTrash = skipTrash)
+            },
+            move = { fileId, destinationId -> client.files.move(listOf(fileId), destinationId) },
+        ),
     )
 
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
@@ -124,6 +142,32 @@ class SdkFilesRepository internal constructor(
 
     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
         requestPage { continueListing(cursor.value, FilesContinueQuery(perPage = FILES_PAGE_SIZE)) }
+
+    override suspend fun loadMoveDestinations(
+        folderId: FilesItemId,
+        cursor: FilesCursor?,
+    ): FilesRepositoryResult<FilesPage> = request {
+        require(folderId.value >= 0L) { "Move destination must be root or a positive folder ID" }
+        val response = if (cursor == null) {
+            listFolder(folderId.value, FilesListQuery(perPage = FILES_PAGE_SIZE, fileType = PutioFileType.FOLDER))
+        } else {
+            continueListing(cursor.value, FilesContinueQuery(perPage = FILES_PAGE_SIZE))
+        }
+        response.copy(files = response.files.filter {
+            it.id > 0L && it.fileType == PutioFileType.FOLDER && it.folderType == PutioFolderType.REGULAR
+        }).toFilesPage()
+    }
+
+    override suspend fun move(
+        itemId: FilesItemId,
+        destinationId: FilesItemId,
+    ): FilesRepositoryResult<List<FileMoveError>> = request {
+        // A lone zero is a bulk selector, never a single source item.
+        require(itemId.value > 0L && destinationId.value >= 0L && itemId != destinationId) {
+            "Move requires one positive source ID and a different nonnegative destination ID"
+        }
+        mutations.move(itemId.value, destinationId.value)
+    }
 
     override suspend fun persistSort(
         folderId: FilesItemId,
@@ -134,13 +178,13 @@ class SdkFilesRepository internal constructor(
         request { getFile(itemId.value).toFilesItem() }
 
     override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
-        request { renameFile(itemId.value, name) }
+        request { mutations.rename(itemId.value, name) }
 
     override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): FilesRepositoryResult<FileDeleteResult> =
         request {
             // A lone zero means every root item at the API boundary.
             require(itemId.value > 0L) { "Delete requires one positive file ID" }
-            deleteFile(itemId.value, mode == FilesDeleteMode.PERMANENT)
+            mutations.delete(itemId.value, mode == FilesDeleteMode.PERMANENT)
         }
 
     // Kotlin/JVM has no typed throws contract, so the SDK boundary converts

@@ -1,0 +1,277 @@
+package io.putdotio.android
+
+import android.app.Activity
+import android.app.KeyguardManager
+import android.os.PowerManager
+import android.content.res.Configuration
+import android.util.Log
+import androidx.activity.ComponentActivity
+import androidx.core.util.Consumer
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.OnBackPressedDispatcherOwner
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.navigationevent.NavigationEventDispatcher
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
+import io.putdotio.android.auth.MobileAccount
+import io.putdotio.android.auth.MobileAuthSessionId
+import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesBrowserEffect
+import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesBrowserReducer
+import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.FilesContent
+import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesFolderOperation
+import io.putdotio.android.files.FilesFolderState
+import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.playback.PlaybackNextResult
+import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackResolution
+import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.settings.AccountSettingsContent
+import io.putdotio.android.settings.AccountSettingsMutation
+import io.putdotio.android.settings.AccountSettingsPreferences
+import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.AndroidAppConfigContent
+import io.putdotio.android.settings.AndroidAppConfigMutation
+import io.putdotio.android.settings.AndroidAppConfigPreferences
+import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.sdk.files.PutioFileType
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assume.assumeTrue
+import org.junit.rules.RuleChain
+import org.junit.rules.TestRule
+import org.junit.runners.model.Statement
+
+@RunWith(AndroidJUnit4::class)
+class FilesMoveNavigationUiProofTest {
+    private val compose = createComposeRule()
+    private val optIn = TestRule { base, _ ->
+        object : Statement() {
+            override fun evaluate() {
+                assumeTrue("Synthetic root Move Back proof requires opt-in",
+                    InstrumentationRegistry.getArguments().getString("putio.move.ui.enabled") == "true")
+                base.evaluate()
+            }
+        }
+    }
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(optIn).around(compose)
+    private lateinit var backOwner: OnBackPressedDispatcherOwner
+    private lateinit var navigationDispatcher: NavigationEventDispatcher
+    private lateinit var fallbackCallback: OnBackPressedCallback
+    private var fallbacks = 0
+    private val dispatchTrace = mutableListOf<String>()
+
+    @Test
+    fun rootMoveConsumesBackOnFilesAndAccountUntilRecoveryCompletes() {
+        val preview = RootMoveBackPreview()
+        compose.setContent {
+            val owner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
+            val navigationOwner = checkNotNull(LocalNavigationEventDispatcherOwner.current)
+            DisposableEffect(owner, navigationOwner) {
+                backOwner = owner
+                val observer = LifecycleEventObserver { _, event -> dispatchTrace += "Lifecycle $event" }
+                owner.lifecycle.addObserver(observer)
+                val activity = owner as ComponentActivity
+                var previousConfiguration = Configuration(activity.resources.configuration)
+                val configurationListener = Consumer<Configuration> { configuration ->
+                    val mask = previousConfiguration.diff(configuration).toUInt().toString(16)
+                    previousConfiguration = Configuration(configuration)
+                    val change = "Configuration activity=${System.identityHashCode(activity)} mask=0x$mask"
+                    dispatchTrace += change
+                    Log.i("MoveBackProof", change)
+                }
+                activity.addOnConfigurationChangedListener(configurationListener)
+                navigationDispatcher = navigationOwner.navigationEventDispatcher
+                // Register before MobileShell so this observes an otherwise unhandled activity Back.
+                val fallback = object : OnBackPressedCallback(true) {
+                    override fun handleOnBackPressed() { fallbacks += 1 }
+                }
+                fallbackCallback = fallback
+                owner.onBackPressedDispatcher.addCallback(owner, fallback)
+                onDispose {
+                    fallback.remove(); owner.lifecycle.removeObserver(observer)
+                    activity.removeOnConfigurationChangedListener(configurationListener)
+                }
+            }
+            PutioTheme {
+                Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+                    color = MaterialTheme.colorScheme.background) {
+                    MobileShell(
+                        filesState = preview.files, accountSettingsState = preview.settings,
+                        appConfigState = preview.appConfig,
+                        account = MobileAccount(42L, "Synthetic proof", "synthetic@example.invalid"),
+                        sessionId = MobileAuthSessionId(42), playbackRepository = NoMoveBackPlayback,
+                        onFilesEvent = preview::dispatch,
+                        onAccountSettingsEvent = { error("Unexpected settings mutation") },
+                        onPlaybackAuthenticationRequired = { error("Unexpected authentication request") },
+                        onSignOut = { error("Unexpected sign out") },
+                    )
+                }
+            }
+        }
+        compose.runOnIdle {
+            assertFalse(preview.files.canNavigateBack)
+            assertEquals(FilesFolder.Root.id, preview.files.current.folder.id)
+        }
+        assertBackRetains(preview, "Files")
+        navigate("Account")
+        assertBackRetains(preview, "Account")
+        compose.runOnIdle { preview.failReadback() }
+        navigate("Account")
+        moveProofScreenshot("synthetic-back-account")
+        assertBackRetains(preview, "Account")
+        navigate("Files")
+        assertBackRetains(preview, "Files")
+        compose.onNodeWithText(preview.item.name).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).assertIsDisplayed()
+        moveProofScreenshot("synthetic-back-files")
+        compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).performClick()
+        compose.runOnIdle { preview.finishReadback() }
+        compose.onNodeWithText("Nothing here yet").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals("Completed Files host must be resumed", Lifecycle.State.RESUMED, backOwner.lifecycle.currentState)
+            assertEquals(FilesFolderOperation.Idle, preview.files.current.operation)
+            assertEquals(1, preview.effects.count { it is FilesBrowserEffect.Move })
+            assertEquals(2, preview.effects.count { it is FilesBrowserEffect.CheckMove })
+            assertEquals(0, fallbacks)
+            val beforeBack = backDispatchDiagnostics(preview)
+            dispatchTrace += "final Back before: $beforeBack"
+            backOwner.onBackPressedDispatcher.onBackPressed()
+            assertEquals(
+                "Trace=$dispatchTrace; final Back before=[$beforeBack], after=[${backDispatchDiagnostics(preview)}]",
+                1, fallbacks,
+            )
+        }
+    }
+
+    private fun backDispatchDiagnostics(preview: RootMoveBackPreview): String =
+        "browserBackEvents=${preview.events.count { it == FilesBrowserEvent.NavigateBack }}, " +
+            "folder=${preview.files.current.folder.id}, canNavigateBack=${preview.files.canNavigateBack}, " +
+            "operation=${preview.files.current.operation}, fallbacks=$fallbacks, " +
+            "fallbackEnabled=${fallbackCallback.isEnabled}, lifecycle=${backOwner.lifecycle.currentState}, " +
+            "dispatcherEnabled=${navigationDispatcher.isEnabled}, " +
+            "transition=${navigationDispatcher.transitionState.value}, history=${navigationDispatcher.history.value}"
+
+    private fun assertBackRetains(preview: RootMoveBackPreview, tab: String) {
+        compose.runOnIdle {
+            assertEquals("$tab host before Back must be resumed", Lifecycle.State.RESUMED, backOwner.lifecycle.currentState)
+            dispatchTrace += "$tab Back before: ${backDispatchDiagnostics(preview)}"
+            val retained = preview.files
+            val backEvents = preview.events.count { it == FilesBrowserEvent.NavigateBack }
+            backOwner.onBackPressedDispatcher.onBackPressed()
+            dispatchTrace += "$tab Back after: ${backDispatchDiagnostics(preview)}"
+            assertSame(retained, preview.files)
+            if (tab == "Files") {
+                assertEquals(backEvents + 1, preview.events.count { it == FilesBrowserEvent.NavigateBack })
+            }
+            assertEquals(0, fallbacks)
+        }
+        compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
+    }
+
+    private fun hostDiagnostics(): String {
+        val activity = backOwner as Activity
+        val power = activity.getSystemService(PowerManager::class.java)
+        val keyguard = activity.getSystemService(KeyguardManager::class.java)
+        return "lifecycle=${backOwner.lifecycle.currentState}, finishing=${activity.isFinishing}, " +
+            "destroyed=${activity.isDestroyed}, attached=${activity.window.decorView.isAttachedToWindow}, " +
+            "focused=${activity.hasWindowFocus()}, interactive=${power.isInteractive}, " +
+            "keyguard=${keyguard.isKeyguardLocked}, locked=${keyguard.isDeviceLocked}"
+    }
+
+    private fun navigate(tab: String) {
+        dispatchTrace += "Selecting $tab: ${hostDiagnostics()}"
+        try {
+            compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG)))
+                .performClick().assertIsSelected()
+        } catch (error: Throwable) {
+            throw AssertionError("Selecting $tab failed: ${hostDiagnostics()}; trace=$dispatchTrace", error)
+        }
+    }
+}
+
+private class RootMoveBackPreview {
+    val item = FilesItem(FilesItemId(7), FilesFolder.Root.id, "Pending Move été", PutioFileType.FOLDER, 0, "2026-09-06")
+    val settings = AccountSettingsState(
+        AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
+        AccountSettingsMutation.Idle, 1,
+    )
+    val appConfig = AndroidAppConfigState(AndroidAppConfigContent.Ready(AndroidAppConfigPreferences()),
+        AndroidAppConfigMutation.Idle, 1)
+    val effects = mutableListOf<FilesBrowserEffect>()
+    val events = mutableListOf<FilesBrowserEvent>()
+    var files by mutableStateOf(FilesBrowserState(listOf(
+        FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(item), FilesPaging.Complete)),
+    ), 1))
+        private set
+
+    init { dispatch(FilesBrowserEvent.Move(FilesFolder.Root.id, item.id, FilesItemId(8))) }
+
+    fun dispatch(event: FilesBrowserEvent): Boolean {
+        events += event
+        val transition = FilesBrowserReducer.reduce(files, event)
+        files = transition.state
+        transition.effect?.let(effects::add)
+        return transition.consumed
+    }
+
+    fun failReadback() {
+        val failure = FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("Synthetic offline")))
+        dispatch(FilesBrowserEvent.MoveFinished((effects.last() as FilesBrowserEffect.Move).requestId, failure))
+        dispatch(FilesBrowserEvent.MoveChecked((effects.last() as FilesBrowserEffect.CheckMove).requestId, failure))
+    }
+
+    fun finishReadback() {
+        val checking = effects.last() as FilesBrowserEffect.CheckMove
+        assertEquals(item.id, checking.itemId)
+        dispatch(FilesBrowserEvent.MoveChecked(checking.requestId,
+            FilesRepositoryResult.Success(item.copy(parentId = FilesItemId(8)))))
+        val loading = effects.last() as FilesBrowserEffect.LoadFolder
+        assertEquals(FilesFolder.Root.id, loading.folderId)
+        dispatch(FilesBrowserEvent.LoadSucceeded(loading.requestId, FilesPage(emptyList(), null)))
+    }
+}
+
+private object NoMoveBackPlayback : PlaybackRepository {
+    override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        error("Unexpected playback in Move Back proof")
+    override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
+        error("Unexpected playback in Move Back proof")
+}

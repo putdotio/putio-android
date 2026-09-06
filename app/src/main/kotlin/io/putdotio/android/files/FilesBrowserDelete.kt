@@ -20,6 +20,7 @@ private fun FilesBrowserState.delete(event: FilesBrowserEvent.Delete): FilesBrow
     } else {
         val updated = started.state.current.copy(
             deleteOutcome = FilesDeleteOutcome(effect.requestId, intent, item.name),
+            moveOutcome = null,
         )
         started.copy(state = started.state.copy(stack = started.state.stack.replaceLast(updated)))
     }

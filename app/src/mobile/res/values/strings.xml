@@ -1,5 +1,21 @@
 <resources>
     <string name="mobile_navigation_blocked">This item cannot be opened right now. Check Files, then try again.</string>
+    <string name="mobile_files_move">Move</string>
+    <string name="mobile_files_move_here">Move here</string>
+    <string name="mobile_files_move_loading">Loading folders…</string>
+    <string name="mobile_files_move_empty">No folders here.</string>
+    <string name="mobile_files_move_empty_page">No folders on this page.</string>
+    <string name="mobile_files_move_more">More folders</string>
+    <string name="mobile_files_move_destination_unavailable">This folder is unavailable. Choose another folder.</string>
+    <string name="mobile_files_moving">Moving…</string>
+    <string name="mobile_files_move_checking">Checking the item’s location…</string>
+    <string name="mobile_files_move_reloading">Refreshing files…</string>
+    <string name="mobile_files_move_unknown">Couldn’t confirm the move. Check the item’s location before trying again.</string>
+    <string name="mobile_files_move_reload_error">Item location checked, but couldn’t reload files.</string>
+    <string name="mobile_files_move_moved">“%1$s” is in the selected folder.</string>
+    <string name="mobile_files_move_still_present">“%1$s” is not in the selected folder. You can choose a destination again.</string>
+    <string name="mobile_files_move_rejected">Couldn’t move “%1$s”. Choose another folder and try again.</string>
+    <string name="mobile_files_move_collision">A file or folder named “%1$s” already exists there. Choose another folder.</string>
     <string name="mobile_files_trash">Move to trash</string>
     <string name="mobile_files_delete">Delete</string>
     <string name="mobile_files_confirm_action">Confirm</string>

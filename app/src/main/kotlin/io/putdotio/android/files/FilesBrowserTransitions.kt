@@ -1,6 +1,7 @@
 package io.putdotio.android.files
 
 internal fun FilesBrowserState.openFolder(itemId: FilesItemId): FilesBrowserTransition {
+    if (stack.any { it.operation.pendingMove != null }) return FilesBrowserTransition(this, consumed = false)
     val item = current.content.items().firstOrNull { it.id == itemId && it.isFolder }
     return if (item == null || stack.any { it.folder.id == item.id } || isDeleteTargetBlocked(itemId)) {
         FilesBrowserTransition(this, consumed = false)
@@ -20,7 +21,9 @@ internal fun FilesBrowserState.openFolder(itemId: FilesItemId): FilesBrowserTran
 
 internal fun FilesBrowserState.openExternalItem(item: FilesItem): FilesBrowserTransition {
     // Replacing the stack would cancel reconciliation after a POST may have reached the server.
-    if (stack.any { it.operation.pendingDelete != null }) return FilesBrowserTransition(this, consumed = false)
+    if (stack.any { it.operation.pendingDelete != null || it.operation.pendingMove != null }) {
+        return FilesBrowserTransition(this, consumed = false)
+    }
     val destination =
         if (item.isFolder) {
             FilesFolder(id = item.id, name = item.name)
@@ -52,11 +55,24 @@ private fun FilesBrowserState.rootFolderState(): FilesFolderState =
         ?: FilesFolderState(FilesFolder.Root, FilesContent.Empty(FilesPaging.Complete))
 
 internal fun FilesBrowserState.navigateBack(): FilesBrowserTransition =
-    if (canNavigateBack && current.operation.pendingDelete == null) {
-        FilesBrowserTransition(copy(stack = stack.dropLast(1)))
+    if (canNavigateBack && current.operation.pendingDelete == null && stack.none { it.operation.pendingMove != null }) {
+        val back = copy(stack = stack.dropLast(1))
+        if (back.current.needsReload) back.reloadStaleFolder() else FilesBrowserTransition(back)
     } else {
         FilesBrowserTransition(this, consumed = false)
     }
+
+private fun FilesBrowserState.reloadStaleFolder(): FilesBrowserTransition {
+    if (current.content is FilesContent.Ready || current.content is FilesContent.Empty) {
+        return refresh()
+    }
+    val requestId = FilesRequestId(nextRequestValue)
+    val updated = current.copy(content = FilesContent.Loading(requestId), needsReload = false)
+    return FilesBrowserTransition(
+        copy(stack = stack.replaceLast(updated), nextRequestValue = nextRequestValue + 1),
+        FilesBrowserEffect.LoadFolder(current.folder.id, requestId),
+    )
+}
 
 internal fun FilesBrowserState.loadNextPage(): FilesBrowserTransition {
     if (current.operation != FilesFolderOperation.Idle) {
