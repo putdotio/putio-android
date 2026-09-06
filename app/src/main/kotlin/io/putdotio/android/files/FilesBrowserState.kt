@@ -115,6 +115,7 @@ data class FilesFolderState(
     val renameCompletion: FilesRenameCompletion? = null,
     val deleteOutcome: FilesDeleteOutcome? = null,
     val moveOutcome: FilesMoveOutcome? = null,
+    // Cleared when a full read starts so later invalidations survive that read's result.
     internal val needsReload: Boolean = false,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
 )
@@ -152,6 +153,10 @@ sealed interface FilesBrowserEvent {
     data object LoadNextPage : FilesBrowserEvent
 
     data object Refresh : FilesBrowserEvent
+
+    data class InvalidateRestoredItem(val item: FilesItem) : FilesBrowserEvent
+
+    data object ReloadIfStale : FilesBrowserEvent
 
     data class SelectSort(
         val sort: FilesSort,
@@ -316,6 +321,8 @@ object FilesBrowserReducer {
             FilesBrowserEvent.NavigateBack -> state.navigateBack()
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
             FilesBrowserEvent.Refresh -> state.refresh()
+            is FilesBrowserEvent.InvalidateRestoredItem -> state.invalidateRestoredItem(event.item)
+            FilesBrowserEvent.ReloadIfStale -> state.reloadIfStale()
             is FilesBrowserEvent.SelectSort -> state.selectSort(event.sort)
             is FilesBrowserEvent.ItemMutationEvent -> state.itemMutation(event)
             FilesBrowserEvent.Retry -> state.retry()

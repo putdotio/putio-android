@@ -72,10 +72,12 @@ class FilesBrowserController(
             is FilesBrowserEvent.LoadNextPage,
             is FilesBrowserEvent.OpenFolder,
             is FilesBrowserEvent.OpenExternalItem,
+            is FilesBrowserEvent.InvalidateRestoredItem,
             is FilesBrowserEvent.SelectSort,
             is FilesBrowserEvent.ViewportChanged,
             FilesBrowserEvent.NavigateBack,
             FilesBrowserEvent.Refresh,
+            FilesBrowserEvent.ReloadIfStale,
             FilesBrowserEvent.Retry,
             -> null
         }

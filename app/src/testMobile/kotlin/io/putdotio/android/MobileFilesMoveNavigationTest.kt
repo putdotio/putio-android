@@ -54,10 +54,23 @@ import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.trash.FakeTrashRepository
+import io.putdotio.android.trash.TrashContent
+import io.putdotio.android.trash.TrashController
+import io.putdotio.android.trash.TrashEvent
+import io.putdotio.android.trash.TrashRestoreCheck
+import io.putdotio.android.trash.confirm
+import io.putdotio.android.trash.trashItem
+import io.putdotio.android.trash.page
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -75,33 +88,7 @@ class MobileFilesMoveNavigationTest {
     @Test
     fun rootMoveConsumesBackOnFilesAndAccountUntilRecoveryCompletes() {
         val preview = RootMoveBackPreview()
-        compose.setContent {
-            val owner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
-            DisposableEffect(owner) {
-                backOwner = owner
-                // Register before MobileShell so this observes an otherwise unhandled activity Back.
-                val fallback = object : OnBackPressedCallback(true) {
-                    override fun handleOnBackPressed() { fallbacks += 1 }
-                }
-                owner.onBackPressedDispatcher.addCallback(owner, fallback)
-                onDispose { fallback.remove() }
-            }
-            PutioTheme {
-                Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
-                    color = MaterialTheme.colorScheme.background) {
-                    MobileShell(
-                        filesState = preview.files, accountSettingsState = preview.settings,
-                        appConfigState = preview.appConfig,
-                        account = MobileAccount(42L, "Synthetic proof", "synthetic@example.invalid"),
-                        sessionId = MobileAuthSessionId(42), playbackRepository = NoMoveBackPlayback,
-                        onFilesEvent = preview::dispatch,
-                        onAccountSettingsEvent = { error("Unexpected settings mutation") },
-                        onPlaybackAuthenticationRequired = { error("Unexpected authentication request") },
-                        onSignOut = { error("Unexpected sign out") },
-                    )
-                }
-            }
-        }
+        mount(preview)
         compose.runOnIdle {
             assertFalse(preview.files.canNavigateBack)
             assertEquals(FilesFolder.Root.id, preview.files.current.folder.id)
@@ -130,6 +117,105 @@ class MobileFilesMoveNavigationTest {
         }
     }
 
+    @Test
+    fun pendingRestoreAllowsNestedFilesBackBeforeProtectingActivityExit() {
+        val preview = RootMoveBackPreview(startMove = false)
+        preview.dispatch(FilesBrowserEvent.OpenFolder(preview.item.id))
+        val loading = preview.effects.last() as FilesBrowserEffect.LoadFolder
+        preview.dispatch(FilesBrowserEvent.LoadSucceeded(loading.requestId, FilesPage(emptyList(), null)))
+        withPendingRestore(preview) { controller ->
+            compose.runOnIdle {
+                assertTrue(preview.files.canNavigateBack)
+                backOwner.onBackPressedDispatcher.onBackPressed()
+                assertEquals(FilesFolder.Root.id, preview.files.current.folder.id)
+                assertFalse(preview.files.canNavigateBack)
+                assertTrue(controller.state.value.hasPendingRestore)
+                assertEquals(0, fallbacks)
+            }
+            compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
+            compose.onNodeWithText(preview.item.name).assertIsDisplayed()
+            compose.runOnIdle { backOwner.onBackPressedDispatcher.onBackPressed() }
+            compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).assertIsDisplayed()
+            compose.onNodeWithText("Restore started.").assertIsDisplayed()
+            compose.runOnIdle {
+                assertTrue(controller.state.value.hasPendingRestore)
+                assertEquals(0, fallbacks)
+                backOwner.onBackPressedDispatcher.onBackPressed()
+            }
+            compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).assertIsDisplayed()
+            compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun pendingMoveKeepsBackOwnershipWhenTrashRestoreIsAlsoPending() {
+        val preview = RootMoveBackPreview()
+        withPendingRestore(preview) { controller ->
+            assertBackRetains(preview, "Files")
+            navigate("Account")
+            assertBackRetains(preview, "Account")
+            compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).assertDoesNotExist()
+            compose.runOnIdle {
+                assertTrue(controller.state.value.hasPendingRestore)
+                assertEquals(1, preview.effects.count { it is FilesBrowserEffect.Move })
+            }
+        }
+    }
+
+    private fun withPendingRestore(preview: RootMoveBackPreview, block: (TrashController) -> Unit) {
+        val restoreItem = trashItem(9L)
+        val repository = FakeTrashRepository().apply { onLoad = { page(restoreItem) } }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val controller = TrashController(repository, scope)
+        try {
+            mount(preview, controller)
+            compose.runOnIdle { controller.dispatch(TrashEvent.Open) }
+            compose.waitUntil(5_000L) {
+                compose.runOnIdle { controller.state.value.content is TrashContent.Loaded }
+            }
+            compose.runOnIdle { controller.confirm(restoreItem.id) }
+            compose.waitUntil(5_000L) {
+                compose.runOnIdle { controller.state.value.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
+            }
+            block(controller)
+            compose.runOnIdle { assertEquals(listOf(restoreItem.id), repository.restoredIds) }
+        } finally {
+            controller.close()
+            scope.cancel()
+        }
+    }
+
+    private fun mount(preview: RootMoveBackPreview, trashController: TrashController? = null) {
+        compose.setContent {
+            val owner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
+            DisposableEffect(owner) {
+                backOwner = owner
+                // Register before MobileShell so this observes an otherwise unhandled activity Back.
+                val fallback = object : OnBackPressedCallback(true) {
+                    override fun handleOnBackPressed() { fallbacks += 1 }
+                }
+                owner.onBackPressedDispatcher.addCallback(owner, fallback)
+                onDispose { fallback.remove() }
+            }
+            PutioTheme {
+                Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+                    color = MaterialTheme.colorScheme.background) {
+                    MobileShell(
+                        filesState = preview.files, trashController = trashController,
+                        accountSettingsState = preview.settings,
+                        appConfigState = preview.appConfig,
+                        account = MobileAccount(42L, "Synthetic proof", "synthetic@example.invalid"),
+                        sessionId = MobileAuthSessionId(42), playbackRepository = NoMoveBackPlayback,
+                        onFilesEvent = preview::dispatch,
+                        onAccountSettingsEvent = { error("Unexpected settings mutation") },
+                        onPlaybackAuthenticationRequired = { error("Unexpected authentication request") },
+                        onSignOut = { error("Unexpected sign out") },
+                    )
+                }
+            }
+        }
+    }
+
     private fun assertBackRetains(preview: RootMoveBackPreview, tab: String) {
         compose.runOnIdle {
             val retained = preview.files
@@ -150,7 +236,7 @@ class MobileFilesMoveNavigationTest {
     }
 }
 
-private class RootMoveBackPreview {
+private class RootMoveBackPreview(startMove: Boolean = true) {
     val item = FilesItem(FilesItemId(7), FilesFolder.Root.id, "Pending Move été", PutioFileType.FOLDER, 0, "2026-09-06")
     val settings = AccountSettingsState(
         AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
@@ -165,7 +251,9 @@ private class RootMoveBackPreview {
     ), 1))
         private set
 
-    init { dispatch(FilesBrowserEvent.Move(FilesFolder.Root.id, item.id, FilesItemId(8))) }
+    init {
+        if (startMove) dispatch(FilesBrowserEvent.Move(FilesFolder.Root.id, item.id, FilesItemId(8)))
+    }
 
     fun dispatch(event: FilesBrowserEvent): Boolean {
         events += event

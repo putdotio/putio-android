@@ -72,6 +72,7 @@ private fun FilesBrowserState.deleteChecked(event: FilesBrowserEvent.DeleteCheck
         val updated = folder.copy(
             deleteOutcome = outcome.copy(status = outcome.checkedStatus(unavailable)),
             operation = FilesFolderOperation.Loading(requestId, outcome.intent, FilesFolderOperationPhase.RELOADING),
+            needsReload = false,
         )
         FilesBrowserTransition(
             state = copy(stack = stack.replaceAt(index, updated), nextRequestValue = nextRequestValue + 1),

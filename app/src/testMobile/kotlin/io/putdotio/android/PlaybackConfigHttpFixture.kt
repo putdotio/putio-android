@@ -13,7 +13,9 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /** Synthetic SDK responses and an empty live playlist keep source-ownership proof independent of decoding. */
-internal class PlaybackConfigHttpFixture : Closeable {
+internal class PlaybackConfigHttpFixture(
+    private val responseOverride: (method: String, path: String) -> Pair<Int, String>? = { _, _ -> null },
+) : Closeable {
     val resolutions = ConcurrentLinkedQueue<String>()
     val mediaRequests = ConcurrentLinkedQueue<String>()
     val unexpectedRequests = ConcurrentLinkedQueue<String>()
@@ -30,12 +32,13 @@ internal class PlaybackConfigHttpFixture : Closeable {
     private fun respond(exchange: HttpExchange) {
         exchange.use {
             val path = exchange.requestURI.path
+            val overridden = responseOverride(exchange.requestMethod, path)
             if (path == "/v2/files/42/mp4/stream") {
                 mediaRequests.add(path)
                 check(releaseMedia.await(30, TimeUnit.SECONDS)) { "Media fixture was not released" }
                 return
             }
-            val body = if (path == "/v2/files/42/hls/media.m3u8") {
+            val body = overridden?.second ?: if (path == "/v2/files/42/hls/media.m3u8") {
                 mediaRequests.add(path)
                 "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n#EXT-X-MEDIA-SEQUENCE:0\n"
             } else {
@@ -48,7 +51,7 @@ internal class PlaybackConfigHttpFixture : Closeable {
                 val bytes = body.toByteArray(Charsets.UTF_8)
                 val contentType = if (path.endsWith(".m3u8")) "application/vnd.apple.mpegurl" else "application/json"
                 exchange.responseHeaders.add("Content-Type", contentType)
-                exchange.sendResponseHeaders(200, bytes.size.toLong())
+                exchange.sendResponseHeaders(overridden?.first ?: 200, bytes.size.toLong())
                 exchange.responseBody.write(bytes)
             }
         }
