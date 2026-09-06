@@ -144,7 +144,8 @@ class MobileFilesMoveNavigationTest {
     }
 
     private fun navigate(tab: String) {
-        compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
+        compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG)))
+            .performClick().assertIsSelected()
     }
 }
 
