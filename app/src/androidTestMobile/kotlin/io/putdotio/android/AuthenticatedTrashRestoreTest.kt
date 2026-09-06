@@ -75,13 +75,8 @@ class AuthenticatedTrashRestoreTest {
         val fixture = TrashRestoreFixture.parse(args.getString("putio.trash.restore.fixture"),
             args.getString("putio.trash.restore.runId"))
         val runtime = MobileOAuthRuntime.get(context)
-        compose.waitUntil(TIMEOUT) {
-            when (runtime.authController.state.value) {
-                MobileAuthState.Initializing, MobileAuthState.RestoringSession,
-                is MobileAuthState.ValidatingSession -> false
-                else -> true
-            }
-        }
+        // This rule launches a bare activity; PutioApp's session-restoration effect does not run.
+        trashRestoreApiCheck("restore existing session") { runtime.authController.restoreSession() }
         val session = runtime.authController.state.value as? MobileAuthState.SignedIn
             ?: throw AssertionError("Proof requires the existing signed-in session")
         assertTrue("fixture account", session.account.userId == fixture.expectedAccountId)
