@@ -199,20 +199,33 @@ class TrashRestoreUiProofTest {
         compose.onNode(hasText("Account") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
         for (tab in listOf("Account", "Files")) {
             compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick().assertIsSelected()
-            Log.i("TrashRestoreProof", "synthetic Back from $tab before: " + compose.onRoot().printToString())
-            compose.runOnIdle {
-                assertEquals(Lifecycle.State.RESUMED, backOwner.lifecycle.currentState)
-                backOwner.onBackPressedDispatcher.onBackPressed()
-                assertEquals(0, fallbacks)
-                assertTrue(controller.state.value.hasPendingRestore)
-            }
+            pressBackWithPendingRestore(controller)
             try {
+                if (tab == "Account") {
+                    // NavHost may first pop Account to Files; this cannot exit the activity.
+                    compose.waitUntil(10_000) {
+                        compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).isDisplayed() ||
+                            compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).isDisplayed()
+                    }
+                    if (compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).isDisplayed()) {
+                        pressBackWithPendingRestore(controller)
+                    }
+                }
                 compose.waitUntil(10_000) { compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).isDisplayed() }
             } catch (timeout: ComposeTimeoutException) {
                 Log.i("TrashRestoreProof", "synthetic Back from $tab after: " + compose.onRoot().printToString())
                 trashRestoreScreenshot("synthetic-recovery")
                 throw AssertionError("Back from $tab did not show Trash", timeout)
             }
+        }
+    }
+
+    private fun pressBackWithPendingRestore(controller: TrashController) {
+        compose.runOnIdle {
+            assertEquals(Lifecycle.State.RESUMED, backOwner.lifecycle.currentState)
+            backOwner.onBackPressedDispatcher.onBackPressed()
+            assertEquals(0, fallbacks)
+            assertTrue(controller.state.value.hasPendingRestore)
         }
     }
 
