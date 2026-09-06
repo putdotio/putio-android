@@ -1,3 +1,5 @@
+import java.io.File
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -158,7 +160,28 @@ dependencies {
     testImplementation(libs.androidx.test.ext.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.espresso.core) {
+        because("API 37 removed InputManager.getInstance; Espresso 3.7 uses getSystemService for input injection")
+    }
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
+}
+
+// Separate from connectedAndroidTest: preserve the installed app's encrypted session.
+tasks.register<RunAuthenticatedRenameProofTask>("proveAuthenticatedRename") {
+    group = "verification"
+    description = "Run the opted-in authenticated rename flow on an existing API 37 emulator"
+    dependsOn("assembleMobileProductionDebug", "assembleMobileProductionDebugAndroidTest")
+    proofEnabled.set(providers.gradleProperty("putioRenameEnabled").map { it == "true" }.orElse(false))
+    serial.set(providers.gradleProperty("putioRenameSerial").orElse(""))
+    val proofRoot = rootProject.projectDir.absolutePath
+    fixtureFile.set(rootProject.layout.file(providers.gradleProperty("putioRenameFixture").map {
+        File(it).let { path -> if (path.isAbsolute) path else File(proofRoot, it) }
+    }))
+    repositoryDirectory.set(rootProject.layout.projectDirectory)
+    apkDirectory.set(layout.buildDirectory.dir("outputs/apk/mobileProduction/debug"))
+    testApkDirectory.set(layout.buildDirectory.dir("outputs/apk/androidTest/mobileProduction/debug"))
 }

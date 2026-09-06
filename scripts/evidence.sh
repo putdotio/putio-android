@@ -4,6 +4,8 @@
 #   scripts/evidence.sh screenshot [--serial SERIAL] [--label LABEL] [--allow-dark]
 #   scripts/evidence.sh record [--serial SERIAL] [--label LABEL] [--seconds N] [--allow-dark] [--keep-idle]
 #
+#   scripts/evidence.sh validate-recording --input FILE [--label LABEL] [--allow-dark]
+#
 # Output: .evidence/<UTC timestamp>-<label>.png|.mp4 (path printed on stdout).
 # Near-black captures are quarantined (*.black.*) and fail the command unless
 # --allow-dark is passed for content that is legitimately dark (playback,
@@ -25,6 +27,7 @@ LABEL="capture"
 SECONDS_ARG=10
 ALLOW_DARK=0
 KEEP_IDLE=0
+INPUT=""
 # LABEL lands in an ffprobe filtergraph where commas/colons are syntax.
 LABEL_CHARSET='^[A-Za-z0-9._-]+$'
 while [[ $# -gt 0 ]]; do
@@ -34,6 +37,7 @@ while [[ $# -gt 0 ]]; do
     --seconds) SECONDS_ARG="${2:?--seconds requires a value}"; shift ;;
     --allow-dark) ALLOW_DARK=1 ;;
     --keep-idle) KEEP_IDLE=1 ;;
+    --input) INPUT="${2:?--input requires a file}"; shift ;;
     *) die "unknown argument: $1" ;;
   esac
   shift
@@ -47,7 +51,7 @@ done
 [[ "${LABEL}" =~ ${LABEL_CHARSET} ]] || \
   die "--label may only contain letters, digits, dot, underscore, dash (got '${LABEL}')"
 
-if [[ -z "${SERIAL}" ]]; then
+if [[ "${cmd}" != "validate-recording" && -z "${SERIAL}" ]]; then
   devices="$("${ADB}" devices | awk '$2 == "device" {print $1}')"
   count="$(printf '%s' "${devices}" | grep -c . || true)"
   [[ "${count}" -eq 1 ]] || die "expected exactly one device, found ${count}; pass --serial"
@@ -113,23 +117,31 @@ case "${cmd}" in
     log "screenshot: ${out}"
     echo "${out}"
     ;;
-  record)
+  record|validate-recording)
     out="${EVIDENCE_DIR}/${STAMP}-${LABEL}.mp4"
     pending="${out}.pending"
-    remote="/data/local/tmp/putio-evidence.mp4"
-    # No internal retry: callers that choreograph content during capture
-    # (prove.sh relaunches the app mid-recording) would desync from it and
-    # publish a clip that missed the action. Callers own whole-cycle retries.
-    "${ADB}" -s "${SERIAL}" shell screenrecord --time-limit "${SECONDS_ARG}" "${remote}" || \
-      die "screenrecord failed on ${SERIAL} (encoder is briefly unready after boot; retry the capture)"
-    # screenrecord can return before the muxer finishes the container; a pull
-    # that races it produces an mp4 with no moov atom (unplayable).
-    sleep 2
-    if ! "${ADB}" -s "${SERIAL}" pull "${remote}" "${pending}" >/dev/null; then
-      rm -f "${pending}"
-      die "pull of ${remote} failed on ${SERIAL}"
+    if [[ "${cmd}" == "validate-recording" ]]; then
+      [[ -n "${INPUT}" && -f "${INPUT}" ]] || die "--input must name an existing raw recording"
+      [[ ! "${INPUT}" -ef "${out}" && ! "${INPUT}" -ef "${pending}" ]] || \
+        die "raw recording aliases the evidence output or staging file"
+      cp "${INPUT}" "${pending}" || die "could not stage the raw recording"
+    else
+      [[ -z "${INPUT}" ]] || die "--input is only supported by validate-recording"
+      remote="/data/local/tmp/putio-evidence.mp4"
+      # No internal retry: callers that choreograph content during capture
+      # (prove.sh relaunches the app mid-recording) would desync from it and
+      # publish a clip that missed the action. Callers own whole-cycle retries.
+      "${ADB}" -s "${SERIAL}" shell screenrecord --time-limit "${SECONDS_ARG}" "${remote}" || \
+        die "screenrecord failed on ${SERIAL} (encoder is briefly unready after boot; retry the capture)"
+      # screenrecord can return before the muxer finishes the container; a pull
+      # that races it produces an mp4 with no moov atom (unplayable).
+      sleep 2
+      if ! "${ADB}" -s "${SERIAL}" pull "${remote}" "${pending}" >/dev/null; then
+        rm -f "${pending}"
+        die "pull of ${remote} failed on ${SERIAL}"
+      fi
+      "${ADB}" -s "${SERIAL}" shell rm -f "${remote}" || true
     fi
-    "${ADB}" -s "${SERIAL}" shell rm -f "${remote}" || true
     [[ -s "${pending}" ]] || { rm -f "${pending}"; die "screenrecord produced no data"; }
     # Integrity gate on the capture itself, before any trim: a truncated
     # screenrecord container still carries a moov atom but no parseable
@@ -191,6 +203,6 @@ case "${cmd}" in
     echo "${out}"
     ;;
   *)
-    die "unknown command: ${cmd} (expected screenshot|record)"
+    die "unknown command: ${cmd} (expected screenshot|record|validate-recording)"
     ;;
 esac

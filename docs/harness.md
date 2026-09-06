@@ -26,6 +26,10 @@ from `adb devices` before returning; preexisting emulators are reused, never
 stopped; AVD registrations are deleted only if the flow created them via
 `--ephemeral`. No process-name or blanket emulator cleanup, ever.
 
+Failed lifecycle runs keep their case logs under `.evidence/logs/lifecycle.*`.
+Forced-failure cases require an `INJECTED_FAILURE <stage>` marker, so an
+unrelated failure cannot satisfy them.
+
 Every phone boot, including reuse, also verifies API 37, selects the bundled
 Chrome as the browser role holder, and requires its AndroidX Auth Tab service
 category. The harness fails closed before install when that secure OAuth
@@ -130,3 +134,92 @@ requires authentication.
 - First boot of a fresh AVD is the slow path (~1 min on an M-series Mac); subsequent boots are faster with `-no-snapshot` still enforced for reproducibility
 - On shared machines check `scripts/emulator.sh status` before assuming a free console port; the scripts scan 5554–5584
 
+
+## Authenticated rename proof
+
+After authenticating the mobile production debug app as `devs-auto`, run the
+Files rename flow without `connectedAndroidTest` or `prove.sh`:
+
+```bash
+./gradlew --no-daemon :app:proveAuthenticatedRename \
+  -PputioRenameEnabled=true \
+  -PputioRenameSerial=emulator-5554 \
+  -PputioRenameFixture=/absolute/path/to/owned-rename-fixture.json
+```
+
+The serial must already be running API 37. The task assembles the app and test
+APKs, discovers the installed CLI contract with `putio describe --output json`,
+validates the CLI account and fixtures before installation, resolves APK
+identities with `apkanalyzer`, and installs both with `adb install -r`. Install
+failure stops the flow; it never uninstalls or clears app data. CLI checks force
+`PUTIO_CLI_PROFILE=devs-auto` and remove `PUTIO_CLI_TOKEN` from the child environment.
+The device test separately validates its existing session's account ID through
+the app's SDK client before touching a fixture. No token enters an argument.
+
+The caller creates a small, uniquely named fixture folder, records its exact
+IDs in an ownership ledger, and removes only those owned fixtures afterward.
+The fixture JSON is limited to 24 KiB and contains exactly these fields:
+
+- `expectedAccountId`: positive account ID returned by the `devs-auto` CLI profile.
+- `containerId`, `renameItemId`, `cancelItemId`: distinct positive IDs from the ledger.
+- `containerName`: exact folder name, unique in its complete search result.
+- `renameOriginalName`, `renameNewName`, `cancelOriginalName`: distinct, nonempty,
+  exact names. Both rename names must contain a literal space and at least one
+  non-ASCII character. Names are preserved exactly; the whole name is replaced.
+
+Both the folder contents and container search must fit a complete 50-item page.
+The two items must belong to that folder, and the new name must be unused.
+Missing, ambiguous, changed, or incorrectly typed fixtures fail closed. The
+flow neither creates fixtures nor interprets readable shared items as owned.
+For a second run, update the ledger's original/new names to the actual current
+state; the same encrypted session is reused without another login.
+
+The device test navigates Search → folder, renames through overflow, confirms
+UI and API readback, then edits a second item through long-press and cancels.
+It reads back the exact changed draft before Cancel and checks that Cancel leaves
+the server name unchanged. It does not replace
+physical keyboard, TalkBack, or live permission-rejection proof. Ordinary
+connected tests skip this opt-in test before launching its Activity rule. The
+Android runner reports that opt-out as an assumption; AGP may serialize it as
+an XML failure even when the connected task succeeds. Use the named proof task
+above to establish that the authenticated flow actually ran and passed. The
+canonical `verify` task assembles the mobile production debug test APK without
+running it, so device-test compilation is checked on each CI change.
+
+Host preflight, install, instrumentation, and capture processing share a
+240-second deadline after assembly. Instrumentation output is limited to 1 MiB
+before decoding. A failed, skipped, absent, interrupted,
+or incomplete named test fails the task. Recording starts before instrumentation
+and uses a unique guest path with a checked process ID. Cleanup reaps owned host
+processes and the verified recorder, and removes only that run's guest capture
+files. It reaps adb clients without their descendants: a client can start the
+shared adb server. SDK, CLI, and validation helpers retain tree cleanup.
+Recorder shutdown checks the guest PID independently of the host adb
+client, waits for graceful exit, and escalates only while ownership still matches.
+Missing recorder ownership fails cleanup and preserves its capture files.
+It never force-stops the app. If instrumentation remains active, even with
+the same runner component, cleanup preserves it and explicitly fails: API 37
+process dumps can hide arguments in a parcelled Bundle, so the harness cannot
+establish which invocation owns that instrumentation. Interruption therefore does
+not guarantee remote instrumentation has stopped; inspect the reported state
+before another run.
+
+The emulator, app installation, authentication, and fixture ledger remain intact.
+Cleanup has its own 20-second command budget and preserves failure causes.
+Use `--no-daemon` for this manual runtime lane so interruption reaches its
+single-use Gradle process. SIGINT can disconnect the client before `CLEANUP FAIL`
+reaches its output. Inspect the single-use daemon log under
+`$GRADLE_USER_HOME/daemon/<version>/daemon-<pid>.out.log` (default
+`~/.gradle/daemon/<version>/daemon-<pid>.out.log`) for cleanup diagnostics, and
+confirm guest instrumentation is idle before recovery, another proof attempt, or
+any fixture mutation or deletion. If it does not become idle within the caller's
+bounded wait, stop and confirm shutdown of only an emulator the caller started
+before modifying fixtures. A caller that reused an emulator must preserve it and
+leave fixtures untouched until instrumentation is confirmed idle.
+
+Run logs and raw capture remain under `.evidence/rename-<run-id>/`. Raw captures
+are not publication evidence. The existing capture gates validate and normalize
+them through `scripts/evidence.sh validate-recording --input <file>`, and only a
+successful task prints `EVIDENCE <validated-path>` followed by
+`PROOF PASS authenticated-rename`. Inspect the clip before publishing it with the
+repository wrapper. No fixture or credential payload is printed by CLI preflight.
