@@ -17,6 +17,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -48,6 +50,7 @@ import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
+import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -75,6 +78,10 @@ import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.transfers.AppTransferStatus
+import io.putdotio.android.transfers.TransferItem
+import io.putdotio.android.transfers.TransfersPaging
+import io.putdotio.android.transfers.TransfersReducer
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferNavigation
@@ -130,7 +137,7 @@ class MobileShellTest {
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
-                    onFilesEvent = {},
+                    onFilesEvent = { true },
                     onAccountSettingsEvent = {},
                     onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
@@ -237,7 +244,7 @@ class MobileShellTest {
                         account = Account,
                         playbackRepository = ConversionRepository,
                         sessionId = Session,
-                        onFilesEvent = {},
+                        onFilesEvent = { true },
                         onAccountSettingsEvent = {},
                         onPlaybackAuthenticationRequired = {},
                         onSignOut = {},
@@ -444,7 +451,7 @@ class MobileShellTest {
                         account = Account,
                         playbackRepository = ConversionRepository,
                         sessionId = Session,
-                        onFilesEvent = {},
+                        onFilesEvent = { true },
                         onAccountSettingsEvent = { event ->
                             if (event is AccountSettingsEvent.ChangeRequested) {
                                 settingsState =
@@ -491,7 +498,7 @@ class MobileShellTest {
                         account = Account,
                         playbackRepository = ConversionRepository,
                         sessionId = Session,
-                        onFilesEvent = {},
+                        onFilesEvent = { true },
                         onAccountSettingsEvent = accountEvents::add,
                         onAppConfigEvent = appConfigEvents::add,
                         onPlaybackAuthenticationRequired = {},
@@ -574,9 +581,54 @@ class MobileShellTest {
         }
     }
 
+    @Test
+    fun rejectedSearchNavigationKeepsSearchVisibleAndPendingDeleteIntact() {
+        val deliveries = Channel<FilesItem>(Channel.UNLIMITED)
+        val navigation = deliveries.receiveAsFlow()
+        val retained = pendingShellDeleteState()
+        val events = mutableListOf<FilesBrowserEvent>()
+        val resolved = shellResolvedFolder()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = retained,
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { event ->
+                        events.add(event)
+                        val transition = FilesBrowserReducer.reduce(retained, event)
+                        assertEquals(retained, transition.state)
+                        transition.consumed
+                    },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    contentNavigation = navigation,
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Search").performClick()
+        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle { assertTrue(deliveries.trySend(resolved).isSuccess) }
+        compose.waitUntil { events.any { it is FilesBrowserEvent.OpenExternalItem } }
+        compose.onNodeWithText("This item cannot be opened right now. Check Files, then try again.").assertIsDisplayed()
+        compose.onNodeWithText("OK").performClick()
+        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
+        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
+        compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsNotSelected()
+        compose.runOnIdle {
+            assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(resolved)),
+                events.filterIsInstance<FilesBrowserEvent.OpenExternalItem>())
+            deliveries.close()
+        }
+    }
+
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         filesState: FilesBrowserState = emptyFilesState(),
-        onFilesEvent: (FilesBrowserEvent) -> Unit = {},
+        onFilesEvent: (FilesBrowserEvent) -> Boolean = { true },
         onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
         onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
     ) {
@@ -621,7 +673,7 @@ class MobileShellTransfersTest {
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
-                    onFilesEvent = {},
+                    onFilesEvent = { true },
                     onTransfersEvent = events::add,
                     resolveTransferFile = {
                         FilesRepositoryResult.Failure(
@@ -718,7 +770,7 @@ class MobileShellTransfersTest {
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
-                    onFilesEvent = {},
+                    onFilesEvent = { true },
                     onTransfersEvent = { event ->
                         events += event
                         if (event == TransfersEvent.DismissNotice(TransfersRequestId(3L))) {
@@ -778,6 +830,68 @@ class MobileShellTransfersTest {
     }
 
     @Test
+    fun rejectedTransferNavigationKeepsTransfersVisibleAndCanRetryAfterDeleteReconciles() {
+        var files by mutableStateOf(pendingShellDeleteState())
+        val retained = files
+        var transfers by mutableStateOf(shellOpenableTransferState())
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = files,
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfers,
+                    transfersSessionId = Session,
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { event ->
+                        val transition = FilesBrowserReducer.reduce(files, event)
+                        files = transition.state
+                        transition.consumed
+                    },
+                    onTransfersEvent = { event ->
+                        events.add(event)
+                        transfers = TransfersReducer.reduce(transfers, event).state
+                    },
+                    resolveTransferFile = { FilesRepositoryResult.Success(shellResolvedFolder()) },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Transfers").performClick()
+        compose.onNodeWithText("Open file").assertIsEnabled().performClick()
+        compose.runOnIdle {
+            assertTrue("Expected OpenFailed; events=$events", events.any { it is TransfersEvent.OpenFailed })
+        }
+        compose.runOnIdle {
+            assertEquals(retained, files)
+            assertEquals(TransferNavigation.Failed(FilesFailure.NavigationBlocked), transfers.navigation)
+            assertEquals(FilesFailure.NavigationBlocked, events.filterIsInstance<TransfersEvent.OpenFailed>().single().failure)
+            assertTrue(events.none { it is TransfersEvent.OpenSucceeded })
+        }
+        compose.onNodeWithText("OK").performClick()
+        compose.onNode(hasText("Transfers") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
+        compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsNotSelected()
+        compose.onNodeWithText("Open file").assertIsEnabled()
+        compose.runOnIdle { files = videoFilesState() }
+        compose.onNodeWithText("Open file").performClick()
+        compose.runOnIdle {
+            assertTrue("Expected OpenSucceeded; events=$events", events.any { it is TransfersEvent.OpenSucceeded })
+        }
+        compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
+        compose.runOnIdle {
+            assertEquals(1, events.count { it is TransfersEvent.OpenFailed })
+            assertEquals(1, events.count { it is TransfersEvent.OpenSucceeded })
+            assertEquals(2, events.count { it is TransfersEvent.Open })
+            assertEquals(TransferNavigation.Idle, transfers.navigation)
+        }
+    }
+
+    @Test
     fun changingTransferSessionMovesVisibilityToTheNewController() {
         val firstEvents = mutableListOf<TransfersEvent>()
         val secondEvents = mutableListOf<TransfersEvent>()
@@ -793,7 +907,7 @@ class MobileShellTransfersTest {
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
-                    onFilesEvent = {},
+                    onFilesEvent = { true },
                     onTransfersEvent = events::add,
                     onAccountSettingsEvent = {},
                     onPlaybackAuthenticationRequired = {},
@@ -923,7 +1037,7 @@ class MobileShellPlaybackTest {
                     playbackRepository = playbackRepository,
                     playbackPlayerFactory = playbackPlayerFactory,
                     sessionId = Session,
-                    onFilesEvent = {},
+                    onFilesEvent = { true },
                     onAccountSettingsEvent = {},
                     onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                     onSignOut = {},
@@ -1068,3 +1182,21 @@ private fun videoFilesState(): FilesBrowserState {
         FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(video), nextCursor = null)),
     ).state
 }
+
+private fun pendingShellDeleteState(): FilesBrowserState = FilesBrowserReducer.reduce(
+    videoFilesState(), FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(8L), FilesDeleteMode.PERMANENT),
+).state
+
+private fun shellResolvedFolder(): FilesItem = FilesItem(
+    FilesItemId(7L), FilesFolder.Root.id, "resolved folder", PutioFileType.FOLDER, 0L, "2026-09-06",
+)
+
+private fun shellOpenableTransferState(): TransfersState = TransfersState(
+    TransfersContent.Ready(listOf(TransferItem(
+        id = TransferId(7L), name = "Completed transfer", status = AppTransferStatus.Completed,
+        fileId = TransferFileId(7L), sizeBytes = 1.0, percentDone = 100.0,
+        downloadSpeedBytesPerSecond = null, uploadSpeedBytesPerSecond = null,
+        estimatedSecondsRemaining = null, availability = null, hasError = false,
+        createdAt = "2026-09-06", userFileExists = true,
+    )), TransfersPaging.Complete),
+)

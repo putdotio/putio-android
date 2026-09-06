@@ -630,6 +630,7 @@ private fun String.toDisplayDate(context: Context): String? =
 @StringRes
 internal fun FilesFailure.mobileMessageResource(): Int =
     when (this) {
+        FilesFailure.NavigationBlocked -> R.string.mobile_navigation_blocked
         is FilesFailure.AuthenticationRequired -> R.string.mobile_state_error_session
         is FilesFailure.AccessDenied -> R.string.mobile_state_error_forbidden
         is FilesFailure.RateLimited -> R.string.mobile_state_error_rate_limited

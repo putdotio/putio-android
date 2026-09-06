@@ -1,4 +1,5 @@
 <resources>
+    <string name="mobile_navigation_blocked">This item cannot be opened right now. Check Files, then try again.</string>
     <string name="mobile_files_trash">Move to trash</string>
     <string name="mobile_files_delete">Delete</string>
     <string name="mobile_files_confirm_action">Confirm</string>

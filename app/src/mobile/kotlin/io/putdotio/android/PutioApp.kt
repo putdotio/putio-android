@@ -474,7 +474,7 @@ internal fun MobileShell(
     playbackRepository: PlaybackRepository,
     playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     sessionId: MobileAuthSessionId,
-    onFilesEvent: (FilesBrowserEvent) -> Unit,
+    onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
     onPlaybackAuthenticationRequired: suspend () -> Unit,
@@ -490,6 +490,7 @@ internal fun MobileShell(
     onSignOut: () -> Unit,
 ) {
     val navController = rememberNavController()
+    var rejectedNavigation by remember(sessionId) { mutableStateOf<FilesFailure?>(null) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
     val isPlayback = backStackEntry?.destination?.route == MOBILE_PLAYBACK_ROUTE
@@ -503,8 +504,11 @@ internal fun MobileShell(
 
     LaunchedEffect(contentNavigation) {
         contentNavigation.collect { item ->
-            currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item))
-            navController.navigateTo(MobileDestination.Files)
+            if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item))) {
+                navController.navigateTo(MobileDestination.Files)
+            } else {
+                rejectedNavigation = FilesFailure.NavigationBlocked
+            }
         }
     }
     LaunchedEffect(resolvingTransfer?.requestId, transfersSessionId) {
@@ -519,9 +523,14 @@ internal fun MobileShell(
             is FilesRepositoryResult.Success -> {
                 navController.currentBackStackEntryFlow.first()
                 currentCoroutineContext().ensureActive()
-                sessionOnFilesEvent(FilesBrowserEvent.OpenExternalItem(resolved.value))
-                navController.navigateTo(MobileDestination.Files)
-                sessionOnTransfersEvent(TransfersEvent.OpenSucceeded(resolving.requestId))
+                if (sessionOnFilesEvent(FilesBrowserEvent.OpenExternalItem(resolved.value))) {
+                    navController.navigateTo(MobileDestination.Files)
+                    sessionOnTransfersEvent(TransfersEvent.OpenSucceeded(resolving.requestId))
+                } else {
+                    sessionOnTransfersEvent(TransfersEvent.OpenFailed(
+                        resolving.requestId, FilesFailure.NavigationBlocked,
+                    ))
+                }
             }
             is FilesRepositoryResult.Failure ->
                 if (resolved.failure is FilesFailure.AuthenticationRequired) {
@@ -551,7 +560,7 @@ internal fun MobileShell(
             sessionId = sessionId,
             playbackRepository = playbackRepository,
             playbackPlayerFactory = playbackPlayerFactory,
-            onFilesEvent = onFilesEvent,
+            onFilesEvent = { onFilesEvent(it) },
             onAccountSettingsEvent = onAccountSettingsEvent,
             onAppConfigEvent = onAppConfigEvent,
             searchHistoryActions = searchHistoryActions,
@@ -579,7 +588,7 @@ internal fun MobileShell(
                     sessionId = sessionId,
                     playbackRepository = playbackRepository,
                     playbackPlayerFactory = playbackPlayerFactory,
-                    onFilesEvent = onFilesEvent,
+                    onFilesEvent = { onFilesEvent(it) },
                     onAccountSettingsEvent = onAccountSettingsEvent,
                     onAppConfigEvent = onAppConfigEvent,
                     searchHistoryActions = searchHistoryActions,
@@ -601,7 +610,7 @@ internal fun MobileShell(
                     sessionId = sessionId,
                     playbackRepository = playbackRepository,
                     playbackPlayerFactory = playbackPlayerFactory,
-                    onFilesEvent = onFilesEvent,
+                    onFilesEvent = { onFilesEvent(it) },
                     onAccountSettingsEvent = onAccountSettingsEvent,
                     onAppConfigEvent = onAppConfigEvent,
                     searchHistoryActions = searchHistoryActions,
@@ -613,9 +622,11 @@ internal fun MobileShell(
         }
     }
     MobileNavigationAlerts(
-        navigationFailure = navigationFailure,
+        navigationFailure = rejectedNavigation ?: navigationFailure,
         transfersState = transfersState,
-        onDismissNavigationFailure = onDismissNavigationFailure,
+        onDismissNavigationFailure = {
+            if (rejectedNavigation != null) rejectedNavigation = null else onDismissNavigationFailure()
+        },
         onTransfersEvent = onTransfersEvent,
     )
 }

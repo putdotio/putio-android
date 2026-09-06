@@ -258,3 +258,11 @@ error UI without API calls. Report this as synthetic UI evidence. Both tests
 write screenshots below the target app's external files directory at
 `delete-proof-<UUID>/`. Pull and inspect them, validate the caller's recording
 with the existing evidence command, then publish through the repository wrapper.
+
+`FilesDeleteNavigationUiProofTest#rejectedSearchAndTransferNavigationPreserveRecovery`
+uses the same synthetic opt-in and run ID. It mounts the real mobile shell with
+controlled reducers: rejected Search/Transfers opens retain the current tab and
+Delete recovery; after Check status reconciles the item, a fresh transfer open
+succeeds. It makes no API calls and captures `synthetic-navigation.png` under
+the same screenshot directory. Invoke this exact named test separately when
+refreshing shell navigation proof; it requires no live fixtures.

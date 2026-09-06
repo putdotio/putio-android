@@ -28,6 +28,10 @@ sealed interface FilesRepositoryResult<out T> {
 sealed interface FilesFailure {
     val cause: Throwable
 
+    data object NavigationBlocked : FilesFailure {
+        override val cause = IllegalStateException("Files navigation was rejected")
+    }
+
     data class AuthenticationRequired(
         override val cause: PutioException,
     ) : FilesFailure
