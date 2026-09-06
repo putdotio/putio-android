@@ -4,7 +4,8 @@ internal val FilesFolderOperation.canStartOperation: Boolean
     get() = when (this) {
         FilesFolderOperation.Idle -> true
         is FilesFolderOperation.Loading -> false
-        is FilesFolderOperation.Failed -> intent !is FilesFolderOperationIntent.Delete &&
+        is FilesFolderOperation.Failed -> intent !is FilesFolderOperationIntent.Move &&
+            intent !is FilesFolderOperationIntent.Delete &&
             (intent !is FilesFolderOperationIntent.Rename || phase != FilesFolderOperationPhase.RELOADING)
     }
 
@@ -74,10 +75,15 @@ internal fun FilesBrowserState.startFailedOperation(
     operation: FilesFolderOperation.Failed,
 ): FilesBrowserTransition {
     val requestId = FilesRequestId(nextRequestValue)
-    // Delete failures are uncertain once submitted. Retry can only inspect or reload.
-    val phase = if (operation.intent is FilesFolderOperationIntent.Delete &&
-        operation.phase == FilesFolderOperationPhase.DELETING
-    ) FilesFolderOperationPhase.CHECKING_DELETE else operation.phase
+    // Mutations may have committed despite a failed response; recovery reads only.
+    val phase = when {
+        operation.intent is FilesFolderOperationIntent.Delete &&
+            operation.phase == FilesFolderOperationPhase.DELETING ->
+            FilesFolderOperationPhase.CHECKING_DELETE
+        operation.intent is FilesFolderOperationIntent.Move && operation.phase == FilesFolderOperationPhase.MOVING ->
+            FilesFolderOperationPhase.CHECKING_MOVE
+        else -> operation.phase
+    }
     return FilesBrowserTransition(
         state =
             copy(
@@ -106,6 +112,12 @@ private fun effectFor(
             FilesFolderOperationIntent.Refresh -> FilesBrowserEffect.LoadFolder(folderId, requestId)
             is FilesFolderOperationIntent.Sort -> FilesBrowserEffect.PersistSort(folderId, intent.sort, requestId)
             is FilesFolderOperationIntent.Rename -> FilesBrowserEffect.Rename(intent.itemId, intent.name, requestId)
+            is FilesFolderOperationIntent.Move ->
+                if (phase == FilesFolderOperationPhase.MOVING) {
+                    FilesBrowserEffect.Move(intent.itemId, intent.destinationId, requestId)
+                } else {
+                    FilesBrowserEffect.CheckMove(intent.itemId, requestId)
+                }
             is FilesFolderOperationIntent.Delete ->
                 if (phase == FilesFolderOperationPhase.DELETING) {
                     FilesBrowserEffect.Delete(intent.itemId, intent.mode, requestId)

@@ -30,8 +30,11 @@ class SdkFilesRepositoryTest {
             continueListing = { _, _ -> error("Unexpected continuation") },
             setSort = { _, _ -> error("Unexpected sort") },
             getFile = { error("Unexpected file resolution") },
-            renameFile = { id, name -> renamed += id to name },
-            deleteFile = { _, _ -> error("Unexpected delete") },
+            mutations = SdkFilesMutations(
+                rename = { id, name -> renamed += id to name },
+                delete = { _, _ -> error("Unexpected delete") },
+                move = { _, _ -> error("Unexpected move") },
+            ),
         )
         for (name in listOf("  Türkçe [raw].mkv  ", "", "folder.name")) {
             assertEquals(FilesRepositoryResult.Success(Unit), repository.rename(FilesItemId(42L), name))
@@ -90,8 +93,11 @@ class SdkFilesRepositoryTest {
                     },
                     continueListing = { _, _ -> error("Unexpected continuation") },
                     setSort = { _, _ -> error("Unexpected sort") },
-                    renameFile = { _, _ -> error("Unexpected rename") },
-                    deleteFile = { _, _ -> error("Unexpected delete") },
+                    mutations = SdkFilesMutations(
+                        rename = { _, _ -> error("Unexpected rename") },
+                        delete = { _, _ -> error("Unexpected delete") },
+                        move = { _, _ -> error("Unexpected move") },
+                    ),
                     getFile = { error("Unexpected file resolution") },
                 )
 
@@ -119,8 +125,11 @@ class SdkFilesRepositoryTest {
                         response(cursor = "  ")
                     },
                     setSort = { _, _ -> error("Unexpected sort") },
-                    renameFile = { _, _ -> error("Unexpected rename") },
-                    deleteFile = { _, _ -> error("Unexpected delete") },
+                    mutations = SdkFilesMutations(
+                        rename = { _, _ -> error("Unexpected rename") },
+                        delete = { _, _ -> error("Unexpected delete") },
+                        move = { _, _ -> error("Unexpected move") },
+                    ),
                     getFile = { error("Unexpected file resolution") },
                 )
 
@@ -164,8 +173,11 @@ class SdkFilesRepositoryTest {
                     listFolder = { _, _ -> error("Unexpected folder load") },
                     continueListing = { _, _ -> error("Unexpected continuation") },
                     setSort = { _, _ -> error("Unexpected sort") },
-                    renameFile = { _, _ -> error("Unexpected rename") },
-                    deleteFile = { _, _ -> error("Unexpected delete") },
+                    mutations = SdkFilesMutations(
+                        rename = { _, _ -> error("Unexpected rename") },
+                        delete = { _, _ -> error("Unexpected delete") },
+                        move = { _, _ -> error("Unexpected move") },
+                    ),
                     getFile = { fileId ->
                         requestedFileId = fileId
                         sdkFile(fileId, "movie.mkv", PutioFileType.VIDEO)
@@ -294,8 +306,11 @@ class SdkFilesRepositoryTest {
                     listFolder = { _, _ -> response() },
                     continueListing = { _, _ -> response() },
                     setSort = { folderId, sort -> persisted += folderId to sort },
-                    renameFile = { _, _ -> error("Unexpected rename") },
-                    deleteFile = { _, _ -> error("Unexpected delete") },
+                    mutations = SdkFilesMutations(
+                        rename = { _, _ -> error("Unexpected rename") },
+                        delete = { _, _ -> error("Unexpected delete") },
+                        move = { _, _ -> error("Unexpected move") },
+                    ),
                     getFile = { error("Unexpected file resolution") },
                 )
 
@@ -315,8 +330,11 @@ class SdkFilesRepositoryTest {
             listFolder = { _, _ -> throw error },
             continueListing = { _, _ -> throw error },
             setSort = { _, _ -> throw error },
-            renameFile = { _, _ -> throw error },
-            deleteFile = { _, _ -> throw error },
+            mutations = SdkFilesMutations(
+                rename = { _, _ -> throw error },
+                delete = { _, _ -> throw error },
+                move = { _, _ -> throw error },
+            ),
             getFile = { throw error },
         )
 

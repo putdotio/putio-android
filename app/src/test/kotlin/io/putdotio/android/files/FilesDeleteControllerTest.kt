@@ -55,7 +55,7 @@ class FilesDeleteControllerTest {
         val pagingStarted = CompletableDeferred<Unit>()
         val pagingCancelled = CompletableDeferred<Unit>()
         val deleteResult = CompletableDeferred<FilesRepositoryResult<FileDeleteResult>>()
-        val repository = object : FilesRepository {
+        val repository = object : StubFilesRepository() {
             var deletes = 0
             override suspend fun loadFolder(folderId: FilesItemId) =
                 FilesRepositoryResult.Success(FilesPage(listOf(item), FilesCursor("next")))
@@ -63,10 +63,6 @@ class FilesDeleteControllerTest {
                 pagingStarted.complete(Unit)
                 try { awaitCancellation() } finally { pagingCancelled.complete(Unit) }
             }
-            override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort): FilesRepositoryResult<Unit> =
-                error("Unexpected sort")
-            override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
-                error("Unexpected rename")
             override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Success(item)
             override suspend fun delete(
                 itemId: FilesItemId,
@@ -138,7 +134,7 @@ class FilesDeleteControllerTest {
         }
     }
 
-    private class DescendingDeleteRepository : FilesRepository {
+    private class DescendingDeleteRepository : StubFilesRepository() {
         val child = item.copy(id = FilesItemId(8L), name = "distinct child")
         val grandchild = item.copy(id = FilesItemId(9L), parentId = child.id, name = "grandchild")
         val postStarted = CompletableDeferred<Unit>()
@@ -185,15 +181,9 @@ class FilesDeleteControllerTest {
                 envelope = PutioApiErrorEnvelope(statusCode = 404), responseBody = "{}", message = "Not found",
             ).toFilesFailure())
         }
-        override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
-            error("Unexpected page")
-        override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort): FilesRepositoryResult<Unit> =
-            error("Unexpected sort")
-        override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
-            error("Unexpected rename")
     }
 
-    private class DeleteRepository(private val throwFromDelete: Boolean) : FilesRepository {
+    private class DeleteRepository(private val throwFromDelete: Boolean) : StubFilesRepository() {
         var deletes = 0
         var folderLoads = 0
         val reads = mutableListOf<FilesItemId>()
@@ -205,12 +195,6 @@ class FilesDeleteControllerTest {
                 FilesRepositoryResult.Success(FilesPage(listOf(item), null))
             }
         }
-        override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
-            error("Unexpected page")
-        override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort): FilesRepositoryResult<Unit> =
-            error("Unexpected sort")
-        override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
-            error("Unexpected rename")
         override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
             reads += itemId
             return if (reads.size == 1) failure("read offline") else FilesRepositoryResult.Success(item)

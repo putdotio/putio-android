@@ -266,3 +266,40 @@ Delete recovery; after Check status reconciles the item, a fresh transfer open
 succeeds. It makes no API calls and captures `synthetic-navigation.png` under
 the same screenshot directory. Invoke this exact named test separately when
 refreshing shell navigation proof; it requires no live fixtures.
+
+## Authenticated Move device test
+
+`AuthenticatedFilesMoveTest#authenticatedMovePreservesCancelAndConfirmsExactParents`
+exercises named Cancel, a same-name collision, folder and file moves, a move into
+a cached ancestor, and a folder move to root. Each confirmed move checks the exact
+item ID and destination parent through the SDK. It preserves the existing shared
+account session and checks source sort and viewport after Cancel.
+
+Use the same API 37 installation and caller supervision contract as Delete above.
+First run `MoveProofFixtureTest#acceptsSevenOwnedItemsAndRejectsAmbiguousFixtures`.
+The authenticated selector requires `putio.move.enabled=true`,
+`putio.move.runId=<UUID>`, and `putio.move.fixture=<base64 JSON>`.
+
+The fixture requires `expectedAccountId`, `containerId`, `containerName`,
+`sourceId`, `sourceName`, `destinationId`, `destinationName`, `folderItemId`,
+`folderName`, `fileItemId`, `fileName`, `fileSize`, `collisionItemId`,
+`collisionPeerId`, and `collisionName`. Create one unique root container with
+source and destination folders. The source holds an empty action folder, a small
+UTF-8 file (1–128 bytes), and an empty collision folder; the destination holds an
+empty folder with the same collision name. All seven item IDs must be distinct
+and positive. Use six distinct names, including non-ASCII action-folder and file
+names. The parser rejects unknown/duplicate keys and ambiguous numeric values.
+The live preflight checks exact identities, parents and complete owned contents
+before any Move. Root destination is selected explicitly in the UI.
+
+Track the action folder separately when it moves to root. After instrumentation
+is idle, read back every owned ID and clean leaves before their parents, checking
+exact identity and contents before deletion. Unknown mutation outcomes retain the
+ownership ledger for read-only reconciliation; do not repeat the mutation.
+
+`FilesMoveRecoveryUiProofTest#uncertainMoveRetainsSourceAndRetriesOnlyReads`
+uses `putio.move.ui.enabled=true` and the same run ID for controlled recovery and
+picker paging/error UI. It performs no API operations; report it as synthetic
+proof. Screenshots are written to `move-proof-<UUID>/` below the target app's
+external files directory. Pull and inspect these and the validated recording
+before publishing through the repository evidence wrapper.

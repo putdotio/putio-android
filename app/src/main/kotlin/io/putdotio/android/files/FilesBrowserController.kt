@@ -61,8 +61,11 @@ class FilesBrowserController(
         when (this) {
             is FilesBrowserEvent.LoadResult -> requestId
             is FilesBrowserEvent.MutationSucceeded -> requestId
+            is FilesBrowserEvent.MoveFinished -> requestId
+            is FilesBrowserEvent.MoveChecked -> requestId
             is FilesBrowserEvent.DeleteFinished -> requestId
             is FilesBrowserEvent.DeleteChecked -> requestId
+            is FilesBrowserEvent.Move,
             is FilesBrowserEvent.Delete,
             is FilesBrowserEvent.Rename,
             is FilesBrowserEvent.AbandonRename,

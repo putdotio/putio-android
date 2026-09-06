@@ -13,18 +13,22 @@ internal fun FilesBrowserState.loadSucceeded(event: FilesBrowserEvent.LoadSuccee
 internal fun FilesBrowserState.loadFailed(event: FilesBrowserEvent.LoadFailed): FilesBrowserTransition {
     val index = stack.indexOfFirst { it.hasRequest(event.requestId) }
     val operation = stack.getOrNull(index)?.operation as? FilesFolderOperation.Loading
-    if (operation?.intent is FilesFolderOperationIntent.Delete &&
-        operation.phase == FilesFolderOperationPhase.DELETING
-    ) {
-        return deleteFinished(FilesBrowserEvent.DeleteFinished(
-            event.requestId, FilesRepositoryResult.Failure(event.failure),
-        ))
-    }
-    val updated = stack.getOrNull(index)?.loadFailed(event.requestId, event.failure)
-    return if (updated == null) {
-        FilesBrowserTransition(this, consumed = false)
-    } else {
-        FilesBrowserTransition(copy(stack = stack.replaceAt(index, updated)))
+    return when {
+        operation?.intent is FilesFolderOperationIntent.Move && operation.phase == FilesFolderOperationPhase.MOVING ->
+            moveFinished(FilesBrowserEvent.MoveFinished(event.requestId, FilesRepositoryResult.Failure(event.failure)))
+        operation?.intent is FilesFolderOperationIntent.Delete &&
+            operation.phase == FilesFolderOperationPhase.DELETING ->
+            deleteFinished(FilesBrowserEvent.DeleteFinished(
+                event.requestId, FilesRepositoryResult.Failure(event.failure),
+            ))
+        else -> {
+            val updated = stack.getOrNull(index)?.loadFailed(event.requestId, event.failure)
+            if (updated == null) {
+                FilesBrowserTransition(this, consumed = false)
+            } else {
+                FilesBrowserTransition(copy(stack = stack.replaceAt(index, updated)))
+            }
+        }
     }
 }
 
@@ -89,6 +93,7 @@ private fun FilesFolderState.appendPage(
                 ),
             consumedCursors = updatedConsumedCursors,
             deleteOutcome = deleteOutcome?.afterFolderPage(page),
+            moveOutcome = moveOutcome?.afterFolderPage(page),
         )
     }
 }
@@ -101,6 +106,17 @@ private fun FilesFolderState.loadFailed(
         val loading = operation as FilesFolderOperation.Loading
         copy(
             operation = FilesFolderOperation.Failed(failure, loading.intent, loading.phase),
+            moveOutcome = if (loading.phase == FilesFolderOperationPhase.CHECKING_MOVE) {
+                moveOutcome?.let { outcome ->
+                    outcome.copy(status = if (outcome.errors.isNullOrEmpty()) {
+                        FilesMoveStatus.UNKNOWN
+                    } else {
+                        FilesMoveStatus.REJECTED
+                    })
+                }
+            } else {
+                moveOutcome
+            },
             deleteOutcome = if (loading.phase == FilesFolderOperationPhase.CHECKING_DELETE) {
                 deleteOutcome?.copy(status = FilesDeleteStatus.UNKNOWN)
             } else {

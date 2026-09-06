@@ -75,8 +75,10 @@ import io.putdotio.android.playback.SdkPlaybackRepository
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.pendingDelete
+import io.putdotio.android.files.pendingMove
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -398,6 +400,7 @@ internal fun SignedInMobileRoot(
 
     MobileShell(
         filesState = filesState,
+        filesRepository = filesRepository,
         accountSettingsState = accountSettingsState,
         appConfigState = appConfigState,
         searchHistoryState =
@@ -465,6 +468,7 @@ internal fun AuthoritativeSessionFailureEffect(
 @Composable
 internal fun MobileShell(
     filesState: FilesBrowserState,
+    filesRepository: FilesRepository? = null,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
@@ -551,6 +555,7 @@ internal fun MobileShell(
         MobileNavHost(
             navController = navController,
             filesState = filesState,
+            filesRepository = filesRepository,
             accountSettingsState = accountSettingsState,
             appConfigState = appConfigState,
             searchHistoryState = searchHistoryState,
@@ -579,6 +584,7 @@ internal fun MobileShell(
                     navController = navController,
                     selectedDestination = selectedDestination,
                     filesState = filesState,
+                    filesRepository = filesRepository,
                     accountSettingsState = accountSettingsState,
                     appConfigState = appConfigState,
                     searchHistoryState = searchHistoryState,
@@ -601,6 +607,7 @@ internal fun MobileShell(
                     navController = navController,
                     selectedDestination = selectedDestination,
                     filesState = filesState,
+                    filesRepository = filesRepository,
                     accountSettingsState = accountSettingsState,
                     appConfigState = appConfigState,
                     searchHistoryState = searchHistoryState,
@@ -695,6 +702,7 @@ private fun PhoneShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    filesRepository: FilesRepository?,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -737,6 +745,7 @@ private fun PhoneShell(
         MobileNavHost(
             navController = navController,
             filesState = filesState,
+            filesRepository = filesRepository,
             accountSettingsState = accountSettingsState,
             appConfigState = appConfigState,
             searchHistoryState = searchHistoryState,
@@ -764,6 +773,7 @@ private fun TabletShell(
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
+    filesRepository: FilesRepository?,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -806,6 +816,7 @@ private fun TabletShell(
             MobileNavHost(
                 navController = navController,
                 filesState = filesState,
+                filesRepository = filesRepository,
                 accountSettingsState = accountSettingsState,
                 appConfigState = appConfigState,
                 searchHistoryState = searchHistoryState,
@@ -849,7 +860,8 @@ private fun MobileTopBar(
         },
         navigationIcon = {
             if (destination == MobileDestination.Files && filesState.canNavigateBack) {
-                IconButton(onClick = onFilesBack, enabled = filesState.current.operation.pendingDelete == null) {
+                IconButton(onClick = onFilesBack, enabled = filesState.current.operation.pendingDelete == null &&
+                    filesState.stack.none { it.operation.pendingMove != null }) {
                     Icon(
                         painter = painterResource(R.drawable.ic_ph_arrow_left),
                         contentDescription = stringResource(R.string.mobile_action_back),
@@ -886,6 +898,7 @@ private fun MobileDestinationIcon(
 private fun MobileNavHost(
     navController: NavHostController,
     filesState: FilesBrowserState,
+    filesRepository: FilesRepository?,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -913,8 +926,9 @@ private fun MobileNavHost(
         modifier = modifier,
     ) {
         composable(MobileDestination.Files.route) {
-            MobileFilesScreen(
+            MobileFilesRoute(
                 state = filesState,
+                repository = filesRepository,
                 onEvent = onFilesEvent,
                 onPlayVideo = navController::navigateToPlayback,
                 confirmedTrashEnabled = if (accountSettingsState.mutation == AccountSettingsMutation.Idle) {

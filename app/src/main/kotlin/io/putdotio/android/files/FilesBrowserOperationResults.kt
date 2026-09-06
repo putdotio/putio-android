@@ -8,8 +8,9 @@ internal fun FilesBrowserState.mutationSucceeded(
     }
     val folderState = stack.getOrNull(index)
     val loading = folderState?.operation as? FilesFolderOperation.Loading
-    if (loading == null || loading.phase == FilesFolderOperationPhase.RELOADING ||
-        loading.intent is FilesFolderOperationIntent.Delete
+    val requiresReadback = loading?.intent is FilesFolderOperationIntent.Delete ||
+        loading?.intent is FilesFolderOperationIntent.Move
+    if (loading == null || loading.phase == FilesFolderOperationPhase.RELOADING || requiresReadback
     ) {
         return FilesBrowserTransition(this, consumed = false)
     }
@@ -41,28 +42,18 @@ internal fun FilesFolderState.replaceFirstPage(
     if (loading?.requestId != requestId || loading.phase != FilesFolderOperationPhase.RELOADING) {
         return null
     }
-    val viewport =
-        when (loading.intent) {
-            FilesFolderOperationIntent.Refresh -> content.viewport()
-            is FilesFolderOperationIntent.Rename -> content.viewport()
-            is FilesFolderOperationIntent.Delete -> content.viewport()
-            is FilesFolderOperationIntent.Sort -> FilesViewportPosition()
-        }
-    // folder.sort changes only when the reordered rows replace the list, while the
-    // viewport generation advances only for an explicit sort so refresh cannot reset it.
-    val persistedSort = (loading.intent as? FilesFolderOperationIntent.Sort)?.sort
+    val sorting = loading.intent as? FilesFolderOperationIntent.Sort
+    val viewport = if (sorting == null) content.viewport() else FilesViewportPosition()
+    // Advance the viewport generation only when an explicit sort replaces the rows.
+    val persistedSort = sorting?.sort
     return copy(
         folder = folder.copy(sort = page.sort ?: persistedSort ?: folder.sort),
         content = contentFor(page.items, page.nextCursor.toPaging(emptySet()), viewport),
         operation = FilesFolderOperation.Idle,
         deleteOutcome = deleteOutcome?.afterFolderPage(page),
-        viewportGeneration =
-            when (loading.intent) {
-                FilesFolderOperationIntent.Refresh -> viewportGeneration
-                is FilesFolderOperationIntent.Rename -> viewportGeneration
-                is FilesFolderOperationIntent.Delete -> viewportGeneration
-                is FilesFolderOperationIntent.Sort -> viewportGeneration + 1
-            },
+        moveOutcome = moveOutcome?.afterFolderPage(page),
+        needsReload = false,
+        viewportGeneration = if (sorting == null) viewportGeneration else viewportGeneration + 1,
         consumedCursors = emptySet(),
     )
 }

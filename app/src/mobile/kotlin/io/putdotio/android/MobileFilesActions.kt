@@ -58,6 +58,7 @@ internal fun MobileFilesActions(
     onEvent: (FilesBrowserEvent) -> Unit,
     onDismiss: () -> Unit,
     confirmedTrashEnabled: Boolean? = null,
+    onMoveItem: ((FilesItem) -> Unit)? = null,
 ) {
     val failed = operation as? FilesFolderOperation.Failed
     val failedRename = (failed?.intent as? FilesFolderOperationIntent.Rename)?.takeIf { it.itemId == item.id }
@@ -180,6 +181,15 @@ internal fun MobileFilesActions(
                 modifier = Modifier
                     .clickable(enabled = operation.canStartOperation) { editing = true },
             )
+            if (onMoveItem != null) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.mobile_files_move)) },
+                    modifier = Modifier.clickable(enabled = item.id.value > 0L && operation.canStartOperation) {
+                        onMoveItem(item)
+                        dismiss()
+                    },
+                )
+            }
             HorizontalDivider()
             ListItem(
                 headlineContent = {
