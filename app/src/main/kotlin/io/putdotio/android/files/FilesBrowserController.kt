@@ -73,6 +73,7 @@ class FilesBrowserController(
             is FilesBrowserEvent.OpenFolder,
             is FilesBrowserEvent.OpenExternalItem,
             is FilesBrowserEvent.InvalidateRestoredItem,
+            FilesBrowserEvent.InvalidateAllFolders,
             is FilesBrowserEvent.SelectSort,
             is FilesBrowserEvent.ViewportChanged,
             FilesBrowserEvent.NavigateBack,

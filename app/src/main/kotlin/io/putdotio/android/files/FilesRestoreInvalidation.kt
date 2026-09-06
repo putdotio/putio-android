@@ -14,6 +14,10 @@ internal fun FilesBrowserState.invalidateRestoredItem(item: FilesItem): FilesBro
     return FilesBrowserTransition(copy(stack = invalidated))
 }
 
+// A bulk restore can return items to any folder; mark every cached level stale without navigating.
+internal fun FilesBrowserState.invalidateAllFolders(): FilesBrowserTransition =
+    FilesBrowserTransition(copy(stack = stack.map { it.copy(needsReload = true) }))
+
 internal fun FilesBrowserState.reloadIfStale(): FilesBrowserTransition =
     if (current.needsReload && current.operation == FilesFolderOperation.Idle &&
         current.content !is FilesContent.Loading

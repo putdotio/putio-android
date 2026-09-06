@@ -328,6 +328,31 @@ loses the content installed by the test and leaves a blank replacement. This
 manifest override applies only to that synthetic host. `MainActivity` keeps its
 normal recreation behavior and installs product content in `onCreate`.
 
+## Trash bulk actions
+
+Each Trash row's actions sheet offers Restore and Delete permanently; the
+summary offers Restore all and Empty Trash. Every action confirms in a dialog,
+submits exactly once, then verifies with one fresh first-page Trash read.
+Delete permanently is verified when the item is absent from a complete first
+page, or from any first page after an acknowledged request; an uncertain
+request whose item is absent from a partial page stays inconclusive. Empty
+Trash verifies only a known-empty Trash. Restore all submits the initial
+snapshot cursor when the server issued one (so every ID of that listing is
+covered), otherwise the loaded IDs, and marks every cached Files folder stale
+because restored items can land anywhere. While an action is pending, Check
+Trash repeats only the read; no other mutation is offered.
+
+Live proof on the shared `devs-auto` account covers Delete permanently on an
+owned fixture only. Restore all and Empty Trash act on the whole account, which
+contains other proofs' items, so they are proven synthetically. Create a unique
+root container `android-trash-actions-proof-<UUID>` with one tiny UTF-8 file,
+trash the file with `POST /files/delete?skip_trash=false` (the backend reads
+`skip_trash` from the query string only; a form value is ignored and the file
+is removed permanently when the account has Trash off), record IDs in an
+ignored ledger, run the in-app Delete permanently, verify exact
+`GET /files/<id>` 404 plus absence from Trash, then delete the empty container
+last.
+
 ## Account Trash and single-item Restore proof
 
 Trash is opened from Account → Manage Trash, including when the Trash setting

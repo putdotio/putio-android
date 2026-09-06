@@ -26,6 +26,7 @@ private fun TrashMachine.acceptPage(completed: TrashRequest.ListPage, page: Tras
         total = if (completed.cursor == null) page.total else previous?.total,
         trashSizeBytes = if (completed.cursor == null) page.trashSizeBytes else previous?.trashSizeBytes,
         refreshFailure = if (completed.cursor == null) null else previous?.refreshFailure,
+        snapshotCursor = if (completed.cursor == null) page.nextCursor else previous?.snapshotCursor,
     )
     val blockedIds = if (completed.cursor == null) {
         // Only a fresh initial page can establish a new deletion of an already restored ID.
@@ -39,7 +40,8 @@ private fun TrashMachine.acceptPage(completed: TrashRequest.ListPage, page: Tras
     } else {
         state.restoredItemIds
     }
-    return copy(state = state.copy(content = content, restoredItemIds = blockedIds), consumedCursors = consumed)
+    val accepted = copy(state = state.copy(content = content, restoredItemIds = blockedIds), consumedCursors = consumed)
+    return if (completed.verifiesAction) accepted.verifyActionAgainstPage(content) else accepted
 }
 
 private fun TrashMachine.rejectPage(completed: TrashRequest.ListPage, failure: FilesFailure): TrashMachine {
@@ -49,12 +51,15 @@ private fun TrashMachine.rejectPage(completed: TrashRequest.ListPage, failure: F
         completed.cursor == null -> previous.copy(isRefreshing = false, refreshFailure = failure)
         else -> previous.copy(isLoadingMore = false, pageFailure = failure)
     }
-    return copy(state = state.copy(
+    val rejected = copy(state = state.copy(
         content = content,
         confirmation = if (failure.authFailure() != null) null else state.confirmation,
         confirmationId = if (failure.authFailure() != null) null else state.confirmationId,
+        actionConfirmation = if (failure.authFailure() != null) null else state.actionConfirmation,
+        actionConfirmationId = if (failure.authFailure() != null) null else state.actionConfirmationId,
         authenticationFailure = failure.authFailure() ?: state.authenticationFailure,
     ))
+    return if (completed.verifiesAction) rejected.failActionVerification(failure) else rejected
 }
 
 internal fun FilesFailure.authFailure(): PutioException? = when (this) {

@@ -154,9 +154,14 @@ sealed interface FilesBrowserEvent {
 
     data object Refresh : FilesBrowserEvent
 
-    data class InvalidateRestoredItem(val item: FilesItem) : FilesBrowserEvent
+    /** Staleness signals from other surfaces; they never navigate or mutate on their own. */
+    sealed interface InvalidationEvent : FilesBrowserEvent
 
-    data object ReloadIfStale : FilesBrowserEvent
+    data class InvalidateRestoredItem(val item: FilesItem) : InvalidationEvent
+
+    data object InvalidateAllFolders : InvalidationEvent
+
+    data object ReloadIfStale : InvalidationEvent
 
     data class SelectSort(
         val sort: FilesSort,
@@ -321,14 +326,20 @@ object FilesBrowserReducer {
             FilesBrowserEvent.NavigateBack -> state.navigateBack()
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
             FilesBrowserEvent.Refresh -> state.refresh()
-            is FilesBrowserEvent.InvalidateRestoredItem -> state.invalidateRestoredItem(event.item)
-            FilesBrowserEvent.ReloadIfStale -> state.reloadIfStale()
+            is FilesBrowserEvent.InvalidationEvent -> state.invalidation(event)
             is FilesBrowserEvent.SelectSort -> state.selectSort(event.sort)
             is FilesBrowserEvent.ItemMutationEvent -> state.itemMutation(event)
             FilesBrowserEvent.Retry -> state.retry()
             is FilesBrowserEvent.ViewportChanged -> state.rememberViewport(event.position)
             is FilesBrowserEvent.LoadResult -> state.loadResult(event)
             is FilesBrowserEvent.MutationSucceeded -> state.mutationSucceeded(event.requestId)
+        }
+
+    private fun FilesBrowserState.invalidation(event: FilesBrowserEvent.InvalidationEvent): FilesBrowserTransition =
+        when (event) {
+            is FilesBrowserEvent.InvalidateRestoredItem -> invalidateRestoredItem(event.item)
+            FilesBrowserEvent.InvalidateAllFolders -> invalidateAllFolders()
+            FilesBrowserEvent.ReloadIfStale -> reloadIfStale()
         }
 
     private fun FilesBrowserState.itemMutation(event: FilesBrowserEvent.ItemMutationEvent): FilesBrowserTransition =

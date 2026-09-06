@@ -78,6 +78,17 @@ class TrashController(
             val completion: (TrashMachine) -> TrashMachine = { it.completeCheck(request, result) }
             completion
         }
+        is TrashRequest.Act -> {
+            val result = safely {
+                when (val action = request.action) {
+                    is TrashAction.DeleteItem -> repository.deleteItem(action.item.id)
+                    TrashAction.RestoreAll -> repository.restoreAll(checkNotNull(request.selection))
+                    TrashAction.Empty -> repository.empty()
+                }
+            }
+            val completion: (TrashMachine) -> TrashMachine = { it.completeAction(request, result) }
+            completion
+        }
     }
 
     // Injected repositories must preserve the same cancellation contract as the SDK adapter.
