@@ -214,10 +214,21 @@ internal fun AccountSettingsState.authoritativeSessionFailure(): AccountSettings
         .firstOrNull()
 
 internal fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
-    if (mutation is AccountSettingsMutation.Idle) {
-        (content as? AccountSettingsContent.Ready)?.preferences?.historyEnabled
-    } else {
-        null
+    confirmedPreferences(AccountSettingsKey.History)?.historyEnabled
+
+internal fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
+    confirmedPreferences(AccountSettingsKey.Trash)?.trashEnabled
+
+// A pending or failed mutation only makes its own key unconfirmed; the other
+// preferences still reflect the last authoritative read.
+private fun AccountSettingsState.confirmedPreferences(key: AccountSettingsKey): AccountSettingsPreferences? {
+    val ready = content as? AccountSettingsContent.Ready ?: return null
+    val pendingKey = when (val current = mutation) {
+        AccountSettingsMutation.Idle -> null
+        is AccountSettingsMutation.Saving -> current.change.key
+        is AccountSettingsMutation.Failed -> current.change.key
     }
+    return ready.preferences.takeUnless { pendingKey == key }
+}
 
 private const val INITIAL_REQUEST_VALUE = 1L

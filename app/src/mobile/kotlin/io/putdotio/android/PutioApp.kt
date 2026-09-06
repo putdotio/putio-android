@@ -92,6 +92,7 @@ import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
+import io.putdotio.android.settings.confirmedTrashEnabled
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryState
@@ -1052,11 +1053,7 @@ private fun MobileNavHost(
                 onEvent = onFilesEvent,
                 onPlayVideo = navController::navigateToPlayback,
                 onAuthenticationRequired = onFilesAuthenticationRequired,
-                confirmedTrashEnabled = if (accountSettingsState.mutation == AccountSettingsMutation.Idle) {
-                    (accountSettingsState.content as? AccountSettingsContent.Ready)?.preferences?.trashEnabled
-                } else {
-                    null
-                },
+                confirmedTrashEnabled = accountSettingsState.confirmedTrashEnabled(),
             )
         }
         composable(MobileDestination.Search.route) {

@@ -391,6 +391,26 @@ class AccountSettingsReducerTest {
     }
 
     @Test
+    fun aPendingOrFailedRouteChangeLeavesOtherConfirmedSettingsIntact() {
+        val loaded = loadedState(Preferences)
+        val change = AccountSettingsChange.Route(TunnelRouteName("cdn77"))
+        val saving = AccountSettingsReducer.reduce(loaded, AccountSettingsEvent.ChangeRequested(change))
+        assertTrue(checkNotNull(saving.state.confirmedHistoryEnabled()))
+        assertTrue(checkNotNull(saving.state.confirmedTrashEnabled()))
+
+        val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
+        val failure = AccountSettingsFailure.RouteUnavailable(PutioConfigurationException("UNAVAILABLE_VALUE"))
+        val failed = AccountSettingsReducer.reduce(saving.state, AccountSettingsEvent.SaveFailed(requestId, failure))
+        assertTrue(checkNotNull(failed.state.confirmedHistoryEnabled()))
+        assertTrue(checkNotNull(failed.state.confirmedTrashEnabled()))
+
+        val trashChange = AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)
+        val trashSaving = AccountSettingsReducer.reduce(loaded, AccountSettingsEvent.ChangeRequested(trashChange))
+        assertNull(trashSaving.state.confirmedTrashEnabled())
+        assertTrue(checkNotNull(trashSaving.state.confirmedHistoryEnabled()))
+    }
+
+    @Test
     fun routeChangesSaveOptimisticallyAndIdenticalRoutesAreIgnored() {
         val loaded = loadedState(Preferences)
         val same = AccountSettingsReducer.reduce(
