@@ -49,6 +49,7 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -254,6 +255,17 @@ class MobileFilesScreenTest {
         compose.onNodeWithText("Try again").performClick()
 
         assertEquals(FilesBrowserEvent.Retry, events.last())
+
+        // A forbidden folder names the permission problem and keeps a retry so a
+        // later share grant can be picked up without leaving the screen.
+        compose.runOnIdle {
+            state = browserState(
+                FilesContent.Failed(FilesFailure.AccessDenied(PutioConfigurationException("forbidden"))),
+            )
+        }
+        compose.onNodeWithText("You don’t have access to this folder.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").performClick()
+        assertEquals(listOf(FilesBrowserEvent.Retry, FilesBrowserEvent.Retry), events.takeLast(2))
     }
 
     @Test
