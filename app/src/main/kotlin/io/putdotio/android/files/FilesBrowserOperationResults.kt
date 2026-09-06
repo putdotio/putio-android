@@ -18,6 +18,7 @@ internal fun FilesBrowserState.mutationSucceeded(
     val reloadRequestId = FilesRequestId(nextRequestValue)
     val updated =
         folderState.copy(
+            needsReload = false,
             renameCompletion = (loading.intent as? FilesFolderOperationIntent.Rename)
                 ?.let { FilesRenameCompletion(requestId, it) }
                 ?: folderState.renameCompletion,
@@ -58,7 +59,6 @@ internal fun FilesFolderState.replaceFirstPage(
         operation = FilesFolderOperation.Idle,
         deleteOutcome = deleteOutcome?.afterFolderPage(page),
         moveOutcome = moveOutcome?.afterFolderPage(page),
-        needsReload = false,
         viewportGeneration = if (persistedSort == null) viewportGeneration else viewportGeneration + 1,
         consumedCursors = emptySet(),
     )

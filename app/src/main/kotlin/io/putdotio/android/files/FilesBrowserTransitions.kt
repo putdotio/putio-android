@@ -62,16 +62,20 @@ internal fun FilesBrowserState.navigateBack(): FilesBrowserTransition =
         FilesBrowserTransition(this, consumed = false)
     }
 
-private fun FilesBrowserState.reloadStaleFolder(): FilesBrowserTransition {
-    if (current.content is FilesContent.Ready || current.content is FilesContent.Empty) {
-        return refresh()
+internal fun FilesBrowserState.reloadStaleFolder(): FilesBrowserTransition {
+    if (current.operation != FilesFolderOperation.Idle || current.content is FilesContent.Loading) {
+        return FilesBrowserTransition(this)
     }
-    val requestId = FilesRequestId(nextRequestValue)
-    val updated = current.copy(content = FilesContent.Loading(requestId), needsReload = false)
-    return FilesBrowserTransition(
-        copy(stack = stack.replaceLast(updated), nextRequestValue = nextRequestValue + 1),
-        FilesBrowserEffect.LoadFolder(current.folder.id, requestId),
-    )
+    return if (current.content is FilesContent.Ready || current.content is FilesContent.Empty) {
+        refresh()
+    } else {
+        val requestId = FilesRequestId(nextRequestValue)
+        val updated = current.copy(content = FilesContent.Loading(requestId), needsReload = false)
+        FilesBrowserTransition(
+            copy(stack = stack.replaceLast(updated), nextRequestValue = nextRequestValue + 1),
+            FilesBrowserEffect.LoadFolder(current.folder.id, requestId),
+        )
+    }
 }
 
 internal fun FilesBrowserState.loadNextPage(): FilesBrowserTransition {
@@ -114,6 +118,7 @@ private fun FilesBrowserState.retryContent(): FilesBrowserTransition {
                                 current.copy(
                                     content = FilesContent.Loading(requestId),
                                     consumedCursors = emptySet(),
+                                    needsReload = false,
                                 ),
                             ),
                         nextRequestValue = nextRequestValue + 1,

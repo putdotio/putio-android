@@ -156,6 +156,7 @@ private class PlaybackConfigRootFixture(
     private val appConfig = own(MobileAndroidAppConfigViewModel(authState))
     private val search = own(MobileSearchHistoryViewModel(application, authState))
     private val transfers = own(MobileTransfersViewModel(authState))
+    private val trash = own(MobileTrashViewModel(authState))
     private val authController = MobileAuthController(
         oauthConfiguration = MobileOAuthConfiguration.fromClientId("9677"),
         tokenStore = KeystoreAuthTokenStore(application),
@@ -188,6 +189,7 @@ private class PlaybackConfigRootFixture(
                 accountSettingsViewModel = settings,
                 appConfigViewModel = appConfig,
                 searchHistoryViewModel = search,
+                trashViewModel = trash,
                 transfersViewModel = transfers,
                 authController = authController,
                 rootScope = scope,

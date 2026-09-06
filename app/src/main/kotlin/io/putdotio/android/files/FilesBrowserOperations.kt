@@ -64,6 +64,7 @@ internal fun FilesBrowserState.startOperation(
         current.copy(
             content = current.content.withoutActivePagingRequest(),
             operation = FilesFolderOperation.Loading(requestId, intent, phase),
+            needsReload = current.needsReload && phase != FilesFolderOperationPhase.RELOADING,
         )
     return FilesBrowserTransition(
         state = copy(stack = stack.replaceLast(updated), nextRequestValue = nextRequestValue + 1),
@@ -91,6 +92,7 @@ internal fun FilesBrowserState.startFailedOperation(
                     stack.replaceLast(
                         current.copy(
                             operation = FilesFolderOperation.Loading(requestId, operation.intent, phase),
+                            needsReload = current.needsReload && phase != FilesFolderOperationPhase.RELOADING,
                         ),
                     ),
                 nextRequestValue = nextRequestValue + 1,

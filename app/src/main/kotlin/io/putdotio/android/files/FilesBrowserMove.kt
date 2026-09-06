@@ -87,6 +87,7 @@ private fun FilesBrowserState.moveChecked(event: FilesBrowserEvent.MoveChecked):
         val updated = folder.copy(
             moveOutcome = outcome.copy(status = status),
             operation = FilesFolderOperation.Loading(requestId, outcome.intent, FilesFolderOperationPhase.RELOADING),
+            needsReload = false,
         )
         FilesBrowserTransition(
             copy(stack = stack.replaceAt(index, updated), nextRequestValue = nextRequestValue + 1),

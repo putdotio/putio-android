@@ -91,6 +91,7 @@ internal fun MobileAccountScreen(
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
+    onManageTrash: () -> Unit = {},
 ) {
     var confirmTrashDisable by rememberSaveable(sessionId) { mutableStateOf(false) }
     var choosePlaybackType by rememberSaveable(sessionId) { mutableStateOf(false) }
@@ -104,6 +105,17 @@ internal fun MobileAccountScreen(
         }
         item(key = ACCOUNT_IDENTITY_DIVIDER_KEY) {
             HorizontalDivider()
+        }
+        item(key = "manage-trash") {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.mobile_trash_manage)) },
+                supportingContent = { Text(stringResource(R.string.mobile_trash_manage_description)) },
+                leadingContent = {
+                    Icon(painterResource(R.drawable.ic_ph_trash), contentDescription = null)
+                },
+                modifier = Modifier.clickable(onClick = onManageTrash, role = Role.Button)
+                    .testTag(MOBILE_MANAGE_TRASH_TAG),
+            )
         }
         when (val content = settingsState.content) {
             is AccountSettingsContent.Loading ->

@@ -312,3 +312,58 @@ can update asset overlays during a test; recreating the plain `ComponentActivity
 loses the content installed by the test and leaves a blank replacement. This
 manifest override applies only to that synthetic host. `MainActivity` keeps its
 normal recreation behavior and installs product content in `onCreate`.
+
+## Account Trash and single-item Restore proof
+
+Trash is opened from Account → Manage Trash, including when the Trash setting
+is off. Restore acknowledges queueing with “Restore started.” An exact-ID Files
+GET must return the selected kind and a valid current parent before the app says
+the item is available again. Restored names and parents can change. Pending
+recovery survives tab navigation and activity recreation; Check status repeats
+only the read. This does not claim persistence across process death.
+
+Run `TrashRestoreFixtureTest#acceptsOnlyTheOwnedFourItemFixture` before the live
+selector
+`AuthenticatedTrashRestoreTest#cancelPreservesTrashAndRestoreMakesTheExactItemAvailable`.
+The live selector requires `putio.trash.restore.enabled=true`,
+`putio.trash.restore.runId=<UUID>`, and
+`putio.trash.restore.fixture=<base64 JSON>`. Use the same existing authenticated
+API 37 installation and caller supervision contract above.
+
+Create a unique root container named `android-trash-restore-proof-<UUID>` with
+three children: a tiny UTF-8 file (1–128 bytes), an empty Cancel folder, and an
+empty sentinel folder. Record every exact ID, name, parent, kind, and mutation
+outcome in an ignored ownership ledger before each write. Child names must be
+distinct and contain both Unicode and the run UUID. The fixture JSON contains
+`runId`, `expectedAccountId`, `fileSize`, and four fields for each of `container`,
+`file`, `cancel`, and `sentinel`: `<role>Id`, `<role>Name`, `<role>ParentId`, and
+`<role>FileType`. Record the file’s actual `FILE` or `TEXT` kind; folders use
+`FOLDER`. The parser rejects ambiguous numbers, duplicate or unknown keys,
+invalid UUIDs, and unowned relationships.
+
+Verify the complete owned tree, then trash only the file and Cancel folder with
+separate one-ID `files.delete(skipTrash=false)` requests. Leave the account
+setting unchanged. Locate each target in at most four Trash pages of 50 items.
+Cancel must dispatch zero Restore calls; the live repository counter proves this
+at the app boundary. The confirmed file Restore dispatches once. App availability
+checks allow at most 14 exact GETs, spaced two seconds apart, within 60 seconds;
+reserve the fifteenth read for independent caller verification within that same
+deadline and spacing. A queued or
+uncertain outcome retains the ledger and must never cause another Restore.
+
+After instrumentation is idle, reconcile all potential worker outcomes before
+cleanup. Restore the Cancel folder with one separately recorded request and
+wait for authoritative availability. Recheck each live owned leaf and empty
+folder before permanent deletion, verify exact GET 404, then delete the empty
+container last. Unknown errors are not 404. Keep the ledger and container when
+an operation remains unresolved; never empty Trash or delete a parent that may
+receive a queued restoration.
+
+The synthetic selectors
+`TrashRestoreUiProofTest#queuedRestoreRetainsRecoveryAndRetriesOnlyReads` and
+`TrashRestoreUiProofTest#ambiguousRestoreAndAuthenticationFailureNeverRepeatMutation`
+use `putio.trash.restore.ui.enabled=true` with the same UUID. They mount the real
+shell with controlled repositories and make no API calls. Screenshots go to
+`trash-restore-proof-<UUID>/` in the target app’s external files directory. Keep
+synthetic images separate from the live recording; inspect and validate media
+before publishing through the existing evidence wrapper.
