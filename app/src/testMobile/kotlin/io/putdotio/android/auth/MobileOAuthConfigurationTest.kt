@@ -48,3 +48,31 @@ class MobileOAuthConfigurationTest {
         }
     }
 }
+
+class MobileOAuthDebugOverrideTest {
+    @Test
+    fun `empty override keeps the registered client and tv guard`() {
+        assertEquals(
+            MobileOAuthConfiguration.Configured("9677"),
+            MobileOAuthConfiguration.fromClientId("9677", debugOverride = ""),
+        )
+        assertTrue(MobileOAuthConfiguration.fromClientId("6221", debugOverride = "") is MobileOAuthConfiguration.Unavailable)
+    }
+
+    @Test
+    fun `override replaces the client and may borrow a tv client`() {
+        assertEquals(
+            MobileOAuthConfiguration.Configured("6221"),
+            MobileOAuthConfiguration.fromClientId("9677", debugOverride = "6221"),
+        )
+    }
+
+    @Test
+    fun `malformed override still fails closed`() {
+        listOf("0", "-1", " 6221", "06221", "tv").forEach { override ->
+            assertTrue(
+                MobileOAuthConfiguration.fromClientId("9677", debugOverride = override) is MobileOAuthConfiguration.Unavailable,
+            )
+        }
+    }
+}

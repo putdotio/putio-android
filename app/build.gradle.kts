@@ -1,4 +1,21 @@
 import java.io.File
+import java.util.Properties
+
+// Ignored root local.properties key `putioMobileOAuthClientIdDebugOverride`.
+// Read and validated at configuration time for every variant, so a malformed
+// value fails any build on this machine; only the debug BuildConfig embeds it.
+fun localMobileOAuthClientIdOverride(): String {
+    val file = rootProject.file("local.properties")
+    if (!file.isFile) return ""
+    val value = Properties().apply { file.inputStream().use { load(it) } }
+        .getProperty("putioMobileOAuthClientIdDebugOverride")
+        ?.trim()
+        .orEmpty()
+    require(value.isEmpty() || (value.all { it.isDigit() } && value.toLongOrNull()?.let { it > 0 } == true)) {
+        "putioMobileOAuthClientIdDebugOverride must be a positive integer client id, got '$value'"
+    }
+    return value
+}
 
 plugins {
     alias(libs.plugins.android.application)
@@ -28,6 +45,13 @@ android {
             versionNameSuffix = "-mobile"
             // Dedicated public Android mobile OAuth client from #47.
             buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"9677\"")
+            // Local harness proof only: an ignored local.properties may point debug
+            // builds at another first-party client (for example the Android TV client
+            // while 9677 waits for account:write, putdotio/putio#4686). The field
+            // exists in every variant; the debug build type overrides this empty
+            // default with the local value and the runtime honours it only when
+            // BuildConfig.DEBUG is true.
+            buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID_DEBUG_OVERRIDE", "\"\"")
         }
 
         create("tv") {
@@ -50,6 +74,11 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
+            buildConfigField(
+                "String",
+                "PUTIO_MOBILE_OAUTH_CLIENT_ID_DEBUG_OVERRIDE",
+                "\"${localMobileOAuthClientIdOverride()}\"",
+            )
         }
 
         release {

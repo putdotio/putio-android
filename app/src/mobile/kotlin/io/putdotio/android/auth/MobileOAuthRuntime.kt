@@ -60,7 +60,10 @@ class MobileOAuthRuntime internal constructor(
         }
 
         private fun create(context: Context): MobileOAuthRuntime {
-            val oauthConfiguration = MobileOAuthConfiguration.fromClientId(BuildConfig.PUTIO_MOBILE_OAUTH_CLIENT_ID)
+            val oauthConfiguration = MobileOAuthConfiguration.fromClientId(
+                clientId = BuildConfig.PUTIO_MOBILE_OAUTH_CLIENT_ID,
+                debugOverride = BuildConfig.PUTIO_MOBILE_OAUTH_CLIENT_ID_DEBUG_OVERRIDE.takeIf { BuildConfig.DEBUG },
+            )
             val configuredClientId = (oauthConfiguration as? MobileOAuthConfiguration.Configured)?.clientId
             val putioClient = PutioClient(
                 PutioConfig(

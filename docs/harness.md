@@ -126,6 +126,21 @@ Tokens live in the CLI's own config (`~/.config/putio/`), outside the repo.
 The harness is secret-free by default: nothing in bootstrap, build, or proof
 requires authentication.
 
+## Borrowing another OAuth client for local proof
+
+Debug builds honour an ignored `local.properties` key that replaces the mobile
+client id and skips the TV-client guard. Use it only while mobile client `9677`
+lacks a backend grant (for example `account:write`, putdotio/putio#4686); the
+borrowed client must list `putio://auth` as a callback.
+
+```properties
+putioMobileOAuthClientIdDebugOverride=6221
+```
+
+Release builds ignore the key. Existing sessions were issued to the previous
+client, so `adb shell pm clear` the debug app and sign in again after changing
+it. Say which client a proof ran on when you attach evidence.
+
 ## Headless / Devbox Notes
 
 - `--headless` boots with `-no-window -gpu swiftshader_indirect -no-audio -no-boot-anim`. Software rendering is slower than `auto-no-window` but deterministic; host-GPU headless mode intermittently composites app windows black, which fails the pixel assertion. `screencap`/`screenrecord` capture fine without a window
