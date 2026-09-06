@@ -20,6 +20,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -82,14 +84,21 @@ class MobileAccountScreenTest {
         compose.onNodeWithTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG)
             .assertRangeInfoEquals(ProgressBarRangeInfo(0.25f, 0f..1f))
         compose.onNodeWithText("Show subtitles").performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(8)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Resume where you left off"))
+        compose.onNodeWithText("Resume where you left off").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(9)
         compose.onNodeWithText("Sign out").performClick()
 
         assertEquals(
-            AccountSettingsEvent.ChangeRequested(
-                AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
+            listOf(
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
+                ),
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.ResumePlayback, enabled = false),
+                ),
             ),
-            events.single(),
+            events,
         )
         assertTrue(signedOut)
     }

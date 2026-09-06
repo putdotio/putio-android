@@ -31,6 +31,7 @@ class SdkAccountSettingsRepositoryTest {
                     trashEnabled = false,
                     showSubtitles = false,
                     autoSelectSubtitles = false,
+                    resumePlayback = false,
                 ),
                 result.value,
             )
@@ -46,11 +47,13 @@ class SdkAccountSettingsRepositoryTest {
             repository.save(AccountSettingsChange(AccountSettingsKey.Trash, true))
             repository.save(AccountSettingsChange(AccountSettingsKey.ShowSubtitles, true))
             repository.save(AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, true))
+            repository.save(AccountSettingsChange(AccountSettingsKey.ResumePlayback, false))
 
             assertEquals(AccountSettingsPatch(historyEnabled = false), patches[0])
             assertEquals(AccountSettingsPatch(trashEnabled = true), patches[1])
             assertEquals(AccountSettingsPatch(hideSubtitles = false), patches[2])
             assertEquals(AccountSettingsPatch(dontAutoselectSubtitles = false), patches[3])
+            assertEquals(AccountSettingsPatch(useStartFrom = false), patches[4])
         }
 
     @Test
@@ -87,6 +90,7 @@ class SdkAccountSettingsRepositoryTest {
                         trashEnabled = true,
                         showSubtitles = false,
                         autoSelectSubtitles = false,
+                        resumePlayback = false,
                     ),
                 ),
                 refreshEvent,
@@ -212,6 +216,7 @@ class SdkAccountSettingsRepositoryTest {
                 trashEnabled = false,
                 hideSubtitles = true,
                 dontAutoselectSubtitles = true,
+                useStartFrom = false,
             )
     }
 }
