@@ -7,7 +7,6 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -15,7 +14,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
-import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.MobileAuthState
@@ -159,7 +157,8 @@ class AuthenticatedFilesMoveTest {
 
     private fun cancelMove(f: MoveProofFixture, runtime: MobileOAuthRuntime) {
         val before = compose.onNode(row(f.folderName)).fetchSemanticsNode().boundsInRoot
-        compose.onNode(row(f.folderName)).performTouchInput { longClick() }
+        compose.onNodeWithContentDescription(compose.activity.getString(R.string.mobile_files_actions, f.folderName))
+            .performClick()
         openPicker()
         pickFolder(f.containerId)
         pickFolder(f.destinationId)
