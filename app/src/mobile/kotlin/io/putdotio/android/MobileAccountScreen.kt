@@ -66,6 +66,9 @@ import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.TunnelRouteOption
+import io.putdotio.android.settings.TunnelRouteName
+import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
@@ -80,6 +83,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
 internal const val MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG = "mobile-account-avatar-fallback"
 internal const val MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG = "mobile-account-storage-progress"
+internal const val MOBILE_TUNNEL_ROUTE_ROW_TAG = "mobile-tunnel-route-row"
+internal const val MOBILE_TUNNEL_ROUTE_RETRY_TAG = "mobile-tunnel-route-retry"
 
 @Composable
 internal fun MobileAccountScreen(
@@ -92,9 +97,15 @@ internal fun MobileAccountScreen(
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
     onManageTrash: () -> Unit = {},
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
+        AccountSettingsRepositoryResult.Failure(
+            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+        )
+    },
 ) {
     var confirmTrashDisable by rememberSaveable(sessionId) { mutableStateOf(false) }
     var choosePlaybackType by rememberSaveable(sessionId) { mutableStateOf(false) }
+    var chooseTunnelRoute by rememberSaveable(sessionId) { mutableStateOf(false) }
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -136,7 +147,9 @@ internal fun MobileAccountScreen(
                     preferences = content.preferences,
                     mutation = settingsState.mutation,
                     onChange = { change ->
-                        if (change.key == AccountSettingsKey.Trash && !change.enabled) {
+                        if (change is AccountSettingsChange.Toggle &&
+                            change.key == AccountSettingsKey.Trash && !change.enabled
+                        ) {
                             confirmTrashDisable = true
                         } else {
                             onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
@@ -153,6 +166,11 @@ internal fun MobileAccountScreen(
                 resumePlaybackItem(
                     settingsState = settingsState,
                     onChange = { onSettingsEvent(AccountSettingsEvent.ChangeRequested(it)) },
+                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
+                )
+                tunnelRouteItem(
+                    settingsState = settingsState,
+                    onChoose = { chooseTunnelRoute = true },
                     onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
                 )
             },
@@ -193,6 +211,19 @@ internal fun MobileAccountScreen(
                     Text(stringResource(R.string.mobile_action_cancel))
                 }
             },
+        )
+    }
+
+    val accountSettings = settingsState.content as? AccountSettingsContent.Ready
+    if (chooseTunnelRoute && accountSettings != null && settingsState.accountControlsEnabled()) {
+        MobileTunnelRouteDialog(
+            selected = accountSettings.preferences.tunnelRoute,
+            loadRoutes = loadTunnelRoutes,
+            onSelect = { route ->
+                chooseTunnelRoute = false
+                onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(route)))
+            },
+            onDismiss = { chooseTunnelRoute = false },
         )
     }
 
@@ -389,6 +420,139 @@ private fun LazyListScope.resumePlaybackItem(
         )
     }
 }
+
+private fun LazyListScope.tunnelRouteItem(
+    settingsState: AccountSettingsState,
+    onChoose: () -> Unit,
+    onRetryChange: () -> Unit,
+) {
+    val preferences = (settingsState.content as? AccountSettingsContent.Ready)?.preferences ?: return
+    val mutation = settingsState.mutation
+    item(key = AccountSettingsKey.TunnelRoute) {
+        val saving = (mutation as? AccountSettingsMutation.Saving)?.change is AccountSettingsChange.Route
+        val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { it.change is AccountSettingsChange.Route }
+        Column(modifier = Modifier.fillMaxWidth()) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.mobile_settings_tunnel_route)) },
+                supportingContent = { Text(stringResource(R.string.mobile_settings_tunnel_route_description)) },
+                leadingContent = {
+                    Icon(painter = painterResource(R.drawable.ic_ph_globe), contentDescription = null)
+                },
+                trailingContent = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (saving) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        }
+                        Text(preferences.tunnelRoute.displayName())
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(MOBILE_TUNNEL_ROUTE_ROW_TAG)
+                    .clickable(
+                        enabled = settingsState.accountControlsEnabled(),
+                        role = Role.Button,
+                        onClick = onChoose,
+                    ),
+            )
+            failure?.let {
+                MobileAccountMutationError(failure = it.failure, operation = it.operation, onRetry = onRetryChange)
+            }
+        }
+    }
+}
+
+// Routes load when the picker opens: the list depends on the account's CDN eligibility
+// and the caller's address, so it is not worth caching across the session.
+@Composable
+private fun MobileTunnelRouteDialog(
+    selected: TunnelRouteName,
+    loadRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
+    onSelect: (TunnelRouteName) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var attempt by remember { mutableStateOf(0) }
+    var result by remember { mutableStateOf<AccountSettingsRepositoryResult<List<TunnelRouteOption>>?>(null) }
+    LaunchedEffect(attempt) {
+        result = null
+        result = loadRoutes()
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.mobile_settings_tunnel_route)) },
+        text = {
+            when (val loaded = result) {
+                null -> Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    Text(stringResource(R.string.mobile_settings_tunnel_route_loading))
+                }
+                is AccountSettingsRepositoryResult.Failure -> Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(stringResource(R.string.mobile_settings_tunnel_route_error))
+                    Text(stringResource(loaded.failure.messageResource()))
+                    if (loaded.failure !is AccountSettingsFailure.AuthenticationRequired) {
+                        TextButton(
+                            onClick = { attempt += 1 },
+                            modifier = Modifier.testTag(MOBILE_TUNNEL_ROUTE_RETRY_TAG),
+                        ) { Text(stringResource(R.string.mobile_action_retry)) }
+                    }
+                }
+                is AccountSettingsRepositoryResult.Success -> Column(modifier = Modifier.selectableGroup()) {
+                    loaded.value.forEach { option ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = option.name == selected,
+                                    role = Role.RadioButton,
+                                    onClick = { onSelect(option.name) },
+                                )
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = option.name == selected, onClick = null)
+                            Column {
+                                Text(option.name.displayName())
+                                if (option.description.isNotEmpty() && option.description != option.name.displayName()) {
+                                    Text(
+                                        text = option.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.mobile_action_cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun TunnelRouteName.displayName(): String =
+    if (this == TunnelRouteName.DEFAULT) stringResource(R.string.mobile_settings_tunnel_route_default) else value
+
+private fun AccountSettingsState.accountControlsEnabled(): Boolean =
+    when (val currentMutation = mutation) {
+        AccountSettingsMutation.Idle -> true
+        is AccountSettingsMutation.Saving -> false
+        is AccountSettingsMutation.Failed ->
+            currentMutation.failure !is AccountSettingsFailure.AuthenticationRequired
+    }
 
 private fun LazyListScope.appConfigItems(
     state: AndroidAppConfigState,

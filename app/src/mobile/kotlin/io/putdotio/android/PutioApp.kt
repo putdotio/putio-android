@@ -80,9 +80,12 @@ import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.pendingDelete
 import io.putdotio.android.files.pendingMove
 import io.putdotio.android.settings.AccountSettingsContent
+import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.TunnelRouteOption
+import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
@@ -439,6 +442,7 @@ internal fun SignedInMobileRoot(
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,
+        loadTunnelRoutes = accountSettingsRepository::loadTunnelRoutes,
         onAppConfigEvent = appConfigController::dispatch,
         onPlaybackAuthenticationRequired = authController::rejectAuthoritativeSession,
         onFilesAuthenticationRequired = authController::rejectAuthoritativeSession,
@@ -504,6 +508,11 @@ internal fun MobileShell(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
+        AccountSettingsRepositoryResult.Failure(
+            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+        )
+    },
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     onFilesAuthenticationRequired: suspend () -> Unit = {},
@@ -621,6 +630,7 @@ internal fun MobileShell(
             playbackPlayerFactory = playbackPlayerFactory,
             onFilesEvent = { onFilesEvent(it) },
             onAccountSettingsEvent = onAccountSettingsEvent,
+            loadTunnelRoutes = loadTunnelRoutes,
             onAppConfigEvent = onAppConfigEvent,
             searchHistoryActions = searchHistoryActions,
             onTransfersEvent = onTransfersEvent,
@@ -652,6 +662,7 @@ internal fun MobileShell(
                     playbackPlayerFactory = playbackPlayerFactory,
                     onFilesEvent = { onFilesEvent(it) },
                     onAccountSettingsEvent = onAccountSettingsEvent,
+                    loadTunnelRoutes = loadTunnelRoutes,
                     onAppConfigEvent = onAppConfigEvent,
                     searchHistoryActions = searchHistoryActions,
                     onTransfersEvent = onTransfersEvent,
@@ -677,6 +688,7 @@ internal fun MobileShell(
                     playbackPlayerFactory = playbackPlayerFactory,
                     onFilesEvent = { onFilesEvent(it) },
                     onAccountSettingsEvent = onAccountSettingsEvent,
+                    loadTunnelRoutes = loadTunnelRoutes,
                     onAppConfigEvent = onAppConfigEvent,
                     searchHistoryActions = searchHistoryActions,
                     onTransfersEvent = onTransfersEvent,
@@ -774,6 +786,11 @@ private fun PhoneShell(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
+        AccountSettingsRepositoryResult.Failure(
+            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+        )
+    },
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     onFilesAuthenticationRequired: suspend () -> Unit,
@@ -821,6 +838,7 @@ private fun PhoneShell(
             sessionId = sessionId,
             onFilesEvent = onFilesEvent,
             onAccountSettingsEvent = onAccountSettingsEvent,
+            loadTunnelRoutes = loadTunnelRoutes,
             onAppConfigEvent = onAppConfigEvent,
             onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
             onFilesAuthenticationRequired = onFilesAuthenticationRequired,
@@ -851,6 +869,11 @@ private fun TabletShell(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
+        AccountSettingsRepositoryResult.Failure(
+            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+        )
+    },
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     onFilesAuthenticationRequired: suspend () -> Unit,
@@ -898,6 +921,7 @@ private fun TabletShell(
                 sessionId = sessionId,
                 onFilesEvent = onFilesEvent,
                 onAccountSettingsEvent = onAccountSettingsEvent,
+                loadTunnelRoutes = loadTunnelRoutes,
                 onAppConfigEvent = onAppConfigEvent,
                 onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                 onFilesAuthenticationRequired = onFilesAuthenticationRequired,
@@ -991,6 +1015,11 @@ private fun MobileNavHost(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
+        AccountSettingsRepositoryResult.Failure(
+            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+        )
+    },
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     onFilesAuthenticationRequired: suspend () -> Unit,
@@ -1054,6 +1083,7 @@ private fun MobileNavHost(
                 appConfigState = appConfigState,
                 onSettingsEvent = onAccountSettingsEvent,
                 onAppConfigEvent = onAppConfigEvent,
+                loadTunnelRoutes = loadTunnelRoutes,
                 onSignOut = onSignOut,
                 onManageTrash = { navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true } },
             )

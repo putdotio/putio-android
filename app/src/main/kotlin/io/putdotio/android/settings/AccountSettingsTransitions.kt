@@ -32,7 +32,7 @@ internal fun AccountSettingsState.requestChange(change: AccountSettingsChange): 
     return if (
         ready == null ||
         mutationBlocksChange ||
-        ready.preferences.valueFor(change.key) == change.enabled
+        ready.preferences.matches(change)
     ) {
         AccountSettingsTransition(this, consumed = false)
     } else {

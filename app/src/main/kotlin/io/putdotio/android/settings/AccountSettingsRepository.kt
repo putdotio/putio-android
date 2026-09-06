@@ -10,6 +10,7 @@ import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
+import io.putdotio.sdk.routes.TunnelRoute
 import java.util.concurrent.CancellationException
 
 internal sealed interface AccountSettingsRepositoryResult<out T> {
@@ -69,15 +70,20 @@ internal interface AccountSettingsRepository {
     suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences>
 
     suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<Unit>
+
+    /** Selectable tunnel routes for this account; `default` is always first. */
+    suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>>
 }
 
 internal class SdkAccountSettingsRepository(
     private val getSettings: suspend () -> AccountSettings,
     private val saveSettings: suspend (AccountSettingsPatch) -> Unit,
+    private val listRoutes: suspend () -> List<TunnelRoute> = { error("Tunnel routes are unavailable") },
 ) : AccountSettingsRepository {
     constructor(client: PutioClient) : this(
         getSettings = client.account::getSettings,
         saveSettings = { patch -> client.account.saveSettings(patch) },
+        listRoutes = client.routes::list,
     )
 
     override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> =
@@ -88,6 +94,16 @@ internal class SdkAccountSettingsRepository(
     ): AccountSettingsRepositoryResult<Unit> =
         request {
             saveSettings(change.toPatch())
+        }
+
+    override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
+        request {
+            val options = listRoutes().mapNotNull { route ->
+                val name = route.name.trim().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                TunnelRouteOption(TunnelRouteName(name), route.description.trim())
+            }.distinctBy { it.name }
+            require(options.any { it.name == TunnelRouteName.DEFAULT }) { "Tunnel routes must include default" }
+            options
         }
 
     // This SDK boundary converts unexpected implementation failures into the app's stable failure taxonomy.
@@ -138,15 +154,20 @@ private fun AccountSettings.toPreferences(): AccountSettingsPreferences =
         showSubtitles = !hideSubtitles,
         autoSelectSubtitles = !dontAutoselectSubtitles,
         resumePlayback = useStartFrom,
+        tunnelRoute = TunnelRouteName.fromServer(tunnelRouteName),
     )
 
 private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
-    when (key) {
-        AccountSettingsKey.History -> AccountSettingsPatch(historyEnabled = enabled)
-        AccountSettingsKey.Trash -> AccountSettingsPatch(trashEnabled = enabled)
-        AccountSettingsKey.ShowSubtitles -> AccountSettingsPatch(hideSubtitles = !enabled)
-        AccountSettingsKey.AutoSelectSubtitles -> AccountSettingsPatch(dontAutoselectSubtitles = !enabled)
-        AccountSettingsKey.ResumePlayback -> AccountSettingsPatch(useStartFrom = enabled)
+    when (this) {
+        is AccountSettingsChange.Route -> AccountSettingsPatch(tunnelRouteName = name.value)
+        is AccountSettingsChange.Toggle -> when (key) {
+            AccountSettingsKey.History -> AccountSettingsPatch(historyEnabled = enabled)
+            AccountSettingsKey.Trash -> AccountSettingsPatch(trashEnabled = enabled)
+            AccountSettingsKey.ShowSubtitles -> AccountSettingsPatch(hideSubtitles = !enabled)
+            AccountSettingsKey.AutoSelectSubtitles -> AccountSettingsPatch(dontAutoselectSubtitles = !enabled)
+            AccountSettingsKey.ResumePlayback -> AccountSettingsPatch(useStartFrom = enabled)
+            AccountSettingsKey.TunnelRoute -> error("Tunnel route is not a toggle")
+        }
     }
 
 private fun PutioException.toAccountSettingsFailure(): AccountSettingsFailure {

@@ -13,6 +13,7 @@ import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsRepository
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
+import io.putdotio.android.settings.TunnelRouteOption
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
@@ -150,6 +151,9 @@ class MobileAccountSettingsViewModelTest {
     class SettingsHostActivity : ComponentActivity()
 
     private class RecordingRepository : AccountSettingsRepository {
+        override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
+            error("Tunnel routes are not expected")
+
         var loadCount = 0
 
         override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> {
@@ -163,6 +167,9 @@ class MobileAccountSettingsViewModelTest {
     }
 
     private class SuspendingRepository : AccountSettingsRepository {
+        override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
+            error("Tunnel routes are not expected")
+
         val started = CompletableDeferred<Unit>()
         val cancelled = CompletableDeferred<Unit>()
 

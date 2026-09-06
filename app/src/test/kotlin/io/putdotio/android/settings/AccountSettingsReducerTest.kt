@@ -390,6 +390,33 @@ class AccountSettingsReducerTest {
         ).state
     }
 
+    @Test
+    fun routeChangesSaveOptimisticallyAndIdenticalRoutesAreIgnored() {
+        val loaded = loadedState(Preferences)
+        val same = AccountSettingsReducer.reduce(
+            loaded,
+            AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(TunnelRouteName.DEFAULT)),
+        )
+        assertFalse(same.consumed)
+        assertNull(same.effect)
+
+        val change = AccountSettingsChange.Route(TunnelRouteName("cdn77"))
+        val saving = AccountSettingsReducer.reduce(loaded, AccountSettingsEvent.ChangeRequested(change))
+        val ready = saving.state.content as AccountSettingsContent.Ready
+        assertEquals(TunnelRouteName("cdn77"), ready.preferences.tunnelRoute)
+        assertEquals(change, (saving.effect as AccountSettingsEffect.Save).change)
+
+        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failed = AccountSettingsReducer.reduce(
+            saving.state,
+            AccountSettingsEvent.SaveFailed((saving.effect as AccountSettingsEffect.Save).requestId, failure),
+        )
+        val rolledBack = failed.state.content as AccountSettingsContent.Ready
+        assertEquals(TunnelRouteName.DEFAULT, rolledBack.preferences.tunnelRoute)
+        val retried = AccountSettingsReducer.reduce(failed.state, AccountSettingsEvent.RetryChange)
+        assertEquals(change, (retried.effect as AccountSettingsEffect.Save).change)
+    }
+
     private fun loadedState(preferences: AccountSettingsPreferences): AccountSettingsState {
         val start = AccountSettingsReducer.start()
         val requestId = (start.effect as AccountSettingsEffect.Load).requestId
