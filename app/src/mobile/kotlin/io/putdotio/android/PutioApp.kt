@@ -530,6 +530,11 @@ internal fun MobileShell(
             onFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(item))
         }
     }
+    LaunchedEffect(trashState?.bulkRestoreVersion) {
+        if ((trashState?.bulkRestoreVersion ?: 0L) > 0L) {
+            onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
+        }
+    }
     LaunchedEffect(selectedDestination, isTrash, filesState.current.folder.id,
         filesState.current.needsReload, filesState.current.operation, filesState.current.content is FilesContent.Loading) {
         if (selectedDestination == MobileDestination.Files && !isTrash && filesState.current.needsReload) {
@@ -589,7 +594,7 @@ internal fun MobileShell(
         onFilesEvent(FilesBrowserEvent.NavigateBack)
     }
 
-    val protectTrashRecovery = trashState?.hasPendingRestore == true && !filesOwnsBack
+    val protectTrashRecovery = trashState?.hasPendingMutation == true && !filesOwnsBack
     BackHandler(enabled = !isPlayback && (isTrash || protectTrashRecovery)) {
         if (isTrash) {
             navController.popBackStack()

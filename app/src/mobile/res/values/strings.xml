@@ -256,7 +256,6 @@
     <string name="mobile_trash_restore_message">Restoration may take a moment. You can check when this item is available again.</string>
     <string name="mobile_trash_restore_folder_message">Restore this folder and its contents. Restoration may take a moment.</string>
     <string name="mobile_trash_restore">Restore</string>
-    <string name="mobile_trash_restore_named">Restore %1$s</string>
     <string name="mobile_trash_deleted">Deleted %1$s</string>
     <string name="mobile_trash_expires">Expires %1$s</string>
     <string name="mobile_trash_file_available">Available again: %1$s</string>
@@ -270,4 +269,29 @@
     <string name="mobile_trash_not_available">Not available in Files yet. Check status again in a moment.</string>
     <string name="mobile_trash_check_status">Check status</string>
     <string name="mobile_trash_access_denied">You don’t have access to Trash.</string>
+    <string name="mobile_trash_actions_named">Actions for %1$s</string>
+    <string name="mobile_trash_delete">Delete permanently</string>
+    <string name="mobile_trash_delete_title">Delete permanently?</string>
+    <string name="mobile_trash_delete_message">“%1$s” will be removed from Trash right away. This cannot be undone.</string>
+    <string name="mobile_trash_restore_all">Restore all</string>
+    <string name="mobile_trash_restore_all_title">Restore everything?</string>
+    <string name="mobile_trash_restore_all_message">Every item in Trash goes back to Files. Restoration may take a moment.</string>
+    <string name="mobile_trash_empty_action">Empty Trash</string>
+    <string name="mobile_trash_empty_confirm_title">Empty Trash?</string>
+    <string name="mobile_trash_empty_confirm_message">Every item in Trash will be removed right away. This cannot be undone.</string>
+    <string name="mobile_trash_action_submitting">Sending request…</string>
+    <string name="mobile_trash_delete_started">Deletion requested.</string>
+    <string name="mobile_trash_restore_all_started">Restore started for everything in Trash.</string>
+    <string name="mobile_trash_empty_started">Emptying Trash.</string>
+    <string name="mobile_trash_action_uncertain">We could not confirm the request. Check Trash before taking another action.</string>
+    <string name="mobile_trash_action_rejected">The request could not start.</string>
+    <string name="mobile_trash_action_checking">Checking Trash…</string>
+    <string name="mobile_trash_delete_verified">“%1$s” is no longer in Trash.</string>
+    <string name="mobile_trash_restore_all_verified">Trash is empty. Restored items are back in Files.</string>
+    <string name="mobile_trash_empty_verified">Trash is empty.</string>
+    <string name="mobile_trash_delete_inconclusive">“%1$s” was not in the first page. Check Trash again in a moment.</string>
+    <string name="mobile_trash_restore_all_inconclusive">Items are still leaving Trash. Check again in a moment.</string>
+    <string name="mobile_trash_delete_still_present">“%1$s” is still in Trash. Try again from its actions.</string>
+    <string name="mobile_trash_empty_still_present">Trash still has items. Try again in a moment.</string>
+    <string name="mobile_trash_check_trash">Check Trash</string>
 </resources>

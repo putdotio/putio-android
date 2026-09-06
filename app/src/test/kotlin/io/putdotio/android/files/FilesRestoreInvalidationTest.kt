@@ -198,4 +198,19 @@ class FilesRestoreInvalidationTest {
 
     private fun item(id: Long, parentId: FilesItemId): FilesItem =
         FilesItem(FilesItemId(id), parentId, "Item $id", PutioFileType.FOLDER, 0, "2026-09-06")
+
+    @Test
+    fun bulkRestoreInvalidatesEveryCachedLevelWithoutNavigatingOrReloadingEagerly() {
+        val original = nested()
+        val invalidated = FilesBrowserReducer.reduce(original, FilesBrowserEvent.InvalidateAllFolders)
+        assertNull(invalidated.effect)
+        assertEquals(original.path, invalidated.state.path)
+        assertTrue(invalidated.state.stack.all { it.needsReload })
+        assertEquals(original.current.content, invalidated.state.current.content)
+        val reloading = FilesBrowserReducer.reduce(invalidated.state, FilesBrowserEvent.ReloadIfStale)
+        assertEquals(child.id, (reloading.effect as FilesBrowserEffect.LoadFolder).folderId)
+        assertFalse(reloading.state.current.needsReload)
+        assertTrue(reloading.state.stack[0].needsReload)
+        assertTrue(reloading.state.stack[1].needsReload)
+    }
 }

@@ -107,12 +107,14 @@ class SdkTrashRepositoryTest {
         }
     }
 
-    private fun response() = TrashListResponse(
-        files = listOf(TrashFile(
-            id = 7L, name = " raw Türkçe.txt ", size = 12L, parentId = 2L,
-            fileType = PutioFileType.TEXT, createdAt = "2026-09-01", deletedAt = "2026-09-06",
-            expirationDate = "2026-09-20",
-        )), total = 20, trashSize = 123L, cursor = "next", status = "OK",
+
+    private class Endpoints(
+        val list: suspend (TrashListQuery) -> TrashListResponse = { response() },
+        val continueList: suspend (String, TrashContinueQuery) -> TrashListResponse = { _, _ -> response() },
+        val restore: suspend (TrashBulkInput) -> OkResponse = { OkResponse("OK") },
+        val getFile: suspend (Long, FileDetailsQuery) -> PutioFile = { _, _ -> error("Unexpected lookup") },
+        val delete: suspend (TrashBulkInput) -> OkResponse = { OkResponse("OK") },
+        val empty: suspend () -> OkResponse = { OkResponse("OK") },
     )
 
     private fun repository(
@@ -120,5 +122,46 @@ class SdkTrashRepositoryTest {
         continueList: suspend (String, TrashContinueQuery) -> TrashListResponse = { _, _ -> response() },
         restore: suspend (TrashBulkInput) -> OkResponse = { OkResponse("OK") },
         getFile: suspend (Long, FileDetailsQuery) -> PutioFile = { _, _ -> error("Unexpected lookup") },
-    ) = SdkTrashRepository(list, continueList, restore, getFile)
+    ) = repository(Endpoints(list, continueList, restore, getFile))
+
+    private fun repository(endpoints: Endpoints) = SdkTrashRepository(
+        endpoints.list, endpoints.continueList, endpoints.restore, endpoints.getFile, endpoints.delete, endpoints.empty,
+    )
+
+    @Test
+    fun bulkActionsSendExactSelectionsAndRejectInvalidIds() = runBlocking {
+        val deletes = mutableListOf<TrashBulkInput>()
+        val restores = mutableListOf<TrashBulkInput>()
+        var empties = 0
+        val repository = repository(Endpoints(
+            restore = { restores += it; OkResponse("OK") },
+            delete = { deletes += it; OkResponse("OK") },
+            empty = { empties += 1; OkResponse("OK") },
+        ))
+        assertEquals(FilesRepositoryResult.Success(Unit), repository.deleteItem(FilesItemId(7L)))
+        assertTrue(repository.deleteItem(FilesItemId(0L)) is FilesRepositoryResult.Failure)
+        assertEquals(listOf(TrashBulkInput(ids = listOf(7L))), deletes)
+        assertEquals(FilesRepositoryResult.Success(Unit),
+            repository.restoreAll(TrashBulkSelection(FilesCursor("snapshot"), listOf(FilesItemId(7L)))))
+        assertEquals(FilesRepositoryResult.Success(Unit),
+            repository.restoreAll(TrashBulkSelection(null, listOf(FilesItemId(7L), FilesItemId(9L)))))
+        val invalid = repository.restoreAll(TrashBulkSelection(null, listOf(FilesItemId(-1L))))
+        assertTrue(invalid is FilesRepositoryResult.Failure)
+        assertEquals(listOf(TrashBulkInput(cursor = "snapshot"), TrashBulkInput(ids = listOf(7L, 9L))), restores)
+        assertEquals(FilesRepositoryResult.Success(Unit), repository.empty())
+        assertEquals(1, empties)
+        val cause = apiFailure(401, "invalid_token").cause
+        val failing = repository(Endpoints(delete = { throw cause }, empty = { throw cause }))
+        val deleteFailure = (failing.deleteItem(FilesItemId(7L)) as FilesRepositoryResult.Failure).failure
+        assertTrue(deleteFailure is FilesFailure.AuthenticationRequired)
+        assertTrue((failing.empty() as FilesRepositoryResult.Failure).failure is FilesFailure.AuthenticationRequired)
+    }
 }
+
+private fun response() = TrashListResponse(
+    files = listOf(TrashFile(
+        id = 7L, name = " raw Türkçe.txt ", size = 12L, parentId = 2L,
+        fileType = PutioFileType.TEXT, createdAt = "2026-09-01", deletedAt = "2026-09-06",
+        expirationDate = "2026-09-20",
+    )), total = 20, trashSize = 123L, cursor = "next", status = "OK",
+)

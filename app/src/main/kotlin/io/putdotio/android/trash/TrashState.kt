@@ -18,7 +18,33 @@ sealed interface TrashContent {
         val isLoadingMore: Boolean = false,
         val refreshFailure: FilesFailure? = null,
         val pageFailure: FilesFailure? = null,
-    ) : TrashContent
+        // The initial page's cursor names every Trash ID of that snapshot; bulk Restore all reuses it.
+        val snapshotCursor: FilesCursor? = null,
+    ) : TrashContent {
+        val isBusy: Boolean get() = isRefreshing || isLoadingMore
+        val isKnownEmpty: Boolean get() = items.isEmpty() && nextCursor == null
+    }
+}
+
+sealed interface TrashAction {
+    data class DeleteItem(val item: TrashItem) : TrashAction
+    data object RestoreAll : TrashAction
+    data object Empty : TrashAction
+}
+
+enum class TrashActionSubmission { SUBMITTING, ACKNOWLEDGED, UNCERTAIN, REJECTED }
+
+/** Verification is one authoritative Trash reload; INCONCLUSIVE keeps read-only recovery open. */
+enum class TrashActionCheck { NOT_CHECKED, CHECKING, VERIFIED, INCONCLUSIVE, FAILED }
+
+data class TrashActionOutcome(
+    val action: TrashAction,
+    val submission: TrashActionSubmission,
+    val check: TrashActionCheck = TrashActionCheck.NOT_CHECKED,
+    val submissionFailure: FilesFailure? = null,
+    val checkFailure: FilesFailure? = null,
+) {
+    val isPending: Boolean get() = submission != TrashActionSubmission.REJECTED && check != TrashActionCheck.VERIFIED
 }
 
 enum class TrashRestoreSubmission { SUBMITTING, ACKNOWLEDGED, UNCERTAIN, REJECTED }
@@ -40,35 +66,69 @@ data class TrashState(
     val confirmation: TrashItem? = null,
     val confirmationId: Long? = null,
     val restoreOutcome: TrashRestoreOutcome? = null,
+    val actionConfirmation: TrashAction? = null,
+    val actionConfirmationId: Long? = null,
+    val actionOutcome: TrashActionOutcome? = null,
     val authenticationFailure: PutioException? = null,
     val restoredVersion: Long = 0L,
     val restoredItemIds: Set<FilesItemId> = emptySet(),
     internal val restoredOccurrences: Map<FilesItemId, String?> = emptyMap(),
     val lastRestoredItem: FilesItem? = null,
+    // Bumps when a bulk restore is acknowledged or verified; every cached Files folder may have changed.
+    val bulkRestoreVersion: Long = 0L,
 ) {
     val hasPendingRestore: Boolean get() = restoreOutcome?.isPending == true
+    val hasPendingAction: Boolean get() = actionOutcome?.isPending == true
+    val hasPendingMutation: Boolean get() = hasPendingRestore || hasPendingAction
+    private val isIdleLoaded: Boolean
+        get() = content is TrashContent.Loaded && !content.isBusy &&
+            authenticationFailure == null && !hasPendingMutation
     fun canRestore(itemId: FilesItemId): Boolean =
-        content is TrashContent.Loaded && !content.isRefreshing && !content.isLoadingMore &&
-            itemId.value > 0L && authenticationFailure == null && !hasPendingRestore && itemId !in restoredItemIds
+        isIdleLoaded && itemId.value > 0L && itemId !in restoredItemIds
+    fun canDelete(itemId: FilesItemId): Boolean = isIdleLoaded && itemId.value > 0L
+    val canActOnAll: Boolean get() = isIdleLoaded && !(content as TrashContent.Loaded).isKnownEmpty
 }
 
 sealed interface TrashEvent {
-    data object Open : TrashEvent
-    data object Refresh : TrashEvent
-    data object Retry : TrashEvent
-    data object LoadNextPage : TrashEvent
-    data class SelectRestore(val itemId: FilesItemId) : TrashEvent
-    data object CancelRestore : TrashEvent
-    data class ConfirmRestore(val confirmationId: Long) : TrashEvent
-    data object CheckRestore : TrashEvent
-    data object DismissRestoreOutcome : TrashEvent
+    sealed interface ReadEvent : TrashEvent
+    sealed interface RestoreEvent : TrashEvent
+    sealed interface ActionEvent : TrashEvent
+
+    data object Open : ReadEvent
+    data object Refresh : ReadEvent
+    data object Retry : ReadEvent
+    data object LoadNextPage : ReadEvent
+    data class SelectRestore(val itemId: FilesItemId) : RestoreEvent
+    data object CancelRestore : RestoreEvent
+    data class ConfirmRestore(val confirmationId: Long) : RestoreEvent
+    data object CheckRestore : RestoreEvent
+    data object DismissRestoreOutcome : RestoreEvent
+    data class SelectDelete(val itemId: FilesItemId) : ActionEvent
+    data object SelectRestoreAll : ActionEvent
+    data object SelectEmpty : ActionEvent
+    data object CancelAction : ActionEvent
+    data class ConfirmAction(val confirmationId: Long) : ActionEvent
+    data object CheckAction : ActionEvent
+    data object DismissActionOutcome : ActionEvent
 }
 
 internal sealed interface TrashRequest {
     val id: Long
-    data class ListPage(override val id: Long, val cursor: FilesCursor? = null) : TrashRequest
+    data class ListPage(
+        override val id: Long,
+        val cursor: FilesCursor? = null,
+        val verifiesAction: Boolean = false,
+    ) : TrashRequest
     data class Restore(override val id: Long, val item: TrashItem) : TrashRequest
     data class Check(override val id: Long, val item: TrashItem) : TrashRequest
+    data class Act(override val id: Long, val action: TrashAction, val selection: TrashBulkSelection?) : TrashRequest
+}
+
+/** Restore all targets the listed snapshot: its cursor when the server issued one, else the loaded IDs. */
+data class TrashBulkSelection(val cursor: FilesCursor?, val itemIds: List<FilesItemId>) {
+    init {
+        require(cursor != null || itemIds.isNotEmpty()) { "Bulk selection needs a cursor or item IDs" }
+    }
 }
 
 internal data class TrashMachine(

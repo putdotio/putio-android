@@ -34,6 +34,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.trash.TrashBulkSelection
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
@@ -235,7 +236,8 @@ class TrashRestoreUiProofTest {
     }
     private fun select(item: TrashItem) {
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
-        compose.onNodeWithContentDescription(context.getString(R.string.mobile_trash_restore_named, item.name)).performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.mobile_trash_actions_named, item.name)).performClick()
+        compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performClick()
     }
     private fun loadMore() = text(R.string.mobile_files_load_more).performClick()
     private fun checkStatus() {
@@ -285,6 +287,11 @@ private class TrashRestoreControlledRepository(private val awaitRequest: (() -> 
         checks += result
         return result.await()
     }
+    // The synthetic Restore proof never exercises bulk actions; refuse them loudly.
+    override suspend fun deleteItem(itemId: FilesItemId): FilesRepositoryResult<Unit> = error("unexpected delete")
+    override suspend fun restoreAll(selection: TrashBulkSelection): FilesRepositoryResult<Unit> =
+        error("unexpected restore all")
+    override suspend fun empty(): FilesRepositoryResult<Unit> = error("unexpected empty")
     fun completeList(index: Int, page: TrashPage) {
         awaitRequest { lists.size > index }
         lists[index].complete(FilesRepositoryResult.Success(page))

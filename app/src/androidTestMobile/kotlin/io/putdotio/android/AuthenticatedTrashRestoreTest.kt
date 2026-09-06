@@ -193,7 +193,8 @@ class AuthenticatedTrashRestoreTest {
             compose.onNodeWithText(label).performClick()
         }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
-        compose.onNodeWithContentDescription(context.getString(R.string.mobile_trash_restore_named, item.name)).performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.mobile_trash_actions_named, item.name)).performClick()
+        compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).assertIsDisplayed()
         assertEquals(item.id, controller.state.value.confirmation?.id?.value)
     }

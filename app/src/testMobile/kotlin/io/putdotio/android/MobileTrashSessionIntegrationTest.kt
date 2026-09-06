@@ -69,7 +69,8 @@ class MobileTrashSessionIntegrationTest {
         compose.waitUntil(5_000L) {
             compose.onAllNodesWithText("deleted.txt").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithContentDescription("Restore deleted.txt").performClick()
+        compose.onNodeWithContentDescription("Actions for deleted.txt").performClick()
+        compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).performClick()
         compose.waitUntil(5_000L) {
             compose.onAllNodesWithText("Not available in Files yet. Check status again in a moment.")

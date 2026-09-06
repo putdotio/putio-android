@@ -24,6 +24,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -35,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashItem
@@ -60,10 +65,17 @@ internal fun MobileTrashScreen(
     onEvent: (TrashEvent) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
+    var sheetItemId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val sheetItem = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id.value == sheetItemId }
     LazyColumn(modifier.fillMaxSize().testTag(MOBILE_TRASH_LIST_TAG)) {
         state.restoreOutcome?.let { outcome ->
             item(key = "restore-outcome") {
                 MobileTrashOutcome(outcome, state.authenticationFailure == null, onEvent)
+            }
+        }
+        state.actionOutcome?.let { outcome ->
+            item(key = "action-outcome") {
+                MobileTrashActionOutcome(outcome, state.authenticationFailure == null, onEvent)
             }
         }
         when (val content = state.content) {
@@ -87,6 +99,7 @@ internal fun MobileTrashScreen(
                             enabled = !content.isRefreshing && !content.isLoadingMore) {
                             Text(stringResource(R.string.mobile_action_refresh))
                         }
+                        MobileTrashBulkActions(state, onEvent)
                         if (content.isRefreshing) LinearProgressIndicator(Modifier.fillMaxWidth())
                     }
                 }
@@ -100,8 +113,10 @@ internal fun MobileTrashScreen(
                     }
                 }
                 items(content.items, key = { it.id.value }) { item ->
-                    MobileTrashRow(item, enabled = state.canRestore(item.id),
-                        onRestore = { onEvent(TrashEvent.SelectRestore(item.id)) })
+                    MobileTrashRow(
+                        item, enabled = state.canRestore(item.id) || state.canDelete(item.id),
+                        onActions = { sheetItemId = item.id.value },
+                    )
                     HorizontalDivider(Modifier.padding(start = 72.dp))
                 }
                 item(key = "paging") {
@@ -118,6 +133,12 @@ internal fun MobileTrashScreen(
             }
         }
     }
+    sheetItem?.let { item ->
+        MobileTrashItemSheet(item, state, onEvent, onDismiss = { sheetItemId = null })
+    }
+    state.actionConfirmation?.let { action ->
+        MobileTrashActionConfirmation(action, state, onEvent)
+    }
     state.confirmation?.let { item ->
         val confirmationId = state.confirmationId
         AlertDialog(
@@ -131,8 +152,9 @@ internal fun MobileTrashScreen(
                 }
             },
             confirmButton = {
+                val canConfirm = confirmationId != null && state.authenticationFailure == null && !state.hasPendingMutation
                 TextButton(onClick = { confirmationId?.let { onEvent(TrashEvent.ConfirmRestore(it)) } },
-                    enabled = confirmationId != null && state.authenticationFailure == null && !state.hasPendingRestore,
+                    enabled = canConfirm,
                     modifier = Modifier.testTag(MOBILE_TRASH_CONFIRM_TAG)) {
                     Text(stringResource(R.string.mobile_trash_restore))
                 }
@@ -147,7 +169,7 @@ internal fun MobileTrashScreen(
 }
 
 @Composable
-private fun MobileTrashRow(item: TrashItem, enabled: Boolean, onRestore: () -> Unit) {
+private fun MobileTrashRow(item: TrashItem, enabled: Boolean, onActions: () -> Unit) {
     val context = LocalContext.current
     ListItem(
         headlineContent = { Text(item.name) },
@@ -160,9 +182,9 @@ private fun MobileTrashRow(item: TrashItem, enabled: Boolean, onRestore: () -> U
         },
         leadingContent = { FileTypeIcon(item.type, Modifier.size(24.dp)) },
         trailingContent = {
-            IconButton(onClick = onRestore, enabled = enabled) {
+            IconButton(onClick = onActions, enabled = enabled) {
                 Icon(painterResource(R.drawable.ic_ph_dots_three_vertical),
-                    contentDescription = stringResource(R.string.mobile_trash_restore_named, item.name))
+                    contentDescription = stringResource(R.string.mobile_trash_actions_named, item.name))
             }
         },
     )

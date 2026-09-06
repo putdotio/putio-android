@@ -54,7 +54,7 @@ class MobileTrashScreenTest {
         compose.onNodeWithText("Restore started.").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
-        compose.onNodeWithContentDescription("Restore ${item.name}").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Actions for ${item.name}").assertIsNotEnabled()
         compose.runOnIdle {
             state = state.copy(restoreOutcome = state.restoreOutcome?.copy(submission = TrashRestoreSubmission.UNCERTAIN))
         }

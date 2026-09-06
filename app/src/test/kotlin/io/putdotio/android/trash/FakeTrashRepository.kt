@@ -17,12 +17,19 @@ internal class FakeTrashRepository : TrashRepository {
     val pageCursors = mutableListOf<FilesCursor>()
     val restoredIds = mutableListOf<FilesItemId>()
     val resolvedIds = mutableListOf<FilesItemId>()
+    val deletedIds = mutableListOf<FilesItemId>()
+    val bulkRestores = mutableListOf<TrashBulkSelection>()
+    var emptyCount = 0
     var onLoad: suspend () -> FilesRepositoryResult<TrashPage> = { page(trashItem()) }
     var onPage: suspend (FilesCursor) -> FilesRepositoryResult<TrashPage> = { page() }
     var onRestore: suspend (FilesItemId) -> FilesRepositoryResult<Unit> = { FilesRepositoryResult.Success(Unit) }
     var onResolve: suspend (FilesItemId) -> FilesRepositoryResult<FilesItem> = {
         FilesRepositoryResult.Failure(apiFailure(404, "NOT_FOUND"))
     }
+    var onDelete: suspend (FilesItemId) -> FilesRepositoryResult<Unit> = { FilesRepositoryResult.Success(Unit) }
+    var onRestoreAll: suspend (TrashBulkSelection) -> FilesRepositoryResult<Unit> =
+        { FilesRepositoryResult.Success(Unit) }
+    var onEmpty: suspend () -> FilesRepositoryResult<Unit> = { FilesRepositoryResult.Success(Unit) }
     override suspend fun load(): FilesRepositoryResult<TrashPage> { loadCount += 1; return onLoad() }
     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<TrashPage> {
         pageCursors += cursor
@@ -36,6 +43,15 @@ internal class FakeTrashRepository : TrashRepository {
         resolvedIds += itemId
         return onResolve(itemId)
     }
+    override suspend fun deleteItem(itemId: FilesItemId): FilesRepositoryResult<Unit> {
+        deletedIds += itemId
+        return onDelete(itemId)
+    }
+    override suspend fun restoreAll(selection: TrashBulkSelection): FilesRepositoryResult<Unit> {
+        bulkRestores += selection
+        return onRestoreAll(selection)
+    }
+    override suspend fun empty(): FilesRepositoryResult<Unit> { emptyCount += 1; return onEmpty() }
 }
 
 internal fun trashItem(id: Long = 7L) = TrashItem(
@@ -71,4 +87,9 @@ internal suspend fun TrashController.openLoaded() {
 internal fun TrashController.confirm(itemId: FilesItemId = trashItem().id) {
     check(dispatch(TrashEvent.SelectRestore(itemId)))
     check(dispatch(TrashEvent.ConfirmRestore(checkNotNull(state.value.confirmationId))))
+}
+
+internal fun TrashController.confirmAction(select: TrashEvent) {
+    check(dispatch(select))
+    check(dispatch(TrashEvent.ConfirmAction(checkNotNull(state.value.actionConfirmationId))))
 }

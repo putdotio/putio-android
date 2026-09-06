@@ -25,6 +25,9 @@ interface TrashRepository {
     suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<TrashPage>
     suspend fun restore(itemId: FilesItemId): FilesRepositoryResult<Unit>
     suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem>
+    suspend fun deleteItem(itemId: FilesItemId): FilesRepositoryResult<Unit>
+    suspend fun restoreAll(selection: TrashBulkSelection): FilesRepositoryResult<Unit>
+    suspend fun empty(): FilesRepositoryResult<Unit>
 }
 
 class SdkTrashRepository internal constructor(
@@ -32,12 +35,16 @@ class SdkTrashRepository internal constructor(
     private val continueList: suspend (String, TrashContinueQuery) -> TrashListResponse,
     private val restoreItem: suspend (TrashBulkInput) -> OkResponse,
     private val getFile: suspend (Long, FileDetailsQuery) -> PutioFile,
+    private val deleteItems: suspend (TrashBulkInput) -> OkResponse,
+    private val emptyTrash: suspend () -> OkResponse,
 ) : TrashRepository {
     constructor(client: PutioClient) : this(
         list = { client.trash.list(it) },
         continueList = { cursor, query -> client.trash.continueList(cursor, query) },
         restoreItem = { client.trash.restore(it) },
         getFile = { id, query -> client.files.get(id, query) },
+        deleteItems = { client.trash.delete(it) },
+        emptyTrash = { client.trash.empty() },
     )
 
     override suspend fun load(): FilesRepositoryResult<TrashPage> = request {
@@ -53,6 +60,20 @@ class SdkTrashRepository internal constructor(
         require(itemId.value > 0L) { "Restore requires one positive item ID" }
         restoreItem(TrashBulkInput(ids = listOf(itemId.value)))
     }
+
+    override suspend fun deleteItem(itemId: FilesItemId): FilesRepositoryResult<Unit> = request {
+        require(itemId.value > 0L) { "Permanent deletion requires one positive item ID" }
+        deleteItems(TrashBulkInput(ids = listOf(itemId.value)))
+    }
+
+    override suspend fun restoreAll(selection: TrashBulkSelection): FilesRepositoryResult<Unit> = request {
+        require(selection.itemIds.all { it.value > 0L }) { "Restore all requires positive item IDs" }
+        val input = selection.cursor?.let { TrashBulkInput(cursor = it.value) }
+            ?: TrashBulkInput(ids = selection.itemIds.map(FilesItemId::value))
+        restoreItem(input)
+    }
+
+    override suspend fun empty(): FilesRepositoryResult<Unit> = request { emptyTrash() }
 
     override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> = request {
         require(itemId.value > 0L) { "Restore lookup requires one positive item ID" }
