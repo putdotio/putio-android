@@ -2,13 +2,18 @@ package io.putdotio.android.trash
 
 internal fun TrashMachine.read(event: TrashEvent.ReadEvent): TrashMachine? = when (event) {
     TrashEvent.Open -> if (opened) null else startList()
+    // A refresh that replaces an in-flight verification read keeps verifying; otherwise the
+    // pending action would stay CHECKING forever with every recovery control disabled.
     TrashEvent.Refresh -> when (request) {
-        null, is TrashRequest.ListPage -> startList()
+        null, is TrashRequest.ListPage -> startList(verifiesAction = isVerifyingAction)
         else -> null
     }
     TrashEvent.Retry -> retryList()
     TrashEvent.LoadNextPage -> startNextPage()
 }
+
+private val TrashMachine.isVerifyingAction: Boolean
+    get() = state.actionOutcome?.check == TrashActionCheck.CHECKING
 
 internal fun TrashMachine.startList(verifiesAction: Boolean = false): TrashMachine {
     val content = (state.content as? TrashContent.Loaded)?.copy(

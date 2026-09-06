@@ -91,7 +91,8 @@ class MobileTrashActionsScreenTest {
             TrashAction.DeleteItem(item), TrashActionSubmission.UNCERTAIN, TrashActionCheck.FAILED)))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { events += it; true }) } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
-        compose.onNodeWithText("“${item.name}” is still in Trash. Try again from its actions.").assertIsDisplayed()
+        compose.onNodeWithText("“${item.name}” is still in Trash. Check Trash again before taking another action.")
+            .assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CHECK_TAG).performClick()
         compose.runOnIdle {
             state = state.copy(actionOutcome = state.actionOutcome?.copy(check = TrashActionCheck.NOT_CHECKED))

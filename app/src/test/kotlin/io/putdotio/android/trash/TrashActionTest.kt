@@ -4,6 +4,7 @@ import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -207,6 +208,46 @@ class TrashActionTest {
             assertEquals(TrashActionSubmission.REJECTED, closed.actionOutcome?.submission)
             assertFalse(controller.dispatch(TrashEvent.CheckAction))
             assertFalse(controller.dispatch(TrashEvent.Refresh))
+        }
+    }
+
+    @Test
+    fun refreshDuringVerificationKeepsVerifyingInsteadOfStrandingRecovery() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val repository = FakeTrashRepository()
+        TrashController(repository, this).use { controller ->
+            controller.openLoaded()
+            repository.onLoad = { gate.await(); page() }
+            controller.confirmAction(TrashEvent.SelectDelete(trashItem().id))
+            controller.awaitState { it.actionOutcome?.check == TrashActionCheck.CHECKING }
+            assertTrue(controller.dispatch(TrashEvent.Refresh))
+            gate.complete(Unit)
+            val verified = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.VERIFIED }
+            assertFalse(verified.hasPendingAction)
+            assertEquals(1, repository.deletedIds.size)
+        }
+    }
+
+    @Test
+    fun cancelledOrReplayedConfirmationsNeverReachTheRepository() = runBlocking {
+        val repository = FakeTrashRepository().apply { onLoad = { page(trashItem(), trashItem(8L)) } }
+        TrashController(repository, this).use { controller ->
+            controller.openLoaded()
+            assertTrue(controller.dispatch(TrashEvent.SelectEmpty))
+            val cancelledId = checkNotNull(controller.state.value.actionConfirmationId)
+            assertTrue(controller.dispatch(TrashEvent.CancelAction))
+            assertNull(controller.state.value.actionConfirmation)
+            assertFalse(controller.dispatch(TrashEvent.ConfirmAction(cancelledId)))
+            assertTrue(controller.dispatch(TrashEvent.SelectDelete(trashItem().id)))
+            assertFalse(controller.dispatch(TrashEvent.ConfirmAction(cancelledId)))
+            val liveId = checkNotNull(controller.state.value.actionConfirmationId)
+            repository.onLoad = { page(trashItem(8L)) }
+            assertTrue(controller.dispatch(TrashEvent.ConfirmAction(liveId)))
+            assertFalse(controller.dispatch(TrashEvent.ConfirmAction(liveId)))
+            controller.awaitState { it.actionOutcome?.check == TrashActionCheck.VERIFIED }
+            assertFalse(controller.dispatch(TrashEvent.ConfirmAction(liveId)))
+            assertEquals(0, repository.emptyCount)
+            assertEquals(listOf(trashItem().id), repository.deletedIds)
         }
     }
 

@@ -291,7 +291,7 @@
     <string name="mobile_trash_empty_verified">Trash is empty.</string>
     <string name="mobile_trash_delete_inconclusive">“%1$s” was not in the first page. Check Trash again in a moment.</string>
     <string name="mobile_trash_restore_all_inconclusive">Items are still leaving Trash. Check again in a moment.</string>
-    <string name="mobile_trash_delete_still_present">“%1$s” is still in Trash. Try again from its actions.</string>
-    <string name="mobile_trash_empty_still_present">Trash still has items. Try again in a moment.</string>
+    <string name="mobile_trash_delete_still_present">“%1$s” is still in Trash. Check Trash again before taking another action.</string>
+    <string name="mobile_trash_empty_still_present">Trash still has items. Check Trash again in a moment.</string>
     <string name="mobile_trash_check_trash">Check Trash</string>
 </resources>
