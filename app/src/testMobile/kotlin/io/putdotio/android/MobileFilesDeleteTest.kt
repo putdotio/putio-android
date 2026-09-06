@@ -79,15 +79,16 @@ class MobileFilesDeleteTest {
     }
 
     @Test
-    fun cancelDeleteAbandonsAnEarlierRenameFailure() {
+    fun deleteCancelAndConfirmHandleAnEarlierRenameFailure() {
         val rename = FilesFolderOperationIntent.Rename(item.id, "failed name")
         val root = loadedRoot()
-        var state by mutableStateOf(root.copy(stack = listOf(root.current.copy(
+        val failedRename = root.copy(stack = listOf(root.current.copy(
             operation = FilesFolderOperation.Failed(
                 FilesFailure.Unexpected(IllegalStateException("rename failed")),
                 rename, FilesFolderOperationPhase.RENAMING,
             ),
-        ))))
+        )))
+        var state by mutableStateOf(failedRename)
         val effects = mutableListOf<FilesBrowserEffect>()
         compose.setContent {
             PutioTheme {
@@ -103,6 +104,22 @@ class MobileFilesDeleteTest {
         compose.runOnIdle {
             assertEquals(FilesFolderOperation.Idle, state.current.operation)
             assertTrue(effects.isEmpty())
+            state = failedRename
+        }
+        openAction("Move to trash")
+        compose.onNodeWithText("Confirm").performClick()
+        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        compose.runOnIdle {
+            val deletion = effects.single() as FilesBrowserEffect.Delete
+            assertEquals(item.id, deletion.itemId)
+            assertEquals(FilesDeleteMode.TRASH, deletion.mode)
+            assertEquals(
+                FilesFolderOperation.Loading(
+                    deletion.requestId, FilesFolderOperationIntent.Delete(item.id, FilesDeleteMode.TRASH),
+                    FilesFolderOperationPhase.DELETING,
+                ),
+                state.current.operation,
+            )
         }
     }
 

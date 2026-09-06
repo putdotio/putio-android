@@ -1,5 +1,8 @@
 package io.putdotio.android.files
 
+import io.putdotio.sdk.errors.PutioApiErrorEnvelope
+import io.putdotio.sdk.errors.PutioApiException
+import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
@@ -9,6 +12,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -87,6 +91,106 @@ class FilesDeleteControllerTest {
         } finally {
             controller.close()
         }
+    }
+
+    @Test
+    fun parentDeleteReconcilesWhileDistinctChildLoadRemainsPending() = runBlocking {
+        val repository = DescendingDeleteRepository()
+        val controller = FilesBrowserController(repository, this)
+        try {
+            withTimeout(5_000) { controller.state.first { it.current.content is FilesContent.Ready } }
+            assertTrue(controller.dispatch(deleteEvent))
+            withTimeout(5_000) { repository.postStarted.await() }
+            assertTrue(controller.dispatch(FilesBrowserEvent.OpenFolder(repository.child.id)))
+            withTimeout(5_000) { repository.childStarted.await() }
+            val childLoading = controller.state.value.current.content as FilesContent.Loading
+            val acknowledgement = FileDeleteResult(status = "OK")
+            repository.postResult.complete(FilesRepositoryResult.Success(acknowledgement))
+            withTimeout(5_000) { repository.reloadStarted.await() }
+            assertSame(childLoading, controller.state.value.current.content)
+            assertEquals(FilesFolderOperationPhase.RELOADING,
+                (controller.state.value.stack.first().operation as FilesFolderOperation.Loading).phase)
+            repository.parentReload.complete(FilesRepositoryResult.Success(FilesPage(listOf(repository.child), null)))
+            val reconciled = withTimeout(5_000) {
+                controller.state.first { it.stack.first().operation == FilesFolderOperation.Idle }
+            }
+            val parent = reconciled.stack.first()
+            assertEquals(repository.child.id, reconciled.current.folder.id)
+            assertSame(childLoading, reconciled.current.content)
+            assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, parent.deleteOutcome?.status)
+            assertSame(acknowledgement, parent.deleteOutcome?.response)
+            assertEquals(listOf(repository.child), (parent.content as FilesContent.Ready).items)
+            assertEquals(listOf(item.id), repository.posts)
+            assertEquals(listOf(item.id), repository.exactReads)
+            assertEquals(listOf(FilesFolder.Root.id, repository.child.id, FilesFolder.Root.id), repository.folderReads)
+            repository.childResult.complete(
+                FilesRepositoryResult.Success(FilesPage(listOf(repository.grandchild), null)),
+            )
+            withTimeout(5_000) { controller.state.first { it.current.content is FilesContent.Ready } }
+            assertEquals(listOf(repository.grandchild),
+                (controller.state.value.current.content as FilesContent.Ready).items)
+            assertTrue(controller.dispatch(FilesBrowserEvent.NavigateBack))
+            assertSame(parent, controller.state.value.current)
+            assertEquals(FilesFolder.Root.id, controller.state.value.current.folder.id)
+            assertEquals(1, repository.posts.size)
+        } finally {
+            controller.close()
+        }
+    }
+
+    private class DescendingDeleteRepository : FilesRepository {
+        val child = item.copy(id = FilesItemId(8L), name = "distinct child")
+        val grandchild = item.copy(id = FilesItemId(9L), parentId = child.id, name = "grandchild")
+        val postStarted = CompletableDeferred<Unit>()
+        val childStarted = CompletableDeferred<Unit>()
+        val reloadStarted = CompletableDeferred<Unit>()
+        val postResult = CompletableDeferred<FilesRepositoryResult<FileDeleteResult>>()
+        val childResult = CompletableDeferred<FilesRepositoryResult<FilesPage>>()
+        val parentReload = CompletableDeferred<FilesRepositoryResult<FilesPage>>()
+        val posts = mutableListOf<FilesItemId>()
+        val exactReads = mutableListOf<FilesItemId>()
+        val folderReads = mutableListOf<FilesItemId>()
+        override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+            folderReads += folderId
+            return when {
+                folderId == child.id -> {
+                    childStarted.complete(Unit)
+                    childResult.await()
+                }
+                folderId == FilesFolder.Root.id && folderReads.size == 1 ->
+                    FilesRepositoryResult.Success(FilesPage(listOf(item, child), null))
+                folderId == FilesFolder.Root.id -> {
+                    reloadStarted.complete(Unit)
+                    parentReload.await()
+                }
+                else -> error("Unexpected folder read")
+            }
+        }
+        override suspend fun delete(
+            itemId: FilesItemId,
+            mode: FilesDeleteMode,
+        ): FilesRepositoryResult<FileDeleteResult> {
+            assertEquals(item.id, itemId)
+            assertEquals(FilesDeleteMode.TRASH, mode)
+            posts += itemId
+            postStarted.complete(Unit)
+            return postResult.await()
+        }
+        override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+            exactReads += itemId
+            assertEquals(item.id, itemId)
+            return FilesRepositoryResult.Failure(PutioApiException(
+                request = PutioRequestData("GET", "https://api.put.io/v2/files/7"),
+                resolvedStatusCode = 404, httpStatusCode = 404, resolvedErrorType = null,
+                envelope = PutioApiErrorEnvelope(statusCode = 404), responseBody = "{}", message = "Not found",
+            ).toFilesFailure())
+        }
+        override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
+            error("Unexpected page")
+        override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort): FilesRepositoryResult<Unit> =
+            error("Unexpected sort")
+        override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
+            error("Unexpected rename")
     }
 
     private class DeleteRepository(private val throwFromDelete: Boolean) : FilesRepository {
