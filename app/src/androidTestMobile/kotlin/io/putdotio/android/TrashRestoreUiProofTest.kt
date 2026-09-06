@@ -112,7 +112,6 @@ class TrashRestoreUiProofTest {
         await { controller.state.value.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
         text(R.string.mobile_trash_started).assertIsDisplayed()
         assertBackRetains(controller)
-        openTrash()
         trashRestoreScreenshot("synthetic-recovery")
         checkStatus()
         repository.completeCheck(1, FilesRepositoryResult.Failure(offline()))
@@ -147,7 +146,6 @@ class TrashRestoreUiProofTest {
         assertEquals(TrashRestoreSubmission.UNCERTAIN, controller.state.value.restoreOutcome?.submission)
         text(R.string.mobile_trash_uncertain).assertIsDisplayed()
         assertBackRetains(controller)
-        openTrash()
         checkStatus()
         val authentication = FilesFailure.AuthenticationRequired(apiFailure(401))
         repository.completeCheck(1, FilesRepositoryResult.Failure(authentication))
@@ -199,6 +197,7 @@ class TrashRestoreUiProofTest {
                 assertEquals(0, fallbacks)
                 assertTrue(controller.state.value.hasPendingRestore)
             }
+            compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).assertIsDisplayed()
         }
     }
 
