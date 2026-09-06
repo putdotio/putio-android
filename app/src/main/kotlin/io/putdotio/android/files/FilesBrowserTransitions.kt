@@ -2,7 +2,7 @@ package io.putdotio.android.files
 
 internal fun FilesBrowserState.openFolder(itemId: FilesItemId): FilesBrowserTransition {
     val item = current.content.items().firstOrNull { it.id == itemId && it.isFolder }
-    return if (item == null || stack.any { it.folder.id == item.id }) {
+    return if (item == null || stack.any { it.folder.id == item.id } || isDeleteTargetBlocked(itemId)) {
         FilesBrowserTransition(this, consumed = false)
     } else {
         val requestId = FilesRequestId(nextRequestValue)
@@ -25,7 +25,7 @@ internal fun FilesBrowserState.openExternalItem(item: FilesItem): FilesBrowserTr
         } else {
             item.parentId?.let { FilesFolder(id = it, name = null) }
         }
-    return if (destination == null) {
+    return if (destination == null || isDeleteTargetBlocked(item.id) || isDeleteTargetBlocked(destination.id)) {
         FilesBrowserTransition(this, consumed = false)
     } else {
         val requestId = FilesRequestId(nextRequestValue)

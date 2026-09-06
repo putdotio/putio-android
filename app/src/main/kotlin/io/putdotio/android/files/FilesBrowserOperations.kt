@@ -4,8 +4,8 @@ internal val FilesFolderOperation.canStartOperation: Boolean
     get() = when (this) {
         FilesFolderOperation.Idle -> true
         is FilesFolderOperation.Loading -> false
-        is FilesFolderOperation.Failed -> intent !is FilesFolderOperationIntent.Rename ||
-            phase != FilesFolderOperationPhase.RELOADING
+        is FilesFolderOperation.Failed -> intent !is FilesFolderOperationIntent.Delete &&
+            (intent !is FilesFolderOperationIntent.Rename || phase != FilesFolderOperationPhase.RELOADING)
     }
 
 internal fun FilesBrowserState.abandonRename(event: FilesBrowserEvent.AbandonRename): FilesBrowserTransition {
@@ -50,7 +50,7 @@ internal fun FilesBrowserState.selectSort(sort: FilesSort): FilesBrowserTransiti
         )
     }
 
-private fun FilesBrowserState.startOperation(
+internal fun FilesBrowserState.startOperation(
     intent: FilesFolderOperationIntent,
     phase: FilesFolderOperationPhase,
 ): FilesBrowserTransition {
@@ -74,18 +74,22 @@ internal fun FilesBrowserState.startFailedOperation(
     operation: FilesFolderOperation.Failed,
 ): FilesBrowserTransition {
     val requestId = FilesRequestId(nextRequestValue)
+    // Delete failures are uncertain once submitted. Retry can only inspect or reload.
+    val phase = if (operation.intent is FilesFolderOperationIntent.Delete &&
+        operation.phase == FilesFolderOperationPhase.DELETING
+    ) FilesFolderOperationPhase.CHECKING_DELETE else operation.phase
     return FilesBrowserTransition(
         state =
             copy(
                 stack =
                     stack.replaceLast(
                         current.copy(
-                            operation = FilesFolderOperation.Loading(requestId, operation.intent, operation.phase),
+                            operation = FilesFolderOperation.Loading(requestId, operation.intent, phase),
                         ),
                     ),
                 nextRequestValue = nextRequestValue + 1,
             ),
-        effect = effectFor(current.folder.id, requestId, operation.intent, operation.phase),
+        effect = effectFor(current.folder.id, requestId, operation.intent, phase),
     )
 }
 
@@ -102,5 +106,11 @@ private fun effectFor(
             FilesFolderOperationIntent.Refresh -> FilesBrowserEffect.LoadFolder(folderId, requestId)
             is FilesFolderOperationIntent.Sort -> FilesBrowserEffect.PersistSort(folderId, intent.sort, requestId)
             is FilesFolderOperationIntent.Rename -> FilesBrowserEffect.Rename(intent.itemId, intent.name, requestId)
+            is FilesFolderOperationIntent.Delete ->
+                if (phase == FilesFolderOperationPhase.DELETING) {
+                    FilesBrowserEffect.Delete(intent.itemId, intent.mode, requestId)
+                } else {
+                    FilesBrowserEffect.CheckDelete(intent.itemId, requestId)
+                }
         }
     }

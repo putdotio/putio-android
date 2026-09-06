@@ -31,6 +31,7 @@ class SdkFilesRepositoryTest {
             setSort = { _, _ -> error("Unexpected sort") },
             getFile = { error("Unexpected file resolution") },
             renameFile = { id, name -> renamed += id to name },
+            deleteFile = { _, _ -> error("Unexpected delete") },
         )
         for (name in listOf("  Türkçe [raw].mkv  ", "", "folder.name")) {
             assertEquals(FilesRepositoryResult.Success(Unit), repository.rename(FilesItemId(42L), name))
@@ -90,6 +91,7 @@ class SdkFilesRepositoryTest {
                     continueListing = { _, _ -> error("Unexpected continuation") },
                     setSort = { _, _ -> error("Unexpected sort") },
                     renameFile = { _, _ -> error("Unexpected rename") },
+                    deleteFile = { _, _ -> error("Unexpected delete") },
                     getFile = { error("Unexpected file resolution") },
                 )
 
@@ -118,6 +120,7 @@ class SdkFilesRepositoryTest {
                     },
                     setSort = { _, _ -> error("Unexpected sort") },
                     renameFile = { _, _ -> error("Unexpected rename") },
+                    deleteFile = { _, _ -> error("Unexpected delete") },
                     getFile = { error("Unexpected file resolution") },
                 )
 
@@ -162,6 +165,7 @@ class SdkFilesRepositoryTest {
                     continueListing = { _, _ -> error("Unexpected continuation") },
                     setSort = { _, _ -> error("Unexpected sort") },
                     renameFile = { _, _ -> error("Unexpected rename") },
+                    deleteFile = { _, _ -> error("Unexpected delete") },
                     getFile = { fileId ->
                         requestedFileId = fileId
                         sdkFile(fileId, "movie.mkv", PutioFileType.VIDEO)
@@ -174,6 +178,16 @@ class SdkFilesRepositoryTest {
             assertEquals(FilesItemId(42L), result.value.id)
             assertEquals("movie.mkv", result.value.name)
         }
+
+    @Test
+    fun retainsHttpStatusWhenAnErrorEnvelopeOverridesIt() = runBlocking {
+        val error = apiFailure(statusCode = 404, httpStatusCode = 500)
+        val result = repositoryThrowing(error).resolveItem(FilesItemId(7L)) as FilesRepositoryResult.Failure
+        val failure = result.failure as FilesFailure.ApiRejected
+        assertEquals(404, failure.statusCode)
+        assertEquals(500, failure.httpStatusCode)
+        assertSame(error, failure.cause)
+    }
 
     @Test
     fun retainsOperationContextWhileClassifyingTheUnderlyingFailure() =
@@ -281,6 +295,7 @@ class SdkFilesRepositoryTest {
                     continueListing = { _, _ -> response() },
                     setSort = { folderId, sort -> persisted += folderId to sort },
                     renameFile = { _, _ -> error("Unexpected rename") },
+                    deleteFile = { _, _ -> error("Unexpected delete") },
                     getFile = { error("Unexpected file resolution") },
                 )
 
@@ -301,6 +316,7 @@ class SdkFilesRepositoryTest {
             continueListing = { _, _ -> throw error },
             setSort = { _, _ -> throw error },
             renameFile = { _, _ -> throw error },
+            deleteFile = { _, _ -> throw error },
             getFile = { throw error },
         )
 
@@ -309,11 +325,13 @@ class SdkFilesRepositoryTest {
         errorType: String? = null,
         contract: PutioKnownErrorContract? = null,
         reason: PutioOperationErrorReason? = null,
+        httpStatusCode: Int = statusCode,
     ): PutioOperationException {
         val error =
             PutioApiException(
                 request = PutioRequestData("GET", "https://api.put.io/v2/files/list"),
                 resolvedStatusCode = statusCode,
+                httpStatusCode = httpStatusCode,
                 resolvedErrorType = errorType,
                 envelope = PutioApiErrorEnvelope(statusCode = statusCode, errorType = errorType),
                 responseBody = "{}",

@@ -77,6 +77,7 @@ import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.settings.AccountSettingsContent
+import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigEvent
@@ -904,6 +905,11 @@ private fun MobileNavHost(
                 state = filesState,
                 onEvent = onFilesEvent,
                 onPlayVideo = navController::navigateToPlayback,
+                confirmedTrashEnabled = if (accountSettingsState.mutation == AccountSettingsMutation.Idle) {
+                    (accountSettingsState.content as? AccountSettingsContent.Ready)?.preferences?.trashEnabled
+                } else {
+                    null
+                },
             )
         }
         composable(MobileDestination.Search.route) {

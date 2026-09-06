@@ -66,6 +66,7 @@ import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
+import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
@@ -113,6 +114,56 @@ class MobileShellTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun filesDeleteRequiresConfirmedSettingsThroughSaveAndRefreshFailure() {
+        val original = DefaultAccountSettingsPreferences.copy(trashEnabled = true)
+        val optimistic = original.copy(trashEnabled = false)
+        val change = AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)
+        var settings by mutableStateOf(readyAccountSettingsState(preferences = original))
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = videoFilesState(),
+                    accountSettingsState = settings,
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = {},
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Actions for episode.mkv").performClick()
+        compose.onNodeWithText("Move to trash").performClick()
+        compose.onNodeWithText("Confirm").assertIsEnabled()
+        compose.runOnIdle {
+            settings = readyAccountSettingsState(
+                preferences = optimistic,
+                mutation = AccountSettingsMutation.Saving(
+                    AccountSettingsRequestId(3L), change, original, AccountSettingsMutation.Operation.Refresh,
+                ),
+            )
+        }
+        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        compose.onNodeWithText("Delete").assertIsNotEnabled()
+        compose.runOnIdle {
+            settings = readyAccountSettingsState(
+                preferences = optimistic,
+                mutation = AccountSettingsMutation.Failed(
+                    change, AccountSettingsFailure.Unexpected(IllegalStateException("refresh failed")),
+                    original, AccountSettingsMutation.Operation.Refresh,
+                ),
+            )
+        }
+        compose.onNodeWithText("Delete").assertIsNotEnabled()
+        compose.runOnIdle { settings = readyAccountSettingsState(preferences = optimistic) }
+        compose.onNodeWithText("Delete").assertIsEnabled().performClick()
+        compose.onNodeWithText("Permanently delete “episode.mkv”? This cannot be undone.").assertIsDisplayed()
+    }
 
     @Test
     fun appConfigAuthenticationFailureTriggersRootSessionRejection() {

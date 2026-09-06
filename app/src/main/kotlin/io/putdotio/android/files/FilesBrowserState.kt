@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.sdk.files.FileDeleteResult
+
 @JvmInline
 value class FilesRequestId(
     val value: Long,
@@ -64,11 +66,18 @@ sealed interface FilesFolderOperationIntent {
         val itemId: FilesItemId,
         val name: String,
     ) : FilesFolderOperationIntent
+
+    data class Delete(
+        val itemId: FilesItemId,
+        val mode: FilesDeleteMode,
+    ) : FilesFolderOperationIntent
 }
 
 enum class FilesFolderOperationPhase {
     PERSISTING_SORT,
     RENAMING,
+    DELETING,
+    CHECKING_DELETE,
     RELOADING,
 }
 
@@ -99,6 +108,7 @@ data class FilesFolderState(
     val operation: FilesFolderOperation = FilesFolderOperation.Idle,
     val viewportGeneration: Long = 0L,
     val renameCompletion: FilesRenameCompletion? = null,
+    val deleteOutcome: FilesDeleteOutcome? = null,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
 )
 
@@ -151,21 +161,43 @@ sealed interface FilesBrowserEvent {
         val intent: FilesFolderOperationIntent.Rename,
     ) : FilesBrowserEvent
 
+    sealed interface DeleteEvent : FilesBrowserEvent
+
+    data class Delete(
+        val folderId: FilesItemId,
+        val itemId: FilesItemId,
+        val mode: FilesDeleteMode,
+    ) : DeleteEvent
+
+    data class DeleteFinished(
+        val requestId: FilesRequestId,
+        val result: FilesRepositoryResult<FileDeleteResult>,
+    ) : DeleteEvent
+
+    data class DeleteChecked(
+        val requestId: FilesRequestId,
+        val result: FilesRepositoryResult<FilesItem>,
+    ) : DeleteEvent
+
     data object Retry : FilesBrowserEvent
 
     data class ViewportChanged(
         val position: FilesViewportPosition,
     ) : FilesBrowserEvent
 
+    sealed interface LoadResult : FilesBrowserEvent {
+        val requestId: FilesRequestId
+    }
+
     data class LoadSucceeded(
-        val requestId: FilesRequestId,
+        override val requestId: FilesRequestId,
         val page: FilesPage,
-    ) : FilesBrowserEvent
+    ) : LoadResult
 
     data class LoadFailed(
-        val requestId: FilesRequestId,
+        override val requestId: FilesRequestId,
         val failure: FilesFailure,
-    ) : FilesBrowserEvent
+    ) : LoadResult
 
     data class MutationSucceeded(
         val requestId: FilesRequestId,
@@ -194,6 +226,17 @@ sealed interface FilesBrowserEffect {
     data class Rename(
         val itemId: FilesItemId,
         val name: String,
+        override val requestId: FilesRequestId,
+    ) : FilesBrowserEffect
+
+    data class Delete(
+        val itemId: FilesItemId,
+        val mode: FilesDeleteMode,
+        override val requestId: FilesRequestId,
+    ) : FilesBrowserEffect
+
+    data class CheckDelete(
+        val itemId: FilesItemId,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 }
@@ -238,11 +281,17 @@ object FilesBrowserReducer {
             is FilesBrowserEvent.SelectSort -> state.selectSort(event.sort)
             is FilesBrowserEvent.Rename -> state.rename(event)
             is FilesBrowserEvent.AbandonRename -> state.abandonRename(event)
+            is FilesBrowserEvent.DeleteEvent -> state.reduceDelete(event)
             FilesBrowserEvent.Retry -> state.retry()
             is FilesBrowserEvent.ViewportChanged -> state.rememberViewport(event.position)
-            is FilesBrowserEvent.LoadSucceeded -> state.loadSucceeded(event)
-            is FilesBrowserEvent.LoadFailed -> state.loadFailed(event)
+            is FilesBrowserEvent.LoadResult -> state.loadResult(event)
             is FilesBrowserEvent.MutationSucceeded -> state.mutationSucceeded(event.requestId)
+        }
+
+    private fun FilesBrowserState.loadResult(event: FilesBrowserEvent.LoadResult): FilesBrowserTransition =
+        when (event) {
+            is FilesBrowserEvent.LoadSucceeded -> loadSucceeded(event)
+            is FilesBrowserEvent.LoadFailed -> loadFailed(event)
         }
 }
 
@@ -250,6 +299,10 @@ suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesBrowserEve
     when (effect) {
         is FilesBrowserEffect.LoadFolder -> loadFolder(effect.folderId).toLoadEvent(effect.requestId)
         is FilesBrowserEffect.LoadNextPage -> loadNextPage(effect.cursor).toLoadEvent(effect.requestId)
+        is FilesBrowserEffect.Delete ->
+            FilesBrowserEvent.DeleteFinished(effect.requestId, delete(effect.itemId, effect.mode))
+        is FilesBrowserEffect.CheckDelete ->
+            FilesBrowserEvent.DeleteChecked(effect.requestId, resolveItem(effect.itemId))
         is FilesBrowserEffect.Rename ->
             when (val renamed = rename(effect.itemId, effect.name)) {
                 is FilesRepositoryResult.Success -> FilesBrowserEvent.MutationSucceeded(effect.requestId)

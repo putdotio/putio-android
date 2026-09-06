@@ -223,3 +223,38 @@ them through `scripts/evidence.sh validate-recording --input <file>`, and only a
 successful task prints `EVIDENCE <validated-path>` followed by
 `PROOF PASS authenticated-rename`. Inspect the clip before publishing it with the
 repository wrapper. No fixture or credential payload is printed by CLI preflight.
+
+## Authenticated Trash/Delete device test
+
+`AuthenticatedFilesDeleteTest#authenticatedDeletePreservesSessionAndCancel`
+exercises the current confirmed account mode: browse an empty fixture folder,
+sort its parent, cancel one named action, and confirm another. It checks the
+exact item through the SDK and verifies Trash membership when appropriate.
+It never changes the account's Trash setting. A passing run covers only the
+mode recorded in its fixture; folder descendant completion is outside this test.
+
+Build the mobile production debug app and instrumentation APK, install both
+with `adb install -r`, and invoke only the named test on an explicitly selected
+API 37 emulator with the existing shared-account session. Instrumentation
+arguments are `putio.delete.enabled=true`, `putio.delete.runId=<UUID>`, and
+`putio.delete.fixture=<base64 JSON>`. The fixture requires `expectedAccountId`,
+`containerId`, `containerName`, `actionItemId`, `actionName`,
+`expectedTrashEnabled`, `cancelItemId`, and `cancelName`. Use two distinct empty
+folders inside one uniquely named, caller-owned container; choose action and
+cancel names whose descending order places the cancel item first. IDs must be
+positive, the three file IDs and names must be distinct, and the Trash mode
+must match the current account. The parser rejects duplicate or unknown keys.
+
+The caller owns bounded process supervision, recording, fixture cleanup, and
+emulator lifetime, following the guest-idleness contract above. Track a trashed
+item separately: removing its active parent does not remove its Trash entry.
+Clean only exact owned IDs; never empty Trash or use ID zero. Preserve fixtures
+when guest activity or cleanup outcomes remain unknown.
+
+The separately opted-in
+`FilesDeleteRecoveryUiProofTest#uncertainDeleteKeepsItemAndOffersStatusCheck`
+uses `putio.delete.ui.enabled=true` and the same run ID to capture controlled
+error UI without API calls. Report this as synthetic UI evidence. Both tests
+write screenshots below the target app's external files directory at
+`delete-proof-<UUID>/`. Pull and inspect them, validate the caller's recording
+with the existing evidence command, then publish through the repository wrapper.

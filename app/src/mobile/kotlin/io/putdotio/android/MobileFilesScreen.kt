@@ -58,6 +58,8 @@ import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
+import io.putdotio.android.files.FilesDeleteOutcome
+import io.putdotio.android.files.FilesDeleteStatus
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -83,6 +85,7 @@ internal fun MobileFilesScreen(
     onEvent: (FilesBrowserEvent) -> Unit,
     onPlayVideo: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
+    confirmedTrashEnabled: Boolean? = null,
 ) {
     val current = state.current
     when (val content = current.content) {
@@ -104,7 +107,7 @@ internal fun MobileFilesScreen(
         is FilesContent.Empty,
         is FilesContent.Ready,
         -> key(current.folder.id.value) {
-            MobileRefreshableFilesContent(state, content, onEvent, onPlayVideo, modifier)
+            MobileRefreshableFilesContent(state, content, onEvent, onPlayVideo, modifier, confirmedTrashEnabled)
         }
     }
 }
@@ -116,6 +119,7 @@ private fun MobileRefreshableFilesContent(
     onEvent: (FilesBrowserEvent) -> Unit,
     onPlayVideo: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
+    confirmedTrashEnabled: Boolean? = null,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -133,6 +137,7 @@ private fun MobileRefreshableFilesContent(
                 renameCompletion = state.current.renameCompletion,
                 onEvent = onEvent,
                 onDismiss = { selectedItemId = null },
+                confirmedTrashEnabled = confirmedTrashEnabled,
             )
         }
     }
@@ -191,6 +196,9 @@ private fun MobileRefreshableFilesContent(
             }
         }
         MobileFilesOperationStatus(operation = operation, onRetry = { onEvent(FilesBrowserEvent.Retry) })
+        if (operation == FilesFolderOperation.Idle) {
+            state.current.deleteOutcome?.let { MobileFilesDeleteStatus(it) }
+        }
     }
 }
 
@@ -248,6 +256,11 @@ private fun MobileFilesOperationStatus(
                     } else {
                         R.string.mobile_files_rename_reloading
                     }
+                is FilesFolderOperationIntent.Delete -> when (operation.phase) {
+                    FilesFolderOperationPhase.DELETING -> R.string.mobile_files_deleting
+                    FilesFolderOperationPhase.CHECKING_DELETE -> R.string.mobile_files_delete_checking
+                    else -> R.string.mobile_files_delete_reloading
+                }
             }
             if (messageResource != null) {
                 val message = stringResource(messageResource)
@@ -273,6 +286,12 @@ private fun MobileFilesOperationStatus(
         is FilesFolderOperation.Failed -> {
             val message = stringResource(
                 when {
+                    operation.intent is FilesFolderOperationIntent.Delete ->
+                        if (operation.phase == FilesFolderOperationPhase.RELOADING) {
+                            R.string.mobile_files_delete_reload_error
+                        } else {
+                            R.string.mobile_files_delete_unknown
+                        }
                     operation.intent == FilesFolderOperationIntent.Refresh -> R.string.mobile_files_refresh_error
                     operation.phase == FilesFolderOperationPhase.PERSISTING_SORT -> R.string.mobile_files_sort_error
                     operation.phase == FilesFolderOperationPhase.RENAMING -> R.string.mobile_files_rename_error
@@ -298,7 +317,42 @@ private fun MobileFilesOperationStatus(
                     onClick = onRetry,
                     modifier = Modifier.testTag(MOBILE_FILES_OPERATION_RETRY_TAG),
                 ) {
-                    Text(stringResource(R.string.mobile_action_retry))
+                    Text(stringResource(
+                        if (operation.intent is FilesFolderOperationIntent.Delete) {
+                            R.string.mobile_files_check_status
+                        } else {
+                            R.string.mobile_action_retry
+                        },
+                    ))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
+    val message = when (outcome.status) {
+        FilesDeleteStatus.NO_LONGER_AVAILABLE -> R.string.mobile_files_delete_unavailable
+        FilesDeleteStatus.STILL_PRESENT -> R.string.mobile_files_delete_still_present
+        FilesDeleteStatus.SKIPPED -> R.string.mobile_files_delete_skipped
+        FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN -> null
+    }
+    if (message != null) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+        ) {
+            Text(stringResource(message, outcome.itemName), style = MaterialTheme.typography.bodyMedium)
+            if (outcome.status != FilesDeleteStatus.NO_LONGER_AVAILABLE) {
+                outcome.failure?.let {
+                    Text(
+                        stringResource(it.mobileMessageResource()),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
         }
@@ -321,11 +375,20 @@ private fun MobileFilesList(
         initialFirstVisibleItemScrollOffset = viewport.firstVisibleItemScrollOffset,
     )
     val currentOnEvent by rememberUpdatedState(onEvent)
-    val reloadingRename = when (operation) {
-        is FilesFolderOperation.Loading -> operation.intent.takeIf { operation.phase == FilesFolderOperationPhase.RELOADING }
-        is FilesFolderOperation.Failed -> operation.intent.takeIf { operation.phase == FilesFolderOperationPhase.RELOADING }
+    val pendingIntent = when (operation) {
+        is FilesFolderOperation.Loading -> operation.intent.takeIf {
+            operation.phase == FilesFolderOperationPhase.RELOADING || it is FilesFolderOperationIntent.Delete
+        }
+        is FilesFolderOperation.Failed -> operation.intent.takeIf {
+            operation.phase == FilesFolderOperationPhase.RELOADING || it is FilesFolderOperationIntent.Delete
+        }
         FilesFolderOperation.Idle -> null
-    } as? FilesFolderOperationIntent.Rename
+    }
+    val pendingItemId = when (pendingIntent) {
+        is FilesFolderOperationIntent.Rename -> pendingIntent.itemId
+        is FilesFolderOperationIntent.Delete -> pendingIntent.itemId
+        else -> null
+    }
     val actionsEnabled = operation.canStartOperation
 
     LaunchedEffect(listState) {
@@ -362,7 +425,7 @@ private fun MobileFilesList(
                 onActions = if (item.id.value > 0L) { { onActions(item) } } else null,
                 actionsEnabled = actionsEnabled,
                 onClick = when {
-                    item.id == reloadingRename?.itemId -> null
+                    item.id == pendingItemId -> null
                     item.isFolder -> {
                         { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
                     }

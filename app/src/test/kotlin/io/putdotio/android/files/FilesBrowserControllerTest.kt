@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
@@ -23,6 +24,14 @@ class FilesBrowserControllerTest {
         val renamed = mutableListOf<Pair<FilesItemId, String>>()
         var folderLoads = 0
         val repository = object : FilesRepository {
+            override suspend fun delete(
+                itemId: FilesItemId,
+                mode: FilesDeleteMode,
+            ): FilesRepositoryResult<FileDeleteResult> =
+                error("No delete expected")
+            override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+                error("No item resolution expected")
+
             override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
                 folderLoads += 1
                 return when (folderLoads) {
@@ -81,6 +90,14 @@ class FilesBrowserControllerTest {
         val started = CompletableDeferred<Unit>()
         val cancelled = CompletableDeferred<Unit>()
         val repository = object : FilesRepository {
+            override suspend fun delete(
+                itemId: FilesItemId,
+                mode: FilesDeleteMode,
+            ): FilesRepositoryResult<FileDeleteResult> =
+                error("No delete expected")
+            override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+                error("No item resolution expected")
+
             override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
                 FilesRepositoryResult.Success(FilesPage(listOf(original), null))
 
@@ -118,6 +135,14 @@ class FilesBrowserControllerTest {
             val folder = item(7L, "Shows", PutioFileType.FOLDER)
             val repository =
                 object : FilesRepository {
+                    override suspend fun delete(
+                        itemId: FilesItemId,
+                        mode: FilesDeleteMode,
+                    ): FilesRepositoryResult<FileDeleteResult> =
+                        error("No delete expected")
+                    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+                        error("No item resolution expected")
+
                     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
                         if (folderId == FilesFolder.Root.id) {
                             FilesRepositoryResult.Success(FilesPage(listOf(folder), FilesCursor("next")))
@@ -180,6 +205,14 @@ class FilesBrowserControllerTest {
             val folder = item(7L, "Shows", PutioFileType.FOLDER)
             val repository =
                 object : FilesRepository {
+                    override suspend fun delete(
+                        itemId: FilesItemId,
+                        mode: FilesDeleteMode,
+                    ): FilesRepositoryResult<FileDeleteResult> =
+                        error("No delete expected")
+                    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+                        error("No item resolution expected")
+
                     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
                         if (folderId == FilesFolder.Root.id) {
                             FilesRepositoryResult.Success(FilesPage(listOf(folder), null))
@@ -228,6 +261,14 @@ class FilesBrowserControllerTest {
             val folder = item(7L, "Shows", PutioFileType.FOLDER)
             val repository =
                 object : FilesRepository {
+                    override suspend fun delete(
+                        itemId: FilesItemId,
+                        mode: FilesDeleteMode,
+                    ): FilesRepositoryResult<FileDeleteResult> =
+                        error("No delete expected")
+                    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+                        error("No item resolution expected")
+
                     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
                         when (folderId.value) {
                             FilesFolder.Root.id.value -> FilesRepositoryResult.Success(FilesPage(listOf(folder), null))
@@ -279,6 +320,14 @@ class FilesBrowserControllerTest {
         runBlocking {
             val repository =
                 object : FilesRepository {
+                    override suspend fun delete(
+                        itemId: FilesItemId,
+                        mode: FilesDeleteMode,
+                    ): FilesRepositoryResult<FileDeleteResult> =
+                        error("No delete expected")
+                    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+                        error("No item resolution expected")
+
                     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
                         FilesRepositoryResult.Success(FilesPage(emptyList(), null))
 
@@ -310,6 +359,14 @@ class FilesBrowserControllerTest {
             var folderLoads = 0
             val repository =
                 object : FilesRepository {
+                    override suspend fun delete(
+                        itemId: FilesItemId,
+                        mode: FilesDeleteMode,
+                    ): FilesRepositoryResult<FileDeleteResult> =
+                        error("No delete expected")
+                    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+                        error("No item resolution expected")
+
                     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
                         folderLoads += 1
                         return FilesRepositoryResult.Success(
@@ -366,6 +423,14 @@ class FilesBrowserControllerTest {
             val persistedSorts = mutableListOf<FilesSort>()
             val repository =
                 object : FilesRepository {
+                    override suspend fun delete(
+                        itemId: FilesItemId,
+                        mode: FilesDeleteMode,
+                    ): FilesRepositoryResult<FileDeleteResult> =
+                        error("No delete expected")
+                    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+                        error("No item resolution expected")
+
                     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
                         folderLoads += 1
                         return when (folderLoads) {
