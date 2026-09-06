@@ -1,6 +1,7 @@
 package io.putdotio.android.history
 
 import io.putdotio.android.files.FilesFailure
+import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -37,6 +38,94 @@ class HistoryReducerTest {
         val retry = HistoryReducer.reduce(failed.state, HistoryEvent.Retry)
         assertNull((retry.effect as HistoryEffect.Load).before)
         assertTrue(retry.state.content is HistoryContent.Loading)
+    }
+
+    @Test
+    fun settingEnabledReloadsWithAMonotonicRequestAndRejectsStaleResults() {
+        val start = HistoryReducer.start(historyEnabled = true)
+        val firstRequest = start.effect as HistoryEffect.Load
+        val disabled = HistoryReducer.reduce(start.state, HistoryEvent.SetEnabled(false))
+
+        assertEquals(HistoryContent.Disabled, disabled.state.content)
+        assertEquals(HistoryClearing.Idle, disabled.state.clearing)
+
+        val enabled = HistoryReducer.reduce(disabled.state, HistoryEvent.SetEnabled(true))
+        val secondRequest = enabled.effect as HistoryEffect.Load
+        assertTrue(secondRequest.requestId.value > firstRequest.requestId.value)
+        assertEquals(secondRequest.requestId, (enabled.state.content as HistoryContent.Loading).requestId)
+
+        val stale =
+            HistoryReducer.reduce(
+                enabled.state,
+                HistoryEvent.LoadSucceeded(firstRequest.requestId, HistoryPage(listOf(item(1L)), false)),
+            )
+        assertFalse(stale.consumed)
+        assertEquals(enabled.state, stale.state)
+
+        val loaded =
+            HistoryReducer.reduce(
+                enabled.state,
+                HistoryEvent.LoadSucceeded(secondRequest.requestId, HistoryPage(listOf(item(2L)), false)),
+            )
+        assertEquals(listOf(2L), (loaded.state.content as HistoryContent.Ready).items.map { it.id.value })
+    }
+
+    @Test
+    fun settingCurrentHistoryAvailabilityIsANoOp() {
+        val disabled = HistoryReducer.start(historyEnabled = false).state
+        val enabled = HistoryReducer.start(historyEnabled = true).state
+
+        assertFalse(HistoryReducer.reduce(disabled, HistoryEvent.SetEnabled(false)).consumed)
+        assertFalse(HistoryReducer.reduce(enabled, HistoryEvent.SetEnabled(true)).consumed)
+    }
+
+    @Test
+    fun inFlightClearReloadsAuthoritativeHistoryAcrossDisableAndReenable() {
+        val initial = loaded(listOf(item(1L)), hasMore = false)
+        val requested = HistoryReducer.reduce(initial, HistoryEvent.RequestClear)
+        val clearing = HistoryReducer.reduce(requested.state, HistoryEvent.ConfirmClear)
+        val clearRequest = clearing.effect as HistoryEffect.Clear
+        val disabled = HistoryReducer.reduce(clearing.state, HistoryEvent.SetEnabled(false))
+        val reenabled = HistoryReducer.reduce(disabled.state, HistoryEvent.SetEnabled(true))
+        val loadRequest = reenabled.effect as HistoryEffect.Load
+
+        val reloaded =
+            HistoryReducer.reduce(
+                reenabled.state,
+                HistoryEvent.LoadSucceeded(loadRequest.requestId, HistoryPage(listOf(item(2L)), false)),
+            )
+        assertTrue(reloaded.state.content is HistoryContent.Ready)
+
+        val cleared = HistoryReducer.reduce(reloaded.state, HistoryEvent.ClearSucceeded(clearRequest.requestId))
+        val reconciliationLoad = cleared.effect as HistoryEffect.Load
+        assertNull(reconciliationLoad.before)
+        assertTrue(reconciliationLoad.requestId.value > loadRequest.requestId.value)
+        assertEquals(HistoryContent.Loading(reconciliationLoad.requestId), cleared.state.content)
+        assertEquals(HistoryClearing.Idle, cleared.state.clearing)
+
+        val reconciled =
+            HistoryReducer.reduce(
+                cleared.state,
+                HistoryEvent.LoadSucceeded(
+                    reconciliationLoad.requestId,
+                    HistoryPage(listOf(item(3L)), false),
+                ),
+            )
+        assertEquals(listOf(3L), (reconciled.state.content as HistoryContent.Ready).items.map { it.id.value })
+    }
+
+    @Test
+    fun staleAuthenticationFailureSurvivesDisable() {
+        val start = HistoryReducer.start(historyEnabled = true)
+        val request = start.effect as HistoryEffect.Load
+        val disabled = HistoryReducer.reduce(start.state, HistoryEvent.SetEnabled(false))
+        val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+
+        val rejected = HistoryReducer.reduce(disabled.state, HistoryEvent.LoadFailed(request.requestId, failure))
+
+        assertTrue(rejected.consumed)
+        assertEquals(HistoryContent.Disabled, rejected.state.content)
+        assertEquals(failure, rejected.state.authoritativeFailure)
     }
 
     @Test
@@ -98,15 +187,23 @@ class HistoryReducerTest {
     }
 
     @Test
-    fun successfulClearEmptiesHistoryAndFileEventsEmitNavigation() {
+    fun successfulClearReloadsHistoryAndFileEventsEmitNavigation() {
         val initial = loaded(listOf(item(1L)), hasMore = false)
         val requested = HistoryReducer.reduce(initial, HistoryEvent.RequestClear)
         val confirmed = HistoryReducer.reduce(requested.state, HistoryEvent.ConfirmClear)
         val requestId = (confirmed.effect as HistoryEffect.Clear).requestId
         val cleared = HistoryReducer.reduce(confirmed.state, HistoryEvent.ClearSucceeded(requestId))
-        assertEquals(HistoryContent.Empty, cleared.state.content)
+        val reload = cleared.effect as HistoryEffect.Load
+        assertEquals(HistoryContent.Loading(reload.requestId), cleared.state.content)
 
-        val navigation = HistoryReducer.reduce(cleared.state, HistoryEvent.OpenFile(HistoryFileId(42L)))
+        val empty =
+            HistoryReducer.reduce(
+                cleared.state,
+                HistoryEvent.LoadSucceeded(reload.requestId, HistoryPage(emptyList(), false)),
+            )
+        assertEquals(HistoryContent.Empty, empty.state.content)
+
+        val navigation = HistoryReducer.reduce(empty.state, HistoryEvent.OpenFile(HistoryFileId(42L)))
         assertEquals(HistoryEffect.NavigateToFile(HistoryFileId(42L)), navigation.effect)
     }
 

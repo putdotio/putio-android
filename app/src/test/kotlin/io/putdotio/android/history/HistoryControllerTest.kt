@@ -25,11 +25,31 @@ class HistoryControllerTest {
     }
 
     @Test
+    fun enablingDisabledControllerLoadsAndDisablingDropsLoadedHistory() = runBlocking {
+        var calls = 0
+        val controller = HistoryController(repository { calls += 1 }, historyEnabled = false, parentScope = this)
+        try {
+            assertTrue(controller.dispatch(HistoryEvent.SetEnabled(true)))
+            controller.awaitState { it.content == HistoryContent.Empty }
+            assertEquals(1, calls)
+
+            assertTrue(controller.dispatch(HistoryEvent.SetEnabled(false)))
+            assertEquals(HistoryContent.Disabled, controller.state.value.content)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
     fun controllerLoadsClearsOnlyAfterConfirmationAndPublishesNavigation() = runBlocking {
         var clears = 0
+        var loads = 0
         val repository = object : HistoryRepository {
-            override suspend fun load(before: HistoryEventId?) =
-                HistoryRepositoryResult.Success(HistoryPage(listOf(item(2L)), false))
+            override suspend fun load(before: HistoryEventId?): HistoryRepositoryResult<HistoryPage> {
+                loads += 1
+                val items = if (loads == 1) listOf(item(2L)) else emptyList()
+                return HistoryRepositoryResult.Success(HistoryPage(items, false))
+            }
             override suspend fun clear(): HistoryRepositoryResult<Unit> {
                 clears += 1
                 return HistoryRepositoryResult.Success(Unit)
@@ -44,6 +64,7 @@ class HistoryControllerTest {
             assertTrue(controller.dispatch(HistoryEvent.ConfirmClear))
             controller.awaitState { it.content == HistoryContent.Empty }
             assertEquals(1, clears)
+            assertEquals(2, loads)
 
             val navigation = async(start = CoroutineStart.UNDISPATCHED) { controller.navigation.first() }
             controller.dispatch(HistoryEvent.OpenFile(HistoryFileId(22L)))

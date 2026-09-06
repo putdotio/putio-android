@@ -28,20 +28,33 @@ internal fun HistoryState.confirmClear(): HistoryTransition {
 
 internal fun HistoryState.clearSucceeded(event: HistoryEvent.ClearSucceeded): HistoryTransition {
     val active = clearing as? HistoryClearing.Clearing
-    return if (active?.requestId == event.requestId) {
-        HistoryTransition(
-            copy(
-                content = HistoryContent.Empty,
-                clearing = HistoryClearing.Idle,
-                consumedBefore = emptySet(),
-            ),
+    return when {
+        active?.requestId != event.requestId -> HistoryTransition(this, consumed = false)
+        content is HistoryContent.Disabled -> HistoryTransition(
+            copy(clearing = HistoryClearing.Idle, consumedBefore = emptySet()),
         )
-    } else {
-        HistoryTransition(this, consumed = false)
+        else -> reloadAfterClear()
     }
 }
 
+private fun HistoryState.reloadAfterClear(): HistoryTransition {
+    val requestId = HistoryRequestId(nextRequestValue)
+    return HistoryTransition(
+        state =
+            copy(
+                content = HistoryContent.Loading(requestId),
+                clearing = HistoryClearing.Idle,
+                consumedBefore = emptySet(),
+                nextRequestValue = requestId.value + 1,
+            ),
+        effect = HistoryEffect.Load(before = null, requestId),
+    )
+}
+
 internal fun HistoryState.clearFailed(event: HistoryEvent.ClearFailed): HistoryTransition {
+    (event.failure as? io.putdotio.android.files.FilesFailure.AuthenticationRequired)?.let {
+        return HistoryTransition(copy(authoritativeFailure = it))
+    }
     val active = clearing as? HistoryClearing.Clearing
     return if (active?.requestId == event.requestId) {
         HistoryTransition(copy(clearing = HistoryClearing.Failed(event.failure)))

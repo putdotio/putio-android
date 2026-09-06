@@ -145,6 +145,18 @@ class FilesSessionFailureTest {
         assertSame(authFailure, state.authoritativeSessionFailure())
     }
 
+    @Test
+    fun `history preserves an authoritative failure while disabled`() {
+        val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val state =
+            HistoryState(
+                content = HistoryContent.Disabled,
+                authoritativeFailure = authFailure,
+            )
+
+        assertSame(authFailure, state.authoritativeSessionFailure())
+    }
+
     private fun browserStateWithParentPagingFailure(failure: FilesFailure): FilesBrowserState =
         FilesBrowserState(
             stack = listOf(

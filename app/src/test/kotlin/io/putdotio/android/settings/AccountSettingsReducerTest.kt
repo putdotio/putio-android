@@ -38,6 +38,28 @@ class AccountSettingsReducerTest {
     }
 
     @Test
+    fun historyAvailabilityChangesOnlyAfterAuthoritativeRefresh() {
+        val loaded = loadedState(Preferences)
+        assertTrue(checkNotNull(loaded.confirmedHistoryEnabled()))
+
+        val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
+        val saving = AccountSettingsReducer.reduce(loaded, AccountSettingsEvent.ChangeRequested(change))
+        assertNull(saving.state.confirmedHistoryEnabled())
+
+        val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
+        val refreshing = AccountSettingsReducer.reduce(saving.state, AccountSettingsEvent.SaveSucceeded(requestId))
+        assertNull(refreshing.state.confirmedHistoryEnabled())
+
+        val confirmedPreferences = Preferences.copy(historyEnabled = false)
+        val confirmed =
+            AccountSettingsReducer.reduce(
+                refreshing.state,
+                AccountSettingsEvent.RefreshSucceeded(requestId, confirmedPreferences),
+            )
+        assertFalse(checkNotNull(confirmed.state.confirmedHistoryEnabled()))
+    }
+
+    @Test
     fun rejectsNoOpAndConcurrentChanges() {
         val loaded = loadedState(Preferences)
         val noOp =
