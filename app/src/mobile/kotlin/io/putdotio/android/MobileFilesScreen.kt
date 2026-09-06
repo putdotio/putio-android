@@ -25,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -65,10 +66,12 @@ import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
 import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.files.canStartOperation
 import io.putdotio.sdk.files.PutioFileType
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
@@ -78,6 +81,7 @@ internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
 internal const val MOBILE_FILES_OPERATION_RETRY_TAG = "mobile-files-operation-retry"
 internal const val MOBILE_FILES_PAGING_ACTION_TAG = "mobile-files-paging-action"
 internal const val MOBILE_FILES_REFRESH_TAG = "mobile-files-refresh"
+internal const val MOBILE_FILES_WATCHED_TAG = "mobile-files-watched"
 
 @Composable
 internal fun MobileFilesScreen(
@@ -520,13 +524,20 @@ internal fun MobileFilesRow(
         modifier = modifier
             .fillMaxWidth()
             .then(interaction),
-        supportingContent = metadata?.let { value ->
+        supportingContent = if (metadata == null && item.playback?.isWatched != true) {
+            null
+        } else {
             {
-                Text(
-                    text = value,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(FILES_PROGRESS_SPACING)) {
+                    metadata?.let { value ->
+                        Text(
+                            text = value,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    item.playback?.takeIf { it.isWatched }?.let { MobileFilesWatchedIndicator(it) }
+                }
             }
         },
         leadingContent = {
@@ -551,6 +562,41 @@ internal fun MobileFilesRow(
             }
         },
     )
+}
+
+// Known duration draws a determinate bar; an unknown duration still marks the row watched.
+@Composable
+private fun MobileFilesWatchedIndicator(progress: FilesPlaybackProgress) {
+    val fraction = progress.fraction
+    val label = if (fraction == null) {
+        stringResource(R.string.mobile_files_watched)
+    } else {
+        stringResource(R.string.mobile_files_watched_percent, (fraction * PERCENT_SCALE).roundToInt())
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(MOBILE_FILES_WATCHED_TAG)
+            .semantics(mergeDescendants = true) { contentDescription = label },
+        horizontalArrangement = Arrangement.spacedBy(FILES_PROGRESS_SPACING),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (fraction != null) {
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(max = FILES_PROGRESS_HEIGHT),
+                drawStopIndicator = {},
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable
@@ -666,3 +712,6 @@ private const val FILES_PAGING_ITEM_KEY = "files-paging"
 private val FILES_DIVIDER_INSET = 72.dp
 private val FILES_ICON_CONTAINER_SIZE = 40.dp
 private val FILES_ICON_SIZE = 24.dp
+private val FILES_PROGRESS_SPACING = 6.dp
+private val FILES_PROGRESS_HEIGHT = 4.dp
+private const val PERCENT_SCALE = 100f

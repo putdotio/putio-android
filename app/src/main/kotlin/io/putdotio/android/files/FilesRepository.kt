@@ -138,7 +138,9 @@ class SdkFilesRepository internal constructor(
     )
 
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
-        requestPage { listFolder(folderId.value, FilesListQuery(perPage = FILES_PAGE_SIZE)) }
+        // Child video_metadata carries duration for the watched indicator; continuation
+        // cursors inherit the initial listing's field flags server-side.
+        requestPage { listFolder(folderId.value, FilesListQuery(perPage = FILES_PAGE_SIZE, videoMetadata = true)) }
 
     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
         requestPage { continueListing(cursor.value, FilesContinueQuery(perPage = FILES_PAGE_SIZE)) }
@@ -221,7 +223,16 @@ internal fun PutioFile.toFilesItem(): FilesItem =
         type = fileType,
         sizeBytes = size,
         createdAt = createdAt,
+        playback = toPlaybackProgress(),
     )
+
+// Only media rows carry a position. Malformed server values drop the indicator instead of failing the list.
+private fun PutioFile.toPlaybackProgress(): FilesPlaybackProgress? {
+    val isMedia = fileType == PutioFileType.VIDEO || fileType == PutioFileType.AUDIO
+    val position = startFrom?.takeIf { isMedia && it.isFinite() && it >= 0.0 }
+    val duration = videoMetadata?.duration?.takeIf { it.isFinite() && it > 0.0 }
+    return position?.let { FilesPlaybackProgress(it, duration) }
+}
 
 // Mirrors PutioAuthSessionGateway.isAuthoritativeAuthRejection: a contract-derived
 // 401/403 reason is an auth verdict even when the underlying error is not an API

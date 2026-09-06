@@ -6,10 +6,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.filter
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
@@ -40,6 +43,7 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
@@ -650,6 +654,23 @@ class MobileFilesScreenTest {
             ),
             nextRequestValue = 2L,
         )
+
+    @Test
+    fun watchedMediaShowsProgressOnlyWhenPositionIsKnownAndAboveZero() {
+        val partly = filesItem(1L, "partly.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(90.0, 360.0))
+        val unknown = filesItem(2L, "unknown.mp3", PutioFileType.AUDIO).copy(playback = FilesPlaybackProgress(5.0, null))
+        val fresh = filesItem(3L, "fresh.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 100.0))
+        val plain = filesItem(4L, "plain.txt")
+        val state = browserState(FilesContent.Ready(listOf(partly, unknown, fresh, plain), FilesPaging.Complete))
+        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = { true }, onPlayVideo = {}) } }
+        compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true).assertCountEquals(2)
+        compose.onNodeWithContentDescription("25% watched", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.25f, 0f..1f)), useUnmergedTree = true)
+            .assertIsDisplayed()
+        compose.onNodeWithContentDescription("Watched", useUnmergedTree = true).assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true)
+            .filter(hasProgressBarRangeInfo(ProgressBarRangeInfo(0f, 0f..1f))).assertCountEquals(0)
+    }
 
     private fun filesItem(
         id: Long,

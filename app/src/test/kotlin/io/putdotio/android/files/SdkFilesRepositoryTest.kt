@@ -10,6 +10,7 @@ import io.putdotio.sdk.errors.PutioTransportException
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioVideoMetadata
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -68,11 +69,13 @@ class SdkFilesRepositoryTest {
         runBlocking {
             var requestedFolder: Long? = null
             var requestedPageSize: Int? = null
+            var requestedVideoMetadata = false
             val repository =
                 SdkFilesRepository(
                     listFolder = { folderId, query ->
                         requestedFolder = folderId
                         requestedPageSize = query.perPage
+                        requestedVideoMetadata = query.videoMetadata
                         response(
                             files =
                                 listOf(
@@ -105,6 +108,7 @@ class SdkFilesRepositoryTest {
 
             assertEquals(0L, requestedFolder)
             assertEquals(50, requestedPageSize)
+            assertTrue(requestedVideoMetadata)
             assertEquals("  raw name.mkv  ", result.value.items.single().name)
             assertEquals(PutioFileType.VIDEO, result.value.items.single().type)
             assertEquals(FilesCursor("next"), result.value.nextCursor)
@@ -382,6 +386,34 @@ class SdkFilesRepositoryTest {
             cursor = cursor,
             status = "OK",
         )
+
+    @Test
+    fun mapsWatchPositionOnlyForMediaAndDropsMalformedValues() {
+        val watched = sdkFile(1L, "a.mkv", PutioFileType.VIDEO).copy(
+            startFrom = 90.0, videoMetadata = PutioVideoMetadata(duration = 360.0),
+        ).toFilesItem().playback
+        assertEquals(FilesPlaybackProgress(90.0, 360.0), watched)
+        assertEquals(0.25f, checkNotNull(watched).fraction)
+        assertTrue(watched.isWatched)
+
+        val unknownDuration = sdkFile(2L, "b.mp3", PutioFileType.AUDIO).copy(startFrom = 5.0).toFilesItem().playback
+        assertEquals(FilesPlaybackProgress(5.0, null), unknownDuration)
+        assertNull(checkNotNull(unknownDuration).fraction)
+
+        val unwatched = sdkFile(3L, "c.mkv", PutioFileType.VIDEO).copy(startFrom = 0.0).toFilesItem().playback
+        assertEquals(false, checkNotNull(unwatched).isWatched)
+        assertNull(sdkFile(4L, "d.mkv", PutioFileType.VIDEO).toFilesItem().playback)
+        assertNull(sdkFile(5L, "e.txt", PutioFileType.TEXT).copy(startFrom = 10.0).toFilesItem().playback)
+        assertNull(sdkFile(6L, "f.mkv", PutioFileType.VIDEO).copy(startFrom = -1.0).toFilesItem().playback)
+        val overrun = sdkFile(7L, "g.mkv", PutioFileType.VIDEO).copy(
+            startFrom = 500.0, videoMetadata = PutioVideoMetadata(duration = 0.0),
+        ).toFilesItem().playback
+        assertEquals(FilesPlaybackProgress(500.0, null), overrun)
+        val clamped = sdkFile(8L, "h.mkv", PutioFileType.VIDEO).copy(
+            startFrom = 500.0, videoMetadata = PutioVideoMetadata(duration = 100.0),
+        ).toFilesItem().playback
+        assertEquals(1f, checkNotNull(clamped).fraction)
+    }
 
     private fun sdkFile(
         id: Long,
