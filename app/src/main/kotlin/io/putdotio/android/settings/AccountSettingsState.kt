@@ -10,6 +10,8 @@ internal data class AccountSettingsPreferences(
     val trashEnabled: Boolean,
     val showSubtitles: Boolean,
     val autoSelectSubtitles: Boolean,
+    // Account-wide `use_start_from`: playback resumes from and writes back saved positions.
+    val resumePlayback: Boolean = true,
 )
 
 internal enum class AccountSettingsKey {
@@ -17,6 +19,7 @@ internal enum class AccountSettingsKey {
     Trash,
     ShowSubtitles,
     AutoSelectSubtitles,
+    ResumePlayback,
 }
 
 internal data class AccountSettingsChange(

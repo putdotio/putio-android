@@ -137,6 +137,7 @@ private fun AccountSettings.toPreferences(): AccountSettingsPreferences =
         trashEnabled = trashEnabled,
         showSubtitles = !hideSubtitles,
         autoSelectSubtitles = !dontAutoselectSubtitles,
+        resumePlayback = useStartFrom,
     )
 
 private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
@@ -145,6 +146,7 @@ private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
         AccountSettingsKey.Trash -> AccountSettingsPatch(trashEnabled = enabled)
         AccountSettingsKey.ShowSubtitles -> AccountSettingsPatch(hideSubtitles = !enabled)
         AccountSettingsKey.AutoSelectSubtitles -> AccountSettingsPatch(dontAutoselectSubtitles = !enabled)
+        AccountSettingsKey.ResumePlayback -> AccountSettingsPatch(useStartFrom = enabled)
     }
 
 private fun PutioException.toAccountSettingsFailure(): AccountSettingsFailure {

@@ -6,6 +6,7 @@ internal fun AccountSettingsPreferences.valueFor(key: AccountSettingsKey): Boole
         AccountSettingsKey.Trash -> trashEnabled
         AccountSettingsKey.ShowSubtitles -> showSubtitles
         AccountSettingsKey.AutoSelectSubtitles -> autoSelectSubtitles
+        AccountSettingsKey.ResumePlayback -> resumePlayback
     }
 
 internal fun AccountSettingsPreferences.applying(change: AccountSettingsChange): AccountSettingsPreferences =
@@ -14,4 +15,5 @@ internal fun AccountSettingsPreferences.applying(change: AccountSettingsChange):
         AccountSettingsKey.Trash -> copy(trashEnabled = change.enabled)
         AccountSettingsKey.ShowSubtitles -> copy(showSubtitles = change.enabled)
         AccountSettingsKey.AutoSelectSubtitles -> copy(autoSelectSubtitles = change.enabled)
+        AccountSettingsKey.ResumePlayback -> copy(resumePlayback = change.enabled)
     }

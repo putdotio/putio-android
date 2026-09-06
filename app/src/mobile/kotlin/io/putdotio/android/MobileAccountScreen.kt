@@ -332,6 +332,18 @@ private fun LazyListScope.accountSettingsItems(
             )
         }
     }
+    item(key = AccountSettingsKey.ResumePlayback) {
+        MobileAccountSettingRow(
+            title = R.string.mobile_settings_resume_playback,
+            description = R.string.mobile_settings_resume_playback_description,
+            icon = R.drawable.ic_ph_clock_counter_clockwise,
+            checked = preferences.resumePlayback,
+            key = AccountSettingsKey.ResumePlayback,
+            mutation = mutation,
+            onRetry = onRetryChange,
+            onChange = onChange,
+        )
+    }
     item(key = PRIVACY_STORAGE_HEADER_KEY) {
         MobileAccountSectionHeader(R.string.mobile_settings_section_privacy_storage)
     }
