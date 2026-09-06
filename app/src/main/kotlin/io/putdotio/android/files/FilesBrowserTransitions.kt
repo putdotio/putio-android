@@ -19,13 +19,15 @@ internal fun FilesBrowserState.openFolder(itemId: FilesItemId): FilesBrowserTran
 }
 
 internal fun FilesBrowserState.openExternalItem(item: FilesItem): FilesBrowserTransition {
+    // Replacing the stack would cancel reconciliation after a POST may have reached the server.
+    if (stack.any { it.operation.pendingDelete != null }) return FilesBrowserTransition(this, consumed = false)
     val destination =
         if (item.isFolder) {
             FilesFolder(id = item.id, name = item.name)
         } else {
             item.parentId?.let { FilesFolder(id = it, name = null) }
         }
-    return if (destination == null || isDeleteTargetBlocked(item.id) || isDeleteTargetBlocked(destination.id)) {
+    return if (destination == null) {
         FilesBrowserTransition(this, consumed = false)
     } else {
         val requestId = FilesRequestId(nextRequestValue)
@@ -50,7 +52,7 @@ private fun FilesBrowserState.rootFolderState(): FilesFolderState =
         ?: FilesFolderState(FilesFolder.Root, FilesContent.Empty(FilesPaging.Complete))
 
 internal fun FilesBrowserState.navigateBack(): FilesBrowserTransition =
-    if (canNavigateBack) {
+    if (canNavigateBack && current.operation.pendingDelete == null) {
         FilesBrowserTransition(copy(stack = stack.dropLast(1)))
     } else {
         FilesBrowserTransition(this, consumed = false)

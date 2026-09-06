@@ -99,7 +99,7 @@ internal fun MobileFilesActions(
             enabled = !deleteSubmitted && operation.canStartOperation,
             onDismiss = {
                 confirmedDeleteTrash = null
-                onDismiss()
+                dismiss()
             },
             onConfirm = {
                 if (!deleteSubmitted && confirmedDeleteTrash == deleteTrash &&

@@ -318,7 +318,9 @@ private fun MobileFilesOperationStatus(
                     modifier = Modifier.testTag(MOBILE_FILES_OPERATION_RETRY_TAG),
                 ) {
                     Text(stringResource(
-                        if (operation.intent is FilesFolderOperationIntent.Delete) {
+                        if (operation.intent is FilesFolderOperationIntent.Delete &&
+                            operation.phase != FilesFolderOperationPhase.RELOADING
+                        ) {
                             R.string.mobile_files_check_status
                         } else {
                             R.string.mobile_action_retry

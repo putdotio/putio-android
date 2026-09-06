@@ -76,6 +76,7 @@ import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.pendingDelete
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -837,7 +838,7 @@ private fun MobileTopBar(
         },
         navigationIcon = {
             if (destination == MobileDestination.Files && filesState.canNavigateBack) {
-                IconButton(onClick = onFilesBack) {
+                IconButton(onClick = onFilesBack, enabled = filesState.current.operation.pendingDelete == null) {
                     Icon(
                         painter = painterResource(R.drawable.ic_ph_arrow_left),
                         contentDescription = stringResource(R.string.mobile_action_back),

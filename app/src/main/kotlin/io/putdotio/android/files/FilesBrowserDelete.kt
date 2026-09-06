@@ -97,13 +97,15 @@ private fun FilesBrowserState.deleteRequestIndex(requestId: FilesRequestId, phas
         loading?.requestId == requestId && loading.phase == phase && loading.intent is FilesFolderOperationIntent.Delete
     }
 
-internal fun FilesBrowserState.isDeleteTargetBlocked(itemId: FilesItemId): Boolean = stack.any {
-    val intent = when (val operation = it.operation) {
-        is FilesFolderOperation.Loading -> operation.intent
-        is FilesFolderOperation.Failed -> operation.intent
+internal val FilesFolderOperation.pendingDelete: FilesFolderOperationIntent.Delete?
+    get() = when (this) {
+        is FilesFolderOperation.Loading -> intent as? FilesFolderOperationIntent.Delete
+        is FilesFolderOperation.Failed -> intent as? FilesFolderOperationIntent.Delete
         FilesFolderOperation.Idle -> null
     }
-    intent is FilesFolderOperationIntent.Delete && intent.itemId == itemId
+
+internal fun FilesBrowserState.isDeleteTargetBlocked(itemId: FilesItemId): Boolean = stack.any {
+    it.operation.pendingDelete?.itemId == itemId
 }
 
 private const val HTTP_NOT_FOUND = 404

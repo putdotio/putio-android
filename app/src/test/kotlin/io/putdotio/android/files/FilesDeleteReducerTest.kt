@@ -204,7 +204,7 @@ class FilesDeleteReducerTest {
     }
 
     @Test
-    fun authenticationRejectionIsVisibleWithoutAnotherRequestAndPoppedFolderDropsLateResults() {
+    fun authenticationRejectionIsVisibleWithoutAnotherRequest() {
         val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
         val failure = apiFailure(401)
         val rejected = FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteFinished(
@@ -212,18 +212,38 @@ class FilesDeleteReducerTest {
         ))
         assertNull(rejected.effect)
         assertSame(failure, (rejected.state.current.operation as FilesFolderOperation.Failed).failure)
+    }
+
+    @Test
+    fun navigationCannotDiscardDeleteOrItsReadOnlyRecovery() {
         val opening = FilesBrowserReducer.reduce(loadedRoot(), FilesBrowserEvent.OpenFolder(item.id))
         val child = FilesBrowserReducer.reduce(opening.state, FilesBrowserEvent.LoadSucceeded(
             checkNotNull(opening.effect).requestId, FilesPage(listOf(file(8L)), null),
         )).state
         val childDelete = FilesBrowserReducer.reduce(child, event.copy(folderId = item.id, itemId = FilesItemId(8L)))
         val checking = acknowledge(childDelete)
-        val back = FilesBrowserReducer.reduce(checking.state, FilesBrowserEvent.NavigateBack).state
-        val late = FilesBrowserReducer.reduce(back, FilesBrowserEvent.DeleteChecked(
-            checkNotNull(checking.effect).requestId, FilesRepositoryResult.Failure(apiFailure(404)),
+        val checkFailed = checked(checking, FilesRepositoryResult.Failure(unexpected("offline")))
+        val reloading = checked(checking, FilesRepositoryResult.Success(file(8L)))
+        val reloadFailed = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadFailed(
+            checkNotNull(reloading.effect).requestId, unexpected("reload offline"),
         ))
-        assertFalse(late.consumed)
-        assertEquals(back, late.state)
+        val navigation = listOf(
+            FilesBrowserEvent.NavigateBack,
+            FilesBrowserEvent.OpenExternalItem(file(99L)),
+            FilesBrowserEvent.OpenExternalItem(file(99L).copy(type = PutioFileType.VIDEO)),
+        )
+        for (pending in listOf(childDelete, checking, checkFailed, reloading, reloadFailed)) {
+            navigation.forEach { navigationEvent ->
+                val blocked = FilesBrowserReducer.reduce(pending.state, navigationEvent)
+                assertFalse(blocked.consumed)
+                assertSame(pending.state, blocked.state)
+                assertNull(blocked.effect)
+            }
+        }
+        val retry = FilesBrowserReducer.reduce(checkFailed.state, FilesBrowserEvent.Retry)
+        assertTrue(retry.effect is FilesBrowserEffect.CheckDelete)
+        val finished = finishReload(checked(retry, FilesRepositoryResult.Success(file(8L))))
+        navigation.forEach { assertTrue(FilesBrowserReducer.reduce(finished, it).consumed) }
     }
 
     private fun acknowledge(

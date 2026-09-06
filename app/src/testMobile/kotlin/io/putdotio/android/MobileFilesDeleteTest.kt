@@ -19,9 +19,13 @@ import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesFolderOperation
+import io.putdotio.android.files.FilesFolderOperationIntent
+import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -68,6 +72,37 @@ class MobileFilesDeleteTest {
                 listOf(FilesBrowserEvent.Delete(FilesFolder.Root.id, item.id, FilesDeleteMode.PERMANENT)),
                 events.filterIsInstance<FilesBrowserEvent.Delete>(),
             )
+        }
+        openAction("Delete")
+        compose.onNodeWithText("Confirm").performClick()
+        compose.runOnIdle { assertEquals(2, events.filterIsInstance<FilesBrowserEvent.Delete>().size) }
+    }
+
+    @Test
+    fun cancelDeleteAbandonsAnEarlierRenameFailure() {
+        val rename = FilesFolderOperationIntent.Rename(item.id, "failed name")
+        val root = loadedRoot()
+        var state by mutableStateOf(root.copy(stack = listOf(root.current.copy(
+            operation = FilesFolderOperation.Failed(
+                FilesFailure.Unexpected(IllegalStateException("rename failed")),
+                rename, FilesFolderOperationPhase.RENAMING,
+            ),
+        ))))
+        val effects = mutableListOf<FilesBrowserEffect>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state, { event ->
+                    val next = FilesBrowserReducer.reduce(state, event)
+                    state = next.state
+                    next.effect?.let(effects::add)
+                }, {}, confirmedTrashEnabled = true)
+            }
+        }
+        openAction("Move to trash")
+        compose.onNodeWithText("Cancel").performClick()
+        compose.runOnIdle {
+            assertEquals(FilesFolderOperation.Idle, state.current.operation)
+            assertTrue(effects.isEmpty())
         }
     }
 
@@ -146,6 +181,19 @@ class MobileFilesDeleteTest {
         compose.runOnIdle {
             assertEquals(1, effects.filterIsInstance<FilesBrowserEffect.Delete>().size)
             assertTrue(effects.last() !is FilesBrowserEffect.Delete)
+            val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.DeleteChecked(
+                effects.last().requestId, FilesRepositoryResult.Success(item),
+            ))
+            effects += checkNotNull(reload.effect)
+            state = FilesBrowserReducer.reduce(reload.state, FilesBrowserEvent.LoadFailed(
+                checkNotNull(reload.effect).requestId, FilesFailure.Unexpected(IllegalStateException("reload failed")),
+            )).state
+        }
+        compose.onNodeWithText("Check status").assertDoesNotExist()
+        compose.onNodeWithText("Try again").performClick()
+        compose.runOnIdle {
+            assertTrue(effects.last() is FilesBrowserEffect.LoadFolder)
+            assertEquals(1, effects.filterIsInstance<FilesBrowserEffect.Delete>().size)
         }
     }
 
