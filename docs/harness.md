@@ -299,7 +299,10 @@ ownership ledger for read-only reconciliation; do not repeat the mutation.
 
 `FilesMoveRecoveryUiProofTest#uncertainMoveRetainsSourceAndRetriesOnlyReads`
 uses `putio.move.ui.enabled=true` and the same run ID for controlled recovery and
-picker paging/error UI. It performs no API operations; report it as synthetic
-proof. Screenshots are written to `move-proof-<UUID>/` below the target app's
+picker paging/error UI. With the same opt-in arguments,
+`FilesMoveNavigationUiProofTest#rootMoveConsumesBackOnFilesAndAccountUntilRecoveryCompletes`
+exercises the activity Back dispatcher while a root Move is pending or awaiting
+read recovery, on both Files and Account. These controlled tests perform no API
+operations; report them as synthetic proof. Screenshots are written to `move-proof-<UUID>/` below the target app's
 external files directory. Pull and inspect these and the validated recording
 before publishing through the repository evidence wrapper.

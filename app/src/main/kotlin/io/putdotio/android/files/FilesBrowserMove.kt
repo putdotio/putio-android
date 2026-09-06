@@ -6,10 +6,13 @@ internal fun FilesBrowserState.reduceMove(event: FilesBrowserEvent.MoveEvent): F
     is FilesBrowserEvent.MoveChecked -> moveChecked(event)
 }
 
+internal val FilesBrowserState.canStartMove: Boolean
+    get() = current.operation.canStartOperation &&
+        stack.dropLast(1).all { it.operation == FilesFolderOperation.Idle }
+
 private fun FilesBrowserState.move(event: FilesBrowserEvent.Move): FilesBrowserTransition {
     val item = current.content.items().firstOrNull { it.id == event.itemId && it.id.value > 0L }
-    if (event.folderId != current.folder.id || item == null ||
-        stack.dropLast(1).any { it.operation != FilesFolderOperation.Idle }
+    if (event.folderId != current.folder.id || item == null || !canStartMove
     ) return FilesBrowserTransition(this, consumed = false)
     val sameParent = event.destinationId == current.folder.id || event.destinationId == item.parentId
     val invalidDestination = event.destinationId.value < 0L || sameParent || event.destinationId == item.id

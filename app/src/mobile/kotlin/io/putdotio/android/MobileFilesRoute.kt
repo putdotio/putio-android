@@ -17,15 +17,16 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesMoveDestinationController
 import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.canStartOperation
+import io.putdotio.android.files.canStartMove
 
 @Composable
 internal fun MobileFilesRoute(
     state: FilesBrowserState,
     repository: FilesRepository?,
-    onEvent: (FilesBrowserEvent) -> Unit,
+    onEvent: (FilesBrowserEvent) -> Boolean,
     onPlayVideo: (FilesItem) -> Unit,
     confirmedTrashEnabled: Boolean?,
+    onAuthenticationRequired: suspend () -> Unit,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -33,17 +34,18 @@ internal fun MobileFilesRoute(
             ?.firstOrNull { it.id.value == movingItemId }
         MobileFilesScreen(
             state = state,
-            onEvent = onEvent,
+            onEvent = { onEvent(it) },
             onPlayVideo = onPlayVideo,
             confirmedTrashEnabled = confirmedTrashEnabled,
-            onMoveItem = if (repository == null) null else { item -> movingItemId = item.id.value },
+            onMoveItem = if (repository == null || !state.canStartMove) null else { item -> movingItemId = item.id.value },
         )
         if (movingItem != null && repository != null) {
             MobileFilesMoveSession(
                 item = movingItem,
                 sourceFolderId = state.current.folder.id,
                 repository = repository,
-                canSubmit = state.current.operation.canStartOperation,
+                canSubmit = state.canStartMove,
+                onAuthenticationRequired = onAuthenticationRequired,
                 onEvent = onEvent,
                 onDismiss = { movingItemId = null },
             )
@@ -57,7 +59,8 @@ private fun MobileFilesMoveSession(
     sourceFolderId: FilesItemId,
     repository: FilesRepository,
     canSubmit: Boolean,
-    onEvent: (FilesBrowserEvent) -> Unit,
+    onAuthenticationRequired: suspend () -> Unit,
+    onEvent: (FilesBrowserEvent) -> Boolean,
     onDismiss: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -72,6 +75,10 @@ private fun MobileFilesMoveSession(
         }
     }
     val destination by controller.state.collectAsState()
+    AuthoritativeSessionFailureEffect(
+        shouldReject = destination.current.content.authoritativeSessionFailure() != null,
+        onReject = onAuthenticationRequired,
+    )
     MobileFilesMoveDestination(
         state = destination,
         onEvent = { controller.dispatch(it) },
@@ -84,9 +91,12 @@ private fun MobileFilesMoveSession(
             val current = controller.state.value
             if (!finished && canSubmit && current.canMoveHere) {
                 finished = true
-                onEvent(FilesBrowserEvent.Move(sourceFolderId, item.id, current.current.folder.id))
-                // The session-owned browser retains the submitted operation after the picker closes.
-                onDismiss()
+                if (onEvent(FilesBrowserEvent.Move(sourceFolderId, item.id, current.current.folder.id))) {
+                    // The session-owned browser retains the submitted operation after the picker closes.
+                    onDismiss()
+                } else {
+                    finished = false
+                }
             }
         },
     )

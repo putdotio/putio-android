@@ -42,10 +42,16 @@ internal fun FilesFolderState.replaceFirstPage(
     if (loading?.requestId != requestId || loading.phase != FilesFolderOperationPhase.RELOADING) {
         return null
     }
-    val sorting = loading.intent as? FilesFolderOperationIntent.Sort
-    val viewport = if (sorting == null) content.viewport() else FilesViewportPosition()
+    val persistedSort = when (val intent = loading.intent) {
+        is FilesFolderOperationIntent.Sort -> intent.sort
+        FilesFolderOperationIntent.Refresh,
+        is FilesFolderOperationIntent.Rename,
+        is FilesFolderOperationIntent.Delete,
+        is FilesFolderOperationIntent.Move,
+        -> null
+    }
     // Advance the viewport generation only when an explicit sort replaces the rows.
-    val persistedSort = sorting?.sort
+    val viewport = if (persistedSort == null) content.viewport() else FilesViewportPosition()
     return copy(
         folder = folder.copy(sort = page.sort ?: persistedSort ?: folder.sort),
         content = contentFor(page.items, page.nextCursor.toPaging(emptySet()), viewport),
@@ -53,7 +59,7 @@ internal fun FilesFolderState.replaceFirstPage(
         deleteOutcome = deleteOutcome?.afterFolderPage(page),
         moveOutcome = moveOutcome?.afterFolderPage(page),
         needsReload = false,
-        viewportGeneration = if (sorting == null) viewportGeneration else viewportGeneration + 1,
+        viewportGeneration = if (persistedSort == null) viewportGeneration else viewportGeneration + 1,
         consumedCursors = emptySet(),
     )
 }

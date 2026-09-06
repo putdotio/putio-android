@@ -15,7 +15,7 @@ internal fun moveProofScreenshot(label: String) {
     val runId = InstrumentationRegistry.getArguments().getString("putio.move.runId")
     require(runId != null && runId.matches(Regex("[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}")))
     require(label in setOf("cancel-picker", "collision", "folder-result", "ancestor-result", "root-result",
-        "synthetic-recovery", "synthetic-picker-error"))
+        "synthetic-recovery", "synthetic-picker-error", "synthetic-back-files", "synthetic-back-account"))
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     val directory = File(requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)), "move-proof-$runId")
     check(directory.mkdirs() || directory.isDirectory)
