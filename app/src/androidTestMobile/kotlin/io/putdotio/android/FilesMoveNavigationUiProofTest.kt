@@ -1,6 +1,9 @@
 package io.putdotio.android
 
-import android.util.Log
+import android.app.Activity
+import android.app.KeyguardManager
+import android.os.PowerManager
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -87,6 +90,7 @@ class FilesMoveNavigationUiProofTest {
     private lateinit var navigationDispatcher: NavigationEventDispatcher
     private lateinit var fallbackCallback: OnBackPressedCallback
     private var fallbacks = 0
+    private val dispatchTrace = mutableListOf<String>()
 
     @Test
     fun rootMoveConsumesBackOnFilesAndAccountUntilRecoveryCompletes() {
@@ -96,6 +100,8 @@ class FilesMoveNavigationUiProofTest {
             val navigationOwner = checkNotNull(LocalNavigationEventDispatcherOwner.current)
             DisposableEffect(owner, navigationOwner) {
                 backOwner = owner
+                val observer = LifecycleEventObserver { _, event -> dispatchTrace += "Lifecycle $event" }
+                owner.lifecycle.addObserver(observer)
                 navigationDispatcher = navigationOwner.navigationEventDispatcher
                 // Register before MobileShell so this observes an otherwise unhandled activity Back.
                 val fallback = object : OnBackPressedCallback(true) {
@@ -103,7 +109,7 @@ class FilesMoveNavigationUiProofTest {
                 }
                 fallbackCallback = fallback
                 owner.onBackPressedDispatcher.addCallback(owner, fallback)
-                onDispose { fallback.remove() }
+                onDispose { fallback.remove(); owner.lifecycle.removeObserver(observer) }
             }
             PutioTheme {
                 Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
@@ -146,10 +152,10 @@ class FilesMoveNavigationUiProofTest {
             assertEquals(2, preview.effects.count { it is FilesBrowserEffect.CheckMove })
             assertEquals(0, fallbacks)
             val beforeBack = backDispatchDiagnostics(preview)
-            Log.i("MoveBackProof", "final Back before: $beforeBack")
+            dispatchTrace += "final Back before: $beforeBack"
             backOwner.onBackPressedDispatcher.onBackPressed()
             assertEquals(
-                "Final Back before=[$beforeBack], after=[${backDispatchDiagnostics(preview)}]",
+                "Trace=$dispatchTrace; final Back before=[$beforeBack], after=[${backDispatchDiagnostics(preview)}]",
                 1, fallbacks,
             )
         }
@@ -165,11 +171,11 @@ class FilesMoveNavigationUiProofTest {
 
     private fun assertBackRetains(preview: RootMoveBackPreview, tab: String) {
         compose.runOnIdle {
-            Log.i("MoveBackProof", "$tab Back before: ${backDispatchDiagnostics(preview)}")
+            dispatchTrace += "$tab Back before: ${backDispatchDiagnostics(preview)}"
             val retained = preview.files
             val backEvents = preview.events.count { it == FilesBrowserEvent.NavigateBack }
             backOwner.onBackPressedDispatcher.onBackPressed()
-            Log.i("MoveBackProof", "$tab Back after: ${backDispatchDiagnostics(preview)}")
+            dispatchTrace += "$tab Back after: ${backDispatchDiagnostics(preview)}"
             assertSame(retained, preview.files)
             if (tab == "Files") {
                 assertEquals(backEvents + 1, preview.events.count { it == FilesBrowserEvent.NavigateBack })
@@ -179,10 +185,24 @@ class FilesMoveNavigationUiProofTest {
         compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
     }
 
+    private fun hostDiagnostics(): String {
+        val activity = backOwner as Activity
+        val power = activity.getSystemService(PowerManager::class.java)
+        val keyguard = activity.getSystemService(KeyguardManager::class.java)
+        return "lifecycle=${backOwner.lifecycle.currentState}, finishing=${activity.isFinishing}, " +
+            "destroyed=${activity.isDestroyed}, attached=${activity.window.decorView.isAttachedToWindow}, " +
+            "focused=${activity.hasWindowFocus()}, interactive=${power.isInteractive}, " +
+            "keyguard=${keyguard.isKeyguardLocked}, locked=${keyguard.isDeviceLocked}"
+    }
+
     private fun navigate(tab: String) {
-        Log.i("MoveBackProof", "Selecting $tab; lifecycle=${backOwner.lifecycle.currentState}")
-        compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG)))
-            .performClick().assertIsSelected()
+        dispatchTrace += "Selecting $tab: ${hostDiagnostics()}"
+        try {
+            compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG)))
+                .performClick().assertIsSelected()
+        } catch (error: Throwable) {
+            throw AssertionError("Selecting $tab failed: ${hostDiagnostics()}; trace=$dispatchTrace", error)
+        }
     }
 }
 
