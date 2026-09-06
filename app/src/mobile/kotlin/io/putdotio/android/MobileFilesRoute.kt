@@ -86,10 +86,11 @@ private fun MobileFilesMoveSession(
             finished = true
             onDismiss()
         },
-        canSubmit = canSubmit && !finished,
+        canSubmit = canSubmit && !finished && destination.current.content.authoritativeSessionFailure() == null,
         onConfirm = {
             val current = controller.state.value
-            if (!finished && canSubmit && current.canMoveHere) {
+            if (!finished && canSubmit && current.canMoveHere &&
+                current.current.content.authoritativeSessionFailure() == null) {
                 finished = true
                 if (onEvent(FilesBrowserEvent.Move(sourceFolderId, item.id, current.current.folder.id))) {
                     // The session-owned browser retains the submitted operation after the picker closes.

@@ -3,6 +3,7 @@ package io.putdotio.android
 import android.app.Activity
 import android.app.KeyguardManager
 import android.os.PowerManager
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcherOwner
@@ -145,8 +146,10 @@ class FilesMoveNavigationUiProofTest {
         moveProofScreenshot("synthetic-back-files")
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).performClick()
         compose.runOnIdle { preview.finishReadback() }
-        compose.waitForIdle()
+        compose.onNodeWithText("Nothing here yet").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).assertDoesNotExist()
         compose.runOnIdle {
+            assertEquals("Completed Files host must be resumed", Lifecycle.State.RESUMED, backOwner.lifecycle.currentState)
             assertEquals(FilesFolderOperation.Idle, preview.files.current.operation)
             assertEquals(1, preview.effects.count { it is FilesBrowserEffect.Move })
             assertEquals(2, preview.effects.count { it is FilesBrowserEffect.CheckMove })
@@ -171,6 +174,7 @@ class FilesMoveNavigationUiProofTest {
 
     private fun assertBackRetains(preview: RootMoveBackPreview, tab: String) {
         compose.runOnIdle {
+            assertEquals("$tab host before Back must be resumed", Lifecycle.State.RESUMED, backOwner.lifecycle.currentState)
             dispatchTrace += "$tab Back before: ${backDispatchDiagnostics(preview)}"
             val retained = preview.files
             val backEvents = preview.events.count { it == FilesBrowserEvent.NavigateBack }

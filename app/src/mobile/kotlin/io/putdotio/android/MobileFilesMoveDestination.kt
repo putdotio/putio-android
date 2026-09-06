@@ -79,21 +79,8 @@ internal fun MobileFilesMoveDestination(
                         Text(stringResource(R.string.mobile_action_cancel))
                     }
                 }
-                Text(state.sourceItem.name, style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 3, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-                HorizontalDivider()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = back, enabled = state.canNavigateBack,
-                        modifier = Modifier.testTag(MOBILE_FILES_MOVE_BACK_TAG)) {
-                        Icon(painterResource(R.drawable.ic_ph_arrow_left), stringResource(R.string.mobile_action_back))
-                    }
-                    Text(state.current.folder.name ?: stringResource(R.string.mobile_destination_files),
-                        style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).padding(end = 16.dp).testTag(MOBILE_FILES_MOVE_FOLDER_TAG))
-                }
                 key(state.current.folder.id.value) {
-                    MobileMoveFolderContent(state, onEvent, Modifier.weight(1f))
+                    MobileMoveFolderContent(state, onEvent, back, Modifier.weight(1f))
                 }
                 HorizontalDivider()
                 Button(onClick = onConfirm, enabled = canSubmit && state.canMoveHere,
@@ -109,24 +96,52 @@ internal fun MobileFilesMoveDestination(
 private fun MobileMoveFolderContent(
     state: FilesMoveDestinationState,
     onEvent: (FilesMoveDestinationEvent) -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier,
 ) {
-    when (val content = state.current.content) {
-        is FilesContent.Loading -> MobileLoadingState(stringResource(R.string.mobile_files_move_loading), modifier)
-        is FilesContent.Failed -> Column(modifier.padding(16.dp), verticalArrangement = Arrangement.Center) {
-            Text(stringResource(content.failure.moveDestinationMessageResource()))
-            TextButton(onClick = { onEvent(FilesMoveDestinationEvent.Retry) },
-                modifier = Modifier.testTag(MOBILE_FILES_MOVE_RETRY_TAG)) {
-                Text(stringResource(R.string.mobile_action_retry))
+    val content = state.current.content
+    val listModifier = if (content is FilesContent.Ready || content is FilesContent.Empty) {
+        modifier.testTag(MOBILE_FILES_MOVE_LIST_TAG)
+    } else {
+        modifier
+    }
+    LazyColumn(modifier = listModifier.fillMaxWidth()) {
+        item {
+            Text(state.sourceItem.name, style = MaterialTheme.typography.bodyLarge,
+                maxLines = 3, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            HorizontalDivider()
+        }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onBack, enabled = state.canNavigateBack,
+                    modifier = Modifier.testTag(MOBILE_FILES_MOVE_BACK_TAG)) {
+                    Icon(painterResource(R.drawable.ic_ph_arrow_left), stringResource(R.string.mobile_action_back))
+                }
+                Text(state.current.folder.name ?: stringResource(R.string.mobile_destination_files),
+                    style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(end = 16.dp).testTag(MOBILE_FILES_MOVE_FOLDER_TAG))
             }
         }
-        is FilesContent.Ready, is FilesContent.Empty -> {
-            val items = (content as? FilesContent.Ready)?.items.orEmpty()
-            val paging = when (content) {
-                is FilesContent.Ready -> content.paging
-                is FilesContent.Empty -> content.paging
+        when (content) {
+            is FilesContent.Loading -> item {
+                MobileLoadingState(stringResource(R.string.mobile_files_move_loading))
             }
-            LazyColumn(modifier = modifier.fillMaxWidth().testTag(MOBILE_FILES_MOVE_LIST_TAG)) {
+            is FilesContent.Failed -> item {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.Center) {
+                    Text(stringResource(content.failure.moveDestinationMessageResource()))
+                    TextButton(onClick = { onEvent(FilesMoveDestinationEvent.Retry) },
+                        modifier = Modifier.testTag(MOBILE_FILES_MOVE_RETRY_TAG)) {
+                        Text(stringResource(R.string.mobile_action_retry))
+                    }
+                }
+            }
+            is FilesContent.Ready, is FilesContent.Empty -> {
+                val items = (content as? FilesContent.Ready)?.items.orEmpty()
+                val paging = when (content) {
+                    is FilesContent.Ready -> content.paging
+                    is FilesContent.Empty -> content.paging
+                }
                 if (items.isEmpty()) item {
                     Text(stringResource(if (paging == FilesPaging.Complete) R.string.mobile_files_move_empty
                         else R.string.mobile_files_move_empty_page), modifier = Modifier.padding(16.dp))

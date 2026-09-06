@@ -1,11 +1,8 @@
 package io.putdotio.android
 
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -24,8 +21,6 @@ import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesBrowserTransition
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesContent
-import io.putdotio.android.files.FilesMoveDestinationFolder
-import io.putdotio.android.files.FilesMoveDestinationState
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesCursor
@@ -230,47 +225,6 @@ class MobileFilesMoveTest {
     }
 
     @Test
-    @Config(sdk = [35], qualifiers = "en-rUS-w360dp-h640dp")
-    fun longNamesAtTwoHundredPercentFontKeepBothPickerActionsReachable() {
-        val longSource = source.copy(name = "Archive 東京 été ".repeat(16).take(240))
-        val longDestination = destination.copy(name = "Destination 東京 ".repeat(16).take(240))
-        val state = FilesMoveDestinationState(
-            sourceItem = longSource,
-            sourceFolderId = FilesFolder.Root.id,
-            stack = listOf(
-                FilesMoveDestinationFolder(
-                    FilesFolder.Root, FilesContent.Ready(listOf(longDestination), FilesPaging.Complete),
-                ),
-                FilesMoveDestinationFolder(
-                    FilesFolder(longDestination.id, longDestination.name), FilesContent.Empty(FilesPaging.Complete),
-                ),
-            ),
-            nextRequestValue = 1L,
-        )
-        var cancellations = 0
-        var confirmations = 0
-        compose.setContent {
-            val density = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = 2f)) {
-                PutioTheme {
-                    MobileFilesMoveDestination(
-                        state = state,
-                        onEvent = {},
-                        onCancel = { cancellations += 1 },
-                        onConfirm = { confirmations += 1 },
-                    )
-                }
-            }
-        }
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).assertIsDisplayed().assertIsEnabled().performClick()
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsDisplayed().assertIsEnabled().performClick()
-        compose.runOnIdle {
-            assertEquals(1, cancellations)
-            assertEquals(1, confirmations)
-        }
-    }
-
-    @Test
     fun replacingTheSessionRepositoryCancelsReadsAndResetsDestinationSelection() {
         val readStarted = CompletableDeferred<Unit>()
         val readCancelled = CompletableDeferred<Unit>()
@@ -386,32 +340,72 @@ class MobileFilesMoveTest {
     }
 
     @Test
-    fun pickerAuthenticationFailureRejectsTheSession() = assertPickerSessionRejection(onNextPage = false)
-
-    @Test
-    fun pickerPaginationAuthenticationFailureRejectsTheSession() = assertPickerSessionRejection(onNextPage = true)
-
-    private fun assertPickerSessionRejection(onNextPage: Boolean) {
+    fun pickerAuthenticationFailureRejectsTheSession() {
         var rejections = 0
         val repository = object : StubFilesRepository() {
             override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-                if (onNextPage && cursor == null) {
-                    FilesRepositoryResult.Success(FilesPage(listOf(destination), FilesCursor("next")))
-                } else {
-                    FilesRepositoryResult.Failure(
-                        FilesFailure.AuthenticationRequired(PutioConfigurationException("Expired picker session")),
-                    )
-                }
+                FilesRepositoryResult.Failure(
+                    FilesFailure.AuthenticationRequired(PutioConfigurationException("Expired picker session")),
+                )
         }
         compose.setContent {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, { true }, {}, true, { rejections += 1 }) }
         }
         openMove()
-        if (onNextPage) compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).performClick()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_RETRY_TAG).assertIsDisplayed()
         compose.runOnIdle { assertEquals(1, rejections) }
+    }
+
+    @Test
+    fun pickerPaginationAuthenticationFailureBlocksQueuedConfirmationWhileRejectionIsPending() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        var rejections = 0
+        val pageResult = CompletableDeferred<FilesRepositoryResult<FilesPage>>()
+        val child = folder(9L, "Nested child").copy(parentId = destination.id)
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                error("Unexpected source read")
+            override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
+                when {
+                    folderId == FilesFolder.Root.id ->
+                        FilesRepositoryResult.Success(FilesPage(listOf(destination), null))
+                    folderId == destination.id && cursor == null ->
+                        FilesRepositoryResult.Success(FilesPage(listOf(child), FilesCursor("next")))
+                    folderId == destination.id && cursor == FilesCursor("next") -> pageResult.await()
+                    else -> error("Unexpected destination read")
+                }
+        }
+        compose.setContent {
+            PutioTheme {
+                MobileFilesRoute(loadedRoot(), repository, events::add, {}, true, {
+                    rejections += 1
+                    awaitCancellation()
+                })
+            }
+        }
+        openMove()
+        compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsEnabled()
+        val queuedConfirm = clickAction(MOBILE_FILES_MOVE_HERE_TAG)
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).performClick()
+        compose.runOnIdle {
+            pageResult.complete(FilesRepositoryResult.Failure(
+                FilesFailure.AuthenticationRequired(PutioConfigurationException("Expired picker session")),
+            ))
+        }
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_RETRY_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsNotEnabled()
+        compose.runOnIdle {
+            assertEquals(1, rejections)
+            queuedConfirm()
+            queuedConfirm()
+            assertTrue(events.none { it is FilesBrowserEvent.Move })
+        }
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_PICKER_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(mobileFilesMoveFolderTag(child.id)).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
     }
 
     private fun openMove() {

@@ -22,6 +22,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesSearchQuery
 import io.putdotio.sdk.files.PutioFileType
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
@@ -90,13 +91,13 @@ class AuthenticatedFilesMoveTest {
         exactParent(runtime, fixture.collisionPeerId, fixture.collisionName, fixture.destinationId)
         requireSession(runtime, session)
         moveProofApiCheck("final identity") {
-            check(runtime.putioClient.account.getInfo().userId == fixture.expectedAccountId)
+            assertTrue("final account identity", runtime.putioClient.account.getInfo().userId == fixture.expectedAccountId)
         }
     }
 
     private fun preflight(f: MoveProofFixture, runtime: MobileOAuthRuntime) {
         moveProofApiCheck("fixture preflight") {
-            check(runtime.putioClient.account.getInfo().userId == f.expectedAccountId)
+            assertTrue("preflight account identity", runtime.putioClient.account.getInfo().userId == f.expectedAccountId)
             val expected = listOf(
                 Triple(f.containerId, f.containerName, 0L), Triple(f.sourceId, f.sourceName, f.containerId),
                 Triple(f.destinationId, f.destinationName, f.containerId),
@@ -104,11 +105,16 @@ class AuthenticatedFilesMoveTest {
                 Triple(f.collisionItemId, f.collisionName, f.sourceId),
                 Triple(f.collisionPeerId, f.collisionName, f.destinationId),
             )
-            for ((id, name, parent) in expected) {
+            for ((index, expectedItem) in expected.withIndex()) {
+                val (id, name, parent) = expectedItem
                 val item = runtime.putioClient.files.get(id)
-                check(item.id == id && item.name == name && item.parentId == parent)
-                if (id == f.fileItemId) check(item.fileType != PutioFileType.FOLDER && item.size == f.fileSize)
-                else check(item.fileType == PutioFileType.FOLDER)
+                assertTrue("fixture item $index identity", item.id == id)
+                assertTrue("fixture item $index name", item.name == name)
+                assertTrue("fixture item $index parent", item.parentId == parent)
+                if (id == f.fileItemId) {
+                    assertTrue("fixture file type", item.fileType != PutioFileType.FOLDER)
+                    assertTrue("fixture file size", item.size == f.fileSize)
+                } else assertTrue("fixture item $index folder type", item.fileType == PutioFileType.FOLDER)
             }
             val contents = mapOf(
                 f.containerId to setOf(f.sourceId, f.destinationId),
@@ -116,15 +122,19 @@ class AuthenticatedFilesMoveTest {
                 f.destinationId to setOf(f.collisionPeerId),
                 f.folderItemId to emptySet(), f.collisionItemId to emptySet(), f.collisionPeerId to emptySet(),
             )
-            for ((parent, ids) in contents) {
+            for ((index, expectedContents) in contents.entries.withIndex()) {
+                val (parent, ids) = expectedContents
                 val page = runtime.putioClient.files.list(parent, FilesListQuery(perPage = 50))
-                check(page.cursor.isNullOrBlank() && page.files.map { it.id }.toSet() == ids)
+                assertTrue("fixture folder $index complete listing", page.cursor.isNullOrBlank())
+                assertTrue("fixture folder $index contents", page.files.map { it.id }.toSet() == ids)
             }
             val search = runtime.putioClient.files.search(FilesSearchQuery(f.containerName, perPage = 50))
-            check(search.cursor.isNullOrBlank() && search.files.filter { it.name == f.containerName }
+            assertTrue("container search complete listing", search.cursor.isNullOrBlank())
+            assertTrue("container search exact result", search.files.filter { it.name == f.containerName }
                 .singleOrNull()?.id == f.containerId)
             val target = runtime.putioClient.files.search(FilesSearchQuery(f.folderName, perPage = 50))
-            check(target.cursor.isNullOrBlank() && target.files.filter { it.name == f.folderName }
+            assertTrue("target search complete listing", target.cursor.isNullOrBlank())
+            assertTrue("target search exact result", target.files.filter { it.name == f.folderName }
                 .singleOrNull()?.id == f.folderItemId)
         }
     }
@@ -151,7 +161,7 @@ class AuthenticatedFilesMoveTest {
         }
         row(f.folderName)
         moveProofApiCheck("source sort") {
-            check(runtime.putioClient.files.get(f.sourceId).sortBy == "NAME_DESC")
+            assertTrue("persisted source sort", runtime.putioClient.files.get(f.sourceId).sortBy == "NAME_DESC")
         }
     }
 
@@ -169,9 +179,10 @@ class AuthenticatedFilesMoveTest {
         exactParent(runtime, f.folderItemId, f.folderName, f.sourceId)
         moveProofApiCheck("cancel preserves source") {
             val source = runtime.putioClient.files.get(f.sourceId)
-            check(source.sortBy == "NAME_DESC")
+            assertTrue("Cancel preserves sort", source.sortBy == "NAME_DESC")
             val children = runtime.putioClient.files.list(f.sourceId, FilesListQuery(perPage = 50))
-            check(children.cursor.isNullOrBlank() && children.files.map { it.id }.toSet() ==
+            assertTrue("Cancel source complete listing", children.cursor.isNullOrBlank())
+            assertTrue("Cancel preserves contents", children.files.map { it.id }.toSet() ==
                 setOf(f.folderItemId, f.fileItemId, f.collisionItemId))
         }
     }
@@ -239,7 +250,9 @@ class AuthenticatedFilesMoveTest {
     private fun exactParent(runtime: MobileOAuthRuntime, id: Long, name: String, parent: Long) {
         moveProofApiCheck("exact parent readback") {
             val item = runtime.putioClient.files.get(id)
-            check(item.id == id && item.name == name && item.parentId == parent)
+            assertTrue("readback identity", item.id == id)
+            assertTrue("readback name", item.name == name)
+            assertTrue("readback parent", item.parentId == parent)
         }
     }
 
