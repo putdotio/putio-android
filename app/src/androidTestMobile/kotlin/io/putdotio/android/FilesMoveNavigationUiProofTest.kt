@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.util.Log
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -145,6 +146,7 @@ class FilesMoveNavigationUiProofTest {
             assertEquals(2, preview.effects.count { it is FilesBrowserEffect.CheckMove })
             assertEquals(0, fallbacks)
             val beforeBack = backDispatchDiagnostics(preview)
+            Log.i("MoveBackProof", "final Back before: $beforeBack")
             backOwner.onBackPressedDispatcher.onBackPressed()
             assertEquals(
                 "Final Back before=[$beforeBack], after=[${backDispatchDiagnostics(preview)}]",
@@ -163,9 +165,11 @@ class FilesMoveNavigationUiProofTest {
 
     private fun assertBackRetains(preview: RootMoveBackPreview, tab: String) {
         compose.runOnIdle {
+            Log.i("MoveBackProof", "$tab Back before: ${backDispatchDiagnostics(preview)}")
             val retained = preview.files
             val backEvents = preview.events.count { it == FilesBrowserEvent.NavigateBack }
             backOwner.onBackPressedDispatcher.onBackPressed()
+            Log.i("MoveBackProof", "$tab Back after: ${backDispatchDiagnostics(preview)}")
             assertSame(retained, preview.files)
             if (tab == "Files") {
                 assertEquals(backEvents + 1, preview.events.count { it == FilesBrowserEvent.NavigateBack })
@@ -176,6 +180,7 @@ class FilesMoveNavigationUiProofTest {
     }
 
     private fun navigate(tab: String) {
+        Log.i("MoveBackProof", "Selecting $tab; lifecycle=${backOwner.lifecycle.currentState}")
         compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG)))
             .performClick().assertIsSelected()
     }
