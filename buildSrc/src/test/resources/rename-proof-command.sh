@@ -43,6 +43,10 @@ case "${0##*/}" in
     shift 2
     case "$1" in
       get-state)
+        if [ "$mode" = adb-startup-stderr ]; then
+          printf '%s\n' '* daemon not running; starting now at tcp:5037' '* daemon started successfully' >&2
+        fi
+        [ "$mode" != adb-unexpected-stdout ] || echo unexpected
         case "$mode" in adb-server-overflow|interrupt-adb-server|shutdown-adb-server)
           start_shared_server command
           touch "$state/adb-command-started"

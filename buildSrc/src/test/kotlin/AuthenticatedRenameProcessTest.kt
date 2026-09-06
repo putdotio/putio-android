@@ -25,6 +25,24 @@ class AuthenticatedRenameProcessTest {
     }
 
     @Test
+    fun adbStartupStderrDoesNotContaminateParsedDeviceState() {
+        val fixture = fixture("adb-startup-stderr")
+        val output = runFailure(fixture)
+        assertTrue("Valid device stdout must reach instrumentation", File(fixture, "state/instrumentation-started").isFile)
+        assertTrue(output, output.contains("Authenticated instrumentation proof failed"))
+        assertOwnedCleanup(fixture)
+    }
+
+    @Test
+    fun adbUnexpectedStdoutIsRejectedBeforeInstall() {
+        val fixture = fixture("adb-unexpected-stdout")
+        runFailure(fixture)
+        assertFalse(File(fixture, "state/commands").readText().contains(" install "))
+        assertFalse(File(fixture, "state/instrumentation-started").exists())
+        assertSafeCommands(fixture)
+    }
+
+    @Test
     fun hostAdbFailurePreservesInstrumentationWhoseOwnershipIsUnknown() {
         val fixture = fixture("adb-exit")
         val output = runFailure(fixture)

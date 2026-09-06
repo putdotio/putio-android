@@ -278,24 +278,26 @@ private class AuthenticatedRenameRun(
             activeCommand = null
         }
         if (!::adb.isInitialized) return clean
-        attempt { instrumentation?.let { reapHostProcess(it, ownsDescendants = false) } }
-        instrumentation = null
-        if (instrumentationStarted) attempt {
-            val active = try {
-                activeInstrumentation(cleanup = true)
-            } catch (error: Exception) {
-                report("CLEANUP FAIL Instrumentation ownership check failed; active instrumentation was not signaled")
-                throw error
+        attempt {
+            instrumentation?.let { reapHostProcess(it, ownsDescendants = false) }
+            instrumentation = null
+            if (instrumentationStarted) {
+                val active = try {
+                    activeInstrumentation(cleanup = true)
+                } catch (error: Exception) {
+                    report("CLEANUP FAIL Instrumentation ownership check failed; active instrumentation was not signaled")
+                    throw error
+                }
+                if (active.isNotEmpty()) {
+                    // The same runner can belong to a replacement invocation. API 37
+                    // dumps keep arguments parcelled, so no per-run identity is visible.
+                    val message = "Active instrumentation preserved: run ownership cannot be established"
+                    report("CLEANUP FAIL $message")
+                    throw GradleException(message)
+                }
             }
-            if (active.isNotEmpty()) {
-                // The same runner can belong to a replacement invocation. API 37
-                // dumps keep arguments parcelled, so no per-run identity is visible.
-                val message = "Active instrumentation preserved: run ownership cannot be established"
-                report("CLEANUP FAIL $message")
-                throw GradleException(message)
-            }
+            instrumentationStarted = false
         }
-        instrumentationStarted = false
         if (recordingStarted) attempt {
             val pid = recorderPid ?: shell("recorder cleanup owner", "cat ${proofShellQuote(remotePid)}", allowFailure = true, cleanup = true).trim().toLongOrNull()
                 ?: throw GradleException("Cannot recover recorder ownership")
@@ -317,8 +319,10 @@ private class AuthenticatedRenameRun(
             shell("remove owned capture", "rm -f ${proofShellQuote(remoteCapture)} ${proofShellQuote(remotePid)}", cleanup = true)
             recordingStarted = false
         }
-        attempt { recorder?.let { reapHostProcess(it, ownsDescendants = false) } }
-        recorder = null
+        attempt {
+            recorder?.let { reapHostProcess(it, ownsDescendants = false) }
+            recorder = null
+        }
         return clean
     }
 
@@ -335,7 +339,9 @@ private class AuthenticatedRenameRun(
         requireProof(timeout > 0, "$stage cleanup deadline expired")
         val process = synchronized(this) {
             requireProof(cleanup || !cleanupStarted, "Authenticated proof cleanup has started")
-            ProcessBuilder(args).directory(root).redirectErrorStream(true).apply {
+            // Stdout is protocol data; adb server-startup messages use stderr.
+            // Failures report the stage, never raw command/credential diagnostics.
+            ProcessBuilder(args).directory(root).redirectError(ProcessBuilder.Redirect.DISCARD).apply {
                 if (cli) {
                     environment().remove("PUTIO_CLI_TOKEN")
                     environment()["PUTIO_CLI_PROFILE"] = "devs-auto"
