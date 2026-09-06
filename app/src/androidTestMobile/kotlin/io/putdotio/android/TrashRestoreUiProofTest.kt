@@ -167,7 +167,7 @@ class TrashRestoreUiProofTest {
     }
 
     private fun withShell(block: (TrashRestoreControlledRepository, TrashController) -> Unit) {
-        val repository = TrashRestoreControlledRepository()
+        val repository = TrashRestoreControlledRepository(::await)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val controller = TrashController(repository, scope)
         val files = FilesBrowserState(listOf(FilesFolderState(FilesFolder.Root,
@@ -258,7 +258,7 @@ class TrashRestoreUiProofTest {
     )
 }
 
-private class TrashRestoreControlledRepository : TrashRepository {
+private class TrashRestoreControlledRepository(private val awaitRequest: (() -> Boolean) -> Unit) : TrashRepository {
     val item = TrashItem(FilesItemId(7), FilesItemId(12), "Restore été 東京 — missing dates", PutioFileType.FILE, 40)
     val lists = CopyOnWriteArrayList<CompletableDeferred<FilesRepositoryResult<TrashPage>>>()
     val listCursors = CopyOnWriteArrayList<FilesCursor?>()
@@ -286,18 +286,15 @@ private class TrashRestoreControlledRepository : TrashRepository {
         return result.await()
     }
     fun completeList(index: Int, page: TrashPage) {
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-        check(lists.size > index) { "Expected list request $index" }
+        awaitRequest { lists.size > index }
         lists[index].complete(FilesRepositoryResult.Success(page))
     }
     fun failList(index: Int) {
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-        check(lists.size > index) { "Expected list request $index" }
+        awaitRequest { lists.size > index }
         lists[index].complete(FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("Synthetic offline"))))
     }
     fun completeCheck(index: Int, result: FilesRepositoryResult<FilesItem>) {
-        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-        check(checks.size > index) { "Expected exact-ID request $index" }
+        awaitRequest { checks.size > index }
         checks[index].complete(result)
     }
 }
