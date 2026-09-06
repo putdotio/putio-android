@@ -59,9 +59,11 @@ class FilesBrowserController(
 
     private fun FilesBrowserEvent.completedRequestId(): FilesRequestId? =
         when (this) {
-            is FilesBrowserEvent.LoadSucceeded -> requestId
-            is FilesBrowserEvent.LoadFailed -> requestId
+            is FilesBrowserEvent.LoadResult -> requestId
             is FilesBrowserEvent.MutationSucceeded -> requestId
+            is FilesBrowserEvent.DeleteFinished -> requestId
+            is FilesBrowserEvent.DeleteChecked -> requestId
+            is FilesBrowserEvent.Delete,
             is FilesBrowserEvent.Rename,
             is FilesBrowserEvent.AbandonRename,
             is FilesBrowserEvent.LoadNextPage,

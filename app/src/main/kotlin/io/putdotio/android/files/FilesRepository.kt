@@ -9,6 +9,7 @@ import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
 import io.putdotio.sdk.files.FilesContinueQuery
+import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
@@ -26,6 +27,10 @@ sealed interface FilesRepositoryResult<out T> {
 
 sealed interface FilesFailure {
     val cause: Throwable
+
+    data object NavigationBlocked : FilesFailure {
+        override val cause = IllegalStateException("Files navigation was rejected")
+    }
 
     data class AuthenticationRequired(
         override val cause: PutioException,
@@ -48,6 +53,7 @@ sealed interface FilesFailure {
         val statusCode: Int,
         val errorType: String?,
         override val cause: PutioException,
+        val httpStatusCode: Int = statusCode,
     ) : FilesFailure
 
     data class NetworkUnavailable(
@@ -78,6 +84,10 @@ interface FilesRepository {
     ): FilesRepositoryResult<Unit>
 
     suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit>
+
+    suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): FilesRepositoryResult<FileDeleteResult>
+
+    suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem>
 }
 
 interface FilesItemResolver {
@@ -90,6 +100,7 @@ class SdkFilesRepository internal constructor(
     private val setSort: suspend (Long, String) -> Unit,
     private val getFile: suspend (Long) -> PutioFile,
     private val renameFile: suspend (Long, String) -> Unit,
+    private val deleteFile: suspend (Long, Boolean) -> FileDeleteResult,
 ) : FilesRepository, FilesItemResolver {
     constructor(client: PutioClient) : this(
         listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
@@ -102,6 +113,9 @@ class SdkFilesRepository internal constructor(
         renameFile = { fileId, name ->
             client.files.rename(fileId, name)
             Unit
+        },
+        deleteFile = { fileId, skipTrash ->
+            client.files.delete(fileIds = listOf(fileId), skipTrash = skipTrash)
         },
     )
 
@@ -121,6 +135,13 @@ class SdkFilesRepository internal constructor(
 
     override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> =
         request { renameFile(itemId.value, name) }
+
+    override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): FilesRepositoryResult<FileDeleteResult> =
+        request {
+            // A lone zero means every root item at the API boundary.
+            require(itemId.value > 0L) { "Delete requires one positive file ID" }
+            deleteFile(itemId.value, mode == FilesDeleteMode.PERMANENT)
+        }
 
     // Kotlin/JVM has no typed throws contract, so the SDK boundary converts
     // unknown failures after preserving cancellation.
@@ -186,7 +207,7 @@ private fun PutioException.leafFailure(context: PutioException): FilesFailure =
                 HTTP_FORBIDDEN -> FilesFailure.AccessDenied(context)
                 HTTP_TOO_MANY_REQUESTS -> FilesFailure.RateLimited(context)
                 in HTTP_SERVER_ERROR_RANGE -> FilesFailure.ServerUnavailable(statusCode, context)
-                else -> FilesFailure.ApiRejected(statusCode, errorType, context)
+                else -> FilesFailure.ApiRejected(statusCode, errorType, context, httpStatusCode)
             }
 
         is PutioTransportException -> FilesFailure.NetworkUnavailable(context)

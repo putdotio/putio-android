@@ -1,4 +1,20 @@
 <resources>
+    <string name="mobile_navigation_blocked">This item cannot be opened right now. Check Files, then try again.</string>
+    <string name="mobile_files_trash">Move to trash</string>
+    <string name="mobile_files_delete">Delete</string>
+    <string name="mobile_files_confirm_action">Confirm</string>
+    <string name="mobile_files_trash_confirmation">Move “%1$s” to trash? You can restore it from Trash.</string>
+    <string name="mobile_files_delete_confirmation">Permanently delete “%1$s”? This cannot be undone.</string>
+    <string name="mobile_files_delete_settings_unknown">Waiting for confirmed Trash settings.</string>
+    <string name="mobile_files_deleting">Sending request…</string>
+    <string name="mobile_files_delete_checking">Checking item status…</string>
+    <string name="mobile_files_delete_reloading">Refreshing files…</string>
+    <string name="mobile_files_delete_unknown">Couldn’t confirm the result. Check the item’s status before trying again.</string>
+    <string name="mobile_files_delete_reload_error">Item status checked, but couldn’t reload files.</string>
+    <string name="mobile_files_check_status">Check status</string>
+    <string name="mobile_files_delete_unavailable">“%1$s” is no longer available in Files.</string>
+    <string name="mobile_files_delete_still_present">“%1$s” is still in Files. Open its actions to try again.</string>
+    <string name="mobile_files_delete_skipped">The request was incomplete. “%1$s” was not confirmed removed.</string>
     <string name="mobile_files_actions">Actions for %1$s</string>
     <string name="mobile_files_rename">Rename</string>
     <string name="mobile_files_name">Name</string>

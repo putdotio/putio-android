@@ -14,9 +14,11 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -195,6 +197,11 @@ class MobileFilesViewModelTest {
     class FilesHostActivity : ComponentActivity()
 
     private class NestedFolderRepository : FilesRepository {
+        override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): FilesRepositoryResult<FileDeleteResult> =
+            error("No delete expected")
+        override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
+            error("No item resolution expected")
+
         val loadedFolderIds = mutableListOf<FilesItemId>()
 
         override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {

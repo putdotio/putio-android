@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -21,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -41,6 +43,8 @@ import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRenameCompletion
+import io.putdotio.android.files.FilesDeleteMode
+import io.putdotio.android.files.canStartOperation
 
 internal const val MOBILE_FILES_RENAME_FIELD_TAG = "mobile-files-rename-field"
 
@@ -53,6 +57,7 @@ internal fun MobileFilesActions(
     renameCompletion: FilesRenameCompletion?,
     onEvent: (FilesBrowserEvent) -> Unit,
     onDismiss: () -> Unit,
+    confirmedTrashEnabled: Boolean? = null,
 ) {
     val failed = operation as? FilesFolderOperation.Failed
     val failedRename = (failed?.intent as? FilesFolderOperationIntent.Rename)?.takeIf { it.itemId == item.id }
@@ -60,6 +65,13 @@ internal fun MobileFilesActions(
     var draft by rememberSaveable { mutableStateOf(failedRename?.name ?: item.name) }
     var submittedName by rememberSaveable { mutableStateOf<String?>(null) }
     var previousCompletionRequestValue by rememberSaveable { mutableStateOf<Long?>(null) }
+    var confirmedDeleteTrash by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    var deleteSubmitted by rememberSaveable { mutableStateOf(false) }
+    val currentTrashEnabled by rememberUpdatedState(confirmedTrashEnabled)
+    val currentOperation by rememberUpdatedState(operation)
+    LaunchedEffect(confirmedTrashEnabled) {
+        if (confirmedDeleteTrash != confirmedTrashEnabled) confirmedDeleteTrash = null
+    }
     val dismiss = {
         if (failedRename != null) onEvent(FilesBrowserEvent.AbandonRename(folderId, failedRename))
         onDismiss()
@@ -79,7 +91,29 @@ internal fun MobileFilesActions(
             renameCompletion?.intent == FilesFolderOperationIntent.Rename(item.id, submitted)
         if (matchesSubmission && renameCompletion.requestId.value != previousCompletionRequestValue) onDismiss()
     }
-    if (editing) {
+    val deleteTrash = confirmedDeleteTrash
+    if (deleteTrash != null && deleteTrash == confirmedTrashEnabled) {
+        MobileFilesDeleteConfirmation(
+            item = item,
+            trash = deleteTrash,
+            enabled = !deleteSubmitted && operation.canStartOperation,
+            onDismiss = {
+                confirmedDeleteTrash = null
+                dismiss()
+            },
+            onConfirm = {
+                if (!deleteSubmitted && confirmedDeleteTrash == deleteTrash &&
+                    currentTrashEnabled == deleteTrash && currentOperation.canStartOperation
+                ) {
+                    deleteSubmitted = true
+                    onEvent(FilesBrowserEvent.Delete(
+                        folderId, item.id, if (deleteTrash) FilesDeleteMode.TRASH else FilesDeleteMode.PERMANENT,
+                    ))
+                    onDismiss()
+                }
+            },
+        )
+    } else if (editing) {
         val focusRequester = remember { FocusRequester() }
         val submit = {
             if (!pending && !reloadStarted) {
@@ -144,7 +178,25 @@ internal fun MobileFilesActions(
             ListItem(
                 headlineContent = { Text(stringResource(R.string.mobile_files_rename)) },
                 modifier = Modifier
-                    .clickable(enabled = !pending && !reloadStarted) { editing = true }
+                    .clickable(enabled = operation.canStartOperation) { editing = true },
+            )
+            HorizontalDivider()
+            ListItem(
+                headlineContent = {
+                    Text(
+                        stringResource(if (confirmedTrashEnabled == true) R.string.mobile_files_trash else R.string.mobile_files_delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                },
+                supportingContent = if (confirmedTrashEnabled == null) {
+                    { Text(stringResource(R.string.mobile_files_delete_settings_unknown)) }
+                } else {
+                    null
+                },
+                modifier = Modifier
+                    .clickable(enabled = confirmedTrashEnabled != null && item.id.value > 0L && operation.canStartOperation) {
+                        confirmedDeleteTrash = currentTrashEnabled
+                    }
                     .padding(bottom = 24.dp),
             )
         }
