@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -84,6 +85,7 @@ class TrashRestoreUiProofTest {
         text(R.string.mobile_action_refresh).performClick()
         repository.failList(1)
         await { (controller.state.value.content as? TrashContent.Loaded)?.refreshFailure != null }
+        text(R.string.mobile_state_error_unavailable).assertIsDisplayed()
         trashRestoreScreenshot("synthetic-error")
         text(R.string.mobile_action_retry).performClick()
         repository.completeList(2, TrashPage(listOf(repository.item), FilesCursor("page-a"), 2, 40))
@@ -112,6 +114,7 @@ class TrashRestoreUiProofTest {
         await { controller.state.value.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
         text(R.string.mobile_trash_started).assertIsDisplayed()
         assertBackRetains(controller)
+        text(R.string.mobile_trash_started).assertIsDisplayed()
         trashRestoreScreenshot("synthetic-recovery")
         checkStatus()
         repository.completeCheck(1, FilesRepositoryResult.Failure(offline()))
@@ -188,6 +191,7 @@ class TrashRestoreUiProofTest {
             assertTrue(controller.state.value.hasPendingRestore)
             backOwner.onBackPressedDispatcher.onBackPressed()
         }
+        compose.waitUntil(10_000) { compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).isDisplayed() }
         compose.onNode(hasText("Account") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
         for (tab in listOf("Account", "Files")) {
             compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick().assertIsSelected()
@@ -197,7 +201,7 @@ class TrashRestoreUiProofTest {
                 assertEquals(0, fallbacks)
                 assertTrue(controller.state.value.hasPendingRestore)
             }
-            compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).assertIsDisplayed()
+            compose.waitUntil(10_000) { compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).isDisplayed() }
         }
     }
 

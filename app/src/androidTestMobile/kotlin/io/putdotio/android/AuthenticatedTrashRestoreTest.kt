@@ -136,6 +136,8 @@ class AuthenticatedTrashRestoreTest {
             requireItem(restored, fixture.file)
             assertEquals(fixture.fileSize, restored.sizeBytes)
             compose.onNodeWithTag(MOBILE_TRASH_OUTCOME_TAG).assertIsDisplayed()
+            compose.onNodeWithText(context.getString(R.string.mobile_trash_file_available, restored.name))
+                .assertIsDisplayed()
             trashRestoreScreenshot("restore-result")
             trashRestoreApiCheck("final Trash and sentinel readback") {
                 val trash = boundedTrash(repository)
