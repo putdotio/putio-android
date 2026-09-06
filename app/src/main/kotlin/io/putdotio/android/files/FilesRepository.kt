@@ -230,8 +230,10 @@ internal fun PutioFile.toFilesItem(): FilesItem =
 private fun PutioFile.toPlaybackProgress(): FilesPlaybackProgress? {
     val isMedia = fileType == PutioFileType.VIDEO || fileType == PutioFileType.AUDIO
     val position = startFrom?.takeIf { isMedia && it.isFinite() && it >= 0.0 }
-    val duration = videoMetadata?.duration?.takeIf { it.isFinite() && it > 0.0 }
-    return position?.let { FilesPlaybackProgress(it, duration) }
+    // Absent duration is a known unknown; a supplied but unusable one is malformed data.
+    val duration = videoMetadata?.duration
+    val durationValid = duration == null || (duration.isFinite() && duration > 0.0)
+    return position?.takeIf { durationValid }?.let { FilesPlaybackProgress(it, duration) }
 }
 
 // Mirrors PutioAuthSessionGateway.isAuthoritativeAuthRejection: a contract-derived

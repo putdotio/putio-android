@@ -405,10 +405,13 @@ class SdkFilesRepositoryTest {
         assertNull(sdkFile(4L, "d.mkv", PutioFileType.VIDEO).toFilesItem().playback)
         assertNull(sdkFile(5L, "e.txt", PutioFileType.TEXT).copy(startFrom = 10.0).toFilesItem().playback)
         assertNull(sdkFile(6L, "f.mkv", PutioFileType.VIDEO).copy(startFrom = -1.0).toFilesItem().playback)
-        val overrun = sdkFile(7L, "g.mkv", PutioFileType.VIDEO).copy(
-            startFrom = 500.0, videoMetadata = PutioVideoMetadata(duration = 0.0),
-        ).toFilesItem().playback
-        assertEquals(FilesPlaybackProgress(500.0, null), overrun)
+        for (invalidDuration in listOf(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
+            val malformed = sdkFile(7L, "g.mkv", PutioFileType.VIDEO).copy(
+                startFrom = 500.0, videoMetadata = PutioVideoMetadata(duration = invalidDuration),
+            ).toFilesItem().playback
+            assertNull("duration=$invalidDuration", malformed)
+        }
+        assertNull(sdkFile(9L, "i.mkv", PutioFileType.VIDEO).copy(startFrom = Double.NaN).toFilesItem().playback)
         val clamped = sdkFile(8L, "h.mkv", PutioFileType.VIDEO).copy(
             startFrom = 500.0, videoMetadata = PutioVideoMetadata(duration = 100.0),
         ).toFilesItem().playback

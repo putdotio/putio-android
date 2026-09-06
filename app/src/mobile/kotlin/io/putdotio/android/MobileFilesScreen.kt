@@ -49,6 +49,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
@@ -565,6 +566,8 @@ internal fun MobileFilesRow(
 }
 
 // Known duration draws a determinate bar; an unknown duration still marks the row watched.
+// The bar is decorative: the label text is the accessible content and merges into the row
+// node, so TalkBack reads name, metadata, and watched state as one item.
 @Composable
 private fun MobileFilesWatchedIndicator(progress: FilesPlaybackProgress) {
     val fraction = progress.fraction
@@ -576,8 +579,7 @@ private fun MobileFilesWatchedIndicator(progress: FilesPlaybackProgress) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag(MOBILE_FILES_WATCHED_TAG)
-            .semantics(mergeDescendants = true) { contentDescription = label },
+            .testTag(MOBILE_FILES_WATCHED_TAG),
         horizontalArrangement = Arrangement.spacedBy(FILES_PROGRESS_SPACING),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -586,7 +588,8 @@ private fun MobileFilesWatchedIndicator(progress: FilesPlaybackProgress) {
                 progress = { fraction },
                 modifier = Modifier
                     .weight(1f)
-                    .heightIn(max = FILES_PROGRESS_HEIGHT),
+                    .heightIn(max = FILES_PROGRESS_HEIGHT)
+                    .clearAndSetSemantics {},
                 drawStopIndicator = {},
             )
         }
