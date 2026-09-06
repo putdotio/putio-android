@@ -24,6 +24,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.navigationevent.NavigationEventDispatcher
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
@@ -81,6 +83,8 @@ class FilesMoveNavigationUiProofTest {
     }
     @get:Rule val rules: RuleChain = RuleChain.outerRule(optIn).around(compose)
     private lateinit var backOwner: OnBackPressedDispatcherOwner
+    private lateinit var navigationDispatcher: NavigationEventDispatcher
+    private lateinit var fallbackCallback: OnBackPressedCallback
     private var fallbacks = 0
 
     @Test
@@ -88,12 +92,15 @@ class FilesMoveNavigationUiProofTest {
         val preview = RootMoveBackPreview()
         compose.setContent {
             val owner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
-            DisposableEffect(owner) {
+            val navigationOwner = checkNotNull(LocalNavigationEventDispatcherOwner.current)
+            DisposableEffect(owner, navigationOwner) {
                 backOwner = owner
+                navigationDispatcher = navigationOwner.navigationEventDispatcher
                 // Register before MobileShell so this observes an otherwise unhandled activity Back.
                 val fallback = object : OnBackPressedCallback(true) {
                     override fun handleOnBackPressed() { fallbacks += 1 }
                 }
+                fallbackCallback = fallback
                 owner.onBackPressedDispatcher.addCallback(owner, fallback)
                 onDispose { fallback.remove() }
             }
@@ -137,10 +144,22 @@ class FilesMoveNavigationUiProofTest {
             assertEquals(1, preview.effects.count { it is FilesBrowserEffect.Move })
             assertEquals(2, preview.effects.count { it is FilesBrowserEffect.CheckMove })
             assertEquals(0, fallbacks)
+            val beforeBack = backDispatchDiagnostics(preview)
             backOwner.onBackPressedDispatcher.onBackPressed()
-            assertEquals(1, fallbacks)
+            assertEquals(
+                "Final Back before=[$beforeBack], after=[${backDispatchDiagnostics(preview)}]",
+                1, fallbacks,
+            )
         }
     }
+
+    private fun backDispatchDiagnostics(preview: RootMoveBackPreview): String =
+        "browserBackEvents=${preview.events.count { it == FilesBrowserEvent.NavigateBack }}, " +
+            "folder=${preview.files.current.folder.id}, canNavigateBack=${preview.files.canNavigateBack}, " +
+            "operation=${preview.files.current.operation}, fallbacks=$fallbacks, " +
+            "fallbackEnabled=${fallbackCallback.isEnabled}, lifecycle=${backOwner.lifecycle.currentState}, " +
+            "dispatcherEnabled=${navigationDispatcher.isEnabled}, " +
+            "transition=${navigationDispatcher.transitionState.value}, history=${navigationDispatcher.history.value}"
 
     private fun assertBackRetains(preview: RootMoveBackPreview, tab: String) {
         compose.runOnIdle {
