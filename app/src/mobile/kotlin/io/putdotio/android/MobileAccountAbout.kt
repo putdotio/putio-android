@@ -91,7 +91,10 @@ internal fun MobileAboutDialog(
 ) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    var copied by remember { mutableStateOf(false) }
+    // Keyed on the support text: if playback config settles after the copy, the
+    // clipboard holds stale details and the confirmation must not claim otherwise.
+    val supportText = diagnostics.supportText()
+    var copied by remember(supportText) { mutableStateOf(false) }
     val rows = listOf(
         R.string.mobile_settings_about_version to
             stringResource(R.string.mobile_settings_about_version_value, diagnostics.appVersion, diagnostics.versionCode),
@@ -132,7 +135,7 @@ internal fun MobileAboutDialog(
                 onClick = {
                     scope.launch {
                         clipboard.setClipEntry(
-                            ClipEntry(ClipData.newPlainText("put.io app info", diagnostics.supportText())),
+                            ClipEntry(ClipData.newPlainText("put.io app info", supportText)),
                         )
                         copied = true
                     }

@@ -701,6 +701,41 @@ class MobileAccountScreenTest {
     }
 
     @Test
+    fun copiedConfirmationResetsWhenTheSupportTextChanges() {
+        var appConfigState by mutableStateOf(readyAndroidAppConfigState())
+        compose.setContent {
+            PutioTheme {
+                MobileAccountScreen(
+                    account = Account,
+                    sessionId = SessionOne,
+                    settingsState = readyAccountSettingsState(),
+                    appConfigState = appConfigState,
+                    onSettingsEvent = {},
+                    onAppConfigEvent = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).performClick()
+        val clipboard = ApplicationProvider.getApplicationContext<Context>()
+            .getSystemService(android.content.ClipboardManager::class.java)
+        compose.waitUntil(2_000L) { clipboard.hasPrimaryClip() }
+        compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).assertTextEquals("Copied to clipboard")
+
+        // Config settles to MP4 after the copy: the clipboard still says hls, so the label must revert.
+        compose.runOnIdle {
+            appConfigState = readyAndroidAppConfigState(
+                preferences = DefaultAndroidAppConfigPreferences.copy(videoPlaybackType = VideoPlaybackType.Mp4),
+            )
+        }
+        compose.onNodeWithText("media3/mp4").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).assertTextEquals("Copy for support")
+        assertTrue(clipboard.primaryClip?.getItemAt(0)?.text?.toString().orEmpty().contains("player: media3/hls"))
+    }
+
+    @Test
     fun aboutDialogReportsTheEffectivePlayerNotAnUnconfirmedSave() {
         val mp4 = DefaultAndroidAppConfigPreferences.copy(videoPlaybackType = VideoPlaybackType.Mp4)
         compose.setContent {
