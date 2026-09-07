@@ -42,10 +42,17 @@ class AppDiagnosticsTest {
     }
 
     @Test
-    fun supportTextCarriesNoForbiddenFields() {
-        val text = diagnostics.supportText().lowercase()
-        for (forbidden in listOf("model", "fingerprint", "serial", "token", "account", "user", "file", "http")) {
-            assertFalse("support text must not mention $forbidden", text.contains(forbidden))
+    fun supportTextExposesOnlyTheContractKeys() {
+        val keys = diagnostics.supportText().lines().map { it.substringBefore(':') }
+        assertEquals(
+            listOf(
+                "app", "app_version", "version_code", "release_channel",
+                "build_type", "runtime_version", "device_class", "player",
+            ),
+            keys,
+        )
+        for (forbidden in listOf("model", "fingerprint", "serial", "token", "account", "user", "file", "url", "id")) {
+            assertFalse("no key may carry $forbidden", keys.any { it.contains(forbidden) })
         }
     }
 }

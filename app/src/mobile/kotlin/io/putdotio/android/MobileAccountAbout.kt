@@ -33,7 +33,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.settings.AppDiagnostics
-import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.sdk.files.PlaybackPreference
 import kotlinx.coroutines.launch
 
 internal const val MOBILE_ABOUT_ROW_TAG = "mobile-about-row"
@@ -42,7 +42,7 @@ internal const val MOBILE_ABOUT_COPY_TAG = "mobile-about-copy"
 internal const val MOBILE_ABOUT_COPIED_TAG = "mobile-about-copied"
 
 internal fun mobileAppDiagnostics(
-    videoPlaybackType: VideoPlaybackType?,
+    playbackPreference: PlaybackPreference,
     deviceClass: AppDiagnostics.DeviceClass,
 ): AppDiagnostics =
     AppDiagnostics(
@@ -53,12 +53,16 @@ internal fun mobileAppDiagnostics(
         runtime = AppDiagnostics.Runtime.Android,
         runtimeVersion = Build.VERSION.SDK_INT,
         deviceClass = deviceClass,
-        player = playerLabel(videoPlaybackType),
+        player = playerLabel(playbackPreference),
     )
 
-// Media3 is the only player today; the stream method is the configured playback type.
-private fun playerLabel(videoPlaybackType: VideoPlaybackType?): String =
-    "media3" + (videoPlaybackType?.let { "/${it.wireValue}" } ?: "")
+// Media3 is the only player today; the stream method is the one playback actually uses,
+// which falls back to HLS while config is loading and ignores unconfirmed saves.
+private fun playerLabel(playbackPreference: PlaybackPreference): String =
+    when (playbackPreference) {
+        PlaybackPreference.HLS -> "media3/hls"
+        PlaybackPreference.MP4 -> "media3/mp4"
+    }
 
 internal fun LazyListScope.aboutItem(
     diagnostics: AppDiagnostics,

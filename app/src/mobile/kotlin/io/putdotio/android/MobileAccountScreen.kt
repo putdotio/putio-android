@@ -73,6 +73,7 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
+import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigFailure
@@ -113,8 +114,7 @@ internal fun MobileAccountScreen(
     var chooseTunnelRoute by rememberSaveable(sessionId) { mutableStateOf(false) }
     var chooseDefaultSort by rememberSaveable(sessionId) { mutableStateOf(false) }
     var showAbout by rememberSaveable(sessionId) { mutableStateOf(false) }
-    val appConfigPreferences = (appConfigState.content as? AndroidAppConfigContent.Ready)?.preferences
-    val diagnostics = mobileAppDiagnostics(appConfigPreferences?.videoPlaybackType, deviceClass)
+    val diagnostics = mobileAppDiagnostics(appConfigState.playbackPreference(), deviceClass)
     LazyColumn(
         modifier = modifier
             .fillMaxSize()

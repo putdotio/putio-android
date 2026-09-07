@@ -672,6 +672,38 @@ class MobileAccountScreenTest {
     }
 
     @Test
+    fun aboutDialogReportsTheEffectivePlayerNotAnUnconfirmedSave() {
+        val mp4 = DefaultAndroidAppConfigPreferences.copy(videoPlaybackType = VideoPlaybackType.Mp4)
+        compose.setContent {
+            PutioTheme {
+                MobileAccountScreen(
+                    account = Account,
+                    sessionId = SessionOne,
+                    settingsState = readyAccountSettingsState(),
+                    // Optimistic Ready shows MP4, but the save is still pending: playback keeps HLS.
+                    appConfigState = AndroidAppConfigState(
+                        content = AndroidAppConfigContent.Ready(mp4),
+                        mutation = AndroidAppConfigMutation.Saving(
+                            requestId = AndroidAppConfigRequestId(3L),
+                            change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
+                            previousPreferences = DefaultAndroidAppConfigPreferences,
+                            operation = AndroidAppConfigMutation.Operation.Save,
+                        ),
+                        nextRequestValue = 4L,
+                        confirmedPreferences = DefaultAndroidAppConfigPreferences,
+                    ),
+                    onSettingsEvent = {},
+                    onAppConfigEvent = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
+        compose.onNodeWithText("media3/hls").assertIsDisplayed()
+    }
+
+    @Test
     fun aboutDialogReportsTheDeviceClassTheShellPassesIn() {
         compose.setContent {
             PutioTheme {
