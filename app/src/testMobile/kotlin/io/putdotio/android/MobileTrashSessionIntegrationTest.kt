@@ -9,6 +9,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.isEnabled
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -77,6 +79,12 @@ class MobileTrashSessionIntegrationTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(fixture.authController.state.value is MobileAuthState.SignedIn)
+        // The restore's own check may still hold the controller's single request slot
+        // when the UNAVAILABLE text lands; `startCheck()` drops a click made before it
+        // is released. The button is enabled only once the slot is free.
+        compose.waitUntil(5_000L) {
+            compose.onAllNodes(hasTestTag(MOBILE_TRASH_CHECK_TAG) and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+        }
         checkStatus.set(401)
         compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick()
         awaitExpiredSession(fixture)
