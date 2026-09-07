@@ -8,6 +8,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -81,15 +84,34 @@ class MobileTrashSessionIntegrationTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(fixture.authController.state.value is MobileAuthState.SignedIn)
+        // Baseline the counter at the flip so only a request served *after* it counts.
+        val servedBeforeFlip = check.served.get()
         check.status.set(401)
-        compose.waitUntil(5_000L) {
-            // An accepted click may expire the session and remove the button at any point in
-            // this iteration, so a missing target is only a failure if the 401 was never served.
-            if (compose.runOnIdle { check.served.get() >= 2 }) return@waitUntil true
-            runCatching { compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick() }
-                .onFailure { if (compose.runOnIdle { check.served.get() < 2 }) throw it }
-            compose.waitForIdle()
-            compose.runOnIdle { check.served.get() >= 2 }
+        val attempts = AtomicInteger(0)
+        fun served401(): Boolean = compose.runOnIdle { check.served.get() > servedBeforeFlip }
+        try {
+            compose.waitUntil(5_000L) {
+                // An accepted click may expire the session and remove the button at any point in
+                // this iteration, so a missing target is only a failure if the 401 was never served.
+                if (served401()) return@waitUntil true
+                val clickable = compose.onAllNodes(hasTestTag(MOBILE_TRASH_CHECK_TAG) and hasClickAction())
+                    .fetchSemanticsNodes().isNotEmpty()
+                if (clickable) {
+                    attempts.incrementAndGet()
+                    runCatching { compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick() }
+                        .onFailure { if (!served401()) throw it }
+                }
+                compose.waitForIdle()
+                served401()
+            }
+        } catch (timeout: ComposeTimeoutException) {
+            val buttons = compose.onAllNodesWithTag(MOBILE_TRASH_CHECK_TAG).fetchSemanticsNodes()
+            throw AssertionError(
+                "no 401 served after ${attempts.get()} clicks; served=${check.served.get()} " +
+                    "baseline=$servedBeforeFlip buttons=${buttons.size} " +
+                    compose.runOnIdle { fixture.sessionFailureDiagnostic() },
+                timeout,
+            )
         }
         awaitExpiredSession(fixture)
     }
