@@ -137,7 +137,7 @@
     <string name="mobile_settings_strictly_necessary_description">Sign-in, your files, transfers, playback, and these privacy choices. Always on; nothing optional is collected here.</string>
     <string name="mobile_settings_strictly_necessary_state">Always on</string>
     <string name="mobile_settings_diagnostics">Diagnostics</string>
-    <string name="mobile_settings_diagnostics_description">Send crash and playback error reports so we can fix problems. Never file names or content.</string>
+    <string name="mobile_settings_diagnostics_description">Send crash and playback error reports so we can fix problems. They never include file names or content.</string>
     <string name="mobile_settings_product_analytics">Product analytics</string>
     <string name="mobile_settings_product_analytics_description">Share which features you use so we can improve the app.</string>
     <string name="mobile_settings_support_widget">Support chat</string>
