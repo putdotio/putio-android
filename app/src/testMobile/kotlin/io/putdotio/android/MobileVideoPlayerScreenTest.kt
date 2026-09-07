@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.captureToImage
@@ -598,6 +599,70 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun accumulationExpiresFromTheRequestTimeEvenWhenTheFeedbackTimerStartsLate() {
+        lateinit var player: RecordingPlayer
+        var now = 10_000L
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = readyState(startFromSeconds = 20.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory =
+                        MobilePlayerFactory {
+                            RecordingPlayer(durationMillis = 60_000L).also { player = it }
+                        },
+                    seekClock = { now },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+        }
+        compose.waitForIdle()
+        // Freeze composition so the feedback LaunchedEffect never runs between requests:
+        // the 800ms window must still be measured from the first request.
+        compose.mainClock.autoAdvance = false
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle { assertEquals(listOf(30_000L), player.seekPositions) }
+
+        // Player position drifts on; a request 801ms after the first must start from it.
+        now += 801L
+        compose.runOnIdle { player.movePositionTo(31_000L) }
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            advanceEventTime(64L)
+            doubleClick(percentOffset(0.75f, 0.25f))
+        }
+        // The player itself may drift a few ms while the gesture is injected; only the base matters.
+        compose.runOnIdle {
+            assertEquals(2, player.seekPositions.size)
+            assertEquals(30_000L, player.seekPositions[0])
+            val second = player.seekPositions[1]
+            assertTrue("expected a fresh 10s step from ~31s, got $second", second in 41_000L..41_100L)
+        }
+
+        // Inside the window a request stacks on the pending target instead of the player.
+        now += 500L
+        compose.runOnIdle { player.movePositionTo(45_000L) }
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            advanceEventTime(64L)
+            doubleClick(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle {
+            assertEquals(3, player.seekPositions.size)
+            assertEquals(player.seekPositions[1] + 10_000L, player.seekPositions.last())
+        }
+        compose.mainClock.autoAdvance = true
+        compose.onNodeWithText("Forward 20 seconds").assertIsDisplayed()
+    }
+
+    @Test
     fun doubleTapStillAccumulatesWhenPlaybackBuffersBetweenTaps() {
         lateinit var player: RecordingPlayer
         compose.setContent {
@@ -664,6 +729,7 @@ class MobileVideoPlayerScreenTest {
                         targetPositionMillis = 30_000L,
                         accumulatedMillis = 20_000L,
                         requestId = 2L,
+                        accumulatesUntilMillis = Long.MAX_VALUE,
                     ),
                 )
             }
@@ -691,6 +757,7 @@ class MobileVideoPlayerScreenTest {
                         targetPositionMillis = 30_000L,
                         accumulatedMillis = movement,
                         requestId = 1L,
+                        accumulatesUntilMillis = Long.MAX_VALUE,
                     ),
                 )
             }
@@ -781,22 +848,34 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
-    fun oldAccumulationTimerCannotExpireANewSeekBetweenFrames() = withAccessibleSeekPlayer { player, starts, seek ->
+    fun accumulationWindowIsMeasuredFromTheRequestNotTheFeedbackTimer() = withAccessibleSeekPlayer { player, starts, seek ->
         compose.mainClock.autoAdvance = true
         compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).performClick()
         compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertIsDisplayed()
         compose.mainClock.autoAdvance = false
-        compose.mainClock.advanceTimeBy(starts.single() + 799L - compose.mainClock.currentTime, true)
+        val firstRequestAt = seekRequestTimes.single()
+        // 799ms after the first request: still inside its window, stacks to 40s.
+        compose.mainClock.advanceTimeBy(firstRequestAt + 799L - compose.mainClock.currentTime, true)
         compose.runOnUiThread { seek() }
         compose.mainClock.advanceTimeBy(2L, true)
         compose.runOnUiThread {
             assertEquals("New seek has not recomposed", 1, starts.size)
+            // Now 801ms after the first request but 2ms after the second: stacks on the second.
             player.movePositionTo(41_000L)
             seek()
             assertEquals(listOf(30_000L, 40_000L, 50_000L), player.seekPositions)
         }
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 30 seconds")
+        // Two seeks landed on the UI thread without a frame; pump frames until the text settles.
+        compose.awaitSeekFeedback("Forward 30 seconds")
+
+        // 801ms after the third request with no recomposition in between: fresh request from the player.
+        compose.mainClock.advanceTimeBy(801L, true)
+        compose.runOnUiThread {
+            player.movePositionTo(52_000L)
+            seek()
+            assertEquals(listOf(30_000L, 40_000L, 50_000L, 60_000L), player.seekPositions)
+        }
+        compose.awaitSeekFeedback("Forward 8 seconds")
     }
 
     @Test
@@ -813,9 +892,22 @@ class MobileVideoPlayerScreenTest {
         compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 10 seconds")
     }
 
+    private val seekRequestTimes = mutableListOf<Long>()
+
+    // With autoAdvance off, each frame is explicit; the feedback text lands within a few frames.
+    private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.awaitSeekFeedback(text: String) {
+        repeat(5) {
+            mainClock.advanceTimeByFrame()
+            val nodes = onAllNodesWithTag(MOBILE_SEEK_FEEDBACK_TAG).fetchSemanticsNodes()
+            if (nodes.any { it.config.getOrNull(SemanticsProperties.Text)?.joinToString() == text }) return
+        }
+        onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals(text)
+    }
+
     private fun withAccessibleSeekPlayer(block: (RecordingPlayer, List<Long>, () -> Boolean) -> Unit) {
         lateinit var player: RecordingPlayer
         val feedbackStarts = mutableListOf<Long>()
+        seekRequestTimes.clear()
         val accessibility = object : AccessibilityManager {
             override fun calculateRecommendedTimeoutMillis(
                 originalTimeoutMillis: Long,
@@ -838,6 +930,7 @@ class MobileVideoPlayerScreenTest {
                         playerFactory = MobilePlayerFactory {
                             RecordingPlayer(durationMillis = 60_000L).also { player = it }
                         },
+                        seekClock = { compose.mainClock.currentTime.also { seekRequestTimes += it } },
                     )
                 }
             }
@@ -1380,6 +1473,7 @@ class MobileVideoPlayerCodecTest {
                     durationMillis = 100_000L,
                     direction = SeekDirection.Forward,
                     requestId = 1L,
+                    nowMillis = 0L,
                 ),
         )
         assertEquals(100_000L, first.targetPositionMillis)
@@ -1392,6 +1486,7 @@ class MobileVideoPlayerCodecTest {
                 durationMillis = 100_000L,
                 direction = SeekDirection.Forward,
                 requestId = 2L,
+                nowMillis = 0L,
             ),
         )
 
@@ -1403,6 +1498,7 @@ class MobileVideoPlayerCodecTest {
                     durationMillis = 100_000L,
                     direction = SeekDirection.Backward,
                     requestId = 3L,
+                    nowMillis = 0L,
                 ),
             )
         assertEquals(90_000L, reversed.targetPositionMillis)
@@ -1415,6 +1511,7 @@ class MobileVideoPlayerCodecTest {
                     durationMillis = 100_000L,
                     direction = SeekDirection.Backward,
                     requestId = 4L,
+                    nowMillis = 0L,
                 ),
         )
         assertEquals(0L, clampedBackward.targetPositionMillis)
@@ -1426,6 +1523,7 @@ class MobileVideoPlayerCodecTest {
                 durationMillis = 0L,
                 direction = SeekDirection.Backward,
                 requestId = 5L,
+                nowMillis = 0L,
             ),
         )
     }
@@ -1453,6 +1551,50 @@ class MobileVideoPlayerCodecTest {
     }
 
     @Test
+    fun pendingSeekStacksOnlyBeforeItsDeadline() {
+        val first =
+            requireNotNull(
+                nextPendingSeek(
+                    previous = null,
+                    currentPositionMillis = 20_000L,
+                    durationMillis = 100_000L,
+                    direction = SeekDirection.Forward,
+                    requestId = 1L,
+                    nowMillis = 5_000L,
+                ),
+            )
+        assertEquals(5_800L, first.accumulatesUntilMillis)
+        val stacked =
+            requireNotNull(
+                nextPendingSeek(
+                    previous = first,
+                    currentPositionMillis = 21_000L,
+                    durationMillis = 100_000L,
+                    direction = SeekDirection.Forward,
+                    requestId = 2L,
+                    nowMillis = 5_799L,
+                ),
+            )
+        assertEquals(40_000L, stacked.targetPositionMillis)
+        assertEquals(20_000L, stacked.accumulatedMillis)
+        // The deadline is measured from the newest request, so the window slides.
+        assertEquals(6_599L, stacked.accumulatesUntilMillis)
+        val expired =
+            requireNotNull(
+                nextPendingSeek(
+                    previous = first,
+                    currentPositionMillis = 21_000L,
+                    durationMillis = 100_000L,
+                    direction = SeekDirection.Forward,
+                    requestId = 3L,
+                    nowMillis = 5_800L,
+                ),
+            )
+        assertEquals(31_000L, expired.targetPositionMillis)
+        assertEquals(10_000L, expired.accumulatedMillis)
+    }
+
+    @Test
     fun pendingSeekClearsWhenTheSeekWindowDurationChangesOrBecomesUnavailable() {
         val pending =
             PendingSeek(
@@ -1460,6 +1602,7 @@ class MobileVideoPlayerCodecTest {
                 targetPositionMillis = 100_000L,
                 accumulatedMillis = 5_000L,
                 requestId = 1L,
+                accumulatesUntilMillis = Long.MAX_VALUE,
             )
         val initialWindow = PlayerSeekWindow(available = true, durationMillis = 100_000L)
 

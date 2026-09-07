@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import android.os.Build
+import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityManager
 import androidx.annotation.StringRes
@@ -104,6 +105,7 @@ internal fun MobileVideoPlayerScreen(
     onPlaybackEnded: () -> Unit = {},
     playerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
+    seekClock: () -> Long = SystemClock::uptimeMillis,
 ) {
     val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     var keyboardNavigationActive by rememberSaveable(state.target.fileId.value) { mutableStateOf(false) }
@@ -140,6 +142,7 @@ internal fun MobileVideoPlayerScreen(
                     autoplayNextVideo = autoplayNextVideo,
                     onPlaybackEnded = onPlaybackEnded,
                     playerFactory = playerFactory,
+                    seekClock = seekClock,
                 )
 
             is PlaybackContent.FindingNext ->
@@ -212,6 +215,7 @@ private fun MobileReadyVideoPlayer(
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
     playerFactory: MobilePlayerFactory,
+    seekClock: () -> Long,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -257,7 +261,6 @@ private fun MobileReadyVideoPlayer(
     var endedReported by remember(player) { mutableStateOf(false) }
     var seekWindow by remember(player) { mutableStateOf(player.currentSeekWindow()) }
     var pendingSeek by remember(player, source.fileId) { mutableStateOf<PendingSeek?>(null) }
-    var seekAccumulating by remember(player, source.fileId) { mutableStateOf(false) }
     val accessibilityManager = LocalAccessibilityManager.current
     var nextSeekRequestId by remember(player) { mutableLongStateOf(0L) }
     val hostView = LocalView.current
@@ -276,14 +279,14 @@ private fun MobileReadyVideoPlayer(
         if (!currentWindow.available) return
         val request =
             nextPendingSeek(
-                previous = pendingSeek.takeIf { seekAccumulating },
+                previous = pendingSeek,
                 currentPositionMillis = player.currentPosition,
                 durationMillis = currentWindow.durationMillis,
                 direction = direction,
                 requestId = ++nextSeekRequestId,
+                nowMillis = seekClock(),
             ) ?: return
         pendingSeek = request
-        seekAccumulating = true
         retainedPositionMillis = request.targetPositionMillis
         currentOnPositionChanged.value(request.targetPositionMillis)
         player.seekTo(request.targetPositionMillis)
@@ -374,12 +377,9 @@ private fun MobileReadyVideoPlayer(
             originalTimeoutMillis = MOBILE_SEEK_FEEDBACK_DELAY_MILLIS,
             containsText = true,
         ) ?: MOBILE_SEEK_FEEDBACK_DELAY_MILLIS
-        delay(MOBILE_SEEK_FEEDBACK_DELAY_MILLIS)
+        // Accumulation expiry lives on the request; this timer only hides the feedback.
+        delay(feedbackTimeout.coerceAtLeast(MOBILE_SEEK_FEEDBACK_DELAY_MILLIS))
         // A new seek can arrive before recomposition cancels the previous timer.
-        if (pendingSeek?.requestId != requestId) return@LaunchedEffect
-        // Accessible text may remain longer without extending the seek accumulation window.
-        seekAccumulating = false
-        delay((feedbackTimeout - MOBILE_SEEK_FEEDBACK_DELAY_MILLIS).coerceAtLeast(0L))
         if (pendingSeek?.requestId == requestId) pendingSeek = null
     }
 
@@ -751,7 +751,11 @@ internal data class PendingSeek(
     val targetPositionMillis: Long,
     val accumulatedMillis: Long,
     val requestId: Long,
+    // Monotonic time until which the next request stacks on this target.
+    val accumulatesUntilMillis: Long,
 )
+
+internal fun PendingSeek.accumulatesAt(nowMillis: Long): Boolean = nowMillis < accumulatesUntilMillis
 
 internal data class PlayerSeekWindow(
     val available: Boolean,
@@ -806,9 +810,12 @@ internal fun nextPendingSeek(
     durationMillis: Long,
     direction: SeekDirection,
     requestId: Long,
+    nowMillis: Long,
 ): PendingSeek? {
     if (durationMillis <= 0L) return null
-    val basePosition = (previous?.targetPositionMillis ?: currentPositionMillis).coerceIn(0L, durationMillis)
+    // The window is measured from the previous request, not from when its effect started.
+    val stacked = previous?.takeIf { it.accumulatesAt(nowMillis) }
+    val basePosition = (stacked?.targetPositionMillis ?: currentPositionMillis).coerceIn(0L, durationMillis)
     val targetPosition =
         when (direction) {
             SeekDirection.Backward -> (basePosition - MOBILE_SEEK_INTERVAL_MILLIS).coerceAtLeast(0L)
@@ -826,8 +833,8 @@ internal fun nextPendingSeek(
         }
     if (movedMillis == 0L) return null
     val accumulated =
-        if (previous?.direction == direction) {
-            previous.accumulatedMillis + movedMillis
+        if (stacked?.direction == direction) {
+            stacked.accumulatedMillis + movedMillis
         } else {
             movedMillis
         }
@@ -836,6 +843,7 @@ internal fun nextPendingSeek(
         targetPositionMillis = targetPosition,
         accumulatedMillis = accumulated,
         requestId = requestId,
+        accumulatesUntilMillis = nowMillis + MOBILE_SEEK_FEEDBACK_DELAY_MILLIS,
     )
 }
 
