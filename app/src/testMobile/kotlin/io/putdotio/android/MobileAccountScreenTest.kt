@@ -20,6 +20,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollTo
@@ -38,6 +40,9 @@ import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.TunnelRouteOption
+import io.putdotio.android.settings.TunnelRouteName
+import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
@@ -86,7 +91,7 @@ class MobileAccountScreenTest {
         compose.onNodeWithText("Show subtitles").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Resume where you left off"))
         compose.onNodeWithText("Resume where you left off").performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(9)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Sign out"))
         compose.onNodeWithText("Sign out").performClick()
 
         assertEquals(
@@ -544,12 +549,83 @@ class MobileAccountScreenTest {
         compose.onAllNodesWithText("Try again").assertCountEquals(0)
     }
 
+    @Test
+    fun tunnelRoutePickerLoadsOnOpenRetriesAndDispatchesTheChosenRoute() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        var attempts = 0
+        setAccountContent(
+            state = readyAccountSettingsState(),
+            events = events,
+            loadTunnelRoutes = {
+                attempts += 1
+                if (attempts == 1) {
+                    AccountSettingsRepositoryResult.Failure(
+                        AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    )
+                } else {
+                    AccountSettingsRepositoryResult.Success(
+                        listOf(
+                            TunnelRouteOption(TunnelRouteName.DEFAULT, "Amsterdam (Direct)"),
+                            TunnelRouteOption(TunnelRouteName("cdn77"), "CDN"),
+                        ),
+                    )
+                }
+            },
+        )
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TUNNEL_ROUTE_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).assertTextContains("Direct").performClick()
+        compose.onNodeWithText("Couldn’t load proxies").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_RETRY_TAG).performClick()
+        compose.onNodeWithText("Amsterdam (Direct)").assertIsDisplayed()
+        compose.onNodeWithText("cdn77").performClick()
+        compose.runOnIdle {
+            assertEquals(2, attempts)
+            assertEquals(
+                listOf<AccountSettingsEvent>(
+                    AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(TunnelRouteName("cdn77"))),
+                ),
+                events,
+            )
+        }
+        compose.onNodeWithText("Amsterdam (Direct)").assertDoesNotExist()
+    }
+
+    @Test
+    fun rejectedRouteSaveShowsOnTheProxyRowOnlyAndRetriesTheExactRoute() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        val failure = AccountSettingsFailure.RouteUnavailable(PutioConfigurationException("UNAVAILABLE_VALUE"))
+        setAccountContent(
+            state = readyAccountSettingsState(
+                preferences = DefaultAccountSettingsPreferences,
+                mutation = AccountSettingsMutation.Failed(
+                    change = AccountSettingsChange.Route(TunnelRouteName("cdn77")),
+                    failure = failure,
+                    previousPreferences = DefaultAccountSettingsPreferences,
+                    operation = AccountSettingsMutation.Operation.Save,
+                ),
+            ),
+            events = events,
+        )
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TUNNEL_ROUTE_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).assertTextContains("Direct")
+        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
+        compose.onNodeWithText("That proxy isn’t available for your account. Choose another one.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
+        compose.onNodeWithText("Show subtitles").assertIsDisplayed()
+        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
+    }
+
     private fun setAccountContent(
         state: AccountSettingsState,
         events: MutableList<AccountSettingsEvent>,
         onSignOut: () -> Unit = {},
         account: MobileAccount = Account,
         appConfigEvents: MutableList<AndroidAppConfigEvent> = mutableListOf(),
+        loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
+            AccountSettingsRepositoryResult.Success(emptyList())
+        },
     ) {
         compose.setContent {
             PutioTheme {
@@ -561,6 +637,7 @@ class MobileAccountScreenTest {
                     onSettingsEvent = events::add,
                     onAppConfigEvent = appConfigEvents::add,
                     onSignOut = onSignOut,
+                    loadTunnelRoutes = loadTunnelRoutes,
                 )
             }
         }

@@ -103,6 +103,9 @@ class AccountSettingsControllerTest {
             val cancelled = CompletableDeferred<Unit>()
             val repository =
                 object : AccountSettingsRepository {
+        override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
+            error("Tunnel routes are not expected")
+
                     override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> {
                         started.complete(Unit)
                         try {
@@ -130,6 +133,9 @@ class AccountSettingsControllerTest {
     ): AccountSettingsState = withTimeout(TEST_TIMEOUT_MILLIS) { state.first(predicate) }
 
     private class RecordingRepository : AccountSettingsRepository {
+        override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
+            error("Tunnel routes are not expected")
+
         val savedChanges = mutableListOf<AccountSettingsChange>()
 
         override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> =
@@ -150,6 +156,9 @@ class AccountSettingsControllerTest {
     }
 
     private class RefreshFailureRepository : AccountSettingsRepository {
+        override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
+            error("Tunnel routes are not expected")
+
         var loadCount = 0
         var saveCount = 0
 

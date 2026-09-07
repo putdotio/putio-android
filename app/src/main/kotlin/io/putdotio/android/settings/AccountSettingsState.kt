@@ -12,6 +12,28 @@ internal data class AccountSettingsPreferences(
     val autoSelectSubtitles: Boolean,
     // Account-wide `use_start_from`: playback resumes from and writes back saved positions.
     val resumePlayback: Boolean = true,
+    // Account-wide `tunnel_route_name`; the server reports null for the direct route.
+    val tunnelRoute: TunnelRouteName = TunnelRouteName.DEFAULT,
+)
+
+/** Server route identifier. `default` is the direct Amsterdam route and what a null setting means. */
+@JvmInline
+internal value class TunnelRouteName(val value: String) {
+    init {
+        require(value.isNotBlank() && value == value.trim()) { "Tunnel route names are non-blank and trimmed" }
+    }
+
+    companion object {
+        val DEFAULT = TunnelRouteName("default")
+
+        fun fromServer(raw: String?): TunnelRouteName =
+            raw?.trim()?.takeIf { it.isNotEmpty() }?.let(::TunnelRouteName) ?: DEFAULT
+    }
+}
+
+internal data class TunnelRouteOption(
+    val name: TunnelRouteName,
+    val description: String,
 )
 
 internal enum class AccountSettingsKey {
@@ -20,12 +42,32 @@ internal enum class AccountSettingsKey {
     ShowSubtitles,
     AutoSelectSubtitles,
     ResumePlayback,
+    TunnelRoute,
 }
 
-internal data class AccountSettingsChange(
-    val key: AccountSettingsKey,
-    val enabled: Boolean,
-)
+internal sealed interface AccountSettingsChange {
+    val key: AccountSettingsKey
+
+    data class Toggle(
+        override val key: AccountSettingsKey,
+        val enabled: Boolean,
+    ) : AccountSettingsChange {
+        init {
+            require(key != AccountSettingsKey.TunnelRoute) { "Tunnel route is not a toggle" }
+        }
+    }
+
+    data class Route(
+        val name: TunnelRouteName,
+    ) : AccountSettingsChange {
+        override val key: AccountSettingsKey get() = AccountSettingsKey.TunnelRoute
+    }
+
+    companion object {
+        // Keeps the boolean call sites readable: AccountSettingsChange(key, enabled).
+        operator fun invoke(key: AccountSettingsKey, enabled: Boolean): AccountSettingsChange = Toggle(key, enabled)
+    }
+}
 
 internal sealed interface AccountSettingsContent {
     data class Loading(
@@ -172,10 +214,21 @@ internal fun AccountSettingsState.authoritativeSessionFailure(): AccountSettings
         .firstOrNull()
 
 internal fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
-    if (mutation is AccountSettingsMutation.Idle) {
-        (content as? AccountSettingsContent.Ready)?.preferences?.historyEnabled
-    } else {
-        null
+    confirmedPreferences(AccountSettingsKey.History)?.historyEnabled
+
+internal fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
+    confirmedPreferences(AccountSettingsKey.Trash)?.trashEnabled
+
+// A pending or failed mutation only makes its own key unconfirmed; the other
+// preferences still reflect the last authoritative read.
+private fun AccountSettingsState.confirmedPreferences(key: AccountSettingsKey): AccountSettingsPreferences? {
+    val ready = content as? AccountSettingsContent.Ready ?: return null
+    val pendingKey = when (val current = mutation) {
+        AccountSettingsMutation.Idle -> null
+        is AccountSettingsMutation.Saving -> current.change.key
+        is AccountSettingsMutation.Failed -> current.change.key
     }
+    return ready.preferences.takeUnless { pendingKey == key }
+}
 
 private const val INITIAL_REQUEST_VALUE = 1L

@@ -2,6 +2,7 @@ package io.putdotio.android.settings
 
 import io.putdotio.sdk.account.AccountSettings
 import io.putdotio.sdk.account.AccountSettingsPatch
+import io.putdotio.sdk.routes.TunnelRoute
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioOperationErrorReason
@@ -199,6 +200,7 @@ class SdkAccountSettingsRepositoryTest {
         settings: AccountSettings = Settings,
         getError: Throwable? = null,
         onSave: (AccountSettingsPatch) -> Unit = {},
+        routes: suspend () -> List<TunnelRoute> = { error("Routes are not expected") },
     ): SdkAccountSettingsRepository =
         SdkAccountSettingsRepository(
             getSettings = {
@@ -206,7 +208,92 @@ class SdkAccountSettingsRepositoryTest {
                 settings
             },
             saveSettings = onSave,
+            listRoutes = routes,
         )
+
+    @Test
+    fun mapsTunnelRouteFromServerAndPatchesTheExactName() =
+        runBlocking {
+            val direct = repository(settings = Settings.copy(tunnelRouteName = null)).load()
+            assertEquals(TunnelRouteName.DEFAULT,
+                (direct as AccountSettingsRepositoryResult.Success).value.tunnelRoute)
+            val cdn = repository(settings = Settings.copy(tunnelRouteName = " cdn77 ")).load()
+            assertEquals(TunnelRouteName("cdn77"), (cdn as AccountSettingsRepositoryResult.Success).value.tunnelRoute)
+
+            val patches = mutableListOf<AccountSettingsPatch>()
+            val repository = repository(onSave = patches::add)
+            repository.save(AccountSettingsChange.Route(TunnelRouteName("cdn77")))
+            repository.save(AccountSettingsChange.Route(TunnelRouteName.DEFAULT))
+            assertEquals(
+                listOf(
+                    AccountSettingsPatch(tunnelRouteName = "cdn77"),
+                    AccountSettingsPatch(tunnelRouteName = "default"),
+                ),
+                patches,
+            )
+        }
+
+    @Test
+    fun ineligibleProxyRejectionIsRouteUnavailableWithoutExpiringTheSession() =
+        runBlocking {
+            val apiError =
+                PutioApiException(
+                    request = PutioRequestData("POST", "https://api.put.io/v2/account/settings"),
+                    resolvedStatusCode = 403,
+                    resolvedErrorType = "UNAVAILABLE_VALUE",
+                    envelope = PutioApiErrorEnvelope(statusCode = 403, errorType = "UNAVAILABLE_VALUE"),
+                    responseBody = "{}",
+                    message = "Unavailable value: tunnel_route_name",
+                )
+            val operationError =
+                PutioOperationException(
+                    domain = "account",
+                    operation = "saveSettings",
+                    contract = null,
+                    reason = PutioOperationErrorReason.StatusCode(403),
+                    underlyingError = apiError,
+                )
+            val repository = repository(onSave = { throw operationError })
+
+            val result = repository.save(AccountSettingsChange.Route(TunnelRouteName("cdn77")))
+                as AccountSettingsRepositoryResult.Failure
+
+            val rejected = result.failure as AccountSettingsFailure.RouteUnavailable
+            assertSame(operationError, rejected.cause)
+        }
+
+    @Test
+    fun tunnelRoutesPutDefaultFirstDropBlankNamesAndRequireDefault() =
+        runBlocking {
+            val loaded = repository(routes = {
+                listOf(
+                    TunnelRoute("cdn77", " CDN "),
+                    TunnelRoute("  ", "blank"),
+                    TunnelRoute("default", "Amsterdam (Direct)"),
+                    TunnelRoute("cdn77", "duplicate"),
+                )
+            }).loadTunnelRoutes() as AccountSettingsRepositoryResult.Success
+            assertEquals(
+                listOf(
+                    TunnelRouteOption(TunnelRouteName.DEFAULT, "Amsterdam (Direct)"),
+                    TunnelRouteOption(TunnelRouteName("cdn77"), "CDN"),
+                ),
+                loaded.value,
+            )
+            val missingDefault = repository(routes = { listOf(TunnelRoute("cdn77", "CDN")) }).loadTunnelRoutes()
+            assertTrue(missingDefault is AccountSettingsRepositoryResult.Failure)
+            val cause = PutioApiException(
+                request = PutioRequestData("GET", "https://api.put.io/v2/tunnel/routes"),
+                resolvedStatusCode = 401,
+                resolvedErrorType = "invalid_token",
+                envelope = PutioApiErrorEnvelope(statusCode = 401, errorType = "invalid_token"),
+                responseBody = "{}",
+                message = "Request rejected",
+            )
+            val denied = repository(routes = { throw cause }).loadTunnelRoutes()
+                as AccountSettingsRepositoryResult.Failure
+            assertTrue(denied.failure is AccountSettingsFailure.AuthenticationRequired)
+        }
 
     private companion object {
         val Settings =
