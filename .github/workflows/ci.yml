@@ -28,13 +28,12 @@ jobs:
           persist-credentials: false
 
       # The app consumes putio-sdk-kotlin as a composite build from a sibling
-      # checkout (settings.gradle.kts default ../putio-sdk-kotlin). The repo is
-      # private; access is a read-only deploy key stored as an Actions secret.
+      # checkout (settings.gradle.kts default ../putio-sdk-kotlin). The SDK is
+      # public, so no credential is needed until it ships as a Maven artifact.
       - name: Check out putio-sdk-kotlin
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: putdotio/putio-sdk-kotlin
-          ssh-key: ${{ secrets.PUTIO_SDK_KOTLIN_DEPLOY_KEY }}
           path: putio-sdk-kotlin
           persist-credentials: false
 

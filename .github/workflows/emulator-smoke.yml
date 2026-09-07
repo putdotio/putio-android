@@ -52,7 +52,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: putdotio/putio-sdk-kotlin
-          ssh-key: ${{ secrets.PUTIO_SDK_KOTLIN_DEPLOY_KEY }}
           path: putio-sdk-kotlin
           persist-credentials: false
 

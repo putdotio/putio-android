@@ -95,9 +95,8 @@ it. Conventions mirror `putio-sdk-kotlin`: pinned
 action SHAs, Temurin 21, `gradle/actions/setup-gradle` caching, concurrency
 cancellation.
 
-The private `putio-sdk-kotlin` composite build is checked out as a sibling
-using a read-only deploy key stored as the `PUTIO_SDK_KOTLIN_DEPLOY_KEY`
-Actions secret; no other CI secret exists.
+The public `putio-sdk-kotlin` composite build is checked out as a sibling
+without credentials; CI holds no secrets.
 
 Both CI lanes record the actual app and SDK checkout SHAs and the app commit's
 parent SHAs in the job log and run summary before building. The SDK still follows its default branch; an app
