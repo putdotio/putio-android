@@ -21,7 +21,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performScrollToNode
@@ -35,6 +35,7 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.AccountSettingsChange
+import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
@@ -655,8 +656,11 @@ class MobileAccountScreenTest {
         val clipboard = ApplicationProvider.getApplicationContext<Context>()
             .getSystemService(android.content.ClipboardManager::class.java)
         compose.waitUntil(2_000L) { clipboard.hasPrimaryClip() }
-        // The label sits at the bottom of the scrollable dialog body on a short test window.
-        compose.onNodeWithTag(MOBILE_ABOUT_COPIED_TAG).performScrollTo().assertIsDisplayed()
+        // The confirmation replaces the button label, so it is visible without scrolling.
+        // The button merges its descendants; read the label through the unmerged tree.
+        compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).assertIsDisplayed().assertTextEquals("Copied to clipboard")
+        compose.onNodeWithTag(MOBILE_ABOUT_COPIED_TAG, useUnmergedTree = true)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         val pasted = clipboard.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
         assertTrue(pasted, pasted.startsWith("app: android\napp_version: ${BuildConfig.VERSION_NAME}\n"))
         assertTrue(pasted, pasted.contains("device_class: phone"))
@@ -668,9 +672,24 @@ class MobileAccountScreenTest {
     }
 
     @Test
-    fun deviceClassFollowsTheTabletWidthThreshold() {
-        assertEquals(io.putdotio.android.settings.AppDiagnostics.DeviceClass.Phone, deviceClassForWidth(599.dp))
-        assertEquals(io.putdotio.android.settings.AppDiagnostics.DeviceClass.Tablet, deviceClassForWidth(600.dp))
+    fun aboutDialogReportsTheDeviceClassTheShellPassesIn() {
+        compose.setContent {
+            PutioTheme {
+                MobileAccountScreen(
+                    account = Account,
+                    sessionId = SessionOne,
+                    settingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    onSettingsEvent = {},
+                    onAppConfigEvent = {},
+                    onSignOut = {},
+                    deviceClass = AppDiagnostics.DeviceClass.Tablet,
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
+        compose.onNodeWithText("Tablet").assertIsDisplayed()
     }
 
     @Test

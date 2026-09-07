@@ -31,7 +31,6 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.VideoPlaybackType
@@ -42,12 +41,9 @@ internal const val MOBILE_ABOUT_DIALOG_TAG = "mobile-about-dialog"
 internal const val MOBILE_ABOUT_COPY_TAG = "mobile-about-copy"
 internal const val MOBILE_ABOUT_COPIED_TAG = "mobile-about-copied"
 
-// Tablet layouts start at this width; the same threshold the shell uses for the rail.
-private val TabletMinWidth = 600.dp
-
 internal fun mobileAppDiagnostics(
     videoPlaybackType: VideoPlaybackType?,
-    windowWidth: Dp,
+    deviceClass: AppDiagnostics.DeviceClass,
 ): AppDiagnostics =
     AppDiagnostics(
         appVersion = BuildConfig.VERSION_NAME,
@@ -56,12 +52,9 @@ internal fun mobileAppDiagnostics(
         buildType = BuildConfig.BUILD_TYPE,
         runtime = AppDiagnostics.Runtime.Android,
         runtimeVersion = Build.VERSION.SDK_INT,
-        deviceClass = deviceClassForWidth(windowWidth),
+        deviceClass = deviceClass,
         player = playerLabel(videoPlaybackType),
     )
-
-internal fun deviceClassForWidth(windowWidth: Dp): AppDiagnostics.DeviceClass =
-    if (windowWidth >= TabletMinWidth) AppDiagnostics.DeviceClass.Tablet else AppDiagnostics.DeviceClass.Phone
 
 // Media3 is the only player today; the stream method is the configured playback type.
 private fun playerLabel(videoPlaybackType: VideoPlaybackType?): String =
@@ -126,19 +119,10 @@ internal fun MobileAboutDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),
                 )
-                if (copied) {
-                    Text(
-                        text = stringResource(R.string.mobile_settings_about_copied),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .padding(top = 8.dp)
-                            .testTag(MOBILE_ABOUT_COPIED_TAG)
-                            .semantics { liveRegion = LiveRegionMode.Polite },
-                    )
-                }
             }
         },
+        // The confirmation replaces the button label so it stays visible and announces
+        // from a fixed position, regardless of how tall the scrolling body is.
         confirmButton = {
             TextButton(
                 onClick = {
@@ -150,7 +134,18 @@ internal fun MobileAboutDialog(
                     }
                 },
                 modifier = Modifier.testTag(MOBILE_ABOUT_COPY_TAG),
-            ) { Text(stringResource(R.string.mobile_settings_about_copy)) }
+            ) {
+                if (copied) {
+                    Text(
+                        text = stringResource(R.string.mobile_settings_about_copied),
+                        modifier = Modifier
+                            .testTag(MOBILE_ABOUT_COPIED_TAG)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                } else {
+                    Text(stringResource(R.string.mobile_settings_about_copy))
+                }
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.mobile_action_close)) }

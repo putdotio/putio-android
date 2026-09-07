@@ -89,6 +89,7 @@ import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
@@ -863,6 +864,7 @@ private fun PhoneShell(
             onFilesEvent = onFilesEvent,
             onAccountSettingsEvent = onAccountSettingsEvent,
             loadTunnelRoutes = loadTunnelRoutes,
+            deviceClass = AppDiagnostics.DeviceClass.Phone,
             onAppConfigEvent = onAppConfigEvent,
             onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
             onFilesAuthenticationRequired = onFilesAuthenticationRequired,
@@ -946,6 +948,7 @@ private fun TabletShell(
                 onFilesEvent = onFilesEvent,
                 onAccountSettingsEvent = onAccountSettingsEvent,
                 loadTunnelRoutes = loadTunnelRoutes,
+                deviceClass = AppDiagnostics.DeviceClass.Tablet,
                 onAppConfigEvent = onAppConfigEvent,
                 onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                 onFilesAuthenticationRequired = onFilesAuthenticationRequired,
@@ -1051,6 +1054,7 @@ private fun MobileNavHost(
             AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
         )
     },
+    deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
@@ -1104,6 +1108,7 @@ private fun MobileNavHost(
                 onSettingsEvent = onAccountSettingsEvent,
                 onAppConfigEvent = onAppConfigEvent,
                 loadTunnelRoutes = loadTunnelRoutes,
+                deviceClass = deviceClass,
                 onSignOut = onSignOut,
                 onManageTrash = { navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true } },
             )
