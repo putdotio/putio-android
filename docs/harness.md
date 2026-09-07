@@ -129,9 +129,10 @@ requires authentication.
 ## Borrowing another OAuth client for local proof
 
 Debug builds honour an ignored `local.properties` key that replaces the mobile
-client id and skips the TV-client guard. Use it only while mobile client `9677`
-lacks a backend grant (for example `account:write`, putdotio/putio#4686); the
-borrowed client must list `putio://auth` as a callback.
+client id and skips the TV-client guard. Mobile client `9677` has held every
+official-app scope since putdotio/putio#4686 shipped, so ordinary proof needs no
+override. Keep the key for a future scope gap only; the borrowed client must
+list `putio://auth` as a callback.
 
 ```properties
 putioMobileOAuthClientIdDebugOverride=6221
