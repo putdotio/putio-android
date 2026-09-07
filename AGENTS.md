@@ -7,7 +7,7 @@ evidence for PRs.
 ## Repo
 
 - Native Android app for put.io, covering Android mobile and Android TV / Fire TV from one Compose codebase
-- Uses `putio-sdk-kotlin` as the API boundary; do not bypass it with ad hoc HTTP unless the SDK gap is documented first
+- Uses [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) as the API boundary; do not bypass it with ad hoc HTTP unless the SDK gap is documented first
 - Android TV should feel like Android TV: Compose for TV, D-pad focus, system media/session behavior, and platform-native search where applicable
 - Program root: [#14](https://github.com/putdotio/putio-android/issues/14); harness: [#15](https://github.com/putdotio/putio-android/issues/15)
 
@@ -15,7 +15,7 @@ evidence for PRs.
 
 - [Overview](./README.md)
 - [Harness](./docs/harness.md)
-- Kotlin SDK guide: `../putio-sdk-kotlin/AGENTS.md`
+- Kotlin SDK guide: `../putio-sdk-kotlin/AGENTS.md` (sibling checkout; see Toolchain)
 
 ## Toolchain
 
@@ -88,8 +88,7 @@ assembles. Manual workflow dispatches additionally upload all four debug APKs
 as a one-day `debug-apks` artifact. Failed runs retain app unit-test and
 `buildSrc` JUnit XML as `failed-unit-test-reports` for three days, including
 assertion diagnostics omitted from the job log. Treat the `Verify Android app` check as
-the merge gate for `main`; this private repo has no branch protection enforcing
-it. Conventions mirror `putio-sdk-kotlin`: pinned
+the merge gate for `main`; no branch protection enforces it. Conventions mirror `putio-sdk-kotlin`: pinned
 action SHAs, Temurin 21, `gradle/actions/setup-gradle` caching, concurrency
 cancellation.
 

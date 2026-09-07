@@ -18,15 +18,14 @@ graph.
 The update resolves two earlier discrepancies:
 
 - Android TV is now documented as Compose for TV with scale and elevation,
-  rather than as the React Native app this repository replaces.
+  rather than as the app this repository replaces.
 - TV cards now state their 1920x1080 canvas is a 2x rendering of the
   960x540dp app surface.
 
-No Android mobile behavior changed. The new TV implementation work belongs to
+No Android mobile behavior changed. The TV implementation work belongs to
 [#32](https://github.com/putdotio/putio-android/issues/32),
 [#33](https://github.com/putdotio/putio-android/issues/33) and
-[#34](https://github.com/putdotio/putio-android/issues/34), not the weekend
-mobile auth-to-Files slice.
+[#34](https://github.com/putdotio/putio-android/issues/34).
 
 ## Reconciled binding details
 
