@@ -557,14 +557,14 @@ internal fun MobileShell(
             onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
         }
     }
-    // Folders without their own sort inherit the account default, so a confirmed change
-    // makes every loaded listing stale. The first confirmed value is the baseline.
+    // Folders without their own sort inherit the account default, so a change the server
+    // accepted makes every loaded listing stale. The first settled value is the baseline.
     val confirmedDefaultSort = accountSettingsState.confirmedDefaultSort()
     var knownDefaultSort by remember(sessionId) { mutableStateOf<ConfirmedDefaultSort?>(null) }
     LaunchedEffect(confirmedDefaultSort) {
         if (confirmedDefaultSort == null) return@LaunchedEffect
         if (knownDefaultSort != null && knownDefaultSort != confirmedDefaultSort) {
-            onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
+            onFilesEvent(FilesBrowserEvent.InvalidateSortOrder)
         }
         knownDefaultSort = confirmedDefaultSort
     }

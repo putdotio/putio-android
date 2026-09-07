@@ -200,6 +200,29 @@ class FilesRestoreInvalidationTest {
         FilesItem(FilesItemId(id), parentId, "Item $id", PutioFileType.FOLDER, 0, "2026-09-06")
 
     @Test
+    fun sortOrderInvalidationDropsEveryViewportAndAdvancesGenerationsWithoutReloadingEagerly() {
+        val original = nested()
+        val invalidated = FilesBrowserReducer.reduce(original, FilesBrowserEvent.InvalidateSortOrder)
+        assertNull(invalidated.effect)
+        assertEquals(original.path, invalidated.state.path)
+        invalidated.state.stack.forEachIndexed { index, folder ->
+            assertTrue(folder.needsReload)
+            assertEquals(FilesViewportPosition(), (folder.content as FilesContent.Ready).viewport)
+            assertEquals(original.stack[index].viewportGeneration + 1, folder.viewportGeneration)
+            assertEquals((original.stack[index].content as FilesContent.Ready).items, folder.content.items)
+        }
+        val reloading = FilesBrowserReducer.reduce(invalidated.state, FilesBrowserEvent.ReloadIfStale)
+        assertEquals(child.id, (reloading.effect as FilesBrowserEffect.LoadFolder).folderId)
+        val reloaded = finish(reloading, listOf(item(21, child.id)))
+        assertEquals(FilesViewportPosition(), (reloaded.current.content as FilesContent.Ready).viewport)
+
+        val loading = FilesBrowserReducer.start().state
+        val untouched = FilesBrowserReducer.reduce(loading, FilesBrowserEvent.InvalidateSortOrder).state
+        assertSame(loading.current.content, untouched.current.content)
+        assertTrue(untouched.current.needsReload)
+    }
+
+    @Test
     fun bulkRestoreInvalidatesEveryCachedLevelWithoutNavigatingOrReloadingEagerly() {
         val original = nested()
         val invalidated = FilesBrowserReducer.reduce(original, FilesBrowserEvent.InvalidateAllFolders)

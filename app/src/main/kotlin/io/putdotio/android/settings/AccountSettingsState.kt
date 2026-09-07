@@ -231,9 +231,23 @@ internal fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
 internal fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.Trash)?.trashEnabled
 
-/** The confirmed account default sort, or null while unloaded or while a sort save is pending. */
-internal fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? =
-    confirmedPreferences(AccountSettingsKey.DefaultSort)?.let { ConfirmedDefaultSort(it.defaultSort) }
+/**
+ * The default sort the server holds, or null while unloaded or while a sort write is unsettled.
+ * A refresh failure after an accepted write still counts: the server took the value.
+ */
+internal fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
+    val ready = content as? AccountSettingsContent.Ready ?: return null
+    val unsettledWrite = when (val current = mutation) {
+        AccountSettingsMutation.Idle -> false
+        is AccountSettingsMutation.Saving ->
+            current.change.key == AccountSettingsKey.DefaultSort &&
+                current.operation == AccountSettingsMutation.Operation.Save
+        is AccountSettingsMutation.Failed ->
+            current.change.key == AccountSettingsKey.DefaultSort &&
+                current.operation == AccountSettingsMutation.Operation.Save
+    }
+    return ConfirmedDefaultSort(ready.preferences.defaultSort).takeUnless { unsettledWrite }
+}
 
 // Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed".
 @JvmInline

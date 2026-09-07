@@ -161,6 +161,9 @@ sealed interface FilesBrowserEvent {
 
     data object InvalidateAllFolders : InvalidationEvent
 
+    /** The account default order changed; every cached listing may now be in the wrong order. */
+    data object InvalidateSortOrder : InvalidationEvent
+
     data object ReloadIfStale : InvalidationEvent
 
     data class SelectSort(
@@ -339,6 +342,7 @@ object FilesBrowserReducer {
         when (event) {
             is FilesBrowserEvent.InvalidateRestoredItem -> invalidateRestoredItem(event.item)
             FilesBrowserEvent.InvalidateAllFolders -> invalidateAllFolders()
+            FilesBrowserEvent.InvalidateSortOrder -> invalidateSortOrder()
             FilesBrowserEvent.ReloadIfStale -> reloadIfStale()
         }
 

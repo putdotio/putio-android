@@ -628,7 +628,7 @@ class MobileShellTest {
     }
 
     @Test
-    fun confirmedDefaultSortChangeInvalidatesAllFoldersOnceAndNotOnFirstLoad() {
+    fun acceptedDefaultSortChangeInvalidatesSortOrderOnceAndNotOnFirstLoad() {
         val events = mutableListOf<FilesBrowserEvent>()
         // Starts as a server value this app does not know; saving a known sort must still invalidate.
         var settingsState by mutableStateOf(readyAccountSettingsState(preferences = DefaultAccountSettingsPreferences))
@@ -665,9 +665,25 @@ class MobileShellTest {
         }
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
 
+        // Accepted write, refresh failed: the server holds the new order, so listings are stale now.
+        compose.runOnIdle {
+            settingsState = readyAccountSettingsState(
+                preferences = applied,
+                mutation = AccountSettingsMutation.Failed(
+                    change = change,
+                    failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    previousPreferences = DefaultAccountSettingsPreferences,
+                    operation = AccountSettingsMutation.Operation.Refresh,
+                ),
+            )
+        }
+        compose.runOnIdle {
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
+        }
+
         compose.runOnIdle { settingsState = readyAccountSettingsState(preferences = applied) }
         compose.runOnIdle {
-            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateAllFolders), events)
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
         }
     }
 

@@ -457,6 +457,20 @@ class AccountSettingsReducerTest {
         assertEquals(ConfirmedDefaultSort(FilesSort.NAME_ASCENDING), loaded.confirmedDefaultSort())
         assertEquals(ConfirmedDefaultSort(null), loadedState(Preferences).confirmedDefaultSort())
 
+        // The server accepted the write; a failed follow-up refresh must not hide the new value.
+        val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
+        val refreshing = AccountSettingsReducer.reduce(saving.state, AccountSettingsEvent.SaveSucceeded(requestId))
+        assertEquals(ConfirmedDefaultSort(FilesSort.DATE_ADDED_DESCENDING), refreshing.state.confirmedDefaultSort())
+        val refreshFailure = AccountSettingsFailure.Unexpected(IllegalStateException("x"))
+        val refreshFailed = AccountSettingsReducer.reduce(
+            refreshing.state,
+            AccountSettingsEvent.RefreshFailed(requestId, refreshFailure),
+        )
+        assertEquals(
+            ConfirmedDefaultSort(FilesSort.DATE_ADDED_DESCENDING),
+            refreshFailed.state.confirmedDefaultSort(),
+        )
+
         val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
         val failed = AccountSettingsReducer.reduce(
             saving.state,
