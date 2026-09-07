@@ -14,9 +14,7 @@ evidence for PRs.
 ## Start Here
 
 - [Overview](./README.md)
-- [Migration assessment](./docs/migration-from-tv-native.md)
-- Shared workspace: `../putio-frontend/AGENTS.md`
-- TV app packet: `../putio-frontend/docs/specs/tv-app/README.md`
+- [Harness](./docs/harness.md)
 - Kotlin SDK guide: `../putio-sdk-kotlin/AGENTS.md`
 
 ## Toolchain
@@ -176,5 +174,5 @@ Set `sdk.dir` and an absolute `putioSdkKotlinPath` there, then run
 - Prefer SDK changes in `../putio-sdk-kotlin` over app-local API workarounds
 - Preserve the current Android TV package/release identity unless product/release owners decide to create a new listing
 - Store tokens in Android platform secure storage; never commit sample secrets or OAuth tokens
-- Use the workspace docs for cross-repo policy, but keep app-specific build, verification, and architecture notes in this repo
+- Keep app-specific build, verification, and architecture notes in this repo
 - Finish in-scope edits, `./gradlew verify`, and harness proof without pausing; ask before publishing evidence, Play track changes, signing or secret changes, and anything outside the task

@@ -2,8 +2,8 @@
 
 > **Work in progress.** This is a ground-up rewrite of the put.io Android app
 > and is not on Google Play yet. Expect missing features and breaking changes
-> between commits. The Android TV app on Play today is `tv-native` from the
-> put.io web codebase; it stays there until this app replaces it.
+> between commits. The Android TV app on Play today is the existing put.io
+> TV app; it stays there until this app replaces it.
 > [Epic #14](https://github.com/putdotio/putio-android/issues/14) tracks the
 > rollout. Bug reports are welcome; open an issue before sending a pull request.
 
@@ -37,8 +37,8 @@ Picture-in-Picture, and the Play release lane.
 - Mobile-first rollout with touch and tablet-adaptive navigation
 - TV shell built around D-pad focus, Android TV launcher metadata, media
   sessions, and system search
-- TV behavior follows the exported Android TV screenshot and spec packet;
-  libVLC or original-file playback is a later, separately proven upgrade
+- TV behavior matches the current put.io Android TV app; libVLC or
+  original-file playback is a later, separately proven upgrade
 - Colors and component roles come from
   [`@putdotio/design`](https://github.com/putdotio/putio-design); Phosphor is
   the icon source
@@ -69,11 +69,6 @@ directory, or a `putioSdkKotlinPath` in `local.properties`.
   the definition of done
 - [Harness](./docs/harness.md): emulator lifecycle, recording, live API proof
 - [Design system binding](./design/README.md): tokens and icon generation
-- [Migration assessment](./docs/migration-from-tv-native.md): what carries over
-  from `tv-native`
-
-Some specs referenced from the agent guide live in private put.io planning
-repositories and are not needed to build or run the app.
 
 ## License
 
