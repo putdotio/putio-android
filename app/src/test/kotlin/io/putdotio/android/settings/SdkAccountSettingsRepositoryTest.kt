@@ -1,6 +1,7 @@
 package io.putdotio.android.settings
 
 import io.putdotio.sdk.account.AccountSettings
+import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.account.AccountSettingsPatch
 import io.putdotio.sdk.routes.TunnelRoute
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
@@ -33,6 +34,7 @@ class SdkAccountSettingsRepositoryTest {
                     showSubtitles = false,
                     autoSelectSubtitles = false,
                     resumePlayback = false,
+                    defaultSort = FilesSort.NAME_ASCENDING,
                 ),
                 result.value,
             )
@@ -92,6 +94,7 @@ class SdkAccountSettingsRepositoryTest {
                         showSubtitles = false,
                         autoSelectSubtitles = false,
                         resumePlayback = false,
+                        defaultSort = FilesSort.NAME_ASCENDING,
                     ),
                 ),
                 refreshEvent,
@@ -231,6 +234,22 @@ class SdkAccountSettingsRepositoryTest {
                 ),
                 patches,
             )
+        }
+
+    @Test
+    fun mapsDefaultSortFromServerAndPatchesTheExactApiValue() =
+        runBlocking {
+            val unknown = repository(settings = Settings.copy(sortBy = "SOMETHING_NEW")).load()
+            assertEquals(null, (unknown as AccountSettingsRepositoryResult.Success).value.defaultSort)
+            val known = repository(settings = Settings.copy(sortBy = "DATE_DESC")).load()
+            assertEquals(
+                FilesSort.DATE_ADDED_DESCENDING,
+                (known as AccountSettingsRepositoryResult.Success).value.defaultSort,
+            )
+
+            val patches = mutableListOf<AccountSettingsPatch>()
+            repository(onSave = patches::add).save(AccountSettingsChange.Sort(FilesSort.WATCH_STATUS_ASCENDING))
+            assertEquals(listOf(AccountSettingsPatch(sortBy = "WATCH_ASC")), patches)
         }
 
     @Test

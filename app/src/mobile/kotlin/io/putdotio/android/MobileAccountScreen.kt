@@ -108,6 +108,7 @@ internal fun MobileAccountScreen(
     var confirmTrashDisable by rememberSaveable(sessionId) { mutableStateOf(false) }
     var choosePlaybackType by rememberSaveable(sessionId) { mutableStateOf(false) }
     var chooseTunnelRoute by rememberSaveable(sessionId) { mutableStateOf(false) }
+    var chooseDefaultSort by rememberSaveable(sessionId) { mutableStateOf(false) }
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -144,7 +145,15 @@ internal fun MobileAccountScreen(
                     )
                 }
 
-            is AccountSettingsContent.Ready ->
+            is AccountSettingsContent.Ready -> {
+                item(key = FILES_HEADER_KEY) {
+                    MobileAccountSectionHeader(R.string.mobile_settings_section_files)
+                }
+                defaultSortItem(
+                    settingsState = settingsState,
+                    onChoose = { chooseDefaultSort = true },
+                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
+                )
                 accountSettingsItems(
                     preferences = content.preferences,
                     mutation = settingsState.mutation,
@@ -159,6 +168,7 @@ internal fun MobileAccountScreen(
                     },
                     onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
                 )
+            }
         }
         appConfigItems(
             state = appConfigState,
@@ -226,6 +236,17 @@ internal fun MobileAccountScreen(
                 onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(route)))
             },
             onDismiss = { chooseTunnelRoute = false },
+        )
+    }
+
+    if (chooseDefaultSort && accountSettings != null && settingsState.accountControlsEnabled()) {
+        MobileDefaultSortDialog(
+            selected = accountSettings.preferences.defaultSort,
+            onSelect = { sort ->
+                chooseDefaultSort = false
+                onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(sort)))
+            },
+            onDismiss = { chooseDefaultSort = false },
         )
     }
 
@@ -551,7 +572,7 @@ private fun MobileTunnelRouteDialog(
 private fun TunnelRouteName.displayName(): String =
     if (this == TunnelRouteName.DEFAULT) stringResource(R.string.mobile_settings_tunnel_route_default) else value
 
-private fun AccountSettingsState.accountControlsEnabled(): Boolean =
+internal fun AccountSettingsState.accountControlsEnabled(): Boolean =
     when (val currentMutation = mutation) {
         AccountSettingsMutation.Idle -> true
         is AccountSettingsMutation.Saving -> false
@@ -949,7 +970,7 @@ private fun MobileAccountSettingsError(
 }
 
 @Composable
-private fun MobileAccountMutationError(
+internal fun MobileAccountMutationError(
     failure: AccountSettingsFailure,
     operation: AccountSettingsMutation.Operation,
     onRetry: () -> Unit,
@@ -999,6 +1020,7 @@ private const val ACCOUNT_IDENTITY_KEY = "account-identity"
 private const val ACCOUNT_IDENTITY_DIVIDER_KEY = "account-identity-divider"
 private const val SETTINGS_LOADING_KEY = "account-settings-loading"
 private const val SETTINGS_ERROR_KEY = "account-settings-error"
+private const val FILES_HEADER_KEY = "account-settings-files-header"
 private const val SUBTITLES_HEADER_KEY = "account-settings-subtitles-header"
 private const val PRIVACY_STORAGE_HEADER_KEY = "account-settings-privacy-storage-header"
 private const val PLAYBACK_HEADER_KEY = "app-config-playback-header"

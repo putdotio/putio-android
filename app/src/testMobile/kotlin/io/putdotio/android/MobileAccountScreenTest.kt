@@ -25,13 +25,13 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAccountStorage
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -192,7 +192,7 @@ class MobileAccountScreenTest {
             events = events,
         )
 
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(7)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Move deleted files to Trash"))
         compose.onNodeWithText("Move deleted files to Trash").performClick()
         compose.onNodeWithText("Turn off Trash?").assertIsDisplayed()
         assertTrue(events.isEmpty())
@@ -295,13 +295,14 @@ class MobileAccountScreenTest {
             events = events,
         )
 
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Couldn’t save this setting"))
         compose.onNode(
             SemanticsMatcher.expectValue(
                 SemanticsProperties.LiveRegion,
                 LiveRegionMode.Polite,
             ),
         ).assertExists()
-        compose.onNodeWithText("Couldn’t save this setting").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
         compose.onNodeWithText("Show subtitles").assertIsEnabled().performClick()
 
         assertEquals(
@@ -389,7 +390,7 @@ class MobileAccountScreenTest {
             }
         }
 
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(7)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Move deleted files to Trash"))
         compose.onNodeWithText("Move deleted files to Trash").performClick()
         compose.onNodeWithText("Turn off Trash?").assertIsDisplayed()
 
@@ -407,7 +408,7 @@ class MobileAccountScreenTest {
             appConfigEvents = appConfigEvents,
         )
 
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(9)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Video playback"))
         compose.onNodeWithText("Video playback").performClick()
         compose.onNode(
             SemanticsMatcher.keyIsDefined(SemanticsProperties.SelectableGroup),
@@ -422,7 +423,7 @@ class MobileAccountScreenTest {
                 ),
             )
             .performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(10)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Autoplay next video"))
         compose.onNodeWithText("Autoplay next video").performClick()
 
         assertEquals(
@@ -463,7 +464,7 @@ class MobileAccountScreenTest {
         }
 
         compose.onNodeWithText("Show subtitles").assertIsDisplayed()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(9)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Loading playback settings"))
         compose.onNodeWithText("Loading playback settings").assertIsDisplayed()
         compose.runOnIdle {
             appConfigState =
@@ -478,7 +479,7 @@ class MobileAccountScreenTest {
                     nextRequestValue = 2L,
                 )
         }
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(9)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("This app doesn’t have access to playback settings."))
         compose.onNode(
             SemanticsMatcher.expectValue(
                 SemanticsProperties.LiveRegion,
@@ -517,7 +518,7 @@ class MobileAccountScreenTest {
             }
         }
 
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(10)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Couldn’t save this setting"))
         compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
         assertEquals(listOf(AndroidAppConfigEvent.RetryChange), appConfigEvents)
@@ -588,6 +589,52 @@ class MobileAccountScreenTest {
             )
         }
         compose.onNodeWithText("Amsterdam (Direct)").assertDoesNotExist()
+    }
+
+    @Test
+    fun defaultSortPickerShowsTheCurrentOrderAndDispatchesTheChosenOne() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        setAccountContent(
+            state = readyAccountSettingsState(
+                preferences = DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.NAME_ASCENDING),
+            ),
+            events = events,
+        )
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Name, A–Z").performClick()
+        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_DIALOG_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Date added, newest first").performClick()
+        compose.runOnIdle {
+            assertEquals(
+                listOf<AccountSettingsEvent>(
+                    AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(FilesSort.DATE_ADDED_DESCENDING)),
+                ),
+                events,
+            )
+        }
+        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_DIALOG_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun unknownDefaultSortIsShownAsNotSetAndFailedSortSavesRetryOnTheirRow() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        setAccountContent(
+            state = readyAccountSettingsState(
+                preferences = DefaultAccountSettingsPreferences,
+                mutation = AccountSettingsMutation.Failed(
+                    change = AccountSettingsChange.Sort(FilesSort.SIZE_DESCENDING),
+                    failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    previousPreferences = DefaultAccountSettingsPreferences,
+                    operation = AccountSettingsMutation.Operation.Save,
+                ),
+            ),
+            events = events,
+        )
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Not set")
+        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
+        compose.onNodeWithText("Try again").performClick()
+        compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
     }
 
     @Test

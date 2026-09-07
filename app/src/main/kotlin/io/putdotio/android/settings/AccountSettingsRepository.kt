@@ -10,6 +10,7 @@ import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
+import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.routes.TunnelRoute
 import java.util.concurrent.CancellationException
 
@@ -161,18 +162,22 @@ private fun AccountSettings.toPreferences(): AccountSettingsPreferences =
         autoSelectSubtitles = !dontAutoselectSubtitles,
         resumePlayback = useStartFrom,
         tunnelRoute = TunnelRouteName.fromServer(tunnelRouteName),
+        defaultSort = FilesSort.fromApiValue(sortBy),
     )
 
 private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
     when (this) {
         is AccountSettingsChange.Route -> AccountSettingsPatch(tunnelRouteName = name.value)
+        is AccountSettingsChange.Sort -> AccountSettingsPatch(sortBy = sort.apiValue)
         is AccountSettingsChange.Toggle -> when (key) {
             AccountSettingsKey.History -> AccountSettingsPatch(historyEnabled = enabled)
             AccountSettingsKey.Trash -> AccountSettingsPatch(trashEnabled = enabled)
             AccountSettingsKey.ShowSubtitles -> AccountSettingsPatch(hideSubtitles = !enabled)
             AccountSettingsKey.AutoSelectSubtitles -> AccountSettingsPatch(dontAutoselectSubtitles = !enabled)
             AccountSettingsKey.ResumePlayback -> AccountSettingsPatch(useStartFrom = enabled)
-            AccountSettingsKey.TunnelRoute -> error("Tunnel route is not a toggle")
+            AccountSettingsKey.TunnelRoute,
+            AccountSettingsKey.DefaultSort,
+            -> error("$key is not a toggle")
         }
     }
 
