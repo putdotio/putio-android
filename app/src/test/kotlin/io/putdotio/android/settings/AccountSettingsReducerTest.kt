@@ -454,7 +454,8 @@ class AccountSettingsReducerTest {
         assertEquals(FilesSort.DATE_ADDED_DESCENDING, ready.preferences.defaultSort)
         assertTrue(checkNotNull(saving.state.confirmedTrashEnabled()))
         assertNull(saving.state.confirmedDefaultSort())
-        assertEquals(FilesSort.NAME_ASCENDING, loaded.confirmedDefaultSort())
+        assertEquals(ConfirmedDefaultSort(FilesSort.NAME_ASCENDING), loaded.confirmedDefaultSort())
+        assertEquals(ConfirmedDefaultSort(null), loadedState(Preferences).confirmedDefaultSort())
 
         val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
         val failed = AccountSettingsReducer.reduce(

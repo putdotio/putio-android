@@ -630,11 +630,8 @@ class MobileShellTest {
     @Test
     fun confirmedDefaultSortChangeInvalidatesAllFoldersOnceAndNotOnFirstLoad() {
         val events = mutableListOf<FilesBrowserEvent>()
-        var settingsState by mutableStateOf(
-            readyAccountSettingsState(
-                preferences = DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.NAME_ASCENDING),
-            ),
-        )
+        // Starts as a server value this app does not know; saving a known sort must still invalidate.
+        var settingsState by mutableStateOf(readyAccountSettingsState(preferences = DefaultAccountSettingsPreferences))
         compose.setContent {
             PutioTheme {
                 MobileShell(

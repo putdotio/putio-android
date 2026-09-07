@@ -92,6 +92,7 @@ import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
+import io.putdotio.android.settings.ConfirmedDefaultSort
 import io.putdotio.android.settings.confirmedDefaultSort
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedTrashEnabled
@@ -559,7 +560,7 @@ internal fun MobileShell(
     // Folders without their own sort inherit the account default, so a confirmed change
     // makes every loaded listing stale. The first confirmed value is the baseline.
     val confirmedDefaultSort = accountSettingsState.confirmedDefaultSort()
-    var knownDefaultSort by remember(sessionId) { mutableStateOf<FilesSort?>(null) }
+    var knownDefaultSort by remember(sessionId) { mutableStateOf<ConfirmedDefaultSort?>(null) }
     LaunchedEffect(confirmedDefaultSort) {
         if (confirmedDefaultSort == null) return@LaunchedEffect
         if (knownDefaultSort != null && knownDefaultSort != confirmedDefaultSort) {

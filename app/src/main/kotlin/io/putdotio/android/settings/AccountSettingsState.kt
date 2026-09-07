@@ -231,9 +231,13 @@ internal fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
 internal fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.Trash)?.trashEnabled
 
-// Null while unloaded, while a sort save is pending, or when the server value is unknown to this app.
-internal fun AccountSettingsState.confirmedDefaultSort(): FilesSort? =
-    confirmedPreferences(AccountSettingsKey.DefaultSort)?.defaultSort
+/** The confirmed account default sort, or null while unloaded or while a sort save is pending. */
+internal fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? =
+    confirmedPreferences(AccountSettingsKey.DefaultSort)?.let { ConfirmedDefaultSort(it.defaultSort) }
+
+// Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed".
+@JvmInline
+internal value class ConfirmedDefaultSort(val sort: FilesSort?)
 
 // A pending or failed mutation only makes its own key unconfirmed; the other
 // preferences still reflect the last authoritative read.
