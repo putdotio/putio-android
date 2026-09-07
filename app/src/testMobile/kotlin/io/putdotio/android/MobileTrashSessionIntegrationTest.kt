@@ -79,9 +79,10 @@ class MobileTrashSessionIntegrationTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(fixture.authController.state.value is MobileAuthState.SignedIn)
-        // The restore's own check may still hold the controller's single request slot
-        // when the UNAVAILABLE text lands; `startCheck()` drops a click made before it
-        // is released. The button is enabled only once the slot is free.
+        // The UNAVAILABLE text and the re-enabled Check button come from the same
+        // `completeCheck` update that releases the controller's single request slot, but
+        // they can land on different frames. Clicking while `check == CHECKING` is dropped
+        // by `startCheck()`, so wait for the button itself.
         compose.waitUntil(5_000L) {
             compose.onAllNodes(hasTestTag(MOBILE_TRASH_CHECK_TAG) and isEnabled()).fetchSemanticsNodes().isNotEmpty()
         }
