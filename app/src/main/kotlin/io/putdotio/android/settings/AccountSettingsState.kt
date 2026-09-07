@@ -1,5 +1,7 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.files.FilesSort
+
 @JvmInline
 internal value class AccountSettingsRequestId(
     val value: Long,
@@ -14,6 +16,9 @@ internal data class AccountSettingsPreferences(
     val resumePlayback: Boolean = true,
     // Account-wide `tunnel_route_name`; the server reports null for the direct route.
     val tunnelRoute: TunnelRouteName = TunnelRouteName.DEFAULT,
+    // Account-wide `sort_by`: folders without their own sort use it. Null means the
+    // server reported a value this app does not know.
+    val defaultSort: FilesSort? = null,
 )
 
 /** Server route identifier. `default` is the direct Amsterdam route and what a null setting means. */
@@ -43,6 +48,7 @@ internal enum class AccountSettingsKey {
     AutoSelectSubtitles,
     ResumePlayback,
     TunnelRoute,
+    DefaultSort,
 }
 
 internal sealed interface AccountSettingsChange {
@@ -53,7 +59,7 @@ internal sealed interface AccountSettingsChange {
         val enabled: Boolean,
     ) : AccountSettingsChange {
         init {
-            require(key != AccountSettingsKey.TunnelRoute) { "Tunnel route is not a toggle" }
+            require(key !in NON_TOGGLE_KEYS) { "$key is not a toggle" }
         }
     }
 
@@ -61,6 +67,12 @@ internal sealed interface AccountSettingsChange {
         val name: TunnelRouteName,
     ) : AccountSettingsChange {
         override val key: AccountSettingsKey get() = AccountSettingsKey.TunnelRoute
+    }
+
+    data class Sort(
+        val sort: FilesSort,
+    ) : AccountSettingsChange {
+        override val key: AccountSettingsKey get() = AccountSettingsKey.DefaultSort
     }
 
     companion object {
@@ -219,6 +231,28 @@ internal fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
 internal fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.Trash)?.trashEnabled
 
+/**
+ * The default sort the server holds, or null while unloaded or while a sort write is unsettled.
+ * A refresh failure after an accepted write still counts: the server took the value.
+ */
+internal fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
+    val ready = content as? AccountSettingsContent.Ready ?: return null
+    val unsettledWrite = when (val current = mutation) {
+        AccountSettingsMutation.Idle -> false
+        is AccountSettingsMutation.Saving ->
+            current.change.key == AccountSettingsKey.DefaultSort &&
+                current.operation == AccountSettingsMutation.Operation.Save
+        is AccountSettingsMutation.Failed ->
+            current.change.key == AccountSettingsKey.DefaultSort &&
+                current.operation == AccountSettingsMutation.Operation.Save
+    }
+    return ConfirmedDefaultSort(ready.preferences.defaultSort).takeUnless { unsettledWrite }
+}
+
+// Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed".
+@JvmInline
+internal value class ConfirmedDefaultSort(val sort: FilesSort?)
+
 // A pending or failed mutation only makes its own key unconfirmed; the other
 // preferences still reflect the last authoritative read.
 private fun AccountSettingsState.confirmedPreferences(key: AccountSettingsKey): AccountSettingsPreferences? {
@@ -232,3 +266,4 @@ private fun AccountSettingsState.confirmedPreferences(key: AccountSettingsKey): 
 }
 
 private const val INITIAL_REQUEST_VALUE = 1L
+private val NON_TOGGLE_KEYS = setOf(AccountSettingsKey.TunnelRoute, AccountSettingsKey.DefaultSort)

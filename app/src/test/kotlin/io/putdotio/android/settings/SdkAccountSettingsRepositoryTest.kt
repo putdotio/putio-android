@@ -1,6 +1,7 @@
 package io.putdotio.android.settings
 
 import io.putdotio.sdk.account.AccountSettings
+import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.account.AccountSettingsPatch
 import io.putdotio.sdk.routes.TunnelRoute
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
@@ -33,6 +34,7 @@ class SdkAccountSettingsRepositoryTest {
                     showSubtitles = false,
                     autoSelectSubtitles = false,
                     resumePlayback = false,
+                    defaultSort = FilesSort.NAME_ASCENDING,
                 ),
                 result.value,
             )
@@ -92,6 +94,7 @@ class SdkAccountSettingsRepositoryTest {
                         showSubtitles = false,
                         autoSelectSubtitles = false,
                         resumePlayback = false,
+                        defaultSort = FilesSort.NAME_ASCENDING,
                     ),
                 ),
                 refreshEvent,
@@ -234,6 +237,22 @@ class SdkAccountSettingsRepositoryTest {
         }
 
     @Test
+    fun mapsDefaultSortFromServerAndPatchesTheExactApiValue() =
+        runBlocking {
+            val unknown = repository(settings = Settings.copy(sortBy = "SOMETHING_NEW")).load()
+            assertEquals(null, (unknown as AccountSettingsRepositoryResult.Success).value.defaultSort)
+            val known = repository(settings = Settings.copy(sortBy = "DATE_DESC")).load()
+            assertEquals(
+                FilesSort.DATE_ADDED_DESCENDING,
+                (known as AccountSettingsRepositoryResult.Success).value.defaultSort,
+            )
+
+            val patches = mutableListOf<AccountSettingsPatch>()
+            repository(onSave = patches::add).save(AccountSettingsChange.Sort(FilesSort.WATCH_STATUS_ASCENDING))
+            assertEquals(listOf(AccountSettingsPatch(sortBy = "WATCH_ASC")), patches)
+        }
+
+    @Test
     fun ineligibleProxyRejectionIsRouteUnavailableWithoutExpiringTheSession() =
         runBlocking {
             val apiError =
@@ -260,6 +279,37 @@ class SdkAccountSettingsRepositoryTest {
 
             val rejected = result.failure as AccountSettingsFailure.RouteUnavailable
             assertSame(operationError, rejected.cause)
+        }
+
+    @Test
+    fun unavailableValueOnANonRouteSaveIsNotReportedAsAProxyProblem() =
+        runBlocking {
+            val apiError =
+                PutioApiException(
+                    request = PutioRequestData("POST", "https://api.put.io/v2/account/settings"),
+                    resolvedStatusCode = 403,
+                    resolvedErrorType = "UNAVAILABLE_VALUE",
+                    envelope = PutioApiErrorEnvelope(statusCode = 403, errorType = "UNAVAILABLE_VALUE"),
+                    responseBody = "{}",
+                    message = "Unavailable value: sort_by",
+                )
+            val operationError =
+                PutioOperationException(
+                    domain = "account",
+                    operation = "saveSettings",
+                    contract = null,
+                    reason = PutioOperationErrorReason.StatusCode(403),
+                    underlyingError = apiError,
+                )
+            val repository = repository(onSave = { throw operationError })
+
+            val result = repository.save(AccountSettingsChange.Sort(FilesSort.WATCH_STATUS_ASCENDING))
+                as AccountSettingsRepositoryResult.Failure
+
+            // Falls through to the status mapping: a 403 on a non-route write is the generic denial.
+            assertFalse(result.failure is AccountSettingsFailure.RouteUnavailable)
+            assertTrue(result.failure is AccountSettingsFailure.AccessDenied)
+            assertSame(operationError, result.failure.cause)
         }
 
     @Test

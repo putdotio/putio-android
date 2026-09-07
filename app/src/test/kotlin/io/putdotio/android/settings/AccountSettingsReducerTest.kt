@@ -1,5 +1,7 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.files.FilesSort
+
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -435,6 +437,49 @@ class AccountSettingsReducerTest {
         assertEquals(TunnelRouteName.DEFAULT, rolledBack.preferences.tunnelRoute)
         val retried = AccountSettingsReducer.reduce(failed.state, AccountSettingsEvent.RetryChange)
         assertEquals(change, (retried.effect as AccountSettingsEffect.Save).change)
+    }
+
+    @Test
+    fun sortChangesSaveOptimisticallyRollBackAndOnlyUnconfirmTheirOwnKey() {
+        val loaded = loadedState(Preferences.copy(defaultSort = FilesSort.NAME_ASCENDING))
+        val same = AccountSettingsReducer.reduce(
+            loaded,
+            AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(FilesSort.NAME_ASCENDING)),
+        )
+        assertFalse(same.consumed)
+
+        val change = AccountSettingsChange.Sort(FilesSort.DATE_ADDED_DESCENDING)
+        val saving = AccountSettingsReducer.reduce(loaded, AccountSettingsEvent.ChangeRequested(change))
+        val ready = saving.state.content as AccountSettingsContent.Ready
+        assertEquals(FilesSort.DATE_ADDED_DESCENDING, ready.preferences.defaultSort)
+        assertTrue(checkNotNull(saving.state.confirmedTrashEnabled()))
+        assertNull(saving.state.confirmedDefaultSort())
+        assertEquals(ConfirmedDefaultSort(FilesSort.NAME_ASCENDING), loaded.confirmedDefaultSort())
+        assertEquals(ConfirmedDefaultSort(null), loadedState(Preferences).confirmedDefaultSort())
+
+        // The server accepted the write; a failed follow-up refresh must not hide the new value.
+        val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
+        val refreshing = AccountSettingsReducer.reduce(saving.state, AccountSettingsEvent.SaveSucceeded(requestId))
+        assertEquals(ConfirmedDefaultSort(FilesSort.DATE_ADDED_DESCENDING), refreshing.state.confirmedDefaultSort())
+        val refreshFailure = AccountSettingsFailure.Unexpected(IllegalStateException("x"))
+        val refreshFailed = AccountSettingsReducer.reduce(
+            refreshing.state,
+            AccountSettingsEvent.RefreshFailed(requestId, refreshFailure),
+        )
+        assertEquals(
+            ConfirmedDefaultSort(FilesSort.DATE_ADDED_DESCENDING),
+            refreshFailed.state.confirmedDefaultSort(),
+        )
+
+        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failed = AccountSettingsReducer.reduce(
+            saving.state,
+            AccountSettingsEvent.SaveFailed((saving.effect as AccountSettingsEffect.Save).requestId, failure),
+        )
+        val rolledBack = failed.state.content as AccountSettingsContent.Ready
+        assertEquals(FilesSort.NAME_ASCENDING, rolledBack.preferences.defaultSort)
+        assertEquals(change, (AccountSettingsReducer.reduce(failed.state, AccountSettingsEvent.RetryChange).effect
+            as AccountSettingsEffect.Save).change)
     }
 
     private fun loadedState(preferences: AccountSettingsPreferences): AccountSettingsState {

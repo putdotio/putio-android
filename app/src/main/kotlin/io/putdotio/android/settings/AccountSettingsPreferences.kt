@@ -4,12 +4,14 @@ internal fun AccountSettingsPreferences.matches(change: AccountSettingsChange): 
     when (change) {
         is AccountSettingsChange.Toggle -> toggleValue(change.key) == change.enabled
         is AccountSettingsChange.Route -> tunnelRoute == change.name
+        is AccountSettingsChange.Sort -> defaultSort == change.sort
     }
 
 internal fun AccountSettingsPreferences.applying(change: AccountSettingsChange): AccountSettingsPreferences =
     when (change) {
         is AccountSettingsChange.Toggle -> applyingToggle(change)
         is AccountSettingsChange.Route -> copy(tunnelRoute = change.name)
+        is AccountSettingsChange.Sort -> copy(defaultSort = change.sort)
     }
 
 private fun AccountSettingsPreferences.toggleValue(key: AccountSettingsKey): Boolean =
@@ -19,7 +21,9 @@ private fun AccountSettingsPreferences.toggleValue(key: AccountSettingsKey): Boo
         AccountSettingsKey.ShowSubtitles -> showSubtitles
         AccountSettingsKey.AutoSelectSubtitles -> autoSelectSubtitles
         AccountSettingsKey.ResumePlayback -> resumePlayback
-        AccountSettingsKey.TunnelRoute -> error("Tunnel route is not a toggle")
+        AccountSettingsKey.TunnelRoute,
+        AccountSettingsKey.DefaultSort,
+        -> error("$key is not a toggle")
     }
 
 private fun AccountSettingsPreferences.applyingToggle(
@@ -31,5 +35,7 @@ private fun AccountSettingsPreferences.applyingToggle(
         AccountSettingsKey.ShowSubtitles -> copy(showSubtitles = change.enabled)
         AccountSettingsKey.AutoSelectSubtitles -> copy(autoSelectSubtitles = change.enabled)
         AccountSettingsKey.ResumePlayback -> copy(resumePlayback = change.enabled)
-        AccountSettingsKey.TunnelRoute -> error("Tunnel route is not a toggle")
+        AccountSettingsKey.TunnelRoute,
+        AccountSettingsKey.DefaultSort,
+        -> error("${change.key} is not a toggle")
     }

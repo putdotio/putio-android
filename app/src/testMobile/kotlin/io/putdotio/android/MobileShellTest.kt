@@ -30,7 +30,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -417,6 +416,7 @@ class MobileShellTest {
         )
 
         compose.onNodeWithText("Account").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
         compose.onNodeWithText("Show subtitles").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Autoplay next video"))
         compose.onNodeWithText("Autoplay next video").performClick()
@@ -478,7 +478,7 @@ class MobileShellTest {
         }
 
         compose.onNodeWithText("Account").performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToIndex(3)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
         compose.onNodeWithText("Show subtitles").assertIsDisplayed().performClick()
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).assertIsDisplayed()
@@ -624,6 +624,66 @@ class MobileShellTest {
             assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(resolved)),
                 events.filterIsInstance<FilesBrowserEvent.OpenExternalItem>())
             deliveries.close()
+        }
+    }
+
+    @Test
+    fun acceptedDefaultSortChangeInvalidatesSortOrderOnceAndNotOnFirstLoad() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        // Starts as a server value this app does not know; saving a known sort must still invalidate.
+        var settingsState by mutableStateOf(readyAccountSettingsState(preferences = DefaultAccountSettingsPreferences))
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = emptyFilesState(),
+                    accountSettingsState = settingsState,
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { events += it; true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+
+        val change = AccountSettingsChange.Sort(FilesSort.DATE_ADDED_DESCENDING)
+        val applied = DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.DATE_ADDED_DESCENDING)
+        compose.runOnIdle {
+            settingsState = readyAccountSettingsState(
+                preferences = applied,
+                mutation = AccountSettingsMutation.Saving(
+                    requestId = AccountSettingsRequestId(3L),
+                    change = change,
+                    previousPreferences = DefaultAccountSettingsPreferences,
+                    operation = AccountSettingsMutation.Operation.Save,
+                ),
+            )
+        }
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+
+        // Accepted write, refresh failed: the server holds the new order, so listings are stale now.
+        compose.runOnIdle {
+            settingsState = readyAccountSettingsState(
+                preferences = applied,
+                mutation = AccountSettingsMutation.Failed(
+                    change = change,
+                    failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    previousPreferences = DefaultAccountSettingsPreferences,
+                    operation = AccountSettingsMutation.Operation.Refresh,
+                ),
+            )
+        }
+        compose.runOnIdle {
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
+        }
+
+        compose.runOnIdle { settingsState = readyAccountSettingsState(preferences = applied) }
+        compose.runOnIdle {
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
         }
     }
 

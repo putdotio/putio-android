@@ -88,7 +88,7 @@ internal fun shouldShowFilesSortMenu(
 ): Boolean = expanded && enabled
 
 @StringRes
-private fun FilesSort.labelResource(): Int =
+internal fun FilesSort.labelResource(): Int =
     when (this) {
         FilesSort.NAME_ASCENDING -> R.string.mobile_files_sort_name_ascending
         FilesSort.NAME_DESCENDING -> R.string.mobile_files_sort_name_descending
