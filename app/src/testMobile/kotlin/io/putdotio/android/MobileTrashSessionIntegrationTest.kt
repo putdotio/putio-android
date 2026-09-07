@@ -11,10 +11,14 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.isPopup
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.ViewModel
@@ -33,6 +37,7 @@ import io.putdotio.android.auth.PendingOAuthAttemptStore
 import io.putdotio.android.auth.PutioAuthSessionGateway
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.trash.SdkTrashRepository
+import io.putdotio.android.trash.TrashContent
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import java.io.Closeable
@@ -105,10 +110,9 @@ class MobileTrashSessionIntegrationTest {
                 served401()
             }
         } catch (timeout: ComposeTimeoutException) {
-            val buttons = compose.onAllNodesWithTag(MOBILE_TRASH_CHECK_TAG).fetchSemanticsNodes()
             throw AssertionError(
                 "no 401 served after ${attempts.get()} clicks; served=${check.served.get()} " +
-                    "baseline=$servedBeforeFlip buttons=${buttons.size} " +
+                    "baseline=$servedBeforeFlip " + checkButtonDiagnostic() + " " +
                     compose.runOnIdle { fixture.sessionFailureDiagnostic() },
                 timeout,
             )
@@ -130,6 +134,18 @@ class MobileTrashSessionIntegrationTest {
     private fun openTrash() {
         compose.onNodeWithText("Account").performClick()
         compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG).performScrollTo().performClick()
+    }
+
+    /** Where the Check button is and whether it can take a tap: separates a disabled button from a hit-test miss. */
+    private fun checkButtonDiagnostic(): String {
+        val root = compose.onRoot().fetchSemanticsNode()
+        val buttons = compose.onAllNodesWithTag(MOBILE_TRASH_CHECK_TAG).fetchSemanticsNodes().joinToString { node ->
+            "disabled=${SemanticsProperties.Disabled in node.config} clickAction=${hasClickAction().matches(node)} " +
+                "boundsInRoot=${node.boundsInRoot} boundsInWindow=${node.boundsInWindow}"
+        }
+        val dialogs = compose.onAllNodes(isDialog()).fetchSemanticsNodes().size
+        val popups = compose.onAllNodes(isPopup()).fetchSemanticsNodes().size
+        return "root=${root.size} buttons=[$buttons] dialogs=$dialogs popups=$popups"
     }
 
     private fun awaitExpiredSession(fixture: TrashSessionRootFixture) {
@@ -231,6 +247,7 @@ private class TrashSessionRootFixture(client: PutioClient) : Closeable {
         }
         return "Expected session expiry; auth=${auth.javaClass.simpleName}; " +
             "trash=${state?.content?.javaClass?.simpleName}; " +
+            "refreshing=${(state?.content as? TrashContent.Loaded)?.isRefreshing}; " +
             "authFailure=${state?.authenticationFailure?.javaClass?.simpleName}; " +
             "check=${state?.restoreOutcome?.check}; " +
             "checkFailure=${state?.restoreOutcome?.checkFailure?.javaClass?.simpleName}"
