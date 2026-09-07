@@ -188,6 +188,13 @@
       "asset": "assets/regular/globe.svg",
       "sourceSha256": "3b53d207c09fc72de699c8b2149892e065b570b3ae144412ae53244b0a0f7977",
       "outputSha256": "0e9a8909883dcaaeb3d1e5efe4d15e4a5c05c573b6808702370e2b1adb9dad0b"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_info",
+      "asset": "assets/regular/info.svg",
+      "sourceSha256": "438a1f319d53d86e840af73fb7b1d224c9224a437b9fa449a4e2cb45a82a3552",
+      "outputSha256": "c7f7962704d410bfe3435e501da3a58feb5cc954d43ebc6831ef5f8285c87a82"
     }
   ]
 }

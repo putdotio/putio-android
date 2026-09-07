@@ -73,6 +73,8 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
+import io.putdotio.android.playback.playbackPreference
+import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
@@ -104,11 +106,15 @@ internal fun MobileAccountScreen(
             AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
         )
     },
+    // The shell decides phone vs tablet from the window, not from this screen's content width.
+    deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
 ) {
     var confirmTrashDisable by rememberSaveable(sessionId) { mutableStateOf(false) }
     var choosePlaybackType by rememberSaveable(sessionId) { mutableStateOf(false) }
     var chooseTunnelRoute by rememberSaveable(sessionId) { mutableStateOf(false) }
     var chooseDefaultSort by rememberSaveable(sessionId) { mutableStateOf(false) }
+    var showAbout by rememberSaveable(sessionId) { mutableStateOf(false) }
+    val diagnostics = mobileAppDiagnostics(appConfigState.playbackPreference(), deviceClass)
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -187,6 +193,10 @@ internal fun MobileAccountScreen(
                 )
             },
         )
+        item(key = ABOUT_HEADER_KEY) {
+            MobileAccountSectionHeader(R.string.mobile_settings_section_about)
+        }
+        aboutItem(diagnostics = diagnostics, onOpen = { showAbout = true })
         item(key = SIGN_OUT_KEY) {
             OutlinedButton(
                 onClick = onSignOut,
@@ -237,6 +247,10 @@ internal fun MobileAccountScreen(
             },
             onDismiss = { chooseTunnelRoute = false },
         )
+    }
+
+    if (showAbout) {
+        MobileAboutDialog(diagnostics = diagnostics, onDismiss = { showAbout = false })
     }
 
     if (chooseDefaultSort && accountSettings != null && settingsState.accountControlsEnabled()) {
@@ -1028,4 +1042,5 @@ private const val APP_CONFIG_LOADING_KEY = "app-config-loading"
 private const val APP_CONFIG_ERROR_KEY = "app-config-error"
 private const val VIDEO_PLAYBACK_TYPE_KEY = "app-config-video-playback-type"
 private const val AUTOPLAY_NEXT_VIDEO_KEY = "app-config-autoplay-next-video"
+private const val ABOUT_HEADER_KEY = "account-about-header"
 private const val SIGN_OUT_KEY = "account-sign-out"

@@ -255,6 +255,12 @@ class MobileShellTest {
 
         compose.onNodeWithTag(MOBILE_NAV_RAIL_TAG).assertExists()
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+
+        // The rail narrows the content column below 600dp; device class still comes from the window.
+        compose.onNodeWithText("Account").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
+        compose.onNodeWithText("Tablet").assertIsDisplayed()
     }
 
     @Test
