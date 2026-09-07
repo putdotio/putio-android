@@ -58,6 +58,7 @@ import io.putdotio.android.auth.OAuthBrowserLaunchResult
 import io.putdotio.android.auth.OAuthLaunchResult
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
@@ -91,6 +92,7 @@ import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
+import io.putdotio.android.settings.confirmedDefaultSort
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedTrashEnabled
 import io.putdotio.android.history.HistoryContent
@@ -553,6 +555,17 @@ internal fun MobileShell(
         if ((trashState?.bulkRestoreVersion ?: 0L) > 0L) {
             onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
         }
+    }
+    // Folders without their own sort inherit the account default, so a confirmed change
+    // makes every loaded listing stale. The first confirmed value is the baseline.
+    val confirmedDefaultSort = accountSettingsState.confirmedDefaultSort()
+    var knownDefaultSort by remember(sessionId) { mutableStateOf<FilesSort?>(null) }
+    LaunchedEffect(confirmedDefaultSort) {
+        if (confirmedDefaultSort == null) return@LaunchedEffect
+        if (knownDefaultSort != null && knownDefaultSort != confirmedDefaultSort) {
+            onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
+        }
+        knownDefaultSort = confirmedDefaultSort
     }
     LaunchedEffect(selectedDestination, isTrash, filesState.current.folder.id,
         filesState.current.needsReload, filesState.current.operation, filesState.current.content is FilesContent.Loading) {

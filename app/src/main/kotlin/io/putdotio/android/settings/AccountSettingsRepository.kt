@@ -98,7 +98,7 @@ internal class SdkAccountSettingsRepository(
     override suspend fun save(
         change: AccountSettingsChange,
     ): AccountSettingsRepositoryResult<Unit> =
-        request {
+        request(routeChange = change is AccountSettingsChange.Route) {
             saveSettings(change.toPatch())
         }
 
@@ -115,13 +115,18 @@ internal class SdkAccountSettingsRepository(
 
     // This SDK boundary converts unexpected implementation failures into the app's stable failure taxonomy.
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun <T> request(block: suspend () -> T): AccountSettingsRepositoryResult<T> =
+    // `UNAVAILABLE_VALUE` only means an ineligible proxy when the write was a route change;
+    // for any other setting it stays a plain API rejection.
+    private suspend fun <T> request(
+        routeChange: Boolean = false,
+        block: suspend () -> T,
+    ): AccountSettingsRepositoryResult<T> =
         try {
             AccountSettingsRepositoryResult.Success(block())
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
-            AccountSettingsRepositoryResult.Failure(error.toAccountSettingsFailure())
+            AccountSettingsRepositoryResult.Failure(error.toAccountSettingsFailure(routeChange))
         } catch (unexpected: Exception) {
             AccountSettingsRepositoryResult.Failure(AccountSettingsFailure.Unexpected(unexpected))
         }
@@ -181,11 +186,11 @@ private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
         }
     }
 
-private fun PutioException.toAccountSettingsFailure(): AccountSettingsFailure {
+private fun PutioException.toAccountSettingsFailure(routeChange: Boolean): AccountSettingsFailure {
     val apiErrorType = findPutioApiException()?.errorType
     return if (apiErrorType == INVALID_SCOPE_ERROR_TYPE) {
         AccountSettingsFailure.AccessDenied(this)
-    } else if (apiErrorType == UNAVAILABLE_VALUE_ERROR_TYPE) {
+    } else if (routeChange && apiErrorType == UNAVAILABLE_VALUE_ERROR_TYPE) {
         AccountSettingsFailure.RouteUnavailable(this)
     } else {
         var current: PutioException = this

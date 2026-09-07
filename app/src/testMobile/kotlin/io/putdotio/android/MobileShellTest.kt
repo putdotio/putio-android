@@ -627,6 +627,53 @@ class MobileShellTest {
         }
     }
 
+    @Test
+    fun confirmedDefaultSortChangeInvalidatesAllFoldersOnceAndNotOnFirstLoad() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        var settingsState by mutableStateOf(
+            readyAccountSettingsState(
+                preferences = DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.NAME_ASCENDING),
+            ),
+        )
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    filesState = emptyFilesState(),
+                    accountSettingsState = settingsState,
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { events += it; true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+
+        val change = AccountSettingsChange.Sort(FilesSort.DATE_ADDED_DESCENDING)
+        val applied = DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.DATE_ADDED_DESCENDING)
+        compose.runOnIdle {
+            settingsState = readyAccountSettingsState(
+                preferences = applied,
+                mutation = AccountSettingsMutation.Saving(
+                    requestId = AccountSettingsRequestId(3L),
+                    change = change,
+                    previousPreferences = DefaultAccountSettingsPreferences,
+                    operation = AccountSettingsMutation.Operation.Save,
+                ),
+            )
+        }
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+
+        compose.runOnIdle { settingsState = readyAccountSettingsState(preferences = applied) }
+        compose.runOnIdle {
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateAllFolders), events)
+        }
+    }
+
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         filesState: FilesBrowserState = emptyFilesState(),
         onFilesEvent: (FilesBrowserEvent) -> Boolean = { true },
