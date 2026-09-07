@@ -9,8 +9,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.isEnabled
-import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -66,7 +64,7 @@ class MobileTrashSessionIntegrationTest {
     }
 
     @Test
-    fun pendingRestoreCheck401ExpiresTheAuthenticatedRootSession() = withRoot { fixture, checkStatus ->
+    fun pendingRestoreCheck401ExpiresTheAuthenticatedRootSession() = withRoot { fixture, check ->
         openTrash()
         compose.waitUntil(5_000L) {
             compose.onAllNodesWithText("deleted.txt").fetchSemanticsNodes().isNotEmpty()
@@ -74,20 +72,22 @@ class MobileTrashSessionIntegrationTest {
         compose.onNodeWithContentDescription("Actions for deleted.txt").performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).performClick()
+        // The accepted restore runs its own check, which the fixture answers with 404.
+        // Wait for that response to be served and applied, then flip the fixture to 401
+        // and keep clicking until the click is accepted: `startCheck()` drops a click while
+        // a request is in flight, and the enabled button can lag the state by a frame.
         compose.waitUntil(5_000L) {
             compose.onAllNodesWithText("Not available in Files yet. Check status again in a moment.")
                 .fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(fixture.authController.state.value is MobileAuthState.SignedIn)
-        // The UNAVAILABLE text and the re-enabled Check button come from the same
-        // `completeCheck` update that releases the controller's single request slot, but
-        // they can land on different frames. Clicking while `check == CHECKING` is dropped
-        // by `startCheck()`, so wait for the button itself.
+        check.status.set(401)
         compose.waitUntil(5_000L) {
-            compose.onAllNodes(hasTestTag(MOBILE_TRASH_CHECK_TAG) and isEnabled()).fetchSemanticsNodes().isNotEmpty()
+            compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick()
+            compose.waitForIdle()
+            // The counter is written on the server thread; read it after the idle sync.
+            compose.runOnIdle { check.served.get() >= 2 }
         }
-        checkStatus.set(401)
-        compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick()
         awaitExpiredSession(fixture)
     }
 
@@ -121,17 +121,23 @@ class MobileTrashSessionIntegrationTest {
         assertNull(runBlocking { fixture.tokenStore.read() })
     }
 
+    /** The `/files/7` check endpoint: the status to serve next and how many times it has answered. */
+    private class CheckEndpoint {
+        val status = AtomicInteger(404)
+        val served = AtomicInteger(0)
+    }
+
     private fun withRoot(
         listStatus: Int = 200,
-        block: (TrashSessionRootFixture, AtomicInteger) -> Unit,
+        block: (TrashSessionRootFixture, CheckEndpoint) -> Unit,
     ) {
-        val checkStatus = AtomicInteger(404)
+        val check = CheckEndpoint()
         PlaybackConfigHttpFixture { method, path ->
             when ("$method $path") {
                 "GET /v2/oauth2/validate" -> 200 to """{"status":"OK","result":true}"""
                 "GET /v2/trash/list" -> if (listStatus == 200) 200 to TRASH_PAGE else errorResponse(listStatus)
                 "POST /v2/trash/restore" -> 200 to """{"status":"OK"}"""
-                "GET /v2/files/7" -> errorResponse(checkStatus.get())
+                "GET /v2/files/7" -> errorResponse(check.status.get()).also { check.served.incrementAndGet() }
                 else -> null
             }
         }.use { server ->
@@ -142,7 +148,7 @@ class MobileTrashSessionIntegrationTest {
                     var mounted by mutableStateOf(true)
                     try {
                         compose.setContent { if (mounted) fixture.Content() }
-                        block(fixture, checkStatus)
+                        block(fixture, check)
                         assertEquals(emptyList<String>(), server.unexpectedRequests.toList())
                     } finally {
                         compose.runOnIdle { mounted = false }
