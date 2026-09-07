@@ -168,6 +168,9 @@ private fun AccountSettings.toPreferences(): AccountSettingsPreferences =
         resumePlayback = useStartFrom,
         tunnelRoute = TunnelRouteName.fromServer(tunnelRouteName),
         defaultSort = FilesSort.fromApiValue(sortBy),
+        diagnosticsEnabled = diagnosticsEnabled,
+        productAnalyticsEnabled = productAnalyticsEnabled,
+        supportWidgetEnabled = supportWidgetEnabled,
     )
 
 private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
@@ -180,6 +183,9 @@ private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
             AccountSettingsKey.ShowSubtitles -> AccountSettingsPatch(hideSubtitles = !enabled)
             AccountSettingsKey.AutoSelectSubtitles -> AccountSettingsPatch(dontAutoselectSubtitles = !enabled)
             AccountSettingsKey.ResumePlayback -> AccountSettingsPatch(useStartFrom = enabled)
+            AccountSettingsKey.Diagnostics -> AccountSettingsPatch(diagnosticsEnabled = enabled)
+            AccountSettingsKey.ProductAnalytics -> AccountSettingsPatch(productAnalyticsEnabled = enabled)
+            AccountSettingsKey.SupportWidget -> AccountSettingsPatch(supportWidgetEnabled = enabled)
             AccountSettingsKey.TunnelRoute,
             AccountSettingsKey.DefaultSort,
             -> error("$key is not a toggle")

@@ -4,6 +4,7 @@ import android.content.Context
 import android.text.format.Formatter
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.runtime.getValue
@@ -185,6 +186,34 @@ class MobileAccountScreenTest {
         compose.onNodeWithText("putio-user").assertIsDisplayed()
         compose.onNodeWithText("user@example.com").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun privacyControlsDiscloseStrictlyNecessaryAndToggleEachAccountKey() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        setAccountContent(state = readyAccountSettingsState(), events = events)
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_STRICTLY_NECESSARY_TAG))
+        compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG).assertTextContains("Always on")
+        compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG).assert(
+            SemanticsMatcher.keyNotDefined(SemanticsProperties.ToggleableState),
+        )
+
+        for ((label, key) in listOf(
+            "Diagnostics" to AccountSettingsKey.Diagnostics,
+            "Product analytics" to AccountSettingsKey.ProductAnalytics,
+            "Support chat" to AccountSettingsKey.SupportWidget,
+        )) {
+            compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(label))
+            compose.onNodeWithText(label).assertIsOn().performClick()
+            compose.runOnIdle {
+                assertEquals(
+                    AccountSettingsEvent.ChangeRequested(AccountSettingsChange(key, enabled = false)),
+                    events.last(),
+                )
+            }
+        }
+        compose.runOnIdle { assertEquals(3, events.size) }
     }
 
     @Test

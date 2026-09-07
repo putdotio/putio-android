@@ -51,12 +51,18 @@ class SdkAccountSettingsRepositoryTest {
             repository.save(AccountSettingsChange(AccountSettingsKey.ShowSubtitles, true))
             repository.save(AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, true))
             repository.save(AccountSettingsChange(AccountSettingsKey.ResumePlayback, false))
+            repository.save(AccountSettingsChange(AccountSettingsKey.Diagnostics, false))
+            repository.save(AccountSettingsChange(AccountSettingsKey.ProductAnalytics, false))
+            repository.save(AccountSettingsChange(AccountSettingsKey.SupportWidget, false))
 
             assertEquals(AccountSettingsPatch(historyEnabled = false), patches[0])
             assertEquals(AccountSettingsPatch(trashEnabled = true), patches[1])
             assertEquals(AccountSettingsPatch(hideSubtitles = false), patches[2])
             assertEquals(AccountSettingsPatch(dontAutoselectSubtitles = false), patches[3])
             assertEquals(AccountSettingsPatch(useStartFrom = false), patches[4])
+            assertEquals(AccountSettingsPatch(diagnosticsEnabled = false), patches[5])
+            assertEquals(AccountSettingsPatch(productAnalyticsEnabled = false), patches[6])
+            assertEquals(AccountSettingsPatch(supportWidgetEnabled = false), patches[7])
         }
 
     @Test
@@ -234,6 +240,26 @@ class SdkAccountSettingsRepositoryTest {
                 ),
                 patches,
             )
+        }
+
+    @Test
+    fun mapsPrivacyControlsFromServerAndDefaultsThemOn() =
+        runBlocking {
+            val loaded = repository(settings = Settings).load() as AccountSettingsRepositoryResult.Success
+            assertTrue(loaded.value.diagnosticsEnabled)
+            assertTrue(loaded.value.productAnalyticsEnabled)
+            assertTrue(loaded.value.supportWidgetEnabled)
+
+            val optedOut = repository(
+                settings = Settings.copy(
+                    diagnosticsEnabled = false,
+                    productAnalyticsEnabled = false,
+                    supportWidgetEnabled = false,
+                ),
+            ).load() as AccountSettingsRepositoryResult.Success
+            assertFalse(optedOut.value.diagnosticsEnabled)
+            assertFalse(optedOut.value.productAnalyticsEnabled)
+            assertFalse(optedOut.value.supportWidgetEnabled)
         }
 
     @Test

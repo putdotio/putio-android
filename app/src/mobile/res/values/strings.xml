@@ -132,6 +132,17 @@
     <string name="mobile_settings_section_files">Files</string>
     <string name="mobile_settings_section_subtitles">Subtitles</string>
     <string name="mobile_settings_section_privacy_storage">Privacy and storage</string>
+    <string name="mobile_settings_section_privacy_controls">Privacy controls</string>
+    <string name="mobile_settings_strictly_necessary">Strictly necessary</string>
+    <string name="mobile_settings_strictly_necessary_description">Sign-in, your files, transfers, playback, and these privacy choices. Always on; nothing optional is collected here.</string>
+    <string name="mobile_settings_strictly_necessary_state">Always on</string>
+    <string name="mobile_settings_diagnostics">Diagnostics</string>
+    <string name="mobile_settings_diagnostics_description">Send crash and playback error reports so we can fix problems. They never include file names or content.</string>
+    <string name="mobile_settings_product_analytics">Product analytics</string>
+    <string name="mobile_settings_product_analytics_description">Share which features you use so we can improve the app.</string>
+    <string name="mobile_settings_support_widget">Support chat</string>
+    <string name="mobile_settings_support_widget_description">Load in-app support chat and share account context with the support team when you open it.</string>
+    <string name="mobile_settings_privacy_controls_note">These choices apply to every put.io app you sign in to.</string>
     <string name="mobile_settings_section_playback">Playback</string>
     <string name="mobile_settings_section_about">About</string>
     <string name="mobile_settings_about">App info</string>

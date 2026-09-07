@@ -87,6 +87,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
 internal const val MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG = "mobile-account-avatar-fallback"
 internal const val MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG = "mobile-account-storage-progress"
+internal const val MOBILE_STRICTLY_NECESSARY_TAG = "mobile-strictly-necessary"
 internal const val MOBILE_TUNNEL_ROUTE_ROW_TAG = "mobile-tunnel-route-row"
 internal const val MOBILE_TUNNEL_ROUTE_RETRY_TAG = "mobile-tunnel-route-retry"
 
@@ -432,6 +433,81 @@ private fun LazyListScope.accountSettingsItems(
             mutation = mutation,
             onRetry = onRetryChange,
             onChange = onChange,
+        )
+    }
+    privacyControlsItems(preferences, mutation, onChange, onRetryChange)
+}
+
+// Purpose-based opt-outs per the frontend analytics contract. Strictly necessary
+// processing is disclosed, never toggled; the three account keys are cross-client.
+private fun LazyListScope.privacyControlsItems(
+    preferences: AccountSettingsPreferences,
+    mutation: AccountSettingsMutation,
+    onChange: (AccountSettingsChange) -> Unit,
+    onRetryChange: () -> Unit,
+) {
+    item(key = PRIVACY_CONTROLS_HEADER_KEY) {
+        MobileAccountSectionHeader(R.string.mobile_settings_section_privacy_controls)
+    }
+    item(key = STRICTLY_NECESSARY_KEY) {
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.mobile_settings_strictly_necessary)) },
+            supportingContent = { Text(stringResource(R.string.mobile_settings_strictly_necessary_description)) },
+            leadingContent = {
+                Icon(painter = painterResource(R.drawable.ic_ph_shield_check), contentDescription = null)
+            },
+            trailingContent = {
+                Text(
+                    text = stringResource(R.string.mobile_settings_strictly_necessary_state),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            },
+            modifier = Modifier.fillMaxWidth().testTag(MOBILE_STRICTLY_NECESSARY_TAG),
+        )
+    }
+    item(key = AccountSettingsKey.Diagnostics) {
+        MobileAccountSettingRow(
+            title = R.string.mobile_settings_diagnostics,
+            description = R.string.mobile_settings_diagnostics_description,
+            icon = R.drawable.ic_ph_bug,
+            checked = preferences.diagnosticsEnabled,
+            key = AccountSettingsKey.Diagnostics,
+            mutation = mutation,
+            onRetry = onRetryChange,
+            onChange = onChange,
+        )
+    }
+    item(key = AccountSettingsKey.ProductAnalytics) {
+        MobileAccountSettingRow(
+            title = R.string.mobile_settings_product_analytics,
+            description = R.string.mobile_settings_product_analytics_description,
+            icon = R.drawable.ic_ph_chart_line,
+            checked = preferences.productAnalyticsEnabled,
+            key = AccountSettingsKey.ProductAnalytics,
+            mutation = mutation,
+            onRetry = onRetryChange,
+            onChange = onChange,
+        )
+    }
+    item(key = AccountSettingsKey.SupportWidget) {
+        MobileAccountSettingRow(
+            title = R.string.mobile_settings_support_widget,
+            description = R.string.mobile_settings_support_widget_description,
+            icon = R.drawable.ic_ph_lifebuoy,
+            checked = preferences.supportWidgetEnabled,
+            key = AccountSettingsKey.SupportWidget,
+            mutation = mutation,
+            onRetry = onRetryChange,
+            onChange = onChange,
+        )
+    }
+    item(key = PRIVACY_CONTROLS_NOTE_KEY) {
+        Text(
+            text = stringResource(R.string.mobile_settings_privacy_controls_note),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
         )
     }
 }
@@ -1037,6 +1113,9 @@ private const val SETTINGS_ERROR_KEY = "account-settings-error"
 private const val FILES_HEADER_KEY = "account-settings-files-header"
 private const val SUBTITLES_HEADER_KEY = "account-settings-subtitles-header"
 private const val PRIVACY_STORAGE_HEADER_KEY = "account-settings-privacy-storage-header"
+private const val PRIVACY_CONTROLS_HEADER_KEY = "account-settings-privacy-controls-header"
+private const val STRICTLY_NECESSARY_KEY = "account-settings-strictly-necessary"
+private const val PRIVACY_CONTROLS_NOTE_KEY = "account-settings-privacy-controls-note"
 private const val PLAYBACK_HEADER_KEY = "app-config-playback-header"
 private const val APP_CONFIG_LOADING_KEY = "app-config-loading"
 private const val APP_CONFIG_ERROR_KEY = "app-config-error"
