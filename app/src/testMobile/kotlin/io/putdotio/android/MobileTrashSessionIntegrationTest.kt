@@ -8,7 +8,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -84,11 +83,11 @@ class MobileTrashSessionIntegrationTest {
         assertTrue(fixture.authController.state.value is MobileAuthState.SignedIn)
         check.status.set(401)
         compose.waitUntil(5_000L) {
-            // Check completion first: an accepted click may already have expired the session and
-            // removed the button, so clicking unconditionally would fail on a success path.
+            // An accepted click may expire the session and remove the button at any point in
+            // this iteration, so a missing target is only a failure if the 401 was never served.
             if (compose.runOnIdle { check.served.get() >= 2 }) return@waitUntil true
-            compose.onAllNodesWithTag(MOBILE_TRASH_CHECK_TAG).fetchSemanticsNodes().firstOrNull() ?: return@waitUntil false
-            compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick()
+            runCatching { compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick() }
+                .onFailure { if (compose.runOnIdle { check.served.get() < 2 }) throw it }
             compose.waitForIdle()
             compose.runOnIdle { check.served.get() >= 2 }
         }
