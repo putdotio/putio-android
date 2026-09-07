@@ -6,6 +6,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -109,161 +110,174 @@ internal fun MobileAccountScreen(
     var choosePlaybackType by rememberSaveable(sessionId) { mutableStateOf(false) }
     var chooseTunnelRoute by rememberSaveable(sessionId) { mutableStateOf(false) }
     var chooseDefaultSort by rememberSaveable(sessionId) { mutableStateOf(false) }
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag(MOBILE_ACCOUNT_LIST_TAG),
-    ) {
-        item(key = ACCOUNT_IDENTITY_KEY) {
-            MobileAccountIdentity(account)
-        }
-        item(key = ACCOUNT_IDENTITY_DIVIDER_KEY) {
-            HorizontalDivider()
-        }
-        item(key = "manage-trash") {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.mobile_trash_manage)) },
-                supportingContent = { Text(stringResource(R.string.mobile_trash_manage_description)) },
-                leadingContent = {
-                    Icon(painterResource(R.drawable.ic_ph_trash), contentDescription = null)
-                },
-                modifier = Modifier.clickable(onClick = onManageTrash, role = Role.Button)
-                    .testTag(MOBILE_MANAGE_TRASH_TAG),
-            )
-        }
-        when (val content = settingsState.content) {
-            is AccountSettingsContent.Loading ->
-                item(key = SETTINGS_LOADING_KEY) {
-                    MobileAccountSettingsLoading()
-                }
+    var showAbout by rememberSaveable(sessionId) { mutableStateOf(false) }
+    val appConfigPreferences = (appConfigState.content as? AndroidAppConfigContent.Ready)?.preferences
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val diagnostics = mobileAppDiagnostics(appConfigPreferences?.videoPlaybackType, maxWidth)
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag(MOBILE_ACCOUNT_LIST_TAG),
+        ) {
+            item(key = ACCOUNT_IDENTITY_KEY) {
+                MobileAccountIdentity(account)
+            }
+            item(key = ACCOUNT_IDENTITY_DIVIDER_KEY) {
+                HorizontalDivider()
+            }
+            item(key = "manage-trash") {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.mobile_trash_manage)) },
+                    supportingContent = { Text(stringResource(R.string.mobile_trash_manage_description)) },
+                    leadingContent = {
+                        Icon(painterResource(R.drawable.ic_ph_trash), contentDescription = null)
+                    },
+                    modifier = Modifier.clickable(onClick = onManageTrash, role = Role.Button)
+                        .testTag(MOBILE_MANAGE_TRASH_TAG),
+                )
+            }
+            when (val content = settingsState.content) {
+                is AccountSettingsContent.Loading ->
+                    item(key = SETTINGS_LOADING_KEY) {
+                        MobileAccountSettingsLoading()
+                    }
 
-            is AccountSettingsContent.Failed ->
-                item(key = SETTINGS_ERROR_KEY) {
-                    MobileAccountSettingsError(
-                        failure = content.failure,
-                        onRetry = { onSettingsEvent(AccountSettingsEvent.RetryLoad) },
+                is AccountSettingsContent.Failed ->
+                    item(key = SETTINGS_ERROR_KEY) {
+                        MobileAccountSettingsError(
+                            failure = content.failure,
+                            onRetry = { onSettingsEvent(AccountSettingsEvent.RetryLoad) },
+                        )
+                    }
+
+                is AccountSettingsContent.Ready -> {
+                    item(key = FILES_HEADER_KEY) {
+                        MobileAccountSectionHeader(R.string.mobile_settings_section_files)
+                    }
+                    defaultSortItem(
+                        settingsState = settingsState,
+                        onChoose = { chooseDefaultSort = true },
+                        onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
+                    )
+                    accountSettingsItems(
+                        preferences = content.preferences,
+                        mutation = settingsState.mutation,
+                        onChange = { change ->
+                            if (change is AccountSettingsChange.Toggle &&
+                                change.key == AccountSettingsKey.Trash && !change.enabled
+                            ) {
+                                confirmTrashDisable = true
+                            } else {
+                                onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
+                            }
+                        },
+                        onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
                     )
                 }
-
-            is AccountSettingsContent.Ready -> {
-                item(key = FILES_HEADER_KEY) {
-                    MobileAccountSectionHeader(R.string.mobile_settings_section_files)
-                }
-                defaultSortItem(
-                    settingsState = settingsState,
-                    onChoose = { chooseDefaultSort = true },
-                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
-                )
-                accountSettingsItems(
-                    preferences = content.preferences,
-                    mutation = settingsState.mutation,
-                    onChange = { change ->
-                        if (change is AccountSettingsChange.Toggle &&
-                            change.key == AccountSettingsKey.Trash && !change.enabled
-                        ) {
-                            confirmTrashDisable = true
-                        } else {
-                            onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
-                        }
-                    },
-                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
-                )
             }
-        }
-        appConfigItems(
-            state = appConfigState,
-            onChoosePlaybackType = { choosePlaybackType = true },
-            onEvent = onAppConfigEvent,
-            resumePlaybackItem = {
-                resumePlaybackItem(
-                    settingsState = settingsState,
-                    onChange = { onSettingsEvent(AccountSettingsEvent.ChangeRequested(it)) },
-                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
-                )
-                tunnelRouteItem(
-                    settingsState = settingsState,
-                    onChoose = { chooseTunnelRoute = true },
-                    onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
-                )
-            },
-        )
-        item(key = SIGN_OUT_KEY) {
-            OutlinedButton(
-                onClick = onSignOut,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            ) {
-                Text(stringResource(R.string.mobile_account_sign_out))
+            appConfigItems(
+                state = appConfigState,
+                onChoosePlaybackType = { choosePlaybackType = true },
+                onEvent = onAppConfigEvent,
+                resumePlaybackItem = {
+                    resumePlaybackItem(
+                        settingsState = settingsState,
+                        onChange = { onSettingsEvent(AccountSettingsEvent.ChangeRequested(it)) },
+                        onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
+                    )
+                    tunnelRouteItem(
+                        settingsState = settingsState,
+                        onChoose = { chooseTunnelRoute = true },
+                        onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
+                    )
+                },
+            )
+            item(key = ABOUT_HEADER_KEY) {
+                MobileAccountSectionHeader(R.string.mobile_settings_section_about)
             }
-        }
-    }
-
-    if (confirmTrashDisable) {
-        AlertDialog(
-            onDismissRequest = { confirmTrashDisable = false },
-            title = { Text(stringResource(R.string.mobile_settings_trash_confirm_title)) },
-            text = { Text(stringResource(R.string.mobile_settings_trash_confirm_message)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmTrashDisable = false
-                        onSettingsEvent(
-                            AccountSettingsEvent.ChangeRequested(
-                                AccountSettingsChange(AccountSettingsKey.Trash, enabled = false),
-                            ),
-                        )
-                    },
+            aboutItem(diagnostics = diagnostics, onOpen = { showAbout = true })
+            item(key = SIGN_OUT_KEY) {
+                OutlinedButton(
+                    onClick = onSignOut,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                 ) {
-                    Text(stringResource(R.string.mobile_settings_trash_confirm_action))
+                    Text(stringResource(R.string.mobile_account_sign_out))
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmTrashDisable = false }) {
-                    Text(stringResource(R.string.mobile_action_cancel))
-                }
-            },
-        )
-    }
+            }
+        }
 
-    val accountSettings = settingsState.content as? AccountSettingsContent.Ready
-    if (chooseTunnelRoute && accountSettings != null && settingsState.accountControlsEnabled()) {
-        MobileTunnelRouteDialog(
-            selected = accountSettings.preferences.tunnelRoute,
-            loadRoutes = loadTunnelRoutes,
-            onSelect = { route ->
-                chooseTunnelRoute = false
-                onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(route)))
-            },
-            onDismiss = { chooseTunnelRoute = false },
-        )
-    }
+        if (confirmTrashDisable) {
+            AlertDialog(
+                onDismissRequest = { confirmTrashDisable = false },
+                title = { Text(stringResource(R.string.mobile_settings_trash_confirm_title)) },
+                text = { Text(stringResource(R.string.mobile_settings_trash_confirm_message)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            confirmTrashDisable = false
+                            onSettingsEvent(
+                                AccountSettingsEvent.ChangeRequested(
+                                    AccountSettingsChange(AccountSettingsKey.Trash, enabled = false),
+                                ),
+                            )
+                        },
+                    ) {
+                        Text(stringResource(R.string.mobile_settings_trash_confirm_action))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmTrashDisable = false }) {
+                        Text(stringResource(R.string.mobile_action_cancel))
+                    }
+                },
+            )
+        }
 
-    if (chooseDefaultSort && accountSettings != null && settingsState.accountControlsEnabled()) {
-        MobileDefaultSortDialog(
-            selected = accountSettings.preferences.defaultSort,
-            onSelect = { sort ->
-                chooseDefaultSort = false
-                onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(sort)))
-            },
-            onDismiss = { chooseDefaultSort = false },
-        )
-    }
+        val accountSettings = settingsState.content as? AccountSettingsContent.Ready
+        if (chooseTunnelRoute && accountSettings != null && settingsState.accountControlsEnabled()) {
+            MobileTunnelRouteDialog(
+                selected = accountSettings.preferences.tunnelRoute,
+                loadRoutes = loadTunnelRoutes,
+                onSelect = { route ->
+                    chooseTunnelRoute = false
+                    onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(route)))
+                },
+                onDismiss = { chooseTunnelRoute = false },
+            )
+        }
 
-    val appConfig = appConfigState.content as? AndroidAppConfigContent.Ready
-    if (choosePlaybackType && appConfig != null && appConfigState.appConfigControlsEnabled()) {
-        MobilePlaybackTypeDialog(
-            selected = appConfig.preferences.videoPlaybackType,
-            onSelect = { playbackType ->
-                choosePlaybackType = false
-                onAppConfigEvent(
-                    AndroidAppConfigEvent.ChangeRequested(
-                        AndroidAppConfigChange.VideoPlayback(playbackType),
-                    ),
-                )
-            },
-            onDismiss = { choosePlaybackType = false },
-        )
+        if (showAbout) {
+            MobileAboutDialog(diagnostics = diagnostics, onDismiss = { showAbout = false })
+        }
+
+        if (chooseDefaultSort && accountSettings != null && settingsState.accountControlsEnabled()) {
+            MobileDefaultSortDialog(
+                selected = accountSettings.preferences.defaultSort,
+                onSelect = { sort ->
+                    chooseDefaultSort = false
+                    onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(sort)))
+                },
+                onDismiss = { chooseDefaultSort = false },
+            )
+        }
+
+        val appConfig = appConfigState.content as? AndroidAppConfigContent.Ready
+        if (choosePlaybackType && appConfig != null && appConfigState.appConfigControlsEnabled()) {
+            MobilePlaybackTypeDialog(
+                selected = appConfig.preferences.videoPlaybackType,
+                onSelect = { playbackType ->
+                    choosePlaybackType = false
+                    onAppConfigEvent(
+                        AndroidAppConfigEvent.ChangeRequested(
+                            AndroidAppConfigChange.VideoPlayback(playbackType),
+                        ),
+                    )
+                },
+                onDismiss = { choosePlaybackType = false },
+            )
+        }
     }
 }
 
@@ -1028,4 +1042,5 @@ private const val APP_CONFIG_LOADING_KEY = "app-config-loading"
 private const val APP_CONFIG_ERROR_KEY = "app-config-error"
 private const val VIDEO_PLAYBACK_TYPE_KEY = "app-config-video-playback-type"
 private const val AUTOPLAY_NEXT_VIDEO_KEY = "app-config-autoplay-next-video"
+private const val ABOUT_HEADER_KEY = "account-about-header"
 private const val SIGN_OUT_KEY = "account-sign-out"

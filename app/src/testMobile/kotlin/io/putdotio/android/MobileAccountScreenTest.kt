@@ -21,6 +21,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasText
@@ -635,6 +637,40 @@ class MobileAccountScreenTest {
         compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
         compose.onNodeWithText("Try again").performClick()
         compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
+    }
+
+    @Test
+    fun aboutRowOpensAppInfoAndCopiesSupportTextToTheClipboard() {
+        setAccountContent(state = readyAccountSettingsState(), events = mutableListOf())
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).assertTextContains(BuildConfig.VERSION_NAME).performClick()
+        compose.onNodeWithTag(MOBILE_ABOUT_DIALOG_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Android API level").assertIsDisplayed()
+        compose.onNodeWithText("Phone").assertIsDisplayed()
+        compose.onNodeWithText("media3/hls").assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_ABOUT_COPIED_TAG).assertCountEquals(0)
+
+        compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).performClick()
+        compose.waitForIdle()
+        val clipboard = ApplicationProvider.getApplicationContext<Context>()
+            .getSystemService(android.content.ClipboardManager::class.java)
+        compose.waitUntil(2_000L) { clipboard.hasPrimaryClip() }
+        // The label sits at the bottom of the scrollable dialog body on a short test window.
+        compose.onNodeWithTag(MOBILE_ABOUT_COPIED_TAG).performScrollTo().assertIsDisplayed()
+        val pasted = clipboard.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
+        assertTrue(pasted, pasted.startsWith("app: android\napp_version: ${BuildConfig.VERSION_NAME}\n"))
+        assertTrue(pasted, pasted.contains("device_class: phone"))
+        assertTrue(pasted, pasted.contains("player: media3/hls"))
+        assertFalse(pasted, pasted.contains(Account.username))
+
+        compose.onNodeWithText("Close").performClick()
+        compose.onNodeWithTag(MOBILE_ABOUT_DIALOG_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun deviceClassFollowsTheTabletWidthThreshold() {
+        assertEquals(io.putdotio.android.settings.AppDiagnostics.DeviceClass.Phone, deviceClassForWidth(599.dp))
+        assertEquals(io.putdotio.android.settings.AppDiagnostics.DeviceClass.Tablet, deviceClassForWidth(600.dp))
     }
 
     @Test
