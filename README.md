@@ -1,5 +1,13 @@
 # putio-android
 
+> **Work in progress.** This is a ground-up rewrite that is not yet on Google
+> Play. Expect missing features, rough edges, and breaking changes between
+> commits. The current Android TV app on Play is
+> [tv-native](https://github.com/putdotio/putio-web) until this one replaces it.
+> Follow [epic #14](https://github.com/putdotio/putio-android/issues/14) for
+> status; bug reports and feedback are welcome, contributions are best
+> coordinated through an issue first.
+
 Native Android app for put.io, built with Kotlin and Jetpack Compose for mobile,
 Android TV, and Fire TV from one codebase. Mobile ships first; the TV surface
 then reuses the shared data, domain, theme, and component foundations.
