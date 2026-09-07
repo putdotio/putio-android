@@ -93,7 +93,7 @@ internal fun MobileAboutDialog(
     val scope = rememberCoroutineScope()
     // Keyed on the support text: if playback config settles after the copy, the
     // clipboard holds stale details and the confirmation must not claim otherwise.
-    val supportText = diagnostics.supportText()
+    val supportText = remember(diagnostics) { diagnostics.supportText() }
     var copied by remember(supportText) { mutableStateOf(false) }
     val rows = listOf(
         R.string.mobile_settings_about_version to

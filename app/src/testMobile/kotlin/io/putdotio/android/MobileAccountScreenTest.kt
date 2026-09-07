@@ -680,11 +680,13 @@ class MobileAccountScreenTest {
         compose.onNodeWithText("media3/hls").assertIsDisplayed()
         compose.onAllNodesWithTag(MOBILE_ABOUT_COPIED_TAG).assertCountEquals(0)
 
-        compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).performClick()
-        compose.waitForIdle()
         val clipboard = ApplicationProvider.getApplicationContext<Context>()
             .getSystemService(android.content.ClipboardManager::class.java)
-        compose.waitUntil(2_000L) { clipboard.hasPrimaryClip() }
+        clipboard.clearPrimaryClip()
+        compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).performClick()
+        compose.waitUntil(2_000L) {
+            clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.startsWith("app: android") == true
+        }
         // The confirmation replaces the button label, so it is visible without scrolling.
         // The button merges its descendants; read the label through the unmerged tree.
         compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).assertIsDisplayed().assertTextEquals("Copied to clipboard")
@@ -718,10 +720,13 @@ class MobileAccountScreenTest {
         }
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
-        compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).performClick()
         val clipboard = ApplicationProvider.getApplicationContext<Context>()
             .getSystemService(android.content.ClipboardManager::class.java)
-        compose.waitUntil(2_000L) { clipboard.hasPrimaryClip() }
+        clipboard.clearPrimaryClip()
+        compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).performClick()
+        compose.waitUntil(2_000L) {
+            clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.contains("player: media3/hls") == true
+        }
         compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).assertTextEquals("Copied to clipboard")
 
         // Config settles to MP4 after the copy: the clipboard still says hls, so the label must revert.
