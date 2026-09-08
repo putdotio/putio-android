@@ -683,10 +683,14 @@ internal fun MobileShell(
             )
         }
     }
-    LaunchedEffect(contentNavigation) {
+    LaunchedEffect(contentNavigation, transferDraft) {
         contentNavigation.collect { item ->
             if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item))) {
-                navController.navigateTo(MobileDestination.Files)
+                val draft = transferDraft.state.value
+                val editingTransfer = navController.currentDestination?.route == MobileDestination.Transfers.route &&
+                    (draft.open || draft.pendingReplacement)
+                // A delayed history result may update Files without displacing a newer transfer draft.
+                if (!editingTransfer) navController.navigateTo(MobileDestination.Files)
             } else {
                 rejectedNavigation = FilesFailure.NavigationBlocked
             }

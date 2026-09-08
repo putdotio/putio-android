@@ -293,6 +293,61 @@ class MobileShellTest {
     }
 
     @Test
+    fun aDelayedHistoryResultDoesNotHideTheSharedDraft() {
+        val draft = MobileTransferDraft()
+        val results = Channel<FilesItem>(Channel.BUFFERED)
+        val filesEvents = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(
+            transferDraft = draft,
+            contentNavigation = results.receiveAsFlow(),
+            onFilesEvent = { filesEvents += it; true },
+        )
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle { results.trySend(shellResolvedFolder()) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertTrue(filesEvents.contains(FilesBrowserEvent.OpenExternalItem(shellResolvedFolder())))
+            assertEquals("https://example.invalid/shared", draft.state.value.input)
+        }
+    }
+
+    @Test
+    fun aDelayedHistoryResultOpensFilesAfterTheSharedDraftIsDismissed() {
+        val draft = MobileTransferDraft()
+        val results = Channel<FilesItem>(Channel.BUFFERED)
+        compose.setShell(transferDraft = draft, contentNavigation = results.receiveAsFlow())
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.runOnIdle { results.trySend(shellResolvedFolder()) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+    }
+
+    @Test
+    fun aRejectedHistoryResultKeepsTheSharedDraftAndReportsNavigationRecovery() {
+        val draft = MobileTransferDraft()
+        val results = Channel<FilesItem>(Channel.BUFFERED)
+        val filesEvents = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(
+            transferDraft = draft,
+            contentNavigation = results.receiveAsFlow(),
+            onFilesEvent = { filesEvents += it; false },
+        )
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle { results.trySend(shellResolvedFolder()) }
+        compose.onNodeWithText("Couldn’t open this file").assertIsDisplayed()
+        compose.onNodeWithText("OK").performClick()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertTrue(filesEvents.contains(FilesBrowserEvent.OpenExternalItem(shellResolvedFolder())))
+            assertEquals("https://example.invalid/shared", draft.state.value.input)
+        }
+    }
+
+    @Test
     fun filesDeleteRequiresConfirmedSettingsThroughSaveAndRefreshFailure() {
         val original = DefaultAccountSettingsPreferences.copy(trashEnabled = true)
         val optimistic = original.copy(trashEnabled = false)
@@ -866,6 +921,8 @@ class MobileShellTest {
     }
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
+        transferDraft: MobileTransferDraft = MobileTransferDraft(),
+        contentNavigation: kotlinx.coroutines.flow.Flow<FilesItem> = kotlinx.coroutines.flow.emptyFlow(),
         filesState: FilesBrowserState = emptyFilesState(),
         onFilesEvent: (FilesBrowserEvent) -> Boolean = { true },
         onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
@@ -874,6 +931,8 @@ class MobileShellTest {
         setContent {
             PutioTheme {
                 MobileShell(
+                    transferDraft = transferDraft,
+                    contentNavigation = contentNavigation,
                     playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
