@@ -102,6 +102,27 @@ under the target app's external files directory. Follow the session-preserving
 invocation and guest-idleness rules below; do not use `connectedAndroidTest`
 or `prove.sh` on the authenticated installation.
 
+`MobileShellAccessibilityProofTest` adds the actual navigation shell, app bars
+and Transfers toolbar to the controlled proof. Run each named selector once in
+portrait and once in landscape, passing `putio.accessibility.orientation` with
+the expected orientation as well as the existing opt-in and run ID:
+
+- `fullShellNavigationAndTransfersKeepActionsReachable`
+- `fullShellWithPrivateAudioKeepsNavigationAndTransfersReachable`
+
+Both check complete destination labels, drawer Back, usable list space, all four
+destinations, Transfers actions and Add with the real keyboard. The audio selector
+also checks the now-playing bar using a private muted ExoPlayer. Pass
+`putio.accessibility.audio` pointing to the existing caller-owned 180-second local
+audio fixture beneath the target app's external files directory. It never connects
+to the media-session service, initializes authentication, reports positions or
+makes API calls. It releases only its own player after disposing the shell.
+Require `OK (1 test)` per named invocation. Screenshots use `shell-portrait-` and
+`shell-landscape-` prefixes, with `-audio` for the audio variant, in the same run
+directory. Inspect the whole shell and keyboard state; visible test nodes alone
+do not prove a usable layout. Use normal-size captures as primary UI evidence and
+label large-text captures as accessibility checks.
+
 `MobileTalkBackProofTest` is a separate, manually driven TalkBack lane. It
 mounts controlled auth and private local players, then checks the real auth
 callback and player state while the caller operates TalkBack. It connects no

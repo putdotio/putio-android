@@ -215,7 +215,12 @@ internal fun MobileAccountScreen(
         AlertDialog(
             onDismissRequest = { confirmTrashDisable = false },
             title = { Text(stringResource(R.string.mobile_settings_trash_confirm_title)) },
-            text = { Text(stringResource(R.string.mobile_settings_trash_confirm_message)) },
+            text = {
+                Text(
+                    stringResource(R.string.mobile_settings_trash_confirm_message),
+                    Modifier.verticalScroll(rememberScrollState()),
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -453,16 +458,14 @@ private fun LazyListScope.privacyControlsItems(
     item(key = STRICTLY_NECESSARY_KEY) {
         ListItem(
             headlineContent = { Text(stringResource(R.string.mobile_settings_strictly_necessary)) },
-            supportingContent = { Text(stringResource(R.string.mobile_settings_strictly_necessary_description)) },
+            supportingContent = {
+                MobileAccountValueDescription(
+                    value = stringResource(R.string.mobile_settings_strictly_necessary_state),
+                    description = stringResource(R.string.mobile_settings_strictly_necessary_description),
+                )
+            },
             leadingContent = {
                 Icon(painter = painterResource(R.drawable.ic_ph_shield_check), contentDescription = null)
-            },
-            trailingContent = {
-                Text(
-                    text = stringResource(R.string.mobile_settings_strictly_necessary_state),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelLarge,
-                )
             },
             modifier = Modifier.fillMaxWidth().testTag(MOBILE_STRICTLY_NECESSARY_TAG),
         )
@@ -548,21 +551,18 @@ private fun LazyListScope.tunnelRouteItem(
         Column(modifier = Modifier.fillMaxWidth()) {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.mobile_settings_tunnel_route)) },
-                supportingContent = { Text(stringResource(R.string.mobile_settings_tunnel_route_description)) },
+                supportingContent = {
+                    MobileAccountValueDescription(
+                        value = preferences.tunnelRoute.displayName(),
+                        description = stringResource(R.string.mobile_settings_tunnel_route_description),
+                    )
+                },
                 leadingContent = {
                     Icon(painter = painterResource(R.drawable.ic_ph_globe), contentDescription = null)
                 },
-                trailingContent = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (saving) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        }
-                        Text(preferences.tunnelRoute.displayName())
-                    }
-                },
+                trailingContent = if (saving) {
+                    { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
+                } else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag(MOBILE_TUNNEL_ROUTE_ROW_TAG)
@@ -751,24 +751,21 @@ private fun MobilePlaybackTypeRow(
     Column(modifier = Modifier.fillMaxWidth()) {
         ListItem(
             headlineContent = { Text(stringResource(R.string.mobile_settings_video_playback_type)) },
-            supportingContent = { Text(stringResource(R.string.mobile_settings_video_playback_type_description)) },
+            supportingContent = {
+                MobileAccountValueDescription(
+                    value = stringResource(preferences.videoPlaybackType.labelResource()),
+                    description = stringResource(R.string.mobile_settings_video_playback_type_description),
+                )
+            },
             leadingContent = {
                 Icon(
                     painter = painterResource(R.drawable.ic_ph_file_video_fill),
                     contentDescription = null,
                 )
             },
-            trailingContent = {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (saving) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    }
-                    Text(stringResource(preferences.videoPlaybackType.labelResource()))
-                }
-            },
+            trailingContent = if (saving) {
+                { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
+            } else null,
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(
@@ -836,7 +833,7 @@ private fun MobilePlaybackTypeDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.mobile_settings_video_playback_type)) },
         text = {
-            Column(modifier = Modifier.selectableGroup()) {
+            Column(modifier = Modifier.selectableGroup().verticalScroll(rememberScrollState())) {
                 VideoPlaybackType.entries.forEach { playbackType ->
                     Row(
                         modifier = Modifier
@@ -896,11 +893,13 @@ private fun MobileAppConfigLoadError(
     ListItem(
         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         headlineContent = { Text(stringResource(R.string.mobile_settings_playback_error_title)) },
-        supportingContent = { Text(stringResource(failure.messageResource())) },
-        trailingContent = {
-            if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
-                TextButton(onClick = onRetry) {
-                    Text(stringResource(R.string.mobile_action_retry))
+        supportingContent = {
+            Column {
+                Text(stringResource(failure.messageResource()))
+                if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
+                    TextButton(onClick = onRetry) {
+                        Text(stringResource(R.string.mobile_action_retry))
+                    }
                 }
             }
         },
@@ -927,11 +926,13 @@ private fun MobileAppConfigMutationError(
             .bringIntoViewRequester(bringIntoViewRequester)
             .semantics { liveRegion = LiveRegionMode.Polite },
         headlineContent = { Text(stringResource(title)) },
-        supportingContent = { Text(stringResource(failure.messageResource())) },
-        trailingContent = {
-            if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
-                TextButton(onClick = onRetry) {
-                    Text(stringResource(R.string.mobile_action_retry))
+        supportingContent = {
+            Column {
+                Text(stringResource(failure.messageResource()))
+                if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
+                    TextButton(onClick = onRetry) {
+                        Text(stringResource(R.string.mobile_action_retry))
+                    }
                 }
             }
         },
@@ -1049,11 +1050,13 @@ private fun MobileAccountSettingsError(
 ) {
     ListItem(
         headlineContent = { Text(stringResource(R.string.mobile_settings_error_title)) },
-        supportingContent = { Text(stringResource(failure.messageResource())) },
-        trailingContent = {
-            if (failure !is AccountSettingsFailure.AuthenticationRequired) {
-                TextButton(onClick = onRetry) {
-                    Text(stringResource(R.string.mobile_action_retry))
+        supportingContent = {
+            Column {
+                Text(stringResource(failure.messageResource()))
+                if (failure !is AccountSettingsFailure.AuthenticationRequired) {
+                    TextButton(onClick = onRetry) {
+                        Text(stringResource(R.string.mobile_action_retry))
+                    }
                 }
             }
         },
@@ -1080,11 +1083,13 @@ internal fun MobileAccountMutationError(
             .bringIntoViewRequester(bringIntoViewRequester)
             .semantics { liveRegion = LiveRegionMode.Polite },
         headlineContent = { Text(stringResource(title)) },
-        supportingContent = { Text(stringResource(failure.messageResource())) },
-        trailingContent = {
-            if (failure !is AccountSettingsFailure.AuthenticationRequired) {
-                TextButton(onClick = onRetry) {
-                    Text(stringResource(R.string.mobile_action_retry))
+        supportingContent = {
+            Column {
+                Text(stringResource(failure.messageResource()))
+                if (failure !is AccountSettingsFailure.AuthenticationRequired) {
+                    TextButton(onClick = onRetry) {
+                        Text(stringResource(R.string.mobile_action_retry))
+                    }
                 }
             }
         },
@@ -1124,3 +1129,11 @@ private const val VIDEO_PLAYBACK_TYPE_KEY = "app-config-video-playback-type"
 private const val AUTOPLAY_NEXT_VIDEO_KEY = "app-config-autoplay-next-video"
 private const val ABOUT_HEADER_KEY = "account-about-header"
 private const val SIGN_OUT_KEY = "account-sign-out"
+
+@Composable
+internal fun MobileAccountValueDescription(value: String, description: String) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(value, color = MaterialTheme.colorScheme.onSurface)
+        Text(description)
+    }
+}

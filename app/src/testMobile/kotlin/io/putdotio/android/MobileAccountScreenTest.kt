@@ -407,6 +407,8 @@ class MobileAccountScreenTest {
             events = events,
         )
 
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG)
+            .performScrollToNode(hasText("Saved, but couldn’t confirm this setting"))
         compose.onNodeWithText("Saved, but couldn’t confirm this setting").assertIsDisplayed()
         compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(0)
         compose.onNodeWithText("Try again").performClick()
@@ -571,6 +573,8 @@ class MobileAccountScreenTest {
                     mutation = saveFailure.copy(operation = AndroidAppConfigMutation.Operation.Refresh),
                 )
         }
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG)
+            .performScrollToNode(hasText("Saved, but couldn’t confirm this setting"))
         compose.onNodeWithText("Saved, but couldn’t confirm this setting").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
         assertEquals(listOf(AndroidAppConfigEvent.RetryChange), appConfigEvents)
