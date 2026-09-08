@@ -46,6 +46,16 @@ class MobileShareIntentsTest {
     }
 
     @Test
+    fun unicodeWhitespaceSeparatesCompleteSharedTokens() {
+        for (separator in listOf("\u00a0", "\u202f", "\u3000", "\u0085")) {
+            val expected = "https://example.invalid/file"
+            val parsed = parseMobileSharedTransfer("Download$separator$expected${separator}now")
+            assertEquals(expected, parsed.input)
+            assertNull(parsed.validation)
+        }
+    }
+
+    @Test
     fun multipleLinksAndUnsupportedTextRemainEditableWithoutAnArbitrarySelection() {
         val mixed = "One https://example.invalid/a and two magnet:?dn=missing-hash"
         assertEquals(mixed, parseMobileSharedTransfer(mixed).input)

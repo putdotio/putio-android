@@ -78,4 +78,4 @@ internal fun CharSequence.fitsMobileTransferInputLimit(): Boolean =
     length <= MOBILE_TRANSFER_INPUT_LIMIT && toString().toByteArray(Charsets.UTF_8).size <= MOBILE_TRANSFER_INPUT_LIMIT
 
 internal const val MOBILE_TRANSFER_INPUT_LIMIT = 16 * 1024
-private val SharedWhitespace = Regex("\\s+")
+private val SharedWhitespace = Regex("[\\s\\p{Z}\\u0085]+")
