@@ -1300,6 +1300,7 @@ class MobileShellPlaybackTest {
         compose.setPlaybackShell(playbackPlayerFactory = factory)
 
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+        // The now-playing observer is the shell's binding; it stays attached while composed.
         compose.runOnIdle {
             assertEquals(1, connections)
             assertEquals(0, closes)

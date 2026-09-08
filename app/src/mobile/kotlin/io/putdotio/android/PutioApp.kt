@@ -634,11 +634,6 @@ internal fun MobileShell(
     val currentPlaybackFileId by rememberUpdatedState(
         if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null,
     )
-    // Reopening the app after the task was swiped away must tell the session its task is back.
-    LifecycleStartEffect(playbackPlayerFactory, appContext) {
-        val handle = playbackPlayerFactory.touchAudioSession(appContext)
-        onStopOrDispose { handle.closeQuietly() }
-    }
     LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext) {
         nowPlayingRequests.pending.collect { pending ->
             if (!pending) return@collect
