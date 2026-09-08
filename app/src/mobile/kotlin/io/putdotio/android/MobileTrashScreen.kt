@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -24,6 +25,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -67,7 +69,16 @@ internal fun MobileTrashScreen(
 ) {
     var sheetItemId by rememberSaveable { mutableStateOf<Long?>(null) }
     val sheetItem = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id.value == sheetItemId }
-    LazyColumn(modifier.fillMaxSize().testTag(MOBILE_TRASH_LIST_TAG)) {
+    val listState = rememberLazyListState()
+    // A new outcome is inserted above the list content while the list stays anchored on its
+    // previous first item, which leaves the outcome and its recovery controls above the viewport.
+    LaunchedEffect(state.restoreOutcome?.item) {
+        if (state.restoreOutcome != null) listState.scrollToItem(0)
+    }
+    LaunchedEffect(state.actionOutcome?.action) {
+        if (state.actionOutcome != null) listState.scrollToItem(if (state.restoreOutcome != null) 1 else 0)
+    }
+    LazyColumn(modifier.fillMaxSize().testTag(MOBILE_TRASH_LIST_TAG), state = listState) {
         state.restoreOutcome?.let { outcome ->
             item(key = "restore-outcome") {
                 MobileTrashOutcome(outcome, state.authenticationFailure == null, onEvent)
