@@ -1374,6 +1374,31 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    fun sessionAudioStartsEvenWhileTheScreenIsPausedBehindADialog() {
+        val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.STARTED) }
+        val session = RecordingPlayer()
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                PutioTheme {
+                    MobilePlayerScreen(
+                        state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = SessionPlayerFactory(session) {},
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+
+        compose.runOnIdle {
+            assertEquals(1, session.prepareCalls)
+            assertTrue(session.playWhenReady)
+        }
+    }
+
+    @Test
     fun audioPreparesTheSessionPlayerWhenItHoldsAnotherFile() {
         val session = RecordingPlayer()
         session.setMediaItem(

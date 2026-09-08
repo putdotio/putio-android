@@ -368,8 +368,9 @@ private fun MobileReadyPlayer(
         player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
         player.prepare()
         seekWindow = player.currentSeekWindow()
+        // Session audio plays behind a dialog or a stopped screen; only a private player waits.
         playerWantsToPlay =
-            lifecycleAllowsAutoplay(lifecycle.currentState, retainedPlayIntent)
+            if (ownsPlayer) lifecycleAllowsAutoplay(lifecycle.currentState, retainedPlayIntent) else retainedPlayIntent
         player.playWhenReady = playerWantsToPlay
     }
     LaunchedEffect(player, activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
