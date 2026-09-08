@@ -1456,6 +1456,12 @@ class MobilePlayerScreenTest {
                 ),
                 PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
             )
+        val missing =
+            PlaybackException(
+                "source",
+                HttpDataSource.InvalidResponseCodeException(404, "Not Found", null, emptyMap(), dataSpec, ByteArray(0)),
+                PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+            )
         val decoder = PlaybackException("decoder", IllegalStateException("codec"), PlaybackException.ERROR_CODE_DECODING_FAILED)
 
         // The controller receives the bundle form, which drops the typed cause chain.
@@ -1463,6 +1469,7 @@ class MobilePlayerScreenTest {
 
         assertFalse(relay(unauthorized).cause is HttpDataSource.InvalidResponseCodeException)
         assertTrue(relay(unauthorized).toPlaybackFailure() is PlaybackFailure.MediaCredentialUnavailable)
+        assertTrue(relay(missing).toPlaybackFailure() is PlaybackFailure.Unexpected)
         assertTrue(relay(offline).toPlaybackFailure() is PlaybackFailure.NetworkUnavailable)
         assertTrue(relay(decoder).toPlaybackFailure() is PlaybackFailure.Unexpected)
     }
