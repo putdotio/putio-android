@@ -38,7 +38,10 @@ private fun FilesBrowserState.move(event: FilesBrowserEvent.Move): FilesBrowserT
 }
 
 internal fun FilesBrowserState.moveFinished(event: FilesBrowserEvent.MoveFinished): FilesBrowserTransition {
-    val index = moveRequestIndex(event.requestId, FilesFolderOperationPhase.MOVING)
+    val index = requestIndex<FilesFolderOperationIntent.Move>(
+        event.requestId,
+        FilesFolderOperationPhase.MOVING,
+    )
     val folder = stack.getOrNull(index)
     val outcome = folder?.moveOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
@@ -69,7 +72,10 @@ internal fun FilesBrowserState.moveFinished(event: FilesBrowserEvent.MoveFinishe
 }
 
 private fun FilesBrowserState.moveChecked(event: FilesBrowserEvent.MoveChecked): FilesBrowserTransition {
-    val index = moveRequestIndex(event.requestId, FilesFolderOperationPhase.CHECKING_MOVE)
+    val index = requestIndex<FilesFolderOperationIntent.Move>(
+        event.requestId,
+        FilesFolderOperationPhase.CHECKING_MOVE,
+    )
     val folder = stack.getOrNull(index)
     val outcome = folder?.moveOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
@@ -105,18 +111,8 @@ private fun FilesRepositoryResult<FilesItem>.moveReadFailure(expectedId: FilesIt
     }
 }
 
-private fun FilesBrowserState.moveRequestIndex(requestId: FilesRequestId, phase: FilesFolderOperationPhase): Int =
-    stack.indexOfFirst {
-        val loading = it.operation as? FilesFolderOperation.Loading
-        loading?.requestId == requestId && loading.phase == phase && loading.intent is FilesFolderOperationIntent.Move
-    }
-
 internal val FilesFolderOperation.pendingMove: FilesFolderOperationIntent.Move?
-    get() = when (this) {
-        is FilesFolderOperation.Loading -> intent as? FilesFolderOperationIntent.Move
-        is FilesFolderOperation.Failed -> intent as? FilesFolderOperationIntent.Move
-        FilesFolderOperation.Idle -> null
-    }
+    get() = pendingIntent()
 
 internal fun FilesMoveOutcome.afterFolderPage(page: FilesPage): FilesMoveOutcome =
     if (status == FilesMoveStatus.MOVED && page.items.any { it.id == intent.itemId }) {

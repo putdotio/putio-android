@@ -20,9 +20,13 @@ Mobile, on the emulator harness against the live API:
   watched progress on media rows
 - Trash: browse, restore one or all, delete permanently, empty
 - Transfers and search
-- Video playback with subtitles, autoplay next, and configurable HLS or MP4
+- Video playback with subtitles, 10-second touch seek, autoplay next, and
+  configurable HLS or MP4
 - Account settings: subtitles, history, Trash, resume playback, proxy route,
   and default sort order, each saved to the account and shared across devices
+- Privacy controls for the support chat widget, shared across put.io apps,
+  with a strictly-necessary storage disclosure
+- About section with copyable app, Android, device, and player info
 
 The TV flavor builds and launches on the Android TV emulator but has no
 feature surfaces yet. Not started: downloads, sharing, Chromecast,
@@ -45,7 +49,7 @@ Picture-in-Picture, and the Play release lane.
 
 ## Build and verify
 
-Requires JDK 21 and, on macOS, Homebrew. Everything else is scripted.
+Requires JDK 21, `python3`, and, on macOS, Homebrew. Everything else is scripted.
 
 ```bash
 ./scripts/bootstrap.sh   # once per machine; installs the Android SDK, AVDs, local.properties
@@ -55,9 +59,10 @@ Requires JDK 21 and, on macOS, Homebrew. Everything else is scripted.
 ./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof with evidence
 ```
 
-`verify` runs lint, detekt, and the unit tests, then assembles an unsigned
-minified mobile release APK to prove the composite SDK survives minSdk 26 and
-R8. The phone AVD runs the API 37 Google Play image and checks Chrome Auth Tab
+`verify` runs lint, detekt, the unit tests, the icon lock check, and the
+harness script contract tests (needs `python3` and `ffprobe`), then assembles
+an unsigned minified mobile release APK to prove the composite SDK survives
+minSdk 26 and R8. The phone AVD runs the API 37 Google Play image and checks Chrome Auth Tab
 readiness on every boot; Android TV and the scheduled CI device stay on API 36.
 
 The `bootstrap` script expects `putio-sdk-kotlin` cloned as a sibling

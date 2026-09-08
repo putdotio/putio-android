@@ -105,7 +105,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -388,12 +387,6 @@ class MobileShellTest {
 
         compose.onAllNodesWithText("Size, largest first").assertCountEquals(0)
         assertTrue(events.isEmpty())
-    }
-
-    @Test
-    fun sortMenuVisibilityClosesSynchronouslyWhenDisabled() {
-        assertTrue(shouldShowFilesSortMenu(expanded = true, enabled = true))
-        assertFalse(shouldShowFilesSortMenu(expanded = true, enabled = false))
     }
 
     @Test

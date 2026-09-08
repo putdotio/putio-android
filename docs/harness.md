@@ -56,7 +56,7 @@ require the named smoke test's successful XML result; an empty, skipped, or
 missing result fails even when instrumentation exits successfully.
 One automatic retry covers the cold-boot render flake, where the
 emulator composites the app window black for the first minute. Exit 0 pass ·
-1 fail · 70 cleanup failure · 130/143 interrupted. Machine-readable stdout
+1 fail or bad arguments · 64 missing flavor · 70 cleanup failure · 130/143 interrupted. Machine-readable stdout
 markers: `BOOTED <serial>`, `EVIDENCE <path>`, `PROOF PASS|FAIL <flavor>`.
 
 The connected suite uninstalls the tested apps afterward; `prove.sh` reinstalls
@@ -67,7 +67,7 @@ their own setup and cleanup do not touch an existing session.
 
 Flags: `--keep` (leave emulator running), `--ephemeral` (throwaway AVD,
 deleted on exit), `--window` (headed), `--skip-build`, `--record`,
-`--seconds N` (recording length, max 180).
+`--seconds N` (recording length, 3 to 180).
 
 `--record` runs after verification: the app is force-stopped and relaunched
 under active capture, so the clip always has frames (`screenrecord` drops
@@ -128,19 +128,12 @@ requires authentication.
 
 ## Borrowing another OAuth client for local proof
 
-Debug builds honour an ignored `local.properties` key that replaces the mobile
-client id and skips the TV-client guard. Mobile client `9677` has held every
-official-app scope since putdotio/putio#4686 shipped, so ordinary proof needs no
-override. Keep the key for a future scope gap only; the borrowed client must
-list `putio://auth` as a callback.
-
-```properties
-putioMobileOAuthClientIdDebugOverride=6221
-```
-
-Release builds ignore the key. Existing sessions were issued to the previous
-client, so `adb shell pm clear` the debug app and sign in again after changing
-it. Say which client a proof ran on when you attach evidence.
+Ordinary proof needs no override. Debug builds honour an ignored
+`local.properties` key, `putioMobileOAuthClientIdDebugOverride`, that replaces
+the mobile client id for local proof only; release builds ignore it. Which
+client ids are eligible is put.io-internal. Existing sessions were issued to
+the previous client, so `adb shell pm clear` the debug app and sign in again
+after changing it. Say which client a proof ran on when you attach evidence.
 
 ## Headless / Devbox Notes
 

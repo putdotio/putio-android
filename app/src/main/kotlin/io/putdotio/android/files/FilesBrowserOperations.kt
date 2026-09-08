@@ -9,6 +9,22 @@ internal val FilesFolderOperation.canStartOperation: Boolean
             (intent !is FilesFolderOperationIntent.Rename || phase != FilesFolderOperationPhase.RELOADING)
     }
 
+/** Index of the folder whose in-flight operation matches [requestId], [phase], and intent type [I], or -1. */
+internal inline fun <reified I : FilesFolderOperationIntent> FilesBrowserState.requestIndex(
+    requestId: FilesRequestId,
+    phase: FilesFolderOperationPhase,
+): Int = stack.indexOfFirst {
+    val loading = it.operation as? FilesFolderOperation.Loading
+    loading?.requestId == requestId && loading.phase == phase && loading.intent is I
+}
+
+/** The intent of type [I] still owning this operation, whether loading or failed. */
+internal inline fun <reified I : FilesFolderOperationIntent> FilesFolderOperation.pendingIntent(): I? = when (this) {
+    is FilesFolderOperation.Loading -> intent as? I
+    is FilesFolderOperation.Failed -> intent as? I
+    FilesFolderOperation.Idle -> null
+}
+
 internal fun FilesBrowserState.abandonRename(event: FilesBrowserEvent.AbandonRename): FilesBrowserTransition {
     val failed = current.operation as? FilesFolderOperation.Failed
     return if (event.folderId == current.folder.id && failed?.intent == event.intent &&
