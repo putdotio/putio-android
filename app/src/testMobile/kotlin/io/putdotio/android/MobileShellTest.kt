@@ -124,6 +124,43 @@ class MobileShellTest {
     val compose = createComposeRule()
 
     @Test
+    fun incomingShareWaitsForFilesRecoveryThenOpensTransfersWithoutSubmitting() {
+        val draft = MobileTransferDraft()
+        draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
+        var files by mutableStateOf(pendingShellDeleteState())
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = files,
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onTransfersEvent = events::add,
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
+            files = emptyFilesState()
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
     fun filesDeleteRequiresConfirmedSettingsThroughSaveAndRefreshFailure() {
         val original = DefaultAccountSettingsPreferences.copy(trashEnabled = true)
         val optimistic = original.copy(trashEnabled = false)

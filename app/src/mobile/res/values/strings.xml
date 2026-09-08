@@ -382,4 +382,10 @@
     <string name="mobile_playback_resume_title">Resume from %1$s?</string>
     <string name="mobile_playback_resume">Resume</string>
     <string name="mobile_playback_restart">Start over</string>
+    <string name="mobile_share_multiple_links">Share one URL or magnet link at a time.</string>
+    <string name="mobile_share_too_long">This text is too long. Paste one URL or magnet link.</string>
+    <string name="mobile_share_replace_title">Replace the current draft?</string>
+    <string name="mobile_share_replace_message">You already have an unfinished transfer. Choose which input to keep.</string>
+    <string name="mobile_share_use_link">Use shared link</string>
+    <string name="mobile_share_keep_draft">Keep draft</string>
 </resources>

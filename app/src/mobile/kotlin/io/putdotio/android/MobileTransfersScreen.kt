@@ -31,12 +31,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +59,6 @@ import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem
 import io.putdotio.android.transfers.TransferMutation
 import io.putdotio.android.transfers.TransferNavigation
-import io.putdotio.android.transfers.TransferSubmission
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersPaging
@@ -81,7 +80,12 @@ internal fun MobileTransfersScreen(
     onEvent: (TransfersEvent) -> Unit,
     modifier: Modifier = Modifier,
     sessionId: MobileAuthSessionId? = null,
+    draft: MobileTransferDraft = remember { MobileTransferDraft() },
 ) {
+    LaunchedEffect(draft, sessionId, state.mutation, state.lastSuccessfulAddRequestId) {
+        draft.reconcileSession(sessionId)
+        draft.reconcileTransfers(state)
+    }
     var confirmation by remember(sessionId) { mutableStateOf<TransferConfirmation?>(null) }
 
     val controlsEnabled =
@@ -122,10 +126,10 @@ internal fun MobileTransfersScreen(
                 }
             }
             MobileAddTransfer(
+                draft = draft,
                 state = state,
                 onEvent = onEvent,
                 enabled = controlsEnabled,
-                sessionId = sessionId,
             )
         }
 
@@ -403,71 +407,55 @@ private fun MobileTransfersRefreshFailure(
 
 @Composable
 private fun MobileAddTransfer(
+    draft: MobileTransferDraft,
     state: TransfersState,
     onEvent: (TransfersEvent) -> Unit,
     enabled: Boolean,
-    sessionId: MobileAuthSessionId?,
 ) {
-    var showAddSheet by rememberSaveable(sessionId) { mutableStateOf(false) }
-    var addInput by rememberSaveable(sessionId) { mutableStateOf("") }
-    var addValidationFailed by rememberSaveable(sessionId) { mutableStateOf(false) }
-    var handledSuccessfulAddRequestValue by rememberSaveable(sessionId) {
-        mutableStateOf(state.lastSuccessfulAddRequestId?.value)
-    }
-
-    LaunchedEffect(state.lastSuccessfulAddRequestId) {
-        val requestId = state.lastSuccessfulAddRequestId ?: return@LaunchedEffect
-        if (handledSuccessfulAddRequestValue != requestId.value) {
-            showAddSheet = false
-            addInput = ""
-            addValidationFailed = false
-            handledSuccessfulAddRequestValue = requestId.value
-        }
-    }
-
-    LaunchedEffect(state.mutation) {
-        val mutation = state.mutation as? TransferMutation.Failed
-        val action = mutation?.action
-        if (action is TransferAction.Add) {
-            showAddSheet = true
-            if (addInput.isBlank()) addInput = action.submission.value
-        }
-    }
-
-    Button(
-        onClick = { showAddSheet = true },
-        enabled = enabled,
-    ) {
+    val input by draft.state.collectAsStateWithLifecycle()
+    val adding = (state.mutation as? TransferMutation.Running)?.action is TransferAction.Add
+    Button(onClick = draft::open, enabled = enabled) {
         Text(stringResource(R.string.mobile_transfers_add))
     }
-
-    if (showAddSheet) {
+    if (input.open) {
         val addFailure = (state.mutation as? TransferMutation.Failed)?.takeIf { it.action is TransferAction.Add }
-        val adding = (state.mutation as? TransferMutation.Running)?.action is TransferAction.Add
         MobileAddTransferSheet(
-            input = addInput,
-            validationFailed = addValidationFailed,
+            input = input.input,
+            validation = input.validation,
             failure = addFailure,
             adding = adding,
             onInputChanged = {
-                addInput = it
-                addValidationFailed = false
+                draft.edit(it)
                 if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
             },
             onDismiss = {
                 if (!adding) {
-                    showAddSheet = false
+                    draft.dismiss()
                     if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
                 }
             },
             onSubmit = {
-                val normalized = addInput.trim()
-                if (TransferSubmission.parse(normalized) != null) {
-                    addInput = normalized
+                if (!adding) draft.validate()?.let { normalized ->
                     if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
                     onEvent(TransfersEvent.Add(normalized))
-                } else {
-                    addValidationFailed = true
+                }
+            },
+        )
+    }
+    if (input.pendingReplacement) {
+        val mutationRunning = state.mutation is TransferMutation.Running
+        AlertDialog(
+            onDismissRequest = { if (!mutationRunning) draft.keepDraft() },
+            title = { Text(stringResource(R.string.mobile_share_replace_title)) },
+            text = { Text(stringResource(R.string.mobile_share_replace_message)) },
+            confirmButton = {
+                TextButton(onClick = draft::useSharedLink, enabled = !mutationRunning) {
+                    Text(stringResource(R.string.mobile_share_use_link))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = draft::keepDraft, enabled = !mutationRunning) {
+                    Text(stringResource(R.string.mobile_share_keep_draft))
                 }
             },
         )
@@ -478,7 +466,7 @@ private fun MobileAddTransfer(
 @Composable
 private fun MobileAddTransferSheet(
     input: String,
-    validationFailed: Boolean,
+    validation: MobileShareValidation?,
     failure: TransferMutation.Failed?,
     adding: Boolean,
     onInputChanged: (String) -> Unit,
@@ -505,12 +493,16 @@ private fun MobileAddTransferSheet(
                     .fillMaxWidth()
                     .testTag(MOBILE_TRANSFER_ADD_FIELD_TAG),
                 enabled = !adding,
-                isError = validationFailed || failure != null,
+                isError = validation != null || failure != null,
                 label = { Text(stringResource(R.string.mobile_transfers_add_label)) },
                 placeholder = { Text(stringResource(R.string.mobile_transfers_add_placeholder)) },
                 supportingText = {
                     when {
-                        validationFailed -> Text(stringResource(R.string.mobile_transfers_add_invalid))
+                        validation != null -> Text(stringResource(when (validation) {
+                            MobileShareValidation.InvalidLink -> R.string.mobile_transfers_add_invalid
+                            MobileShareValidation.MultipleLinks -> R.string.mobile_share_multiple_links
+                            MobileShareValidation.TooLong -> R.string.mobile_share_too_long
+                        }))
                         failure != null -> Text(stringResource(failure.failure.mobileMessageResource()))
                     }
                 },

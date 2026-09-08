@@ -18,6 +18,10 @@ class MainActivity : BasePutioActivity() {
         )
     }
 
+    internal val transferDraft: MobileTransferDraft by lazy {
+        ViewModelProvider(this)[MobileTransferDraft::class.java]
+    }
+
     private val pendingNowPlayingRequest = MutableStateFlow(false)
 
     /** Stays pending until the shell has acted on it, so a recreation mid-flight cannot lose it. */
@@ -31,6 +35,7 @@ class MainActivity : BasePutioActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
+        consumeShare(intent, savedInstanceState?.getBoolean(STATE_SHARE_CONSUMED) == true)
         if (shouldPublishLaunchIntent(intent, launch.launchIntentConsumed)) {
             launch.launchIntentConsumed = true
             pendingNowPlayingRequest.value = true
@@ -38,32 +43,44 @@ class MainActivity : BasePutioActivity() {
             pendingNowPlayingRequest.value = true
         }
         setContent {
-            PutioApp(authTabLauncher, nowPlayingRequests)
+            PutioApp(authTabLauncher, nowPlayingRequests, transferDraft)
         }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_NOW_PLAYING_PENDING, pendingNowPlayingRequest.value)
+        outState.putBoolean(STATE_SHARE_CONSUMED, launch.shareLaunchConsumed)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        consumeShare(intent, restoredConsumed = false, freshIntent = true)
         launch.launchIntentConsumed = true
         if (intent.isNowPlayingAction) pendingNowPlayingRequest.value = true
+    }
+
+    private fun consumeShare(intent: Intent?, restoredConsumed: Boolean, freshIntent: Boolean = false) {
+        val shared = intent?.consumeMobileSharedTransfer() ?: return
+        val consumed = if (freshIntent) false else launch.shareLaunchConsumed || restoredConsumed
+        launch.shareLaunchConsumed = true
+        val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (!consumed && !fromHistory) transferDraft.receive(shared)
     }
 
     @androidx.annotation.VisibleForTesting
     internal fun deliverIntentForTest(intent: Intent) = onNewIntent(intent)
 
     private companion object {
+        const val STATE_SHARE_CONSUMED = "shareLaunchConsumed"
         const val STATE_NOW_PLAYING_PENDING = "nowPlayingPending"
     }
 }
 
 internal class NowPlayingLaunchState : ViewModel() {
     var launchIntentConsumed = false
+    var shareLaunchConsumed = false
 }
 
 /** A request to open the live audio player; [acknowledge] clears it once handled. */
