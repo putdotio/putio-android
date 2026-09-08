@@ -9,6 +9,9 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -1002,7 +1005,14 @@ private fun TabletShell(
                     onFilesEvent = onFilesEvent,
                 )
             },
-            bottomBar = { MobileNowPlayingSlot(navController, playbackPlayerFactory) },
+            bottomBar = {
+                // The phone's NavigationBar pads for the system bar itself; here the bar is alone.
+                MobileNowPlayingSlot(
+                    navController,
+                    playbackPlayerFactory,
+                    modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars),
+                )
+            },
         ) { padding ->
             MobileNavHost(
                 navController = navController,
@@ -1091,10 +1101,12 @@ private fun MobileTopBar(
 private fun MobileNowPlayingSlot(
     navController: NavHostController,
     playerFactory: MobilePlayerFactory,
+    modifier: Modifier = Modifier,
 ) {
     val handle = rememberNowPlaying(playerFactory)
     val nowPlaying = handle.nowPlaying ?: return
     MobileNowPlayingBar(
+        modifier = modifier,
         nowPlaying = nowPlaying,
         onOpen = { navController.navigateToPlayback(nowPlaying.fileId, nowPlaying.title, PlaybackMediaType.AUDIO) },
         onToggle = handle::togglePlayback,

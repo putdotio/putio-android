@@ -28,6 +28,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.Player as Media3Player
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.files.FilesItemId
@@ -91,11 +94,17 @@ internal fun rememberNowPlaying(playerFactory: MobilePlayerFactory): NowPlayingH
         attached.addListener(listener)
         onDispose { attached.removeListener(listener) }
     }
-    LaunchedEffect(attached, nowPlaying?.isPlaying) {
+    // The composition survives a stopped Activity; the ticker must not.
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(attached, nowPlaying?.isPlaying, lifecycle) {
         val live = attached ?: return@LaunchedEffect
-        while (nowPlaying?.isPlaying == true) {
-            delay(NOW_PLAYING_PROGRESS_TICK_MILLIS)
+        if (nowPlaying?.isPlaying != true) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             nowPlaying = live.nowPlayingOrNull()
+            while (nowPlaying?.isPlaying == true) {
+                delay(NOW_PLAYING_PROGRESS_TICK_MILLIS)
+                nowPlaying = live.nowPlayingOrNull()
+            }
         }
     }
     return remember(attached, nowPlaying) { NowPlayingHandle(nowPlaying, attached) }

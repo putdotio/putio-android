@@ -1083,13 +1083,94 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun leavingTheShellDetachesFromTheSessionOnce() {
+        val session = ListenerCountingPlayer(RecordingPlayer())
+        var closed = 0
+        var showShell by mutableStateOf(true)
+        compose.setContent {
+            PutioTheme {
+                if (showShell) {
+                    MobileShell(
+                        playbackPlayerFactory = ShellSessionFactory(session) { closed += 1 },
+                        filesState = mediaFilesState(),
+                        accountSettingsState = readyAccountSettingsState(),
+                        appConfigState = readyAndroidAppConfigState(),
+                        account = Account,
+                        playbackRepository = EndingPlaybackRepository,
+                        sessionId = Session,
+                        onFilesEvent = { true },
+                        onAccountSettingsEvent = {},
+                        onPlaybackAuthenticationRequired = {},
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+        compose.runOnIdle {
+            assertEquals(1, session.attachedListeners)
+            assertEquals(0, closed)
+        }
+
+        compose.runOnIdle { showShell = false }
+
+        compose.runOnIdle {
+            assertEquals(0, session.attachedListeners)
+            assertEquals(1, closed)
+        }
+    }
+
+    @Test
+    fun leavingTheShellBeforeTheSessionAnswersStillCloses() {
+        var pending: ((Result<Media3Player>) -> Unit)? = null
+        var closed = 0
+        var showShell by mutableStateOf(true)
+        val lateFactory = object : MobilePlayerFactory {
+            override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Media3Player =
+                error("unused")
+
+            override fun connectAudio(
+                context: android.content.Context,
+                onResult: (Result<Media3Player>) -> Unit,
+            ): java.io.Closeable {
+                pending = onResult
+                return java.io.Closeable { closed += 1 }
+            }
+        }
+        compose.setContent {
+            PutioTheme {
+                if (showShell) {
+                    MobileShell(
+                        playbackPlayerFactory = lateFactory,
+                        filesState = mediaFilesState(),
+                        accountSettingsState = readyAccountSettingsState(),
+                        appConfigState = readyAndroidAppConfigState(),
+                        account = Account,
+                        playbackRepository = EndingPlaybackRepository,
+                        sessionId = Session,
+                        onFilesEvent = { true },
+                        onAccountSettingsEvent = {},
+                        onPlaybackAuthenticationRequired = {},
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+        compose.runOnIdle { showShell = false }
+        compose.runOnIdle { assertEquals(1, closed) }
+
+        val session = ListenerCountingPlayer(RecordingPlayer())
+        compose.runOnIdle { pending?.invoke(Result.success(session)) }
+        compose.runOnIdle { assertEquals(0, session.attachedListeners) }
+        compose.onAllNodesWithTag(MOBILE_NOW_PLAYING_TAG).assertCountEquals(0)
+    }
+
+    @Test
     fun nowPlayingBarFollowsTheAudioSession() {
         val session = RecordingPlayer()
-        var closed = 0
         compose.setPlaybackShell(
             filesState = mediaFilesState(),
             playbackRepository = EndingPlaybackRepository,
-            playbackPlayerFactory = ShellSessionFactory(session) { closed += 1 },
+            playbackPlayerFactory = ShellSessionFactory(session) {},
         )
 
         compose.onAllNodesWithTag(MOBILE_NOW_PLAYING_TAG).assertCountEquals(0)

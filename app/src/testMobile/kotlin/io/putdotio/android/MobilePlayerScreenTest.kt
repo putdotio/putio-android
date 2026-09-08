@@ -1726,6 +1726,25 @@ private class SessionPlayerFactory(
     }
 }
 
+/** Counts listeners around a session player; SimpleBasePlayer's own hooks are final. */
+@UnstableApi
+internal class ListenerCountingPlayer(
+    delegate: Media3Player,
+) : androidx.media3.common.ForwardingPlayer(delegate) {
+    var attachedListeners = 0
+        private set
+
+    override fun addListener(listener: Media3Player.Listener) {
+        attachedListeners += 1
+        super.addListener(listener)
+    }
+
+    override fun removeListener(listener: Media3Player.Listener) {
+        attachedListeners -= 1
+        super.removeListener(listener)
+    }
+}
+
 private class PlayerLifecycleOwner : LifecycleOwner {
     private val registry = LifecycleRegistry(this)
 
@@ -1750,6 +1769,7 @@ internal class RecordingPlayer(
 
     var mediaItemUpdates = 0
         private set
+
     var prepareCalls = 0
         private set
     var released = false
