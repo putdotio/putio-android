@@ -20,6 +20,7 @@ class MobileShareIntentsTest {
         for (input in listOf(
             "https://example.invalid/file?download_token=secret&signature=a%2Bb#section",
             "HTTP://example.invalid/a",
+            "https://example.invalid/file?token=abc.",
             "magnet:?xt=urn:btih:12345&dn=Episode%20one&tr=https%3A%2F%2Ftracker.invalid",
         )) {
             val parsed = parseMobileSharedTransfer("  $input \n")
@@ -64,6 +65,16 @@ class MobileShareIntentsTest {
             val invalid = parseMobileSharedTransfer(text)
             assertEquals(text, invalid.input)
             assertEquals(MobileShareValidation.InvalidLink, invalid.validation)
+        }
+    }
+
+    @Test
+    fun ambiguousSentencePunctuationKeepsTheOriginalEditableText() {
+        for (ending in listOf(".", ",", ";", ":", "!", "?", "'")) {
+            val text = "Download https://example.invalid/file?token=abc$ending"
+            val parsed = parseMobileSharedTransfer(text)
+            assertEquals(text, parsed.input)
+            assertEquals(MobileShareValidation.InvalidLink, parsed.validation)
         }
     }
 
