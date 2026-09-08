@@ -424,6 +424,7 @@ private fun MobileAddTransfer(
             validation = input.validation,
             failure = addFailure,
             adding = adding,
+            submitEnabled = enabled,
             onInputChanged = {
                 draft.edit(it)
                 if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
@@ -435,7 +436,7 @@ private fun MobileAddTransfer(
                 }
             },
             onSubmit = {
-                if (!adding) draft.validate()?.let { normalized ->
+                if (enabled) draft.validate()?.let { normalized ->
                     if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
                     onEvent(TransfersEvent.Add(normalized))
                 }
@@ -469,6 +470,7 @@ private fun MobileAddTransferSheet(
     validation: MobileShareValidation?,
     failure: TransferMutation.Failed?,
     adding: Boolean,
+    submitEnabled: Boolean,
     onInputChanged: (String) -> Unit,
     onDismiss: () -> Unit,
     onSubmit: () -> Unit,
@@ -507,7 +509,7 @@ private fun MobileAddTransferSheet(
                     }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { if (!adding) onSubmit() }),
+                keyboardActions = KeyboardActions(onDone = { if (submitEnabled) onSubmit() }),
                 minLines = 2,
                 maxLines = 4,
             )
@@ -522,7 +524,7 @@ private fun MobileAddTransferSheet(
                 val addingDescription = stringResource(R.string.mobile_transfers_adding)
                 Button(
                     onClick = onSubmit,
-                    enabled = !adding,
+                    enabled = submitEnabled,
                     modifier =
                         Modifier.semantics {
                             if (adding) {

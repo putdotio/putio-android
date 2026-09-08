@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
@@ -111,6 +112,35 @@ class MobileTransfersScreenTest {
         compose.onNodeWithText("Cancel").performClick()
         compose.onAllNodesWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertCountEquals(0)
         compose.runOnIdle { assertEquals(emptyList<TransfersEvent>(), events) }
+    }
+
+    @Test
+    fun sharedDraftWaitsForTheControllerToAcceptAnAdd() {
+        val draft = MobileTransferDraft()
+        draft.receive(parseMobileSharedTransfer("https://example.invalid/first"))
+        val events = mutableListOf<TransfersEvent>()
+        var current by mutableStateOf(state(TransfersContent.InitialLoading(TransfersRequestId(1))))
+        compose.setContent { PutioTheme { MobileTransfersScreen(current, events::add, draft = draft) } }
+        val blocked = listOf(
+            current,
+            state(TransfersContent.Empty).copy(
+                mutation = TransferMutation.Running(TransferAction.Clean, TransfersRequestId(2)),
+            ),
+            state(TransfersContent.Empty).copy(
+                navigation = TransferNavigation.Resolving(TransferFileId(3), TransfersRequestId(3)),
+            ),
+        )
+        for (pending in blocked) {
+            compose.runOnIdle { current = pending }
+            compose.onNodeWithText("Add").assertIsNotEnabled()
+            compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performImeAction()
+            compose.runOnIdle { assertEquals(emptyList<TransfersEvent>(), events) }
+        }
+        compose.runOnIdle { current = state(TransfersContent.Empty) }
+        compose.onNodeWithText("Add").assertIsEnabled().performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(TransfersEvent.Add("https://example.invalid/first")), events)
+        }
     }
 
     @Test
