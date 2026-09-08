@@ -46,16 +46,21 @@ internal fun interface MobilePlayerFactory {
     /** The file the audio session currently holds, or null when idle or unreachable. */
     suspend fun activeAudio(context: android.content.Context): ActiveAudio? =
         suspendCancellableCoroutine { continuation ->
+            // The callback may run before connectAudio returns, so whichever side finishes
+            // second closes the handle.
             var handle: Closeable? = null
+            var delivered = false
             handle = connectAudio(context) { result ->
                 val active = result.getOrNull()?.let { live ->
                     live.activeSessionFileId()?.let { id ->
                         ActiveAudio(FilesItemId(id), live.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty())
                     }
                 }
+                delivered = true
                 handle?.close()
                 if (continuation.isActive) continuation.resume(active)
             }
+            if (delivered) handle.close()
             continuation.invokeOnCancellation { handle.close() }
         }
 }
