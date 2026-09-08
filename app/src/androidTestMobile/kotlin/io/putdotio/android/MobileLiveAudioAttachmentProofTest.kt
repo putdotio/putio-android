@@ -202,7 +202,7 @@ class MobileLiveAudioAttachmentProofTest {
                 Surface(Modifier.fillMaxSize()) {
                     MobileShell(
                         filesState = FilesBrowserState(listOf(FilesFolderState(
-                            FilesFolder.Root, FilesContent.Ready(emptyList(), FilesPaging.Complete),
+                            FilesFolder.Root, FilesContent.Empty(FilesPaging.Complete),
                         )), 1),
                         accountSettingsState = AccountSettingsState(
                             AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
