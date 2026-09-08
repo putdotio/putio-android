@@ -8,7 +8,9 @@ import androidx.media3.common.C
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.common.util.UnstableApi
+import androidx.core.content.ContextCompat
 import androidx.media3.session.DefaultMediaNotificationProvider
+import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionToken
@@ -99,11 +101,26 @@ class MobilePlaybackService : MediaSessionService() {
 
         fun stop(context: Context) {
             val intent = Intent(context, MobilePlaybackService::class.java).setAction(ACTION_STOP)
-            // Starting a not-yet-running service just to stop it is pointless and, in the
-            // background, forbidden; a running one handles the command immediately.
+            // In the background a start command may be refused; a bind-only controller can
+            // still stop the player, and stopService then lets the unbound service die.
             runCatching { context.startService(intent) }.onFailure {
+                stopThroughController(context.applicationContext)
                 context.stopService(Intent(context, MobilePlaybackService::class.java))
             }
+        }
+
+        private fun stopThroughController(context: Context) {
+            val future = MediaController.Builder(context, sessionToken(context)).buildAsync()
+            future.addListener(
+                {
+                    runCatching { future.get() }.onSuccess {
+                        it.stop()
+                        it.clearMediaItems()
+                    }
+                    MediaController.releaseFuture(future)
+                },
+                ContextCompat.getMainExecutor(context),
+            )
         }
     }
 }
