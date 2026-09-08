@@ -1568,6 +1568,7 @@ class MobilePlayerScreenTest {
             assertEquals(41_000L, session.currentPosition)
             assertEquals(1.25f, session.playbackParameters.speed)
             assertNull(session.playerError)
+            session.pause()
             session.movePositionTo(46_000L)
             session.fail(PlaybackException("offline", null, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED))
         }
