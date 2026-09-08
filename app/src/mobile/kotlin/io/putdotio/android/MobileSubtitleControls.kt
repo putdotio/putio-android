@@ -101,7 +101,8 @@ internal fun MobileSubtitleControls(
     }
     if (!expanded) return
     val disabled = C.TRACK_TYPE_TEXT in parameters.disabledTrackTypes
-    val automatic = !disabled && parameters.overrides.values.none { it.type == C.TRACK_TYPE_TEXT }
+    val automatic = !disabled && parameters.selectTextByDefault &&
+        parameters.overrides.values.none { it.type == C.TRACK_TYPE_TEXT }
     val canSelect = commands.contains(Media3Player.COMMAND_SET_TRACK_SELECTION_PARAMETERS)
     ModalBottomSheet(
         onDismissRequest = ::dismiss,
@@ -121,14 +122,12 @@ internal fun MobileSubtitleControls(
                 selected = disabled,
                 enabled = canSelect,
                 onClick = { select(SubtitleSelection.Off) },
-                modifier = interactionModifier,
             )
             PlaybackOption(
                 label = stringResource(R.string.mobile_playback_audio_automatic),
                 selected = automatic,
                 enabled = canSelect,
                 onClick = { select(SubtitleSelection.Automatic) },
-                modifier = interactionModifier,
             )
             tracks.forEach { track ->
                 val selected = !disabled &&
@@ -136,7 +135,6 @@ internal fun MobileSubtitleControls(
                 MobileSubtitleTrackOption(
                     track = track.copy(selected = selected),
                     onClick = { select(SubtitleSelection.Track(track.identity)) },
-                    modifier = interactionModifier,
                     enabled = canSelect,
                 )
             }

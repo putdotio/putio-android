@@ -25,6 +25,7 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -116,6 +117,35 @@ class MobileSubtitleControlsTest {
             assertEquals(listOf(SubtitleSelection.Off, SubtitleSelection.Automatic), selections)
             assertEquals(listOf(true, false, true, false), visibility)
         }
+    }
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun forcedOnlyStartupDoesNotClaimAutomaticSelection() {
+        val player = RecordingPlayer()
+        val defaults = TrackSelectionParameters.Builder(
+            androidx.test.core.app.ApplicationProvider.getApplicationContext(),
+        ).build()
+        compose.runOnUiThread {
+            player.trackSelectionParameters = restoreSubtitleSelection(
+                defaults = defaults,
+                retained = null,
+                systemCaptionsEnabled = false,
+            )
+        }
+        compose.setContent {
+            PutioTheme {
+                MobileSubtitleControls(player, defaults, {}, {}, {}, {})
+            }
+        }
+        compose.onNodeWithContentDescription("Choose subtitles")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Subtitles off"))
+            .performClick()
+        compose.onNodeWithText("Off").assertIsNotSelected()
+        compose.onNodeWithText("Automatic").assertIsNotSelected().performClick()
+        compose.runOnIdle { assertTrue(player.trackSelectionParameters.selectTextByDefault) }
+        compose.onNodeWithContentDescription("Choose subtitles").performClick()
+        compose.onNodeWithText("Automatic").assertIsSelected()
     }
 
     @Test

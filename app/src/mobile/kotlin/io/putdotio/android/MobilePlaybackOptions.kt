@@ -159,7 +159,6 @@ internal fun MobilePlaybackOptions(
                             label = playbackSpeedLabel(choice),
                             selected = speed == choice,
                             enabled = canChangeSpeed,
-                            modifier = interactionModifier,
                             onClick = {
                                 player.setPlaybackSpeed(choice)
                                 dismiss()
@@ -172,7 +171,6 @@ internal fun MobilePlaybackOptions(
                         label = stringResource(R.string.mobile_playback_audio_automatic),
                         selected = automaticAudio,
                         enabled = canSelectAudio,
-                        modifier = interactionModifier,
                         onClick = {
                             onAudioSelectionChanged(AudioSelection.Automatic)
                             player.trackSelectionParameters = parameters.withAudioSelection(
@@ -187,7 +185,6 @@ internal fun MobilePlaybackOptions(
                             label = audioLabels[index],
                             selected = track.selected && track == selectedAudio,
                             enabled = canSelectAudio,
-                            modifier = interactionModifier,
                             onClick = {
                                 val selection = AudioSelection.Track(track.identity)
                                 onAudioSelectionChanged(selection)
