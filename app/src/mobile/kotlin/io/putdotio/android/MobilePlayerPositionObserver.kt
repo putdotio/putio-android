@@ -34,10 +34,12 @@ internal class MobilePlayerPositionObserver(
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (!playWhenReady) flush()
+            updateTicker()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Media3Player.STATE_ENDED || playbackState == Media3Player.STATE_IDLE) flush()
+            updateTicker()
         }
 
         override fun onPlayerError(error: PlaybackException) = flush()
@@ -84,7 +86,10 @@ internal class MobilePlayerPositionObserver(
     }
 
     private fun updateTicker() {
-        if (!player.isPlaying) {
+        // Buffering and transient suppression must not keep postponing the next sample.
+        if (!player.playWhenReady || player.playbackState == Media3Player.STATE_IDLE ||
+            player.playbackState == Media3Player.STATE_ENDED
+        ) {
             ticker?.cancel()
             ticker = null
         } else if (ticker?.isActive != true) {

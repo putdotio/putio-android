@@ -28,6 +28,30 @@ import org.robolectric.annotation.Config
 @OptIn(ExperimentalCoroutinesApi::class)
 class MobilePlayerPositionObserverTest {
     @Test
+    fun briefBufferingDoesNotPostponePeriodicReportsIndefinitely() = runTest {
+        val player = PositionPlayer()
+        player.replace("first", 10_000L)
+        player.play()
+        val snapshots = mutableListOf<Pair<String, Long>>()
+        val observer = MobilePlayerPositionObserver(player, backgroundScope) { lease, position ->
+            snapshots += lease to position
+        }
+        runCurrent()
+        repeat(3) { index ->
+            advanceTimeBy(4_000L)
+            player.buffer()
+            runCurrent()
+            advanceTimeBy(1_000L)
+            player.ready()
+            player.position(15_000L + index * 5_000L)
+            runCurrent()
+        }
+        assertEquals(listOf("first" to 25_000L), snapshots)
+        observer.close()
+        player.release()
+    }
+
+    @Test
     fun samplesEveryFifteenSecondsOnlyWhileActuallyPlaying() = runTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
@@ -190,6 +214,11 @@ private class PositionPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
 
     fun buffer() {
         state = state.buildUpon().setPlaybackState(Media3Player.STATE_BUFFERING).build()
+        invalidateState()
+    }
+
+    fun ready() {
+        state = state.buildUpon().setPlaybackState(Media3Player.STATE_READY).build()
         invalidateState()
     }
 
