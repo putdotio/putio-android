@@ -81,7 +81,7 @@ internal fun rememberNowPlaying(playerFactory: MobilePlayerFactory): NowPlayingH
         }
         onDispose {
             disposed = true
-            handle.close()
+            handle.closeQuietly()
             player = null
             nowPlaying = null
         }
