@@ -550,7 +550,7 @@ private fun MobileReadyPlayer(
                 override fun onTracksChanged(tracks: Tracks) {
                     resolveRetainedSubtitleSelection(tracks.mobileSubtitleTracks())
                     if (optionsInitialized) {
-                        val parameters = player.trackSelectionParameters.withAudioSelection(
+                        val parameters = player.trackSelectionParameters.withRetainedAudioSelection(
                             currentPreferences.value.audioSelection,
                             tracks.mobileAudioTracks(),
                         )

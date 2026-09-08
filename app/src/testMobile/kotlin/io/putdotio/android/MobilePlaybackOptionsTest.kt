@@ -159,6 +159,42 @@ class MobilePlaybackOptionsTest {
     }
 
     @Test
+    fun concreteAudioChoiceWorksWhenAllFormatMetadataMatches() {
+        val format = Format.Builder()
+            .setId("duplicate")
+            .setLabel("English")
+            .setSampleMimeType(MimeTypes.AUDIO_AAC)
+            .build()
+        val player = OptionsPlayer(audioGroup = TrackGroup(format, format))
+        var selection: AudioSelection = AudioSelection.Automatic
+        compose.setContent {
+            PutioTheme { MobilePlaybackOptions(player, { selection = it }, {}, {}, {}) }
+        }
+
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        compose.onNodeWithText("Audio track").performClick()
+        compose.onNodeWithText("English (track 2)").performClick()
+        compose.runOnIdle {
+            player.trackSelectionParameters = player.trackSelectionParameters.withRetainedAudioSelection(
+                selection,
+                player.currentTracks.mobileAudioTracks(),
+            )
+            assertEquals(listOf(1), player.trackSelectionParameters.overrides.getValue(player.audio).trackIndices)
+            assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
+        }
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        compose.onNodeWithText("English (track 2)").assertIsDisplayed()
+        compose.onNodeWithText("Audio track").performClick()
+        compose.onNodeWithText("English (track 2)").assertIsSelected()
+        compose.onNodeWithText("English (track 1)").assertIsNotSelected()
+        compose.onNodeWithText("English (track 1)").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(0), player.trackSelectionParameters.overrides.getValue(player.audio).trackIndices)
+            assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
+        }
+    }
+
+    @Test
     fun unavailableCommandsDisableSpeedAndAudioChoices() {
         val player = OptionsPlayer(canChangeOptions = false)
         compose.setContent {

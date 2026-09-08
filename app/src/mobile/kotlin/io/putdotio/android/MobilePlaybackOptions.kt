@@ -191,7 +191,7 @@ internal fun MobilePlaybackOptions(
                             onClick = {
                                 val selection = AudioSelection.Track(track.identity)
                                 onAudioSelectionChanged(selection)
-                                player.trackSelectionParameters = parameters.withAudioSelection(selection, tracks)
+                                player.trackSelectionParameters = parameters.withAudioTrack(track)
                                 dismiss()
                             },
                         )

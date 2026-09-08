@@ -1,5 +1,7 @@
 package io.putdotio.android
 
+import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +31,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -39,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -297,9 +301,15 @@ internal fun MobileProgressSlider(player: Player, onScrub: () -> Unit = {}) {
     var dragging by remember(player) { mutableStateOf(false) }
     var position by remember(player) { mutableFloatStateOf(0f) }
     val interactions = remember { MutableInteractionSource() }
+    LaunchedEffect(interactions) {
+        interactions.interactions.collect { interaction ->
+            if (interaction is DragInteraction.Cancel || interaction is PressInteraction.Cancel) dragging = false
+        }
+    }
     val colors = SliderDefaults.colors(inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant)
     val label = stringResource(R.string.mobile_playback_position)
     ProgressIndicator(player, totalTickCount = width) {
+        LaunchedEffect(changingProgressEnabled, durationMs) { dragging = false }
         val progress = if (dragging) position else currentPositionProgress
         val description = stringResource(
             R.string.mobile_playback_position_value,
@@ -319,6 +329,7 @@ internal fun MobileProgressSlider(player: Player, onScrub: () -> Unit = {}) {
             },
             enabled = changingProgressEnabled,
             modifier = Modifier.fillMaxWidth().onSizeChanged { width = it.width }
+                .onFocusChanged { if (!it.hasFocus) dragging = false }
                 .testTag("mobile-player-timeline")
                 .semantics {
                     contentDescription = label

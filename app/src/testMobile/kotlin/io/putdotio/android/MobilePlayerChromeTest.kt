@@ -2,12 +2,18 @@ package io.putdotio.android
 
 import android.view.KeyEvent as AndroidKeyEvent
 import android.view.View
+import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
@@ -91,6 +97,68 @@ class MobilePlayerChromeTest {
             assertEquals(1, player.seekPositions.size)
             assertTrue(player.seekPositions.single() in 30_001L..60_000L)
             assertEquals(1, scrubs)
+        }
+    }
+
+    @Test
+    fun focusLossDiscardsKeyboardPreviewAndOrphanReleaseDoesNotSeek() {
+        val player = readyPlayer()
+        lateinit var inputMode: InputModeManager
+        lateinit var focusManager: FocusManager
+        compose.setContent {
+            inputMode = LocalInputModeManager.current
+            focusManager = LocalFocusManager.current
+            PutioTheme { MobileProgressSlider(player) }
+        }
+        focusTimeline { inputMode }
+        compose.onNodeWithTag(TIMELINE_TAG).performKeyInput { keyDown(Key.DirectionRight) }
+        compose.runOnIdle {
+            assertTrue(player.seekPositions.isEmpty())
+            focusManager.clearFocus(force = true)
+            player.movePositionTo(45_000L)
+        }
+        compose.onNodeWithTag(TIMELINE_TAG)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "00:45 of 01:00"))
+        focusTimeline { inputMode }
+        compose.onNodeWithTag(TIMELINE_TAG).performKeyInput { keyUp(Key.DirectionRight) }
+        compose.runOnIdle {
+            assertTrue(player.seekPositions.isEmpty())
+            assertEquals(45_000L, player.currentPosition)
+        }
+    }
+
+    @Test
+    fun cancelledPointerDragDiscardsPreviewAndNextAdjustmentStartsAtLivePosition() {
+        val player = readyPlayer()
+        var scrubs = 0
+        lateinit var inputMode: InputModeManager
+        compose.setContent {
+            inputMode = LocalInputModeManager.current
+            PutioTheme { MobileProgressSlider(player, onScrub = { scrubs += 1 }) }
+        }
+        compose.onNodeWithTag(TIMELINE_TAG).performTouchInput {
+            down(center)
+            moveTo(Offset(width * 0.2f, center.y))
+        }
+        compose.runOnIdle {
+            assertTrue(scrubs > 0)
+            assertTrue(player.seekPositions.isEmpty())
+        }
+        compose.onNodeWithTag(TIMELINE_TAG).performTouchInput { cancel() }
+        compose.runOnIdle {
+            assertTrue(player.seekPositions.isEmpty())
+            player.movePositionTo(45_000L)
+        }
+        compose.onNodeWithTag(TIMELINE_TAG)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "00:45 of 01:00"))
+        focusTimeline { inputMode }
+        compose.onNodeWithTag(TIMELINE_TAG).performKeyInput {
+            keyDown(Key.DirectionRight)
+            keyUp(Key.DirectionRight)
+        }
+        compose.runOnIdle {
+            assertEquals(1, player.seekPositions.size)
+            assertTrue(player.seekPositions.single() in 45_001L..60_000L)
         }
     }
 

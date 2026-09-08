@@ -101,6 +101,31 @@ internal fun TrackSelectionParameters.withAudioSelection(
     return builder.build()
 }
 
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun TrackSelectionParameters.withAudioTrack(track: MobileAudioTrack): TrackSelectionParameters =
+    buildUpon()
+        .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+        .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+        .setOverrideForType(TrackSelectionOverride(track.group, track.trackIndex))
+        .build()
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun TrackSelectionParameters.withRetainedAudioSelection(
+    selection: AudioSelection,
+    tracks: List<MobileAudioTrack>,
+): TrackSelectionParameters {
+    val liveTrack = tracks.singleOrNull { track ->
+        overrides[track.group]?.trackIndices == listOf(track.trackIndex)
+    }
+    // The live override identifies a concrete row even when format metadata collides.
+    // Fresh preparation clears it before retained identities resolve against new tracks.
+    return if (selection is AudioSelection.Track && liveTrack != null && liveTrack.identity == selection.identity) {
+        withAudioTrack(liveTrack)
+    } else {
+        withAudioSelection(selection, tracks)
+    }
+}
+
 internal fun AudioSelection.toBundle(): Bundle =
     Bundle().apply {
         when (this@toBundle) {

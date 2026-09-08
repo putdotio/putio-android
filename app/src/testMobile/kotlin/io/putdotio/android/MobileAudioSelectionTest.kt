@@ -143,6 +143,35 @@ class MobileAudioSelectionTest {
     }
 
     @Test
+    fun concreteDuplicateTrackSurvivesLiveUpdatesButNotAmbiguousRecreation() {
+        val format = audioFormat("audio", "en")
+        val audio = TrackGroup(format, format)
+        val text = TrackGroup(Format.Builder().setSampleMimeType(MimeTypes.TEXT_VTT).build())
+        val subtitle = TrackSelectionOverride(text, 0)
+        val defaults = TrackSelectionParameters.Builder().setOverrideForType(subtitle).build()
+        val first = track(audio, 0)
+        val second = track(audio, 1)
+        val selection = AudioSelection.Track(second.identity)
+
+        val selected = defaults.withAudioTrack(second)
+        val updated = selected.withRetainedAudioSelection(selection, listOf(first, second))
+
+        assertEquals(listOf(1), selected.overrides.getValue(audio).trackIndices)
+        assertEquals(selected, updated)
+        assertEquals(subtitle, updated.overrides[text])
+
+        val replacement = TrackGroup(format.buildUpon().build(), format.buildUpon().build())
+        val prepared = updated.withAudioSelection(selection, emptyList())
+        val recreated = prepared.withRetainedAudioSelection(
+            requireNotNull(selection.toBundle().toAudioSelection()),
+            listOf(track(replacement, 0), track(replacement, 1)),
+        )
+
+        assertEquals(mapOf(text to subtitle), recreated.overrides)
+        assertFalse(C.TRACK_TYPE_AUDIO in recreated.disabledTrackTypes)
+    }
+
+    @Test
     fun bundleRoundTripPreservesAutomaticAndTrackIdentity() {
         val format = audioFormat("audio", "en").buildUpon()
             .setLabel("Commentary")
