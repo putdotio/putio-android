@@ -58,12 +58,14 @@ class MobileTransferDraftTest {
         draft.keepDraft()
         assertEquals(Edited, draft.state.value.input)
         assertFalse(draft.state.value.pendingReplacement)
+        assertNull(draft.state.value.incomingRequestId)
         draft.receive(parseMobileSharedTransfer(First))
         draft.receive(parseMobileSharedTransfer(Second))
         draft.useSharedLink()
         assertEquals(Second, draft.state.value.input)
         assertFalse(draft.state.value.pendingReplacement)
         assertTrue(draft.state.value.open)
+        assertNull(draft.state.value.incomingRequestId)
     }
 
     @Test
