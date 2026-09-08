@@ -150,6 +150,7 @@ internal fun MobilePlayerScreen(
                     title = state.target.name,
                     mediaType = state.target.mediaType,
                     sessionPlayer = sessionPlayer,
+                    preferences = preferences,
                     sessionHandled = preferences.sessionHandled,
                     onSessionHandled = { preferences.sessionHandled = true },
                     startPositionMillis = preferences.positionMillis ?: state.resumePositionMillis,
@@ -236,6 +237,7 @@ private fun MobileReadyPlayer(
     title: String,
     mediaType: PlaybackMediaType,
     sessionPlayer: Media3Player?,
+    preferences: RetainedPlayerPreferences,
     sessionHandled: Boolean,
     onSessionHandled: () -> Unit,
     startPositionMillis: Long?,
@@ -280,6 +282,7 @@ private fun MobileReadyPlayer(
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
     val currentRetainedSubtitleSelection = rememberUpdatedState(retainedSubtitleSelection)
+    val currentPreferences = rememberUpdatedState(preferences)
     // A session player outlives this screen: it is never paused, released, or recreated here.
     val ownsPlayer = sessionPlayer == null
     val player = remember(context, lifecycle, playerFactory, playerGeneration, mediaType, sessionPlayer) {
@@ -292,6 +295,7 @@ private fun MobileReadyPlayer(
     var activeFileId by remember(player) {
         mutableStateOf(if (sessionHandled) player.activeSessionFileId() else player.resumableSessionFileId())
     }
+    var optionsInitialized by remember(player) { mutableStateOf(false) }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
@@ -342,6 +346,8 @@ private fun MobileReadyPlayer(
         val replacingFileId = activeFileId
         if (!ownsPlayer) onSessionHandled()
         if (!ownsPlayer && replacingFileId == source.fileId) {
+            preferences.adoptPlaybackOptions(player)
+            optionsInitialized = true
             // Returning to audio that kept playing: adopt the live position instead of restarting.
             val livePosition = player.currentPosition.coerceAtLeast(0L)
             retainedPositionMillis = livePosition
@@ -369,6 +375,12 @@ private fun MobileReadyPlayer(
                 )
         }
         activeFileId = source.fileId
+        player.setPlaybackSpeed(preferences.playbackSpeed)
+        player.trackSelectionParameters = player.trackSelectionParameters.withAudioSelection(
+            preferences.audioSelection,
+            emptyList(),
+        )
+        optionsInitialized = true
         player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
         player.prepare()
         seekWindow = player.currentSeekWindow()
@@ -538,6 +550,17 @@ private fun MobileReadyPlayer(
 
                 override fun onTracksChanged(tracks: Tracks) {
                     resolveRetainedSubtitleSelection(tracks.mobileSubtitleTracks())
+                    if (optionsInitialized) {
+                        val parameters = player.trackSelectionParameters.withAudioSelection(
+                            currentPreferences.value.audioSelection,
+                            tracks.mobileAudioTracks(),
+                        )
+                        if (parameters != player.trackSelectionParameters) player.trackSelectionParameters = parameters
+                    }
+                }
+
+                override fun onPlaybackParametersChanged(parameters: androidx.media3.common.PlaybackParameters) {
+                    if (optionsInitialized) currentPreferences.value.playbackSpeed = parameters.speed
                 }
 
                 override fun onPlaybackStateChanged(newPlaybackState: Int) {
@@ -718,16 +741,27 @@ private fun MobileReadyPlayer(
                         .windowInsetsPadding(WindowInsets.safeDrawing)
                         .padding(8.dp),
             ) {
-                if (source.hasSelectableSubtitles() && it != null) {
-                    MobileSubtitleControls(
+                if (it != null) Column(
+                    modifier = Modifier.align(Alignment.TopEnd).padding(start = 48.dp),
+                    horizontalAlignment = Alignment.End,
+                ) {
+                    MobilePlaybackOptions(
                         player = it,
-                        defaultTrackSelection = defaultTrackSelection,
-                        onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+                        onAudioSelectionChanged = { preferences.audioSelection = it },
                         onMenuVisibilityChanged = { controlsMenuOpen = it },
                         onKeyboardNavigation = onKeyboardNavigation,
                         onPointerNavigation = onPointerNavigation,
-                        modifier = Modifier.align(Alignment.TopEnd),
                     )
+                    if (source.hasSelectableSubtitles()) {
+                        MobileSubtitleControls(
+                            player = it,
+                            defaultTrackSelection = defaultTrackSelection,
+                            onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+                            onMenuVisibilityChanged = { controlsMenuOpen = it },
+                            onKeyboardNavigation = onKeyboardNavigation,
+                            onPointerNavigation = onPointerNavigation,
+                        )
+                    }
                 }
             }
         }

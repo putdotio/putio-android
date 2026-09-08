@@ -22,6 +22,10 @@ Mobile, on the emulator harness against the live API:
 - Transfers and search
 - Video playback with subtitles, 10-second touch seek, autoplay next, and
   configurable HLS or MP4
+- Audio playback in the background with system media controls and a now-playing bar
+- Playback options for audio and video: 0.75×, 1×, 1.25×, 1.5×, and 2× speed,
+  plus audio-track selection when multiple supported tracks are available.
+  Choices survive player recreation; unavailable audio tracks fall back to automatic selection
 - Account settings: subtitles, history, Trash, resume playback, proxy route,
   and default sort order, each saved to the account and shared across devices
 - Privacy controls for the support chat widget, shared across put.io apps,

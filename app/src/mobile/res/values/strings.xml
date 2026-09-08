@@ -1,4 +1,10 @@
 <resources>
+    <string name="mobile_playback_options">Playback options</string>
+    <string name="mobile_playback_speed">Playback speed</string>
+    <string name="mobile_playback_speed_value">%1$s×</string>
+    <string name="mobile_playback_audio_track">Audio track</string>
+    <string name="mobile_playback_audio_automatic">Automatic</string>
+    <string name="mobile_playback_audio_track_number">Audio track %1$d</string>
     <string name="mobile_navigation_blocked">This item cannot be opened right now. Check Files, then try again.</string>
     <string name="mobile_files_move">Move</string>
     <string name="mobile_files_move_here">Move here</string>

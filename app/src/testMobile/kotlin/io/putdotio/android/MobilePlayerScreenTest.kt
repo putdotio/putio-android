@@ -1852,6 +1852,14 @@ internal class RecordingPlayer(
         return Futures.immediateVoidFuture()
     }
 
+    override fun handleSetPlaybackParameters(
+        playbackParameters: androidx.media3.common.PlaybackParameters,
+    ): ListenableFuture<*> {
+        state = state.buildUpon().setPlaybackParameters(playbackParameters).build()
+        invalidateState()
+        return Futures.immediateVoidFuture()
+    }
+
     override fun handleSetTrackSelectionParameters(
         trackSelectionParameters: TrackSelectionParameters,
     ): ListenableFuture<*> {
