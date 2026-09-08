@@ -114,24 +114,29 @@ internal fun rememberNowPlaying(playerFactory: MobilePlayerFactory): NowPlayingH
             }
         }
     }
-    return remember(attached, nowPlaying) { NowPlayingHandle(nowPlaying, attached) }
+    return remember(attached, nowPlaying) {
+        NowPlayingHandle(nowPlaying, attached) { playerFactory.stopAudio(context.applicationContext) }
+    }
 }
 
 internal class NowPlayingHandle(
     val nowPlaying: NowPlaying?,
     private val player: Media3Player?,
+    private val stopService: () -> Unit,
 ) {
     fun togglePlayback() {
         val live = player ?: return
         if (live.playWhenReady) live.pause() else live.play()
     }
 
-    // Stopping drops the item and its position; the file's server-side start_from still applies next time.
+    // Stopping drops the item and its position; the file's server-side start_from still applies
+    // next time. The service is stopped too, so nothing outlives the dismissal.
     fun dismiss() {
         player?.let {
             it.stop()
             it.clearMediaItems()
         }
+        stopService()
     }
 }
 

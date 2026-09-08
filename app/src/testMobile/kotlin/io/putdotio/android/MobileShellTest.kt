@@ -1225,10 +1225,11 @@ class MobileShellPlaybackTest {
     @Test
     fun nowPlayingBarFollowsTheAudioSession() {
         val session = RecordingPlayer()
+        val factory = ShellSessionFactory(session) {}
         compose.setPlaybackShell(
             filesState = mediaFilesState(),
             playbackRepository = EndingPlaybackRepository,
-            playbackPlayerFactory = ShellSessionFactory(session) {},
+            playbackPlayerFactory = factory,
         )
 
         compose.onAllNodesWithTag(MOBILE_NOW_PLAYING_TAG).assertCountEquals(0)
@@ -1268,6 +1269,7 @@ class MobileShellPlaybackTest {
         compose.runOnIdle {
             assertEquals(0, session.mediaItemCount)
             assertFalse(session.released)
+            assertEquals(1, factory.audioStops)
         }
     }
 
@@ -1433,8 +1435,14 @@ private class ShellSessionFactory(
     private val session: Media3Player,
     private val onClose: () -> Unit,
 ) : MobilePlayerFactory {
+    var audioStops = 0
+
     override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Media3Player =
         error("audio must attach to the session")
+
+    override fun stopAudio(context: android.content.Context) {
+        audioStops += 1
+    }
 
     override fun connectAudio(
         context: android.content.Context,
