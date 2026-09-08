@@ -126,7 +126,8 @@ class MobilePlaybackOptionsTest {
             .build()
         val first = audioFormat("first")
         val second = audioFormat("second")
-        val player = OptionsPlayer(audioGroup = TrackGroup(first, second))
+        val third = audioFormat("third").buildUpon().setLabel("$label (track 1)").build()
+        val player = OptionsPlayer(audioGroup = TrackGroup(first, second, third))
         var selection: AudioSelection = AudioSelection.Automatic
         compose.setContent {
             PutioTheme { MobilePlaybackOptions(player, { selection = it }, {}, {}, {}) }
@@ -135,6 +136,7 @@ class MobilePlaybackOptionsTest {
         compose.onNodeWithContentDescription("Playback options").performClick()
         compose.onNodeWithText("Audio track").performClick()
         compose.onNodeWithText("$label (track 1)").assertIsNotSelected()
+        compose.onNodeWithText("$label (track 1) (track 3)").assertIsNotSelected()
         compose.onNodeWithText("$label (track 2)").assertIsNotSelected().performClick()
         compose.onNodeWithContentDescription("Playback options").performClick()
         compose.onNodeWithText("$label (track 2)").assertIsDisplayed()

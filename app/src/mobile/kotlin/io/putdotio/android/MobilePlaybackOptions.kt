@@ -207,10 +207,10 @@ private fun audioOptionLabels(tracks: List<MobileAudioTrack>): List<String> {
     val labels = tracks.mapIndexed { index, track ->
         track.label ?: stringResource(R.string.mobile_playback_audio_track_number, index + 1)
     }
-    val counts = labels.groupingBy { it }.eachCount()
     val automatic = stringResource(R.string.mobile_playback_audio_automatic)
+    val needsNumbers = labels.distinct().size != labels.size || automatic in labels
     return labels.mapIndexed { index, label ->
-        if (counts.getValue(label) > 1 || label == automatic) {
+        if (needsNumbers) {
             stringResource(R.string.mobile_playback_audio_track_disambiguated, label, index + 1)
         } else {
             label
