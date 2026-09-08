@@ -42,8 +42,8 @@ internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
     if (!text.fitsMobileTransferInputLimit()) return MobileSharedTransfer("", MobileShareValidation.TooLong)
     val trimmed = text.trim()
     if (TransferSubmission.parse(trimmed) != null) return MobileSharedTransfer(trimmed)
-    val links = SharedLink.findAll(trimmed)
-        .map { match -> match.value }
+    val links = trimmed.splitToSequence(SharedWhitespace)
+        .filter { it.contains("://") || it.startsWith("magnet:", ignoreCase = true) }
         .distinct()
         .take(2)
         .toList()
@@ -63,4 +63,4 @@ internal fun CharSequence.fitsMobileTransferInputLimit(): Boolean =
 
 internal const val MOBILE_TRANSFER_INPUT_LIMIT = 16 * 1024
 private const val AmbiguousProseEndings = ".,;:!?')]}”’"
-private val SharedLink = Regex("(?:https?://|magnet:\\?)[^\\s<>\\\"]+", RegexOption.IGNORE_CASE)
+private val SharedWhitespace = Regex("\\s+")

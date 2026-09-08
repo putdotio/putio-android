@@ -32,11 +32,10 @@ class MobileShareIntentsTest {
     }
 
     @Test
-    fun oneLinkInSurroundingTextIsExtractedWithoutLosingBalancedUrlCharacters() {
+    fun standaloneLinkInSharedTextIsExtractedWithoutChangingItsCharacters() {
         for ((text, expected) in listOf(
             "Episode title\nhttps://example.invalid/episode\nSent from a browser" to "https://example.invalid/episode",
             "Download https://example.invalid/file?token=abc'def now" to "https://example.invalid/file?token=abc'def",
-            "Watch <https://example.invalid/episode>" to "https://example.invalid/episode",
             "Download magnet:?xt=urn:btih:12345&dn=hello%20world now" to "magnet:?xt=urn:btih:12345&dn=hello%20world",
             "https://example.invalid/file\nAgain: https://example.invalid/file" to "https://example.invalid/file",
         )) {
@@ -77,6 +76,7 @@ class MobileShareIntentsTest {
     @Test
     fun surroundingWrappersNeverCauseUrlCharactersToBeStripped() {
         for (text in listOf(
+            "Watch <https://example.invalid/episode>",
             "Watch (https://example.invalid/episode)",
             "Watch [(https://example.invalid/episode)]",
             "Watch {[(https://example.invalid/episode_(part_1))]}",
@@ -89,6 +89,21 @@ class MobileShareIntentsTest {
         val exact = "https://example.invalid/file?signature=abc)"
         assertEquals(exact, parseMobileSharedTransfer(exact).input)
         assertNull(parseMobileSharedTransfer(exact).validation)
+    }
+
+    @Test
+    fun nestedUrlsAndInvalidCharactersNeverBecomeADifferentValidLink() {
+        for (text in listOf(
+            "Download https://example.invalid/file?signature=abc\"def now",
+            "Download https://example.invalid/file?signature=abc<def now",
+            "Download https://example.invalid/file?signature=abc>def now",
+            "Download ftp://example.invalid/file?redirect=https://example.invalid/other now",
+            "Download redirect=https://example.invalid/file now",
+        )) {
+            val parsed = parseMobileSharedTransfer(text)
+            assertEquals(text, parsed.input)
+            assertEquals(MobileShareValidation.InvalidLink, parsed.validation)
+        }
     }
 
     @Test
