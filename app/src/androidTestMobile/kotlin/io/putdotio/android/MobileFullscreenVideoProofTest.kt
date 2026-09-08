@@ -108,7 +108,7 @@ class MobileFullscreenVideoProofTest {
             showControls()
             compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
             screenshot("landscape-direct-controls")
-            compose.onNodeWithContentDescription("Playback speed", substring = true).performTouchInput { click() }
+            compose.onNodeWithText("Speed (1×)").performTouchInput { click() }
             screenshot("landscape-speed-sheet")
             compose.onNodeWithText("1.5×").performScrollTo().performTouchInput { click() }
             val audio = compose.runOnIdle { factory.current().currentTracks.mobileAudioTracks()[1] }
@@ -176,7 +176,7 @@ class MobileFullscreenVideoProofTest {
         }
         compose.onNodeWithText("Audio").assertIsDisplayed()
         compose.onNodeWithText("Captions").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Playback speed", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Speed (", substring = true).assertIsDisplayed()
     }
 
     private fun awaitVideo(factory: FullscreenProofPlayerFactory) {

@@ -939,7 +939,7 @@ class MobileShellTransfersTest {
             }
         }
         compose.onNodeWithText("Transfers").performClick()
-        compose.onNodeWithText("Open file").assertIsEnabled().performClick()
+        compose.onNodeWithContentDescription("Open Completed transfer").assertIsEnabled().performClick()
         compose.runOnIdle {
             assertTrue("Expected OpenFailed; events=$events", events.any { it is TransfersEvent.OpenFailed })
         }
@@ -952,9 +952,9 @@ class MobileShellTransfersTest {
         compose.onNodeWithText("OK").performClick()
         compose.onNode(hasText("Transfers") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
         compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsNotSelected()
-        compose.onNodeWithText("Open file").assertIsEnabled()
+        compose.onNodeWithContentDescription("Open Completed transfer").assertIsEnabled()
         compose.runOnIdle { files = videoFilesState() }
-        compose.onNodeWithText("Open file").performClick()
+        compose.onNodeWithContentDescription("Open Completed transfer").performClick()
         compose.runOnIdle {
             assertTrue("Expected OpenSucceeded; events=$events", events.any { it is TransfersEvent.OpenSucceeded })
         }

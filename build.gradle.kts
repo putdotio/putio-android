@@ -35,6 +35,12 @@ val testIconPipeline = tasks.register<Exec>("testIconPipeline") {
     commandLine("python3", "scripts/test_phosphor_icons.py")
 }
 
+val testTalkBackInput = tasks.register<Exec>("testTalkBackInput") {
+    group = "verification"
+    description = "Test the TalkBack emulator input protocol"
+    commandLine("python3", "-B", "scripts/test_talkback_input.py")
+}
+
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
@@ -47,5 +53,6 @@ tasks.register("verify") {
         testEvidence,
         testIconPipeline,
         testPublishEvidence,
+        testTalkBackInput,
     )
 }

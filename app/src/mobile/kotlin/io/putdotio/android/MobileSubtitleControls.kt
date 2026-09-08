@@ -95,7 +95,7 @@ internal fun MobileSubtitleControls(
     )
     val triggerModifier = modifier.then(interactionModifier).heightIn(min = 48.dp).semantics {
         stateDescription = description
-        contentDescription = chooseDescription
+        if (!showLabel) contentDescription = chooseDescription
     }
     fun open() {
         expanded = true

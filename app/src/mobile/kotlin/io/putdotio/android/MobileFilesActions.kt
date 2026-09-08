@@ -169,46 +169,48 @@ internal fun MobileFilesActions(
         )
     } else {
         ModalBottomSheet(onDismissRequest = dismiss) {
-            Text(
-                text = item.name,
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-            )
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.mobile_files_rename)) },
-                modifier = Modifier
-                    .clickable(enabled = operation.canStartOperation) { editing = true },
-            )
-            if (onMoveItem != null) {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = item.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                )
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.mobile_files_move)) },
-                    modifier = Modifier.clickable(enabled = item.id.value > 0L && operation.canStartOperation) {
-                        onMoveItem(item)
-                        dismiss()
+                    headlineContent = { Text(stringResource(R.string.mobile_files_rename)) },
+                    modifier = Modifier
+                        .clickable(enabled = operation.canStartOperation) { editing = true },
+                )
+                if (onMoveItem != null) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.mobile_files_move)) },
+                        modifier = Modifier.clickable(enabled = item.id.value > 0L && operation.canStartOperation) {
+                            onMoveItem(item)
+                            dismiss()
+                        },
+                    )
+                }
+                HorizontalDivider()
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            stringResource(if (confirmedTrashEnabled == true) R.string.mobile_files_trash else R.string.mobile_files_delete),
+                            color = MaterialTheme.colorScheme.error,
+                        )
                     },
+                    supportingContent = if (confirmedTrashEnabled == null) {
+                        { Text(stringResource(R.string.mobile_files_delete_settings_unknown)) }
+                    } else {
+                        null
+                    },
+                    modifier = Modifier
+                        .clickable(enabled = confirmedTrashEnabled != null && item.id.value > 0L && operation.canStartOperation) {
+                            confirmedDeleteTrash = currentTrashEnabled
+                        }
+                        .padding(bottom = 24.dp),
                 )
             }
-            HorizontalDivider()
-            ListItem(
-                headlineContent = {
-                    Text(
-                        stringResource(if (confirmedTrashEnabled == true) R.string.mobile_files_trash else R.string.mobile_files_delete),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                },
-                supportingContent = if (confirmedTrashEnabled == null) {
-                    { Text(stringResource(R.string.mobile_files_delete_settings_unknown)) }
-                } else {
-                    null
-                },
-                modifier = Modifier
-                    .clickable(enabled = confirmedTrashEnabled != null && item.id.value > 0L && operation.canStartOperation) {
-                        confirmedDeleteTrash = currentTrashEnabled
-                    }
-                    .padding(bottom = 24.dp),
-            )
         }
     }
 }

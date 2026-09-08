@@ -2,12 +2,14 @@ package io.putdotio.android
 
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -37,6 +39,27 @@ class MobileTrashLayoutTest {
     @get:Rule val rules: RuleChain = RuleChain.outerRule(object : ExternalResource() {
         override fun before() { RuntimeEnvironment.setFontScale(2f) }
     }).around(compose)
+
+    @Test
+    fun landscapeItemSheetKeepsRestoreAndDeleteReachableAtDoubleFontScale() {
+        val item = TrashItem(FilesItemId(7), FilesItemId(8), "Archive 東京 été ".repeat(16), PutioFileType.FOLDER, 0)
+        val events = mutableListOf<TrashEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileTrashItemSheet(
+                    item, TrashState(content = TrashContent.Loaded(listOf(item), null, 1, 0)), events::add, {},
+                )
+            }
+        }
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.Expand) { assertTrue(it()) }
+        compose.onNodeWithTag(MOBILE_TRASH_ITEM_DELETE_TAG).performScrollTo()
+        compose.onNodeWithTag(MOBILE_TRASH_ITEM_DELETE_TAG).assertIsDisplayed().performClick()
+        compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performScrollTo().assertIsDisplayed().performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(TrashEvent.SelectDelete(item.id), TrashEvent.SelectRestore(item.id)), events)
+        }
+    }
 
     @Test
     fun landscapeConfirmationKeepsBothActionsAtRealTwoHundredPercentFont() = assertConfirmationFits()

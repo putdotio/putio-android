@@ -58,7 +58,7 @@ the JVM), and an unsigned minified `mobileProductionRelease` build that proves
 the composite Kotlin SDK against minSdk 26 and R8. It also compiles the mobile
 production debug instrumentation APK without running it, checks the Phosphor
 icon lock (`scripts/generate-icons.sh --check`), and runs the shell and Python
-contract tests for the emulator harness, evidence capture, icon pipeline, and
+contract tests for the emulator harness, TalkBack input, evidence capture, icon pipeline, and
 attach publishing (`python3`, `bash`, and `ffprobe` on PATH). `:buildSrc:test`
 covers design-token codegen and host proof tooling; run it alongside `verify`
 (CI does). Fix findings at the

@@ -140,6 +140,80 @@ class MobilePlayerScreenTest {
     val compose = createComposeRule()
 
     @Test
+    fun videoControlsHonorTheRecommendedTimeToTakeAction() {
+        val requests = mutableListOf<Triple<Boolean, Boolean, Boolean>>()
+        val accessibility = object : AccessibilityManager {
+            override fun calculateRecommendedTimeoutMillis(
+                originalTimeoutMillis: Long,
+                containsIcons: Boolean,
+                containsText: Boolean,
+                containsControls: Boolean,
+            ): Long {
+                requests += Triple(containsIcons, containsText, containsControls)
+                return 10_000L
+            }
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalAccessibilityManager provides accessibility) {
+                PutioTheme {
+                    MobilePlayerScreen(
+                        state = readyState(startFromSeconds = 20.0),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.mainClock.advanceTimeBy(4_000L)
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+        compose.runOnIdle { assertTrue(Triple(true, true, true) in requests) }
+        compose.mainClock.advanceTimeBy(7_000L)
+        compose.onAllNodesWithTag(MOBILE_SEEK_FORWARD_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun enablingTouchExplorationRestoresHiddenVideoControlsAndKeepsThemAvailable() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val accessibility = shadowOf(
+            requireNotNull(context.getSystemService(android.view.accessibility.AccessibilityManager::class.java)),
+        )
+        accessibility.setTouchExplorationEnabled(false)
+        lateinit var playerContext: Context
+        compose.setContent {
+            playerContext = androidx.compose.ui.platform.LocalContext.current
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(startFromSeconds = 20.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.mainClock.advanceTimeBy(4_000L)
+        compose.onAllNodesWithTag(MOBILE_SEEK_FORWARD_TAG).assertCountEquals(0)
+        compose.runOnIdle {
+            val manager = requireNotNull(
+                playerContext.getSystemService(android.view.accessibility.AccessibilityManager::class.java),
+            )
+            shadowOf(manager).setTouchExplorationEnabled(true)
+        }
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(20_000L)
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+    }
+
+    @Test
     fun conversionStateOffersRefreshAndBack() {
         var retries = 0
         var backs = 0
@@ -1981,7 +2055,7 @@ class MobilePlayerScreenTest {
         }
         compose.mainClock.advanceTimeByFrame()
         compose.onNodeWithText("Audio").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Playback speed", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
         compose.onNodeWithText("Captions").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back").assertIsDisplayed()
 

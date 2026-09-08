@@ -12,9 +12,11 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
@@ -70,7 +72,7 @@ class MobileTransfersScreenTest {
         compose.onAllNodesWithText("/s", substring = true).assertCountEquals(1)
         compose.onAllNodesWithText("remaining", substring = true).assertCountEquals(1)
         compose.onNodeWithText("94% available", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithContentDescription("Cancel transfer transfer-", substring = true).performClick()
         compose.onNodeWithText("Cancel transfer?").assertIsDisplayed()
         compose.onNodeWithText("Stop transfer").performClick()
 
@@ -91,13 +93,13 @@ class MobileTransfersScreenTest {
 
         compose.onNodeWithText("Preparing file…").assertIsDisplayed()
         compose.onNodeWithText("File is no longer available").assertIsDisplayed()
-        compose.onNodeWithText("Open file").performClick()
+        compose.onNodeWithContentDescription("Open transfer-", substring = true).performClick()
         assertEquals(TransfersEvent.Open(available.id), events.last())
 
         compose.onNodeWithTag(MOBILE_TRANSFERS_LIST_TAG).performScrollToIndex(3)
         compose.onNodeWithText("Updating…").assertIsDisplayed()
         compose.onAllNodesWithText("SERVER_INTERNAL_STATE").assertCountEquals(0)
-        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
+        compose.onAllNodesWithContentDescription("Cancel transfer", substring = true).assertCountEquals(0)
     }
 
     @Test
@@ -115,10 +117,30 @@ class MobileTransfersScreenTest {
             events::add,
         )
 
-        compose.onNodeWithText("Open file").performClick()
+        compose.onNodeWithContentDescription("Open transfer-", substring = true).performClick()
         assertEquals(TransfersEvent.Open(seeding.id), events.last())
-        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithContentDescription("Cancel transfer transfer-", substring = true).performClick()
         compose.onNodeWithText("Cancel transfer?").assertIsDisplayed()
+    }
+
+    @Test
+    fun transferActionsIdentifyTheirTargetForAccessibility() {
+        val events = mutableListOf<TransfersEvent>()
+        setScreen(
+            state(TransfersContent.Ready(
+                listOf(transfer(1L, AppTransferStatus.Seeding, fileId = 15L)),
+                TransfersPaging.Complete,
+            )),
+            events::add,
+        )
+
+        compose.onAllNodesWithText("Open file").assertCountEquals(0)
+        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
+        compose.onNodeWithContentDescription("Open transfer-1").performClick()
+        assertEquals(TransfersEvent.Open(TransferId(1L)), events.last())
+        compose.onNodeWithContentDescription("Cancel transfer transfer-1").performClick()
+        compose.onNodeWithText("Stop transfer").performClick()
+        assertEquals(TransfersEvent.Cancel(TransferId(1L)), events.last())
     }
 
     @Test
@@ -336,8 +358,8 @@ class MobileTransfersScreenTest {
         )
 
         compose.onNodeWithText("Refresh").assertIsNotEnabled()
-        compose.onNodeWithText("Try again").assertIsNotEnabled()
-        compose.onNodeWithText("Open file").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
         compose.onNodeWithText("Add transfer").assertIsNotEnabled()
         compose.onNodeWithText("Clean completed").assertIsNotEnabled()
     }
@@ -358,8 +380,8 @@ class MobileTransfersScreenTest {
         )
 
         compose.onNodeWithText("Refresh").assertIsNotEnabled()
-        compose.onNodeWithText("Try again").assertIsEnabled()
-        compose.onNodeWithText("Open file").assertIsEnabled()
+        compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsEnabled()
+        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsEnabled()
         compose.onNodeWithText("Add transfer").assertIsEnabled()
         compose.onNodeWithText("Clean completed").assertIsEnabled()
     }
@@ -378,7 +400,7 @@ class MobileTransfersScreenTest {
         )
         setMutableScreen({ current }, onEvent = {})
 
-        compose.onNodeWithText("Open file").assertIsEnabled()
+        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsEnabled()
         compose.onNodeWithText("Load more").assertIsNotEnabled()
 
         compose.runOnIdle {
@@ -395,7 +417,7 @@ class MobileTransfersScreenTest {
                 )
         }
 
-        compose.onNodeWithText("Open file").assertIsEnabled()
+        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsEnabled()
         compose.onNodeWithText("Try again").assertIsNotEnabled()
     }
 
@@ -415,8 +437,8 @@ class MobileTransfersScreenTest {
         )
 
         compose.onNodeWithText("Refresh").assertIsNotEnabled()
-        compose.onNodeWithText("Try again").assertIsNotEnabled()
-        compose.onNodeWithText("Open file").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
     }
 
     @Test
@@ -463,8 +485,8 @@ class MobileTransfersScreenTest {
         )
 
         compose.onNodeWithText("Refresh").assertIsNotEnabled()
-        compose.onNodeWithText("Try again").assertIsNotEnabled()
-        compose.onNodeWithText("Open file").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Retry transfer", substring = true).assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Open transfer-", substring = true).assertIsNotEnabled()
         compose.onNodeWithText("Add transfer").assertIsNotEnabled()
         compose.onNodeWithText("Clean completed").assertIsNotEnabled()
     }

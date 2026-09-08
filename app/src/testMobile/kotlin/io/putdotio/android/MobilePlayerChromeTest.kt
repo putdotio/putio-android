@@ -55,6 +55,24 @@ class MobilePlayerChromeTest {
     val compose = createComposeRule()
 
     @Test
+    fun accessibilityProgressActionSeeksOnceAndReportsTheNewPosition() {
+        val player = readyPlayer()
+        var scrubs = 0
+        compose.setContent {
+            PutioTheme { MobileProgressSlider(player, onScrub = { scrubs += 1 }) }
+        }
+        compose.onNodeWithTag(TIMELINE_TAG).performSemanticsAction(SemanticsActions.SetProgress) { setProgress ->
+            assertTrue(setProgress(0.75f))
+        }
+        compose.runOnIdle {
+            assertEquals(listOf(45_000L), player.seekPositions)
+            assertEquals(1, scrubs)
+        }
+        compose.onNodeWithTag(TIMELINE_TAG)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "00:45 of 01:00"))
+    }
+
+    @Test
     fun shortVideoWindowKeepsAllControlsReachableAtDoubleFontScale() {
         val player = readyPlayer()
         var pixelsPerDp = 1f

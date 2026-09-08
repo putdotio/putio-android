@@ -19,6 +19,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -122,7 +123,7 @@ class FilesDeleteNavigationUiProofTest {
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).performClick()
         compose.runOnIdle { preview.reconcileDelete() }
         navigate("Transfers")
-        compose.onNodeWithText("Open file").assertIsEnabled().performClick()
+        compose.onNodeWithContentDescription("Open Completed transfer").assertIsEnabled().performClick()
         compose.waitForIdle()
         compose.waitUntil(5_000) { preview.transferEvents.any { it is TransfersEvent.OpenSucceeded } }
         selected("Files")
@@ -155,7 +156,7 @@ class FilesDeleteNavigationUiProofTest {
     private fun rejectTransfer(preview: DeleteNavigationPreview) {
         navigate("Transfers")
         val retained = preview.files
-        compose.onNodeWithText("Open file").assertIsEnabled().performClick()
+        compose.onNodeWithContentDescription("Open Completed transfer").assertIsEnabled().performClick()
         compose.waitForIdle()
         compose.waitUntil(5_000) { preview.transferEvents.any { it is TransfersEvent.OpenFailed } }
         compose.runOnIdle {
@@ -165,7 +166,7 @@ class FilesDeleteNavigationUiProofTest {
         }
         compose.onNodeWithText("OK").performClick()
         selected("Transfers")
-        compose.onNodeWithText("Open file").assertIsEnabled()
+        compose.onNodeWithContentDescription("Open Completed transfer").assertIsEnabled()
     }
 
     private fun navigate(name: String) {

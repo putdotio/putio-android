@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -607,7 +608,7 @@ private fun MobileTunnelRouteDialog(
                     Text(stringResource(R.string.mobile_settings_tunnel_route_loading))
                 }
                 is AccountSettingsRepositoryResult.Failure -> Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(stringResource(R.string.mobile_settings_tunnel_route_error))
@@ -956,7 +957,7 @@ private fun AndroidAppConfigFailure.messageResource(): Int =
 private fun MobileAccountSectionHeader(@StringRes title: Int) {
     Text(
         text = stringResource(title),
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).semantics { heading() },
         color = MaterialTheme.colorScheme.primary,
         style = MaterialTheme.typography.titleSmall,
     )

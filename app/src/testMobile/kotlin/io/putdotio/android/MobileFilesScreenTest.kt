@@ -6,6 +6,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertCountEquals
@@ -22,6 +24,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performScrollToIndex
@@ -66,6 +69,30 @@ class MobileFilesScreenTest {
 
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    @Config(sdk = [35], qualifiers = "en-rUS-w640dp-h320dp-land")
+    fun landscapeActionSheetKeepsBottomActionReachableAtDoubleFontScale() {
+        org.robolectric.RuntimeEnvironment.setFontScale(2f)
+        val item = filesItem(7L, "Archive 東京 été ".repeat(16))
+        compose.setContent {
+            PutioTheme {
+                MobileFilesActions(
+                    item, FilesItemId(0), FilesFolderOperation.Idle, null, {}, {},
+                    confirmedTrashEnabled = false, onMoveItem = {},
+                )
+            }
+        }
+        val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        compose.onNodeWithText(item.name).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertEquals(2f, layouts.single().layoutInput.density.fontScale)
+        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.Expand) { assertTrue(it()) }
+        compose.onNodeWithText("Rename").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Move").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Delete").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithText("Cancel").assertIsDisplayed()
+    }
 
     @Test
     fun renameDraftSurvivesRecreationButDoesNotFollowNavigation() {
@@ -545,7 +572,9 @@ class MobileFilesScreenTest {
             )
         }
         compose.onNodeWithText("visible.txt").assertIsDisplayed()
+        compose.onAllNodesWithText("Updating file order").assertCountEquals(1)
         compose.onNodeWithText("Updating file order").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Updating file order").assertDoesNotExist()
         val activeRefreshConfig = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
             .fetchSemanticsNode().config
         assertTrue(SemanticsActions.CustomActions !in activeRefreshConfig)

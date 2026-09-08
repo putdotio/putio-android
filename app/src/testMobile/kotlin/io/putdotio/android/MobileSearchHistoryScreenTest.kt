@@ -1,8 +1,11 @@
 package io.putdotio.android
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
@@ -65,6 +68,22 @@ class MobileSearchHistoryScreenTest {
 
         assertEquals(listOf(SearchTerm("documentary")), searches)
         assertEquals(listOf(io.putdotio.android.search.RecentSearchEdit.Clear), edits)
+    }
+
+    @Test
+    fun recentSearchRemovalIdentifiesTheTermToAccessibilityServices() {
+        val edits = mutableListOf<io.putdotio.android.search.RecentSearchEdit>()
+        val first = SearchTerm("documentary")
+        val second = SearchTerm("concert")
+        setScreen(
+            search = searchState(SearchContent.Idle, listOf(first, second)),
+            actions = MobileSearchHistoryActions(onRecentEdit = edits::add),
+        )
+
+        compose.onAllNodesWithText("Remove").assertCountEquals(0)
+        compose.onNodeWithContentDescription("Remove documentary from recent searches").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Remove concert from recent searches").performClick()
+        assertEquals(listOf(io.putdotio.android.search.RecentSearchEdit.Remove(second)), edits)
     }
 
     @Test
