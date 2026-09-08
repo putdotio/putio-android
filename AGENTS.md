@@ -19,12 +19,13 @@ evidence for PRs.
 
 ## Toolchain
 
-The machine provides exactly three things; `scripts/bootstrap.sh` scripts the
+The machine provides exactly four things; `scripts/bootstrap.sh` scripts the
 rest.
 
 | Machine provides | How |
 | --- | --- |
 | JDK 21 on PATH | `.java-version` pins 21; `mise install` or `brew install temurin@21` |
+| `python3` on PATH | macOS ships it with the Xcode Command Line Tools; `verify` runs the icon pipeline through it |
 | Homebrew (macOS) | only needed if Android cmdline-tools are absent |
 | Network | first bootstrap downloads several GB of SDK packages plus FFmpeg |
 

@@ -56,7 +56,7 @@ require the named smoke test's successful XML result; an empty, skipped, or
 missing result fails even when instrumentation exits successfully.
 One automatic retry covers the cold-boot render flake, where the
 emulator composites the app window black for the first minute. Exit 0 pass ·
-1 fail · 64 usage · 70 cleanup failure · 130/143 interrupted. Machine-readable stdout
+1 fail or bad arguments · 64 missing flavor · 70 cleanup failure · 130/143 interrupted. Machine-readable stdout
 markers: `BOOTED <serial>`, `EVIDENCE <path>`, `PROOF PASS|FAIL <flavor>`.
 
 The connected suite uninstalls the tested apps afterward; `prove.sh` reinstalls
