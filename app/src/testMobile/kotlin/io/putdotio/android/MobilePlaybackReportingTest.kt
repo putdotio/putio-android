@@ -14,6 +14,8 @@ import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
@@ -23,6 +25,7 @@ import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsReducer
 import io.putdotio.android.settings.AccountSettingsRequestId
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +46,73 @@ import java.util.UUID
 @UnstableApi
 @OptIn(ExperimentalCoroutinesApi::class)
 class MobilePlaybackReportingTest {
+    @Test
+    fun authenticationRejectionOutlivesTheWriterItRevokes() = runTest {
+        val finishRejection = CompletableDeferred<Unit>()
+        val rejected = mutableListOf<MobileAuthSessionId>()
+        var completed = false
+        lateinit var fixture: ReportingFixture
+        fixture = ReportingFixture(
+            backgroundScope,
+            writeResult = PlaybackRepositoryResult.Failure(AuthFailure),
+            onAuthenticationRequired = { sessionId ->
+                rejected += sessionId
+                fixture.auth.value = MobileAuthState.SigningOut
+                finishRejection.await()
+                completed = true
+            },
+        )
+        fixture.player.show(fixture.item(), 10_000L)
+        fixture.observer.flush()
+        runCurrent()
+        fixture.snapshot(20_000L)
+        runCurrent()
+        finishRejection.complete(Unit)
+        runCurrent()
+        assertTrue(completed)
+        assertEquals(listOf(MobileAuthSessionId(1)), rejected)
+        assertEquals(listOf(42L to 10.0), fixture.writes)
+        fixture.close()
+    }
+
+    @Test
+    fun lateAuthenticationFailureCannotRejectAReplacementSession() = runTest {
+        val rejected = mutableListOf<MobileAuthSessionId>()
+        lateinit var fixture: ReportingFixture
+        fixture = ReportingFixture(
+            backgroundScope,
+            writeResult = PlaybackRepositoryResult.Failure(AuthFailure),
+            beforeWriteResult = {
+                fixture.auth.value = MobileAuthState.SignedIn(Account, MobileAuthSessionId(2))
+            },
+            onAuthenticationRequired = { rejected += it },
+        )
+        fixture.player.show(fixture.item(), 10_000L)
+        fixture.observer.flush()
+        runCurrent()
+        assertTrue(rejected.isEmpty())
+        assertEquals(MobileAuthSessionId(2), (fixture.auth.value as MobileAuthState.SignedIn).sessionId)
+        fixture.close()
+    }
+
+    @Test
+    fun ordinaryReportingFailuresDoNotRejectAuthentication() = runTest {
+        val rejected = mutableListOf<MobileAuthSessionId>()
+        val fixture = ReportingFixture(
+            backgroundScope,
+            writeResult = PlaybackRepositoryResult.Failure(
+                PlaybackFailure.NetworkUnavailable(IllegalStateException("offline")),
+            ),
+            onAuthenticationRequired = { rejected += it },
+        )
+        fixture.player.show(fixture.item(), 10_000L)
+        fixture.observer.flush()
+        runCurrent()
+        assertTrue(rejected.isEmpty())
+        assertTrue(fixture.auth.value is MobileAuthState.SignedIn)
+        fixture.close()
+    }
+
     @Test
     fun onlyEnabledResolvedItemsFromTheCurrentSessionReceiveAnOpaqueLease() = runTest {
         val fixture = ReportingFixture(backgroundScope)
@@ -209,6 +279,9 @@ private class ReportingFixture(
     scope: CoroutineScope,
     initiallyLoaded: Boolean = true,
     suspendWrites: Boolean = false,
+    writeResult: PlaybackRepositoryResult<Unit> = PlaybackRepositoryResult.Success(Unit),
+    beforeWriteResult: () -> Unit = {},
+    onAuthenticationRequired: suspend (MobileAuthSessionId) -> Unit = {},
 ) {
     val auth = MutableStateFlow<MobileAuthState>(MobileAuthState.SignedIn(Account, MobileAuthSessionId(1)))
     val settings = MutableStateFlow(
@@ -219,7 +292,7 @@ private class ReportingFixture(
     )
     val writes = mutableListOf<Pair<Long, Double>>()
     var cancelledWrites = 0
-    val runtime = MobilePlaybackReporting(auth, scope) { fileId, seconds ->
+    val runtime = MobilePlaybackReporting(auth, scope, onAuthenticationRequired) { fileId, seconds ->
         writes += fileId to seconds
         if (suspendWrites) {
             try {
@@ -228,7 +301,8 @@ private class ReportingFixture(
                 cancelledWrites += 1
             }
         }
-        PlaybackRepositoryResult.Success(Unit)
+        beforeWriteResult()
+        writeResult
     }
     val player = ReportingPlayer()
     val delegate = MobilePlayerFactory { _, _ -> player }
@@ -289,3 +363,4 @@ private val Preferences = AccountSettingsPreferences(
     resumePlayback = true,
 )
 private val Failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+private val AuthFailure = PlaybackFailure.AuthenticationRequired(PutioConfigurationException("rejected"))

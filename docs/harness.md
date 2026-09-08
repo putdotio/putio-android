@@ -559,6 +559,9 @@ reporting; unrelated setting writes do not. Session exit or disabled/unconfirmed
 policy cancels requests and discards pending positions without flushing. The
 application owns this policy subscription so task removal does not stop audio
 updates. A source resolved with resume disabled receives no reporting lease.
+An authoritative authentication failure from a position write expires only the
+session that issued it. Rejection runs outside the cancellable reporting job,
+and checks the session identity again under the authentication controller's lock.
 
 For live proof, use the CLI's explicit `devs-auto` profile to upload a short audio
 file and a video in a uniquely named owned folder. Record exact IDs, names, kinds,

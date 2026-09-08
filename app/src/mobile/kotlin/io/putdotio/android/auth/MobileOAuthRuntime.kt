@@ -27,7 +27,8 @@ class MobileOAuthRuntime internal constructor(
     internal val playbackReporting = MobilePlaybackReporting(
         authController.state,
         applicationScope,
-        SdkPlaybackPositionRepository(putioClient)::write,
+        onAuthenticationRequired = { sessionId -> authController.rejectAuthoritativeSession(sessionId) },
+        write = SdkPlaybackPositionRepository(putioClient)::write,
     )
 
     fun dispatchAuthTabResult(

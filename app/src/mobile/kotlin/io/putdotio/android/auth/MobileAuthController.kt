@@ -216,8 +216,13 @@ class MobileAuthController internal constructor(
         }
     }
 
-    suspend fun rejectAuthoritativeSession(): Boolean = operationMutex.withLock {
-        if (mutableState.value !is MobileAuthState.SignedIn) {
+    suspend fun rejectAuthoritativeSession(): Boolean = rejectAuthoritativeSession(expectedSessionId = null)
+
+    internal suspend fun rejectAuthoritativeSession(
+        expectedSessionId: MobileAuthSessionId?,
+    ): Boolean = operationMutex.withLock {
+        val signedIn = mutableState.value as? MobileAuthState.SignedIn
+        if (signedIn == null || expectedSessionId != null && signedIn.sessionId != expectedSessionId) {
             return@withLock false
         }
 

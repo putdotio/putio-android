@@ -6,6 +6,7 @@ import androidx.media3.common.Player
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.playback.PlaybackPositionWriter
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.confirmedResumePlayback
@@ -18,9 +19,24 @@ import kotlinx.coroutines.launch
 internal class MobilePlaybackReporting(
     private val auth: StateFlow<MobileAuthState>,
     private val scope: CoroutineScope,
+    onAuthenticationRequired: suspend (MobileAuthSessionId) -> Unit = {},
     write: suspend (Long, Double) -> PlaybackRepositoryResult<Unit>,
 ) {
-    private val writer = PlaybackPositionWriter(scope, write)
+    private val writer = PlaybackPositionWriter(scope) { fileId, seconds ->
+        val sessionId = (auth.value as? MobileAuthState.SignedIn)?.sessionId
+        write(fileId, seconds).also { result ->
+            if (sessionId != null && result is PlaybackRepositoryResult.Failure &&
+                result.failure is PlaybackFailure.AuthenticationRequired
+            ) {
+                // Rejection clears the session and cancels its writer. It must own a separate job.
+                scope.launch {
+                    if ((auth.value as? MobileAuthState.SignedIn)?.sessionId == sessionId) {
+                        onAuthenticationRequired(sessionId)
+                    }
+                }
+            }
+        }
+    }
     private var settings: SettingsBinding? = null
     private var settingsJob: Job? = null
 

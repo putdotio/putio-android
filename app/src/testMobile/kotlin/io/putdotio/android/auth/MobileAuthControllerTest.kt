@@ -4,6 +4,8 @@ import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.errors.PutioException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -549,6 +551,51 @@ class MobileAuthControllerTest {
         assertEquals(ACCOUNT, secondSession.account)
         assertEquals(1L, firstSession.sessionId.value)
         assertEquals(2L, secondSession.sessionId.value)
+    }
+
+    @Test
+    fun `queued stale rejection preserves new session and current rejection expires it`() = runBlocking {
+        val fixture = Fixture(
+            storedToken = TOKEN,
+            validationResults = listOf(
+                SessionValidationResult.Valid(ACCOUNT),
+                SessionValidationResult.Valid(ACCOUNT),
+            ),
+        )
+        fixture.controller.restoreSession()
+        val firstSession = fixture.controller.state.value as MobileAuthState.SignedIn
+        fixture.controller.rejectAuthoritativeSession()
+        fixture.controller.beginSignIn()
+        val callbackStarted = CompletableDeferred<Unit>()
+        val allowCallback = CompletableDeferred<Unit>()
+        fixture.pendingAttemptStore.beforeRead = {
+            callbackStarted.complete(Unit)
+            allowCallback.await()
+        }
+        fixture.gateway.calls.clear()
+        val callback = async { fixture.controller.handleOAuthCallback(VALID_CALLBACK) }
+        callbackStarted.await()
+        val staleRejection = async(start = CoroutineStart.UNDISPATCHED) {
+            fixture.controller.rejectAuthoritativeSession(firstSession.sessionId)
+        }
+        assertFalse(staleRejection.isCompleted)
+        allowCallback.complete(Unit)
+
+        assertEquals(OAuthCallbackHandlingResult.ACCEPTED, callback.await())
+        assertFalse(staleRejection.await())
+        val currentSession = fixture.controller.state.value as MobileAuthState.SignedIn
+        assertTrue(currentSession.sessionId != firstSession.sessionId)
+        assertEquals(ACCOUNT, currentSession.account)
+        assertEquals(TOKEN, fixture.tokenStore.token?.reveal())
+        assertEquals(TOKEN, fixture.gateway.configuredToken?.reveal())
+        assertEquals(listOf("set-token", "validate"), fixture.gateway.calls)
+
+        fixture.gateway.calls.clear()
+        assertTrue(fixture.controller.rejectAuthoritativeSession(currentSession.sessionId))
+        assertNull(fixture.tokenStore.token)
+        assertNull(fixture.gateway.configuredToken)
+        assertEquals(listOf("clear-token"), fixture.gateway.calls)
+        assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.SessionExpired), fixture.controller.state.value)
     }
 
     @Test
