@@ -123,6 +123,15 @@ directory. Inspect the whole shell and keyboard state; visible test nodes alone
 do not prove a usable layout. Use normal-size captures as primary UI evidence and
 label large-text captures as accessibility checks.
 
+`MobileKeyboardNavigationProofTest#keyboardKeepsNavigationAndTheFocusedSearchEditor`
+checks normal-font navigation while the real keyboard opens. Set `font_scale` to
+`1.0`, run once in portrait and once in landscape, and pass the same opt-in, run
+ID and expected orientation. It requires the normal bar/rail before typing and
+checks that navigation, focus and the editable query survive the keyboard inset
+change. Screenshots use `normal-portrait-` and `normal-landscape-` prefixes. This
+controlled shell does not initialize authentication, connect audio or call the API.
+Require `OK (1 test)` per invocation; preserve and restore caller settings.
+
 `MobileTalkBackProofTest` is a separate, manually driven TalkBack lane. It
 mounts controlled auth and private local players, then checks the real auth
 callback and player state while the caller operates TalkBack. It connects no

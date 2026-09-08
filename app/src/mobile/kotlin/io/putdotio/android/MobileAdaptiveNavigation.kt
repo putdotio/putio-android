@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DrawerValue
@@ -39,7 +41,8 @@ internal enum class MobileNavigationLayout { Bar, Rail, Modal }
 @Composable
 internal fun mobileNavigationLayout(width: Dp, height: Dp): MobileNavigationLayout {
     val density = LocalDensity.current
-    val insets = WindowInsets.safeDrawing
+    // IME changes must not reparent the shell and dispose a focused editor.
+    val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
     val direction = LocalLayoutDirection.current
     val availableWidth = width - with(density) {
         (insets.getLeft(density, direction) + insets.getRight(density, direction)).toDp()

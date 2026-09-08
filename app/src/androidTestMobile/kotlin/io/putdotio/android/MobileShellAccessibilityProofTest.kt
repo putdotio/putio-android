@@ -328,7 +328,7 @@ class MobileShellAccessibilityProofTest {
     )), TransfersPaging.Complete))
 }
 
-private class ShellProofPlayerFactory(private val player: Player?) : MobilePlayerFactory {
+internal class ShellProofPlayerFactory(private val player: Player?) : MobilePlayerFactory {
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
         error("The shell proof must not open the full player")
 
@@ -338,7 +338,7 @@ private class ShellProofPlayerFactory(private val player: Player?) : MobilePlaye
     }
 }
 
-private object NoShellProofPlayback : PlaybackRepository {
+internal object NoShellProofPlayback : PlaybackRepository {
     override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
         error("The shell proof must not resolve playback")
 

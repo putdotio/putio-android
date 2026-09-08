@@ -1,9 +1,17 @@
 package io.putdotio.android
 
+import android.view.View
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -13,9 +21,13 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
@@ -101,6 +113,7 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
         drawerDestination("Search").assertIsDisplayed().assertIsSelected()
         compose.runOnIdle { backOwner.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
+        compose.onNodeWithTag(MOBILE_NAV_DRAWER_TAG).assertIsNotDisplayed()
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
     }
 
@@ -118,6 +131,7 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
         compose.runOnIdle { backOwner.onBackPressedDispatcher.onBackPressed() }
         compose.mainClock.autoAdvance = true
         compose.waitForIdle()
+        compose.onNodeWithTag(MOBILE_NAV_DRAWER_TAG).assertIsNotDisplayed()
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
     }
 
@@ -172,6 +186,35 @@ class MobileOrdinaryNavigationTest : NavigationShellFixture(1f) {
         assertNavigationLabels(MOBILE_NAV_RAIL_TAG)
     }
 
+    @Test
+    fun openingAndClosingTheKeyboardPreservesPhoneNavigationAndTheFocusedTransferDraft() {
+        assertKeyboardKeepsTransferDraft(MOBILE_NAV_BAR_TAG)
+    }
+
+    @Test
+    @Config(qualifiers = "en-rUS-w840dp-h600dp-land")
+    fun openingAndClosingTheKeyboardPreservesTabletNavigationAndTheFocusedTransferDraft() {
+        assertKeyboardKeepsTransferDraft(MOBILE_NAV_RAIL_TAG)
+    }
+
+    private fun assertKeyboardKeepsTransferDraft(navigationTag: String) {
+        mount()
+        compose.onNode(hasText("Transfers") and hasAnyAncestor(hasTestTag(navigationTag))).performClick()
+        compose.onNodeWithText("Add transfer").performClick()
+        val draft = "https://example.invalid/unfinished-draft.torrent"
+        val editor = compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG)
+        editor.performClick().performTextInput(draft)
+        editor.assertIsFocused().assertTextContains(draft)
+        val editorId = editor.fetchSemanticsNode().id
+        for (height in listOf(400, 0)) {
+            setKeyboardInset(height)
+            editor.assertExists().assertIsFocused().assertTextContains(draft)
+            assertEquals("Keyboard insets must not replace the draft editor", editorId, editor.fetchSemanticsNode().id)
+            compose.onNodeWithTag(navigationTag).assertExists()
+            compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).assertDoesNotExist()
+        }
+    }
+
     private fun assertNavigationLabels(tag: String) {
         listOf("Files", "Search", "Transfers", "Account").forEach { label ->
             val layouts = mutableListOf<TextLayoutResult>()
@@ -186,6 +229,9 @@ class MobileOrdinaryNavigationTest : NavigationShellFixture(1f) {
 abstract class NavigationShellFixture(fontScale: Float) {
     protected val compose = createComposeRule()
     protected lateinit var backOwner: OnBackPressedDispatcherOwner
+    private lateinit var host: View
+    private var pixelsPerDp = 1f
+    private var observedKeyboardBottom = 0
     @get:Rule val rules: RuleChain = RuleChain.outerRule(object : ExternalResource() {
         private var previousFontScale = 1f
 
@@ -197,6 +243,20 @@ abstract class NavigationShellFixture(fontScale: Float) {
         override fun after() { RuntimeEnvironment.setFontScale(previousFontScale) }
     }).around(compose)
 
+    protected fun setKeyboardInset(heightDp: Int) {
+        val bottom = (heightDp * pixelsPerDp).toInt()
+        compose.runOnIdle {
+            ViewCompat.dispatchApplyWindowInsets(
+                host,
+                WindowInsetsCompat.Builder()
+                    .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, bottom))
+                    .setVisible(WindowInsetsCompat.Type.ime(), bottom > 0)
+                    .build(),
+            )
+        }
+        compose.runOnIdle { assertEquals("The host must receive the keyboard inset", bottom, observedKeyboardBottom) }
+    }
+
     protected fun drawerDestination(label: String) =
         compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(MOBILE_NAV_DRAWER_TAG)))
 
@@ -204,6 +264,9 @@ abstract class NavigationShellFixture(fontScale: Float) {
         val files = navigationFiles(nested)
         compose.setContent {
             backOwner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
+            host = LocalView.current
+            pixelsPerDp = LocalDensity.current.density
+            observedKeyboardBottom = WindowInsets.ime.getBottom(LocalDensity.current)
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
