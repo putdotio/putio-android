@@ -2,7 +2,14 @@ package io.putdotio.android
 
 import android.view.KeyEvent as AndroidKeyEvent
 import android.view.View
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
@@ -15,6 +22,11 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -41,6 +53,69 @@ import org.robolectric.annotation.GraphicsMode
 class MobilePlayerChromeTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun shortVideoWindowKeepsAllControlsReachableAtDoubleFontScale() {
+        val player = readyPlayer()
+        var pixelsPerDp = 1f
+        compose.setContent {
+            val density = LocalDensity.current.density
+            pixelsPerDp = density
+            CompositionLocalProvider(LocalDensity provides Density(density, fontScale = 2f)) {
+                PutioTheme {
+                    Box(Modifier.size(width = 320.dp, height = 180.dp)) {
+                        MobilePlayerChrome(
+                            player = player,
+                            title = "Video with a long filename.mp4",
+                            isAudio = false,
+                            visible = true,
+                            seekEnabled = true,
+                            onSeek = {},
+                            onScrub = {},
+                            settings = {
+                                MobilePlaybackOptions(player, {}, {}, {}, {}, directControls = true)
+                                MobileSubtitleControls(
+                                    player, player.trackSelectionParameters, {}, {}, {}, {}, showLabel = true,
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        val controls = listOf(
+            compose.onNodeWithContentDescription("Back"),
+            compose.onNodeWithContentDescription("Back 10 seconds"),
+            compose.onNodeWithContentDescription("Play"),
+            compose.onNodeWithContentDescription("Forward 10 seconds"),
+            compose.onNodeWithTag(TIMELINE_TAG),
+            compose.onNodeWithText("Audio"),
+            compose.onNodeWithText("1×"),
+            compose.onNodeWithText("Captions"),
+        )
+        val bounds = controls.map { it.getUnclippedBoundsInRoot() }
+        bounds.forEachIndexed { index, first ->
+            bounds.drop(index + 1).forEach { second ->
+                assertTrue(
+                    "Controls must not overlap: $first and $second",
+                    first.right <= second.left || second.right <= first.left ||
+                        first.bottom <= second.top || second.bottom <= first.top,
+                )
+            }
+        }
+        controls.forEach { control ->
+            control.performScrollTo().assertIsDisplayed()
+            val node = control.fetchSemanticsNode()
+            if (node.config.contains(SemanticsActions.OnClick)) {
+                val touchBounds = node.touchBoundsInRoot
+                assertTrue(
+                    "Button must have a 48dp target: $touchBounds ${node.config}",
+                    touchBounds.height >= 48f * pixelsPerDp,
+                )
+            }
+        }
+        controls.first().performScrollTo().assertIsDisplayed()
+    }
 
     @Test
     fun orphanKeyReleaseDoesNotSeekToZeroOrAnOldScrubPosition() {

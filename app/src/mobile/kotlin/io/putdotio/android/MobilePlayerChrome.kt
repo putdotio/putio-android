@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -193,43 +195,57 @@ private fun MobileVideoLayout(
     onBack: () -> Unit,
 ) {
     val scrim = MaterialTheme.colorScheme.background
-    Column(modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0.9f), scrim.copy(alpha = 0f))))
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    painterResource(R.drawable.ic_ph_arrow_left),
-                    contentDescription = stringResource(R.string.mobile_action_back),
-                )
-            }
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(end = 16.dp),
-            )
-        }
-        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            MobileTransport(player, seekEnabled, onSeek, onVideo = true)
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        var contentHeight by remember { mutableIntStateOf(0) }
+        val scrollState = rememberScrollState()
+        // A scroll modifier intercepts the sibling video's taps even when scrolling is disabled.
+        val overflow = if (contentHeight > constraints.maxHeight) {
+            Modifier.verticalScroll(scrollState)
+        } else {
+            Modifier.wrapContentHeight(Alignment.Top, unbounded = true)
         }
         Column(
-            Modifier.fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0f), scrim.copy(alpha = 0.95f))))
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().then(overflow).heightIn(min = maxHeight)
+                .onSizeChanged { contentHeight = it.height },
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            MobilePlayerTimeline(player, onScrub)
-            FlowRow(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            ) { settings() }
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0.9f), scrim.copy(alpha = 0f))))
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        painterResource(R.drawable.ic_ph_arrow_left),
+                        contentDescription = stringResource(R.string.mobile_action_back),
+                    )
+                }
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(end = 16.dp),
+                )
+            }
+            Box(Modifier.fillMaxWidth().heightIn(min = 80.dp), contentAlignment = Alignment.Center) {
+                MobileTransport(player, seekEnabled, onSeek, onVideo = true)
+            }
+            Column(
+                Modifier.fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0f), scrim.copy(alpha = 0.95f))))
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 8.dp),
+            ) {
+                MobilePlayerTimeline(player, onScrub)
+                FlowRow(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                ) { settings() }
+            }
         }
     }
 }

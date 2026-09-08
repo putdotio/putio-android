@@ -60,4 +60,5 @@ These are iOS references; native controls follow the Android binding above,
 [Android immersive-content guidance](https://developer.android.com/design/ui/mobile/guides/layout-and-content/immersive-content),
 and [Compose accessibility defaults](https://developer.android.com/develop/ui/compose/accessibility/api-defaults).
 Overlay scrims protect legibility, controls have at least 48dp touch targets,
-and choice sheets use Material 3. No catalogue metadata or artwork is invented.
+and choice sheets use Material 3. Short windows scroll the overlay rather than
+clipping transport or settings. No catalogue metadata or artwork is invented.
