@@ -10,16 +10,23 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
+import io.putdotio.android.playback.PlaybackMediaType
 
 private const val EMULATOR_CODEC_WORKAROUND_API = 37
 
 internal fun interface MobilePlayerFactory {
-    fun create(context: android.content.Context): Media3Player
+    fun create(
+        context: android.content.Context,
+        mediaType: PlaybackMediaType,
+    ): Media3Player
 }
 
 internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    override fun create(context: android.content.Context): Media3Player {
+    override fun create(
+        context: android.content.Context,
+        mediaType: PlaybackMediaType,
+    ): Media3Player {
         val renderersFactory = DefaultRenderersFactory(context)
         if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
             // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
@@ -28,15 +35,20 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
                 .setEnableDecoderFallback(true)
         }
         return ExoPlayer.Builder(context, renderersFactory)
-            .setAudioAttributes(MobileVideoAudioAttributes, true)
+            .setAudioAttributes(mediaType.audioAttributes(), true)
             .setHandleAudioBecomingNoisy(true)
             .build()
     }
 }
 
-internal val MobileVideoAudioAttributes: AudioAttributes =
+internal fun PlaybackMediaType.audioAttributes(): AudioAttributes =
     AudioAttributes.Builder()
-        .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+        .setContentType(
+            when (this) {
+                PlaybackMediaType.VIDEO -> C.AUDIO_CONTENT_TYPE_MOVIE
+                PlaybackMediaType.AUDIO -> C.AUDIO_CONTENT_TYPE_MUSIC
+            },
+        )
         .setUsage(C.USAGE_MEDIA)
         .build()
 

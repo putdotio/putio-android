@@ -70,6 +70,7 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SdkPlaybackRepository
@@ -129,7 +130,7 @@ import kotlinx.coroutines.launch
 
 internal const val MOBILE_NAV_BAR_TAG = "mobile-navigation-bar"
 internal const val MOBILE_NAV_RAIL_TAG = "mobile-navigation-rail"
-internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}"
+internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}&media={media}"
 
 private val TabletMinWidth = 600.dp
 
@@ -1069,7 +1070,7 @@ private fun MobileNavHost(
                 state = filesState,
                 repository = filesRepository,
                 onEvent = onFilesEvent,
-                onPlayVideo = navController::navigateToPlayback,
+                onPlayMedia = navController::navigateToPlayback,
                 onAuthenticationRequired = onFilesAuthenticationRequired,
                 confirmedTrashEnabled = accountSettingsState.confirmedTrashEnabled(),
             )
@@ -1129,15 +1130,22 @@ private fun MobileNavHost(
                         type = NavType.StringType
                         defaultValue = ""
                     },
+                    navArgument("media") {
+                        type = NavType.StringType
+                        defaultValue = PlaybackMediaType.VIDEO.name
+                    },
                 ),
         ) { backStackEntry ->
             val fileId = requireNotNull(backStackEntry.arguments?.getLong("fileId"))
             val name = backStackEntry.arguments?.getString("name").orEmpty()
+            val mediaType =
+                PlaybackMediaType.entries.firstOrNull { it.name == backStackEntry.arguments?.getString("media") }
+                    ?: PlaybackMediaType.VIDEO
             val subtitleStartupPolicy =
                 (accountSettingsState.content as? AccountSettingsContent.Ready)
                     ?.preferences
                     ?.let { SubtitleStartupPolicy(it.showSubtitles, it.autoSelectSubtitles) }
-            val target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name)
+            val target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name, mediaType)
             val playbackViewModel: MobilePlaybackViewModel =
                 viewModel(
                     viewModelStoreOwner = backStackEntry,
@@ -1306,5 +1314,6 @@ private fun NavHostController.navigateTo(destination: MobileDestination) {
 }
 
 private fun NavHostController.navigateToPlayback(item: FilesItem) {
-    navigate("playback/${item.id.value}?name=${Uri.encode(item.name)}")
+    val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
+    navigate("playback/${item.id.value}?name=${Uri.encode(item.name)}&media=${mediaType.name}")
 }

@@ -72,7 +72,7 @@ class FilesDeleteRecoveryUiProofTest {
             PutioTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     MobileFilesScreen(
-                        preview.state, { preview.dispatch(it) }, onPlayVideo = {}, confirmedTrashEnabled = true,
+                        preview.state, { preview.dispatch(it) }, onPlayMedia = {}, confirmedTrashEnabled = true,
                         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
                     )
                 }

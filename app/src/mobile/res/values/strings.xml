@@ -63,8 +63,9 @@
     <string name="mobile_files_watched">Watched</string>
     <string name="mobile_files_watched_percent">%1$d%% watched</string>
     <string name="mobile_files_open_folder">Open %1$s</string>
-    <string name="mobile_files_play_video">Play %1$s</string>
+    <string name="mobile_files_play_media">Play %1$s</string>
     <string name="mobile_playback_loading">Preparing video</string>
+    <string name="mobile_playback_loading_audio">Preparing audio</string>
     <string name="mobile_playback_finding_next">Finding next video</string>
     <string name="mobile_playback_next_error_title">Couldn’t find the next video</string>
     <string name="mobile_playback_conversion_title">Video is being prepared</string>
@@ -77,9 +78,10 @@
     <string name="mobile_playback_conversion_unknown">Conversion status is unavailable.</string>
     <string name="mobile_playback_check_again">Check again</string>
     <string name="mobile_playback_unsupported_title">Can’t play this file</string>
-    <string name="mobile_playback_unsupported_message">Choose a video file to start playback.</string>
+    <string name="mobile_playback_unsupported_message">Choose a video or audio file to start playback.</string>
     <string name="mobile_playback_error_title">Couldn’t play this video</string>
-    <string name="mobile_playback_error_forbidden">You don’t have access to this video.</string>
+    <string name="mobile_playback_error_title_audio">Couldn’t play this audio</string>
+    <string name="mobile_playback_error_forbidden">You don’t have access to this file.</string>
     <string name="mobile_playback_error_credential">Playback access expired. Retry to refresh it.</string>
     <string name="mobile_playback_subtitles_on">Subtitles on</string>
     <string name="mobile_playback_subtitles_off">Subtitles off</string>

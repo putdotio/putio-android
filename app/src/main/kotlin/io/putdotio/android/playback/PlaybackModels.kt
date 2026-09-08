@@ -8,7 +8,23 @@ import io.putdotio.sdk.files.PutioFileType
 data class PlaybackTarget(
     val fileId: FilesItemId,
     val name: String,
+    val mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
 )
+
+enum class PlaybackMediaType {
+    VIDEO,
+    AUDIO,
+    ;
+
+    companion object {
+        fun fromFileType(fileType: PutioFileType): PlaybackMediaType? =
+            when (fileType) {
+                PutioFileType.VIDEO -> VIDEO
+                PutioFileType.AUDIO -> AUDIO
+                else -> null
+            }
+    }
+}
 
 @JvmInline
 value class PlaybackRequestId(

@@ -8,7 +8,11 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
@@ -17,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeGestures
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -57,6 +62,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
@@ -74,7 +81,9 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.material3.PlayerDefaults
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.hasSelectableSubtitles
 import io.putdotio.android.playback.preparePlayback
@@ -86,6 +95,7 @@ import kotlin.math.roundToInt
 
 internal const val MOBILE_VIDEO_PLAYER_TAG = "mobile-video-player"
 internal const val MOBILE_PLAYER_GESTURE_TAG = "mobile-player-gesture"
+internal const val MOBILE_AUDIO_COVER_TAG = "mobile-audio-cover"
 internal const val MOBILE_SEEK_BACK_TAG = "mobile-seek-back"
 internal const val MOBILE_SEEK_FORWARD_TAG = "mobile-seek-forward"
 internal const val MOBILE_SEEK_FEEDBACK_TAG = "mobile-seek-feedback"
@@ -120,12 +130,21 @@ internal fun MobileVideoPlayerScreen(
     ) {
         when (val content = state.content) {
             is PlaybackContent.Loading ->
-                MobileLoadingState(stringResource(R.string.mobile_playback_loading))
+                MobileLoadingState(
+                    stringResource(
+                        if (state.target.mediaType == PlaybackMediaType.AUDIO) {
+                            R.string.mobile_playback_loading_audio
+                        } else {
+                            R.string.mobile_playback_loading
+                        },
+                    ),
+                )
 
             is PlaybackContent.Ready ->
                 MobileReadyVideoPlayer(
                     source = content.source,
                     title = state.target.name,
+                    mediaType = state.target.mediaType,
                     startPositionMillis = preferences.positionMillis ?: state.resumePositionMillis,
                     resumeAfterLifecyclePause = preferences.resumeAfterLifecyclePause,
                     retainedSubtitleSelection = preferences.subtitleSelection,
@@ -174,7 +193,13 @@ internal fun MobileVideoPlayerScreen(
 
             is PlaybackContent.Failed ->
                 MobileErrorState(
-                    title = stringResource(R.string.mobile_playback_error_title),
+                    title = stringResource(
+                        if (state.target.mediaType == PlaybackMediaType.AUDIO) {
+                            R.string.mobile_playback_error_title_audio
+                        } else {
+                            R.string.mobile_playback_error_title
+                        },
+                    ),
                     message = stringResource(content.failure.messageResource()),
                     retryLabel = stringResource(R.string.mobile_action_retry),
                     onRetry = onRetry,
@@ -201,6 +226,7 @@ internal fun MobileVideoPlayerScreen(
 private fun MobileReadyVideoPlayer(
     source: PlaybackSource,
     title: String,
+    mediaType: PlaybackMediaType,
     startPositionMillis: Long?,
     resumeAfterLifecyclePause: Boolean,
     retainedSubtitleSelection: SubtitleSelection?,
@@ -228,14 +254,14 @@ private fun MobileReadyVideoPlayer(
     }
     if (!lifecycleState.isAtLeast(Lifecycle.State.STARTED)) return
 
-    val initialPlayback = remember(source, title, startPositionMillis) {
-        source.preparePlayback(title, startPositionMillis)
+    val initialPlayback = remember(source, title, mediaType, startPositionMillis) {
+        source.preparePlayback(title, mediaType, startPositionMillis)
     }
     var retainedPositionMillis by rememberSaveable(source.fileId) {
         mutableLongStateOf(initialPlayback.startPositionMillis)
     }
-    val preparedPlayback = remember(source, title, playerGeneration) {
-        source.preparePlayback(title, retainedPositionMillis)
+    val preparedPlayback = remember(source, title, mediaType, playerGeneration) {
+        source.preparePlayback(title, mediaType, retainedPositionMillis)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
@@ -243,14 +269,17 @@ private fun MobileReadyVideoPlayer(
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
     val currentRetainedSubtitleSelection = rememberUpdatedState(retainedSubtitleSelection)
-    val player = remember(context, lifecycle, playerFactory, playerGeneration) { playerFactory.create(context) }
+    val player = remember(context, lifecycle, playerFactory, playerGeneration, mediaType) {
+        playerFactory.create(context, mediaType)
+    }
     var playerReleased by remember(player) { mutableStateOf(false) }
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
     var activeFileId by remember(player) { mutableStateOf<Long?>(null) }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
-    var keepScreenOn by remember(player) { mutableStateOf(player.shouldKeepScreenOn()) }
+    val isAudio = mediaType == PlaybackMediaType.AUDIO
+    var keepScreenOn by remember(player) { mutableStateOf(!isAudio && player.shouldKeepScreenOn()) }
     var controlsVisible by rememberSaveable(source.fileId) { mutableStateOf(true) }
     var playerWantsToPlay by remember(player) { mutableStateOf(player.playWhenReady) }
     var retainedPlayIntent by remember(player) { mutableStateOf(resumeAfterLifecyclePause) }
@@ -359,7 +388,8 @@ private fun MobileReadyVideoPlayer(
         touchExplorationEnabled,
         controlsActivity,
     ) {
-        if (player.controlsShouldAutoHide(
+        if (!isAudio &&
+            player.controlsShouldAutoHide(
                 controlsVisible = controlsVisible,
                 pointerInteracting = controlsInteracting,
                 keyboardNavigationActive = keyboardNavigationActive,
@@ -483,7 +513,7 @@ private fun MobileReadyVideoPlayer(
                 override fun onPlaybackStateChanged(newPlaybackState: Int) {
                     playbackState = newPlaybackState
                     controlsVisible = controlsVisibleForPlaybackState(controlsVisible, newPlaybackState)
-                    keepScreenOn = player.shouldKeepScreenOn()
+                    keepScreenOn = !isAudio && player.shouldKeepScreenOn()
                     if (newPlaybackState == Media3Player.STATE_ENDED) {
                         if (!endedReported) {
                             endedReported = true
@@ -509,7 +539,7 @@ private fun MobileReadyVideoPlayer(
                 }
 
                 override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
-                    keepScreenOn = player.shouldKeepScreenOn()
+                    keepScreenOn = !isAudio && player.shouldKeepScreenOn()
                 }
 
                 override fun onPlayWhenReadyChanged(
@@ -517,7 +547,7 @@ private fun MobileReadyVideoPlayer(
                     reason: Int,
                 ) {
                     playerWantsToPlay = playWhenReady
-                    keepScreenOn = player.shouldKeepScreenOn()
+                    keepScreenOn = !isAudio && player.shouldKeepScreenOn()
                     val update = playerRetentionUpdate(
                         event = PlayerRetentionEvent.PlayIntentChanged,
                         lifecycleState = lifecycle.currentState,
@@ -568,12 +598,19 @@ private fun MobileReadyVideoPlayer(
                 controlsActivity += 1
             },
     ) {
-        ContentFrame(
-            player = player,
-            modifier = Modifier.fillMaxSize(),
-            surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
-        )
-        Box(
+        if (isAudio) {
+            MobileAudioCover(
+                title = title,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            ContentFrame(
+                player = player,
+                modifier = Modifier.fillMaxSize(),
+                surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
+            )
+        }
+        if (!isAudio) Box(
             Modifier
                 .fillMaxSize()
                 .zIndex(0.5f)
@@ -622,7 +659,7 @@ private fun MobileReadyVideoPlayer(
                 )
             }
         }
-        MobileSubtitleCueOverlay(
+        if (!isAudio) MobileSubtitleCueOverlay(
             cues = cues,
             videoAspectRatio = videoSize.displayAspectRatioOrNull(),
             modifier =
@@ -740,6 +777,40 @@ private fun MobileReadyVideoPlayer(
         }
     }
 }
+
+@Composable
+private fun MobileAudioCover(
+    title: String,
+    modifier: Modifier = Modifier,
+) {
+    // The center controls overlay this cover; the spacer keeps the artwork above them
+    // and the title below them.
+    Column(
+        modifier = modifier
+            .testTag(MOBILE_AUDIO_COVER_TAG)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(48.dp, Alignment.CenterVertically),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_ph_file_audio_fill),
+            contentDescription = null,
+            tint = PutioDesignTokens.yellowSolid,
+            modifier = Modifier.size(96.dp),
+        )
+        Spacer(Modifier.height(AUDIO_COVER_CONTROLS_BAND))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private val AUDIO_COVER_CONTROLS_BAND = 72.dp
 
 internal enum class SeekDirection {
     Backward,

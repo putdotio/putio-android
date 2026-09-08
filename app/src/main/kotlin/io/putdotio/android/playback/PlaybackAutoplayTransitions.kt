@@ -1,7 +1,8 @@
 package io.putdotio.android.playback
 
 internal fun PlaybackState.playerEnded(): PlaybackTransition {
-    if (content !is PlaybackContent.Ready) {
+    // Autoplay-next is a video contract; audio ends where it ends.
+    if (content !is PlaybackContent.Ready || target.mediaType != PlaybackMediaType.VIDEO) {
         return PlaybackTransition(this, consumed = false)
     }
     val requestId = PlaybackRequestId(nextRequestValue)

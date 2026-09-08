@@ -60,6 +60,9 @@ data class FilesItem(
 ) {
     val isFolder: Boolean
         get() = type == PutioFileType.FOLDER
+
+    val isPlayable: Boolean
+        get() = type == PutioFileType.VIDEO || type == PutioFileType.AUDIO
 }
 
 /**
