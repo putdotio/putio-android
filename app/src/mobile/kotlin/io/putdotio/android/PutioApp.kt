@@ -413,6 +413,9 @@ internal fun SignedInMobileRoot(
             appConfigController.state.value.playbackPreference()
         }
     }
+    val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
+        runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
+    }
     val trashState by trashController.state.collectAsStateWithLifecycle()
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
@@ -462,7 +465,7 @@ internal fun SignedInMobileRoot(
         transfersSessionId = sessionId,
         account = account,
         playbackRepository = playbackRepository,
-        playbackPlayerFactory = playbackPlayerFactory,
+        playbackPlayerFactory = reportingPlayerFactory,
         nowPlayingRequests = nowPlayingRequests,
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
@@ -1304,6 +1307,8 @@ private fun MobilePlaybackRoute(
         onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
         playerFactory = playerFactory,
         onSourceRequired = { controller.dispatch(PlaybackEvent.SourceRequired(it)) },
+        onResume = { controller.dispatch(PlaybackEvent.Resume) },
+        onRestart = { controller.dispatch(PlaybackEvent.Restart) },
     )
 }
 

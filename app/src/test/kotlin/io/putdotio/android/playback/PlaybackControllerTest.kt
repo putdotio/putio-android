@@ -21,6 +21,32 @@ import org.junit.Test
 
 class PlaybackControllerTest {
     @Test
+    fun resumeChoiceIsRetainedWithoutAnotherResolution() = runBlocking {
+        var resolutions = 0
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                resolutions += 1
+                return PlaybackRepositoryResult.Success(
+                    PlaybackResolution.Ready(playbackSource(target.fileId.value).copy(startFromSeconds = 12.345), true),
+                )
+            }
+
+            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = error("Not expected")
+        }
+        val controller = PlaybackController(Target, repository, this)
+        try {
+            withTimeout(TEST_TIMEOUT_MILLIS) { controller.state.first { it.content is PlaybackContent.AwaitingResume } }
+            assertTrue(controller.dispatch(PlaybackEvent.Resume))
+            assertEquals(12_345L, controller.state.value.resumePositionMillis)
+            assertFalse(controller.dispatch(PlaybackEvent.Restart))
+            assertEquals(12_345L, controller.state.value.resumePositionMillis)
+            assertEquals(1, resolutions)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
     fun sessionAttachmentDoesNotResolveUntilTheScreenRequiresSource() = runBlocking {
         val started = CompletableDeferred<Unit>()
         val result = CompletableDeferred<PlaybackRepositoryResult<PlaybackResolution>>()

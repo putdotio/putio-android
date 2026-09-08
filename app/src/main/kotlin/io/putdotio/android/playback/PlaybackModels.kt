@@ -43,8 +43,13 @@ sealed interface PlaybackContent {
         val requestId: PlaybackRequestId,
     ) : PlaybackContent
 
+    data class AwaitingResume(
+        val source: PlaybackSource,
+    ) : PlaybackContent
+
     data class Ready(
         val source: PlaybackSource,
+        val useStartFrom: Boolean = false,
     ) : PlaybackContent
 
     data class FindingNext(
@@ -79,6 +84,10 @@ data class PlaybackState(
 )
 
 sealed interface PlaybackEvent {
+    data object Resume : PlaybackEvent
+
+    data object Restart : PlaybackEvent
+
     data object Retry : PlaybackEvent
 
     data object PlayerEnded : PlaybackEvent
@@ -168,6 +177,8 @@ object PlaybackReducer {
         event: PlaybackEvent,
     ): PlaybackTransition =
         when (event) {
+            PlaybackEvent.Resume -> state.chooseResume(restart = false)
+            PlaybackEvent.Restart -> state.chooseResume(restart = true)
             PlaybackEvent.Retry -> state.retry()
             PlaybackEvent.PlayerEnded -> state.playerEnded()
             is PlaybackEvent.SourceRequired -> state.sourceRequired(event)
@@ -240,7 +251,12 @@ private fun PlaybackState.resolveSucceeded(
     }
     val nextContent =
         when (val resolution = event.resolution) {
-            is PlaybackResolution.Ready -> PlaybackContent.Ready(resolution.source)
+            is PlaybackResolution.Ready ->
+                if (resolution.useStartFrom && resolution.source.startFromSeconds > 0 && resumePositionMillis == null) {
+                    PlaybackContent.AwaitingResume(resolution.source)
+                } else {
+                    PlaybackContent.Ready(resolution.source, resolution.useStartFrom)
+                }
             is PlaybackResolution.Conversion -> PlaybackContent.Conversion(resolution.state)
             is PlaybackResolution.Unsupported -> PlaybackContent.Unsupported(resolution.fileType)
         }
@@ -258,3 +274,13 @@ private fun PlaybackState.isLoading(requestId: PlaybackRequestId): Boolean =
     (content as? PlaybackContent.Loading)?.requestId == requestId
 
 private const val INITIAL_REQUEST_VALUE = 1L
+
+private fun PlaybackState.chooseResume(restart: Boolean): PlaybackTransition {
+    val pending = content as? PlaybackContent.AwaitingResume ?: return PlaybackTransition(this, consumed = false)
+    return PlaybackTransition(
+        copy(
+            content = PlaybackContent.Ready(pending.source, useStartFrom = true),
+            resumePositionMillis = if (restart) 0L else pending.source.startFromSeconds.toPlaybackMillis(),
+        ),
+    )
+}

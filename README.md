@@ -24,6 +24,8 @@ Mobile, on the emulator harness against the live API:
   configurable HLS or MP4
 - Separate audio/video player layouts with a compact timeline and native settings sheets
 - Audio playback in the background with system media controls and a now-playing bar
+- Resume or start over from a saved position, with throttled position updates
+  while video or background audio plays
 - Playback options for audio and video: 0.75×, 1×, 1.25×, 1.5×, and 2× speed,
   plus audio-track selection when multiple supported tracks are available.
   Choices survive player recreation; unavailable audio tracks fall back to automatic selection

@@ -144,7 +144,7 @@ class SdkPlaybackRepository internal constructor(
                     useStartFrom = account.settings.useStartFrom,
                 ),
             )
-            PlaybackRepositoryResult.Success(resolution.toAppResolution())
+            PlaybackRepositoryResult.Success(resolution.toAppResolution(account.settings.useStartFrom))
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
@@ -213,9 +213,9 @@ private const val AUTOPLAY_PAGE_SIZE = 200
 
 internal class MissingPlaybackCredentialException : IllegalStateException("Playback credential is unavailable")
 
-private fun io.putdotio.sdk.files.PlaybackResolution.toAppResolution(): PlaybackResolution =
+private fun io.putdotio.sdk.files.PlaybackResolution.toAppResolution(useStartFrom: Boolean): PlaybackResolution =
     when (this) {
-        is io.putdotio.sdk.files.PlaybackResolution.Ready -> PlaybackResolution.Ready(source)
+        is io.putdotio.sdk.files.PlaybackResolution.Ready -> PlaybackResolution.Ready(source, useStartFrom)
         is io.putdotio.sdk.files.PlaybackResolution.Conversion -> PlaybackResolution.Conversion(state)
         is io.putdotio.sdk.files.PlaybackResolution.Unsupported -> PlaybackResolution.Unsupported(fileType)
     }
@@ -223,6 +223,7 @@ private fun io.putdotio.sdk.files.PlaybackResolution.toAppResolution(): Playback
 sealed interface PlaybackResolution {
     data class Ready(
         val source: io.putdotio.sdk.files.PlaybackSource,
+        val useStartFrom: Boolean = false,
     ) : PlaybackResolution
 
     data class Conversion(
@@ -234,7 +235,7 @@ sealed interface PlaybackResolution {
     ) : PlaybackResolution
 }
 
-private fun PutioException.toPlaybackFailure(): PlaybackFailure {
+internal fun PutioException.toPlaybackFailure(): PlaybackFailure {
     var current: PutioException = this
     val visited = mutableSetOf<PutioException>()
     val wrappers = mutableListOf<PutioOperationException>()

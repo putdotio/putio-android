@@ -534,6 +534,45 @@ requests, not notification-tap or live-API evidence. The caller owns bounded
 instrumentation supervision, emulator lifetime, and any recording, following the
 session-preserving invocation contract above.
 
+## Resume and position reporting
+
+Fresh audio/video resolution with `use_start_from` enabled and a positive saved
+position offers Resume or Start over before preparing the player. The retained
+controller keeps that decision across Activity recreation. Live audio attachment
+and retained player-error recovery bypass the prompt. Start over starts locally
+at zero; it does not immediately reset the server position.
+
+One observer belongs to each actual player: the private video owner or the audio
+service. Screens and notification controllers do not duplicate audio reporting.
+The observer samples advancing playback every 15 seconds and captures positive
+positions on pause, stop, end, error, item replacement and owner exit. Buffering
+and same-item seek events do not send immediate writes. The application writer
+deduplicates positions within the same second, permits one request in flight and
+one latest pending snapshot, and times out a request after 15 seconds. Under slow
+requests or rapid file switches, newer snapshots can replace intermediate queued
+exit positions. Failed writes keep their typed cause and wait for a new position;
+there is no immediate retry loop or completion-percentage reset rule.
+
+Reporting requires an app-issued item lease, the same signed-in session, and a
+confirmed enabled resume setting. Pending/failed resume-setting writes suspend
+reporting; unrelated setting writes do not. Session exit or disabled/unconfirmed
+policy cancels requests and discards pending positions without flushing. The
+application owns this policy subscription so task removal does not stop audio
+updates. A source resolved with resume disabled receives no reporting lease.
+
+For live proof, use the CLI's explicit `devs-auto` profile to upload a short audio
+file and a video in a uniquely named owned folder. Record exact IDs, names, kinds,
+initial `start_from` values and ownership before setting a positive saved position.
+Install with `adb install -r`, preserving the existing authenticated API 37 app.
+Open each owned file in the real shell; exercise Resume, Start over, pause, Back,
+and background audio with notification controls. Read back exact saved positions
+through the CLI after the reporting interval and pause. Keep shared account
+settings unchanged. Restore initial positions and delete only owned fixtures
+after confirming playback and instrumentation are idle. Capture the prompt and
+its playback outcome, validate recordings, inspect, and publish through the
+existing evidence wrapper. Local test-player proof does not establish live API
+write-back or service ownership.
+
 ## Immersive landscape video proof
 
 `MobileFullscreenVideoProofTest#landscapePlaybackUsesDirectControlsAndRestoresThePreviousWindow`

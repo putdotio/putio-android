@@ -3,6 +3,8 @@ package io.putdotio.android.auth
 import android.content.Context
 import android.util.Log
 import io.putdotio.android.BuildConfig
+import io.putdotio.android.MobilePlaybackReporting
+import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +24,12 @@ class MobileOAuthRuntime internal constructor(
     private val applicationScope: CoroutineScope,
     private val failureReporter: OAuthRuntimeFailureReporter = AndroidOAuthRuntimeFailureReporter,
 ) {
+    internal val playbackReporting = MobilePlaybackReporting(
+        authController.state,
+        applicationScope,
+        SdkPlaybackPositionRepository(putioClient)::write,
+    )
+
     fun dispatchAuthTabResult(
         resultCode: Int,
         rawResultUri: String?,
