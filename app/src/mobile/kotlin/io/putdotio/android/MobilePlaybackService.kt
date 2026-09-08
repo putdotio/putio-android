@@ -4,7 +4,9 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import androidx.media3.common.C
 import androidx.media3.common.Player as Media3Player
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
@@ -19,11 +21,21 @@ import io.putdotio.android.playback.PlaybackMediaType
  */
 class MobilePlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
+    private var taskRemoved = false
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
         super.onCreate()
         val player = DefaultMobilePlayerFactory.create(this, PlaybackMediaType.AUDIO)
+        // Streaming with the screen off needs the CPU and radio awake; a foreground service alone does not.
+        (player as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_NETWORK)
+        player.addListener(
+            object : Media3Player.Listener {
+                override fun onEvents(player: Media3Player, events: Media3Player.Events) {
+                    if (taskRemoved && player.stopsWithTask()) stopSelf()
+                }
+            },
+        )
         session =
             MediaSession.Builder(this, player)
                 .setSessionActivity(
@@ -43,11 +55,11 @@ class MobilePlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
 
+    // Active playback outlives the task; once it pauses, ends, or fails afterwards the listener stops us.
     override fun onTaskRemoved(rootIntent: Intent?) {
+        taskRemoved = true
         val player = session?.player
-        if (player == null || playbackStopsWithTask(player.playWhenReady, player.playbackState, player.mediaItemCount)) {
-            stopSelf()
-        }
+        if (player == null || player.stopsWithTask()) stopSelf()
     }
 
     override fun onDestroy() {
@@ -71,6 +83,9 @@ class MobilePlaybackService : MediaSessionService() {
         }
     }
 }
+
+private fun Media3Player.stopsWithTask(): Boolean =
+    playbackStopsWithTask(playWhenReady, playbackState, mediaItemCount)
 
 // Swiping the task away ends paused or finished audio; active playback keeps going.
 internal fun playbackStopsWithTask(
