@@ -48,8 +48,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
@@ -288,7 +288,7 @@ private fun MobileFilesOperationStatus(
                     CircularProgressIndicator(
                         modifier = Modifier
                             .size(20.dp)
-                            .semantics { contentDescription = message },
+                            .clearAndSetSemantics {},
                         strokeWidth = 2.dp,
                     )
                     Text(message, style = MaterialTheme.typography.bodyMedium)
@@ -633,7 +633,7 @@ private fun MobileFilesPaging(
                 CircularProgressIndicator(
                     modifier = Modifier
                         .size(24.dp)
-                        .semantics { contentDescription = loadingMessage },
+                        .clearAndSetSemantics {},
                     strokeWidth = 2.dp,
                 )
                 Text(loadingMessage)

@@ -37,6 +37,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -277,8 +280,12 @@ private fun MobileRecentSearches(
                 headlineContent = { Text(term.value, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 modifier = Modifier.clickable(role = Role.Button) { onSearch(term) },
                 trailingContent = {
-                    TextButton(onClick = { onEdit(RecentSearchEdit.Remove(term)) }) {
-                        Text(stringResource(R.string.mobile_action_remove))
+                    val removeLabel = stringResource(R.string.mobile_search_remove_named, term.value)
+                    TextButton(
+                        onClick = { onEdit(RecentSearchEdit.Remove(term)) },
+                        modifier = Modifier.semantics { contentDescription = removeLabel },
+                    ) {
+                        Text(stringResource(R.string.mobile_action_remove), modifier = Modifier.clearAndSetSemantics {})
                     }
                 },
             )

@@ -3,7 +3,7 @@ package io.putdotio.android
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -54,41 +54,43 @@ internal fun MobileTrashItemSheet(
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss, modifier = Modifier.testTag(MOBILE_TRASH_ITEM_SHEET_TAG)) {
-        Text(
-            text = item.name,
-            style = MaterialTheme.typography.titleLarge,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
-        )
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.mobile_trash_restore)) },
-            modifier = Modifier
-                .testTag(MOBILE_TRASH_ITEM_RESTORE_TAG)
-                .clickable(enabled = state.canRestore(item.id)) {
-                    onDismiss()
-                    onEvent(TrashEvent.SelectRestore(item.id))
+        Column(Modifier.verticalScroll(rememberScrollState())) {
+            Text(
+                text = item.name,
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.mobile_trash_restore)) },
+                modifier = Modifier
+                    .testTag(MOBILE_TRASH_ITEM_RESTORE_TAG)
+                    .clickable(enabled = state.canRestore(item.id)) {
+                        onDismiss()
+                        onEvent(TrashEvent.SelectRestore(item.id))
+                    },
+            )
+            HorizontalDivider()
+            ListItem(
+                headlineContent = {
+                    Text(stringResource(R.string.mobile_trash_delete), color = MaterialTheme.colorScheme.error)
                 },
-        )
-        HorizontalDivider()
-        ListItem(
-            headlineContent = {
-                Text(stringResource(R.string.mobile_trash_delete), color = MaterialTheme.colorScheme.error)
-            },
-            modifier = Modifier
-                .testTag(MOBILE_TRASH_ITEM_DELETE_TAG)
-                .clickable(enabled = state.canDelete(item.id)) {
-                    onDismiss()
-                    onEvent(TrashEvent.SelectDelete(item.id))
-                }
-                .padding(bottom = 24.dp),
-        )
+                modifier = Modifier
+                    .testTag(MOBILE_TRASH_ITEM_DELETE_TAG)
+                    .clickable(enabled = state.canDelete(item.id)) {
+                        onDismiss()
+                        onEvent(TrashEvent.SelectDelete(item.id))
+                    }
+                    .padding(bottom = 24.dp),
+            )
+        }
     }
 }
 
 @Composable
 internal fun MobileTrashBulkActions(state: TrashState, onEvent: (TrashEvent) -> Boolean) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(
             onClick = { onEvent(TrashEvent.SelectRestoreAll) },
             enabled = state.canActOnAll,

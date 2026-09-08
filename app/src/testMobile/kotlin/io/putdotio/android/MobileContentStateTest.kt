@@ -1,10 +1,24 @@
 package io.putdotio.android
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -25,8 +39,11 @@ class MobileContentStateTest {
     fun loadingStateIsAnnounced() {
         compose.setContent { MobileLoadingState(message = "Loading files") }
 
-        compose.onNodeWithContentDescription("Loading files").assertIsDisplayed()
-        compose.onNodeWithText("Loading files").assertIsDisplayed()
+        compose.onAllNodesWithText("Loading files").assertCountEquals(1)
+        compose.onAllNodesWithContentDescription("Loading files").assertCountEquals(0)
+        compose.onNodeWithText("Loading files").assertIsDisplayed().assert(
+            SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite),
+        )
     }
 
     @Test
@@ -57,5 +74,28 @@ class MobileContentStateTest {
         compose.onNodeWithText("Try again").performClick()
 
         assertTrue(retried)
+    }
+
+    @Test
+    fun largeFontInShortViewportKeepsAuthActionReachable() {
+        var signedIn = false
+        compose.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
+                Box(Modifier.height(200.dp)) {
+                    MobileAuthMessageScreen(
+                        title = "Sign in to put.io",
+                        message = "Your files, wherever you are. Sign in securely in your browser to continue.",
+                        actionLabel = "Sign in",
+                        onAction = { signedIn = true },
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithText("Sign in to put.io").assert(
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading),
+        )
+        compose.onNodeWithText("Sign in").performScrollTo().assertIsDisplayed().performClick()
+        assertTrue(signedIn)
     }
 }

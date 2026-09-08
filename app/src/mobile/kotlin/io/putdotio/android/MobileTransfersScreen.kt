@@ -6,6 +6,7 @@ import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -41,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -96,12 +100,12 @@ internal fun MobileTransfersScreen(
             !state.refresh.isRunning &&
             !state.content.isPaging
     Column(modifier = modifier.fillMaxSize()) {
-        Row(
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             TextButton(
                 onClick = { onEvent(TransfersEvent.Refresh) },
@@ -241,7 +245,7 @@ private fun MobileTransferRow(
                 item.percentDone?.takeIf { it in 0.0..PERCENTAGE_SCALE }?.let { percent ->
                     LinearProgressIndicator(
                         progress = { (percent / PERCENTAGE_SCALE).toFloat() },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().clearAndSetSemantics {},
                     )
                     Text(
                         text = NumberFormat.getPercentInstance().format(percent / PERCENTAGE_SCALE),
@@ -267,28 +271,35 @@ private fun MobileTransferRow(
         trailingContent = {
             Column(horizontalAlignment = Alignment.End) {
                 if (item.canOpen) {
+                    val openLabel = stringResource(R.string.mobile_transfers_open_named, item.name)
                     TextButton(
                         onClick = { onEvent(TransfersEvent.Open(item.id)) },
                         enabled = actionsEnabled,
+                        modifier = Modifier.semantics { contentDescription = openLabel },
                     ) {
-                        Text(stringResource(R.string.mobile_transfers_open))
+                        Text(stringResource(R.string.mobile_transfers_open), modifier = Modifier.clearAndSetSemantics {})
                     }
                 }
                 when (item.status) {
-                    AppTransferStatus.Failed ->
+                    AppTransferStatus.Failed -> {
+                        val retryLabel = stringResource(R.string.mobile_transfers_retry_named, item.name)
                         TextButton(
                             onClick = { onConfirmation(TransferConfirmation.Retry(item.id, item.name)) },
                             enabled = actionsEnabled,
+                            modifier = Modifier.semantics { contentDescription = retryLabel },
                         ) {
-                            Text(stringResource(R.string.mobile_action_retry))
+                            Text(stringResource(R.string.mobile_action_retry), modifier = Modifier.clearAndSetSemantics {})
                         }
+                    }
                     else ->
                         if (item.status.canCancel) {
+                            val cancelLabel = stringResource(R.string.mobile_transfers_cancel_named, item.name)
                             TextButton(
                                 onClick = { onConfirmation(TransferConfirmation.Cancel(item.id, item.name)) },
                                 enabled = actionsEnabled,
+                                modifier = Modifier.semantics { contentDescription = cancelLabel },
                             ) {
-                                Text(stringResource(R.string.mobile_action_cancel))
+                                Text(stringResource(R.string.mobile_action_cancel), modifier = Modifier.clearAndSetSemantics {})
                             }
                         }
                 }
@@ -478,6 +489,7 @@ private fun MobileAddTransferSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

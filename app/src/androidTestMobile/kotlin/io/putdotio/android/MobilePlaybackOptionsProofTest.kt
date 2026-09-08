@@ -220,7 +220,7 @@ class MobilePlaybackOptionsProofTest {
     private fun openSpeedOptions() {
         if (proofMediaType == PlaybackMediaType.VIDEO) {
             showControls()
-            tapThroughAndroid(compose.onNodeWithContentDescription("Playback speed", substring = true))
+            tapThroughAndroid(compose.onNodeWithText("Speed (", substring = true))
         } else {
             showOptions()
             compose.onNodeWithText("Playback speed").performTouchInput { click() }

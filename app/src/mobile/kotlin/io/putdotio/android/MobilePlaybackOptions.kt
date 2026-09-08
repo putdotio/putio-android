@@ -32,7 +32,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -112,14 +111,11 @@ internal fun MobilePlaybackOptions(
             modifier = interactionModifier,
         )
         val speedLabel = playbackSpeedLabel(speed)
-        val speedDescription = stringResource(R.string.mobile_playback_speed_description, speedLabel)
         MobileVideoOptionButton(
             label = stringResource(R.string.mobile_playback_speed_control, speedLabel),
             icon = R.drawable.ic_ph_gauge,
             onClick = { open(PlaybackOptionsPage.Speed) },
-            modifier = interactionModifier.semantics {
-                contentDescription = speedDescription
-            },
+            modifier = interactionModifier,
         )
     } else {
         IconButton(onClick = { open(PlaybackOptionsPage.Root) }, modifier = interactionModifier) {

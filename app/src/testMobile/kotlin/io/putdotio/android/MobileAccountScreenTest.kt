@@ -74,6 +74,15 @@ class MobileAccountScreenTest {
     val compose = createComposeRule()
 
     @Test
+    fun settingsSectionsSupportHeadingNavigation() {
+        setAccountContent(state = readyAccountSettingsState(), events = mutableListOf())
+        listOf("Files", "Playback", "Privacy controls", "About").forEach { title ->
+            compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(title))
+            compose.onNodeWithText(title).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+        }
+    }
+
+    @Test
     fun accountIdentitySettingsAndSignOutAreAvailable() {
         var signedOut = false
         val events = mutableListOf<AccountSettingsEvent>()

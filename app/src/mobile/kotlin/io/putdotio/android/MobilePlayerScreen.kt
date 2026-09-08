@@ -477,7 +477,13 @@ private fun MobileReadyPlayer(
                 touchExplorationEnabled = touchExplorationEnabled,
             )
         ) {
-            delay(MOBILE_CONTROLS_HIDE_DELAY_MILLIS)
+            val timeout = accessibilityManager?.calculateRecommendedTimeoutMillis(
+                originalTimeoutMillis = MOBILE_CONTROLS_HIDE_DELAY_MILLIS,
+                containsIcons = true,
+                containsText = true,
+                containsControls = true,
+            ) ?: MOBILE_CONTROLS_HIDE_DELAY_MILLIS
+            delay(timeout.coerceAtLeast(MOBILE_CONTROLS_HIDE_DELAY_MILLIS))
             controlsVisible = false
         }
     }

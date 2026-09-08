@@ -82,6 +82,77 @@ Still eyeball captures before publishing them as evidence.
 
 ## Evidence
 
+### Mobile accessibility proof
+
+`MobileAccessibilityProofTest` mounts controlled production auth, Files,
+Search, Transfers, Trash and Settings surfaces without API calls or session
+changes. Its three selectors exercise named actions, sheets, dialogs and the
+real keyboard. Set the API 37 emulator's system `font_scale` to `2.0` and all
+three global animation scales (`animator_duration_scale`,
+`window_animation_scale`, `transition_animation_scale`) to `0` before running.
+Record their exact prior values, including absent keys, and restore them after
+proof. This lane proves large-font reachability with animations disabled;
+Compose semantics assertions do not establish actual TalkBack speech.
+
+Install the mobile production debug app and test APKs with `adb install -r`.
+Invoke only the named class through bounded `am instrument`, passing
+`putio.accessibility.enabled=true` and `putio.accessibility.runId=<UUID>`.
+Require `OK (3 tests)`. Screenshots land in `accessibility-proof-<UUID>/`
+under the target app's external files directory. Follow the session-preserving
+invocation and guest-idleness rules below; do not use `connectedAndroidTest`
+or `prove.sh` on the authenticated installation.
+
+`MobileTalkBackProofTest` is a separate, manually driven TalkBack lane. It
+mounts controlled auth and private local players, then checks the real auth
+callback and player state while the caller operates TalkBack. It connects no
+UiAutomation service: on this API 37 emulator, querying accessibility nodes
+from a second service interfered with TalkBack's player traversal. Enable
+TalkBack and its Developer settings → Display speech output and VERBOSE
+logging, recording prior settings for restoration. Capture the walkthrough
+plus the filtered `SpeechControllerImpl` log; player state alone does not
+prove spoken output. Screenshots and recordings require inspection and the
+existing publication gates.
+
+Pass the same opt-in and run ID, plus `putio.accessibility.video` and
+`putio.accessibility.audio` pointing to caller-owned files beneath the app's
+external files directory. Use 180-second media with two labeled audio tracks
+and embedded video captions, as in the playback-options proof. The selector
+uses private players and does not connect to the background audio service;
+preserve the separate service lifecycle proofs. Navigate to each action with
+TalkBack, then double-tap: the auth recovery button, video Pause and 1.5× speed,
+and audio Pause. Inspect the Audio, Captions and audio playback-options labels
+as part of the walkthrough. Dismiss Android's first-use fullscreen hint through
+TalkBack when it appears, preserving its prior `immersive_mode_confirmations`
+setting for restoration.
+
+The owned proof directory contains `talkback-stage.txt` and
+`talkback-state.txt`. Follow the stages `auth-action`, `video-ready`,
+`video-pause`, `video-speed`, `video-controls`, `audio-ready`, `audio-pause`,
+`audio-controls`, then `finished`. Only after inspecting the spoken video
+Audio/Captions controls, create `talkback-video-reviewed` in that directory;
+after inspecting the audio timeline/options, create `talkback-audio-reviewed`.
+These acknowledgements record caller inspection, not automated speech assertions.
+The selector limits each stage to 120 seconds and the whole flow to 360 seconds.
+Require `OK (1 test)` and inspect the corresponding recording and utterance log.
+
+Send one hardware gesture at a time, waiting for TalkBack to speak and show the
+focused control before the next gesture:
+
+```bash
+python3 -B scripts/talkback-input.py --adb "$ADB" --serial emulator-5554 \
+  --action swipe-right --width 1080 --height 2400 --rotation 0
+```
+
+Actions are `swipe-left`, `swipe-right` and `double-tap`. Supply the current
+screenshot's physical dimensions and Android display rotation (0..3); landscape
+on the phone emulator normally uses 2400×1080 and rotation 1. The command maps
+coordinates to the emulator's natural orientation, bounds every command, and
+releases a held touch on interruption or failure. On API 37, injected `input
+swipe` and `UiAutomation.injectInputEvent` bypass TalkBack's gesture input;
+emulator `event mouse` reaches its actual touch recognizer. This helper changes
+no settings, account state or emulator lifecycle. The caller still supervises
+instrumentation, recording, artifact capture and settings restoration.
+
 ### Playback options device proof
 
 `MobilePlaybackOptionsProofTest` uses the real mobile player and audio service
