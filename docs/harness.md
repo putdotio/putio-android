@@ -102,36 +102,56 @@ under the target app's external files directory. Follow the session-preserving
 invocation and guest-idleness rules below; do not use `connectedAndroidTest`
 or `prove.sh` on the authenticated installation.
 
-`MobileTalkBackProofTest` is a separate actual-TalkBack lane. It uses
-`UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES` without a Compose
-test rule, so automation leaves TalkBack running. Enable TalkBack and its
-Developer settings → Display speech output and VERBOSE logging, recording
-prior settings for restoration. Capture the walkthrough plus the filtered
-`SpeechControllerImpl` log: focus events alone do not prove spoken output.
-The test's `talkback-focus.txt` is explicitly a traversal trace. Screenshots
-and recordings still require inspection and the existing publication gates.
+`MobileTalkBackProofTest` is a separate, manually driven TalkBack lane. It
+mounts controlled auth and private local players, then checks the real auth
+callback and player state while the caller operates TalkBack. It connects no
+UiAutomation service: on this API 37 emulator, querying accessibility nodes
+from a second service interfered with TalkBack's player traversal. Enable
+TalkBack and its Developer settings → Display speech output and VERBOSE
+logging, recording prior settings for restoration. Capture the walkthrough
+plus the filtered `SpeechControllerImpl` log; player state alone does not
+prove spoken output. Screenshots and recordings require inspection and the
+existing publication gates.
+
 Pass the same opt-in and run ID, plus `putio.accessibility.video` and
 `putio.accessibility.audio` pointing to caller-owned files beneath the app's
 external files directory. Use 180-second media with two labeled audio tracks
-and embedded video captions, as in the playback-options proof. This selector
-uses private local players and does not connect to the background audio
-service. It checks TalkBack activation of the auth action, video/audio pause,
-and video speed selection; preserve the separate service lifecycle proofs.
+and embedded video captions, as in the playback-options proof. The selector
+uses private players and does not connect to the background audio service;
+preserve the separate service lifecycle proofs. Navigate to each action with
+TalkBack, then double-tap: the auth recovery button, video Pause and 1.5× speed,
+and audio Pause. Inspect the Audio, Captions and audio playback-options labels
+as part of the walkthrough. Dismiss Android's first-use fullscreen hint through
+TalkBack when it appears, preserving its prior `immersive_mode_confirmations`
+setting for restoration.
 
-Start the hardware-input bridge alongside this selector, with the same run ID:
+The owned proof directory contains `talkback-stage.txt` and
+`talkback-state.txt`. Follow the stages `auth-action`, `video-ready`,
+`video-pause`, `video-speed`, `video-controls`, `audio-ready`, `audio-pause`,
+`audio-controls`, then `finished`. Only after inspecting the spoken video
+Audio/Captions controls, create `talkback-video-reviewed` in that directory;
+after inspecting the audio timeline/options, create `talkback-audio-reviewed`.
+These acknowledgements record caller inspection, not automated speech assertions.
+The selector limits each stage to 120 seconds and the whole flow to 360 seconds.
+Require `OK (1 test)` and inspect the corresponding recording and utterance log.
+
+Send one hardware gesture at a time, waiting for TalkBack to speak and show the
+focused control before the next gesture:
 
 ```bash
-python3 scripts/talkback-input.py --adb "$ADB" --serial emulator-5554 --run-id "$RUN_ID"
+python3 -B scripts/talkback-input.py --adb "$ADB" --serial emulator-5554 \
+  --action swipe-right --width 1080 --height 2400 --rotation 0
 ```
 
-Stop the bridge after instrumentation exits. It accepts only swipe-left,
-swipe-right and double-tap requests in the owned proof directory, uses physical
-pixel coordinates mapped from display rotation to the emulator's natural
-orientation, and exits after 240 seconds by default. On API 37, injected
-`input swipe` and `UiAutomation.injectInputEvent` bypass TalkBack's gesture
-input; emulator `event mouse` reaches its actual touch recognizer. The bridge
-changes no settings, account state or emulator lifecycle. The caller still
-supervises instrumentation, recording, artifact capture and settings restoration.
+Actions are `swipe-left`, `swipe-right` and `double-tap`. Supply the current
+screenshot's physical dimensions and Android display rotation (0..3); landscape
+on the phone emulator normally uses 2400×1080 and rotation 1. The command maps
+coordinates to the emulator's natural orientation, bounds every command, and
+releases a held touch on interruption or failure. On API 37, injected `input
+swipe` and `UiAutomation.injectInputEvent` bypass TalkBack's gesture input;
+emulator `event mouse` reaches its actual touch recognizer. This helper changes
+no settings, account state or emulator lifecycle. The caller still supervises
+instrumentation, recording, artifact capture and settings restoration.
 
 ### Playback options device proof
 

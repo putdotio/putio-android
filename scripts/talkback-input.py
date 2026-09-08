@@ -1,30 +1,29 @@
 #!/usr/bin/env python3
-"""Bridge the opt-in TalkBack proof's bounded requests to emulator hardware input."""
+"""Send one real TalkBack gesture through an emulator's hardware touch input."""
 
 import argparse
 import re
 import signal
 import subprocess
 import time
-import uuid
 
 ACTIONS = frozenset(("swipe-right", "swipe-left", "double-tap"))
 
 
-def parse_request(text):
-    fields = text.split()
-    if len(fields) != 5:
-        raise ValueError("Expected UUID, gesture, width, height and rotation")
-    request_id, action, width_text, height_text, rotation_text = fields
-    if str(uuid.UUID(request_id)) != request_id or action not in ACTIONS:
-        raise ValueError("Invalid request UUID or gesture")
-    width, height = int(width_text), int(height_text)
-    if not 320 <= width <= 8192 or not 320 <= height <= 8192:
-        raise ValueError("Unsupported display dimensions")
-    rotation = int(rotation_text)
-    if rotation not in (0, 1, 2, 3):
-        raise ValueError("Unsupported display rotation")
-    return request_id, action, width, height, rotation
+def parse_arguments(arguments=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--adb", default="adb")
+    parser.add_argument("--serial", required=True)
+    parser.add_argument("--action", required=True, choices=sorted(ACTIONS))
+    parser.add_argument("--width", required=True, type=int)
+    parser.add_argument("--height", required=True, type=int)
+    parser.add_argument("--rotation", required=True, type=int, choices=range(4))
+    args = parser.parse_args(arguments)
+    if not re.fullmatch(r"emulator-[0-9]+", args.serial):
+        parser.error("Only an explicit emulator serial is supported")
+    if not 320 <= args.width <= 8192 or not 320 <= args.height <= 8192:
+        parser.error("Display dimensions must be 320..8192 physical pixels")
+    return args
 
 
 def natural_coordinates(x, y, width, height, rotation):
@@ -73,59 +72,25 @@ def interrupted(_signal, _frame):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--adb", default="adb")
-    parser.add_argument("--serial", required=True)
-    parser.add_argument("--run-id", required=True, type=uuid.UUID)
-    parser.add_argument("--timeout", type=int, default=240)
-    args = parser.parse_args()
+    args = parse_arguments()
     signal.signal(signal.SIGTERM, interrupted)
-    if not re.fullmatch(r"emulator-[0-9]+", args.serial):
-        parser.error("Only an explicit emulator serial is supported")
-    if not 1 <= args.timeout <= 600:
-        parser.error("Timeout must be 1..600 seconds")
     adb = [args.adb, "-s", args.serial]
-    directory = ("/sdcard/Android/data/io.put.putio.mobile.debug/files/"
-                 f"accessibility-proof-{args.run_id}")
-    request_path = f"{directory}/gesture-request.txt"
-    deadline = time.monotonic() + args.timeout
-    handled = set()
 
-    def command(*arguments, check=True):
-        return subprocess.run(adb + list(arguments), capture_output=True, text=True,
-                              timeout=5, check=check)
+    def send(x, y, button):
+        x, y = natural_coordinates(x, y, args.width, args.height, args.rotation)
+        result = subprocess.run(
+            adb + ["emu", "event", "mouse", str(x), str(y), "0", str(button)],
+            capture_output=True, text=True, timeout=5, check=True,
+        )
+        if any(line.startswith("KO") for line in result.stdout.splitlines()):
+            raise RuntimeError(f"Emulator rejected hardware input: {result.stdout.strip()}")
 
-    while time.monotonic() < deadline:
-        result = command("shell", "cat", request_path, check=False)
-        if result.returncode:
-            if "No such file" not in result.stderr:
-                raise RuntimeError(f"Cannot read gesture request: {result.stderr.strip()}")
-            time.sleep(0.1)
-            continue
-        request_id, action, width, height, rotation = parse_request(result.stdout)
-        if request_id in handled:
-            time.sleep(0.1)
-            continue
-        acknowledged = f"{directory}/gesture-{request_id}.done"
-        if command("shell", "test", "-f", acknowledged, check=False).returncode == 0:
-            handled.add(request_id)
-            continue
-        points = gesture_points(action, width, height)
-        def send(x, y, button):
-            x, y = natural_coordinates(x, y, width, height, rotation)
-            result = command("emu", "event", "mouse", str(x), str(y), "0", str(button))
-            if any(line.startswith("KO") for line in result.stdout.splitlines()):
-                raise RuntimeError(f"Emulator rejected hardware input: {result.stdout.strip()}")
-
-        emit_gesture(send, points)
-        command("shell", "touch", acknowledged)
-        handled.add(request_id)
-        print(f"{request_id} {action} {width}x{height} rotation={rotation}", flush=True)
-    print(f"Bridge timeout reached after {len(handled)} gestures", flush=True)
+    emit_gesture(send, gesture_points(args.action, args.width, args.height))
+    print(f"{args.action} {args.width}x{args.height} rotation={args.rotation}", flush=True)
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        pass
+        raise SystemExit(130) from None

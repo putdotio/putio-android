@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
-"""Validate the hardware bridge's untrusted file protocol and physical coordinates."""
+"""Validate the hardware bridge's command arguments and physical coordinates."""
 
+import contextlib
+import io
 import pathlib
 import runpy
 import unittest
 from unittest.mock import Mock
 
 bridge = runpy.run_path(str(pathlib.Path(__file__).with_name("talkback-input.py")))
-parse_request = bridge["parse_request"]
 gesture_points = bridge["gesture_points"]
-REQUEST_ID = "efbd4924-018d-4a67-b509-6f0d13c110d9"
 
 
 class TalkBackInputTest(unittest.TestCase):
-    def test_request_rejects_paths_commands_and_invalid_dimensions(self):
-        for request in (
-            "../outside swipe-right 1080 2400 0",
-            f"{REQUEST_ID} shell 1080 2400 0",
-            f"{REQUEST_ID} swipe-right 0 2400 0",
-            f"{REQUEST_ID} swipe-right 1080 999999 0",
-            f"{REQUEST_ID} swipe-right 1080 2400 0 extra",
-            f"{REQUEST_ID} swipe-right 1080 2400 4",
-        ):
-            with self.subTest(request=request), self.assertRaises(ValueError):
-                parse_request(request)
-        self.assertEqual((REQUEST_ID, "swipe-right", 1080, 2400, 0),
-                         parse_request(f"{REQUEST_ID} swipe-right 1080 2400 0"))
+    def test_arguments_reject_devices_actions_and_invalid_dimensions(self):
+        valid = ["--serial", "emulator-5554", "--action", "swipe-right",
+                 "--width", "1080", "--height", "2400", "--rotation", "0"]
+        for index, value in ((1, "physical-device"), (3, "shell"), (5, "0"),
+                             (7, "999999"), (9, "4")):
+            invalid = valid.copy()
+            invalid[index] = value
+            with self.subTest(value=value), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    bridge["parse_arguments"](invalid)
+        args = bridge["parse_arguments"](valid)
+        self.assertEqual(("emulator-5554", "swipe-right", 1080, 2400, 0),
+                         (args.serial, args.action, args.width, args.height, args.rotation))
 
     def test_rotated_display_points_map_to_natural_touch_coordinates(self):
         transform = bridge["natural_coordinates"]

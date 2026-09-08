@@ -1,14 +1,9 @@
 package io.putdotio.android
 
-import android.accessibilityservice.AccessibilityServiceInfo
-import android.app.UiAutomation
 import android.content.pm.ActivityInfo
-import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.SystemClock
-import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityManager
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -24,251 +19,134 @@ import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackState
+import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
-import io.putdotio.android.playback.PlaybackState
 import io.putdotio.sdk.files.PlaybackSubtitles
-import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.sdk.files.PutioCredentialUrl
 import java.io.File
-import java.util.UUID
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Actual TalkBack gestures; capture SpeechControllerImpl separately to verify spoken utterances. */
+/** Host-driven real TalkBack proof; observes callbacks and player state without an accessibility connection. */
 @RunWith(AndroidJUnit4::class)
 class MobileTalkBackProofTest {
     @get:Rule val optIn = accessibilityProofOptIn()
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
-    private val focused = CopyOnWriteArrayList<String>()
-    private lateinit var automation: UiAutomation
-    @Volatile private var focusedNode: AccessibilityNodeInfo? = null
+    private lateinit var directory: File
+    private var deadline = 0L
 
     @Test
-    fun talkBackActivatesAuthAndTraversesPersistentPlaybackControls() {
-        // Compose/Espresso rules reconnect UiAutomation without this flag and suppress TalkBack.
-        automation = instrumentation.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
-        automation.serviceInfo = automation.serviceInfo.apply {
-            flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-        }
-        await("Interactive accessibility windows available") { automation.windows.isNotEmpty() }
+    fun talkBackActivatesAuthAndControlsPrivateVideoAndAudio() {
         val manager = instrumentation.targetContext.getSystemService(AccessibilityManager::class.java)
-        require(manager.isTouchExplorationEnabled) { "Enable TalkBack before running this selector" }
+        require(manager.isTouchExplorationEnabled) { "Enable TalkBack before this selector" }
         require(manager.getEnabledAccessibilityServiceList(-1).any {
             it.resolveInfo.serviceInfo.packageName == "com.google.android.marvin.talkback"
-        }) { "This selector requires actual TalkBack" }
-        automation.setOnAccessibilityEventListener { event ->
-            if (event.eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED &&
-                event.packageName?.toString() in
-                setOf(instrumentation.targetContext.packageName, "com.android.systemui", "android")
-            ) {
-                val description = event.contentDescription?.toString().orEmpty()
-                val text = event.text.joinToString(" | ")
-                val source = event.source
-                focusedNode = source
-                focused += (listOf(description, text) + nodeLabels(source))
-                    .filter(String::isNotBlank).distinct().joinToString(" | ")
-            }
-        }
-        try {
-            exerciseSurfaces()
-        } finally {
-            File(accessibilityProofDirectory(), "talkback-focus.txt").writeText(focused.joinToString("\n"))
-            automation.setOnAccessibilityEventListener(null)
-        }
-    }
-
-    private fun nodeLabels(node: AccessibilityNodeInfo?, depth: Int = 0): List<String> {
-        if (node == null || depth > 3) return emptyList()
-        return listOf(node.contentDescription?.toString().orEmpty(), node.text?.toString().orEmpty()) +
-            (0 until minOf(node.childCount, 20)).flatMap { nodeLabels(node.getChild(it), depth + 1) }
-    }
-
-    private fun exerciseSurfaces() {
-        val activations = AtomicInteger()
+        }) { "Actual TalkBack is required" }
+        directory = accessibilityProofDirectory()
+        val videoReviewed = File(directory, "talkback-video-reviewed")
+        val audioReviewed = File(directory, "talkback-audio-reviewed")
+        require(!videoReviewed.exists() && !audioReviewed.exists()) { "Use a fresh proof run ID" }
+        deadline = SystemClock.uptimeMillis() + 360_000
+        val retries = AtomicInteger()
         val factory = TalkBackPlayerFactory()
-        val state = localPlaybackState()
-        var video by mutableStateOf(false)
+        val video = localPlaybackState(PlaybackMediaType.VIDEO)
+        val audio = localPlaybackState(PlaybackMediaType.AUDIO)
+        var surface by mutableStateOf(0)
         ActivityScenario.launch(MobileFullscreenProofActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
                 activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                 activity.setContent {
                     PutioTheme {
                         Surface(Modifier.fillMaxSize()) {
-                            if (video) {
-                                MobilePlayerScreen(
-                                    state = state,
-                                    onRetry = { error("Unexpected local video retry") },
-                                    onPlayerFailure = { failure, _ -> error("Local video failed: $failure") },
-                                    onBack = { video = false },
-                                    playerFactory = factory,
-                                )
-                            } else {
+                            if (surface == 0) {
                                 MobileAuthMessageScreen(
                                     title = "Sign in could not finish",
                                     message = "The browser closed before authentication completed. " +
                                         "Your account is unchanged.",
                                     actionLabel = "Try signing in again",
-                                    onAction = { activations.incrementAndGet() },
+                                    onAction = { retries.incrementAndGet() },
+                                )
+                            } else {
+                                MobilePlayerScreen(
+                                    state = if (surface == 1) video else audio,
+                                    onRetry = { error("Unexpected local playback retry") },
+                                    onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
+                                    onBack = {}, playerFactory = factory,
                                 )
                             }
                         }
                     }
                 }
             }
-            await("Auth accessibility tree ready") { focused.isNotEmpty() }
-            focusNext("Try signing in again")
-            accessibilityProofScreenshot("talkback-auth-action", automation)
-            doubleTap("Try signing in again")
-            await("TalkBack auth activation") { activations.get() == 1 }
-            scenario.onActivity { video = true }
-            await("Local video ready") {
-                var ready = false
-                scenario.onActivity {
-                    ready = factory.player?.let { it.playbackState == Player.STATE_READY && it.isPlaying } == true
-                }
-                ready
+            awaitPhase("auth-action") { retries.get() == 1 }
+            scenario.onActivity { surface = 1 }
+            awaitPlayer("video-ready", scenario, factory) {
+                it.playbackState == Player.STATE_READY && it.playWhenReady
             }
-            SystemClock.sleep(6_000)
-            if (fullscreenHintVisible()) {
-                focusNext("Got it")
-                doubleTap("Got it")
-                await("Fullscreen education dismissed") { !fullscreenHintVisible() }
+            awaitPlayer("video-pause", scenario, factory) {
+                it.playbackState == Player.STATE_READY && !it.playWhenReady
             }
-            accessibilityProofScreenshot("talkback-playback-persistent", automation)
-            focusNext("Pause")
-            accessibilityProofScreenshot("talkback-playback-pause", automation)
-            doubleTap("Pause")
-            await("TalkBack paused video") {
-                var paused = false
-                scenario.onActivity { paused = factory.player?.playWhenReady == false }
-                paused
+            awaitPlayer("video-speed", scenario, factory) { it.playbackParameters.speed == 1.5f && !it.playWhenReady }
+            awaitPhase("video-controls") { videoReviewed.isFile }
+            scenario.onActivity { surface = 2 }
+            awaitPlayer("audio-ready", scenario, factory) {
+                it.playbackState == Player.STATE_READY && it.playWhenReady
             }
-            focusNext("Speed (1×)")
-            accessibilityProofScreenshot("talkback-playback-speed", automation)
-            doubleTap("Speed (1×)")
-            focusNext("1.5")
-            accessibilityProofScreenshot("talkback-speed-choice", automation)
-            doubleTap("1.5")
-            await("TalkBack selected speed") {
-                var selected = false
-                scenario.onActivity { selected = factory.player?.playbackParameters?.speed == 1.5f }
-                selected
+            awaitPlayer("audio-pause", scenario, factory) {
+                it.playbackState == Player.STATE_READY && !it.playWhenReady
             }
-            focusNext("Audio", forward = false)
-            accessibilityProofScreenshot("talkback-playback-audio", automation)
-            focusNext("Captions")
-            accessibilityProofScreenshot("talkback-playback-captions", automation)
-            scenario.onActivity { video = false }
-            focusNext("Try signing in again")
-            scenario.onActivity { activity ->
-                activity.setContent {
-                    PutioTheme {
-                        MobilePlayerScreen(
-                            state = localPlaybackState(PlaybackMediaType.AUDIO),
-                            onRetry = { error("Unexpected local audio retry") },
-                            onPlayerFailure = { failure, _ -> error("Local audio failed: $failure") },
-                            onBack = {},
-                            playerFactory = factory,
-                        )
-                    }
-                }
-            }
-            await("Local audio ready") {
-                var ready = false
-                scenario.onActivity {
-                    ready = factory.player?.let { it.playbackState == Player.STATE_READY && it.isPlaying } == true
-                }
-                ready
-            }
-            focusNext("Pause")
-            accessibilityProofScreenshot("talkback-audio-pause", automation)
-            doubleTap("Pause")
-            await("TalkBack paused audio") {
-                var paused = false
-                scenario.onActivity { paused = factory.player?.playWhenReady == false }
-                paused
-            }
-            focusNext("Playback position", forward = false)
-            accessibilityProofScreenshot("talkback-audio-position", automation)
-            focusNext("Playback options")
-            accessibilityProofScreenshot("talkback-audio-options", automation)
-            doubleTap("Playback options")
-            focusNext("Playback speed")
-            accessibilityProofScreenshot("talkback-audio-speed", automation)
+            awaitPhase("audio-controls") { audioReviewed.isFile }
         }
+        File(directory, "talkback-stage.txt").writeText("finished")
     }
 
-    private fun fullscreenHintVisible(): Boolean = automation.windows.any { window ->
-        window.root?.findAccessibilityNodeInfosByText("Got it")?.any { node ->
-            node.text?.toString() == "Got it" && node.isClickable
-        } == true
-    }
-
-    private fun currentFocus(): String {
-        val node = focusedNode ?: return ""
-        if (!node.refresh() || !node.isAccessibilityFocused) return ""
-        return nodeLabels(node).filter(String::isNotBlank).distinct().joinToString(" | ")
-    }
-
-    private fun focusNext(label: String, forward: Boolean = true) {
-        repeat(24) {
-            val before = currentFocus()
-            if (before.contains(label, ignoreCase = true)) return
-            swipe(forward)
-            val deadline = SystemClock.uptimeMillis() + 3_000
-            while (currentFocus() == before && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(50)
+    private fun awaitPlayer(
+        phase: String,
+        scenario: ActivityScenario<MobileFullscreenProofActivity>,
+        factory: TalkBackPlayerFactory,
+        predicate: (Player) -> Boolean,
+    ) = awaitPhase(phase) {
+        var accepted = false
+        var snapshot = "preparing"
+        scenario.onActivity {
+            factory.player?.let { player ->
+                check(player.playerError == null) { "Local playback failed: ${player.playerError?.errorCodeName}" }
+                snapshot = "playWhenReady=${player.playWhenReady} isPlaying=${player.isPlaying} " +
+                    "state=${player.playbackState} speed=${player.playbackParameters.speed} " +
+                    "position=${player.currentPosition}"
+                accepted = predicate(player)
+            }
         }
-        error("TalkBack did not focus $label; visited ${focused.joinToString()}")
+        File(directory, "talkback-state.txt").writeText(snapshot)
+        accepted
     }
 
-    private fun swipe(forward: Boolean) = hardwareGesture(if (forward) "swipe-right" else "swipe-left")
-
-    private fun doubleTap(label: String) {
-        check(currentFocus().contains(label, ignoreCase = true)) { "TalkBack focus moved before activating $label" }
-        hardwareGesture("double-tap")
+    private fun awaitPhase(phase: String, predicate: () -> Boolean) {
+        File(directory, "talkback-stage.txt").writeText(phase)
+        val phaseDeadline = minOf(deadline, SystemClock.uptimeMillis() + 120_000)
+        while (!predicate() && SystemClock.uptimeMillis() < phaseDeadline) SystemClock.sleep(250)
+        assertTrue("Host completed $phase through actual TalkBack controls", predicate())
     }
 
-    private fun hardwareGesture(action: String) {
-        val bitmap = requireNotNull(automation.takeScreenshot())
-        val width = bitmap.width
-        val height = bitmap.height
-        bitmap.recycle()
-        val id = UUID.randomUUID().toString()
-        val directory = accessibilityProofDirectory()
-        val pending = File(directory, "gesture-request.pending")
-        val display = instrumentation.targetContext.getSystemService(DisplayManager::class.java).getDisplay(0)
-        pending.writeText("$id $action $width $height ${display.rotation}")
-        check(pending.renameTo(File(directory, "gesture-request.txt")))
-        val acknowledged = File(directory, "gesture-$id.done")
-        await("Host hardware bridge acknowledged $action") { acknowledged.isFile }
-        SystemClock.sleep(500)
-    }
-
-    private fun await(description: String, predicate: () -> Boolean) {
-        val deadline = SystemClock.uptimeMillis() + 30_000
-        while (!predicate() && SystemClock.uptimeMillis() < deadline) SystemClock.sleep(100)
-        assertTrue(description, predicate())
-    }
-
-    private fun localPlaybackState(mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO): PlaybackState {
-        val argument = if (mediaType == PlaybackMediaType.VIDEO) "video" else "audio"
-        val path = requireNotNull(InstrumentationRegistry.getArguments().getString("putio.accessibility.$argument"))
+    private fun localPlaybackState(mediaType: PlaybackMediaType): PlaybackState {
+        val kind = if (mediaType == PlaybackMediaType.VIDEO) "video" else "audio"
+        val path = requireNotNull(InstrumentationRegistry.getArguments().getString("putio.accessibility.$kind"))
         val file = File(path).canonicalFile
-        require(file.isFile && file.canRead())
         val root = requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)).canonicalFile
-        require(file.toPath().startsWith(root.toPath()))
+        require(file.isFile && file.canRead() && file.toPath().startsWith(root.toPath()))
         // The SDK owns production URLs; this proof reads only the caller's local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
+        val fileId = if (mediaType == PlaybackMediaType.VIDEO) 9_147_001L else 9_147_002L
         return PlaybackState(
-            PlaybackTarget(FilesItemId(9_147_001), "Accessibility local $argument", mediaType),
-            PlaybackContent.Ready(PlaybackSource(9_147_001, PlaybackSourceKind.ORIGINAL, url,
-                startFromSeconds = 20.0, subtitles = PlaybackSubtitles.Embedded)),
+            PlaybackTarget(FilesItemId(fileId), "Accessibility local $kind", mediaType),
+            PlaybackContent.Ready(PlaybackSource(fileId, PlaybackSourceKind.ORIGINAL, url, 20.0,
+                if (mediaType == PlaybackMediaType.VIDEO) PlaybackSubtitles.Embedded else PlaybackSubtitles.None)),
             nextRequestValue = 1,
         )
     }
