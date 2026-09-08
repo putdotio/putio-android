@@ -627,7 +627,8 @@ internal fun MobileShell(
     }
     val shareNavigationBlocked = filesState.stack.any {
         it.operation.pendingDelete != null || it.operation.pendingMove != null
-    } || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving
+    } || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving ||
+        transfersState.mutation is TransferMutation.Running
     LaunchedEffect(incomingDraft.incomingRequestId, backStackEntry, shareNavigationBlocked) {
         val requestId = incomingDraft.incomingRequestId ?: return@LaunchedEffect
         if (backStackEntry == null || shareNavigationBlocked) return@LaunchedEffect

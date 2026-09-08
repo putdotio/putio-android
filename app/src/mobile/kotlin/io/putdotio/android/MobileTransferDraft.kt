@@ -90,7 +90,7 @@ class MobileTransferDraft : ViewModel() {
 
     internal fun dismiss() {
         if (mutableState.value.submitting) return
-        mutableState.value = mutableState.value.copy(open = false)
+        mutableState.value = mutableState.value.copy(open = false, incomingRequestId = null)
     }
 
     internal fun validate(): String? {

@@ -205,6 +205,94 @@ class MobileShellTest {
     }
 
     @Test
+    fun dismissingAShareDuringTransferResolutionPreservesTheRequestedFilesNavigation() {
+        val draft = MobileTransferDraft()
+        var transfers by mutableStateOf(resolvingTransfersState())
+        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfers,
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onTransfersEvent = { event ->
+                        events.add(event)
+                        transfers = TransfersReducer.reduce(transfers, event).state
+                    },
+                    resolveTransferFile = { resolved.await() },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Transfers").performClick()
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.runOnIdle { resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder())) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertEquals("https://example.invalid/shared", draft.state.value.input)
+            assertTrue(events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L))))
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
+    fun shareNavigationWaitsForARunningTransferMutationToSettle() {
+        val draft = MobileTransferDraft()
+        var transfers by mutableStateOf(TransfersState(
+            content = TransfersContent.Empty,
+            mutation = io.putdotio.android.transfers.TransferMutation.Running(
+                io.putdotio.android.transfers.TransferAction.Clean, TransfersRequestId(2L),
+            ),
+        ))
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfers,
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onTransfersEvent = events::add,
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
+            transfers = transfers.copy(mutation = io.putdotio.android.transfers.TransferMutation.Idle)
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
     fun filesDeleteRequiresConfirmedSettingsThroughSaveAndRefreshFailure() {
         val original = DefaultAccountSettingsPreferences.copy(trashEnabled = true)
         val optimistic = original.copy(trashEnabled = false)
