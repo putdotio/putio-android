@@ -48,7 +48,7 @@ internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
         .take(2)
         .toList()
     return when (links.size) {
-        1 -> if (links.single().last() !in AmbiguousProseEndings && TransferSubmission.parse(links.single()) != null) {
+        1 -> if (!links.single().hasAmbiguousProseEnding() && TransferSubmission.parse(links.single()) != null) {
             MobileSharedTransfer(links.single())
         } else {
             MobileSharedTransfer(text, MobileShareValidation.InvalidLink)
@@ -58,9 +58,24 @@ internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
     }
 }
 
+private fun String.hasAmbiguousProseEnding(): Boolean {
+    val ending = codePointBefore(length)
+    if (ending <= 127) return ending.toChar() in ".,;:!?')]}"
+    return when (Character.getType(ending)) {
+        Character.CONNECTOR_PUNCTUATION.toInt(),
+        Character.DASH_PUNCTUATION.toInt(),
+        Character.START_PUNCTUATION.toInt(),
+        Character.END_PUNCTUATION.toInt(),
+        Character.INITIAL_QUOTE_PUNCTUATION.toInt(),
+        Character.FINAL_QUOTE_PUNCTUATION.toInt(),
+        Character.OTHER_PUNCTUATION.toInt(),
+        -> true
+        else -> false
+    }
+}
+
 internal fun CharSequence.fitsMobileTransferInputLimit(): Boolean =
     length <= MOBILE_TRANSFER_INPUT_LIMIT && toString().toByteArray(Charsets.UTF_8).size <= MOBILE_TRANSFER_INPUT_LIMIT
 
 internal const val MOBILE_TRANSFER_INPUT_LIMIT = 16 * 1024
-private const val AmbiguousProseEndings = ".,;:!?')]}”’"
 private val SharedWhitespace = Regex("\\s+")

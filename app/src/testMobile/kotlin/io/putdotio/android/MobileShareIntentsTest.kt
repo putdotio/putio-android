@@ -65,7 +65,7 @@ class MobileShareIntentsTest {
 
     @Test
     fun ambiguousSentencePunctuationKeepsTheOriginalEditableText() {
-        for (ending in listOf(".", ",", ";", ":", "!", "?", "'", ")", "]", "}")) {
+        for (ending in listOf(".", ",", ";", ":", "!", "?", "'", ")", "]", "}", "…", "。", "—", "𐄀")) {
             val text = "Download https://example.invalid/file?token=abc$ending"
             val parsed = parseMobileSharedTransfer(text)
             assertEquals(text, parsed.input)
