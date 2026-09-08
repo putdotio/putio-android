@@ -8,17 +8,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.isDialog
-import androidx.compose.ui.test.isPopup
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.ViewModel
@@ -37,7 +30,6 @@ import io.putdotio.android.auth.PendingOAuthAttemptStore
 import io.putdotio.android.auth.PutioAuthSessionGateway
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.trash.SdkTrashRepository
-import io.putdotio.android.trash.TrashContent
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import java.io.Closeable
@@ -72,7 +64,7 @@ class MobileTrashSessionIntegrationTest {
     }
 
     @Test
-    fun pendingRestoreCheck401ExpiresTheAuthenticatedRootSession() = withRoot { fixture, check ->
+    fun pendingRestoreCheck401ExpiresTheAuthenticatedRootSession() = withRoot { fixture, checkStatus ->
         openTrash()
         compose.waitUntil(5_000L) {
             compose.onAllNodesWithText("deleted.txt").fetchSemanticsNodes().isNotEmpty()
@@ -80,43 +72,15 @@ class MobileTrashSessionIntegrationTest {
         compose.onNodeWithContentDescription("Actions for deleted.txt").performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).performClick()
-        // The accepted restore runs its own check, which the fixture answers with 404.
-        // Wait for that response to be served and applied, then flip the fixture to 401
-        // and keep clicking until the click is accepted: `startCheck()` drops a click while
-        // a request is in flight, and the enabled button can lag the state by a frame.
+        // The accepted restore runs its own check, which the fixture answers with 404. Once that
+        // outcome is on screen, flip the fixture to 401 and ask for another check.
         compose.waitUntil(5_000L) {
             compose.onAllNodesWithText("Not available in Files yet. Check status again in a moment.")
                 .fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(fixture.authController.state.value is MobileAuthState.SignedIn)
-        // Baseline the counter at the flip so only a request served *after* it counts.
-        val servedBeforeFlip = check.served.get()
-        check.status.set(401)
-        val attempts = AtomicInteger(0)
-        fun served401(): Boolean = compose.runOnIdle { check.served.get() > servedBeforeFlip }
-        try {
-            compose.waitUntil(5_000L) {
-                // An accepted click may expire the session and remove the button at any point in
-                // this iteration, so a missing target is only a failure if the 401 was never served.
-                if (served401()) return@waitUntil true
-                val clickable = compose.onAllNodes(hasTestTag(MOBILE_TRASH_CHECK_TAG) and hasClickAction())
-                    .fetchSemanticsNodes().isNotEmpty()
-                if (clickable) {
-                    attempts.incrementAndGet()
-                    runCatching { compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick() }
-                        .onFailure { if (!served401()) throw it }
-                }
-                compose.waitForIdle()
-                served401()
-            }
-        } catch (timeout: ComposeTimeoutException) {
-            throw AssertionError(
-                "no 401 served after ${attempts.get()} clicks; served=${check.served.get()} " +
-                    "baseline=$servedBeforeFlip " + checkButtonDiagnostic() + " " +
-                    compose.runOnIdle { fixture.sessionFailureDiagnostic() },
-                timeout,
-            )
-        }
+        checkStatus.set(401)
+        compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performScrollTo().performClick()
         awaitExpiredSession(fixture)
     }
 
@@ -136,18 +100,6 @@ class MobileTrashSessionIntegrationTest {
         compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG).performScrollTo().performClick()
     }
 
-    /** Where the Check button is and whether it can take a tap: separates a disabled button from a hit-test miss. */
-    private fun checkButtonDiagnostic(): String {
-        val root = compose.onRoot().fetchSemanticsNode()
-        val buttons = compose.onAllNodesWithTag(MOBILE_TRASH_CHECK_TAG).fetchSemanticsNodes().joinToString { node ->
-            "disabled=${SemanticsProperties.Disabled in node.config} clickAction=${hasClickAction().matches(node)} " +
-                "boundsInRoot=${node.boundsInRoot} boundsInWindow=${node.boundsInWindow}"
-        }
-        val dialogs = compose.onAllNodes(isDialog()).fetchSemanticsNodes().size
-        val popups = compose.onAllNodes(isPopup()).fetchSemanticsNodes().size
-        return "root=${root.size} buttons=[$buttons] dialogs=$dialogs popups=$popups"
-    }
-
     private fun awaitExpiredSession(fixture: TrashSessionRootFixture) {
         try {
             compose.waitUntil(5_000L) {
@@ -162,23 +114,17 @@ class MobileTrashSessionIntegrationTest {
         assertNull(runBlocking { fixture.tokenStore.read() })
     }
 
-    /** The `/files/7` check endpoint: the status to serve next and how many times it has answered. */
-    private class CheckEndpoint {
-        val status = AtomicInteger(404)
-        val served = AtomicInteger(0)
-    }
-
     private fun withRoot(
         listStatus: Int = 200,
-        block: (TrashSessionRootFixture, CheckEndpoint) -> Unit,
+        block: (TrashSessionRootFixture, AtomicInteger) -> Unit,
     ) {
-        val check = CheckEndpoint()
+        val checkStatus = AtomicInteger(404)
         PlaybackConfigHttpFixture { method, path ->
             when ("$method $path") {
                 "GET /v2/oauth2/validate" -> 200 to """{"status":"OK","result":true}"""
                 "GET /v2/trash/list" -> if (listStatus == 200) 200 to TRASH_PAGE else errorResponse(listStatus)
                 "POST /v2/trash/restore" -> 200 to """{"status":"OK"}"""
-                "GET /v2/files/7" -> errorResponse(check.status.get()).also { check.served.incrementAndGet() }
+                "GET /v2/files/7" -> errorResponse(checkStatus.get())
                 else -> null
             }
         }.use { server ->
@@ -189,7 +135,7 @@ class MobileTrashSessionIntegrationTest {
                     var mounted by mutableStateOf(true)
                     try {
                         compose.setContent { if (mounted) fixture.Content() }
-                        block(fixture, check)
+                        block(fixture, checkStatus)
                         assertEquals(emptyList<String>(), server.unexpectedRequests.toList())
                     } finally {
                         compose.runOnIdle { mounted = false }
@@ -247,7 +193,7 @@ private class TrashSessionRootFixture(client: PutioClient) : Closeable {
         }
         return "Expected session expiry; auth=${auth.javaClass.simpleName}; " +
             "trash=${state?.content?.javaClass?.simpleName}; " +
-            "refreshing=${(state?.content as? TrashContent.Loaded)?.isRefreshing}; " +
+            "refreshing=${(state?.content as? io.putdotio.android.trash.TrashContent.Loaded)?.isRefreshing}; " +
             "authFailure=${state?.authenticationFailure?.javaClass?.simpleName}; " +
             "check=${state?.restoreOutcome?.check}; " +
             "checkFailure=${state?.restoreOutcome?.checkFailure?.javaClass?.simpleName}"

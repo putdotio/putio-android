@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -61,6 +62,20 @@ class MobileTrashScreenTest {
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("Check status"))
         compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick()
         compose.runOnIdle { assertEquals(listOf(TrashEvent.CheckRestore, TrashEvent.CheckRestore), events) }
+    }
+
+    @Test
+    fun newRestoreOutcomeScrollsIntoViewWhenTheListIsScrolledDown() {
+        val items = (1..12).map { TrashItem(FilesItemId(it.toLong()), FilesItemId(0), "item-$it.txt", PutioFileType.TEXT, 12) }
+        var state by mutableStateOf(TrashState(content = TrashContent.Loaded(items, null, items.size, 144)))
+        compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("item-12.txt"))
+        compose.onNodeWithText("Trash uses", substring = true).assertIsNotDisplayed()
+        compose.runOnIdle {
+            state = state.copy(restoreOutcome = TrashRestoreOutcome(items.last(),
+                TrashRestoreSubmission.ACKNOWLEDGED, TrashRestoreCheck.UNAVAILABLE))
+        }
+        compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).assertIsDisplayed()
     }
 
     @Test
