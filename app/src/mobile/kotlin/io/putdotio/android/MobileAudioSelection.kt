@@ -114,6 +114,14 @@ internal fun TrackSelectionParameters.withRetainedAudioSelection(
     selection: AudioSelection,
     tracks: List<MobileAudioTrack>,
 ): TrackSelectionParameters {
+    val pendingOverride = overrides.values.singleOrNull { it.type == C.TRACK_TYPE_AUDIO }
+    val pendingIdentity = pendingOverride?.let { selected ->
+        selected.trackIndices.singleOrNull()?.let { index ->
+            selected.mediaTrackGroup.getFormat(index).toAudioTrackIdentity()
+        }
+    }
+    // Empty discovery cannot invalidate the live choice. Fresh preparation clears overrides explicitly.
+    if (tracks.isEmpty() && selection is AudioSelection.Track && selection.identity == pendingIdentity) return this
     val liveTrack = tracks.singleOrNull { track ->
         overrides[track.group]?.trackIndices == listOf(track.trackIndex)
     }

@@ -333,6 +333,48 @@ class MobilePlaybackOptionsTest {
     }
 
     @Test
+    fun adoptionWhileTracksAreUnavailablePreservesTheConcreteAudioOverride() {
+        val format = Format.Builder()
+            .setId("duplicate")
+            .setLabel("English")
+            .setSampleMimeType(MimeTypes.AUDIO_AAC)
+            .build()
+        val player = OptionsPlayer(audioGroup = TrackGroup(format, format))
+        val preferences = RetainedPlayerPreferences()
+        compose.runOnIdle {
+            player.setPlaybackSpeed(1.5f)
+            player.trackSelectionParameters = player.trackSelectionParameters.withAudioTrack(
+                MobileAudioTrack(player.audio, 1, label = "English", selected = false),
+            )
+            val selectedTracks = player.currentTracks
+            val originalParameters = player.trackSelectionParameters
+            player.updateTracks(Tracks.EMPTY)
+
+            preferences.adoptPlaybackOptions(player)
+
+            assertEquals(AudioSelection.Track(format.toAudioTrackIdentity()), preferences.audioSelection)
+            assertEquals(1.5f, preferences.playbackSpeed)
+            assertEquals(originalParameters, player.trackSelectionParameters)
+            assertTrue(player.currentTracks.groups.isEmpty())
+            player.trackSelectionParameters = player.trackSelectionParameters.withRetainedAudioSelection(
+                preferences.audioSelection,
+                emptyList(),
+            )
+            assertEquals(originalParameters, player.trackSelectionParameters)
+            player.updateTracks(Tracks.EMPTY)
+
+            player.updateTracks(selectedTracks)
+            val restored = player.trackSelectionParameters.withRetainedAudioSelection(
+                preferences.audioSelection,
+                player.currentTracks.mobileAudioTracks(),
+            )
+            assertEquals(listOf(1), restored.overrides.getValue(player.audio).trackIndices)
+            assertEquals(player.subtitleOverride, restored.overrides[player.text])
+            assertEquals(originalParameters, restored)
+        }
+    }
+
+    @Test
     fun oldOrInvalidSavedSpeedFallsBackToNormal() {
         listOf(Bundle(), Bundle().apply { putFloat("playbackSpeed", Float.NaN) }).forEach { bundle ->
             val preferences = bundle.toRetainedPlayerPreferences()
@@ -379,6 +421,13 @@ private class OptionsPlayer(
         .build()
 
     override fun getState(): State = state
+
+    fun updateTracks(tracks: Tracks) {
+        state = state.buildUpon()
+            .setPlaylist(state.playlist.map { it.buildUpon().setTracks(tracks).build() })
+            .build()
+        invalidateState()
+    }
 
     override fun handleSetPlaybackParameters(playbackParameters: PlaybackParameters): ListenableFuture<*> {
         state = state.buildUpon().setPlaybackParameters(playbackParameters).build()

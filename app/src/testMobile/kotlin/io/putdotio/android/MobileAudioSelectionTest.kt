@@ -154,9 +154,11 @@ class MobileAudioSelectionTest {
         val selection = AudioSelection.Track(second.identity)
 
         val selected = defaults.withAudioTrack(second)
-        val updated = selected.withRetainedAudioSelection(selection, listOf(first, second))
+        val awaitingTracks = selected.withRetainedAudioSelection(selection, emptyList())
+        val updated = awaitingTracks.withRetainedAudioSelection(selection, listOf(first, second))
 
         assertEquals(listOf(1), selected.overrides.getValue(audio).trackIndices)
+        assertEquals(selected, awaitingTracks)
         assertEquals(selected, updated)
         assertEquals(subtitle, updated.overrides[text])
 
@@ -169,6 +171,23 @@ class MobileAudioSelectionTest {
 
         assertEquals(mapOf(text to subtitle), recreated.overrides)
         assertFalse(C.TRACK_TYPE_AUDIO in recreated.disabledTrackTypes)
+    }
+
+    @Test
+    fun nonemptyReplacementTracksAndAutomaticDiscardUnavailableLiveOverride() {
+        val first = track(TrackGroup(audioFormat("first", "en")))
+        val replacement = track(TrackGroup(audioFormat("replacement", "de")))
+        val selection = AudioSelection.Track(first.identity)
+        val selected = TrackSelectionParameters.Builder().build().withAudioTrack(first)
+
+        val unavailable = selected.withRetainedAudioSelection(selection, listOf(replacement))
+        val automatic = selected.withRetainedAudioSelection(AudioSelection.Automatic, emptyList())
+        val different = selected.withRetainedAudioSelection(AudioSelection.Track(replacement.identity), emptyList())
+
+        listOf(unavailable, automatic, different).forEach { parameters ->
+            assertTrue(parameters.overrides.isEmpty())
+            assertFalse(C.TRACK_TYPE_AUDIO in parameters.disabledTrackTypes)
+        }
     }
 
     @Test
