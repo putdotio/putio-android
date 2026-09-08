@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import android.os.Bundle
 import android.os.Looper
+import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
@@ -14,6 +15,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -52,6 +55,46 @@ import org.robolectric.annotation.GraphicsMode
 class MobilePlaybackOptionsTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun directSpeedButtonOpensChoicesAndUpdatesItsCurrentValue() {
+        val player = OptionsPlayer()
+        compose.setContent {
+            PutioTheme {
+                Row { MobilePlaybackOptions(player, {}, {}, {}, {}, directControls = true) }
+            }
+        }
+
+        compose.onNodeWithContentDescription("Playback options").assertDoesNotExist()
+        compose.onNodeWithText("1×").performClick()
+        compose.onNode(hasText("1×") and isSelectable()).assertIsSelected()
+        compose.onNodeWithText("1.5×").assertIsNotSelected()
+        compose.onNodeWithContentDescription("Back").assertDoesNotExist()
+        compose.onNodeWithText("1.5×").performClick()
+        compose.onNodeWithText("1.5×").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(1.5f, player.playbackParameters.speed) }
+    }
+
+    @Test
+    fun directAudioButtonOpensTrackChoicesWithoutRootSettings() {
+        val player = OptionsPlayer()
+        var selected: AudioSelection = AudioSelection.Automatic
+        compose.setContent {
+            PutioTheme {
+                Row { MobilePlaybackOptions(player, { selected = it }, {}, {}, {}, directControls = true) }
+            }
+        }
+
+        compose.onNodeWithText("Audio").performClick()
+        compose.onNodeWithText("Automatic").assertIsSelected()
+        compose.onNodeWithContentDescription("Back").assertDoesNotExist()
+        compose.onNodeWithText("Deutsch").performClick()
+        compose.runOnIdle {
+            assertEquals(AudioSelection.Track(player.audio.getFormat(1).toAudioTrackIdentity()), selected)
+            assertEquals(listOf(1), player.trackSelectionParameters.overrides.getValue(player.audio).trackIndices)
+            assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
+        }
+    }
 
     @Test
     fun speedMenuChangesPlayerAndExposesSelectedSpeed() {

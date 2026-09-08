@@ -1902,6 +1902,35 @@ class MobilePlayerScreenTest {
         compose.onNodeWithText("Couldn’t play this audio").assertIsDisplayed()
     }
 
+    @Test
+    fun videoOffersDirectOptionsWithoutSubtitleMetadataAndHidesBackWithControls() {
+        lateinit var player: RecordingPlayer
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(0.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
+                )
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("Audio").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Playback speed").assertIsDisplayed()
+        compose.onNodeWithText("Captions").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").assertIsDisplayed()
+
+        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_READY) }
+        compose.mainClock.advanceTimeBy(5_000L)
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithContentDescription("Back").assertDoesNotExist()
+        compose.onNodeWithText("Audio").assertDoesNotExist()
+        compose.onNodeWithText("Captions").assertDoesNotExist()
+    }
+
     private fun state(
         content: PlaybackContent,
         target: PlaybackTarget = Target,

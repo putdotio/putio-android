@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
@@ -23,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
@@ -75,11 +77,12 @@ internal fun MobilePlayerChrome(
     onScrub: () -> Unit,
     settings: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    onBack: () -> Unit = {},
 ) {
     if (isAudio) {
         MobileAudioLayout(player, title, seekEnabled, onSeek, onScrub, settings, modifier)
     } else if (visible) {
-        MobileVideoLayout(player, title, seekEnabled, onSeek, onScrub, settings, modifier)
+        MobileVideoLayout(player, title, seekEnabled, onSeek, onScrub, settings, modifier, onBack)
     }
 }
 
@@ -187,31 +190,46 @@ private fun MobileVideoLayout(
     onScrub: () -> Unit,
     settings: @Composable () -> Unit,
     modifier: Modifier,
+    onBack: () -> Unit,
 ) {
     val scrim = MaterialTheme.colorScheme.background
-    Box(modifier.fillMaxSize()) {
+    Column(modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0.9f), scrim.copy(alpha = 0f))))
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(start = 64.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    painterResource(R.drawable.ic_ph_arrow_left),
+                    contentDescription = stringResource(R.string.mobile_action_back),
+                )
+            }
             Text(
                 title,
                 style = MaterialTheme.typography.titleMedium,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(end = 16.dp),
             )
         }
-        MobileTransport(player, seekEnabled, onSeek, Modifier.align(Alignment.Center), onVideo = true)
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            MobileTransport(player, seekEnabled, onSeek, onVideo = true)
+        }
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            Modifier.fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0f), scrim.copy(alpha = 0.95f))))
                 .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(start = 24.dp, end = 24.dp, top = 32.dp, bottom = 16.dp),
+                .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 8.dp),
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { settings() }
             MobilePlayerTimeline(player, onScrub)
+            FlowRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            ) { settings() }
         }
     }
 }
@@ -253,10 +271,18 @@ private fun MobileTransport(
             FilledIconButton(
                 onClick = playPause::onClick,
                 enabled = playPause.isEnabled,
-                modifier = Modifier.size(72.dp),
+                modifier = Modifier.size(if (onVideo) 64.dp else 72.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.onSurface,
-                    contentColor = MaterialTheme.colorScheme.surface,
+                    containerColor = if (onVideo) {
+                        MaterialTheme.colorScheme.background.copy(alpha = 0.7f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    contentColor = if (onVideo) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
                 ),
             ) {
                 Icon(
@@ -266,7 +292,7 @@ private fun MobileTransport(
                     contentDescription = stringResource(
                         if (playPause.showPlay) R.string.mobile_now_playing_play else R.string.mobile_now_playing_pause,
                     ),
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(if (onVideo) 40.dp else 32.dp),
                 )
             }
         }

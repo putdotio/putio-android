@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import android.graphics.Bitmap
+import android.os.Looper
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +40,8 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.media3.common.SimpleBasePlayer
+import androidx.media3.common.Tracks
 import androidx.media3.common.Format
 import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
@@ -47,6 +50,8 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import io.putdotio.android.design.PutioTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -72,6 +77,80 @@ private fun ImageBitmap.hasVisiblePixel(): Boolean {
 class MobileSubtitleControlsTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun labeledCaptionEntryExplainsEmptyTracksAndRetainsOffPreference() {
+        val player = RecordingPlayer()
+        var selection: SubtitleSelection? = null
+        compose.setContent {
+            PutioTheme {
+                MobileSubtitleControls(
+                    player,
+                    TrackSelectionParameters.Builder().build(),
+                    { selection = it },
+                    {}, {}, {},
+                    showLabel = true,
+                )
+            }
+        }
+
+        compose.onNodeWithText("Captions").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Choose subtitles").performClick()
+        compose.onNodeWithText("No captions available").assertIsDisplayed()
+        compose.onNodeWithText("Automatic").assertIsDisplayed()
+        compose.onNodeWithText("Off").performClick()
+        compose.runOnIdle {
+            assertEquals(SubtitleSelection.Off, selection)
+            assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+        }
+    }
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun labeledCaptionEntryUsesDiscoveredSupportedTracks() {
+        val player = CaptionControlPlayer()
+        var selection: SubtitleSelection? = null
+        compose.setContent {
+            PutioTheme {
+                MobileSubtitleControls(
+                    player,
+                    TrackSelectionParameters.Builder().build(),
+                    { selection = it },
+                    {}, {}, {},
+                    showLabel = true,
+                )
+            }
+        }
+        compose.onNodeWithText("Captions").performClick()
+        compose.onNodeWithText("No captions available").assertIsDisplayed()
+        val group = TrackGroup(
+            Format.Builder().setId("en").setLabel("English").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+            Format.Builder().setId("de").setLabel("Deutsch").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+        )
+        compose.runOnIdle {
+            player.discover(
+                Tracks(
+                    listOf(
+                        Tracks.Group(
+                            group,
+                            false,
+                            intArrayOf(C.FORMAT_HANDLED, C.FORMAT_UNSUPPORTED_SUBTYPE),
+                            booleanArrayOf(false, false),
+                        ),
+                    ),
+                ),
+            )
+        }
+
+        compose.onNodeWithText("No captions available").assertDoesNotExist()
+        compose.onNodeWithText("Deutsch").assertDoesNotExist()
+        compose.onNodeWithText("English").performClick()
+        compose.runOnIdle {
+            assertEquals(SubtitleSelection.Track(group.getFormat(0).toSubtitleTrackIdentity()), selection)
+            assertEquals(listOf(0), player.trackSelectionParameters.overrides.getValue(group).trackIndices)
+        }
+    }
 
     @Test
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -321,5 +400,29 @@ class MobileSubtitleControlsTest {
 
         assertEquals(1, pointerEvents)
         assertEquals(1, keyEvents)
+    }
+}
+
+@UnstableApi
+private class CaptionControlPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
+    private var state = State.Builder()
+        .setAvailableCommands(androidx.media3.common.Player.Commands.Builder().addAllCommands().build())
+        .setPlaylist(listOf(MediaItemData.Builder("captions").build()))
+        .setCurrentMediaItemIndex(0)
+        .build()
+
+    override fun getState(): State = state
+
+    fun discover(tracks: Tracks) {
+        state = state.buildUpon()
+            .setPlaylist(state.playlist.map { it.buildUpon().setTracks(tracks).build() })
+            .build()
+        invalidateState()
+    }
+
+    override fun handleSetTrackSelectionParameters(parameters: TrackSelectionParameters): ListenableFuture<*> {
+        state = state.buildUpon().setTrackSelectionParameters(parameters).build()
+        invalidateState()
+        return Futures.immediateVoidFuture()
     }
 }

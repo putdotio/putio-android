@@ -462,3 +462,47 @@ wrapper. Describe them as real local-service playback with controlled shell
 requests, not notification-tap or live-API evidence. The caller owns bounded
 instrumentation supervision, emulator lifetime, and any recording, following the
 session-preserving invocation contract above.
+
+## Immersive landscape video proof
+
+`MobileFullscreenVideoProofTest#landscapePlaybackUsesDirectControlsAndRestoresThePreviousWindow`
+uses real local Media3 video in a debug-only Activity. The host handles orientation
+configuration changes so the production window policy can rotate its real window
+without losing the test's injected composition. It verifies a portrait window
+with visible system bars becomes landscape with both bars hidden, and Back restores
+the original orientation and bar visibility. Saved-state recreation uses Compose's
+`StateRestorationTester`; this does not claim full Activity or process recreation.
+
+Run only this selector on API 37 after installing app and instrumentation APKs
+with `adb install -r`. Required arguments are:
+
+- `putio.video.fullscreen.enabled=true`
+- `putio.video.fullscreen.runId=<UUID>`
+- `putio.video.fullscreen.fixture=<absolute device path>`
+
+Supply a caller-owned landscape MP4 beneath the app's external files directory,
+with two supported audio tracks carrying distinct language labels and one embedded
+caption track. Use a 180-second fixture with the visible cue `Rehearsal caption proof`
+spanning the clip. AAC audio with `eng`/`deu` language metadata and an `eng` mov_text
+caption track exercise the intended path. The test declares `PlaybackSubtitles.None`
+for the source, so caption controls must come from tracks discovered by the player.
+
+The proof opens the direct Audio, Captions and speed controls, selects the second
+audio track, 1.5× and the caption track, then verifies selected tracks and actual
+cue text survive saved-state recreation. It checks Off clears the cues and Automatic
+restores them. It does not initialize authentication, use an API fixture, clear
+account storage, or stop a preexisting audio service; its player factory uses the
+production private video player with the service-stop hook disabled.
+
+Screenshots are written below the target app's external files directory in
+`fullscreen-video-proof-<UUID>/`: initial landscape controls, selected captions,
+the speed/audio/captions sheets, restored selections, Automatic captions and the
+restored portrait window. Pull and
+inspect them before using the existing evidence publisher. The caller owns the
+local fixture, bounded instrumentation supervision, recording and emulator lifetime.
+
+The local Sintel fixture derives from the Blender Foundation's
+[720p trailer](https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4),
+with a cropped and looped excerpt, replacement test tones and synthetic captions.
+Publishing its screenshots or clips requires attribution: “© copyright Blender
+Foundation | durian.blender.org”, with the [CC BY 3.0 sharing terms](https://durian.blender.org/sharing/).

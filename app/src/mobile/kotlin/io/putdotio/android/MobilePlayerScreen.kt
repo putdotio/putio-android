@@ -79,7 +79,6 @@ import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackState
-import io.putdotio.android.playback.hasSelectableSubtitles
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -112,6 +111,9 @@ internal fun MobilePlayerScreen(
     seekClock: () -> Long = SystemClock::uptimeMillis,
     onSourceRequired: (Long?) -> Unit = {},
 ) {
+    if (state.target.mediaType == PlaybackMediaType.VIDEO) {
+        MobileVideoWindow(fileId = state.target.fileId.value)
+    }
     val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     var keyboardNavigationActive by rememberSaveable(state.target.fileId.value) { mutableStateOf(false) }
     Box(
@@ -167,6 +169,7 @@ internal fun MobilePlayerScreen(
                     playerFactory = playerFactory,
                     seekClock = seekClock,
                     onSourceRequired = onSourceRequired,
+                    onBack = onBack,
                 )
                 }
 
@@ -212,7 +215,9 @@ internal fun MobilePlayerScreen(
                 )
         }
 
-        IconButton(
+        val showSeparateBack =
+            state.target.mediaType == PlaybackMediaType.AUDIO || state.content !is PlaybackContent.Ready
+        if (showSeparateBack) IconButton(
             onClick = onBack,
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -254,6 +259,7 @@ private fun MobileReadyPlayer(
     playerFactory: MobilePlayerFactory,
     seekClock: () -> Long,
     onSourceRequired: (Long?) -> Unit,
+    onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -759,6 +765,7 @@ private fun MobileReadyPlayer(
             seekEnabled = seekWindow.available,
             onSeek = ::seek,
             onScrub = { pendingSeek = null },
+            onBack = onBack,
             modifier = Modifier.zIndex(2f),
             settings = {
                 MobilePlaybackOptions(
@@ -767,8 +774,9 @@ private fun MobileReadyPlayer(
                     onMenuVisibilityChanged = { controlsMenuOpen = it },
                     onKeyboardNavigation = onKeyboardNavigation,
                     onPointerNavigation = onPointerNavigation,
+                    directControls = !isAudio,
                 )
-                if (!isAudio && source?.hasSelectableSubtitles() == true) {
+                if (!isAudio) {
                     MobileSubtitleControls(
                         player = player,
                         defaultTrackSelection = defaultTrackSelection,
@@ -776,6 +784,7 @@ private fun MobileReadyPlayer(
                         onMenuVisibilityChanged = { controlsMenuOpen = it },
                         onKeyboardNavigation = onKeyboardNavigation,
                         onPointerNavigation = onPointerNavigation,
+                        showLabel = true,
                     )
                 }
             },
