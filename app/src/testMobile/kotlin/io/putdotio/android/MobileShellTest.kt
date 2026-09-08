@@ -1067,6 +1067,37 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun mediaNotificationTapOpensTheLiveAudioPlayer() {
+        val session = RecordingPlayer()
+        session.setMediaItem(
+            androidx.media3.common.MediaItem.Builder()
+                .setMediaId("9")
+                .setUri("https://example.com/song.mp3")
+                .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle("song.mp3").build())
+                .build(),
+        )
+        session.prepare()
+        session.play()
+        val requests = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(replay = 1)
+        compose.setPlaybackShell(
+            filesState = mediaFilesState(),
+            playbackRepository = EndingPlaybackRepository,
+            playbackPlayerFactory = ShellSessionFactory(session) {},
+            nowPlayingRequests = requests,
+        )
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+
+        compose.runOnIdle { requests.tryEmit(Unit) }
+
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.onNodeWithText("song.mp3").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(1, session.prepareCalls)
+            assertTrue(session.playWhenReady)
+        }
+    }
+
+    @Test
     fun terminalAutoplayRestoresTheFilesRoute() {
         lateinit var player: RecordingPlayer
         compose.setPlaybackShell(
@@ -1107,10 +1138,12 @@ class MobileShellPlaybackTest {
         playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
         onPlaybackAuthenticationRequired: suspend () -> Unit = {},
         filesState: FilesBrowserState = videoFilesState(),
+        nowPlayingRequests: NowPlayingRequests = kotlinx.coroutines.flow.emptyFlow(),
     ) {
         setContent {
             PutioTheme {
                 MobileShell(
+                    nowPlayingRequests = nowPlayingRequests,
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = appConfigState,
@@ -1125,6 +1158,22 @@ class MobileShellPlaybackTest {
                 )
             }
         }
+    }
+}
+
+private class ShellSessionFactory(
+    private val session: Media3Player,
+    private val onClose: () -> Unit,
+) : MobilePlayerFactory {
+    override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Media3Player =
+        error("audio must attach to the session")
+
+    override fun connectAudio(
+        context: android.content.Context,
+        onResult: (Result<Media3Player>) -> Unit,
+    ): java.io.Closeable {
+        onResult(Result.success(session))
+        return java.io.Closeable(onClose)
     }
 }
 

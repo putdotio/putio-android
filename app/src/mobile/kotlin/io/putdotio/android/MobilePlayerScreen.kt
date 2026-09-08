@@ -808,11 +808,13 @@ private fun MobileSessionPlayerHost(
     playerFactory: MobilePlayerFactory,
     content: @Composable (sessionPlayer: Media3Player?) -> Unit,
 ) {
+    val context = LocalContext.current
     if (mediaType != PlaybackMediaType.AUDIO) {
+        // Otherwise the notification and media buttons keep targeting the old audio.
+        LaunchedEffect(context, playerFactory) { playerFactory.stopAudio(context) }
         content(null)
         return
     }
-    val context = LocalContext.current
     var attempt by remember { mutableIntStateOf(0) }
     var connection by remember { mutableStateOf<Result<Media3Player>?>(null) }
     DisposableEffect(context, playerFactory, attempt) {

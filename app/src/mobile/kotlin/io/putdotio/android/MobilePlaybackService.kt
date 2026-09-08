@@ -30,7 +30,9 @@ class MobilePlaybackService : MediaSessionService() {
                     PendingIntent.getActivity(
                         this,
                         0,
-                        Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                        Intent(this, MainActivity::class.java)
+                            .setAction(ACTION_OPEN_NOW_PLAYING)
+                            .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
                         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                     ),
                 ).build()
@@ -58,6 +60,9 @@ class MobilePlaybackService : MediaSessionService() {
     }
 
     companion object {
+        /** Launcher intent action from the media notification: land on the live player. */
+        const val ACTION_OPEN_NOW_PLAYING = "io.putdotio.android.action.OPEN_NOW_PLAYING"
+
         fun sessionToken(context: Context): SessionToken =
             SessionToken(context, ComponentName(context, MobilePlaybackService::class.java))
 

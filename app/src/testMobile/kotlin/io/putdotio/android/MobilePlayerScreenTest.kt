@@ -1401,6 +1401,31 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    fun videoPlaybackEndsSessionAudio() {
+        var audioStops = 0
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = object : MobilePlayerFactory {
+                        override fun create(context: Context, mediaType: PlaybackMediaType): Media3Player =
+                            RecordingPlayer()
+
+                        override fun stopAudio(context: Context) {
+                            audioStops += 1
+                        }
+                    },
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(1, audioStops) }
+    }
+
+    @Test
     fun failedSessionConnectionIsRecoverable() {
         var attempts = 0
         val session = RecordingPlayer()

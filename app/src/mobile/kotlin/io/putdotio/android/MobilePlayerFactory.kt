@@ -13,7 +13,10 @@ import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.session.MediaController
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.files.FilesItemId
 import java.io.Closeable
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 private const val EMULATOR_CODEC_WORKAROUND_API = 37
 
@@ -36,20 +39,50 @@ internal fun interface MobilePlayerFactory {
         onResult(Result.success(player))
         return Closeable { player.release() }
     }
+
+    /** Ends session audio so a private video player owns the media controls. */
+    fun stopAudio(context: android.content.Context) {}
+
+    /** The file the audio session currently holds, or null when idle or unreachable. */
+    suspend fun activeAudio(context: android.content.Context): ActiveAudio? =
+        suspendCancellableCoroutine { continuation ->
+            var handle: Closeable? = null
+            handle = connectAudio(context) { result ->
+                val active = result.getOrNull()?.let { live ->
+                    live.activeSessionFileId()?.let { id ->
+                        ActiveAudio(FilesItemId(id), live.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty())
+                    }
+                }
+                handle?.close()
+                if (continuation.isActive) continuation.resume(active)
+            }
+            continuation.invokeOnCancellation { handle.close() }
+        }
 }
 
+internal data class ActiveAudio(
+    val fileId: FilesItemId,
+    val title: String,
+)
+
 internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
+    override fun stopAudio(context: android.content.Context) {
+        MobilePlaybackService.stop(context)
+    }
+
     override fun connectAudio(
         context: android.content.Context,
         onResult: (Result<Media3Player>) -> Unit,
     ): Closeable {
+        // The controller can outlive the screen that asked for it.
+        val appContext = context.applicationContext
         val future =
-            MediaController.Builder(context, MobilePlaybackService.sessionToken(context)).buildAsync()
+            MediaController.Builder(appContext, MobilePlaybackService.sessionToken(appContext)).buildAsync()
         future.addListener(
             {
                 if (!future.isCancelled) onResult(runCatching { future.get() })
             },
-            ContextCompat.getMainExecutor(context),
+            ContextCompat.getMainExecutor(appContext),
         )
         return Closeable { MediaController.releaseFuture(future) }
     }
