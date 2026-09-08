@@ -183,6 +183,7 @@ private class PlaybackConfigRootFixture(
     fun Content() {
         PutioTheme {
             SignedInMobileRoot(
+                playbackPlayerFactory = NoAudioSessionFactory,
                 runtime = runtime,
                 signedIn = MobileAuthState.SignedIn(account, sessionId),
                 filesViewModel = files,

@@ -43,6 +43,13 @@ internal fun interface MobilePlayerFactory {
     /** Ends session audio so a private video player owns the media controls. */
     fun stopAudio(context: android.content.Context) {}
 
+    /**
+     * Tells a running session the app is back in a task. The service resets its
+     * task-removed latch when a controller from our package connects; connecting to a
+     * service that is not running is a harmless failed bind.
+     */
+    fun touchAudioSession(context: android.content.Context): Closeable = connectAudio(context) {}
+
     /** The file the audio session currently holds, or null when idle or unreachable. */
     suspend fun activeAudio(context: android.content.Context): ActiveAudio? =
         suspendCancellableCoroutine { continuation ->

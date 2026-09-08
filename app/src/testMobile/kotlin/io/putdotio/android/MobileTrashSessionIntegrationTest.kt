@@ -205,6 +205,7 @@ private class TrashSessionRootFixture(client: PutioClient) : Closeable {
         val signedIn = state as? MobileAuthState.SignedIn ?: return
         PutioTheme {
             SignedInMobileRoot(
+                playbackPlayerFactory = NoAudioSessionFactory,
                 runtime = runtime, signedIn = signedIn, filesViewModel = files,
                 accountSettingsViewModel = settings, appConfigViewModel = appConfig,
                 searchHistoryViewModel = search, transfersViewModel = transfers,

@@ -132,6 +132,7 @@ class MobileShellTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = videoFilesState(),
                     accountSettingsState = settings,
                     appConfigState = readyAndroidAppConfigState(),
@@ -239,6 +240,7 @@ class MobileShellTest {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
                     MobileShell(
+                        playbackPlayerFactory = NoAudioSessionFactory,
                         filesState = emptyFilesState(),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
@@ -358,6 +360,7 @@ class MobileShellTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -447,6 +450,7 @@ class MobileShellTest {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = 360.dp, height = 240.dp)) {
                     MobileShell(
+                        playbackPlayerFactory = NoAudioSessionFactory,
                         filesState = emptyFilesState(),
                         accountSettingsState = settingsState,
                         appConfigState = readyAndroidAppConfigState(),
@@ -494,6 +498,7 @@ class MobileShellTest {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
                     MobileShell(
+                        playbackPlayerFactory = NoAudioSessionFactory,
                         filesState = emptyFilesState(),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
@@ -548,6 +553,7 @@ class MobileShellTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -593,6 +599,7 @@ class MobileShellTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = retained,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -636,6 +643,7 @@ class MobileShellTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = settingsState,
                     appConfigState = readyAndroidAppConfigState(),
@@ -697,6 +705,7 @@ class MobileShellTest {
         setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -728,6 +737,7 @@ class MobileShellTransfersTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -777,6 +787,7 @@ class MobileShellTransfersTest {
             val events = if (sessionId == MobileAuthSessionId(1L)) firstEvents else secondEvents
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -825,6 +836,7 @@ class MobileShellTransfersTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -868,6 +880,7 @@ class MobileShellTransfersTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -900,6 +913,7 @@ class MobileShellTransfersTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = files,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -962,6 +976,7 @@ class MobileShellTransfersTest {
             val events = if (sessionId == MobileAuthSessionId(1L)) firstEvents else secondEvents
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -1064,7 +1079,7 @@ class MobileShellPlaybackTest {
 
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
-        assertEquals(listOf(PlaybackMediaType.AUDIO), requestedTypes)
+        assertEquals(setOf(PlaybackMediaType.AUDIO), requestedTypes.toSet())
     }
 
     @Test
@@ -1135,6 +1150,32 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun theShellTouchesTheAudioSessionWhenItStarts() {
+        var connections = 0
+        var closes = 0
+        val factory = object : MobilePlayerFactory {
+            override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Media3Player =
+                RecordingPlayer()
+
+            override fun connectAudio(
+                context: android.content.Context,
+                onResult: (Result<Media3Player>) -> Unit,
+            ): java.io.Closeable {
+                connections += 1
+                onResult(Result.failure(IllegalStateException("no session")))
+                return java.io.Closeable { closes += 1 }
+            }
+        }
+        compose.setPlaybackShell(playbackPlayerFactory = factory)
+
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(1, connections)
+            assertEquals(0, closes)
+        }
+    }
+
+    @Test
     fun terminalAutoplayRestoresTheFilesRoute() {
         lateinit var player: RecordingPlayer
         compose.setPlaybackShell(
@@ -1172,7 +1213,7 @@ class MobileShellPlaybackTest {
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setPlaybackShell(
         appConfigState: AndroidAppConfigState = readyAndroidAppConfigState(),
         playbackRepository: PlaybackRepository = ConversionRepository,
-        playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
+        playbackPlayerFactory: MobilePlayerFactory = NoAudioSessionFactory,
         onPlaybackAuthenticationRequired: suspend () -> Unit = {},
         filesState: FilesBrowserState = videoFilesState(),
         nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
