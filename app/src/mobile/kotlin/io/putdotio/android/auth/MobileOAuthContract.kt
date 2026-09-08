@@ -24,8 +24,7 @@ internal sealed interface MobileOAuthConfiguration {
          * field exists in every variant but only the debug build type carries the
          * local value, and the runtime passes it only when BuildConfig.DEBUG is true.
          * When non-empty it replaces [clientId] and skips the TV-client guard so
-         * harness proofs can borrow another first-party client while the mobile
-         * client waits on backend scope grants (putdotio/putio#4686).
+         * harness proofs can borrow another first-party client to cover a scope gap.
          */
         fun fromClientId(
             clientId: String?,

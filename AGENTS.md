@@ -9,7 +9,7 @@ evidence for PRs.
 - Native Android app for put.io, covering Android mobile and Android TV / Fire TV from one Compose codebase
 - Uses [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) as the API boundary; do not bypass it with ad hoc HTTP unless the SDK gap is documented first
 - Android TV should feel like Android TV: Compose for TV, D-pad focus, system media/session behavior, and platform-native search where applicable
-- Program root: [#14](https://github.com/putdotio/putio-android/issues/14); harness: [#15](https://github.com/putdotio/putio-android/issues/15)
+- Program root: [#14](https://github.com/putdotio/putio-android/issues/14)
 
 ## Start Here
 
@@ -55,7 +55,10 @@ detekt (config in `detekt.yml`, Compose exemptions only), the local unit
 tests (`app/src/test/`, JUnit4 + Robolectric, Compose UI assertions run on
 the JVM), and an unsigned minified `mobileProductionRelease` build that proves
 the composite Kotlin SDK against minSdk 26 and R8. It also compiles the mobile
-production debug instrumentation APK without running it. `:buildSrc:test`
+production debug instrumentation APK without running it, checks the Phosphor
+icon lock (`scripts/generate-icons.sh --check`), and runs the shell and Python
+contract tests for the emulator harness, evidence capture, icon pipeline, and
+attach publishing (`python3`, `bash`, and `ffprobe` on PATH). `:buildSrc:test`
 covers design-token codegen and host proof tooling; run it alongside `verify`
 (CI does). Fix findings at the
 source; suppress only with a comment stating the platform constraint.
@@ -83,9 +86,9 @@ Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 ## CI
 
 `.github/workflows/ci.yml` runs on every PR and push to main: `./gradlew
-verify` (including the minified SDK-consumer build) plus both debug flavor
-assembles. Manual workflow dispatches additionally upload all four debug APKs
-as a one-day `debug-apks` artifact. Failed runs retain app unit-test and
+verify :buildSrc:test` (including the minified SDK-consumer build) plus all
+four debug flavor assembles. Manual workflow dispatches additionally upload
+the four debug APKs as a one-day `debug-apks` artifact. Failed runs retain app unit-test and
 `buildSrc` JUnit XML as `failed-unit-test-reports` for three days, including
 assertion diagnostics omitted from the job log. Treat the `Verify Android app` check as
 the merge gate for `main`; no branch protection enforces it. Conventions mirror `putio-sdk-kotlin`: pinned
@@ -164,7 +167,8 @@ Every change ships with:
 
 `.worktreeinclude` carries `local.properties` into Codex and Claude worktrees.
 Set `sdk.dir` and an absolute `putioSdkKotlinPath` there, then run
-`./gradlew verify`.
+`./gradlew verify`. The optional `putioMobileOAuthClientIdDebugOverride` key
+is validated on every build; see [Harness](./docs/harness.md#borrowing-another-oauth-client-for-local-proof).
 
 ## Rules
 

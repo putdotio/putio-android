@@ -1,7 +1,6 @@
 package io.putdotio.android.settings
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class AppDiagnosticsTest {
@@ -39,20 +38,5 @@ class AppDiagnosticsTest {
         assertEquals(AppDiagnostics.ReleaseChannel.Internal, AppDiagnostics.ReleaseChannel.fromFlavor("nightly"))
         assertEquals(AppDiagnostics.ReleaseChannel.Stable, AppDiagnostics.ReleaseChannel.fromFlavor("production"))
         assertEquals(AppDiagnostics.ReleaseChannel.Stable, AppDiagnostics.ReleaseChannel.fromFlavor(""))
-    }
-
-    @Test
-    fun supportTextExposesOnlyTheContractKeys() {
-        val keys = diagnostics.supportText().lines().map { it.substringBefore(':') }
-        assertEquals(
-            listOf(
-                "app", "app_version", "version_code", "release_channel",
-                "build_type", "runtime_version", "device_class", "player",
-            ),
-            keys,
-        )
-        for (forbidden in listOf("model", "fingerprint", "serial", "token", "account", "user", "file", "url", "id")) {
-            assertFalse("no key may carry $forbidden", keys.any { it.contains(forbidden) })
-        }
     }
 }

@@ -59,7 +59,7 @@ output and must not be edited by hand.
   [#48](https://github.com/putdotio/putio-android/issues/48).
 - The design icon catalogs now prefer regular file icons while the Android
   adapter generates filled file icons. [#21](https://github.com/putdotio/putio-android/issues/21)
-  owns that decision and the future icon lock manifest.
+  owns that decision; the lock manifest is `design/phosphor-icons.lock.json`.
 - The production launcher icon is an in-repo vector. A canonical production
   source asset is still absent from the design package; nightly already uses
   the packaged stars icon.

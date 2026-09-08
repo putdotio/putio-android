@@ -27,7 +27,7 @@ private fun FilesBrowserState.delete(event: FilesBrowserEvent.Delete): FilesBrow
 }
 
 internal fun FilesBrowserState.deleteFinished(event: FilesBrowserEvent.DeleteFinished): FilesBrowserTransition {
-    val index = deleteRequestIndex(event.requestId, FilesFolderOperationPhase.DELETING)
+    val index = requestIndex<FilesFolderOperationIntent.Delete>(event.requestId, FilesFolderOperationPhase.DELETING)
     val folder = stack.getOrNull(index)
     val outcome = folder?.deleteOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
@@ -58,7 +58,7 @@ internal fun FilesBrowserState.deleteFinished(event: FilesBrowserEvent.DeleteFin
 }
 
 private fun FilesBrowserState.deleteChecked(event: FilesBrowserEvent.DeleteChecked): FilesBrowserTransition {
-    val index = deleteRequestIndex(event.requestId, FilesFolderOperationPhase.CHECKING_DELETE)
+    val index = requestIndex<FilesFolderOperationIntent.Delete>(event.requestId, FilesFolderOperationPhase.CHECKING_DELETE)
     val folder = stack.getOrNull(index)
     val outcome = folder?.deleteOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
@@ -93,18 +93,8 @@ private fun FilesDeleteOutcome.checkedStatus(unavailable: Boolean): FilesDeleteS
     else -> FilesDeleteStatus.STILL_PRESENT
 }
 
-private fun FilesBrowserState.deleteRequestIndex(requestId: FilesRequestId, phase: FilesFolderOperationPhase): Int =
-    stack.indexOfFirst {
-        val loading = it.operation as? FilesFolderOperation.Loading
-        loading?.requestId == requestId && loading.phase == phase && loading.intent is FilesFolderOperationIntent.Delete
-    }
-
 internal val FilesFolderOperation.pendingDelete: FilesFolderOperationIntent.Delete?
-    get() = when (this) {
-        is FilesFolderOperation.Loading -> intent as? FilesFolderOperationIntent.Delete
-        is FilesFolderOperation.Failed -> intent as? FilesFolderOperationIntent.Delete
-        FilesFolderOperation.Idle -> null
-    }
+    get() = pendingIntent()
 
 internal fun FilesBrowserState.isDeleteTargetBlocked(itemId: FilesItemId): Boolean = stack.any {
     it.operation.pendingDelete?.itemId == itemId
