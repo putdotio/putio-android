@@ -38,7 +38,10 @@ private fun FilesBrowserState.move(event: FilesBrowserEvent.Move): FilesBrowserT
 }
 
 internal fun FilesBrowserState.moveFinished(event: FilesBrowserEvent.MoveFinished): FilesBrowserTransition {
-    val index = requestIndex<FilesFolderOperationIntent.Move>(event.requestId, FilesFolderOperationPhase.MOVING)
+    val index = requestIndex<FilesFolderOperationIntent.Move>(
+        event.requestId,
+        FilesFolderOperationPhase.MOVING,
+    )
     val folder = stack.getOrNull(index)
     val outcome = folder?.moveOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
@@ -69,7 +72,10 @@ internal fun FilesBrowserState.moveFinished(event: FilesBrowserEvent.MoveFinishe
 }
 
 private fun FilesBrowserState.moveChecked(event: FilesBrowserEvent.MoveChecked): FilesBrowserTransition {
-    val index = requestIndex<FilesFolderOperationIntent.Move>(event.requestId, FilesFolderOperationPhase.CHECKING_MOVE)
+    val index = requestIndex<FilesFolderOperationIntent.Move>(
+        event.requestId,
+        FilesFolderOperationPhase.CHECKING_MOVE,
+    )
     val folder = stack.getOrNull(index)
     val outcome = folder?.moveOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)

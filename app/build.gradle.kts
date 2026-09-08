@@ -46,10 +46,9 @@ android {
             // Dedicated public Android mobile OAuth client from #47.
             buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"9677\"")
             // Local harness proof only: an ignored local.properties may point debug
-            // builds at another first-party client to cover a scope gap. The field
-            // exists in every variant; the debug build type overrides this empty
-            // default with the local value and the runtime honours it only when
-            // BuildConfig.DEBUG is true.
+            // builds at another client. The field exists in every variant; the debug
+            // build type overrides this empty default with the local value and the
+            // runtime honours it only when BuildConfig.DEBUG is true.
             buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID_DEBUG_OVERRIDE", "\"\"")
         }
 

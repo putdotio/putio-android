@@ -128,19 +128,12 @@ requires authentication.
 
 ## Borrowing another OAuth client for local proof
 
-Debug builds honour an ignored `local.properties` key that replaces the mobile
-client id and skips the TV-client guard. Mobile client `9677` has held every
-official-app scope since putdotio/putio#4686 shipped, so ordinary proof needs no
-override. Keep the key for a future scope gap only; the borrowed client must
-list `putio://auth` as a callback.
-
-```properties
-putioMobileOAuthClientIdDebugOverride=6221
-```
-
-Release builds ignore the key. Existing sessions were issued to the previous
-client, so `adb shell pm clear` the debug app and sign in again after changing
-it. Say which client a proof ran on when you attach evidence.
+Ordinary proof needs no override. Debug builds honour an ignored
+`local.properties` key, `putioMobileOAuthClientIdDebugOverride`, that replaces
+the mobile client id for local proof only; release builds ignore it. Which
+client ids are eligible is put.io-internal. Existing sessions were issued to
+the previous client, so `adb shell pm clear` the debug app and sign in again
+after changing it. Say which client a proof ran on when you attach evidence.
 
 ## Headless / Devbox Notes
 

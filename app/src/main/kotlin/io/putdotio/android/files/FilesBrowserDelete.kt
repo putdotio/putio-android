@@ -27,7 +27,10 @@ private fun FilesBrowserState.delete(event: FilesBrowserEvent.Delete): FilesBrow
 }
 
 internal fun FilesBrowserState.deleteFinished(event: FilesBrowserEvent.DeleteFinished): FilesBrowserTransition {
-    val index = requestIndex<FilesFolderOperationIntent.Delete>(event.requestId, FilesFolderOperationPhase.DELETING)
+    val index = requestIndex<FilesFolderOperationIntent.Delete>(
+        event.requestId,
+        FilesFolderOperationPhase.DELETING,
+    )
     val folder = stack.getOrNull(index)
     val outcome = folder?.deleteOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
@@ -58,7 +61,10 @@ internal fun FilesBrowserState.deleteFinished(event: FilesBrowserEvent.DeleteFin
 }
 
 private fun FilesBrowserState.deleteChecked(event: FilesBrowserEvent.DeleteChecked): FilesBrowserTransition {
-    val index = requestIndex<FilesFolderOperationIntent.Delete>(event.requestId, FilesFolderOperationPhase.CHECKING_DELETE)
+    val index = requestIndex<FilesFolderOperationIntent.Delete>(
+        event.requestId,
+        FilesFolderOperationPhase.CHECKING_DELETE,
+    )
     val folder = stack.getOrNull(index)
     val outcome = folder?.deleteOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
