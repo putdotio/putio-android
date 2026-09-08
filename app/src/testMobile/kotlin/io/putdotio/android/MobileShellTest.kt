@@ -161,6 +161,50 @@ class MobileShellTest {
     }
 
     @Test
+    fun incomingShareWaitsForTransferResolutionBeforeOpeningItsDraft() {
+        val draft = MobileTransferDraft()
+        var transfers by mutableStateOf(resolvingTransfersState())
+        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfers,
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onTransfersEvent = { event ->
+                        events.add(event)
+                        transfers = TransfersReducer.reduce(transfers, event).state
+                    },
+                    resolveTransferFile = { resolved.await() },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
+            resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder()))
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertTrue(events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L))))
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
     fun filesDeleteRequiresConfirmedSettingsThroughSaveAndRefreshFailure() {
         val original = DefaultAccountSettingsPreferences.copy(trashEnabled = true)
         val optimistic = original.copy(trashEnabled = false)

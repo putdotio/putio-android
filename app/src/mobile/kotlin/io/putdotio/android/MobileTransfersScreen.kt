@@ -424,7 +424,7 @@ private fun MobileAddTransfer(
             validation = input.validation,
             failure = addFailure,
             adding = adding,
-            submitEnabled = enabled,
+            submitEnabled = enabled && input.validation != MobileShareValidation.TooLong,
             onInputChanged = {
                 draft.edit(it)
                 if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
@@ -450,7 +450,11 @@ private fun MobileAddTransfer(
             title = { Text(stringResource(R.string.mobile_share_replace_title)) },
             text = { Text(stringResource(R.string.mobile_share_replace_message)) },
             confirmButton = {
-                TextButton(onClick = draft::useSharedLink, enabled = !mutationRunning) {
+                TextButton(onClick = {
+                    draft.useSharedLink()
+                    val failedAction = (state.mutation as? TransferMutation.Failed)?.action
+                    if (failedAction is TransferAction.Add) onEvent(TransfersEvent.DismissMutationFailure)
+                }, enabled = !mutationRunning) {
                     Text(stringResource(R.string.mobile_share_use_link))
                 }
             },

@@ -38,6 +38,7 @@ import io.putdotio.android.transfers.TransferNavigation
 import io.putdotio.android.transfers.TransferSubmission
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
+import io.putdotio.android.transfers.TransfersReducer
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersRefresh
 import io.putdotio.android.transfers.TransfersRequestId
@@ -140,6 +141,57 @@ class MobileTransfersScreenTest {
         compose.onNodeWithText("Add").assertIsEnabled().performClick()
         compose.runOnIdle {
             assertEquals(listOf(TransfersEvent.Add("https://example.invalid/first")), events)
+        }
+    }
+
+    @Test
+    fun replacingAFailedAddClearsThePreviousFailureWithoutSubmitting() {
+        val draft = MobileTransferDraft()
+        val original = "https://example.invalid/first"
+        draft.receive(parseMobileSharedTransfer(original))
+        var current by mutableStateOf(state(TransfersContent.Empty).copy(
+            mutation = TransferMutation.Failed(
+                TransferAction.Add(requireNotNull(TransferSubmission.parse(original))),
+                FilesFailure.Unexpected(IllegalStateException("rejected")),
+            ),
+        ))
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileTransfersScreen(current, { event ->
+                    events.add(event)
+                    current = TransfersReducer.reduce(current, event).state
+                }, draft = draft)
+            }
+        }
+        compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/second")) }
+        compose.onNodeWithText("Use shared link").performClick()
+        assertAddInput("https://example.invalid/second")
+        compose.onAllNodesWithText("put.io is temporarily unavailable. Try again.").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(listOf(TransfersEvent.DismissMutationFailure), events) }
+    }
+
+    @Test
+    fun oversizedEditDisablesAddAndImeUntilTheDraftIsEditedAgain() {
+        val draft = MobileTransferDraft()
+        val original = "https://example.invalid/first"
+        draft.receive(parseMobileSharedTransfer(original))
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme { MobileTransfersScreen(state(TransfersContent.Empty), events::add, draft = draft) }
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performTextReplacement("x".repeat(16 * 1024 + 1))
+        assertAddInput(original)
+        compose.onNodeWithText("Add").assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performImeAction()
+        compose.runOnIdle { assertEquals(emptyList<TransfersEvent>(), events) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG)
+            .performTextReplacement("https://example.invalid/edited")
+        compose.onNodeWithText("Add").assertIsEnabled()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performImeAction()
+        compose.runOnIdle {
+            assertEquals(listOf(TransfersEvent.Add("https://example.invalid/edited")), events)
         }
     }
 

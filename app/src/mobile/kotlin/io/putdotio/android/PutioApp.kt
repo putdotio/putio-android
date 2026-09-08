@@ -174,6 +174,7 @@ private fun MobileAuthRoot(
     val context = LocalContext.current
     val authController = runtime.authController
     val authState by authController.state.collectAsStateWithLifecycle()
+    // Session exit must clear sensitive drafts even while lifecycle-aware UI collection is stopped.
     LaunchedEffect(authController, transferDraft) {
         authController.state.collect { state ->
             transferDraft.reconcileSession((state as? MobileAuthState.SignedIn)?.sessionId)
@@ -626,7 +627,7 @@ internal fun MobileShell(
     }
     val shareNavigationBlocked = filesState.stack.any {
         it.operation.pendingDelete != null || it.operation.pendingMove != null
-    } || trashState?.hasPendingMutation == true
+    } || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving
     LaunchedEffect(incomingDraft.incomingRequestId, backStackEntry, shareNavigationBlocked) {
         val requestId = incomingDraft.incomingRequestId ?: return@LaunchedEffect
         if (backStackEntry == null || shareNavigationBlocked) return@LaunchedEffect
