@@ -26,6 +26,7 @@ import androidx.compose.ui.test.click
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.Lifecycle
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -128,7 +129,10 @@ class MobileFullscreenVideoProofTest {
             }
             awaitPlayer(factory) { it.playbackState == Player.STATE_READY && it.currentPosition >= 45_000L }
             val positionBeforeRestore = compose.runOnIdle { originalPlayer.currentPosition }
+            // Android pauses the Activity before saving it; playback snapshots its live position there.
+            compose.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
             restoration.emulateSavedInstanceStateRestore()
+            compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
             awaitVideo(factory)
             compose.runOnIdle { assertNotSame(originalPlayer, factory.current()) }
             awaitChoices(factory, audio.identity, caption.identity)
