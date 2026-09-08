@@ -71,7 +71,6 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.files.canStartOperation
-import io.putdotio.sdk.files.PutioFileType
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -88,7 +87,7 @@ internal const val MOBILE_FILES_WATCHED_TAG = "mobile-files-watched"
 internal fun MobileFilesScreen(
     state: FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Unit,
-    onPlayVideo: (FilesItem) -> Unit,
+    onPlayMedia: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
     confirmedTrashEnabled: Boolean? = null,
     onMoveItem: ((FilesItem) -> Unit)? = null,
@@ -113,7 +112,7 @@ internal fun MobileFilesScreen(
         is FilesContent.Empty,
         is FilesContent.Ready,
         -> key(current.folder.id.value) {
-            MobileRefreshableFilesContent(state, content, onEvent, onPlayVideo, modifier, confirmedTrashEnabled, onMoveItem)
+            MobileRefreshableFilesContent(state, content, onEvent, onPlayMedia, modifier, confirmedTrashEnabled, onMoveItem)
         }
     }
 }
@@ -123,7 +122,7 @@ private fun MobileRefreshableFilesContent(
     state: FilesBrowserState,
     content: FilesContent,
     onEvent: (FilesBrowserEvent) -> Unit,
-    onPlayVideo: (FilesItem) -> Unit,
+    onPlayMedia: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
     confirmedTrashEnabled: Boolean? = null,
     onMoveItem: ((FilesItem) -> Unit)? = null,
@@ -192,7 +191,7 @@ private fun MobileRefreshableFilesContent(
                             content = content,
                             pagingEnabled = operation == FilesFolderOperation.Idle,
                             onEvent = onEvent,
-                            onPlayVideo = onPlayVideo,
+                            onPlayMedia = onPlayMedia,
                             onActions = { selectedItemId = it.id.value },
                             operation = operation,
                         )
@@ -387,7 +386,7 @@ private fun MobileFilesList(
     content: FilesContent.Ready,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
-    onPlayVideo: (FilesItem) -> Unit,
+    onPlayMedia: (FilesItem) -> Unit,
     onActions: (FilesItem) -> Unit,
     operation: FilesFolderOperation,
     modifier: Modifier = Modifier,
@@ -456,17 +455,15 @@ private fun MobileFilesList(
                         { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
                     }
 
-                    item.type == PutioFileType.VIDEO -> {
-                        { onPlayVideo(item) }
+                    item.isPlayable -> {
+                        { onPlayMedia(item) }
                     }
 
                     else -> null
                 },
                 onClickLabel = when {
                     item.isFolder -> stringResource(R.string.mobile_files_open_folder, item.name)
-                    item.type == PutioFileType.VIDEO ->
-                        stringResource(R.string.mobile_files_play_video, item.name)
-
+                    item.isPlayable -> stringResource(R.string.mobile_files_play_media, item.name)
                     else -> null
                 },
             )

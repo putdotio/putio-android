@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.zIndex
 import androidx.media3.common.C
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.SimpleBasePlayer
@@ -94,6 +95,8 @@ import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackRequestId
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.hasSelectableSubtitles
@@ -257,7 +260,7 @@ class MobileVideoPlayerScreenTest {
     @Test
     fun readyPlayerSubtreeCanBeRemovedAndRecreated() {
         val players = mutableListOf<RecordingPlayer>()
-        val playerFactory = MobilePlayerFactory {
+        val playerFactory = MobilePlayerFactory { _, _ ->
             RecordingPlayer().also(players::add)
         }
         var content by mutableStateOf<PlaybackContent>(
@@ -358,7 +361,7 @@ class MobileVideoPlayerScreenTest {
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
-                    playerFactory = MobilePlayerFactory { player },
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
                     subtitleStartupPolicy = policy,
                 )
             }
@@ -391,7 +394,7 @@ class MobileVideoPlayerScreenTest {
                         onRetry = {},
                         onPlayerFailure = { failure, _ -> failures += failure },
                         onBack = {},
-                        playerFactory = MobilePlayerFactory {
+                        playerFactory = MobilePlayerFactory { _, _ ->
                             RecordingPlayer(releaseError).also(players::add)
                         },
                     )
@@ -446,7 +449,7 @@ class MobileVideoPlayerScreenTest {
                         onRetry = {},
                         onPlayerFailure = { _, _ -> },
                         onBack = {},
-                        playerFactory = MobilePlayerFactory { RecordingPlayer().also(players::add) },
+                        playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also(players::add) },
                     )
                 }
             }
@@ -493,7 +496,7 @@ class MobileVideoPlayerScreenTest {
                     onBack = {},
                     autoplayNextVideo = autoplayEnabled,
                     onPlaybackEnded = { endedCalls += 1 },
-                    playerFactory = MobilePlayerFactory { RecordingPlayer().also { player = it } },
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
                 )
             }
         }
@@ -524,7 +527,7 @@ class MobileVideoPlayerScreenTest {
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
                     playerFactory =
-                        MobilePlayerFactory {
+                        MobilePlayerFactory { _, _ ->
                             RecordingPlayer(durationMillis = 30_000L).also { player = it }
                         },
                 )
@@ -560,7 +563,7 @@ class MobileVideoPlayerScreenTest {
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
                     playerFactory =
-                        MobilePlayerFactory {
+                        MobilePlayerFactory { _, _ ->
                             RecordingPlayer(durationMillis = 60_000L).also { player = it }
                         },
                 )
@@ -610,7 +613,7 @@ class MobileVideoPlayerScreenTest {
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
                     playerFactory =
-                        MobilePlayerFactory {
+                        MobilePlayerFactory { _, _ ->
                             RecordingPlayer(durationMillis = 60_000L).also { player = it }
                         },
                     seekClock = { now },
@@ -673,7 +676,7 @@ class MobileVideoPlayerScreenTest {
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
                     playerFactory =
-                        MobilePlayerFactory {
+                        MobilePlayerFactory { _, _ ->
                             RecordingPlayer(durationMillis = 60_000L).also { player = it }
                         },
                 )
@@ -927,7 +930,7 @@ class MobileVideoPlayerScreenTest {
                         onRetry = {},
                         onPlayerFailure = { _, _ -> },
                         onBack = {},
-                        playerFactory = MobilePlayerFactory {
+                        playerFactory = MobilePlayerFactory { _, _ ->
                             RecordingPlayer(durationMillis = 60_000L).also { player = it }
                         },
                         seekClock = { compose.mainClock.currentTime.also { seekRequestTimes += it } },
@@ -961,7 +964,7 @@ class MobileVideoPlayerScreenTest {
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
                     playerFactory =
-                        MobilePlayerFactory {
+                        MobilePlayerFactory { _, _ ->
                             RecordingPlayer(seekable = false).also { player = it }
                         },
                 )
@@ -1010,7 +1013,7 @@ class MobileVideoPlayerScreenTest {
                         onRetry = {},
                         onPlayerFailure = { _, _ -> },
                         onBack = {},
-                        playerFactory = MobilePlayerFactory { player },
+                        playerFactory = MobilePlayerFactory { _, _ -> player },
                     )
                 }
             }
@@ -1052,7 +1055,7 @@ class MobileVideoPlayerScreenTest {
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
-                    playerFactory = MobilePlayerFactory { player },
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
                 )
             }
         }
@@ -1095,7 +1098,7 @@ class MobileVideoPlayerScreenTest {
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
-                    playerFactory = MobilePlayerFactory { player },
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
                 )
             }
         }
@@ -1141,7 +1144,7 @@ class MobileVideoPlayerScreenTest {
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
-                    playerFactory = MobilePlayerFactory { player },
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
                 )
             }
         }
@@ -1177,7 +1180,7 @@ class MobileVideoPlayerScreenTest {
                         onRetry = {},
                         onPlayerFailure = { _, _ -> },
                         onBack = {},
-                        playerFactory = MobilePlayerFactory { player },
+                        playerFactory = MobilePlayerFactory { _, _ -> player },
                     )
                 }
             }
@@ -1236,13 +1239,15 @@ class MobileVideoPlayerScreenTest {
         assertEquals(12_500L, preparedPlayback.startPositionMillis)
         assertEquals(MimeTypes.APPLICATION_M3U8, local.mimeType)
         assertEquals("episode.mkv", item.mediaMetadata.title)
+        assertEquals("42", item.mediaId)
+        assertEquals(MediaMetadata.MEDIA_TYPE_VIDEO, item.mediaMetadata.mediaType)
         assertEquals(3, local.subtitleConfigurations.size)
         assertEquals(MimeTypes.APPLICATION_SUBRIP, local.subtitleConfigurations.first().mimeType)
         assertEquals("en", local.subtitleConfigurations.first().language)
         assertEquals(MimeTypes.TEXT_VTT, local.subtitleConfigurations[2].mimeType)
         assertEquals("tr", local.subtitleConfigurations[2].language)
         assertTrue(local.subtitleConfigurations.all { it.selectionFlags == 0 })
-        assertEquals(54_321L, source.preparePlayback(Target.name, 54_321L).startPositionMillis)
+        assertEquals(54_321L, source.preparePlayback(Target.name, resumePositionMillis = 54_321L).startPositionMillis)
         assertTrue(source.hasSelectableSubtitles())
         assertFalse(
             source
@@ -1265,11 +1270,119 @@ class MobileVideoPlayerScreenTest {
         assertNull(source.toMediaItem(Target.name).localConfiguration?.mimeType)
     }
 
-    private fun state(content: PlaybackContent): PlaybackState =
+    @Test
+    fun audioMediaItemIsTaggedAsMusicForSystemMediaControls() {
+        val item = audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO)
+
+        assertEquals(MediaMetadata.MEDIA_TYPE_MUSIC, item.mediaMetadata.mediaType)
+        assertEquals("song.mp3", item.mediaMetadata.title)
+    }
+
+    @Test
+    fun audioPlaybackShowsACoverWithPersistentControlsAndNoVideoSurface() {
+        lateinit var player: RecordingPlayer
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, mediaType ->
+                        assertEquals(PlaybackMediaType.AUDIO, mediaType)
+                        RecordingPlayer().also { player = it }
+                    },
+                )
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.onNodeWithText("song.mp3").assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_PLAYER_GESTURE_TAG).assertCountEquals(0)
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_READY)
+            assertTrue(player.playWhenReady)
+        }
+        compose.mainClock.advanceTimeBy(5_000L)
+        compose.mainClock.advanceTimeByFrame()
+
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            player.pause()
+            player.movePositionTo(30_000L)
+        }
+        compose.onNodeWithTag(MOBILE_SEEK_BACK_TAG).performClick()
+        compose.mainClock.advanceTimeByFrame()
+        compose.runOnIdle { assertEquals(listOf(20_000L), player.seekPositions) }
+    }
+
+    @Test
+    fun audioPlaybackNeverHoldsTheScreenAwake() {
+        lateinit var player: RecordingPlayer
+        var hostView: View? = null
+        compose.setContent {
+            PutioTheme {
+                hostView = LocalView.current
+                MobileVideoPlayerScreen(
+                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+
+        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_READY) }
+        compose.runOnIdle {
+            assertTrue(player.playWhenReady)
+            assertFalse(requireNotNull(hostView).keepScreenOn)
+        }
+    }
+
+    @Test
+    fun audioLoadingAndFailureStatesUseAudioCopy() {
+        var content by mutableStateOf<PlaybackContent>(PlaybackContent.Loading(PlaybackRequestId(1L)))
+        compose.setContent {
+            PutioTheme {
+                MobileVideoPlayerScreen(
+                    state = state(content, AudioTarget),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Preparing audio").assertIsDisplayed()
+        compose.runOnIdle {
+            content = PlaybackContent.Failed(PlaybackFailure.Unexpected(IllegalStateException("boom")))
+        }
+        compose.onNodeWithText("Couldn’t play this audio").assertIsDisplayed()
+    }
+
+    private fun state(
+        content: PlaybackContent,
+        target: PlaybackTarget = Target,
+    ): PlaybackState =
         PlaybackState(
-            target = Target,
+            target = target,
             content = content,
             nextRequestValue = 2L,
+        )
+
+    private fun audioSource(): PlaybackSource =
+        PlaybackSource(
+            fileId = AudioTarget.fileId.value,
+            kind = PlaybackSourceKind.ORIGINAL,
+            url = credentialUrl("https://example.com/song.mp3"),
+            startFromSeconds = 0.0,
+            subtitles = PlaybackSubtitles.None,
         )
 
     private fun readyState(startFromSeconds: Double): PlaybackState =
@@ -1318,6 +1431,7 @@ class MobileVideoPlayerScreenTest {
 
     private companion object {
         val Target = PlaybackTarget(FilesItemId(42L), "episode.mkv")
+        val AudioTarget = PlaybackTarget(FilesItemId(43L), "song.mp3", PlaybackMediaType.AUDIO)
     }
 }
 
@@ -1631,13 +1745,18 @@ class MobileVideoPlayerCodecTest {
     }
 
     @Test
-    fun mobileVideoFactoryAppliesMovieAudioAttributes() {
-        val player = DefaultMobilePlayerFactory.create(ApplicationProvider.getApplicationContext())
+    fun mobileFactoryAppliesMovieOrMusicAudioAttributesByMediaType() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val video = DefaultMobilePlayerFactory.create(context, PlaybackMediaType.VIDEO)
+        val audio = DefaultMobilePlayerFactory.create(context, PlaybackMediaType.AUDIO)
         try {
-            assertEquals(C.AUDIO_CONTENT_TYPE_MOVIE, player.audioAttributes.contentType)
-            assertEquals(C.USAGE_MEDIA, player.audioAttributes.usage)
+            assertEquals(C.AUDIO_CONTENT_TYPE_MOVIE, video.audioAttributes.contentType)
+            assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, audio.audioAttributes.contentType)
+            assertEquals(C.USAGE_MEDIA, video.audioAttributes.usage)
+            assertEquals(C.USAGE_MEDIA, audio.audioAttributes.usage)
         } finally {
-            player.release()
+            video.release()
+            audio.release()
         }
     }
 

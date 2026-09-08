@@ -59,6 +59,7 @@ import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -1047,6 +1048,25 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun audioRowsOpenThePlayerInAudioMode() {
+        val requestedTypes = mutableListOf<PlaybackMediaType>()
+        compose.setPlaybackShell(
+            filesState = mediaFilesState(),
+            playbackRepository = EndingPlaybackRepository,
+            playbackPlayerFactory = MobilePlayerFactory { _, mediaType ->
+                requestedTypes += mediaType
+                RecordingPlayer()
+            },
+        )
+
+        compose.onNodeWithText("song.mp3").performClick()
+
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+        assertEquals(listOf(PlaybackMediaType.AUDIO), requestedTypes)
+    }
+
+    @Test
     fun terminalAutoplayRestoresTheFilesRoute() {
         lateinit var player: RecordingPlayer
         compose.setPlaybackShell(
@@ -1055,7 +1075,7 @@ class MobileShellPlaybackTest {
                     AndroidAppConfigPreferences(autoplayNextVideo = true),
                 ),
             playbackRepository = EndingPlaybackRepository,
-            playbackPlayerFactory = MobilePlayerFactory { RecordingPlayer().also { player = it } },
+            playbackPlayerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
         )
 
         compose.onNodeWithText("episode.mkv").performClick()
@@ -1086,11 +1106,12 @@ class MobileShellPlaybackTest {
         playbackRepository: PlaybackRepository = ConversionRepository,
         playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
         onPlaybackAuthenticationRequired: suspend () -> Unit = {},
+        filesState: FilesBrowserState = videoFilesState(),
     ) {
         setContent {
             PutioTheme {
                 MobileShell(
-                    filesState = videoFilesState(),
+                    filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = appConfigState,
                     account = Account,
@@ -1240,6 +1261,23 @@ private fun videoFilesState(): FilesBrowserState {
     return FilesBrowserReducer.reduce(
         initial.state,
         FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(video), nextCursor = null)),
+    ).state
+}
+
+private fun mediaFilesState(): FilesBrowserState {
+    val initial = FilesBrowserReducer.start()
+    val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
+    val audio = FilesItem(
+        id = FilesItemId(9L),
+        parentId = FilesFolder.Root.id,
+        name = "song.mp3",
+        type = PutioFileType.AUDIO,
+        sizeBytes = 1L,
+        createdAt = "2026-08-29T00:00:00Z",
+    )
+    return FilesBrowserReducer.reduce(
+        initial.state,
+        FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(audio), nextCursor = null)),
     ).state
 }
 

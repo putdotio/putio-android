@@ -75,7 +75,7 @@ class MobileFilesRenameTest {
             PutioTheme {
                 Column {
                     MobileFilesSortMenu(state.current, onSelect = { onEvent(FilesBrowserEvent.SelectSort(it)) })
-                    MobileFilesScreen(state, onEvent, onPlayVideo = played::add, modifier = Modifier.weight(1f))
+                    MobileFilesScreen(state, onEvent, onPlayMedia = played::add, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -143,7 +143,7 @@ class MobileFilesRenameTest {
                     val transition = FilesBrowserReducer.reduce(state, it)
                     state = transition.state
                     transition.effect?.let(effects::add)
-                }, onPlayVideo = {})
+                }, onPlayMedia = {})
             }
         }
         val queuedRefresh = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
@@ -183,7 +183,7 @@ class MobileFilesRenameTest {
                     state = transition.state
                     if (event is FilesBrowserEvent.Rename) renameAccepted = transition.consumed
                     transition.effect?.let(effects::add)
-                }, onPlayVideo = {})
+                }, onPlayMedia = {})
             }
         }
         compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
@@ -213,7 +213,7 @@ class MobileFilesRenameTest {
         var state by mutableStateOf(failedRename())
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state, onEvent = { state = FilesBrowserReducer.reduce(state, it).state }, onPlayVideo = {})
+                MobileFilesScreen(state, onEvent = { state = FilesBrowserReducer.reduce(state, it).state }, onPlayMedia = {})
             }
         }
         compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
@@ -231,7 +231,7 @@ class MobileFilesRenameTest {
         var state by mutableStateOf(failedRename())
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state, onEvent = { state = FilesBrowserReducer.reduce(state, it).state }, onPlayVideo = {})
+                MobileFilesScreen(state, onEvent = { state = FilesBrowserReducer.reduce(state, it).state }, onPlayMedia = {})
             }
         }
         compose.onNodeWithContentDescription("Actions for old.mkv").performClick()

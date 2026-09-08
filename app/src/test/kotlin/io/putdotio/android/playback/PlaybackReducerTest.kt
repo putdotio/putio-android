@@ -114,6 +114,22 @@ class PlaybackReducerTest {
     }
 
     @Test
+    fun endedAudioPlaybackDoesNotLookForANextFile() {
+        val audio = PlaybackTarget(FilesItemId(7L), "song.mp3", PlaybackMediaType.AUDIO)
+        val start = PlaybackReducer.start(audio)
+        val ready = PlaybackReducer.reduce(
+            start.state,
+            PlaybackEvent.ResolveSucceeded(PlaybackRequestId(1L), PlaybackResolution.Ready(playbackSource())),
+        ).state
+
+        val ended = PlaybackReducer.reduce(ready, PlaybackEvent.PlayerEnded)
+
+        assertFalse(ended.consumed)
+        assertNull(ended.effect)
+        assertEquals(ready, ended.state)
+    }
+
+    @Test
     fun endedPlaybackFindsAndResolvesAnUnvisitedNextVideo() {
         val ready = readyState()
 

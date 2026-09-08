@@ -23,14 +23,18 @@ internal data class PreparedPlayback(
 
 internal fun PlaybackSource.preparePlayback(
     title: String,
+    mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
     resumePositionMillis: Long? = null,
 ): PreparedPlayback =
     PreparedPlayback(
-        mediaItem = toMediaItem(title),
+        mediaItem = toMediaItem(title, mediaType),
         startPositionMillis = resumePositionMillis ?: startFromSeconds.toPlaybackMillis(),
     )
 
-internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
+internal fun PlaybackSource.toMediaItem(
+    title: String,
+    mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
+): MediaItem {
     val subtitleConfigurations =
         (subtitles as? PlaybackSubtitles.Sidecar)
             ?.tracks
@@ -49,9 +53,20 @@ internal fun PlaybackSource.toMediaItem(title: String): MediaItem {
             }
 
     return MediaItem.Builder()
+        .setMediaId(fileId.toString())
         .setUri(url.value)
         .setMimeType(if (kind == PlaybackSourceKind.HLS) MimeTypes.APPLICATION_M3U8 else null)
-        .setMediaMetadata(MediaMetadata.Builder().setTitle(title).build())
+        .setMediaMetadata(
+            MediaMetadata.Builder()
+                .setTitle(title)
+                .setMediaType(
+                    when (mediaType) {
+                        PlaybackMediaType.VIDEO -> MediaMetadata.MEDIA_TYPE_VIDEO
+                        PlaybackMediaType.AUDIO -> MediaMetadata.MEDIA_TYPE_MUSIC
+                    },
+                )
+                .build(),
+        )
         .setSubtitleConfigurations(subtitleConfigurations)
         .build()
 }

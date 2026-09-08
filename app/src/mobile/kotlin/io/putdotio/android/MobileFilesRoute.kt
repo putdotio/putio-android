@@ -24,7 +24,7 @@ internal fun MobileFilesRoute(
     state: FilesBrowserState,
     repository: FilesRepository?,
     onEvent: (FilesBrowserEvent) -> Boolean,
-    onPlayVideo: (FilesItem) -> Unit,
+    onPlayMedia: (FilesItem) -> Unit,
     confirmedTrashEnabled: Boolean?,
     onAuthenticationRequired: suspend () -> Unit,
 ) {
@@ -35,7 +35,7 @@ internal fun MobileFilesRoute(
         MobileFilesScreen(
             state = state,
             onEvent = { onEvent(it) },
-            onPlayVideo = onPlayVideo,
+            onPlayMedia = onPlayMedia,
             confirmedTrashEnabled = confirmedTrashEnabled,
             onMoveItem = if (repository == null || !state.canStartMove) null else { item -> movingItemId = item.id.value },
         )
