@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -31,6 +32,34 @@ import org.robolectric.annotation.Config
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobilePlaybackViewModelTest {
+    @Test
+    fun audioSessionAttachmentSurvivesActivityRecreationWithoutResolving() {
+        val repository = ControlledRepository()
+        val audio = InitialTarget.copy(name = "song.mp3", mediaType = PlaybackMediaType.AUDIO)
+        val activityController = Robolectric.buildActivity(PlaybackHostActivity::class.java).setup()
+        try {
+            val before = activityController.get().playbackViewModel(repository, audio)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(PlaybackContent.Session, before.controller.state.value.content)
+            assertTrue(repository.resolvedTargets.isEmpty())
+
+            activityController.recreate()
+
+            val after = activityController.get().playbackViewModel(repository, audio)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertSame(before, after)
+            assertEquals(PlaybackContent.Session, after.controller.state.value.content)
+            assertTrue(repository.resolvedTargets.isEmpty())
+            assertTrue(after.controller.dispatch(PlaybackEvent.SourceRequired(12_345L)))
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(listOf(audio), repository.resolvedTargets)
+            assertTrue(after.controller.state.value.content is PlaybackContent.Ready)
+            assertEquals(12_345L, after.controller.state.value.resumePositionMillis)
+        } finally {
+            activityController.close()
+        }
+    }
+
     @Test
     fun advancedTargetAndVisitedFilesSurviveActivityRecreation() {
         val repository = ControlledRepository()
@@ -86,10 +115,11 @@ class MobilePlaybackViewModelTest {
 
     private fun PlaybackHostActivity.playbackViewModel(
         repository: PlaybackRepository,
+        target: PlaybackTarget = InitialTarget,
     ): MobilePlaybackViewModel =
         ViewModelProvider(
             this,
-            mobilePlaybackViewModelFactory(InitialTarget, repository),
+            mobilePlaybackViewModelFactory(target, repository),
         )[MobilePlaybackViewModel::class.java]
 
     class PlaybackHostActivity : ComponentActivity()

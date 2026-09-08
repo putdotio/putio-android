@@ -31,7 +31,14 @@ value class PlaybackRequestId(
     val value: Long,
 )
 
+enum class PlaybackStartup {
+    Resolve,
+    AttachAudioSession,
+}
+
 sealed interface PlaybackContent {
+    data object Session : PlaybackContent
+
     data class Loading(
         val requestId: PlaybackRequestId,
     ) : PlaybackContent
@@ -75,6 +82,10 @@ sealed interface PlaybackEvent {
     data object Retry : PlaybackEvent
 
     data object PlayerEnded : PlaybackEvent
+
+    data class SourceRequired(
+        val resumePositionMillis: Long? = null,
+    ) : PlaybackEvent
 
     data class PlayerFailed(
         val failure: PlaybackFailure,
@@ -128,7 +139,19 @@ data class PlaybackTransition(
 )
 
 object PlaybackReducer {
-    fun start(target: PlaybackTarget): PlaybackTransition {
+    fun start(
+        target: PlaybackTarget,
+        startup: PlaybackStartup = PlaybackStartup.Resolve,
+    ): PlaybackTransition {
+        if (startup == PlaybackStartup.AttachAudioSession && target.mediaType == PlaybackMediaType.AUDIO) {
+            return PlaybackTransition(
+                state = PlaybackState(
+                    target = target,
+                    content = PlaybackContent.Session,
+                    nextRequestValue = INITIAL_REQUEST_VALUE,
+                ),
+            )
+        }
         val requestId = PlaybackRequestId(INITIAL_REQUEST_VALUE)
         return PlaybackTransition(
             state = PlaybackState(
@@ -147,6 +170,7 @@ object PlaybackReducer {
         when (event) {
             PlaybackEvent.Retry -> state.retry()
             PlaybackEvent.PlayerEnded -> state.playerEnded()
+            is PlaybackEvent.SourceRequired -> state.sourceRequired(event)
             is PlaybackEvent.PlayerFailed -> state.playerFailed(event)
             is PlaybackEvent.ResolveSucceeded -> state.resolveSucceeded(event)
             is PlaybackEvent.ResolveFailed -> state.resolveFailed(event)
@@ -156,8 +180,21 @@ object PlaybackReducer {
         }
 }
 
+private fun PlaybackState.sourceRequired(event: PlaybackEvent.SourceRequired): PlaybackTransition {
+    if (content != PlaybackContent.Session) return PlaybackTransition(this, consumed = false)
+    val requestId = PlaybackRequestId(nextRequestValue)
+    return PlaybackTransition(
+        state = copy(
+            content = PlaybackContent.Loading(requestId),
+            nextRequestValue = nextRequestValue + 1,
+            resumePositionMillis = event.resumePositionMillis?.coerceAtLeast(0L) ?: resumePositionMillis,
+        ),
+        effect = PlaybackEffect.Resolve(target, requestId),
+    )
+}
+
 private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): PlaybackTransition {
-    if (content !is PlaybackContent.Ready) {
+    if (content !is PlaybackContent.Ready && content != PlaybackContent.Session) {
         return PlaybackTransition(this, consumed = false)
     }
     return PlaybackTransition(

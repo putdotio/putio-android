@@ -15,6 +15,69 @@ import org.junit.Test
 
 class PlaybackReducerTest {
     @Test
+    fun audioSessionStartupWaitsForTheScreenWithoutResolvingOrAdvancing() {
+        val audio = Target.copy(mediaType = PlaybackMediaType.AUDIO)
+        val attached = PlaybackReducer.start(audio, PlaybackStartup.AttachAudioSession)
+
+        assertEquals(PlaybackContent.Session, attached.state.content)
+        assertNull(attached.effect)
+        assertFalse(PlaybackReducer.reduce(attached.state, PlaybackEvent.Retry).consumed)
+        assertFalse(PlaybackReducer.reduce(attached.state, PlaybackEvent.PlayerEnded).consumed)
+        val stale = PlaybackReducer.reduce(
+            attached.state,
+            PlaybackEvent.ResolveFailed(
+                PlaybackRequestId(1L),
+                PlaybackFailure.Unexpected(IllegalStateException("unavailable")),
+            ),
+        )
+        assertFalse(stale.consumed)
+        assertEquals(attached.state, stale.state)
+        assertTrue(PlaybackReducer.start(audio).effect is PlaybackEffect.Resolve)
+        assertTrue(PlaybackReducer.start(Target, PlaybackStartup.AttachAudioSession).effect is PlaybackEffect.Resolve)
+    }
+
+    @Test
+    fun unavailableSessionRequestsOneSourceAndPreservesItsPosition() {
+        val audio = Target.copy(mediaType = PlaybackMediaType.AUDIO)
+        val attached = PlaybackReducer.start(audio, PlaybackStartup.AttachAudioSession)
+        val requested = PlaybackReducer.reduce(attached.state, PlaybackEvent.SourceRequired(12_345L))
+
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(1L)), requested.state.content)
+        assertEquals(PlaybackEffect.Resolve(audio, PlaybackRequestId(1L)), requested.effect)
+        assertEquals(12_345L, requested.state.resumePositionMillis)
+        val duplicate = PlaybackReducer.reduce(requested.state, PlaybackEvent.SourceRequired(99_999L))
+        assertFalse(duplicate.consumed)
+        assertEquals(requested.state, duplicate.state)
+        assertNull(duplicate.effect)
+        val failed = PlaybackReducer.reduce(
+            requested.state,
+            PlaybackEvent.ResolveFailed(
+                PlaybackRequestId(1L),
+                PlaybackFailure.Unexpected(IllegalStateException("unavailable")),
+            ),
+        )
+        assertFalse(PlaybackReducer.reduce(failed.state, PlaybackEvent.SourceRequired()).consumed)
+        val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(2L)), retry.state.content)
+        assertEquals(12_345L, retry.state.resumePositionMillis)
+    }
+
+    @Test
+    fun liveSessionPlayerFailureUsesExistingRecoveryAndNextRequestId() {
+        val audio = Target.copy(mediaType = PlaybackMediaType.AUDIO)
+        val attached = PlaybackReducer.start(audio, PlaybackStartup.AttachAudioSession)
+        val failure = PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired"))
+        val failed = PlaybackReducer.reduce(attached.state, PlaybackEvent.PlayerFailed(failure, 54_321L))
+        val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
+
+        assertEquals(PlaybackContent.Failed(failure), failed.state.content)
+        assertEquals(54_321L, failed.state.resumePositionMillis)
+        assertNull(failed.effect)
+        assertEquals(PlaybackEffect.Resolve(audio, PlaybackRequestId(1L)), retry.effect)
+        assertEquals(54_321L, retry.state.resumePositionMillis)
+    }
+
+    @Test
     fun startAndRetryIssueDistinctRequests() {
         val start = PlaybackReducer.start(Target)
         val firstRequest = (start.state.content as PlaybackContent.Loading).requestId

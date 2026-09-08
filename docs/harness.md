@@ -424,3 +424,41 @@ shell with controlled repositories and make no API calls. Screenshots go to
 `trash-restore-proof-<UUID>/` in the target app’s external files directory. Keep
 synthetic images separate from the live recording; inspect and validate media
 before publishing through the existing evidence wrapper.
+
+## Live audio attachment without source resolution
+
+`MobileLiveAudioAttachmentProofTest#shellRequestReopensLiveAudioWithoutResolvingItsSource`
+uses the real `MobilePlaybackService` and MediaController with a caller-owned
+local two-track audio fixture. It mounts the production shell with a controlled
+account and a counting playback repository that always fails source resolution.
+A `NowPlayingRequests` signal exercises the shell's notification-request path:
+opening controls and reopening after Back must make zero resolver calls, retain
+position, speed and the selected audio track, and support Play/Pause. This proves
+real service attachment through shell navigation; it does not tap the Android
+notification, exercise MainActivity intent delivery, or simulate process death.
+
+Install the app and test APKs with `adb install -r`, then run only this selector
+on the existing API 37 emulator. Do not use `connectedAndroidTest` or `prove.sh`
+on an authenticated installation. Required instrumentation arguments are:
+
+- `putio.audio.attach.enabled=true`
+- `putio.audio.attach.runId=<UUID>`
+- `putio.audio.attach.fixture=<absolute device path>`
+
+The fixture must be readable beneath the app's external files directory, contain
+two supported audio tracks, and last long enough to start at 30 seconds and
+complete the flow. The existing 180-second two-track playback-options fixture
+at `/sdcard/Android/data/io.put.putio.mobile.debug/files/playback-options-fixtures/audio.m4a`
+can be reused. No API fixture or credential is needed, and the synthetic shell
+never initializes authentication. The test refuses to replace any existing
+session media item. Cleanup stops playback only while the current item still
+matches the run's owned media ID, releases its controller, and leaves the local
+fixture and account storage intact.
+
+Screenshots `attached-without-resolve.png` and `reopened-without-resolve.png` go to
+`live-audio-attachment-proof-<UUID>/` below the target app's external files
+directory. Pull and inspect them before publishing with the existing evidence
+wrapper. Describe them as real local-service playback with controlled shell
+requests, not notification-tap or live-API evidence. The caller owns bounded
+instrumentation supervision, emulator lifetime, and any recording, following the
+session-preserving invocation contract above.

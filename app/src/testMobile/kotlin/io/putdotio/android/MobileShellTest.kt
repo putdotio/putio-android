@@ -1275,6 +1275,16 @@ class MobileShellPlaybackTest {
 
     @Test
     fun mediaNotificationTapOpensTheLiveAudioPlayer() {
+        var resolves = 0
+        val unavailableRepository = object : PlaybackRepository {
+            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                resolves += 1
+                return PlaybackRepositoryResult.Failure(
+                    PlaybackFailure.NetworkUnavailable(IllegalStateException("offline")),
+                )
+            }
+            override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
+        }
         val session = RecordingPlayer()
         session.setMediaItem(
             androidx.media3.common.MediaItem.Builder()
@@ -1289,7 +1299,7 @@ class MobileShellPlaybackTest {
         val requests = NowPlayingRequests(pending) { pending.value = false }
         compose.setPlaybackShell(
             filesState = mediaFilesState(),
-            playbackRepository = EndingPlaybackRepository,
+            playbackRepository = unavailableRepository,
             playbackPlayerFactory = ShellSessionFactory(session) {},
             nowPlayingRequests = requests,
         )
@@ -1302,6 +1312,50 @@ class MobileShellPlaybackTest {
         compose.runOnIdle {
             assertEquals(1, session.prepareCalls)
             assertTrue(session.playWhenReady)
+            assertFalse(pending.value)
+            assertEquals(0, resolves)
+        }
+    }
+
+    @Test
+    fun notificationLookupRaceResolvesOnlyWhenTheSessionHasDisappeared() {
+        val session = RecordingPlayer()
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val targets = mutableListOf<PlaybackTarget>()
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                targets += target
+                return EndingPlaybackRepository.resolve(target)
+            }
+            override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
+        }
+        val factory = object : MobilePlayerFactory {
+            override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Media3Player =
+                error("audio must attach to the session")
+
+            override fun connectAudio(
+                context: android.content.Context,
+                onResult: (Result<Media3Player>) -> Unit,
+            ): java.io.Closeable {
+                onResult(Result.success(session))
+                return java.io.Closeable {}
+            }
+
+            override suspend fun activeAudio(context: android.content.Context): ActiveAudio =
+                ActiveAudio(FilesItemId(9L), "song.mp3")
+        }
+        compose.setPlaybackShell(
+            filesState = mediaFilesState(),
+            playbackRepository = repository,
+            playbackPlayerFactory = factory,
+            nowPlayingRequests = NowPlayingRequests(pending) { pending.value = false },
+        )
+        // Lookup found file 9, but the session is empty when the route actually connects.
+        compose.runOnIdle { pending.value = true }
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(listOf(PlaybackTarget(FilesItemId(9L), "song.mp3", PlaybackMediaType.AUDIO)), targets)
+            assertEquals(1, session.prepareCalls)
             assertFalse(pending.value)
         }
     }

@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackStartup
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackTarget
 
@@ -13,7 +15,16 @@ internal class MobilePlaybackViewModel(
     target: PlaybackTarget,
     repository: PlaybackRepository,
 ) : ViewModel() {
-    val controller = PlaybackController(target, repository, viewModelScope)
+    val controller = PlaybackController(
+        target,
+        repository,
+        viewModelScope,
+        startup = if (target.mediaType == PlaybackMediaType.AUDIO) {
+            PlaybackStartup.AttachAudioSession
+        } else {
+            PlaybackStartup.Resolve
+        },
+    )
 
     override fun onCleared() {
         controller.close()

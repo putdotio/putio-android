@@ -13,12 +13,74 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlaybackControllerTest {
+    @Test
+    fun sessionAttachmentDoesNotResolveUntilTheScreenRequiresSource() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val result = CompletableDeferred<PlaybackRepositoryResult<PlaybackResolution>>()
+        val targets = mutableListOf<PlaybackTarget>()
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                targets += target
+                started.complete(Unit)
+                return result.await()
+            }
+
+            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
+                error("Audio must not advance")
+        }
+        val audio = Target.copy(mediaType = PlaybackMediaType.AUDIO)
+        val controller = PlaybackController(audio, repository, this, PlaybackStartup.AttachAudioSession)
+        try {
+            yield()
+            assertEquals(PlaybackContent.Session, controller.state.value.content)
+            assertTrue(targets.isEmpty())
+            assertTrue(controller.dispatch(PlaybackEvent.SourceRequired(32_100L)))
+            assertFalse(controller.dispatch(PlaybackEvent.SourceRequired()))
+            withTimeout(TEST_TIMEOUT_MILLIS) { started.await() }
+            result.complete(
+                PlaybackRepositoryResult.Success(PlaybackResolution.Ready(playbackSource(audio.fileId.value))),
+            )
+            controller.awaitContent<PlaybackContent.Ready>()
+            assertEquals(listOf(audio), targets)
+            assertEquals(32_100L, controller.state.value.resumePositionMillis)
+            assertFalse(controller.dispatch(PlaybackEvent.SourceRequired()))
+            assertFalse(controller.dispatch(PlaybackEvent.PlayerEnded))
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun closingAnAttachedSessionPreventsDeferredSourceWork() = runBlocking {
+        var calls = 0
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                calls += 1
+                return PlaybackRepositoryResult.Success(PlaybackResolution.Ready(playbackSource(target.fileId.value)))
+            }
+
+            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
+        }
+        val controller = PlaybackController(
+            Target.copy(mediaType = PlaybackMediaType.AUDIO),
+            repository,
+            this,
+            PlaybackStartup.AttachAudioSession,
+        )
+        controller.close()
+        assertFalse(controller.dispatch(PlaybackEvent.SourceRequired()))
+        yield()
+        assertEquals(0, calls)
+        assertTrue(coroutineContext[Job]?.isActive == true)
+    }
+
     @Test
     fun resolvesAndRetriesAConversion() =
         runBlocking {
