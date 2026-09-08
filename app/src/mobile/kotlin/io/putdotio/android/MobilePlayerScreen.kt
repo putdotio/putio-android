@@ -93,7 +93,7 @@ import io.putdotio.sdk.files.PlaybackSource
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-internal const val MOBILE_VIDEO_PLAYER_TAG = "mobile-video-player"
+internal const val MOBILE_PLAYER_TAG = "mobile-player"
 internal const val MOBILE_PLAYER_GESTURE_TAG = "mobile-player-gesture"
 internal const val MOBILE_AUDIO_COVER_TAG = "mobile-audio-cover"
 internal const val MOBILE_SEEK_BACK_TAG = "mobile-seek-back"
@@ -105,7 +105,7 @@ internal const val MOBILE_SEEK_INTERVAL_MILLIS = 10_000L
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
-internal fun MobileVideoPlayerScreen(
+internal fun MobilePlayerScreen(
     state: PlaybackState,
     onRetry: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
@@ -141,10 +141,17 @@ internal fun MobileVideoPlayerScreen(
                 )
 
             is PlaybackContent.Ready ->
-                MobileReadyVideoPlayer(
+                MobileSessionPlayerHost(
+                    mediaType = state.target.mediaType,
+                    playerFactory = playerFactory,
+                ) { sessionPlayer ->
+                MobileReadyPlayer(
                     source = content.source,
                     title = state.target.name,
                     mediaType = state.target.mediaType,
+                    sessionPlayer = sessionPlayer,
+                    sessionHandled = preferences.sessionHandled,
+                    onSessionHandled = { preferences.sessionHandled = true },
                     startPositionMillis = preferences.positionMillis ?: state.resumePositionMillis,
                     resumeAfterLifecyclePause = preferences.resumeAfterLifecyclePause,
                     retainedSubtitleSelection = preferences.subtitleSelection,
@@ -163,6 +170,7 @@ internal fun MobileVideoPlayerScreen(
                     playerFactory = playerFactory,
                     seekClock = seekClock,
                 )
+                }
 
             is PlaybackContent.FindingNext ->
                 MobileLoadingState(stringResource(R.string.mobile_playback_finding_next))
@@ -223,10 +231,13 @@ internal fun MobileVideoPlayerScreen(
 
 @UnstableApi
 @Composable
-private fun MobileReadyVideoPlayer(
+private fun MobileReadyPlayer(
     source: PlaybackSource,
     title: String,
     mediaType: PlaybackMediaType,
+    sessionPlayer: Media3Player?,
+    sessionHandled: Boolean,
+    onSessionHandled: () -> Unit,
     startPositionMillis: Long?,
     resumeAfterLifecyclePause: Boolean,
     retainedSubtitleSelection: SubtitleSelection?,
@@ -269,12 +280,18 @@ private fun MobileReadyVideoPlayer(
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
     val currentRetainedSubtitleSelection = rememberUpdatedState(retainedSubtitleSelection)
-    val player = remember(context, lifecycle, playerFactory, playerGeneration, mediaType) {
-        playerFactory.create(context, mediaType)
+    // A session player outlives this screen: it is never paused, released, or recreated here.
+    val ownsPlayer = sessionPlayer == null
+    val player = remember(context, lifecycle, playerFactory, playerGeneration, mediaType, sessionPlayer) {
+        sessionPlayer ?: playerFactory.create(context, mediaType)
     }
     var playerReleased by remember(player) { mutableStateOf(false) }
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
-    var activeFileId by remember(player) { mutableStateOf<Long?>(null) }
+    // A route that already handled the session keeps an ended file ended; a route opened
+    // fresh onto an ended file prepares it again.
+    var activeFileId by remember(player) {
+        mutableStateOf(if (sessionHandled) player.activeSessionFileId() else player.resumableSessionFileId())
+    }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
@@ -323,6 +340,16 @@ private fun MobileReadyVideoPlayer(
 
     LaunchedEffect(player, preparedPlayback) {
         val replacingFileId = activeFileId
+        if (!ownsPlayer) onSessionHandled()
+        if (!ownsPlayer && replacingFileId == source.fileId) {
+            // Returning to audio that kept playing: adopt the live position instead of restarting.
+            val livePosition = player.currentPosition.coerceAtLeast(0L)
+            retainedPositionMillis = livePosition
+            currentOnPositionChanged.value(livePosition)
+            seekWindow = player.currentSeekWindow()
+            playerWantsToPlay = player.playWhenReady
+            return@LaunchedEffect
+        }
         val replacementPosition =
             replacementPositionMillis(
                 activeFileId = replacingFileId,
@@ -345,8 +372,9 @@ private fun MobileReadyVideoPlayer(
         player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
         player.prepare()
         seekWindow = player.currentSeekWindow()
+        // Session audio plays behind a dialog or a stopped screen; only a private player waits.
         playerWantsToPlay =
-            lifecycleAllowsAutoplay(lifecycle.currentState, retainedPlayIntent)
+            if (ownsPlayer) lifecycleAllowsAutoplay(lifecycle.currentState, retainedPlayIntent) else retainedPlayIntent
         player.playWhenReady = playerWantsToPlay
     }
     LaunchedEffect(player, activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
@@ -435,7 +463,7 @@ private fun MobileReadyVideoPlayer(
     }
 
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        if (!playerReleased) {
+        if (ownsPlayer && !playerReleased) {
             val update =
                 playerRetentionUpdate(
                     event = PlayerRetentionEvent.LifecyclePause,
@@ -455,7 +483,7 @@ private fun MobileReadyVideoPlayer(
         }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (!playerReleased && retainedPlayIntent) {
+        if (ownsPlayer && !playerReleased && retainedPlayIntent) {
             player.play()
         }
     }
@@ -467,8 +495,10 @@ private fun MobileReadyVideoPlayer(
                 resumeAfterLifecyclePause = retainedPlayIntent,
             ).let(currentOnPlaybackRetained.value)
             currentOnPositionChanged.value(retainedPositionMillis)
-            playerReleased = true
-            player.release()
+            if (ownsPlayer) {
+                playerReleased = true
+                player.release()
+            }
         }
     }
     DisposableEffect(player) {
@@ -576,7 +606,7 @@ private fun MobileReadyVideoPlayer(
                 positionMillis = retainedPositionMillis,
                 playWhenReady = player.playWhenReady,
             ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
-            player.release()
+            if (ownsPlayer) player.release()
         }
     }
 
@@ -584,7 +614,7 @@ private fun MobileReadyVideoPlayer(
         Modifier
             .fillMaxSize()
             .focusGroup()
-            .testTag(MOBILE_VIDEO_PLAYER_TAG)
+            .testTag(MOBILE_PLAYER_TAG)
             .observePlayerControlInteraction(
                 onInteractionChanged = {
                     controlsInteracting = it
@@ -777,6 +807,59 @@ private fun MobileReadyVideoPlayer(
         }
     }
 }
+
+/**
+ * Video owns a private player. Audio attaches to the session service's player, so the
+ * content composes only once the connection resolves; a failed connection is recoverable.
+ */
+@Composable
+private fun MobileSessionPlayerHost(
+    mediaType: PlaybackMediaType,
+    playerFactory: MobilePlayerFactory,
+    content: @Composable (sessionPlayer: Media3Player?) -> Unit,
+) {
+    val context = LocalContext.current
+    if (mediaType != PlaybackMediaType.AUDIO) {
+        // Otherwise the notification and media buttons keep targeting the old audio.
+        LaunchedEffect(context, playerFactory) { playerFactory.stopAudio(context) }
+        content(null)
+        return
+    }
+    var attempt by remember { mutableIntStateOf(0) }
+    var connection by remember { mutableStateOf<Result<Media3Player>?>(null) }
+    DisposableEffect(context, playerFactory, attempt) {
+        connection = null
+        val handle = playerFactory.connectAudio(context) { connection = it }
+        onDispose { handle.closeQuietly() }
+    }
+    when (val result = connection) {
+        null -> MobileLoadingState(stringResource(R.string.mobile_playback_loading_audio))
+        else ->
+            result.fold(
+                onSuccess = { content(it) },
+                onFailure = {
+                    MobileErrorState(
+                        title = stringResource(R.string.mobile_playback_error_title_audio),
+                        message = stringResource(R.string.mobile_state_error_unavailable),
+                        retryLabel = stringResource(R.string.mobile_action_retry),
+                        onRetry = { attempt += 1 },
+                    )
+                },
+            )
+    }
+}
+
+// The file the session is currently prepared for, if any; idle sessions carry nothing.
+internal fun Media3Player.activeSessionFileId(): Long? =
+    if (playbackState == Media3Player.STATE_IDLE) {
+        null
+    } else {
+        currentMediaItem?.mediaId?.toLongOrNull()
+    }
+
+// A file the session can carry on with; an ended one must be prepared again.
+internal fun Media3Player.resumableSessionFileId(): Long? =
+    activeSessionFileId()?.takeIf { playbackState != Media3Player.STATE_ENDED }
 
 @Composable
 private fun MobileAudioCover(

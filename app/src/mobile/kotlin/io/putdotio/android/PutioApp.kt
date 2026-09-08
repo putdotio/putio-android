@@ -137,6 +137,7 @@ private val TabletMinWidth = 600.dp
 @Composable
 fun PutioApp(
     authTabLauncher: ActivityResultLauncher<Intent>? = null,
+    nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
 ) {
     val context = LocalContext.current
     val runtime = remember(context.applicationContext) { MobileOAuthRuntime.get(context) }
@@ -149,6 +150,7 @@ fun PutioApp(
             MobileAuthRoot(
                 runtime = runtime,
                 oauthBrowser = oauthBrowser,
+                nowPlayingRequests = nowPlayingRequests,
             )
         }
     }
@@ -158,6 +160,7 @@ fun PutioApp(
 private fun MobileAuthRoot(
     runtime: MobileOAuthRuntime,
     oauthBrowser: AuthTabOAuthBrowser?,
+    nowPlayingRequests: NowPlayingRequests,
 ) {
     val context = LocalContext.current
     val authController = runtime.authController
@@ -190,6 +193,10 @@ private fun MobileAuthRoot(
     LaunchedEffect(authController) {
         authController.restoreSession()
     }
+    PlaybackSessionBoundaryEffect(
+        sessionId = (authState as? MobileAuthState.SignedIn)?.sessionId,
+        onSessionLeft = { MobilePlaybackService.stop(context.applicationContext) },
+    )
     when (val state = authState) {
         MobileAuthState.Initializing,
         MobileAuthState.RestoringSession,
@@ -252,6 +259,7 @@ private fun MobileAuthRoot(
                 trashViewModel = trashViewModel,
                 authController = authController,
                 rootScope = rootScope,
+                nowPlayingRequests = nowPlayingRequests,
             )
     }
 }
@@ -323,6 +331,8 @@ internal fun SignedInMobileRoot(
     trashViewModel: MobileTrashViewModel,
     authController: MobileAuthController,
     rootScope: CoroutineScope,
+    playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
+    nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
 ) {
     val account = signedIn.account
     val sessionId = signedIn.sessionId
@@ -391,6 +401,7 @@ internal fun SignedInMobileRoot(
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
     }
+    val appContext = LocalContext.current.applicationContext
     val playbackRepository = remember(runtime.putioClient, appConfigController) {
         SdkPlaybackRepository(runtime.putioClient) {
             appConfigController.state.value.playbackPreference()
@@ -445,6 +456,8 @@ internal fun SignedInMobileRoot(
         transfersSessionId = sessionId,
         account = account,
         playbackRepository = playbackRepository,
+        playbackPlayerFactory = playbackPlayerFactory,
+        nowPlayingRequests = nowPlayingRequests,
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,
@@ -484,9 +497,34 @@ internal fun SignedInMobileRoot(
         contentNavigation = searchHistorySession.navigation,
         navigationFailure = navigationFailure,
         onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
-        onSignOut = { rootScope.launch { authController.logout() } },
+        onSignOut = {
+            MobilePlaybackService.stop(appContext)
+            rootScope.launch { authController.logout() }
+        },
     )
 }
+
+/**
+ * The playback service outlives the signed-in UI, so every way out of a session, sign-out
+ * or an authoritative rejection, must end audio that streams with that session's credential.
+ */
+@Composable
+internal fun PlaybackSessionBoundaryEffect(
+    sessionId: MobileAuthSessionId?,
+    onSessionLeft: () -> Unit,
+) {
+    var previous by remember { mutableStateOf<MobileAuthSessionId?>(null) }
+    LaunchedEffect(sessionId) {
+        if (playbackSessionLeft(previous, sessionId)) onSessionLeft()
+        previous = sessionId
+    }
+}
+
+// A cold start with no session yet is not a departure; a different session is.
+internal fun playbackSessionLeft(
+    previous: MobileAuthSessionId?,
+    current: MobileAuthSessionId?,
+): Boolean = previous != null && current != previous
 
 internal fun settingsRequireSessionRejection(
     accountSettingsState: AccountSettingsState,
@@ -538,6 +576,7 @@ internal fun MobileShell(
     },
     onTransferAuthenticationRequired: suspend () -> Unit = {},
     contentNavigation: Flow<FilesItem> = emptyFlow(),
+    nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     navigationFailure: FilesFailure? = null,
     onDismissNavigationFailure: () -> Unit = {},
     onSignOut: () -> Unit,
@@ -584,6 +623,34 @@ internal fun MobileShell(
     val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
     val resolvingTransfer = transfersState.navigation as? TransferNavigation.Resolving
 
+    // The collector outlives any one Activity, so it must not hold one.
+    val appContext = LocalContext.current.applicationContext
+    val currentPlaybackFileId by rememberUpdatedState(
+        if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null,
+    )
+    // Reopening the app after the task was swiped away must tell the session its task is back.
+    LifecycleStartEffect(playbackPlayerFactory, appContext) {
+        val handle = playbackPlayerFactory.touchAudioSession(appContext)
+        onStopOrDispose { handle.closeQuietly() }
+    }
+    LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext) {
+        nowPlayingRequests.pending.collect { pending ->
+            if (!pending) return@collect
+            val target = playbackPlayerFactory.activeAudio(appContext)
+            // Acknowledged only once the lookup finished: a cancelled lookup leaves it pending.
+            nowPlayingRequests.acknowledge()
+            if (target == null) return@collect
+            val onPlaybackRoute = currentPlaybackFileId
+            if (onPlaybackRoute == target.fileId.value) return@collect
+            // A different item's route, still loading or failed, gives no controls for the live audio.
+            navController.navigateToPlayback(
+                target.fileId,
+                target.title,
+                PlaybackMediaType.AUDIO,
+                replaceCurrentPlayback = onPlaybackRoute != null,
+            )
+        }
+    }
     LaunchedEffect(contentNavigation) {
         contentNavigation.collect { item ->
             if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item))) {
@@ -1189,7 +1256,7 @@ private fun MobilePlaybackRoute(
         if (state.content is PlaybackContent.Ended) onBack()
     }
 
-    MobileVideoPlayerScreen(
+    MobilePlayerScreen(
         state = state,
         onRetry = { controller.dispatch(PlaybackEvent.Retry) },
         onPlayerFailure = { failure, positionMillis ->
@@ -1315,5 +1382,16 @@ private fun NavHostController.navigateTo(destination: MobileDestination) {
 
 private fun NavHostController.navigateToPlayback(item: FilesItem) {
     val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
-    navigate("playback/${item.id.value}?name=${Uri.encode(item.name)}&media=${mediaType.name}")
+    navigateToPlayback(item.id, item.name, mediaType)
+}
+
+private fun NavHostController.navigateToPlayback(
+    fileId: FilesItemId,
+    name: String,
+    mediaType: PlaybackMediaType,
+    replaceCurrentPlayback: Boolean = false,
+) {
+    navigate("playback/${fileId.value}?name=${Uri.encode(name)}&media=${mediaType.name}") {
+        if (replaceCurrentPlayback) popUpTo(MOBILE_PLAYBACK_ROUTE) { inclusive = true }
+    }
 }

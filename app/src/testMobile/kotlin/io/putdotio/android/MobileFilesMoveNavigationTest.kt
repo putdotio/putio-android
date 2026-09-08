@@ -201,6 +201,7 @@ class MobileFilesMoveNavigationTest {
                 Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
                     color = MaterialTheme.colorScheme.background) {
                     MobileShell(
+                        playbackPlayerFactory = NoAudioSessionFactory,
                         filesState = preview.files, trashController = trashController,
                         accountSettingsState = preview.settings,
                         appConfigState = preview.appConfig,

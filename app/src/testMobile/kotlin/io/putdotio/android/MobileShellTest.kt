@@ -106,6 +106,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -131,6 +132,7 @@ class MobileShellTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = videoFilesState(),
                     accountSettingsState = settings,
                     appConfigState = readyAndroidAppConfigState(),
@@ -238,6 +240,7 @@ class MobileShellTest {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
                     MobileShell(
+                        playbackPlayerFactory = NoAudioSessionFactory,
                         filesState = emptyFilesState(),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
@@ -357,6 +360,7 @@ class MobileShellTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -446,6 +450,7 @@ class MobileShellTest {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = 360.dp, height = 240.dp)) {
                     MobileShell(
+                        playbackPlayerFactory = NoAudioSessionFactory,
                         filesState = emptyFilesState(),
                         accountSettingsState = settingsState,
                         appConfigState = readyAndroidAppConfigState(),
@@ -493,6 +498,7 @@ class MobileShellTest {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
                     MobileShell(
+                        playbackPlayerFactory = NoAudioSessionFactory,
                         filesState = emptyFilesState(),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
@@ -547,6 +553,7 @@ class MobileShellTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -592,6 +599,7 @@ class MobileShellTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = retained,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -635,6 +643,7 @@ class MobileShellTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = settingsState,
                     appConfigState = readyAndroidAppConfigState(),
@@ -696,6 +705,7 @@ class MobileShellTest {
         setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -727,6 +737,7 @@ class MobileShellTransfersTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -776,6 +787,7 @@ class MobileShellTransfersTest {
             val events = if (sessionId == MobileAuthSessionId(1L)) firstEvents else secondEvents
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -824,6 +836,7 @@ class MobileShellTransfersTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -867,6 +880,7 @@ class MobileShellTransfersTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -899,6 +913,7 @@ class MobileShellTransfersTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = files,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -961,6 +976,7 @@ class MobileShellTransfersTest {
             val events = if (sessionId == MobileAuthSessionId(1L)) firstEvents else secondEvents
             PutioTheme {
                 MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
@@ -1063,7 +1079,100 @@ class MobileShellPlaybackTest {
 
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
-        assertEquals(listOf(PlaybackMediaType.AUDIO), requestedTypes)
+        assertEquals(setOf(PlaybackMediaType.AUDIO), requestedTypes.toSet())
+    }
+
+    @Test
+    fun mediaNotificationTapOpensTheLiveAudioPlayer() {
+        val session = RecordingPlayer()
+        session.setMediaItem(
+            androidx.media3.common.MediaItem.Builder()
+                .setMediaId("9")
+                .setUri("https://example.com/song.mp3")
+                .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle("song.mp3").build())
+                .build(),
+        )
+        session.prepare()
+        session.play()
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val requests = NowPlayingRequests(pending) { pending.value = false }
+        compose.setPlaybackShell(
+            filesState = mediaFilesState(),
+            playbackRepository = EndingPlaybackRepository,
+            playbackPlayerFactory = ShellSessionFactory(session) {},
+            nowPlayingRequests = requests,
+        )
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+
+        compose.runOnIdle { pending.value = true }
+
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.onNodeWithText("song.mp3").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(1, session.prepareCalls)
+            assertTrue(session.playWhenReady)
+            assertFalse(pending.value)
+        }
+    }
+
+    @Test
+    fun mediaNotificationTapReplacesAnotherItemsPlaybackRoute() {
+        val session = RecordingPlayer()
+        session.setMediaItem(
+            androidx.media3.common.MediaItem.Builder()
+                .setMediaId("9")
+                .setUri("https://example.com/song.mp3")
+                .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle("song.mp3").build())
+                .build(),
+        )
+        session.prepare()
+        session.play()
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val requests = NowPlayingRequests(pending) { pending.value = false }
+        compose.setPlaybackShell(
+            filesState = videoAndAudioFilesState(),
+            playbackRepository = VideoConvertsAudioReadyRepository,
+            playbackPlayerFactory = ShellSessionFactory(session) {},
+            nowPlayingRequests = requests,
+        )
+        compose.onNodeWithText("episode.mkv").performClick()
+        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+
+        compose.runOnIdle { pending.value = true }
+
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.onAllNodesWithText("Video is being prepared").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(1, session.prepareCalls) }
+        // The video route was replaced, not stacked: one Back returns to the shell.
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+        compose.onNodeWithText("episode.mkv").assertIsDisplayed()
+    }
+
+    @Test
+    fun theShellTouchesTheAudioSessionWhenItStarts() {
+        var connections = 0
+        var closes = 0
+        val factory = object : MobilePlayerFactory {
+            override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Media3Player =
+                RecordingPlayer()
+
+            override fun connectAudio(
+                context: android.content.Context,
+                onResult: (Result<Media3Player>) -> Unit,
+            ): java.io.Closeable {
+                connections += 1
+                onResult(Result.failure(IllegalStateException("no session")))
+                return java.io.Closeable { closes += 1 }
+            }
+        }
+        compose.setPlaybackShell(playbackPlayerFactory = factory)
+
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(1, connections)
+            assertEquals(0, closes)
+        }
     }
 
     @Test
@@ -1079,11 +1188,11 @@ class MobileShellPlaybackTest {
         )
 
         compose.onNodeWithText("episode.mkv").performClick()
-        compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
         compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
 
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
-        compose.onAllNodesWithTag(MOBILE_VIDEO_PLAYER_TAG).assertCountEquals(0)
+        compose.onAllNodesWithTag(MOBILE_PLAYER_TAG).assertCountEquals(0)
         compose.onNodeWithText("episode.mkv").assertIsDisplayed()
     }
 
@@ -1104,13 +1213,15 @@ class MobileShellPlaybackTest {
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setPlaybackShell(
         appConfigState: AndroidAppConfigState = readyAndroidAppConfigState(),
         playbackRepository: PlaybackRepository = ConversionRepository,
-        playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
+        playbackPlayerFactory: MobilePlayerFactory = NoAudioSessionFactory,
         onPlaybackAuthenticationRequired: suspend () -> Unit = {},
         filesState: FilesBrowserState = videoFilesState(),
+        nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     ) {
         setContent {
             PutioTheme {
                 MobileShell(
+                    nowPlayingRequests = nowPlayingRequests,
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = appConfigState,
@@ -1125,6 +1236,22 @@ class MobileShellPlaybackTest {
                 )
             }
         }
+    }
+}
+
+private class ShellSessionFactory(
+    private val session: Media3Player,
+    private val onClose: () -> Unit,
+) : MobilePlayerFactory {
+    override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Media3Player =
+        error("audio must attach to the session")
+
+    override fun connectAudio(
+        context: android.content.Context,
+        onResult: (Result<Media3Player>) -> Unit,
+    ): java.io.Closeable {
+        onResult(Result.success(session))
+        return java.io.Closeable(onClose)
     }
 }
 
@@ -1149,6 +1276,19 @@ private val AuthenticationFailureRepository =
             PlaybackRepositoryResult.Failure(
                 PlaybackFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
             )
+
+        override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
+    }
+private val VideoConvertsAudioReadyRepository =
+    object : PlaybackRepository {
+        override suspend fun resolve(
+            target: PlaybackTarget,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
+            if (target.mediaType == PlaybackMediaType.AUDIO) {
+                EndingPlaybackRepository.resolve(target)
+            } else {
+                ConversionRepository.resolve(target)
+            }
 
         override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
     }
@@ -1278,6 +1418,17 @@ private fun mediaFilesState(): FilesBrowserState {
     return FilesBrowserReducer.reduce(
         initial.state,
         FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(audio), nextCursor = null)),
+    ).state
+}
+
+private fun videoAndAudioFilesState(): FilesBrowserState {
+    val initial = FilesBrowserReducer.start()
+    val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
+    val video = FilesItem(FilesItemId(8L), FilesFolder.Root.id, "episode.mkv", PutioFileType.VIDEO, 1L, "2026-08-29T00:00:00Z")
+    val audio = FilesItem(FilesItemId(9L), FilesFolder.Root.id, "song.mp3", PutioFileType.AUDIO, 1L, "2026-08-29T00:00:00Z")
+    return FilesBrowserReducer.reduce(
+        initial.state,
+        FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(video, audio), nextCursor = null)),
     ).state
 }
 
