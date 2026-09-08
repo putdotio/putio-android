@@ -649,3 +649,27 @@ The local Sintel fixture derives from the Blender Foundation's
 with a cropped and looped excerpt, replacement test tones and synthetic captions.
 Publishing its screenshots or clips requires attribution: “© copyright Blender
 Foundation | durian.blender.org”, with the [CC BY 3.0 sharing terms](https://durian.blender.org/sharing/).
+
+## Mobile share-in
+
+The mobile launcher accepts `ACTION_SEND` with `text/plain`. A URL or magnet
+opens an editable Add transfer sheet after sign-in; only Add submits it. Text
+with one unambiguous supported link prefills that link. Ambiguous prose and multiple links remain
+editable with guidance to choose one. A new share cannot overwrite an existing
+draft without confirmation or interrupt a running mutation. Input is limited to
+16 KiB of UTF-8; oversized shares are rejected without truncation. A rejected
+oversized edit keeps the previous draft but blocks Add until the user edits it.
+
+Share payloads and add-transfer drafts stay in Activity-owned memory. Rotation
+retains them; process death discards them. Saved state contains only consumed
+request metadata, and received share extras and ClipData are removed from the
+retained Activity intent. Never use real credentials in share proof artifacts.
+
+Prove browser share → editable sheet → Add using a caller-owned transfer fixture;
+also exercise cancellation, a second share while editing, and rotation before
+confirmation. Follow the existing session-preserving installation and fixture
+cleanup rules. The controlled `MobileShellAccessibilityProofTest` also exercises
+both replacement choices at 200% font size in portrait and landscape, checks the
+entire confirmation message is reachable, and asserts that choosing a draft
+submits no transfer. This covers share-in only: scoped file export, share-out and
+product deep links remain under #29.

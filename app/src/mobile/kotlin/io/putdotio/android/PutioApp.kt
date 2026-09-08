@@ -144,6 +144,7 @@ internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}&media=
 fun PutioApp(
     authTabLauncher: ActivityResultLauncher<Intent>? = null,
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
+    transferDraft: MobileTransferDraft = viewModel(),
 ) {
     val context = LocalContext.current
     val runtime = remember(context.applicationContext) { MobileOAuthRuntime.get(context) }
@@ -154,6 +155,7 @@ fun PutioApp(
     PutioTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             MobileAuthRoot(
+                transferDraft = transferDraft,
                 runtime = runtime,
                 oauthBrowser = oauthBrowser,
                 nowPlayingRequests = nowPlayingRequests,
@@ -164,6 +166,7 @@ fun PutioApp(
 
 @Composable
 private fun MobileAuthRoot(
+    transferDraft: MobileTransferDraft,
     runtime: MobileOAuthRuntime,
     oauthBrowser: AuthTabOAuthBrowser?,
     nowPlayingRequests: NowPlayingRequests,
@@ -171,6 +174,12 @@ private fun MobileAuthRoot(
     val context = LocalContext.current
     val authController = runtime.authController
     val authState by authController.state.collectAsStateWithLifecycle()
+    // Session exit must clear sensitive drafts even while lifecycle-aware UI collection is stopped.
+    LaunchedEffect(authController, transferDraft) {
+        authController.state.collect { state ->
+            transferDraft.reconcileSession((state as? MobileAuthState.SignedIn)?.sessionId)
+        }
+    }
     val rootScope = rememberCoroutineScope()
     val filesViewModel = viewModel<MobileFilesViewModel>(
         factory = remember(authController) { mobileFilesViewModelFactory(authController.state) },
@@ -255,6 +264,7 @@ private fun MobileAuthRoot(
 
         is MobileAuthState.SignedIn ->
             SignedInMobileRoot(
+                transferDraft = transferDraft,
                 runtime = runtime,
                 signedIn = state,
                 filesViewModel = filesViewModel,
@@ -339,6 +349,7 @@ internal fun SignedInMobileRoot(
     rootScope: CoroutineScope,
     playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
+    transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
 ) {
     val account = signedIn.account
     val sessionId = signedIn.sessionId
@@ -449,6 +460,7 @@ internal fun SignedInMobileRoot(
     }
 
     MobileShell(
+        transferDraft = transferDraft,
         trashController = trashController,
         filesState = filesState,
         filesRepository = filesRepository,
@@ -589,11 +601,18 @@ internal fun MobileShell(
     navigationFailure: FilesFailure? = null,
     onDismissNavigationFailure: () -> Unit = {},
     onSignOut: () -> Unit,
+    transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
 ) {
     val navController = rememberNavController()
     var rejectedNavigation by remember(sessionId) { mutableStateOf<FilesFailure?>(null) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
+    val incomingDraft by transferDraft.state.collectAsStateWithLifecycle()
+    val nowPlayingPending by nowPlayingRequests.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(transferDraft, transfersSessionId, transfersState.mutation, transfersState.lastSuccessfulAddRequestId) {
+        transferDraft.reconcileSession(transfersSessionId)
+        transferDraft.reconcileTransfers(transfersState)
+    }
     val isPlayback = backStackEntry?.destination?.route == MOBILE_PLAYBACK_ROUTE
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
     val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
@@ -606,6 +625,18 @@ internal fun MobileShell(
         if ((trashState?.bulkRestoreVersion ?: 0L) > 0L) {
             onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
         }
+    }
+    val shareNavigationBlocked = filesState.stack.any {
+        it.operation.pendingDelete != null || it.operation.pendingMove != null
+    } || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving ||
+        transfersState.mutation is TransferMutation.Running || nowPlayingPending
+    LaunchedEffect(incomingDraft.incomingRequestId, backStackEntry, shareNavigationBlocked) {
+        val requestId = incomingDraft.incomingRequestId ?: return@LaunchedEffect
+        if (backStackEntry == null || shareNavigationBlocked) return@LaunchedEffect
+        navController.navigateTo(MobileDestination.Transfers)
+        // Tab restoration can bring back playback above Transfers; a share must reach its editor.
+        navController.popBackStack(MobileDestination.Transfers.route, inclusive = false)
+        transferDraft.acknowledgeNavigation(requestId)
     }
     // Folders without their own sort inherit the account default, so a change the server
     // accepted makes every loaded listing stale. The first settled value is the baseline.
@@ -637,13 +668,13 @@ internal fun MobileShell(
     val currentPlaybackFileId by rememberUpdatedState(
         if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null,
     )
-    LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext) {
+    LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext, transferDraft) {
         nowPlayingRequests.pending.collect { pending ->
             if (!pending) return@collect
             val target = playbackPlayerFactory.activeAudio(appContext)
             // Acknowledged only once the lookup finished: a cancelled lookup leaves it pending.
             nowPlayingRequests.acknowledge()
-            if (target == null) return@collect
+            if (target == null || transferDraft.state.value.incomingRequestId != null) return@collect
             val onPlaybackRoute = currentPlaybackFileId
             if (onPlaybackRoute == target.fileId.value) return@collect
             // A different item's route, still loading or failed, gives no controls for the live audio.
@@ -655,10 +686,14 @@ internal fun MobileShell(
             )
         }
     }
-    LaunchedEffect(contentNavigation) {
+    LaunchedEffect(contentNavigation, transferDraft) {
         contentNavigation.collect { item ->
             if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item))) {
-                navController.navigateTo(MobileDestination.Files)
+                val draft = transferDraft.state.value
+                val editingTransfer = navController.currentDestination?.route == MobileDestination.Transfers.route &&
+                    (draft.open || draft.pendingReplacement)
+                // A delayed history result may update Files without displacing a newer transfer draft.
+                if (!editingTransfer) navController.navigateTo(MobileDestination.Files)
             } else {
                 rejectedNavigation = FilesFailure.NavigationBlocked
             }
@@ -712,6 +747,7 @@ internal fun MobileShell(
 
     if (isPlayback) {
         MobileNavHost(
+            transferDraft = transferDraft,
             navController = navController,
             filesState = filesState,
             filesRepository = filesRepository,
@@ -749,6 +785,7 @@ internal fun MobileShell(
             ) { openNavigation ->
                 if (navigationLayout == MobileNavigationLayout.Rail) {
                     TabletShell(
+                        transferDraft = transferDraft,
                         navController = navController,
                         selectedDestination = selectedDestination,
                         filesState = filesState,
@@ -775,6 +812,7 @@ internal fun MobileShell(
                     )
                 } else {
                     PhoneShell(
+                        transferDraft = transferDraft,
                         openNavigation = openNavigation,
                         deviceClass = if (maxWidth >= 600.dp) AppDiagnostics.DeviceClass.Tablet
                             else AppDiagnostics.DeviceClass.Phone,
@@ -877,6 +915,7 @@ private fun MobileNavigationAlerts(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PhoneShell(
+    transferDraft: MobileTransferDraft,
     openNavigation: (() -> Unit)?,
     deviceClass: AppDiagnostics.DeviceClass,
     navController: NavHostController,
@@ -944,6 +983,7 @@ private fun PhoneShell(
         },
     ) { padding ->
         MobileNavHost(
+            transferDraft = transferDraft,
             navController = navController,
             filesState = filesState,
             filesRepository = filesRepository,
@@ -975,6 +1015,7 @@ private fun PhoneShell(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TabletShell(
+    transferDraft: MobileTransferDraft,
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
@@ -1038,6 +1079,7 @@ private fun TabletShell(
             },
         ) { padding ->
             MobileNavHost(
+                transferDraft = transferDraft,
                 navController = navController,
                 filesState = filesState,
                 filesRepository = filesRepository,
@@ -1156,6 +1198,7 @@ private fun MobileDestinationIcon(
 
 @Composable
 private fun MobileNavHost(
+    transferDraft: MobileTransferDraft,
     navController: NavHostController,
     filesState: FilesBrowserState,
     filesRepository: FilesRepository?,
@@ -1223,6 +1266,7 @@ private fun MobileNavHost(
             val eventHandler = currentOnTransfersEvent
             TransfersVisibilityEffect(currentTransfersSessionId, eventHandler)
             MobileTransfersScreen(
+                draft = transferDraft,
                 state = currentTransfersState,
                 onEvent = eventHandler,
                 sessionId = currentTransfersSessionId,

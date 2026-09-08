@@ -3,6 +3,8 @@ package io.putdotio.android
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.LocalSaveableStateRegistry
+import androidx.compose.runtime.saveable.SaveableStateRegistry
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
@@ -17,6 +19,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
@@ -35,11 +38,13 @@ import io.putdotio.android.transfers.TransferNavigation
 import io.putdotio.android.transfers.TransferSubmission
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
+import io.putdotio.android.transfers.TransfersReducer
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersRefresh
 import io.putdotio.android.transfers.TransfersRequestId
 import io.putdotio.android.transfers.TransfersState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -52,6 +57,174 @@ import org.robolectric.annotation.GraphicsMode
 class MobileTransfersScreenTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun renderedAndEditedSharedCredentialsNeverEnterSavedState() {
+        val draft = MobileTransferDraft()
+        draft.receive(parseMobileSharedTransfer("https://example.invalid/file?token=private-share-marker"))
+        lateinit var registry: SaveableStateRegistry
+        compose.setContent {
+            registry = requireNotNull(LocalSaveableStateRegistry.current)
+            PutioTheme { MobileTransfersScreen(state(TransfersContent.Empty), {}, draft = draft) }
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG)
+            .performTextReplacement("https://example.invalid/edited?signature=private-share-marker")
+        compose.runOnIdle {
+            assertFalse(registry.performSave().toString().contains("private-share-marker"))
+        }
+    }
+
+    @Test
+    fun sharedTextPrefillsAnEditableSheetAndOnlyConfirmationSubmits() {
+        val draft = MobileTransferDraft()
+        draft.receive(parseMobileSharedTransfer("A title\nhttps://example.invalid/first"))
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme { MobileTransfersScreen(state(TransfersContent.Empty), events::add, draft = draft) }
+        }
+        assertAddInput("https://example.invalid/first")
+        compose.runOnIdle { assertEquals(emptyList<TransfersEvent>(), events) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performTextReplacement("magnet:?xt=urn:btih:12345")
+        compose.onNodeWithText("Add").performClick()
+        compose.runOnIdle { assertEquals(listOf(TransfersEvent.Add("magnet:?xt=urn:btih:12345")), events) }
+    }
+
+    @Test
+    fun multipleSharedLinksStayEditableAndReplacementRequiresAChoice() {
+        val draft = MobileTransferDraft()
+        val multiple = "https://example.invalid/first https://example.invalid/second"
+        draft.receive(parseMobileSharedTransfer(multiple))
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme { MobileTransfersScreen(state(TransfersContent.Empty), events::add, draft = draft) }
+        }
+        assertAddInput(multiple)
+        compose.onNodeWithText("Share one URL or magnet link at a time.").assertIsDisplayed()
+        compose.onNodeWithText("Add").performClick()
+        compose.runOnIdle {
+            assertEquals(emptyList<TransfersEvent>(), events)
+            draft.receive(parseMobileSharedTransfer("https://example.invalid/replacement"))
+        }
+        compose.onNodeWithText("Keep draft").performClick()
+        assertAddInput(multiple)
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/replacement")) }
+        compose.onNodeWithText("Use shared link").performClick()
+        assertAddInput("https://example.invalid/replacement")
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onAllNodesWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertCountEquals(0)
+        compose.runOnIdle { assertEquals(emptyList<TransfersEvent>(), events) }
+    }
+
+    @Test
+    fun sharedDraftWaitsForTheControllerToAcceptAnAdd() {
+        val draft = MobileTransferDraft()
+        draft.receive(parseMobileSharedTransfer("https://example.invalid/first"))
+        val events = mutableListOf<TransfersEvent>()
+        var current by mutableStateOf(state(TransfersContent.InitialLoading(TransfersRequestId(1))))
+        compose.setContent { PutioTheme { MobileTransfersScreen(current, events::add, draft = draft) } }
+        val blocked = listOf(
+            current,
+            state(TransfersContent.Empty).copy(
+                mutation = TransferMutation.Running(TransferAction.Clean, TransfersRequestId(2)),
+            ),
+            state(TransfersContent.Empty).copy(
+                navigation = TransferNavigation.Resolving(TransferFileId(3), TransfersRequestId(3)),
+            ),
+        )
+        for (pending in blocked) {
+            compose.runOnIdle { current = pending }
+            compose.onNodeWithText("Add").assertIsNotEnabled()
+            compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performImeAction()
+            compose.runOnIdle { assertEquals(emptyList<TransfersEvent>(), events) }
+        }
+        compose.runOnIdle { current = state(TransfersContent.Empty) }
+        compose.onNodeWithText("Add").assertIsEnabled().performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(TransfersEvent.Add("https://example.invalid/first")), events)
+        }
+    }
+
+    @Test
+    fun replacingAFailedAddClearsThePreviousFailureWithoutSubmitting() {
+        val draft = MobileTransferDraft()
+        val original = "https://example.invalid/first"
+        draft.receive(parseMobileSharedTransfer(original))
+        var current by mutableStateOf(state(TransfersContent.Empty).copy(
+            mutation = TransferMutation.Failed(
+                TransferAction.Add(requireNotNull(TransferSubmission.parse(original))),
+                FilesFailure.Unexpected(IllegalStateException("rejected")),
+            ),
+        ))
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileTransfersScreen(current, { event ->
+                    events.add(event)
+                    current = TransfersReducer.reduce(current, event).state
+                }, draft = draft)
+            }
+        }
+        compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/second")) }
+        compose.onNodeWithText("Use shared link").performClick()
+        assertAddInput("https://example.invalid/second")
+        compose.onAllNodesWithText("put.io is temporarily unavailable. Try again.").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(listOf(TransfersEvent.DismissMutationFailure), events) }
+    }
+
+    @Test
+    fun oversizedEditDisablesAddAndImeUntilTheDraftIsEditedAgain() {
+        val draft = MobileTransferDraft()
+        val original = "https://example.invalid/first"
+        draft.receive(parseMobileSharedTransfer(original))
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme { MobileTransfersScreen(state(TransfersContent.Empty), events::add, draft = draft) }
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performTextReplacement("x".repeat(16 * 1024 + 1))
+        assertAddInput(original)
+        compose.onNodeWithText("Add").assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performImeAction()
+        compose.runOnIdle { assertEquals(emptyList<TransfersEvent>(), events) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG)
+            .performTextReplacement("https://example.invalid/edited")
+        compose.onNodeWithText("Add").assertIsEnabled()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performImeAction()
+        compose.runOnIdle {
+            assertEquals(listOf(TransfersEvent.Add("https://example.invalid/edited")), events)
+        }
+    }
+
+    @Test
+    fun completedAddIsHandledAfterLeavingAndReturningToTheScreen() {
+        val draft = MobileTransferDraft()
+        var visible by mutableStateOf(true)
+        var current by mutableStateOf(state(TransfersContent.Empty))
+        compose.setContent {
+            PutioTheme {
+                if (visible) MobileTransfersScreen(current, {}, draft = draft)
+            }
+        }
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/first")) }
+        compose.onNodeWithText("Add").performClick()
+        compose.runOnIdle {
+            current = current.copy(mutation = TransferMutation.Running(
+                TransferAction.Add(requireNotNull(TransferSubmission.parse("https://example.invalid/first"))),
+                TransfersRequestId(9),
+            ))
+        }
+        compose.waitForIdle()
+        compose.runOnIdle { visible = false }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            draft.receive(parseMobileSharedTransfer("https://example.invalid/second"))
+            current = current.copy(mutation = TransferMutation.Idle, lastSuccessfulAddRequestId = TransfersRequestId(9))
+            visible = true
+        }
+        assertAddInput("https://example.invalid/second")
+        compose.onNodeWithText("Add").assertIsEnabled()
+        compose.onAllNodesWithText("Use shared link").assertCountEquals(0)
+    }
 
     @Test
     fun activeTransferFormatsProgressSpeedAndEtaAndConfirmsCancellation() {
