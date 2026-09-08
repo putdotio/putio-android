@@ -128,7 +128,7 @@ import com.google.common.util.concurrent.ListenableFuture
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "en-rUS")
-class MobileVideoPlayerScreenTest {
+class MobilePlayerScreenTest {
     @get:Rule
     val compose = createComposeRule()
 
@@ -138,7 +138,7 @@ class MobileVideoPlayerScreenTest {
         var backs = 0
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = state(PlaybackContent.Conversion(PlaybackConversionState.Converting(42.0))),
                     onRetry = { retries += 1 },
                     onPlayerFailure = { _, _ -> },
@@ -159,7 +159,7 @@ class MobileVideoPlayerScreenTest {
     fun unsupportedStateIsExplicitAndDoesNotOfferRetry() {
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = state(PlaybackContent.Unsupported(PutioFileType.TEXT)),
                     onRetry = { error("Retry must not be offered") },
                     onPlayerFailure = { _, _ -> },
@@ -177,7 +177,7 @@ class MobileVideoPlayerScreenTest {
         var retries = 0
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state =
                         state(
                             PlaybackContent.Failed(
@@ -201,7 +201,7 @@ class MobileVideoPlayerScreenTest {
         var retries = 0
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state =
                         state(
                             PlaybackContent.NextFailed(
@@ -270,7 +270,7 @@ class MobileVideoPlayerScreenTest {
         )
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = state(content).copy(resumePositionMillis = 12_345L),
                     onRetry = {},
                     onPlayerFailure = { failure, _ -> content = PlaybackContent.Failed(failure) },
@@ -281,7 +281,7 @@ class MobileVideoPlayerScreenTest {
                 )
             }
         }
-        compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(1, players.size)
             assertEquals(1, players.single().mediaItemUpdates)
@@ -330,7 +330,7 @@ class MobileVideoPlayerScreenTest {
                     videoSource(),
                 )
         }
-        compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(2, players.size)
             assertFalse(players.last().released)
@@ -356,7 +356,7 @@ class MobileVideoPlayerScreenTest {
         var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = state(PlaybackContent.Ready(videoSource())),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -389,7 +389,7 @@ class MobileVideoPlayerScreenTest {
         compose.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PutioTheme {
-                    MobileVideoPlayerScreen(
+                    MobilePlayerScreen(
                         state = state(PlaybackContent.Ready(videoSource())),
                         onRetry = {},
                         onPlayerFailure = { failure, _ -> failures += failure },
@@ -444,7 +444,7 @@ class MobileVideoPlayerScreenTest {
         compose.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PutioTheme {
-                    MobileVideoPlayerScreen(
+                    MobilePlayerScreen(
                         state = state(PlaybackContent.Ready(videoSource())),
                         onRetry = {},
                         onPlayerFailure = { _, _ -> },
@@ -479,7 +479,7 @@ class MobileVideoPlayerScreenTest {
         var endedCalls = 0
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = state(
                         PlaybackContent.Ready(
                             PlaybackSource(
@@ -500,7 +500,7 @@ class MobileVideoPlayerScreenTest {
                 )
             }
         }
-        compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
 
         compose.runOnIdle {
             player.updatePlaybackState(Media3Player.STATE_ENDED)
@@ -521,7 +521,7 @@ class MobileVideoPlayerScreenTest {
         lateinit var player: RecordingPlayer
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = readyState(startFromSeconds = 12.345),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -557,7 +557,7 @@ class MobileVideoPlayerScreenTest {
         lateinit var player: RecordingPlayer
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = readyState(startFromSeconds = 20.0),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -607,7 +607,7 @@ class MobileVideoPlayerScreenTest {
         var now = 10_000L
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = readyState(startFromSeconds = 20.0),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -670,7 +670,7 @@ class MobileVideoPlayerScreenTest {
         lateinit var player: RecordingPlayer
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = readyState(startFromSeconds = 20.0),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -925,7 +925,7 @@ class MobileVideoPlayerScreenTest {
         compose.setContent {
             CompositionLocalProvider(LocalAccessibilityManager provides accessibility) {
                 PutioTheme {
-                    MobileVideoPlayerScreen(
+                    MobilePlayerScreen(
                         state = readyState(startFromSeconds = 20.0),
                         onRetry = {},
                         onPlayerFailure = { _, _ -> },
@@ -958,7 +958,7 @@ class MobileVideoPlayerScreenTest {
         lateinit var player: RecordingPlayer
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = readyState(startFromSeconds = 12.345),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -1008,7 +1008,7 @@ class MobileVideoPlayerScreenTest {
                         }
                     }
                 }) {
-                    MobileVideoPlayerScreen(
+                    MobilePlayerScreen(
                         state = readyState(startFromSeconds = 20.0),
                         onRetry = {},
                         onPlayerFailure = { _, _ -> },
@@ -1050,7 +1050,7 @@ class MobileVideoPlayerScreenTest {
             leftInset = WindowInsets.safeGestures.getLeft(density, LayoutDirection.Ltr)
             rightInset = WindowInsets.safeGestures.getRight(density, LayoutDirection.Ltr)
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = readyState(startFromSeconds = 20.0),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -1081,7 +1081,7 @@ class MobileVideoPlayerScreenTest {
                 assertEquals(left, leftInset)
                 assertEquals(right, rightInset)
             }
-            compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).performTouchInput {
+            compose.onNodeWithTag(MOBILE_PLAYER_TAG).performTouchInput {
                 doubleClick(Offset(center.x + if (left > 0) 20f else -20f, height * 0.25f))
             }
         }
@@ -1093,7 +1093,7 @@ class MobileVideoPlayerScreenTest {
         val player = RecordingPlayer()
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = readyState(startFromSeconds = 20.0),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -1139,7 +1139,7 @@ class MobileVideoPlayerScreenTest {
         val player = RecordingPlayer()
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = readyState(startFromSeconds = 20.0),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -1175,7 +1175,7 @@ class MobileVideoPlayerScreenTest {
         compose.setContent {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                 PutioTheme {
-                    MobileVideoPlayerScreen(
+                    MobilePlayerScreen(
                         state = readyState(startFromSeconds = 20.0),
                         onRetry = {},
                         onPlayerFailure = { _, _ -> },
@@ -1284,7 +1284,7 @@ class MobileVideoPlayerScreenTest {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -1321,13 +1321,155 @@ class MobileVideoPlayerScreenTest {
     }
 
     @Test
+    fun audioAdoptsTheSessionPlayerWithoutRepreparingOrReleasingIt() {
+        val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
+        val session = RecordingPlayer()
+        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO), 33_000L)
+        session.prepare()
+        session.play()
+        val prepareCallsBefore = session.prepareCalls
+        var closed = 0
+        var showPlayer by mutableStateOf(true)
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                PutioTheme {
+                    if (showPlayer) {
+                        MobilePlayerScreen(
+                            state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+                            onRetry = {},
+                            onPlayerFailure = { _, _ -> },
+                            onBack = {},
+                            playerFactory = SessionPlayerFactory(session) { closed += 1 },
+                        )
+                    }
+                }
+            }
+        }
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+
+        compose.runOnIdle {
+            assertEquals(prepareCallsBefore, session.prepareCalls)
+            assertEquals(1, session.mediaItemUpdates)
+            assertTrue(session.playWhenReady)
+            assertTrue(session.currentPosition >= 33_000L)
+        }
+        compose.runOnIdle {
+            lifecycleOwner.moveTo(Lifecycle.State.STARTED)
+            lifecycleOwner.moveTo(Lifecycle.State.CREATED)
+        }
+        compose.runOnIdle {
+            assertTrue(session.playWhenReady)
+            assertFalse(session.released)
+        }
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
+        compose.runOnIdle {
+            assertEquals(prepareCallsBefore, session.prepareCalls)
+            assertFalse(session.released)
+        }
+        compose.runOnIdle { showPlayer = false }
+        compose.runOnIdle {
+            assertFalse(session.released)
+            assertEquals(1, closed)
+        }
+    }
+
+    @Test
+    fun audioPreparesTheSessionPlayerWhenItHoldsAnotherFile() {
+        val session = RecordingPlayer()
+        session.setMediaItem(
+            androidx.media3.common.MediaItem.Builder().setMediaId("99").setUri("https://example.com/other.mp3").build(),
+        )
+        session.prepare()
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = SessionPlayerFactory(session) {},
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+
+        compose.runOnIdle {
+            assertEquals(2, session.mediaItemUpdates)
+            assertEquals(AudioTarget.fileId.value.toString(), session.currentMediaItem?.mediaId)
+            assertEquals(2, session.prepareCalls)
+        }
+    }
+
+    @Test
+    fun failedSessionConnectionIsRecoverable() {
+        var attempts = 0
+        val session = RecordingPlayer()
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = object : MobilePlayerFactory {
+                        override fun create(context: Context, mediaType: PlaybackMediaType): Media3Player =
+                            error("audio must attach to the session")
+
+                        override fun connectAudio(
+                            context: Context,
+                            onResult: (Result<Media3Player>) -> Unit,
+                        ): java.io.Closeable {
+                            attempts += 1
+                            onResult(
+                                if (attempts == 1) Result.failure(IllegalStateException("bind")) else Result.success(session),
+                            )
+                            return java.io.Closeable {}
+                        }
+                    },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Couldn’t play this audio").assertIsDisplayed()
+        compose.onNodeWithText("Try again").performClick()
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        assertEquals(2, attempts)
+    }
+
+    @Test
+    fun relayedSessionErrorsMapByCodeWhenTheCauseIsStripped() {
+        val relayed = { code: Int -> PlaybackException("relayed", null, code) }
+        assertTrue(
+            relayed(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS).toPlaybackFailure() is
+                PlaybackFailure.MediaCredentialUnavailable,
+        )
+        assertTrue(
+            relayed(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED).toPlaybackFailure() is
+                PlaybackFailure.NetworkUnavailable,
+        )
+        assertTrue(
+            relayed(PlaybackException.ERROR_CODE_DECODING_FAILED).toPlaybackFailure() is PlaybackFailure.Unexpected,
+        )
+    }
+
+    @Test
+    fun idleSessionsCarryNoActiveFile() {
+        val session = RecordingPlayer()
+        assertNull(session.activeSessionFileId())
+        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO))
+        assertNull(session.activeSessionFileId())
+        session.prepare()
+        assertEquals(AudioTarget.fileId.value, session.activeSessionFileId())
+    }
+
+    @Test
     fun audioPlaybackNeverHoldsTheScreenAwake() {
         lateinit var player: RecordingPlayer
         var hostView: View? = null
         compose.setContent {
             PutioTheme {
                 hostView = LocalView.current
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -1350,7 +1492,7 @@ class MobileVideoPlayerScreenTest {
         var content by mutableStateOf<PlaybackContent>(PlaybackContent.Loading(PlaybackRequestId(1L)))
         compose.setContent {
             PutioTheme {
-                MobileVideoPlayerScreen(
+                MobilePlayerScreen(
                     state = state(content, AudioTarget),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -1432,6 +1574,22 @@ class MobileVideoPlayerScreenTest {
     private companion object {
         val Target = PlaybackTarget(FilesItemId(42L), "episode.mkv")
         val AudioTarget = PlaybackTarget(FilesItemId(43L), "song.mp3", PlaybackMediaType.AUDIO)
+    }
+}
+
+private class SessionPlayerFactory(
+    private val session: Media3Player,
+    private val onClose: () -> Unit,
+) : MobilePlayerFactory {
+    override fun create(context: Context, mediaType: PlaybackMediaType): Media3Player =
+        error("audio must attach to the session")
+
+    override fun connectAudio(
+        context: Context,
+        onResult: (Result<Media3Player>) -> Unit,
+    ): java.io.Closeable {
+        onResult(Result.success(session))
+        return java.io.Closeable(onClose)
     }
 }
 
@@ -1576,7 +1734,7 @@ internal class RecordingPlayer(
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 @UnstableApi
-class MobileVideoPlayerCodecTest {
+class MobilePlayerCodecTest {
     @Test
     fun pendingSeekAccumulatesRequestedStepsFromThePendingTargetAndClamps() {
         val first =

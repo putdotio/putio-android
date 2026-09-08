@@ -1079,11 +1079,11 @@ class MobileShellPlaybackTest {
         )
 
         compose.onNodeWithText("episode.mkv").performClick()
-        compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
         compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
 
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
-        compose.onAllNodesWithTag(MOBILE_VIDEO_PLAYER_TAG).assertCountEquals(0)
+        compose.onAllNodesWithTag(MOBILE_PLAYER_TAG).assertCountEquals(0)
         compose.onNodeWithText("episode.mkv").assertIsDisplayed()
     }
 

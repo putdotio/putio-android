@@ -70,7 +70,7 @@ class MobilePlaybackConfigIntegrationTest {
                 }
                 compose.onNodeWithText("episode.mkv").performClick()
                 awaitMediaRequest(fixture.server, "/v2/files/42/hls/media.m3u8")
-                compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+                compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
                 assertEquals(listOf("/v2/files/42"), fixture.server.resolutions.toList())
 
                 compose.runOnIdle {
@@ -84,7 +84,7 @@ class MobilePlaybackConfigIntegrationTest {
                 }
                 compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == VideoPlaybackType.Mp4 } }
                 compose.waitForIdle()
-                compose.onNodeWithTag(MOBILE_VIDEO_PLAYER_TAG).assertIsDisplayed()
+                compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
                 assertEquals(listOf("/v2/files/42"), fixture.server.resolutions.toList())
                 assertEquals(listOf("/v2/files/42/hls/media.m3u8"), fixture.server.mediaRequests.distinct())
 

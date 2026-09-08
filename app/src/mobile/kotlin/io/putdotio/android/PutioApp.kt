@@ -391,6 +391,7 @@ internal fun SignedInMobileRoot(
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
     }
+    val appContext = LocalContext.current.applicationContext
     val playbackRepository = remember(runtime.putioClient, appConfigController) {
         SdkPlaybackRepository(runtime.putioClient) {
             appConfigController.state.value.playbackPreference()
@@ -484,7 +485,10 @@ internal fun SignedInMobileRoot(
         contentNavigation = searchHistorySession.navigation,
         navigationFailure = navigationFailure,
         onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
-        onSignOut = { rootScope.launch { authController.logout() } },
+        onSignOut = {
+            MobilePlaybackService.stop(appContext)
+            rootScope.launch { authController.logout() }
+        },
     )
 }
 
@@ -1189,7 +1193,7 @@ private fun MobilePlaybackRoute(
         if (state.content is PlaybackContent.Ended) onBack()
     }
 
-    MobileVideoPlayerScreen(
+    MobilePlayerScreen(
         state = state,
         onRetry = { controller.dispatch(PlaybackEvent.Retry) },
         onPlayerFailure = { failure, positionMillis ->

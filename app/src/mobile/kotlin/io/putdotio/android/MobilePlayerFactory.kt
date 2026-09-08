@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.C
@@ -9,8 +10,10 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
+import androidx.media3.session.MediaController
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import io.putdotio.android.playback.PlaybackMediaType
+import java.io.Closeable
 
 private const val EMULATOR_CODEC_WORKAROUND_API = 37
 
@@ -19,9 +22,38 @@ internal fun interface MobilePlayerFactory {
         context: android.content.Context,
         mediaType: PlaybackMediaType,
     ): Media3Player
+
+    /**
+     * Attaches to the audio session. [onResult] may run synchronously or later on the
+     * main thread; closing the returned handle detaches without stopping playback.
+     * The default is a private player that lives and dies with the handle.
+     */
+    fun connectAudio(
+        context: android.content.Context,
+        onResult: (Result<Media3Player>) -> Unit,
+    ): Closeable {
+        val player = create(context, PlaybackMediaType.AUDIO)
+        onResult(Result.success(player))
+        return Closeable { player.release() }
+    }
 }
 
 internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
+    override fun connectAudio(
+        context: android.content.Context,
+        onResult: (Result<Media3Player>) -> Unit,
+    ): Closeable {
+        val future =
+            MediaController.Builder(context, MobilePlaybackService.sessionToken(context)).buildAsync()
+        future.addListener(
+            {
+                if (!future.isCancelled) onResult(runCatching { future.get() })
+            },
+            ContextCompat.getMainExecutor(context),
+        )
+        return Closeable { MediaController.releaseFuture(future) }
+    }
+
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun create(
         context: android.content.Context,
