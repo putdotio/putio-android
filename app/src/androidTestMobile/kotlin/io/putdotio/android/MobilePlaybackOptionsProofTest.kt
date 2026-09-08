@@ -2,6 +2,8 @@ package io.putdotio.android
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.SystemClock
+import android.view.MotionEvent
 import android.view.KeyEvent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -12,9 +14,12 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -123,7 +128,13 @@ class MobilePlaybackOptionsProofTest {
         val source = fixture(mediaType)
         val state = PlaybackState(
             target = PlaybackTarget(
-                FilesItemId(source.fileId), "Playback options · ${mediaType.name.lowercase()}", mediaType,
+                FilesItemId(source.fileId),
+                if (mediaType == PlaybackMediaType.AUDIO) {
+                    "ambient-session-03.m4a"
+                } else {
+                    "Concert.Rehearsal.Cam2.1080p.mp4"
+                },
+                mediaType,
             ),
             content = PlaybackContent.Ready(source),
             nextRequestValue = 1,
@@ -149,24 +160,33 @@ class MobilePlaybackOptionsProofTest {
     }
 
     private fun selectOptions(factory: ObservedPlaybackFactory, label: String): AudioTrackIdentity {
+        compose.waitUntil(15_000) {
+            compose.runOnIdle { factory.current().currentPosition > 500 && (label == "audio" || factory.renderedFrame) }
+        }
+        showControls()
+        screenshot("$label-player")
         selectSpeedWithKeyboard(factory)
         showOptions()
-        compose.onNodeWithText("1.5×").performClick()
+        compose.onNodeWithText("Playback speed").performTouchInput { click() }
+        compose.onNodeWithText("1.5×").performTouchInput { click() }
         val track = compose.runOnIdle { factory.current().currentTracks.mobileAudioTracks()[1] }
         val title = track.label ?: context.getString(R.string.mobile_playback_audio_track_number, 2)
         showOptions()
-        compose.onNodeWithText(title).performScrollTo().performClick()
+        compose.onNodeWithText("Audio track").performTouchInput { click() }
+        compose.onNodeWithText(title).performScrollTo().performTouchInput { click() }
         awaitSelection(factory, track.identity)
         showOptions()
+        screenshot("$label-settings")
+        compose.onNodeWithText("Audio track").performTouchInput { click() }
         compose.onNodeWithText(title).performScrollTo().assertIsDisplayed()
         screenshot("$label-selected")
-        // Selecting the current speed also closes the menu without changing the chosen track.
-        compose.onNodeWithText("1.5×").performScrollTo().performClick()
+        compose.onNodeWithText(title).performTouchInput { click() }
         return track.identity
     }
 
     private fun selectSpeedWithKeyboard(factory: ObservedPlaybackFactory) {
         showOptions()
+        compose.onNodeWithText("Playback speed").performTouchInput { click() }
         val choice = compose.onNodeWithText("1.25×")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         for (step in 0 until 8) {
@@ -182,14 +202,25 @@ class MobilePlaybackOptionsProofTest {
     }
 
     private fun showOptions() {
-        if (compose.onAllNodes(androidx.compose.ui.test.hasText("Playback options"))
-                .fetchSemanticsNodes().isEmpty()) {
-            compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performClick()
+        showControls()
+        val center = compose.onNodeWithContentDescription("Playback options").fetchSemanticsNode().boundsInWindow.center
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val downTime = SystemClock.uptimeMillis()
+        // Inject through Android so the keyboard-to-touch transition also clears native tooltip focus.
+        for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
+            val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, center.x, center.y, 0)
+            try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
         }
-        compose.onNodeWithText("Playback options").performClick()
-        compose.onNodeWithText("1.5×").assertIsDisplayed()
+        compose.onNodeWithText("Playback speed").assertIsDisplayed()
         compose.mainClock.advanceTimeBy(300)
         compose.waitForIdle()
+    }
+
+    private fun showControls() {
+        if (compose.onAllNodes(hasContentDescription("Playback options")).fetchSemanticsNodes().isEmpty()) {
+            compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput { click() }
+        }
+        compose.onNodeWithContentDescription("Playback options").assertIsDisplayed()
     }
 
     private fun awaitReady(factory: ObservedPlaybackFactory) {
@@ -255,9 +286,17 @@ class MobilePlaybackOptionsProofTest {
 private class ObservedPlaybackFactory : MobilePlayerFactory {
     var player: Player? = null
         private set
+    var renderedFrame = false
+        private set
     fun current(): Player = checkNotNull(player)
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
-        DefaultMobilePlayerFactory.create(context, mediaType).also { player = it }
+        DefaultMobilePlayerFactory.create(context, mediaType).also {
+            player = it
+            renderedFrame = false
+            it.addListener(object : Player.Listener {
+                override fun onRenderedFirstFrame() { renderedFrame = true }
+            })
+        }
     override fun connectAudio(context: Context, onResult: (Result<Player>) -> Unit): Closeable =
         DefaultMobilePlayerFactory.connectAudio(context) { result ->
             player = result.getOrThrow()

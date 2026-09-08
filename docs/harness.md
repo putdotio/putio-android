@@ -93,7 +93,8 @@ and `putio.playback.options.audio` / `putio.playback.options.video` set to
 readable fixture paths under the app's external files directory.
 
 Use 180-second AAC audio and H.264 video fixtures containing two differently
-labeled audio tracks. The tests select 1.5× speed and the second track, check
+labeled audio tracks. The tests capture clean audio/video layouts and settings sheets, select 1.5× speed
+and the second track, check
 the real player state, recreate the video player, and reconnect to background
 audio. Lifecycle and saved-state transitions use a controlled Compose host;
 this is local-media proof, not live API or full Activity-recreation proof.

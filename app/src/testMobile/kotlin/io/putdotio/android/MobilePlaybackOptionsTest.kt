@@ -8,13 +8,15 @@ import androidx.compose.ui.input.InputModeManager
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
@@ -61,14 +63,16 @@ class MobilePlaybackOptionsTest {
             }
         }
 
-        compose.onNodeWithText("Playback options").performClick()
-        compose.onNodeWithText("1×").assertIsOn()
-        compose.onNodeWithText("1.5×").assertIsOff().performClick()
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        compose.onNodeWithText("Playback speed").performClick()
+        compose.onNodeWithText("1×").assertIsSelected()
+        compose.onNodeWithText("1.5×").assertIsNotSelected().performClick()
         compose.runOnIdle { assertEquals(1.5f, player.playbackParameters.speed) }
         assertEquals(listOf(true, false), visibility)
-        compose.onNodeWithText("Playback options").performClick()
-        compose.onNodeWithText("1.5×").assertIsOn()
-        compose.onNodeWithText("1×").assertIsOff()
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        compose.onNodeWithText("Playback speed").performClick()
+        compose.onNodeWithText("1.5×").assertIsSelected()
+        compose.onNodeWithText("1×").assertIsNotSelected()
     }
 
     @Test
@@ -81,22 +85,76 @@ class MobilePlaybackOptionsTest {
             }
         }
 
-        compose.onNodeWithText("Playback options").performClick()
-        compose.onNodeWithText("Automatic").assertIsOn()
-        compose.onNodeWithText("English").assertIsOff()
-        compose.onNodeWithText("Deutsch").assertIsOff().performClick()
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        compose.onNodeWithText("Audio track").performClick()
+        compose.onNodeWithText("Automatic").assertIsSelected()
+        compose.onNodeWithText("English").assertIsNotSelected()
+        compose.onNodeWithText("Deutsch").assertIsNotSelected().performClick()
         compose.runOnIdle {
             assertEquals(listOf(1), player.trackSelectionParameters.overrides.getValue(player.audio).trackIndices)
             assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
             assertEquals(AudioSelection.Track(player.audio.getFormat(1).toAudioTrackIdentity()), selections.single())
         }
-        compose.onNodeWithText("Playback options").performClick()
-        compose.onNodeWithText("Deutsch").assertIsOn()
-        compose.onNodeWithText("English").assertIsOff()
-        compose.onNodeWithText("Automatic").assertIsOff().performClick()
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        compose.onNodeWithText("Audio track").performClick()
+        compose.onNodeWithText("Deutsch").assertIsSelected()
+        compose.onNodeWithText("English").assertIsNotSelected()
+        compose.onNodeWithText("Automatic").assertIsNotSelected().performClick()
         compose.runOnIdle {
             assertEquals(AudioSelection.Automatic, selections.last())
             assertEquals(mapOf(player.text to player.subtitleOverride), player.trackSelectionParameters.overrides)
+        }
+    }
+
+    @Test
+    fun duplicateAudioLabelsRemainDistinctInChoicesAndSummary() {
+        assertDuplicateAudioChoices(useLanguage = false)
+    }
+
+    @Test
+    fun duplicateAudioLanguagesRemainDistinctInChoicesAndSummary() {
+        assertDuplicateAudioChoices(useLanguage = true)
+    }
+
+    private fun assertDuplicateAudioChoices(useLanguage: Boolean) {
+        val label = if (useLanguage) "en" else "English"
+        fun audioFormat(id: String): Format = Format.Builder()
+            .setId(id)
+            .setLanguage("en")
+            .setLabel(if (useLanguage) null else label)
+            .setSampleMimeType(MimeTypes.AUDIO_AAC)
+            .build()
+        val first = audioFormat("first")
+        val second = audioFormat("second")
+        val player = OptionsPlayer(audioGroup = TrackGroup(first, second))
+        var selection: AudioSelection = AudioSelection.Automatic
+        compose.setContent {
+            PutioTheme { MobilePlaybackOptions(player, { selection = it }, {}, {}, {}) }
+        }
+
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        compose.onNodeWithText("Audio track").performClick()
+        compose.onNodeWithText("$label (track 1)").assertIsNotSelected()
+        compose.onNodeWithText("$label (track 2)").assertIsNotSelected().performClick()
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        compose.onNodeWithText("$label (track 2)").assertIsDisplayed()
+        compose.onNodeWithText("Audio track").performClick()
+        compose.onNodeWithText("$label (track 2)").assertIsSelected()
+        compose.onNodeWithText("$label (track 1)").assertIsNotSelected()
+        compose.runOnIdle {
+            assertEquals(AudioSelection.Track(second.toAudioTrackIdentity()), selection)
+            assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
+            val recreated = TrackGroup(second, first)
+            val retained = requireNotNull(selection.toBundle().toAudioSelection())
+            val restored = player.trackSelectionParameters.withAudioSelection(
+                retained,
+                listOf(
+                    MobileAudioTrack(recreated, 0, label = label, selected = false),
+                    MobileAudioTrack(recreated, 1, label = label, selected = false),
+                ),
+            )
+            assertEquals(listOf(0), restored.overrides.getValue(recreated).trackIndices)
+            assertEquals(player.subtitleOverride, restored.overrides[player.text])
         }
     }
 
@@ -107,8 +165,8 @@ class MobilePlaybackOptionsTest {
             PutioTheme { MobilePlaybackOptions(player, {}, {}, {}, {}) }
         }
 
-        compose.onNodeWithText("Playback options").performClick()
-        listOf("0.75×", "1×", "1.25×", "1.5×", "2×", "Automatic", "English", "Deutsch").forEach { label ->
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        listOf("Playback speed", "Audio track").forEach { label ->
             compose.onNodeWithText(label).assertIsNotEnabled()
         }
     }
@@ -120,12 +178,32 @@ class MobilePlaybackOptionsTest {
             PutioTheme { MobilePlaybackOptions(player, {}, {}, {}, {}) }
         }
 
-        compose.onNodeWithText("Playback options").performClick()
-        compose.onNodeWithText("1.5×").assertIsEnabled()
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        compose.onNodeWithText("Playback speed").assertIsEnabled()
         compose.onNodeWithText("Automatic").assertDoesNotExist()
         compose.onNodeWithText("English").assertDoesNotExist()
         compose.onNodeWithText("Deutsch").assertDoesNotExist()
         compose.onNodeWithText("Audio track").assertDoesNotExist()
+    }
+
+    @Test
+    fun subpageBackReturnsToSettingsWithoutChangingPlayback() {
+        val player = OptionsPlayer()
+        val visibility = mutableListOf<Boolean>()
+        compose.setContent {
+            PutioTheme { MobilePlaybackOptions(player, {}, { visibility += it }, {}, {}) }
+        }
+
+        compose.onNodeWithContentDescription("Playback options").performClick()
+        compose.onNodeWithText("Playback speed").performClick()
+        compose.onNodeWithText("1.5×").assertIsNotSelected()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithText("Audio track").assertIsEnabled()
+        compose.onNodeWithText("1.5×").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(1f, player.playbackParameters.speed)
+            assertEquals(listOf(true), visibility)
+        }
     }
 
     @Test
@@ -230,8 +308,9 @@ class MobilePlaybackOptionsTest {
 private class OptionsPlayer(
     canChangeOptions: Boolean = true,
     singleAudioTrack: Boolean = false,
+    audioGroup: TrackGroup? = null,
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
-    val audio = if (singleAudioTrack) {
+    val audio = audioGroup ?: if (singleAudioTrack) {
         TrackGroup(Format.Builder().setId("en").setLabel("English").setSampleMimeType(MimeTypes.AUDIO_AAC).build())
     } else TrackGroup(
         Format.Builder().setId("en").setLabel("English").setSampleMimeType(MimeTypes.AUDIO_AAC).build(),
