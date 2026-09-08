@@ -1083,6 +1083,56 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun nowPlayingBarFollowsTheAudioSession() {
+        val session = RecordingPlayer()
+        var closed = 0
+        compose.setPlaybackShell(
+            filesState = mediaFilesState(),
+            playbackRepository = EndingPlaybackRepository,
+            playbackPlayerFactory = ShellSessionFactory(session) { closed += 1 },
+        )
+
+        compose.onAllNodesWithTag(MOBILE_NOW_PLAYING_TAG).assertCountEquals(0)
+
+        compose.runOnIdle {
+            session.setMediaItem(
+                androidx.media3.common.MediaItem.Builder()
+                    .setMediaId("9")
+                    .setUri("https://example.com/song.mp3")
+                    .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle("song.mp3").build())
+                    .build(),
+            )
+            session.prepare()
+            session.play()
+        }
+        compose.onNodeWithTag(MOBILE_NOW_PLAYING_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
+
+        compose.onNodeWithTag(MOBILE_NOW_PLAYING_TOGGLE_TAG).performClick()
+        compose.runOnIdle { assertFalse(session.playWhenReady) }
+        compose.onNodeWithContentDescription("Play").assertIsDisplayed()
+
+        compose.onNodeWithTag(MOBILE_NOW_PLAYING_OPEN_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+        compose.runOnIdle {
+            // The screen adopts the session item; nothing is re-prepared.
+            assertEquals(1, session.prepareCalls)
+            assertEquals(1, session.mediaItemUpdates)
+        }
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag(MOBILE_NOW_PLAYING_TAG).assertIsDisplayed()
+
+        compose.onNodeWithTag(MOBILE_NOW_PLAYING_DISMISS_TAG).performClick()
+        compose.onAllNodesWithTag(MOBILE_NOW_PLAYING_TAG).assertCountEquals(0)
+        compose.runOnIdle {
+            assertEquals(0, session.mediaItemCount)
+            assertFalse(session.released)
+        }
+    }
+
+    @Test
     fun mediaNotificationTapOpensTheLiveAudioPlayer() {
         val session = RecordingPlayer()
         session.setMediaItem(

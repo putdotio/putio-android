@@ -1857,6 +1857,22 @@ internal class RecordingPlayer(
     override fun handleClearVideoOutput(videoOutput: Any?): ListenableFuture<*> =
         Futures.immediateVoidFuture()
 
+    override fun handleStop(): ListenableFuture<*> {
+        state = state.buildUpon().setPlaybackState(Media3Player.STATE_IDLE).build()
+        invalidateState()
+        return Futures.immediateVoidFuture()
+    }
+
+    override fun handleRemoveMediaItems(fromIndex: Int, toIndex: Int): ListenableFuture<*> {
+        state =
+            state.buildUpon()
+                .setPlaylist(state.playlist.filterIndexed { index, _ -> index < fromIndex || index >= toIndex })
+                .setCurrentMediaItemIndex(C.INDEX_UNSET)
+                .build()
+        invalidateState()
+        return Futures.immediateVoidFuture()
+    }
+
     override fun handleRelease(): ListenableFuture<*> {
         releaseError?.let(::fail)
         released = true

@@ -7,6 +7,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -903,14 +904,17 @@ private fun PhoneShell(
             )
         },
         bottomBar = {
-            NavigationBar(modifier = Modifier.testTag(MOBILE_NAV_BAR_TAG)) {
-                MobileDestination.entries.forEach { destination ->
-                    NavigationBarItem(
-                        selected = destination == selectedDestination,
-                        onClick = { navController.navigateTo(destination) },
-                        icon = { MobileDestinationIcon(destination, destination == selectedDestination) },
-                        label = { Text(stringResource(destination.labelRes)) },
-                    )
+            Column {
+                MobileNowPlayingSlot(navController, playbackPlayerFactory)
+                NavigationBar(modifier = Modifier.testTag(MOBILE_NAV_BAR_TAG)) {
+                    MobileDestination.entries.forEach { destination ->
+                        NavigationBarItem(
+                            selected = destination == selectedDestination,
+                            onClick = { navController.navigateTo(destination) },
+                            icon = { MobileDestinationIcon(destination, destination == selectedDestination) },
+                            label = { Text(stringResource(destination.labelRes)) },
+                        )
+                    }
                 }
             }
         },
@@ -998,6 +1002,7 @@ private fun TabletShell(
                     onFilesEvent = onFilesEvent,
                 )
             },
+            bottomBar = { MobileNowPlayingSlot(navController, playbackPlayerFactory) },
         ) { padding ->
             MobileNavHost(
                 navController = navController,
@@ -1079,6 +1084,21 @@ private fun MobileTopBar(
                 )
             }
         },
+    )
+}
+
+@Composable
+private fun MobileNowPlayingSlot(
+    navController: NavHostController,
+    playerFactory: MobilePlayerFactory,
+) {
+    val handle = rememberNowPlaying(playerFactory)
+    val nowPlaying = handle.nowPlaying ?: return
+    MobileNowPlayingBar(
+        nowPlaying = nowPlaying,
+        onOpen = { navController.navigateToPlayback(nowPlaying.fileId, nowPlaying.title, PlaybackMediaType.AUDIO) },
+        onToggle = handle::togglePlayback,
+        onDismiss = handle::dismiss,
     )
 }
 

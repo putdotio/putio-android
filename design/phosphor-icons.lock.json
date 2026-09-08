@@ -223,6 +223,27 @@
       "asset": "assets/regular/shield-check.svg",
       "sourceSha256": "bb04d552c0baaaabd90f7eb60760cb0c7ddb7e9f47e4b76e9599ddd7dfd8eaa7",
       "outputSha256": "19f2a01c68e149713ce61ff5f56cda1dc010fb616e04ce8d566e22ea9e4ae30d"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_play_fill",
+      "asset": "assets/fill/play-fill.svg",
+      "sourceSha256": "6d2a75bc5700a68dec50516ebae121c307807e4e6fcca5c863e5b4af006df880",
+      "outputSha256": "e2929d9326eefe2f62780c508a547e5516e2ae155dcf038b395e33d32bc8dfcc"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_pause_fill",
+      "asset": "assets/fill/pause-fill.svg",
+      "sourceSha256": "156d3cdfa5cea803caec50b35f49bc635070c8bd84e7fe78df94b025017ccee1",
+      "outputSha256": "095334f575ca4ec50c729c82d2d3af97d12090f33e2488bfc8d5b8a761030409"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_x",
+      "asset": "assets/regular/x.svg",
+      "sourceSha256": "7397b15e1fa66eaf6ff9b59fe91d483cb5c3bcf75b2fe052097ab6f0593b513a",
+      "outputSha256": "5e3c56210c48eec3fcf48778bb7e16f167f1076ed3909cfd72128d2bf8a26c9f"
     }
   ]
 }

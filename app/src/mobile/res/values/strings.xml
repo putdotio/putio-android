@@ -83,6 +83,10 @@
     <string name="mobile_playback_error_title_audio">Couldn’t play this audio</string>
     <string name="mobile_playback_error_forbidden">You don’t have access to this file.</string>
     <string name="mobile_playback_error_credential">Playback access expired. Retry to refresh it.</string>
+    <string name="mobile_now_playing_open">Open player</string>
+    <string name="mobile_now_playing_play">Play</string>
+    <string name="mobile_now_playing_pause">Pause</string>
+    <string name="mobile_now_playing_dismiss">Stop playback</string>
     <string name="mobile_playback_subtitles_on">Subtitles on</string>
     <string name="mobile_playback_subtitles_off">Subtitles off</string>
     <string name="mobile_playback_choose_subtitles">Choose subtitles</string>
