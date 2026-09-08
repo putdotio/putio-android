@@ -121,6 +121,7 @@ class MobileKeyboardNavigationProofTest {
                     ViewCompat.getRootWindowInsets(hostView)?.isVisible(WindowInsetsCompat.Type.ime()) == false
                 }
             }
+            editor.assertIsDisplayed().assertIsFocused().assertTextContains("Rehearsal archive")
             compose.onNodeWithTag(navigationTag).assertIsDisplayed()
             compose.onNode(hasText("Transfers") and hasAnyAncestor(hasTestTag(navigationTag))).performClick()
             compose.onNodeWithText("Add transfer").assertIsDisplayed()
