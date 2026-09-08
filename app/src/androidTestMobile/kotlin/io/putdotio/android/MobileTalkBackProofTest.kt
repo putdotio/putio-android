@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.UiAutomation
 import android.content.pm.ActivityInfo
 import android.hardware.display.DisplayManager
@@ -51,6 +52,10 @@ class MobileTalkBackProofTest {
     fun talkBackActivatesAuthAndTraversesPersistentPlaybackControls() {
         // Compose/Espresso rules reconnect UiAutomation without this flag and suppress TalkBack.
         automation = instrumentation.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
+        automation.serviceInfo = automation.serviceInfo.apply {
+            flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+        await("Interactive accessibility windows available") { automation.windows.isNotEmpty() }
         val manager = instrumentation.targetContext.getSystemService(AccessibilityManager::class.java)
         require(manager.isTouchExplorationEnabled) { "Enable TalkBack before running this selector" }
         require(manager.getEnabledAccessibilityServiceList(-1).any {
