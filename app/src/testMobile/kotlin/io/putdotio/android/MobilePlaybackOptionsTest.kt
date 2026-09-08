@@ -118,15 +118,15 @@ class MobilePlaybackOptionsTest {
 
     private fun assertDuplicateAudioChoices(useLanguage: Boolean) {
         val label = if (useLanguage) "en" else "English"
-        fun audioFormat(id: String): Format = Format.Builder()
+        fun audioFormat(id: String, displayLabel: String? = if (useLanguage) null else label): Format = Format.Builder()
             .setId(id)
             .setLanguage("en")
-            .setLabel(if (useLanguage) null else label)
+            .setLabel(displayLabel)
             .setSampleMimeType(MimeTypes.AUDIO_AAC)
             .build()
         val first = audioFormat("first")
         val second = audioFormat("second")
-        val third = audioFormat("third").buildUpon().setLabel("$label (track 1)").build()
+        val third = audioFormat("third", "$label (track 1)")
         val player = OptionsPlayer(audioGroup = TrackGroup(first, second, third))
         var selection: AudioSelection = AudioSelection.Automatic
         compose.setContent {
