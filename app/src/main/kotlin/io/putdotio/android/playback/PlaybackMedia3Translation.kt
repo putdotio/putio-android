@@ -101,13 +101,13 @@ internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
 }
 
 internal fun PlaybackException.toPlaybackFailure(): PlaybackFailure =
-    toMediaRequestFailureOrNull() ?: relayedFailureOrNull() ?: PlaybackFailure.Unexpected(this)
+    toMediaRequestFailureOrNull() ?: errorCodeFailureOrNull() ?: PlaybackFailure.Unexpected(this)
 
-// An exception relayed through a MediaController arrives without its cause chain,
-// so only the error code can say what the session player hit.
-private fun PlaybackException.relayedFailureOrNull(): PlaybackFailure? {
-    if (cause != null) return null
-    return when (errorCode) {
+// An exception relayed through a MediaController keeps only its error code: the cause is
+// rebuilt from a class name and message, or replaced by a RemoteException, so the
+// HttpDataSource chain above cannot classify it.
+private fun PlaybackException.errorCodeFailureOrNull(): PlaybackFailure? =
+    when (errorCode) {
         PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> PlaybackFailure.MediaCredentialUnavailable(this)
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
@@ -115,7 +115,6 @@ private fun PlaybackException.relayedFailureOrNull(): PlaybackFailure? {
 
         else -> null
     }
-}
 
 private fun Double.toPlaybackMillis(): Long =
     (this * MILLIS_PER_SECOND)

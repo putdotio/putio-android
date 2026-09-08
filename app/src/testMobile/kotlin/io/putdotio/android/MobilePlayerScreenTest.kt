@@ -1437,19 +1437,34 @@ class MobilePlayerScreenTest {
     }
 
     @Test
-    fun relayedSessionErrorsMapByCodeWhenTheCauseIsStripped() {
-        val relayed = { code: Int -> PlaybackException("relayed", null, code) }
-        assertTrue(
-            relayed(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS).toPlaybackFailure() is
-                PlaybackFailure.MediaCredentialUnavailable,
-        )
-        assertTrue(
-            relayed(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED).toPlaybackFailure() is
-                PlaybackFailure.NetworkUnavailable,
-        )
-        assertTrue(
-            relayed(PlaybackException.ERROR_CODE_DECODING_FAILED).toPlaybackFailure() is PlaybackFailure.Unexpected,
-        )
+    fun errorsRelayedThroughASessionStillMapToTheirRecoveryStates() {
+        val dataSpec = DataSpec(Uri.parse("https://example.com/song.mp3"))
+        val unauthorized =
+            PlaybackException(
+                "source",
+                HttpDataSource.InvalidResponseCodeException(401, "Unauthorized", null, emptyMap(), dataSpec, ByteArray(0)),
+                PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+            )
+        val offline =
+            PlaybackException(
+                "source",
+                HttpDataSource.HttpDataSourceException(
+                    IOException("unreachable"),
+                    dataSpec,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                    HttpDataSource.HttpDataSourceException.TYPE_OPEN,
+                ),
+                PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            )
+        val decoder = PlaybackException("decoder", IllegalStateException("codec"), PlaybackException.ERROR_CODE_DECODING_FAILED)
+
+        // The controller receives the bundle form, which drops the typed cause chain.
+        fun relay(error: PlaybackException) = PlaybackException.fromBundle(error.toBundle())
+
+        assertFalse(relay(unauthorized).cause is HttpDataSource.InvalidResponseCodeException)
+        assertTrue(relay(unauthorized).toPlaybackFailure() is PlaybackFailure.MediaCredentialUnavailable)
+        assertTrue(relay(offline).toPlaybackFailure() is PlaybackFailure.NetworkUnavailable)
+        assertTrue(relay(decoder).toPlaybackFailure() is PlaybackFailure.Unexpected)
     }
 
     @Test
