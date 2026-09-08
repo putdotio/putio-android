@@ -53,7 +53,11 @@ class MobilePlaybackService : MediaSessionService() {
         )
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+    // The app reconnecting means a task exists again; pausing inside it must not stop us.
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+        if (controllerInfo.packageName == packageName) taskRemoved = false
+        return session
+    }
 
     // Active playback outlives the task; once it pauses, ends, or fails afterwards the listener stops us.
     override fun onTaskRemoved(rootIntent: Intent?) {

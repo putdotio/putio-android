@@ -21,6 +21,10 @@ internal class RetainedPlayerPreferences(
     var subtitleSelection by mutableStateOf(subtitleSelection)
     var positionMillis by mutableStateOf(positionMillis)
 
+    // Set once this route has prepared or adopted the session's file, so a later
+    // recomposition on the same route leaves an ended session ended instead of restarting it.
+    var sessionHandled by mutableStateOf(false)
+
     fun retainPlayback(playback: RetainedPlayback) {
         positionMillis = playback.positionMillis
         resumeAfterLifecyclePause = playback.resumeAfterLifecyclePause
@@ -36,6 +40,7 @@ private val RetainedPlayerPreferencesSaver =
         save = { preferences ->
             Bundle().apply {
                 putBoolean("resumeAfterLifecyclePause", preferences.resumeAfterLifecyclePause)
+                putBoolean("sessionHandled", preferences.sessionHandled)
                 preferences.subtitleSelection?.let { putBundle("subtitleSelection", it.toBundle()) }
                 preferences.positionMillis?.let { putLong("positionMillis", it) }
             }
@@ -48,7 +53,7 @@ internal fun Bundle.toRetainedPlayerPreferences(): RetainedPlayerPreferences =
         resumeAfterLifecyclePause = getBoolean("resumeAfterLifecyclePause", true),
         subtitleSelection = getBundle("subtitleSelection")?.toSubtitleSelection(),
         positionMillis = getLong("positionMillis").takeIf { containsKey("positionMillis") },
-    )
+    ).apply { sessionHandled = getBoolean("sessionHandled", false) }
 
 @Composable
 internal fun rememberRetainedPlayerPreferences(fileId: Long): RetainedPlayerPreferences =

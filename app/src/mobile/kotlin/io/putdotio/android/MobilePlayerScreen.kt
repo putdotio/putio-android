@@ -150,6 +150,8 @@ internal fun MobilePlayerScreen(
                     title = state.target.name,
                     mediaType = state.target.mediaType,
                     sessionPlayer = sessionPlayer,
+                    sessionHandled = preferences.sessionHandled,
+                    onSessionHandled = { preferences.sessionHandled = true },
                     startPositionMillis = preferences.positionMillis ?: state.resumePositionMillis,
                     resumeAfterLifecyclePause = preferences.resumeAfterLifecyclePause,
                     retainedSubtitleSelection = preferences.subtitleSelection,
@@ -234,6 +236,8 @@ private fun MobileReadyPlayer(
     title: String,
     mediaType: PlaybackMediaType,
     sessionPlayer: Media3Player?,
+    sessionHandled: Boolean,
+    onSessionHandled: () -> Unit,
     startPositionMillis: Long?,
     resumeAfterLifecyclePause: Boolean,
     retainedSubtitleSelection: SubtitleSelection?,
@@ -283,7 +287,11 @@ private fun MobileReadyPlayer(
     }
     var playerReleased by remember(player) { mutableStateOf(false) }
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
-    var activeFileId by remember(player) { mutableStateOf(player.resumableSessionFileId()) }
+    // A route that already handled the session keeps an ended file ended; a route opened
+    // fresh onto an ended file prepares it again.
+    var activeFileId by remember(player) {
+        mutableStateOf(if (sessionHandled) player.activeSessionFileId() else player.resumableSessionFileId())
+    }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
@@ -332,6 +340,7 @@ private fun MobileReadyPlayer(
 
     LaunchedEffect(player, preparedPlayback) {
         val replacingFileId = activeFileId
+        if (!ownsPlayer) onSessionHandled()
         if (!ownsPlayer && replacingFileId == source.fileId) {
             // Returning to audio that kept playing: adopt the live position instead of restarting.
             val livePosition = player.currentPosition.coerceAtLeast(0L)

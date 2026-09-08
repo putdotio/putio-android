@@ -1425,6 +1425,41 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    fun audioThatEndedWhileStoppedStaysEndedWhenTheRouteResumes() {
+        val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
+        val session = RecordingPlayer()
+        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO), 10_000L)
+        session.prepare()
+        session.play()
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                PutioTheme {
+                    MobilePlayerScreen(
+                        state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = SessionPlayerFactory(session) {},
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(1, session.prepareCalls) }
+
+        compose.runOnIdle {
+            lifecycleOwner.moveTo(Lifecycle.State.CREATED)
+            session.updatePlaybackState(Media3Player.STATE_ENDED)
+        }
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
+
+        compose.runOnIdle {
+            assertEquals(1, session.prepareCalls)
+            assertEquals(Media3Player.STATE_ENDED, session.playbackState)
+        }
+    }
+
+    @Test
     fun audioPreparesTheSessionPlayerWhenItHoldsAnotherFile() {
         val session = RecordingPlayer()
         session.setMediaItem(

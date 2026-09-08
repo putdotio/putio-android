@@ -25,7 +25,8 @@ class MainActivity : BasePutioActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
-        if (savedInstanceState == null) publishNowPlayingRequest(intent)
+        // A restored Activity can still carry a fresh notification tap; only a consumed one is skipped.
+        if (savedInstanceState?.getBoolean(STATE_NOW_PLAYING_CONSUMED) != true) publishNowPlayingRequest(intent)
         setContent {
             PutioApp(authTabLauncher, nowPlayingRequestFlow)
         }
@@ -36,8 +37,21 @@ class MainActivity : BasePutioActivity() {
         publishNowPlayingRequest(intent)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_NOW_PLAYING_CONSUMED, nowPlayingConsumed)
+    }
+
+    private var nowPlayingConsumed = false
+
     private fun publishNowPlayingRequest(intent: Intent?) {
-        if (intent?.action == MobilePlaybackService.ACTION_OPEN_NOW_PLAYING) nowPlayingRequests.trySend(Unit)
+        if (intent?.action != MobilePlaybackService.ACTION_OPEN_NOW_PLAYING) return
+        nowPlayingConsumed = true
+        nowPlayingRequests.trySend(Unit)
+    }
+
+    private companion object {
+        const val STATE_NOW_PLAYING_CONSUMED = "nowPlayingConsumed"
     }
 }
 
