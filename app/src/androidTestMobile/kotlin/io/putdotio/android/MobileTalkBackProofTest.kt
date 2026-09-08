@@ -45,6 +45,7 @@ class MobileTalkBackProofTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val focused = CopyOnWriteArrayList<String>()
     private lateinit var automation: UiAutomation
+    @Volatile private var focusedNode: AccessibilityNodeInfo? = null
 
     @Test
     fun talkBackActivatesAuthAndTraversesPersistentPlaybackControls() {
@@ -58,11 +59,12 @@ class MobileTalkBackProofTest {
         automation.setOnAccessibilityEventListener { event ->
             if (event.eventType == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED &&
                 event.packageName?.toString() in
-                setOf(instrumentation.targetContext.packageName, "com.android.systemui")
+                setOf(instrumentation.targetContext.packageName, "com.android.systemui", "android")
             ) {
                 val description = event.contentDescription?.toString().orEmpty()
                 val text = event.text.joinToString(" | ")
                 val source = event.source
+                focusedNode = source
                 focused += (listOf(description, text) + nodeLabels(source))
                     .filter(String::isNotBlank).distinct().joinToString(" | ")
             }
@@ -127,15 +129,10 @@ class MobileTalkBackProofTest {
                 ready
             }
             SystemClock.sleep(6_000)
-            if (automation.windows.any { window ->
-                    window.root?.let { root ->
-                        root.packageName?.toString() == "com.android.systemui" &&
-                            root.findAccessibilityNodeInfosByText("Got it").isNotEmpty()
-                    } == true
-                }
-            ) {
+            if (fullscreenHintVisible()) {
                 focusNext("Got it")
                 doubleTap("Got it")
+                await("Fullscreen education dismissed") { !fullscreenHintVisible() }
             }
             accessibilityProofScreenshot("talkback-playback-persistent", automation)
             focusNext("Pause")
@@ -201,9 +198,17 @@ class MobileTalkBackProofTest {
         }
     }
 
-    private fun currentFocus(): String = nodeLabels(
-        automation.rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY),
-    ).filter(String::isNotBlank).distinct().joinToString(" | ")
+    private fun fullscreenHintVisible(): Boolean = automation.windows.any { window ->
+        window.root?.findAccessibilityNodeInfosByText("Got it")?.any { node ->
+            node.text?.toString() == "Got it" && node.isClickable
+        } == true
+    }
+
+    private fun currentFocus(): String {
+        val node = focusedNode ?: return ""
+        if (!node.refresh() || !node.isAccessibilityFocused) return ""
+        return nodeLabels(node).filter(String::isNotBlank).distinct().joinToString(" | ")
+    }
 
     private fun focusNext(label: String, forward: Boolean = true) {
         repeat(24) {
