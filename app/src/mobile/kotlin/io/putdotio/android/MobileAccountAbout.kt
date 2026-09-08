@@ -71,11 +71,15 @@ internal fun LazyListScope.aboutItem(
     item(key = ABOUT_ROW_KEY) {
         ListItem(
             headlineContent = { Text(stringResource(R.string.mobile_settings_about)) },
-            supportingContent = { Text(stringResource(R.string.mobile_settings_about_description)) },
+            supportingContent = {
+                MobileAccountValueDescription(
+                    value = diagnostics.appVersion,
+                    description = stringResource(R.string.mobile_settings_about_description),
+                )
+            },
             leadingContent = {
                 Icon(painter = painterResource(R.drawable.ic_ph_info), contentDescription = null)
             },
-            trailingContent = { Text(diagnostics.appVersion) },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag(MOBILE_ABOUT_ROW_TAG)

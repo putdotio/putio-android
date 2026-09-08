@@ -4,6 +4,7 @@ import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +18,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -34,12 +37,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -221,24 +223,33 @@ private fun MobileRecentSearchFailure(
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
         shape = MaterialTheme.shapes.medium,
     ) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.mobile_search_recent_error_title),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                Text(
-                    text = stringResource(failure.mobileMessageResource()),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            TextButton(onClick = onRetry) {
-                Text(stringResource(R.string.mobile_action_retry))
+        BoxWithConstraints(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            if (maxWidth / LocalDensity.current.fontScale < 320.dp) {
+                Column {
+                    MobileRecentSearchFailureText(failure)
+                    TextButton(onClick = onRetry) { Text(stringResource(R.string.mobile_action_retry)) }
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MobileRecentSearchFailureText(failure, Modifier.weight(1f))
+                    TextButton(onClick = onRetry) { Text(stringResource(R.string.mobile_action_retry)) }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun MobileRecentSearchFailureText(failure: FilesFailure, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Text(
+            text = stringResource(R.string.mobile_search_recent_error_title),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = stringResource(failure.mobileMessageResource()),
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
@@ -277,15 +288,12 @@ private fun MobileRecentSearches(
         }
         items(terms, key = SearchTerm::value) { term ->
             ListItem(
-                headlineContent = { Text(term.value, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                headlineContent = { Text(term.value, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                 modifier = Modifier.clickable(role = Role.Button) { onSearch(term) },
                 trailingContent = {
                     val removeLabel = stringResource(R.string.mobile_search_remove_named, term.value)
-                    TextButton(
-                        onClick = { onEdit(RecentSearchEdit.Remove(term)) },
-                        modifier = Modifier.semantics { contentDescription = removeLabel },
-                    ) {
-                        Text(stringResource(R.string.mobile_action_remove), modifier = Modifier.clearAndSetSemantics {})
+                    IconButton(onClick = { onEdit(RecentSearchEdit.Remove(term)) }) {
+                        Icon(painterResource(R.drawable.ic_ph_x), contentDescription = removeLabel)
                     }
                 },
             )
@@ -454,15 +462,11 @@ private fun MobileHistoryList(
                     supportingContent = {
                         Text(stringResource(R.string.mobile_history_metadata, item.kindLabel(), item.timeLabel()))
                     },
-                    modifier = if (fileId == null) Modifier else Modifier.clickable(role = Role.Button) {
+                    modifier = if (fileId == null) Modifier else Modifier.clickable(
+                        role = Role.Button,
+                        onClickLabel = stringResource(R.string.mobile_history_open_file),
+                    ) {
                         onEvent(HistoryEvent.OpenFile(fileId))
-                    },
-                    trailingContent = if (fileId == null) null else {
-                        {
-                            TextButton(onClick = { onEvent(HistoryEvent.OpenFile(fileId)) }) {
-                                Text(stringResource(R.string.mobile_history_open_file))
-                            }
-                        }
                     },
                 )
                 HorizontalDivider()

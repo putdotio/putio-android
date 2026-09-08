@@ -2,7 +2,6 @@ package io.putdotio.android
 
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -51,8 +50,6 @@ class MobileTrashLayoutTest {
                 )
             }
         }
-        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)
-            .performSemanticsAction(SemanticsActions.Expand) { assertTrue(it()) }
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_DELETE_TAG).performScrollTo()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_DELETE_TAG).assertIsDisplayed().performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performScrollTo().assertIsDisplayed().performClick()

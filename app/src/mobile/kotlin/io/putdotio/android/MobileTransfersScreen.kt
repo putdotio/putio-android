@@ -5,6 +5,7 @@ import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -21,7 +22,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
@@ -41,7 +46,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -104,32 +111,28 @@ internal fun MobileTransfersScreen(
             !state.refresh.isRunning &&
             !state.content.isPaging
     Column(modifier = modifier.fillMaxSize()) {
-        FlowRow(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(
-                onClick = { onEvent(TransfersEvent.Refresh) },
-                enabled = refreshEnabled,
-            ) {
-                Text(stringResource(R.string.mobile_transfers_refresh))
-            }
-            if (state.content is TransfersContent.Ready) {
-                TextButton(
-                    onClick = { confirmation = TransferConfirmation.Clean },
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                MobileAddTransfer(
+                    draft = draft,
+                    state = state,
+                    onEvent = onEvent,
                     enabled = controlsEnabled,
-                ) {
-                    Text(stringResource(R.string.mobile_transfers_clean))
-                }
+                )
             }
-            MobileAddTransfer(
-                draft = draft,
-                state = state,
-                onEvent = onEvent,
-                enabled = controlsEnabled,
+            MobileTransferActionsMenu(
+                refreshEnabled = refreshEnabled,
+                cleanEnabled = controlsEnabled,
+                showClean = state.content is TransfersContent.Ready,
+                sessionId = sessionId,
+                onRefresh = { onEvent(TransfersEvent.Refresh) },
+                onClean = { confirmation = TransferConfirmation.Clean },
             )
         }
 
@@ -174,6 +177,46 @@ internal fun MobileTransfersScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun MobileTransferActionsMenu(
+    refreshEnabled: Boolean,
+    cleanEnabled: Boolean,
+    showClean: Boolean,
+    sessionId: MobileAuthSessionId?,
+    onRefresh: () -> Unit,
+    onClean: () -> Unit,
+) {
+    var expanded by remember(sessionId) { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
+                contentDescription = stringResource(R.string.mobile_transfer_actions),
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.mobile_transfers_refresh)) },
+                enabled = refreshEnabled,
+                onClick = {
+                    expanded = false
+                    onRefresh()
+                },
+            )
+            if (showClean) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.mobile_transfers_clean)) },
+                    enabled = cleanEnabled,
+                    onClick = {
+                        expanded = false
+                        onClean()
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -238,84 +281,112 @@ private fun MobileTransferRow(
     val context = LocalContext.current
     val busy = mutation is TransferMutation.Running && mutation.action.targets(item.id)
     val actionsEnabled = interactionsEnabled && mutation !is TransferMutation.Running
-    ListItem(
-        modifier = Modifier.fillMaxWidth(),
-        headlineContent = {
-            Text(item.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        },
-        supportingContent = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(item.statusLabel())
-                item.percentDone?.takeIf { it in 0.0..PERCENTAGE_SCALE }?.let { percent ->
-                    LinearProgressIndicator(
-                        progress = { (percent / PERCENTAGE_SCALE).toFloat() },
-                        modifier = Modifier.fillMaxWidth().clearAndSetSemantics {},
-                    )
-                    Text(
-                        text = NumberFormat.getPercentInstance().format(percent / PERCENTAGE_SCALE),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                if (item.hasError) {
-                    Text(
-                        text = stringResource(R.string.mobile_transfer_error),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                item.details(context).takeIf(String::isNotBlank)?.let {
-                    Text(
-                        text = it,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
-        trailingContent = {
-            Column(horizontalAlignment = Alignment.End) {
-                if (item.canOpen) {
-                    val openLabel = stringResource(R.string.mobile_transfers_open_named, item.name)
-                    TextButton(
-                        onClick = { onEvent(TransfersEvent.Open(item.id)) },
-                        enabled = actionsEnabled,
-                        modifier = Modifier.semantics { contentDescription = openLabel },
-                    ) {
-                        Text(stringResource(R.string.mobile_transfers_open), modifier = Modifier.clearAndSetSemantics {})
-                    }
-                }
-                when (item.status) {
-                    AppTransferStatus.Failed -> {
-                        val retryLabel = stringResource(R.string.mobile_transfers_retry_named, item.name)
-                        TextButton(
-                            onClick = { onConfirmation(TransferConfirmation.Retry(item.id, item.name)) },
-                            enabled = actionsEnabled,
-                            modifier = Modifier.semantics { contentDescription = retryLabel },
-                        ) {
-                            Text(stringResource(R.string.mobile_action_retry), modifier = Modifier.clearAndSetSemantics {})
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val stackActions = maxWidth / LocalDensity.current.fontScale < 320.dp
+        ListItem(
+            modifier = Modifier.fillMaxWidth(),
+            headlineContent = {
+                Text(item.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            },
+            supportingContent = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    MobileTransferDetails(item, context)
+                    if (stackActions) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            MobileTransferRowActions(item, busy, actionsEnabled, onEvent, onConfirmation)
                         }
                     }
-                    else ->
-                        if (item.status.canCancel) {
-                            val cancelLabel = stringResource(R.string.mobile_transfers_cancel_named, item.name)
-                            TextButton(
-                                onClick = { onConfirmation(TransferConfirmation.Cancel(item.id, item.name)) },
-                                enabled = actionsEnabled,
-                                modifier = Modifier.semantics { contentDescription = cancelLabel },
-                            ) {
-                                Text(stringResource(R.string.mobile_action_cancel), modifier = Modifier.clearAndSetSemantics {})
-                            }
-                        }
                 }
-                if (busy) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
+            },
+            trailingContent = if (stackActions) null else {
+                {
+                    Column(horizontalAlignment = Alignment.End) {
+                        MobileTransferRowActions(item, busy, actionsEnabled, onEvent, onConfirmation)
+                    }
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun MobileTransferDetails(item: TransferItem, context: Context) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(item.statusLabel())
+        item.percentDone?.takeIf { it in 0.0..PERCENTAGE_SCALE }?.let { percent ->
+            LinearProgressIndicator(
+                progress = { (percent / PERCENTAGE_SCALE).toFloat() },
+                modifier = Modifier.fillMaxWidth().clearAndSetSemantics {},
+            )
+            Text(
+                text = NumberFormat.getPercentInstance().format(percent / PERCENTAGE_SCALE),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        if (item.hasError) {
+            Text(
+                text = stringResource(R.string.mobile_transfer_error),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        item.details(context).takeIf(String::isNotBlank)?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MobileTransferRowActions(
+    item: TransferItem,
+    busy: Boolean,
+    actionsEnabled: Boolean,
+    onEvent: (TransfersEvent) -> Unit,
+    onConfirmation: (TransferConfirmation) -> Unit,
+) {
+    if (item.canOpen) {
+        val openLabel = stringResource(R.string.mobile_transfers_open_named, item.name)
+        TextButton(
+            onClick = { onEvent(TransfersEvent.Open(item.id)) },
+            enabled = actionsEnabled,
+            modifier = Modifier.semantics { contentDescription = openLabel },
+        ) {
+            Text(stringResource(R.string.mobile_transfers_open), modifier = Modifier.clearAndSetSemantics {})
+        }
+    }
+    when (item.status) {
+        AppTransferStatus.Failed -> {
+            val retryLabel = stringResource(R.string.mobile_transfers_retry_named, item.name)
+            TextButton(
+                onClick = { onConfirmation(TransferConfirmation.Retry(item.id, item.name)) },
+                enabled = actionsEnabled,
+                modifier = Modifier.semantics { contentDescription = retryLabel },
+            ) {
+                Text(stringResource(R.string.mobile_action_retry), modifier = Modifier.clearAndSetSemantics {})
+            }
+        }
+        else ->
+            if (item.status.canCancel) {
+                val cancelLabel = stringResource(R.string.mobile_transfers_cancel_named, item.name)
+                TextButton(
+                    onClick = { onConfirmation(TransferConfirmation.Cancel(item.id, item.name)) },
+                    enabled = actionsEnabled,
+                    modifier = Modifier.semantics { contentDescription = cancelLabel },
+                ) {
+                    Text(stringResource(R.string.mobile_action_cancel), modifier = Modifier.clearAndSetSemantics {})
                 }
             }
-        },
-    )
+    }
+    if (busy) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(20.dp),
+            strokeWidth = 2.dp,
+        )
+    }
 }
 
 @Composable

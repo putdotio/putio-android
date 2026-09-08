@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
@@ -86,8 +85,6 @@ class MobileFilesScreenTest {
         val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         compose.onNodeWithText(item.name).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         assertEquals(2f, layouts.single().layoutInput.density.fontScale)
-        compose.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)
-            .performSemanticsAction(SemanticsActions.Expand) { assertTrue(it()) }
         compose.onNodeWithText("Rename").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Move").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Delete").performScrollTo().assertIsDisplayed().performClick()
