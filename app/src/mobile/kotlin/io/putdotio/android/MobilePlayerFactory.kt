@@ -65,9 +65,9 @@ internal fun interface MobilePlayerFactory {
         }
 }
 
-// A failed detach must not take the caller's coroutine down with it.
+// A failed detach must not take the caller's coroutine or composition down with it.
 @Suppress("TooGenericExceptionCaught", "SwallowedException")
-private fun Closeable.closeQuietly() {
+internal fun Closeable.closeQuietly() {
     try {
         close()
     } catch (_: Exception) {

@@ -20,13 +20,14 @@ class MainActivity : BasePutioActivity() {
     // A channel holds a request until the shell collects it and hands it over exactly once;
     // a shared flow without replay would drop it before the first collector exists.
     private val nowPlayingRequests = Channel<Unit>(Channel.CONFLATED)
-    private val nowPlayingRequestFlow: NowPlayingRequests = nowPlayingRequests.receiveAsFlow()
+    internal val nowPlayingRequestFlow: NowPlayingRequests = nowPlayingRequests.receiveAsFlow()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
         // A restored Activity can still carry a fresh notification tap; only a consumed one is skipped.
-        if (savedInstanceState?.getBoolean(STATE_NOW_PLAYING_CONSUMED) != true) publishNowPlayingRequest(intent)
+        nowPlayingConsumed = savedInstanceState?.getBoolean(STATE_NOW_PLAYING_CONSUMED) == true
+        if (!nowPlayingConsumed) publishNowPlayingRequest(intent)
         setContent {
             PutioApp(authTabLauncher, nowPlayingRequestFlow)
         }
@@ -36,6 +37,9 @@ class MainActivity : BasePutioActivity() {
         super.onNewIntent(intent)
         publishNowPlayingRequest(intent)
     }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun deliverIntentForTest(intent: Intent) = onNewIntent(intent)
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)

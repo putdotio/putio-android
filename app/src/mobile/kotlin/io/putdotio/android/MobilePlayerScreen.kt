@@ -830,7 +830,7 @@ private fun MobileSessionPlayerHost(
     DisposableEffect(context, playerFactory, attempt) {
         connection = null
         val handle = playerFactory.connectAudio(context) { connection = it }
-        onDispose { handle.close() }
+        onDispose { handle.closeQuietly() }
     }
     when (val result = connection) {
         null -> MobileLoadingState(stringResource(R.string.mobile_playback_loading_audio))
