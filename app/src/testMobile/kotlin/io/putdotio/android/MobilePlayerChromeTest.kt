@@ -90,7 +90,7 @@ class MobilePlayerChromeTest {
             compose.onNodeWithContentDescription("Forward 10 seconds"),
             compose.onNodeWithTag(TIMELINE_TAG),
             compose.onNodeWithText("Audio"),
-            compose.onNodeWithText("1×"),
+            compose.onNodeWithText("Speed (1×)"),
             compose.onNodeWithText("Captions"),
         )
         val bounds = controls.map { it.getUnclippedBoundsInRoot() }

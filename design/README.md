@@ -47,8 +47,10 @@ and system bars. Controls auto-hide during playback; tapping reveals them,
 and system navigation remains available by an edge swipe. TalkBack and keyboard
 navigation keep controls visible.
 
-The overlay has a back arrow and raw filename, central play/pause and ten-second
-seek buttons, a bottom timeline, and direct Audio, speed, and Captions choices.
+The overlay has a back arrow and raw filename, screen-centered play/pause and
+ten-second seek buttons, and a compact timeline with inline timestamps. Audio,
+Speed and Captions share a centered row of 20dp icons and labels. A dimmed overlay
+protects transport contrast without separate decorative button circles.
 Captions are always discoverable: Media3's supported tracks determine the list,
 including embedded tracks absent from API subtitle metadata. Sheets retain the
 existing speed, audio, and caption choices across player recreation.

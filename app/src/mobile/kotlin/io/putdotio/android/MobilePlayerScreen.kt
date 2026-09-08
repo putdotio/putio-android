@@ -7,7 +7,6 @@ import android.view.accessibility.AccessibilityManager
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -730,7 +729,7 @@ private fun MobileReadyPlayer(
                             ),
                         )
                         .pointerInput(player, fileId, seekWindow, touchExplorationEnabled) {
-                            detectTapGestures(
+                            detectVideoTapGestures(
                                 onDoubleTap = {
                                     onPointerNavigation()
                                     seek(direction)
@@ -995,9 +994,9 @@ internal fun MobileSeekButton(
         onClick = onClick,
         enabled = enabled,
         colors = IconButtonDefaults.iconButtonColors(
-            containerColor = MaterialTheme.colorScheme.background.copy(alpha = if (onVideo) 0.7f else 0f),
+            containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0f),
         ),
-        modifier = modifier.requiredSize(56.dp).testTag(
+        modifier = modifier.requiredSize(if (onVideo) 48.dp else 56.dp).testTag(
             if (direction == SeekDirection.Backward) MOBILE_SEEK_BACK_TAG else MOBILE_SEEK_FORWARD_TAG,
         ).semantics { contentDescription = description },
     ) {

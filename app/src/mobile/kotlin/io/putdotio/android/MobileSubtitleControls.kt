@@ -1,15 +1,11 @@
 package io.putdotio.android
 
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -106,15 +102,12 @@ internal fun MobileSubtitleControls(
         onMenuVisibilityChanged(true)
     }
     if (showLabel) {
-        TextButton(
+        MobileVideoOptionButton(
+            label = stringResource(R.string.mobile_playback_captions_control),
+            icon = R.drawable.ic_ph_subtitles,
             onClick = ::open,
             modifier = triggerModifier,
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
-        ) {
-            Icon(painterResource(R.drawable.ic_ph_subtitles), contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.mobile_playback_captions_control))
-        }
+        )
     } else {
         IconButton(onClick = ::open, modifier = triggerModifier) {
             Icon(painterResource(R.drawable.ic_ph_subtitles), contentDescription = null)

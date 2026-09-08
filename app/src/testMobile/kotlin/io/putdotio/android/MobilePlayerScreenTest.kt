@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.safeGestures
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.platform.LocalView
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
@@ -646,6 +650,64 @@ class MobilePlayerScreenTest {
             compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L), player.seekPositions) }
             compose.onAllNodesWithTag(MOBILE_SEEK_FORWARD_TAG).assertCountEquals(0)
         }
+    }
+
+    @Test
+    fun compactVideoScrollPreservesTapsAndConsumesControlGestures() {
+        lateinit var player: RecordingPlayer
+        compose.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
+                PutioTheme {
+                    Box(Modifier.requiredSize(320.dp, 180.dp)) {
+                        MobilePlayerScreen(
+                            state = readyState(startFromSeconds = 20.0),
+                            onRetry = {}, onPlayerFailure = { _, _ -> }, onBack = {},
+                            playerFactory = MobilePlayerFactory { _, _ ->
+                                RecordingPlayer(durationMillis = 60_000L).also { player = it }
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+            player.pause()
+        }
+        val video = compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG)
+        video.performTouchInput { click(percentOffset(0.97f, 0.45f)) }
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onAllNodesWithTag(MOBILE_SEEK_FORWARD_TAG).assertCountEquals(0)
+        video.performTouchInput { click(percentOffset(0.97f, 0.45f)) }
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+        video.performTouchInput {
+            doubleClick(percentOffset(0.97f, 0.45f))
+            doubleClick(percentOffset(0.03f, 0.45f))
+        }
+        compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L), player.seekPositions) }
+        video.performTouchInput {
+            advanceEventTime(1_000L)
+            click(percentOffset(0.03f, 0.45f))
+            advanceEventTime(64L)
+            click(percentOffset(0.97f, 0.45f))
+        }
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+        video.performTouchInput {
+            swipe(percentOffset(0.97f, 0.85f), percentOffset(0.97f, 0.15f), durationMillis = 500L)
+        }
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onNodeWithText("Captions").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L), player.seekPositions) }
+        compose.mainClock.autoAdvance = true
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).performScrollTo().performTouchInput { click() }
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+        compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L, 30_000L), player.seekPositions) }
     }
 
     @Test

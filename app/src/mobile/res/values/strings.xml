@@ -374,4 +374,5 @@
     <string name="mobile_playback_audio_control">Audio</string>
     <string name="mobile_playback_captions_control">Captions</string>
     <string name="mobile_playback_no_captions">No captions available</string>
+    <string name="mobile_playback_speed_control">Speed (%1$s)</string>
 </resources>

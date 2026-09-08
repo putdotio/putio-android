@@ -106,7 +106,7 @@ class MobileFullscreenVideoProofTest {
             awaitVideo(factory)
             awaitWindow(Configuration.ORIENTATION_LANDSCAPE, barsVisible = false)
             showControls()
-            compose.onNodeWithText("1×").assertIsDisplayed()
+            compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
             screenshot("landscape-direct-controls")
             compose.onNodeWithContentDescription("Playback speed", substring = true).performTouchInput { click() }
             screenshot("landscape-speed-sheet")

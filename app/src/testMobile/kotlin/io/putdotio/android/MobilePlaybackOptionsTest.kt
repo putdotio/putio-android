@@ -66,12 +66,12 @@ class MobilePlaybackOptionsTest {
         }
 
         compose.onNodeWithContentDescription("Playback options").assertDoesNotExist()
-        compose.onNodeWithText("1×").performClick()
+        compose.onNodeWithText("Speed (1×)").performClick()
         compose.onNode(hasText("1×") and isSelectable()).assertIsSelected()
         compose.onNodeWithText("1.5×").assertIsNotSelected()
         compose.onNodeWithContentDescription("Back").assertDoesNotExist()
         compose.onNodeWithText("1.5×").performClick()
-        compose.onNodeWithText("1.5×").assertIsDisplayed()
+        compose.onNodeWithText("Speed (1.5×)").assertIsDisplayed()
         compose.onNodeWithContentDescription("Playback speed 1.5×").assertIsDisplayed()
         compose.runOnIdle { assertEquals(1.5f, player.playbackParameters.speed) }
     }

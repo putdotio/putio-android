@@ -10,8 +10,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -108,25 +106,23 @@ internal fun MobilePlaybackOptions(
         onMenuVisibilityChanged(true)
     }
     if (directControls) {
-        TextButton(
+        MobileVideoOptionButton(
+            label = stringResource(R.string.mobile_playback_audio_control),
+            icon = R.drawable.ic_ph_speaker_high,
             onClick = { open(PlaybackOptionsPage.Audio) },
-            modifier = interactionModifier.heightIn(min = 48.dp),
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
-        ) {
-            Text(stringResource(R.string.mobile_playback_audio_control))
-        }
+            modifier = interactionModifier,
+        )
         val speedLabel = playbackSpeedLabel(speed)
         val speedDescription = stringResource(R.string.mobile_playback_speed)
-        TextButton(
+        MobileVideoOptionButton(
+            label = stringResource(R.string.mobile_playback_speed_control, speedLabel),
+            icon = R.drawable.ic_ph_gauge,
             onClick = { open(PlaybackOptionsPage.Speed) },
-            modifier = interactionModifier.heightIn(min = 48.dp).semantics {
+            modifier = interactionModifier.semantics {
                 contentDescription = "$speedDescription $speedLabel"
                 stateDescription = speedLabel
             },
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
-        ) {
-            Text(speedLabel)
-        }
+        )
     } else {
         IconButton(onClick = { open(PlaybackOptionsPage.Root) }, modifier = interactionModifier) {
             Icon(
