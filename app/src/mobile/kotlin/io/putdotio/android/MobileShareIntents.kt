@@ -43,7 +43,7 @@ internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
     val trimmed = text.trim()
     if (TransferSubmission.parse(trimmed) != null) return MobileSharedTransfer(trimmed)
     val links = trimmed.splitToSequence(SharedWhitespace)
-        .filter { it.contains("://") || it.startsWith("magnet:", ignoreCase = true) }
+        .filter { it.contains("://") || it.contains("magnet:", ignoreCase = true) }
         .distinct()
         .take(2)
         .toList()

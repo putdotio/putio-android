@@ -74,6 +74,16 @@ class MobileShareIntentsTest {
     }
 
     @Test
+    fun wrappedMagnetCandidatesPreventChoosingAnotherSharedLink() {
+        for (wrapped in listOf("(magnet:?xt=urn:btih:12345)", "[MAGNET:?xt=urn:btih:12345]")) {
+            val text = "Download https://example.invalid/a or $wrapped"
+            val parsed = parseMobileSharedTransfer(text)
+            assertEquals(text, parsed.input)
+            assertEquals(MobileShareValidation.MultipleLinks, parsed.validation)
+        }
+    }
+
+    @Test
     fun ambiguousSentencePunctuationKeepsTheOriginalEditableText() {
         for (ending in listOf(".", ",", ";", ":", "!", "?", "'", ")", "]", "}", "…", "。", "—", "𐄀")) {
             val text = "Download https://example.invalid/file?token=abc$ending"
