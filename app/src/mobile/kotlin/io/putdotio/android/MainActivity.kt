@@ -18,9 +18,10 @@ class MainActivity : BasePutioActivity() {
         )
     }
 
-    // Replayed once so a request that arrives before the shell exists is not lost.
+    // Buffered, not replayed: a request that arrives before the shell collects is kept,
+    // but a consumed one never re-fires for a later collector.
     private val nowPlayingRequests =
-        MutableSharedFlow<Unit>(replay = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+        MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     private val nowPlayingRequestFlow: NowPlayingRequests = nowPlayingRequests.asSharedFlow()
 
     override fun onCreate(savedInstanceState: Bundle?) {

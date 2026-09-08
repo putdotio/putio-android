@@ -57,12 +57,21 @@ internal fun interface MobilePlayerFactory {
                     }
                 }
                 delivered = true
-                handle?.close()
+                handle?.closeQuietly()
                 if (continuation.isActive) continuation.resume(active)
             }
-            if (delivered) handle.close()
-            continuation.invokeOnCancellation { handle.close() }
+            if (delivered) handle.closeQuietly()
+            continuation.invokeOnCancellation { handle.closeQuietly() }
         }
+}
+
+// A failed detach must not take the caller's coroutine down with it.
+@Suppress("TooGenericExceptionCaught", "SwallowedException")
+private fun Closeable.closeQuietly() {
+    try {
+        close()
+    } catch (_: Exception) {
+    }
 }
 
 internal data class ActiveAudio(
