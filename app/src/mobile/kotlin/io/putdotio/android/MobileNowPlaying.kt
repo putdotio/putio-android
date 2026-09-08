@@ -74,8 +74,13 @@ internal fun rememberNowPlaying(playerFactory: MobilePlayerFactory): NowPlayingH
     var player by remember(playerFactory) { mutableStateOf<Media3Player?>(null) }
     var nowPlaying by remember(playerFactory) { mutableStateOf<NowPlaying?>(null) }
     DisposableEffect(context, playerFactory) {
-        val handle = playerFactory.connectAudio(context) { result -> player = result.getOrNull() }
+        // A cancelled connection still answers; a late answer must not revive a disposed observer.
+        var disposed = false
+        val handle = playerFactory.connectAudio(context) { result ->
+            if (!disposed) player = result.getOrNull()
+        }
         onDispose {
+            disposed = true
             handle.close()
             player = null
             nowPlaying = null

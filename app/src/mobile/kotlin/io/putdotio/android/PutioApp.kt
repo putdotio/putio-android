@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -908,7 +910,12 @@ private fun PhoneShell(
         },
         bottomBar = {
             Column {
-                MobileNowPlayingSlot(navController, playbackPlayerFactory)
+                // NavigationBar pads its own content; the bar above it needs the side insets only.
+                MobileNowPlayingSlot(
+                    navController,
+                    playbackPlayerFactory,
+                    modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+                )
                 NavigationBar(modifier = Modifier.testTag(MOBILE_NAV_BAR_TAG)) {
                     MobileDestination.entries.forEach { destination ->
                         NavigationBarItem(
@@ -1010,7 +1017,9 @@ private fun TabletShell(
                 MobileNowPlayingSlot(
                     navController,
                     playbackPlayerFactory,
-                    modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars),
+                    modifier = Modifier.windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                    ),
                 )
             },
         ) { padding ->
