@@ -1120,6 +1120,64 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun aStoppedShellHoldsNoSessionBinding() {
+        val lifecycleOwner = ShellLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
+        val session = ListenerCountingPlayer(RecordingPlayer())
+        var connections = 0
+        var closes = 0
+        val factory = object : MobilePlayerFactory {
+            override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Media3Player =
+                error("unused")
+
+            override fun connectAudio(
+                context: android.content.Context,
+                onResult: (Result<Media3Player>) -> Unit,
+            ): java.io.Closeable {
+                connections += 1
+                onResult(Result.success(session))
+                return java.io.Closeable { closes += 1 }
+            }
+        }
+        compose.setContent {
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.lifecycle.compose.LocalLifecycleOwner provides lifecycleOwner,
+            ) {
+                PutioTheme {
+                    MobileShell(
+                        playbackPlayerFactory = factory,
+                        filesState = mediaFilesState(),
+                        accountSettingsState = readyAccountSettingsState(),
+                        appConfigState = readyAndroidAppConfigState(),
+                        account = Account,
+                        playbackRepository = EndingPlaybackRepository,
+                        sessionId = Session,
+                        onFilesEvent = { true },
+                        onAccountSettingsEvent = {},
+                        onPlaybackAuthenticationRequired = {},
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+        compose.runOnIdle {
+            assertEquals(1, connections)
+            assertEquals(1, session.attachedListeners)
+        }
+
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.CREATED) }
+        compose.runOnIdle {
+            assertEquals(1, closes)
+            assertEquals(0, session.attachedListeners)
+        }
+
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
+        compose.runOnIdle {
+            assertEquals(2, connections)
+            assertEquals(1, session.attachedListeners)
+        }
+    }
+
+    @Test
     fun leavingTheShellBeforeTheSessionAnswersStillCloses() {
         var pending: ((Result<Media3Player>) -> Unit)? = null
         var closed = 0

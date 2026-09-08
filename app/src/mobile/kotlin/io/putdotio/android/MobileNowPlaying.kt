@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,22 +66,23 @@ internal fun Media3Player.nowPlayingOrNull(): NowPlaying? {
 }
 
 /**
- * Attaches to the audio session while the shell is visible and republishes what it
- * plays. A failed connection means nothing is playing; the bar simply stays hidden.
+ * Attaches to the audio session while the shell's lifecycle is started and republishes
+ * what it plays; a stopped Activity holds no binding, so an idle app keeps no service
+ * alive. A failed connection means nothing is playing; the bar simply stays hidden.
  */
 @Composable
 internal fun rememberNowPlaying(playerFactory: MobilePlayerFactory): NowPlayingHandle {
     val context = LocalContext.current
     var player by remember(playerFactory) { mutableStateOf<Media3Player?>(null) }
     var nowPlaying by remember(playerFactory) { mutableStateOf<NowPlaying?>(null) }
-    DisposableEffect(context, playerFactory) {
-        // A cancelled connection still answers; a late answer must not revive a disposed observer.
-        var disposed = false
+    LifecycleStartEffect(context, playerFactory) {
+        // A cancelled connection still answers; a late answer must not revive a stopped observer.
+        var stopped = false
         val handle = playerFactory.connectAudio(context) { result ->
-            if (!disposed) player = result.getOrNull()
+            if (!stopped) player = result.getOrNull()
         }
-        onDispose {
-            disposed = true
+        onStopOrDispose {
+            stopped = true
             handle.closeQuietly()
             player = null
             nowPlaying = null
