@@ -16,11 +16,12 @@ class PlaybackController(
     target: PlaybackTarget,
     private val repository: PlaybackRepository,
     parentScope: CoroutineScope,
+    startup: PlaybackStartup = PlaybackStartup.Resolve,
 ) : Closeable {
     private val lock = Any()
     private val controllerJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val controllerScope = CoroutineScope(parentScope.coroutineContext + controllerJob)
-    private val initial = PlaybackReducer.start(target)
+    private val initial = PlaybackReducer.start(target, startup)
     private val mutableState = MutableStateFlow(initial.state)
     private var activeJob: Job? = null
     private var closed = false
@@ -28,7 +29,7 @@ class PlaybackController(
     val state: StateFlow<PlaybackState> = mutableState.asStateFlow()
 
     init {
-        requireNotNull(initial.effect).let(::launchEffect)
+        initial.effect?.let(::launchEffect)
     }
 
     fun dispatch(event: PlaybackEvent): Boolean {

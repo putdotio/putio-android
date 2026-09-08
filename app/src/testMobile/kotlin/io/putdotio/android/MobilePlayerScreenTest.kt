@@ -1368,6 +1368,219 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    fun sourceFreeAudioAdoptsPlayingSessionWithoutPreparingOrRequestingSource() {
+        assertSourceFreeSessionAdoption(playing = true)
+    }
+
+    @Test
+    fun sourceFreeAudioAdoptsPausedSessionWithoutResumingIt() {
+        assertSourceFreeSessionAdoption(playing = false)
+    }
+
+    private fun assertSourceFreeSessionAdoption(playing: Boolean) {
+        val session = RecordingPlayer()
+        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO), 33_000L)
+        session.prepare()
+        session.playWhenReady = playing
+        session.setPlaybackSpeed(1.5f)
+        val group = TrackGroup(Format.Builder().setId("audio-en").setSampleMimeType(MimeTypes.AUDIO_AAC).build())
+        val selected = session.trackSelectionParameters.withAudioTrack(
+            MobileAudioTrack(group, 0, label = "English", selected = false),
+        )
+        session.trackSelectionParameters = selected
+        var sourceRequests = 0
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Session, AudioTarget),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> error("Unexpected failure") },
+                    onBack = {},
+                    onSourceRequired = { sourceRequests += 1 },
+                    playerFactory = SessionPlayerFactory(session) {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(0, sourceRequests)
+            assertEquals(1, session.prepareCalls)
+            assertEquals(1, session.mediaItemUpdates)
+            assertEquals(33_000L, session.currentPosition)
+            assertEquals(playing, session.playWhenReady)
+            assertEquals(1.5f, session.playbackParameters.speed)
+            assertEquals(selected, session.trackSelectionParameters)
+        }
+    }
+
+    @Test
+    fun sourceFreeHandledEndedSessionSurvivesLifecycleAndSavedStateRestoration() {
+        val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
+        val session = RecordingPlayer()
+        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO), 10_000L)
+        session.prepare()
+        session.play()
+        var sourceRequests = 0
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                PutioTheme {
+                    MobilePlayerScreen(
+                        state = state(PlaybackContent.Session, AudioTarget),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> error("Unexpected failure") },
+                        onBack = {},
+                        onSourceRequired = { sourceRequests += 1 },
+                        playerFactory = SessionPlayerFactory(session) {},
+                    )
+                }
+            }
+        }
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            lifecycleOwner.moveTo(Lifecycle.State.CREATED)
+            session.updatePlaybackState(Media3Player.STATE_ENDED)
+        }
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(0, sourceRequests)
+            assertEquals(1, session.prepareCalls)
+            assertEquals(1, session.mediaItemUpdates)
+            assertEquals(Media3Player.STATE_ENDED, session.playbackState)
+            assertFalse(session.released)
+        }
+    }
+
+    @Test
+    fun sourceFreeFreshEndedSessionRequestsOneSourceAndRestarts() {
+        val session = RecordingPlayer()
+        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO), 60_000L)
+        session.prepare()
+        session.updatePlaybackState(Media3Player.STATE_ENDED)
+        assertSourceFreeSessionFallback(session)
+    }
+
+    @Test
+    fun sourceFreeIdleSessionRequestsOneSource() {
+        val session = RecordingPlayer()
+        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO), 45_000L)
+        assertSourceFreeSessionFallback(session)
+    }
+
+    @Test
+    fun sourceFreeEmptySessionRequestsOneSource() {
+        assertSourceFreeSessionFallback(RecordingPlayer())
+    }
+
+    @Test
+    fun sourceFreeMismatchedSessionDoesNotRetainTheOtherFilesPosition() {
+        val session = RecordingPlayer()
+        session.setMediaItem(
+            androidx.media3.common.MediaItem.Builder().setMediaId("99").build(),
+            55_000L,
+        )
+        session.prepare()
+        assertSourceFreeSessionFallback(session)
+    }
+
+    private fun assertSourceFreeSessionFallback(session: RecordingPlayer) {
+        val initialPrepareCalls = session.prepareCalls
+        val initialMediaItems = session.mediaItemUpdates
+        var content by mutableStateOf<PlaybackContent>(PlaybackContent.Session)
+        val positions = mutableListOf<Long?>()
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(content, AudioTarget),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> error("Unexpected failure") },
+                    onBack = {},
+                    onSourceRequired = {
+                        positions += it
+                        content = PlaybackContent.Ready(audioSource())
+                    },
+                    playerFactory = SessionPlayerFactory(session) {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(listOf<Long?>(null), positions)
+            assertEquals(initialPrepareCalls + 1, session.prepareCalls)
+            assertEquals(initialMediaItems + 1, session.mediaItemUpdates)
+            assertEquals(AudioTarget.fileId.value.toString(), session.currentMediaItem?.mediaId)
+            assertEquals(0L, session.currentPosition)
+        }
+    }
+
+    @Test
+    fun sourceFreePreexistingErrorRetainsPositionForRetryAndLaterFailures() {
+        val session = RecordingPlayer()
+        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO), 41_000L)
+        session.prepare()
+        session.play()
+        session.setPlaybackSpeed(1.25f)
+        session.fail(PlaybackException(
+            "expired",
+            IllegalStateException("Response code: 401"),
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+        ))
+        var content by mutableStateOf<PlaybackContent>(PlaybackContent.Session)
+        val failures = mutableListOf<Pair<PlaybackFailure, Long>>()
+        var sourceRequests = 0
+        var retries = 0
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(content, AudioTarget),
+                    onRetry = {
+                        retries += 1
+                        content = PlaybackContent.Ready(audioSource())
+                    },
+                    onPlayerFailure = { failure, position ->
+                        failures += failure to position
+                        content = PlaybackContent.Failed(failure)
+                    },
+                    onBack = {},
+                    onSourceRequired = { sourceRequests += 1 },
+                    playerFactory = SessionPlayerFactory(session) {},
+                )
+            }
+        }
+        compose.onNodeWithText("Try again").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(0, sourceRequests)
+            assertEquals(1, failures.size)
+            assertTrue(failures.single().first is PlaybackFailure.MediaCredentialUnavailable)
+            assertEquals(41_000L, failures.single().second)
+            assertEquals(1, session.prepareCalls)
+        }
+        compose.onNodeWithText("Try again").performClick()
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(1, retries)
+            assertEquals(2, session.prepareCalls)
+            assertEquals(41_000L, session.currentPosition)
+            assertEquals(1.25f, session.playbackParameters.speed)
+            assertNull(session.playerError)
+            session.movePositionTo(46_000L)
+            session.fail(PlaybackException("offline", null, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED))
+        }
+        compose.onNodeWithText("Try again").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(2, failures.size)
+            assertTrue(failures.last().first is PlaybackFailure.NetworkUnavailable)
+            assertEquals(46_000L, failures.last().second)
+            assertEquals(0, sourceRequests)
+        }
+    }
+
+    @Test
     fun audioAdoptsTheSessionPlayerWithoutRepreparingOrReleasingIt() {
         val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
         val session = RecordingPlayer()
@@ -1884,7 +2097,7 @@ internal class RecordingPlayer(
 
     override fun handlePrepare(): ListenableFuture<*> {
         prepareCalls += 1
-        state = state.buildUpon().setPlaybackState(Media3Player.STATE_READY).build()
+        state = state.buildUpon().setPlayerError(null).setPlaybackState(Media3Player.STATE_READY).build()
         invalidateState()
         return Futures.immediateVoidFuture()
     }

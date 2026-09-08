@@ -1303,6 +1303,7 @@ private fun MobilePlaybackRoute(
         autoplayNextVideo = autoplayNextVideo,
         onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
         playerFactory = playerFactory,
+        onSourceRequired = { controller.dispatch(PlaybackEvent.SourceRequired(it)) },
     )
 }
 

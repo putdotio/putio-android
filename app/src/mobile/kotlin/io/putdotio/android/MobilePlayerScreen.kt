@@ -110,6 +110,7 @@ internal fun MobilePlayerScreen(
     playerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     seekClock: () -> Long = SystemClock::uptimeMillis,
+    onSourceRequired: (Long?) -> Unit = {},
 ) {
     val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     var keyboardNavigationActive by rememberSaveable(state.target.fileId.value) { mutableStateOf(false) }
@@ -134,13 +135,14 @@ internal fun MobilePlayerScreen(
                     ),
                 )
 
-            is PlaybackContent.Ready ->
+            is PlaybackContent.Ready, PlaybackContent.Session ->
                 MobileSessionPlayerHost(
                     mediaType = state.target.mediaType,
                     playerFactory = playerFactory,
                 ) { sessionPlayer ->
                 MobileReadyPlayer(
-                    source = content.source,
+                    source = (content as? PlaybackContent.Ready)?.source,
+                    fileId = state.target.fileId.value,
                     title = state.target.name,
                     mediaType = state.target.mediaType,
                     sessionPlayer = sessionPlayer,
@@ -164,6 +166,7 @@ internal fun MobilePlayerScreen(
                     onPlaybackEnded = onPlaybackEnded,
                     playerFactory = playerFactory,
                     seekClock = seekClock,
+                    onSourceRequired = onSourceRequired,
                 )
                 }
 
@@ -227,7 +230,8 @@ internal fun MobilePlayerScreen(
 @UnstableApi
 @Composable
 private fun MobileReadyPlayer(
-    source: PlaybackSource,
+    source: PlaybackSource?,
+    fileId: Long,
     title: String,
     mediaType: PlaybackMediaType,
     sessionPlayer: Media3Player?,
@@ -249,6 +253,7 @@ private fun MobileReadyPlayer(
     onPlaybackEnded: () -> Unit,
     playerFactory: MobilePlayerFactory,
     seekClock: () -> Long,
+    onSourceRequired: (Long?) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -261,14 +266,25 @@ private fun MobileReadyPlayer(
     }
     if (!lifecycleState.isAtLeast(Lifecycle.State.STARTED)) return
 
-    val initialPlayback = remember(source, title, mediaType, startPositionMillis) {
-        source.preparePlayback(title, mediaType, startPositionMillis)
+    val sessionFileId = if (sessionHandled) sessionPlayer?.activeSessionFileId() else {
+        sessionPlayer?.resumableSessionFileId()
     }
-    var retainedPositionMillis by rememberSaveable(source.fileId) {
-        mutableLongStateOf(initialPlayback.startPositionMillis)
+    val matchingSessionError = sessionPlayer?.currentMediaItem?.mediaId == fileId.toString() &&
+        sessionPlayer.playerError != null
+    if (source == null && sessionFileId != fileId && !matchingSessionError) {
+        LaunchedEffect(sessionPlayer, fileId) { onSourceRequired(startPositionMillis) }
+        MobileLoadingState(stringResource(R.string.mobile_playback_loading_audio))
+        return
+    }
+
+    val initialPlayback = remember(source, title, mediaType, startPositionMillis) {
+        source?.preparePlayback(title, mediaType, startPositionMillis)
+    }
+    var retainedPositionMillis by rememberSaveable(fileId) {
+        mutableLongStateOf(initialPlayback?.startPositionMillis ?: startPositionMillis ?: 0L)
     }
     val preparedPlayback = remember(source, title, mediaType, playerGeneration) {
-        source.preparePlayback(title, mediaType, retainedPositionMillis)
+        source?.preparePlayback(title, mediaType, retainedPositionMillis)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
@@ -295,7 +311,7 @@ private fun MobileReadyPlayer(
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
     val isAudio = mediaType == PlaybackMediaType.AUDIO
     var keepScreenOn by remember(player) { mutableStateOf(!isAudio && player.shouldKeepScreenOn()) }
-    var controlsVisible by rememberSaveable(source.fileId) { mutableStateOf(true) }
+    var controlsVisible by rememberSaveable(fileId) { mutableStateOf(true) }
     var playerWantsToPlay by remember(player) { mutableStateOf(player.playWhenReady) }
     var retainedPlayIntent by remember(player) { mutableStateOf(resumeAfterLifecyclePause) }
     var controlsInteracting by remember { mutableStateOf(false) }
@@ -304,7 +320,7 @@ private fun MobileReadyPlayer(
     var failurePositionMillis by remember(player) { mutableStateOf<Long?>(null) }
     var endedReported by remember(player) { mutableStateOf(false) }
     var seekWindow by remember(player) { mutableStateOf(player.currentSeekWindow()) }
-    var pendingSeek by remember(player, source.fileId) { mutableStateOf<PendingSeek?>(null) }
+    var pendingSeek by remember(player, fileId) { mutableStateOf<PendingSeek?>(null) }
     val accessibilityManager = LocalAccessibilityManager.current
     var nextSeekRequestId by remember(player) { mutableLongStateOf(0L) }
     val hostView = LocalView.current
@@ -338,8 +354,22 @@ private fun MobileReadyPlayer(
 
     LaunchedEffect(player, preparedPlayback) {
         val replacingFileId = activeFileId
-        if (!ownsPlayer) onSessionHandled()
-        if (!ownsPlayer && replacingFileId == source.fileId) {
+        val sessionError = player.playerError
+        if (source == null && player.currentMediaItem?.mediaId == fileId.toString() && sessionError != null) {
+            preferences.adoptPlaybackOptions(player)
+            val position = player.currentPosition.coerceAtLeast(0L)
+            failurePositionMillis = position
+            playerRetentionUpdate(
+                event = PlayerRetentionEvent.PlayerError,
+                lifecycleState = lifecycle.currentState,
+                positionMillis = position,
+                playWhenReady = player.playWhenReady,
+            ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
+            currentOnPlayerFailure.value(sessionError.toPlaybackFailure(), position)
+            return@LaunchedEffect
+        }
+        if (!ownsPlayer && replacingFileId == fileId) {
+            onSessionHandled()
             preferences.adoptPlaybackOptions(player)
             optionsInitialized = true
             // Returning to audio that kept playing: adopt the live position instead of restarting.
@@ -348,18 +378,24 @@ private fun MobileReadyPlayer(
             currentOnPositionChanged.value(livePosition)
             seekWindow = player.currentSeekWindow()
             playerWantsToPlay = player.playWhenReady
+            retainedPlayIntent = player.playWhenReady
             return@LaunchedEffect
         }
+        if (preparedPlayback == null) {
+            onSourceRequired(startPositionMillis)
+            return@LaunchedEffect
+        }
+        if (!ownsPlayer) onSessionHandled()
         val replacementPosition =
             replacementPositionMillis(
                 activeFileId = replacingFileId,
-                replacementFileId = source.fileId,
+                replacementFileId = fileId,
                 livePositionMillis = player.currentPosition,
                 preparedPositionMillis = preparedPlayback.startPositionMillis,
             )
         retainedPositionMillis = replacementPosition
         currentOnPositionChanged.value(replacementPosition)
-        if (replacingFileId != source.fileId || retainedSubtitleSelection == null) {
+        if (replacingFileId != fileId || retainedSubtitleSelection == null) {
             player.trackSelectionParameters =
                 restoreSubtitleSelection(
                     defaults = defaultTrackSelection,
@@ -368,7 +404,7 @@ private fun MobileReadyPlayer(
                     systemCaptionsEnabled = context.systemCaptionsEnabled(),
                 )
         }
-        activeFileId = source.fileId
+        activeFileId = fileId
         player.setPlaybackSpeed(preferences.playbackSpeed)
         player.trackSelectionParameters = player.trackSelectionParameters.withAudioSelection(
             preferences.audioSelection,
@@ -385,7 +421,7 @@ private fun MobileReadyPlayer(
     }
     LaunchedEffect(player, activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
         val policy = subtitleStartupPolicy ?: return@LaunchedEffect
-        if (activeFileId == source.fileId && retainedSubtitleSelection == null) {
+        if (activeFileId == fileId && retainedSubtitleSelection == null) {
             val current = player.trackSelectionParameters
             val parameters =
                 if (policy.showSubtitles && policy.autoSelectSubtitles) {
@@ -524,6 +560,7 @@ private fun MobileReadyPlayer(
             object : Media3Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
                     if (playerReleased) return
+                    if (!ownsPlayer) currentPreferences.value.adoptPlaybackOptions(player)
                     val errorPositionMillis = player.currentPosition.coerceAtLeast(0L)
                     retainedPositionMillis = errorPositionMillis
                     failurePositionMillis = errorPositionMillis
@@ -686,7 +723,7 @@ private fun MobileReadyPlayer(
                                     },
                             ),
                         )
-                        .pointerInput(player, source.fileId, seekWindow, touchExplorationEnabled) {
+                        .pointerInput(player, fileId, seekWindow, touchExplorationEnabled) {
                             detectTapGestures(
                                 onDoubleTap = {
                                     onPointerNavigation()
@@ -731,7 +768,7 @@ private fun MobileReadyPlayer(
                     onKeyboardNavigation = onKeyboardNavigation,
                     onPointerNavigation = onPointerNavigation,
                 )
-                if (!isAudio && source.hasSelectableSubtitles()) {
+                if (!isAudio && source?.hasSelectableSubtitles() == true) {
                     MobileSubtitleControls(
                         player = player,
                         defaultTrackSelection = defaultTrackSelection,
