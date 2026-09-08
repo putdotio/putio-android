@@ -59,13 +59,18 @@ internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
 }
 
 private fun String.removeUnmatchedClosingDelimiters(): String {
-    var candidate = this
-    for ((opening, closing) in listOf('(' to ')', '[' to ']', '{' to '}')) {
-        while (candidate.endsWith(closing) && candidate.count { it == closing } > candidate.count { it == opening }) {
-            candidate = candidate.dropLast(1)
-        }
+    val unmatched = listOf('(' to ')', '[' to ']', '{' to '}').associate { (opening, closing) ->
+        closing to (count { it == closing } - count { it == opening })
+    }.toMutableMap()
+    var end = length
+    while (end > 0) {
+        val closing = this[end - 1]
+        val remaining = unmatched[closing] ?: break
+        if (remaining <= 0) break
+        unmatched[closing] = remaining - 1
+        end--
     }
-    return candidate
+    return substring(0, end)
 }
 
 internal fun CharSequence.fitsMobileTransferInputLimit(): Boolean =

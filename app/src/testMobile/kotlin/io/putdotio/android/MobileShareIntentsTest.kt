@@ -36,6 +36,8 @@ class MobileShareIntentsTest {
             "Episode title\nhttps://example.invalid/episode\nSent from a browser" to "https://example.invalid/episode",
             "Download https://example.invalid/file?token=abc'def now" to "https://example.invalid/file?token=abc'def",
             "Watch <https://example.invalid/episode>" to "https://example.invalid/episode",
+            "Watch [(https://example.invalid/episode)]" to "https://example.invalid/episode",
+            "Watch {[(https://example.invalid/episode_(part_1))]}" to "https://example.invalid/episode_(part_1)",
             "Watch (https://example.invalid/episode)" to "https://example.invalid/episode",
             "Watch (https://example.invalid/episode_(part_1))" to "https://example.invalid/episode_(part_1)",
             "Download magnet:?xt=urn:btih:12345&dn=hello%20world now" to "magnet:?xt=urn:btih:12345&dn=hello%20world",
