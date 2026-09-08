@@ -67,6 +67,7 @@ class SdkPlaybackRepositoryTest {
             val result = repository.resolve(Target) as PlaybackRepositoryResult.Success
 
             assertSame(source, (result.value as PlaybackResolution.Ready).source)
+            assertTrue((result.value as PlaybackResolution.Ready).useStartFrom)
         }
 
     @Test
@@ -78,13 +79,14 @@ class SdkPlaybackRepositoryTest {
                 loadAccount = { account(downloadToken = Token, useStartFrom = false) },
                 resolvePlayback = {
                     request = it
-                    io.putdotio.sdk.files.PlaybackResolution.Unsupported(PutioFileType.TEXT)
+                    io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource())
                 },
             )
 
-            repository.resolve(Target)
+            val result = repository.resolve(Target) as PlaybackRepositoryResult.Success
 
             assertFalse(requireNotNull(request).useStartFrom)
+            assertFalse((result.value as PlaybackResolution.Ready).useStartFrom)
         }
 
     @Test

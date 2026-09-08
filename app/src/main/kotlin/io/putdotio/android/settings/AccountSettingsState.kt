@@ -238,6 +238,9 @@ internal fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
 internal fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.Trash)?.trashEnabled
 
+internal fun AccountSettingsState.confirmedResumePlayback(): Boolean? =
+    confirmedPreferences(AccountSettingsKey.ResumePlayback)?.resumePlayback
+
 /**
  * The default sort the server holds, or null while unloaded or while a sort write is unsettled.
  * A refresh failure after an accepted write still counts: the server took the value.

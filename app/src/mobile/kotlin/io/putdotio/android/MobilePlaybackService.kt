@@ -15,6 +15,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionToken
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.auth.MobileOAuthRuntime
 
 /**
  * Owns the audio player so playback outlives the player screen: the session
@@ -24,6 +25,7 @@ import io.putdotio.android.playback.PlaybackMediaType
 class MobilePlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var taskRemoved = false
+    private var positionObserver: MobilePlayerPositionObserver? = null
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
@@ -31,6 +33,7 @@ class MobilePlaybackService : MediaSessionService() {
         val player = DefaultMobilePlayerFactory.create(this, PlaybackMediaType.AUDIO)
         // Streaming with the screen off needs the CPU and radio awake; a foreground service alone does not.
         (player as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_NETWORK)
+        positionObserver = MobileOAuthRuntime.get(this).playbackReporting.observe(player)
         player.addListener(
             object : Media3Player.Listener {
                 override fun onEvents(player: Media3Player, events: Media3Player.Events) {
@@ -65,6 +68,7 @@ class MobilePlaybackService : MediaSessionService() {
     // playback itself instead of waiting for onDestroy.
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            positionObserver?.flush()
             session?.player?.let {
                 it.stop()
                 it.clearMediaItems()
@@ -83,6 +87,8 @@ class MobilePlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        positionObserver?.close()
+        positionObserver = null
         session?.let {
             it.player.release()
             it.release()

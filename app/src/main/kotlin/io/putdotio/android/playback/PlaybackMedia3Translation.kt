@@ -125,7 +125,7 @@ private val RELAYED_RESPONSE_CODE = Regex("""Response code: (\d{3})""")
 
 private fun String.relayedResponseCode(): Int? = RELAYED_RESPONSE_CODE.find(this)?.groupValues?.get(1)?.toIntOrNull()
 
-private fun Double.toPlaybackMillis(): Long =
+internal fun Double.toPlaybackMillis(): Long =
     (this * MILLIS_PER_SECOND)
         .coerceIn(0.0, Long.MAX_VALUE.toDouble())
         .roundToLong()

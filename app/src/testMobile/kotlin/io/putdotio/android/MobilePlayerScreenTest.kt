@@ -98,6 +98,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.putdotio.android.playback.PlaybackEvent
+import io.putdotio.android.playback.PlaybackReducer
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
@@ -138,6 +140,102 @@ import com.google.common.util.concurrent.ListenableFuture
 class MobilePlayerScreenTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun resumeDecisionSurvivesRecreationAndCreatesNoPlayerUntilChosen() {
+        val original = readyState(startFromSeconds = 12.345)
+        var state by mutableStateOf(original.copy(
+            content = PlaybackContent.AwaitingResume((original.content as PlaybackContent.Ready).source),
+        ))
+        val players = mutableListOf<RecordingPlayer>()
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state,
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    onResume = { state = PlaybackReducer.reduce(state, PlaybackEvent.Resume).state },
+                    onRestart = { state = PlaybackReducer.reduce(state, PlaybackEvent.Restart).state },
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also(players::add) },
+                )
+            }
+        }
+        compose.onNodeWithText("Resume from 00:12?").assertIsDisplayed()
+        compose.runOnIdle { assertTrue(players.isEmpty()) }
+        restoration.emulateSavedInstanceStateRestore()
+        compose.onNodeWithText("Resume").assertIsDisplayed()
+        compose.runOnIdle { assertTrue(players.isEmpty()) }
+        compose.onNodeWithText("Resume").performClick()
+        compose.runOnIdle {
+            assertEquals(12_345L, players.single().currentPosition)
+            assertEquals(1, players.single().prepareCalls)
+        }
+        restoration.emulateSavedInstanceStateRestore()
+        compose.onNodeWithText("Resume").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(2, players.size)
+            assertEquals(12_345L, players.last().currentPosition)
+        }
+    }
+
+    @Test
+    @Suppress("DEPRECATION")
+    fun dismissingTheResumeDialogCancelsWithoutCreatingAPlayer() {
+        val original = readyState(startFromSeconds = 12.345)
+        val pending = original.copy(
+            content = PlaybackContent.AwaitingResume((original.content as PlaybackContent.Ready).source),
+        )
+        var visible by mutableStateOf(true)
+        var cancellations = 0
+        var creations = 0
+        compose.setContent {
+            PutioTheme {
+                if (visible) MobilePlayerScreen(
+                    state = pending,
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = { cancellations += 1; visible = false },
+                    playerFactory = MobilePlayerFactory { _, _ -> creations += 1; RecordingPlayer() },
+                )
+            }
+        }
+        compose.onNodeWithText("Resume").assertIsDisplayed()
+        compose.runOnIdle { org.robolectric.shadows.ShadowDialog.getLatestDialog().onBackPressed() }
+        compose.onNodeWithText("Resume").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(1, cancellations)
+            assertEquals(0, creations)
+        }
+    }
+
+    @Test
+    fun startOverPreparesAtZeroInsteadOfTheSavedPosition() {
+        val original = readyState(startFromSeconds = 12.345)
+        var state by mutableStateOf(original.copy(
+            content = PlaybackContent.AwaitingResume((original.content as PlaybackContent.Ready).source),
+        ))
+        val players = mutableListOf<RecordingPlayer>()
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state,
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    onRestart = { state = PlaybackReducer.reduce(state, PlaybackEvent.Restart).state },
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also(players::add) },
+                )
+            }
+        }
+        compose.runOnIdle { assertTrue(players.isEmpty()) }
+        compose.onNodeWithText("Start over").performClick()
+        compose.runOnIdle {
+            assertEquals(0L, players.single().currentPosition)
+            assertEquals(1, players.single().prepareCalls)
+        }
+    }
 
     @Test
     fun videoControlsHonorTheRecommendedTimeToTakeAction() {

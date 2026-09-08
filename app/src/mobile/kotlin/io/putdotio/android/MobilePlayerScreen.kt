@@ -109,6 +109,8 @@ internal fun MobilePlayerScreen(
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     seekClock: () -> Long = SystemClock::uptimeMillis,
     onSourceRequired: (Long?) -> Unit = {},
+    onResume: () -> Unit = {},
+    onRestart: () -> Unit = {},
 ) {
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
         MobileVideoWindow(fileId = state.target.fileId.value)
@@ -136,6 +138,14 @@ internal fun MobilePlayerScreen(
                     ),
                 )
 
+            is PlaybackContent.AwaitingResume -> MobileResumePlaybackDialog(
+                title = state.target.name,
+                startFromSeconds = content.source.startFromSeconds,
+                onResume = onResume,
+                onRestart = onRestart,
+                onDismiss = onBack,
+            )
+
             is PlaybackContent.Ready, PlaybackContent.Session ->
                 MobileSessionPlayerHost(
                     mediaType = state.target.mediaType,
@@ -143,6 +153,7 @@ internal fun MobilePlayerScreen(
                 ) { sessionPlayer ->
                 MobileReadyPlayer(
                     source = (content as? PlaybackContent.Ready)?.source,
+                    useStartFrom = (content as? PlaybackContent.Ready)?.useStartFrom == true,
                     fileId = state.target.fileId.value,
                     title = state.target.name,
                     mediaType = state.target.mediaType,
@@ -235,6 +246,7 @@ internal fun MobilePlayerScreen(
 @Composable
 private fun MobileReadyPlayer(
     source: PlaybackSource?,
+    useStartFrom: Boolean,
     fileId: Long,
     title: String,
     mediaType: PlaybackMediaType,
@@ -302,6 +314,9 @@ private fun MobileReadyPlayer(
     val ownsPlayer = sessionPlayer == null
     val player = remember(context, lifecycle, playerFactory, playerGeneration, mediaType, sessionPlayer) {
         sessionPlayer ?: playerFactory.create(context, mediaType)
+    }
+    val positionObserver = remember(player) {
+        if (ownsPlayer) playerFactory.observePositions(context, player) else null
     }
     var playerReleased by remember(player) { mutableStateOf(false) }
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
@@ -416,7 +431,7 @@ private fun MobileReadyPlayer(
             emptyList(),
         )
         optionsInitialized = true
-        player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
+        player.setMediaItem(playerFactory.reportableItem(preparedPlayback.mediaItem, useStartFrom), replacementPosition)
         player.prepare()
         seekWindow = player.currentSeekWindow()
         // Session audio plays behind a dialog or a stopped screen; only a private player waits.
@@ -555,6 +570,7 @@ private fun MobileReadyPlayer(
             currentOnPositionChanged.value(retainedPositionMillis)
             if (ownsPlayer) {
                 playerReleased = true
+                positionObserver?.close()
                 player.release()
             }
         }
@@ -676,7 +692,10 @@ private fun MobileReadyPlayer(
                 positionMillis = retainedPositionMillis,
                 playWhenReady = player.playWhenReady,
             ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
-            if (ownsPlayer) player.release()
+            if (ownsPlayer) {
+                positionObserver?.close()
+                player.release()
+            }
         }
     }
 

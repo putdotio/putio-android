@@ -3,6 +3,7 @@ package io.putdotio.android
 import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
@@ -14,6 +15,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.auth.MobileOAuthRuntime
 import java.io.Closeable
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -25,6 +27,10 @@ internal fun interface MobilePlayerFactory {
         context: android.content.Context,
         mediaType: PlaybackMediaType,
     ): Media3Player
+
+    fun reportableItem(item: MediaItem, useStartFrom: Boolean): MediaItem = item
+
+    fun observePositions(context: android.content.Context, player: Media3Player): Closeable = Closeable {}
 
     /**
      * Attaches to the audio session. [onResult] may run synchronously or later on the
@@ -87,6 +93,9 @@ internal data class ActiveAudio(
 )
 
 internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
+    override fun observePositions(context: android.content.Context, player: Media3Player): Closeable =
+        MobileOAuthRuntime.get(context).playbackReporting.observe(player)
+
     override fun stopAudio(context: android.content.Context) {
         MobilePlaybackService.stop(context)
     }
