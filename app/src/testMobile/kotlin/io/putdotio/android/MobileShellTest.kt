@@ -205,6 +205,55 @@ class MobileShellTest {
     }
 
     @Test
+    fun acceptingAReplacementShareWaitsForTransferResolution() {
+        val draft = MobileTransferDraft()
+        var transfers by mutableStateOf(resolvingTransfersState())
+        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfers,
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onTransfersEvent = { event ->
+                        events.add(event)
+                        transfers = TransfersReducer.reduce(transfers, event).state
+                    },
+                    resolveTransferFile = { resolved.await() },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Transfers").performClick()
+        compose.runOnIdle {
+            draft.edit("https://example.invalid/previous")
+            draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
+        }
+        compose.onNodeWithText("Use shared link").performClick()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
+            resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder()))
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertTrue(events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L))))
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
     fun dismissingAShareDuringTransferResolutionPreservesTheRequestedFilesNavigation() {
         val draft = MobileTransferDraft()
         var transfers by mutableStateOf(resolvingTransfersState())
@@ -355,7 +404,13 @@ class MobileShellTest {
     @Test
     fun aSharedDraftOpensWhenTheEarlierNowPlayingLookupFindsNoSession() = verifyShareAfterNowPlayingLookup(null)
 
-    private fun verifyShareAfterNowPlayingLookup(result: ActiveAudio?) {
+    @Test
+    fun acceptingAReplacementShareWaitsForTheEarlierNowPlayingLookup() = verifyShareAfterNowPlayingLookup(
+        ActiveAudio(FilesItemId(9L), "song.mp3"),
+        replaceDraft = true,
+    )
+
+    private fun verifyShareAfterNowPlayingLookup(result: ActiveAudio?, replaceDraft: Boolean = false) {
         val draft = MobileTransferDraft()
         val pending = kotlinx.coroutines.flow.MutableStateFlow(true)
         val resolved = CompletableDeferred<ActiveAudio?>()
@@ -384,8 +439,16 @@ class MobileShellTest {
                 )
             }
         }
+        if (replaceDraft) {
+            compose.onNodeWithText("Transfers").performClick()
+            compose.runOnIdle { draft.edit("https://example.invalid/previous") }
+        }
         compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        if (replaceDraft) {
+            compose.onNodeWithText("Use shared link").performClick()
+        } else {
+            compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        }
         compose.runOnIdle {
             assertTrue(pending.value)
             org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)

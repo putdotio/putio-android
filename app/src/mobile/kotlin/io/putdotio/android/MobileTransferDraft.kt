@@ -129,7 +129,7 @@ class MobileTransferDraft : ViewModel() {
 
     internal fun useSharedLink() {
         if (mutableState.value.submitting) return
-        replacement?.let { present(it, requestId = null) }
+        replacement?.let { present(it, requestId = mutableState.value.incomingRequestId) }
     }
 
     internal fun keepDraft() {

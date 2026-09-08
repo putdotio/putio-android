@@ -666,13 +666,13 @@ internal fun MobileShell(
     val currentPlaybackFileId by rememberUpdatedState(
         if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null,
     )
-    LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext) {
+    LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext, transferDraft) {
         nowPlayingRequests.pending.collect { pending ->
             if (!pending) return@collect
             val target = playbackPlayerFactory.activeAudio(appContext)
             // Acknowledged only once the lookup finished: a cancelled lookup leaves it pending.
             nowPlayingRequests.acknowledge()
-            if (target == null) return@collect
+            if (target == null || transferDraft.state.value.incomingRequestId != null) return@collect
             val onPlaybackRoute = currentPlaybackFileId
             if (onPlaybackRoute == target.fileId.value) return@collect
             // A different item's route, still loading or failed, gives no controls for the live audio.

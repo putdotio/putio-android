@@ -61,10 +61,13 @@ class MobileTransferDraftTest {
         assertNull(draft.state.value.incomingRequestId)
         draft.receive(parseMobileSharedTransfer(First))
         draft.receive(parseMobileSharedTransfer(Second))
+        val requestId = requireNotNull(draft.state.value.incomingRequestId)
         draft.useSharedLink()
         assertEquals(Second, draft.state.value.input)
         assertFalse(draft.state.value.pendingReplacement)
         assertTrue(draft.state.value.open)
+        assertEquals(requestId, draft.state.value.incomingRequestId)
+        draft.acknowledgeNavigation(requestId)
         assertNull(draft.state.value.incomingRequestId)
     }
 
