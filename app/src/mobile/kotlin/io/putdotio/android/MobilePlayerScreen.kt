@@ -283,7 +283,7 @@ private fun MobileReadyPlayer(
     }
     var playerReleased by remember(player) { mutableStateOf(false) }
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
-    var activeFileId by remember(player) { mutableStateOf(player.activeSessionFileId()) }
+    var activeFileId by remember(player) { mutableStateOf(player.resumableSessionFileId()) }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
@@ -847,6 +847,10 @@ internal fun Media3Player.activeSessionFileId(): Long? =
     } else {
         currentMediaItem?.mediaId?.toLongOrNull()
     }
+
+// A file the session can carry on with; an ended one must be prepared again.
+internal fun Media3Player.resumableSessionFileId(): Long? =
+    activeSessionFileId()?.takeIf { playbackState != Media3Player.STATE_ENDED }
 
 @Composable
 private fun MobileAudioCover(

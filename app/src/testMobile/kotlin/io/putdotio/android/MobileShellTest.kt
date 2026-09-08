@@ -1112,7 +1112,7 @@ class MobileShellPlaybackTest {
         val requests = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(replay = 1)
         compose.setPlaybackShell(
             filesState = videoAndAudioFilesState(),
-            playbackRepository = ConversionRepository,
+            playbackRepository = VideoConvertsAudioReadyRepository,
             playbackPlayerFactory = ShellSessionFactory(session) {},
             nowPlayingRequests = requests,
         )
@@ -1121,9 +1121,10 @@ class MobileShellPlaybackTest {
 
         compose.runOnIdle { requests.tryEmit(Unit) }
 
-        // ConversionRepository answers every resolve, so the audio route lands on its own conversion copy.
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("song.mp3").fetchSemanticsNodes().isEmpty() }
-        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.onAllNodesWithText("Video is being prepared").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(1, session.prepareCalls) }
+        // The video route was replaced, not stacked: one Back returns to the shell.
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
         compose.onNodeWithText("episode.mkv").assertIsDisplayed()
@@ -1230,6 +1231,19 @@ private val AuthenticationFailureRepository =
             PlaybackRepositoryResult.Failure(
                 PlaybackFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
             )
+
+        override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
+    }
+private val VideoConvertsAudioReadyRepository =
+    object : PlaybackRepository {
+        override suspend fun resolve(
+            target: PlaybackTarget,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
+            if (target.mediaType == PlaybackMediaType.AUDIO) {
+                EndingPlaybackRepository.resolve(target)
+            } else {
+                ConversionRepository.resolve(target)
+            }
 
         override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
     }

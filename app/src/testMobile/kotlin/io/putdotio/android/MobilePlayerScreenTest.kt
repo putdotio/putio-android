@@ -1399,6 +1399,32 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    fun audioRepreparesAnEndedSessionOfTheSameFile() {
+        val session = RecordingPlayer()
+        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO))
+        session.prepare()
+        session.updatePlaybackState(Media3Player.STATE_ENDED)
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = SessionPlayerFactory(session) {},
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+
+        compose.runOnIdle {
+            assertEquals(2, session.mediaItemUpdates)
+            assertEquals(2, session.prepareCalls)
+            assertTrue(session.playWhenReady)
+        }
+    }
+
+    @Test
     fun audioPreparesTheSessionPlayerWhenItHoldsAnotherFile() {
         val session = RecordingPlayer()
         session.setMediaItem(
