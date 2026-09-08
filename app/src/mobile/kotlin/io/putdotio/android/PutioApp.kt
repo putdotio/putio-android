@@ -634,6 +634,8 @@ internal fun MobileShell(
         val requestId = incomingDraft.incomingRequestId ?: return@LaunchedEffect
         if (backStackEntry == null || shareNavigationBlocked) return@LaunchedEffect
         navController.navigateTo(MobileDestination.Transfers)
+        // Tab restoration can bring back playback above Transfers; a share must reach its editor.
+        navController.popBackStack(MobileDestination.Transfers.route, inclusive = false)
         transferDraft.acknowledgeNavigation(requestId)
     }
     // Folders without their own sort inherit the account default, so a change the server

@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import android.content.Context
+import android.content.res.Configuration
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -32,6 +34,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -59,6 +63,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.transfers.AppTransferStatus
 import io.putdotio.android.transfers.TransferAction
@@ -516,10 +521,22 @@ private fun MobileAddTransfer(
     }
     if (input.pendingReplacement) {
         val mutationRunning = state.mutation is TransferMutation.Running
+        val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
         AlertDialog(
+            modifier = if (landscape) {
+                Modifier.padding(horizontal = 24.dp).widthIn(max = 560.dp).fillMaxWidth()
+            } else {
+                Modifier
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = !landscape),
             onDismissRequest = { if (!mutationRunning) draft.keepDraft() },
             title = { Text(stringResource(R.string.mobile_share_replace_title)) },
-            text = { Text(stringResource(R.string.mobile_share_replace_message)) },
+            text = {
+                Text(
+                    stringResource(R.string.mobile_share_replace_message),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     draft.useSharedLink()
@@ -550,7 +567,10 @@ private fun MobileAddTransferSheet(
     onDismiss: () -> Unit,
     onSubmit: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

@@ -668,5 +668,8 @@ retained Activity intent. Never use real credentials in share proof artifacts.
 Prove browser share → editable sheet → Add using a caller-owned transfer fixture;
 also exercise cancellation, a second share while editing, and rotation before
 confirmation. Follow the existing session-preserving installation and fixture
-cleanup rules. This covers share-in only: scoped file export, share-out and
+cleanup rules. The controlled `MobileShellAccessibilityProofTest` also exercises
+both replacement choices at 200% font size in portrait and landscape, checks the
+entire confirmation message is reachable, and asserts that choosing a draft
+submits no transfer. This covers share-in only: scoped file export, share-out and
 product deep links remain under #29.

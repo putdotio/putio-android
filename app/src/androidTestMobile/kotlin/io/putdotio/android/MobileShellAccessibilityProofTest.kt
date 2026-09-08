@@ -17,7 +17,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -117,6 +120,7 @@ class MobileShellAccessibilityProofTest {
         capturePrefix = "shell-${requireOrientation()}" + if (player == null) "" else "-audio"
         val mounted = mutableStateOf(true)
         val events = mutableListOf<TransfersEvent>()
+        val transferDraft = MobileTransferDraft()
         val factory = ShellProofPlayerFactory(player)
         compose.setContent {
             hostView = LocalView.current
@@ -125,6 +129,7 @@ class MobileShellAccessibilityProofTest {
                 Surface(Modifier.fillMaxSize().testTag(SHELL_VIEWPORT_TAG)) {
                     if (mounted.value) {
                         MobileShell(
+                            transferDraft = transferDraft,
                             filesState = accessibilityFiles(),
                             accountSettingsState = accessibilitySettings(),
                             appConfigState = accessibilityAppConfig(),
@@ -156,6 +161,8 @@ class MobileShellAccessibilityProofTest {
             capture("search")
             navigate("Transfers")
             checkTransfers(events)
+            navigate("Files")
+            checkIncomingShares(transferDraft, events)
             navigate("Account")
             compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).assertIsDisplayed()
             capture("account")
@@ -248,6 +255,76 @@ class MobileShellAccessibilityProofTest {
         compose.onNodeWithText("Cancel").performScrollTo().performClick()
     }
 
+    private fun checkIncomingShares(draft: MobileTransferDraft, events: List<TransfersEvent>) {
+        val eventsBeforeShares = events.toList()
+        compose.runOnIdle {
+            assertEquals(SHARED_URL, draft.state.value.input)
+            assertFalse(draft.state.value.open)
+            draft.receive(parseMobileSharedTransfer(REJECTED_SHARED_URL))
+        }
+        proofStage = "share-keep-draft"
+        checkReplacementMessage("share-keep")
+        compose.onNodeWithText("Keep draft").assertIsDisplayed().assertIsEnabled().performClick()
+        compose.onNodeWithText("Replace the current draft?").assertDoesNotExist()
+        compose.onNodeWithText("Add transfer").assertIsDisplayed().performClick()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performScrollTo()
+            .assertIsDisplayed().assertTextContains(SHARED_URL)
+        compose.runOnIdle {
+            assertEquals(SHARED_URL, draft.state.value.input)
+            assertFalse(draft.state.value.pendingReplacement)
+            assertEquals(eventsBeforeShares, events)
+        }
+        capture("share-kept-draft")
+
+        proofStage = "share-use-link"
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer(ACCEPTED_SHARED_URL)) }
+        checkReplacementMessage("share-use")
+        compose.onNodeWithText("Use shared link").assertIsDisplayed().assertIsEnabled().performClick()
+        compose.onNodeWithText("Replace the current draft?").assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performScrollTo()
+            .assertIsDisplayed().assertTextContains(ACCEPTED_SHARED_URL)
+        compose.runOnIdle {
+            assertEquals(ACCEPTED_SHARED_URL, draft.state.value.input)
+            assertFalse(draft.state.value.pendingReplacement)
+            assertEquals(eventsBeforeShares, events)
+        }
+        capture("share-used-link")
+        compose.onNodeWithText("Cancel").performScrollTo().assertIsDisplayed().performClick()
+        compose.runOnIdle { assertEquals(eventsBeforeShares, events) }
+    }
+
+    private fun checkReplacementMessage(label: String) {
+        compose.onNodeWithText("Replace the current draft?").assertIsDisplayed()
+        val message = compose.onNodeWithText(REPLACEMENT_MESSAGE, useUnmergedTree = true).assertIsDisplayed()
+        val layouts = mutableListOf<TextLayoutResult>()
+        message.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val layout = layouts.single()
+        assertEquals(REPLACEMENT_MESSAGE, layout.layoutInput.text.text)
+        assertEquals(2f, layout.layoutInput.density.fontScale)
+        repeat(layout.lineCount) { line ->
+            assertFalse("The replacement message must not be ellipsized", layout.isLineEllipsized(line))
+            assertTrue("The message must fit horizontally", layout.getLineRight(line) <= layout.size.width + 1f)
+        }
+        val before = message.fetchSemanticsNode()
+        assertTrue("The start of the message must be visible",
+            before.positionInRoot.y + layout.getLineTop(0) >= before.boundsInRoot.top - 1f)
+        capture("$label-message-start")
+        val lastLineBottom = layout.getLineBottom(layout.lineCount - 1)
+        if (before.positionInRoot.y + lastLineBottom > before.boundsInRoot.bottom + 1f) {
+            compose.onNode(
+                hasScrollAction() and (hasText(REPLACEMENT_MESSAGE) or hasAnyDescendant(hasText(REPLACEMENT_MESSAGE))),
+                useUnmergedTree = true,
+            ).performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, layout.size.height.toFloat()) }
+            compose.waitForIdle()
+        }
+        val after = message.fetchSemanticsNode()
+        assertTrue("The end of the replacement message must be reachable",
+            after.positionInRoot.y + lastLineBottom <= after.boundsInRoot.bottom + 1f)
+        compose.onNodeWithText("Keep draft").assertIsDisplayed().assertIsEnabled()
+        compose.onNodeWithText("Use shared link").assertIsDisplayed().assertIsEnabled()
+        capture("$label-message-end")
+    }
+
     private fun checkSettings() {
         proofStage = "settings"
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Strictly necessary"))
@@ -315,6 +392,9 @@ class MobileShellAccessibilityProofTest {
         const val SHELL_VIEWPORT_TAG = "shell-accessibility-viewport"
         const val TRANSFER_NAME = "Rehearsal documentary.mp4"
         const val SHARED_URL = "https://example.invalid/shell-accessibility.mp4"
+        const val REJECTED_SHARED_URL = "https://example.invalid/keep-the-original.mp4"
+        const val ACCEPTED_SHARED_URL = "https://example.invalid/use-this-replacement.mp4"
+        const val REPLACEMENT_MESSAGE = "You already have an unfinished transfer. Choose which input to keep."
         const val MINIMUM_LIST_HEIGHT_DP = 96f
         const val MINIMUM_CONTENT_WIDTH = 0.9f
     }

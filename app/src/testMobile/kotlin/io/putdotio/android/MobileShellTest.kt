@@ -463,6 +463,44 @@ class MobileShellTest {
     }
 
     @Test
+    fun aShareOpensTransfersWhenPlaybackWasOpenedAboveThatTab() {
+        val draft = MobileTransferDraft()
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val requests = NowPlayingRequests(pending) { pending.value = false }
+        val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
+            override suspend fun activeAudio(context: android.content.Context) = ActiveAudio(FilesItemId(9L), "song.mp3")
+        }
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    nowPlayingRequests = requests,
+                    playbackPlayerFactory = factory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Transfers").performClick()
+        compose.onNodeWithText("Add transfer").assertIsDisplayed()
+        compose.runOnIdle { pending.value = true }
+        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.runOnIdle {
+            assertFalse(pending.value)
+            draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+    }
+
+    @Test
     fun filesDeleteRequiresConfirmedSettingsThroughSaveAndRefreshFailure() {
         val original = DefaultAccountSettingsPreferences.copy(trashEnabled = true)
         val optimistic = original.copy(trashEnabled = false)
