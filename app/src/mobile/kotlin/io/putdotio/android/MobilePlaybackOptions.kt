@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -65,6 +66,7 @@ internal fun MobilePlaybackOptions(
     onMenuVisibilityChanged: (Boolean) -> Unit,
     onKeyboardNavigation: () -> Unit,
     onPointerNavigation: () -> Unit,
+    directControls: Boolean = false,
 ) {
     var speed by remember(player) { mutableStateOf(player.playbackParameters.speed) }
     var tracks by remember(player) { mutableStateOf(player.currentTracks.mobileAudioTracks()) }
@@ -97,15 +99,35 @@ internal fun MobilePlaybackOptions(
             onInteractionChanged = { if (it) onPointerNavigation() },
             onActivity = {},
         ).observePlayerControlKeyActivity(onKeyboardNavigation)
-    IconButton(onClick = {
-        page = PlaybackOptionsPage.Root
+    fun open(nextPage: PlaybackOptionsPage) {
+        page = nextPage
         expanded = true
         onMenuVisibilityChanged(true)
-    }, modifier = interactionModifier) {
-        Icon(
-            painterResource(R.drawable.ic_ph_gear),
-            contentDescription = stringResource(R.string.mobile_playback_options),
+    }
+    if (directControls) {
+        MobileVideoOptionButton(
+            label = stringResource(R.string.mobile_playback_audio_control),
+            icon = R.drawable.ic_ph_speaker_high,
+            onClick = { open(PlaybackOptionsPage.Audio) },
+            modifier = interactionModifier,
         )
+        val speedLabel = playbackSpeedLabel(speed)
+        val speedDescription = stringResource(R.string.mobile_playback_speed_description, speedLabel)
+        MobileVideoOptionButton(
+            label = stringResource(R.string.mobile_playback_speed_control, speedLabel),
+            icon = R.drawable.ic_ph_gauge,
+            onClick = { open(PlaybackOptionsPage.Speed) },
+            modifier = interactionModifier.semantics {
+                contentDescription = speedDescription
+            },
+        )
+    } else {
+        IconButton(onClick = { open(PlaybackOptionsPage.Root) }, modifier = interactionModifier) {
+            Icon(
+                painterResource(R.drawable.ic_ph_gear),
+                contentDescription = stringResource(R.string.mobile_playback_options),
+            )
+        }
     }
     if (!expanded) return
     val selectedAudio = tracks.singleOrNull { track ->
@@ -121,7 +143,7 @@ internal fun MobilePlaybackOptions(
     ) {
         Column(modifier = interactionModifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
-                if (page != PlaybackOptionsPage.Root) {
+                if (!directControls && page != PlaybackOptionsPage.Root) {
                     IconButton(onClick = { page = PlaybackOptionsPage.Root }) {
                         Icon(
                             painterResource(R.drawable.ic_ph_arrow_left),

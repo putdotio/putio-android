@@ -7,7 +7,6 @@ import android.view.accessibility.AccessibilityManager
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -79,7 +78,6 @@ import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackState
-import io.putdotio.android.playback.hasSelectableSubtitles
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -112,6 +110,9 @@ internal fun MobilePlayerScreen(
     seekClock: () -> Long = SystemClock::uptimeMillis,
     onSourceRequired: (Long?) -> Unit = {},
 ) {
+    if (state.target.mediaType == PlaybackMediaType.VIDEO) {
+        MobileVideoWindow(fileId = state.target.fileId.value)
+    }
     val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     var keyboardNavigationActive by rememberSaveable(state.target.fileId.value) { mutableStateOf(false) }
     Box(
@@ -167,6 +168,7 @@ internal fun MobilePlayerScreen(
                     playerFactory = playerFactory,
                     seekClock = seekClock,
                     onSourceRequired = onSourceRequired,
+                    onBack = onBack,
                 )
                 }
 
@@ -212,7 +214,9 @@ internal fun MobilePlayerScreen(
                 )
         }
 
-        IconButton(
+        val showSeparateBack =
+            state.target.mediaType == PlaybackMediaType.AUDIO || state.content !is PlaybackContent.Ready
+        if (showSeparateBack) IconButton(
             onClick = onBack,
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -254,6 +258,7 @@ private fun MobileReadyPlayer(
     playerFactory: MobilePlayerFactory,
     seekClock: () -> Long,
     onSourceRequired: (Long?) -> Unit,
+    onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -724,7 +729,7 @@ private fun MobileReadyPlayer(
                             ),
                         )
                         .pointerInput(player, fileId, seekWindow, touchExplorationEnabled) {
-                            detectTapGestures(
+                            detectVideoTapGestures(
                                 onDoubleTap = {
                                     onPointerNavigation()
                                     seek(direction)
@@ -749,7 +754,7 @@ private fun MobileReadyPlayer(
             modifier =
                 Modifier
                     .align(Alignment.Center)
-                    .zIndex(1f),
+                    .zIndex(3f),
         )
         MobilePlayerChrome(
             player = player,
@@ -759,6 +764,7 @@ private fun MobileReadyPlayer(
             seekEnabled = seekWindow.available,
             onSeek = ::seek,
             onScrub = { pendingSeek = null },
+            onBack = onBack,
             modifier = Modifier.zIndex(2f),
             settings = {
                 MobilePlaybackOptions(
@@ -767,8 +773,9 @@ private fun MobileReadyPlayer(
                     onMenuVisibilityChanged = { controlsMenuOpen = it },
                     onKeyboardNavigation = onKeyboardNavigation,
                     onPointerNavigation = onPointerNavigation,
+                    directControls = !isAudio,
                 )
-                if (!isAudio && source?.hasSelectableSubtitles() == true) {
+                if (!isAudio) {
                     MobileSubtitleControls(
                         player = player,
                         defaultTrackSelection = defaultTrackSelection,
@@ -776,6 +783,7 @@ private fun MobileReadyPlayer(
                         onMenuVisibilityChanged = { controlsMenuOpen = it },
                         onKeyboardNavigation = onKeyboardNavigation,
                         onPointerNavigation = onPointerNavigation,
+                        showLabel = true,
                     )
                 }
             },
@@ -986,9 +994,9 @@ internal fun MobileSeekButton(
         onClick = onClick,
         enabled = enabled,
         colors = IconButtonDefaults.iconButtonColors(
-            containerColor = MaterialTheme.colorScheme.background.copy(alpha = if (onVideo) 0.7f else 0f),
+            containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0f),
         ),
-        modifier = modifier.requiredSize(56.dp).testTag(
+        modifier = modifier.requiredSize(if (onVideo) 48.dp else 56.dp).testTag(
             if (direction == SeekDirection.Backward) MOBILE_SEEK_BACK_TAG else MOBILE_SEEK_FORWARD_TAG,
         ).semantics { contentDescription = description },
     ) {

@@ -38,3 +38,29 @@ locked drawable and rejects stale generated `ic_ph_*` files:
 Regular weight is the default for chrome, fill is reserved for selected or
 active states, and file-kind glyphs use fill. Drawables remain black source art
 and are tinted by Compose at the point of use.
+
+# Mobile video
+
+Video opens in immersive fullscreen with sensor landscape on phones. Tablets
+and multiwindow use the available window. Back restores the shell's orientation
+and system bars. Controls auto-hide during playback; tapping reveals them,
+and system navigation remains available by an edge swipe. TalkBack and keyboard
+navigation keep controls visible.
+
+The overlay has a back arrow and raw filename, screen-centered play/pause and
+ten-second seek buttons, and a compact timeline with inline timestamps. Audio,
+Speed and Captions share a centered row of 20dp icons and labels. A dimmed overlay
+protects transport contrast without separate decorative button circles.
+Captions are always discoverable: Media3's supported tracks determine the list,
+including embedded tracks absent from API subtitle metadata. Sheets retain the
+existing speed, audio, and caption choices across player recreation.
+
+Hierarchy references inspected through Mobbin:
+[Netflix](https://mobbin.com/screens/2070ec46-5424-4a50-acf2-9f5f90d39b79) and
+[Google TV](https://mobbin.com/screens/49c20f2e-b42b-4bdf-b0b1-367383b30623).
+These are iOS references; native controls follow the Android binding above,
+[Android immersive-content guidance](https://developer.android.com/design/ui/mobile/guides/layout-and-content/immersive-content),
+and [Compose accessibility defaults](https://developer.android.com/develop/ui/compose/accessibility/api-defaults).
+Overlay scrims protect legibility, controls have at least 48dp touch targets,
+and choice sheets use Material 3. Short windows scroll the overlay rather than
+clipping transport or settings. No catalogue metadata or artwork is invented.

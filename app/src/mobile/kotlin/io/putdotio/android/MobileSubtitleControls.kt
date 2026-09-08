@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -42,6 +44,7 @@ internal fun MobileSubtitleControls(
     onKeyboardNavigation: () -> Unit,
     onPointerNavigation: () -> Unit,
     modifier: Modifier = Modifier,
+    showLabel: Boolean = false,
 ) {
     var tracks by remember(player) { mutableStateOf(player.currentTracks.mobileSubtitleTracks()) }
     var parameters by remember(player) { mutableStateOf(player.trackSelectionParameters) }
@@ -87,17 +90,28 @@ internal fun MobileSubtitleControls(
             R.string.mobile_playback_subtitles_off
         },
     )
-    IconButton(
-        onClick = {
-            expanded = true
-            onMenuVisibilityChanged(true)
-        },
-        modifier = modifier.then(interactionModifier).semantics { stateDescription = description },
-    ) {
-        Icon(
-            painterResource(R.drawable.ic_ph_subtitles),
-            contentDescription = stringResource(R.string.mobile_playback_choose_subtitles),
+    val chooseDescription = stringResource(
+        if (showLabel) R.string.mobile_playback_captions_control else R.string.mobile_playback_choose_subtitles,
+    )
+    val triggerModifier = modifier.then(interactionModifier).heightIn(min = 48.dp).semantics {
+        stateDescription = description
+        contentDescription = chooseDescription
+    }
+    fun open() {
+        expanded = true
+        onMenuVisibilityChanged(true)
+    }
+    if (showLabel) {
+        MobileVideoOptionButton(
+            label = stringResource(R.string.mobile_playback_captions_control),
+            icon = R.drawable.ic_ph_subtitles,
+            onClick = ::open,
+            modifier = triggerModifier,
         )
+    } else {
+        IconButton(onClick = ::open, modifier = triggerModifier) {
+            Icon(painterResource(R.drawable.ic_ph_subtitles), contentDescription = null)
+        }
     }
     if (!expanded) return
     val disabled = C.TRACK_TYPE_TEXT in parameters.disabledTrackTypes
@@ -117,6 +131,14 @@ internal fun MobileSubtitleControls(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp).semantics { heading() },
             )
+            if (tracks.isEmpty()) {
+                Text(
+                    stringResource(R.string.mobile_playback_no_captions),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                )
+            }
             PlaybackOption(
                 label = stringResource(R.string.mobile_playback_subtitles_disabled),
                 selected = disabled,

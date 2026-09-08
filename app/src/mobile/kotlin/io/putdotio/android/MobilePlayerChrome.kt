@@ -8,9 +8,15 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
@@ -45,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.contentDescription
@@ -56,6 +64,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.constrainHeight
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.material3.indicator.DurationText
@@ -75,11 +86,12 @@ internal fun MobilePlayerChrome(
     onScrub: () -> Unit,
     settings: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    onBack: () -> Unit = {},
 ) {
     if (isAudio) {
         MobileAudioLayout(player, title, seekEnabled, onSeek, onScrub, settings, modifier)
     } else if (visible) {
-        MobileVideoLayout(player, title, seekEnabled, onSeek, onScrub, settings, modifier)
+        MobileVideoLayout(player, title, seekEnabled, onSeek, onScrub, settings, modifier, onBack)
     }
 }
 
@@ -187,31 +199,87 @@ private fun MobileVideoLayout(
     onScrub: () -> Unit,
     settings: @Composable () -> Unit,
     modifier: Modifier,
+    onBack: () -> Unit,
 ) {
     val scrim = MaterialTheme.colorScheme.background
-    Box(modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0.9f), scrim.copy(alpha = 0f))))
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(start = 64.dp, end = 16.dp, top = 16.dp, bottom = 32.dp),
-        ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+    val density = LocalDensity.current
+    val direction = LocalLayoutDirection.current
+    val safeDrawing = WindowInsets.safeDrawing
+    val sidePadding = with(density) {
+        maxOf(safeDrawing.getLeft(this, direction), safeDrawing.getRight(this, direction)).toDp() + 24.dp
+    }
+    BoxWithConstraints(
+        modifier.fillMaxSize().shareVideoPointerInputWithSiblings().background(scrim.copy(alpha = 0.4f)),
+    ) {
+        val transportWidth = (maxWidth * 0.55f).coerceIn(288.dp.coerceAtMost(maxWidth), maxWidth)
+        var contentHeight by remember { mutableIntStateOf(0) }
+        val scrollState = rememberScrollState()
+        val overflow = if (contentHeight > constraints.maxHeight) {
+            Modifier.verticalScroll(scrollState)
+        } else {
+            Modifier.wrapContentHeight(Alignment.Top, unbounded = true)
         }
-        MobileTransport(player, seekEnabled, onSeek, Modifier.align(Alignment.Center), onVideo = true)
-        Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0f), scrim.copy(alpha = 0.95f))))
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .padding(start = 24.dp, end = 24.dp, top = 32.dp, bottom = 16.dp),
-        ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { settings() }
-            MobilePlayerTimeline(player, onScrub)
+        Layout(
+            modifier = Modifier.fillMaxWidth().then(overflow).heightIn(min = maxHeight)
+                .onSizeChanged { contentHeight = it.height },
+            content = {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0.9f), scrim.copy(alpha = 0f))))
+                        .windowInsetsPadding(safeDrawing.only(WindowInsetsSides.Vertical))
+                        .padding(horizontal = sidePadding, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            painterResource(R.drawable.ic_ph_arrow_left),
+                            contentDescription = stringResource(R.string.mobile_action_back),
+                        )
+                    }
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(end = 16.dp),
+                    )
+                }
+                Box(Modifier.fillMaxWidth().heightIn(min = 80.dp), contentAlignment = Alignment.Center) {
+                    MobileTransport(
+                        player, seekEnabled, onSeek,
+                        Modifier.width(transportWidth),
+                        onVideo = true,
+                    )
+                }
+                Column(
+                    Modifier.fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(scrim.copy(alpha = 0f), scrim.copy(alpha = 0.95f))))
+                        .windowInsetsPadding(safeDrawing.only(WindowInsetsSides.Vertical))
+                        .padding(horizontal = sidePadding, vertical = 8.dp),
+                ) {
+                    MobileVideoTimeline(player, onScrub)
+                    FlowRow(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+                    ) { settings() }
+                }
+            },
+        ) { measurables, limits ->
+            val children = measurables.map {
+                it.measure(limits.copy(minHeight = 0, maxHeight = Constraints.Infinity))
+            }
+            val (header, transport, footer) = children
+            val height = limits.constrainHeight(children.sumOf { it.height })
+            layout(limits.maxWidth, height) {
+                header.placeRelative(0, 0)
+                transport.placeRelative(
+                    0,
+                    ((height - transport.height) / 2)
+                        .coerceIn(header.height, height - footer.height - transport.height),
+                )
+                footer.placeRelative(0, height - footer.height)
+            }
         }
     }
 }
@@ -238,7 +306,9 @@ private fun MobileTransport(
     }
     Row(
         modifier,
-        horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = if (onVideo) Arrangement.SpaceBetween else {
+            Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally)
+        },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         MobileSeekButton(SeekDirection.Backward, seekEnabled, { onSeek(SeekDirection.Backward) }, onVideo = onVideo)
@@ -253,10 +323,18 @@ private fun MobileTransport(
             FilledIconButton(
                 onClick = playPause::onClick,
                 enabled = playPause.isEnabled,
-                modifier = Modifier.size(72.dp),
+                modifier = Modifier.size(if (onVideo) 64.dp else 72.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.onSurface,
-                    contentColor = MaterialTheme.colorScheme.surface,
+                    containerColor = if (onVideo) {
+                        MaterialTheme.colorScheme.background.copy(alpha = 0f)
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                    contentColor = if (onVideo) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
                 ),
             ) {
                 Icon(
@@ -266,11 +344,32 @@ private fun MobileTransport(
                     contentDescription = stringResource(
                         if (playPause.showPlay) R.string.mobile_now_playing_play else R.string.mobile_now_playing_pause,
                     ),
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(if (onVideo) 40.dp else 32.dp),
                 )
             }
         }
         MobileSeekButton(SeekDirection.Forward, seekEnabled, { onSeek(SeekDirection.Forward) }, onVideo = onVideo)
+    }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun MobileVideoTimeline(player: Player, onScrub: () -> Unit) {
+    ProvideTextStyle(
+        MaterialTheme.typography.labelMedium.copy(
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            PositionText(player)
+            Box(Modifier.weight(1f)) { MobileProgressSlider(player, onScrub) }
+            DurationText(player)
+        }
     }
 }
 

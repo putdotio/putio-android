@@ -272,6 +272,20 @@
       "asset": "assets/regular/check.svg",
       "sourceSha256": "cbb89a8c42f283d4f846eb935e05d88c1be04462f16480e068c0f82b9ce40b12",
       "outputSha256": "3883f553f4afa50518f14b47c013d8c816f48299f824b508ffb9a3d3a795e698"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_speaker_high",
+      "asset": "assets/regular/speaker-high.svg",
+      "sourceSha256": "caca5fc1ee8489ac19232301d2c96f6d4048802491d75d761bbb89d5c98e459d",
+      "outputSha256": "a8e8a877a4790de86fc1d51c4928f20cc2d6729308a2cd0c74a858c632e475ec"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_gauge",
+      "asset": "assets/regular/gauge.svg",
+      "sourceSha256": "053e22a3b54c3baa7997bd0fddbf2cc35cbdd2662842b553d13d9f2a58c67f4a",
+      "outputSha256": "2b5c94c8369719eb5f221ad097b74c492f6620cab639100d06315e2a3c8e87fa"
     }
   ]
 }

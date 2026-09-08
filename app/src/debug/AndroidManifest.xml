@@ -5,5 +5,10 @@
         <activity
             android:name="androidx.activity.ComponentActivity"
             android:configChanges="assetsPaths" />
+        <!-- Preserve injected video proof content while its real window changes orientation. -->
+        <activity
+            android:name=".MobileFullscreenProofActivity"
+            android:configChanges="orientation|screenSize|assetsPaths"
+            android:exported="false" />
     </application>
 </manifest>
