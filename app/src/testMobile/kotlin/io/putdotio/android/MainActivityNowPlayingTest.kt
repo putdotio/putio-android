@@ -37,6 +37,20 @@ class MainActivityNowPlayingTest {
     }
 
     @Test
+    fun anUndeliveredNotificationActionSurvivesRecreation() {
+        val intent =
+            Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java)
+                .setAction(MobilePlaybackService.ACTION_OPEN_NOW_PLAYING)
+        ActivityScenario.launch<MainActivity>(intent).use { scenario ->
+            // Nothing collected it yet (the shell may still be restoring the session).
+            scenario.recreate()
+            scenario.onActivity { assertNotNull(it.pendingNowPlayingRequest()) }
+            scenario.recreate()
+            scenario.onActivity { assertNull(it.pendingNowPlayingRequest()) }
+        }
+    }
+
+    @Test
     fun aPlainLaunchPublishesNothing() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { assertNull(it.pendingNowPlayingRequest()) }

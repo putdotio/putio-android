@@ -25,9 +25,12 @@ class MainActivity : BasePutioActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
-        // A restored Activity can still carry a fresh notification tap; only a consumed one is skipped.
-        nowPlayingConsumed = savedInstanceState?.getBoolean(STATE_NOW_PLAYING_CONSUMED) == true
-        if (!nowPlayingConsumed) publishNowPlayingRequest(intent)
+        // A restored Activity republishes a request the previous instance never delivered, and
+        // skips one it did; a fresh notification tap arrives through onNewIntent either way.
+        when {
+            savedInstanceState == null -> publishNowPlayingRequest(intent)
+            savedInstanceState.getBoolean(STATE_NOW_PLAYING_PENDING) -> nowPlayingRequests.trySend(Unit)
+        }
         setContent {
             PutioApp(authTabLauncher, nowPlayingRequestFlow)
         }
@@ -43,19 +46,16 @@ class MainActivity : BasePutioActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putBoolean(STATE_NOW_PLAYING_CONSUMED, nowPlayingConsumed)
+        // A conflated channel that still holds its element has not been delivered yet.
+        outState.putBoolean(STATE_NOW_PLAYING_PENDING, !nowPlayingRequests.isEmpty)
     }
 
-    private var nowPlayingConsumed = false
-
     private fun publishNowPlayingRequest(intent: Intent?) {
-        if (intent?.action != MobilePlaybackService.ACTION_OPEN_NOW_PLAYING) return
-        nowPlayingConsumed = true
-        nowPlayingRequests.trySend(Unit)
+        if (intent?.action == MobilePlaybackService.ACTION_OPEN_NOW_PLAYING) nowPlayingRequests.trySend(Unit)
     }
 
     private companion object {
-        const val STATE_NOW_PLAYING_CONSUMED = "nowPlayingConsumed"
+        const val STATE_NOW_PLAYING_PENDING = "nowPlayingPending"
     }
 }
 
