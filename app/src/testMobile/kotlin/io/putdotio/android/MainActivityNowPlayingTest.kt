@@ -36,6 +36,21 @@ class MainActivityNowPlayingTest {
     }
 
     @Test
+    fun launchIntentIsPublishedOnceAndNeverFromHistory() {
+        val tap = Intent(openNowPlaying)
+        assertTrue(shouldPublishLaunchIntent(tap, alreadyConsumed = false))
+        assertFalse(shouldPublishLaunchIntent(tap, alreadyConsumed = true))
+        assertFalse(
+            shouldPublishLaunchIntent(
+                Intent(openNowPlaying).addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY),
+                alreadyConsumed = false,
+            ),
+        )
+        assertFalse(shouldPublishLaunchIntent(Intent(Intent.ACTION_MAIN), alreadyConsumed = false))
+        assertFalse(shouldPublishLaunchIntent(null, alreadyConsumed = false))
+    }
+
+    @Test
     fun aPlainLaunchPublishesNothing() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { assertFalse(it.nowPlayingRequests.pending.value) }
