@@ -7,7 +7,13 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -628,11 +634,6 @@ internal fun MobileShell(
     val currentPlaybackFileId by rememberUpdatedState(
         if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null,
     )
-    // Reopening the app after the task was swiped away must tell the session its task is back.
-    LifecycleStartEffect(playbackPlayerFactory, appContext) {
-        val handle = playbackPlayerFactory.touchAudioSession(appContext)
-        onStopOrDispose { handle.closeQuietly() }
-    }
     LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext) {
         nowPlayingRequests.pending.collect { pending ->
             if (!pending) return@collect
@@ -903,14 +904,22 @@ private fun PhoneShell(
             )
         },
         bottomBar = {
-            NavigationBar(modifier = Modifier.testTag(MOBILE_NAV_BAR_TAG)) {
-                MobileDestination.entries.forEach { destination ->
-                    NavigationBarItem(
-                        selected = destination == selectedDestination,
-                        onClick = { navController.navigateTo(destination) },
-                        icon = { MobileDestinationIcon(destination, destination == selectedDestination) },
-                        label = { Text(stringResource(destination.labelRes)) },
-                    )
+            Column {
+                // NavigationBar pads its own content; the bar above it needs the side insets only.
+                MobileNowPlayingSlot(
+                    navController,
+                    playbackPlayerFactory,
+                    modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+                )
+                NavigationBar(modifier = Modifier.testTag(MOBILE_NAV_BAR_TAG)) {
+                    MobileDestination.entries.forEach { destination ->
+                        NavigationBarItem(
+                            selected = destination == selectedDestination,
+                            onClick = { navController.navigateTo(destination) },
+                            icon = { MobileDestinationIcon(destination, destination == selectedDestination) },
+                            label = { Text(stringResource(destination.labelRes)) },
+                        )
+                    }
                 }
             }
         },
@@ -998,6 +1007,16 @@ private fun TabletShell(
                     onFilesEvent = onFilesEvent,
                 )
             },
+            bottomBar = {
+                // The phone's NavigationBar pads for the system bar itself; here the bar is alone.
+                MobileNowPlayingSlot(
+                    navController,
+                    playbackPlayerFactory,
+                    modifier = Modifier.windowInsetsPadding(
+                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
+                    ),
+                )
+            },
         ) { padding ->
             MobileNavHost(
                 navController = navController,
@@ -1079,6 +1098,23 @@ private fun MobileTopBar(
                 )
             }
         },
+    )
+}
+
+@Composable
+private fun MobileNowPlayingSlot(
+    navController: NavHostController,
+    playerFactory: MobilePlayerFactory,
+    modifier: Modifier = Modifier,
+) {
+    val handle = rememberNowPlaying(playerFactory)
+    val nowPlaying = handle.nowPlaying ?: return
+    MobileNowPlayingBar(
+        modifier = modifier,
+        nowPlaying = nowPlaying,
+        onOpen = { navController.navigateToPlayback(nowPlaying.fileId, nowPlaying.title, PlaybackMediaType.AUDIO) },
+        onToggle = handle::togglePlayback,
+        onDismiss = handle::dismiss,
     )
 }
 
