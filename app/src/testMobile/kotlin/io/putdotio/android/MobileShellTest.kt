@@ -348,6 +348,58 @@ class MobileShellTest {
     }
 
     @Test
+    fun aSharedDraftWaitsForTheEarlierNowPlayingLookup() = verifyShareAfterNowPlayingLookup(
+        ActiveAudio(FilesItemId(9L), "song.mp3"),
+    )
+
+    @Test
+    fun aSharedDraftOpensWhenTheEarlierNowPlayingLookupFindsNoSession() = verifyShareAfterNowPlayingLookup(null)
+
+    private fun verifyShareAfterNowPlayingLookup(result: ActiveAudio?) {
+        val draft = MobileTransferDraft()
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(true)
+        val resolved = CompletableDeferred<ActiveAudio?>()
+        val requests = NowPlayingRequests(pending) { pending.value = false }
+        val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
+            override suspend fun activeAudio(context: android.content.Context): ActiveAudio? = resolved.await()
+        }
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    nowPlayingRequests = requests,
+                    playbackPlayerFactory = factory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onTransfersEvent = events::add,
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            assertTrue(pending.value)
+            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
+            resolved.complete(result)
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertFalse(pending.value)
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
     fun filesDeleteRequiresConfirmedSettingsThroughSaveAndRefreshFailure() {
         val original = DefaultAccountSettingsPreferences.copy(trashEnabled = true)
         val optimistic = original.copy(trashEnabled = false)

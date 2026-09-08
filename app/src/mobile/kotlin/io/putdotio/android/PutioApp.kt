@@ -608,6 +608,7 @@ internal fun MobileShell(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
     val incomingDraft by transferDraft.state.collectAsStateWithLifecycle()
+    val nowPlayingPending by nowPlayingRequests.pending.collectAsStateWithLifecycle()
     LaunchedEffect(transferDraft, transfersSessionId, transfersState.mutation, transfersState.lastSuccessfulAddRequestId) {
         transferDraft.reconcileSession(transfersSessionId)
         transferDraft.reconcileTransfers(transfersState)
@@ -628,7 +629,7 @@ internal fun MobileShell(
     val shareNavigationBlocked = filesState.stack.any {
         it.operation.pendingDelete != null || it.operation.pendingMove != null
     } || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving ||
-        transfersState.mutation is TransferMutation.Running
+        transfersState.mutation is TransferMutation.Running || nowPlayingPending
     LaunchedEffect(incomingDraft.incomingRequestId, backStackEntry, shareNavigationBlocked) {
         val requestId = incomingDraft.incomingRequestId ?: return@LaunchedEffect
         if (backStackEntry == null || shareNavigationBlocked) return@LaunchedEffect
