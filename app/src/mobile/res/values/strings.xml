@@ -1,4 +1,10 @@
 <resources>
+    <string name="mobile_playback_options">Playback options</string>
+    <string name="mobile_playback_speed">Playback speed</string>
+    <string name="mobile_playback_speed_value">%1$s×</string>
+    <string name="mobile_playback_audio_track">Audio track</string>
+    <string name="mobile_playback_audio_automatic">Automatic</string>
+    <string name="mobile_playback_audio_track_number">Audio track %1$d</string>
     <string name="mobile_navigation_blocked">This item cannot be opened right now. Check Files, then try again.</string>
     <string name="mobile_files_move">Move</string>
     <string name="mobile_files_move_here">Move here</string>
@@ -90,7 +96,6 @@
     <string name="mobile_playback_subtitles_on">Subtitles on</string>
     <string name="mobile_playback_subtitles_off">Subtitles off</string>
     <string name="mobile_playback_choose_subtitles">Choose subtitles</string>
-    <string name="mobile_playback_subtitle_selected">Selected</string>
     <string name="mobile_playback_subtitle_track">Subtitle %1$d</string>
     <plurals name="mobile_playback_seek_back">
         <item quantity="one">Back %1$d second</item>
@@ -359,4 +364,11 @@
     <string name="mobile_trash_delete_still_present">“%1$s” is still in Trash. Check Trash again before taking another action.</string>
     <string name="mobile_trash_empty_still_present">Trash still has items. Check Trash again in a moment.</string>
     <string name="mobile_trash_check_trash">Check Trash</string>
+    <string name="mobile_playback_subtitles_title">Subtitles</string>
+    <string name="mobile_playback_subtitles_disabled">Off</string>
+    <string name="mobile_playback_now_playing">Now playing</string>
+    <string name="mobile_playback_audio_file">Audio file</string>
+    <string name="mobile_playback_audio_track_disambiguated">%1$s (track %2$d)</string>
+    <string name="mobile_playback_position">Playback position</string>
+    <string name="mobile_playback_position_value">%1$s of %2$s</string>
 </resources>

@@ -82,6 +82,29 @@ Still eyeball captures before publishing them as evidence.
 
 ## Evidence
 
+### Playback options device proof
+
+`MobilePlaybackOptionsProofTest` uses the real mobile player and audio service
+with caller-owned, local two-track media. It makes no API calls and preserves
+the installed account session. Install the debug app and test APKs with
+`adb install -r`, then invoke this exact class through `am instrument` with
+`putio.playback.options.enabled=true`, `putio.playback.options.runId=<UUID>`,
+and `putio.playback.options.audio` / `putio.playback.options.video` set to
+readable fixture paths under the app's external files directory.
+
+Use 180-second AAC audio and H.264 video fixtures containing two differently
+labeled audio tracks. The tests capture clean audio/video layouts and settings sheets, select 1.5× speed
+and the second track, check
+the real player state, recreate the video player, and reconnect to background
+audio. Lifecycle and saved-state transitions use a controlled Compose host;
+this is local-media proof, not live API or full Activity-recreation proof.
+Screenshots go to `playback-options-proof-<UUID>/` under external files.
+Validate and inspect them before publishing, and remove only the caller-owned
+fixtures after instrumentation is idle. The audio test stops its playback at
+completion; use an otherwise idle media session.
+
+### Capture and publish
+
 Captures land in `.evidence/` (gitignored) as
 `<UTC timestamp>-<label>.png|mp4`; emulator boot logs land in
 `.evidence/logs/`.

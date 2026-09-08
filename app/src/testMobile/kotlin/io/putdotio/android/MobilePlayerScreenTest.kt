@@ -73,11 +73,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.zIndex
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.VideoSize
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
@@ -372,6 +375,50 @@ class MobilePlayerScreenTest {
         }
         compose.runOnIdle {
             assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+        }
+    }
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun lateSubtitlePoliciesPreserveExplicitAudioSelectionWithoutTrackEvents() {
+        val player = RecordingPlayer()
+        val group = TrackGroup(Format.Builder().setId("audio-en").setSampleMimeType(MimeTypes.AUDIO_AAC).build())
+        val audioOverride = TrackSelectionOverride(group, 0)
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
+        compose.runOnUiThread {
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .setPreferredTextLanguage("en").build()
+        }
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = policy,
+                )
+            }
+        }
+        compose.runOnIdle {
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .setOverrideForType(audioOverride).setPreferredAudioLanguage("de").build()
+        }
+        for (nextPolicy in listOf(
+            SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false),
+            SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
+            SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+        )) {
+            compose.runOnIdle { policy = nextPolicy }
+            compose.runOnIdle {
+                val parameters = player.trackSelectionParameters
+                assertEquals(audioOverride, parameters.overrides[group])
+                assertEquals(listOf("de"), parameters.preferredAudioLanguages)
+                assertEquals(!nextPolicy.showSubtitles, C.TRACK_TYPE_TEXT in parameters.disabledTrackTypes)
+                assertEquals(nextPolicy.autoSelectSubtitles, parameters.selectTextByDefault)
+                if (nextPolicy.autoSelectSubtitles) assertEquals(listOf("en"), parameters.preferredTextLanguages)
+            }
         }
     }
 
@@ -1848,6 +1895,14 @@ internal class RecordingPlayer(
             state.buildUpon()
                 .setPlayWhenReady(playWhenReady, Media3Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
                 .build()
+        invalidateState()
+        return Futures.immediateVoidFuture()
+    }
+
+    override fun handleSetPlaybackParameters(
+        playbackParameters: androidx.media3.common.PlaybackParameters,
+    ): ListenableFuture<*> {
+        state = state.buildUpon().setPlaybackParameters(playbackParameters).build()
         invalidateState()
         return Futures.immediateVoidFuture()
     }

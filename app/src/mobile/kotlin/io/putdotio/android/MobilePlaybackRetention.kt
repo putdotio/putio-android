@@ -16,10 +16,14 @@ internal class RetainedPlayerPreferences(
     resumeAfterLifecyclePause: Boolean = true,
     subtitleSelection: SubtitleSelection? = null,
     positionMillis: Long? = null,
+    playbackSpeed: Float = 1f,
+    audioSelection: AudioSelection = AudioSelection.Automatic,
 ) {
     var resumeAfterLifecyclePause by mutableStateOf(resumeAfterLifecyclePause)
     var subtitleSelection by mutableStateOf(subtitleSelection)
     var positionMillis by mutableStateOf(positionMillis)
+    var playbackSpeed by mutableStateOf(playbackSpeed)
+    var audioSelection by mutableStateOf(audioSelection)
 
     // Set once this route has prepared or adopted the session's file, so a later
     // recomposition on the same route leaves an ended session ended instead of restarting it.
@@ -41,6 +45,8 @@ private val RetainedPlayerPreferencesSaver =
             Bundle().apply {
                 putBoolean("resumeAfterLifecyclePause", preferences.resumeAfterLifecyclePause)
                 putBoolean("sessionHandled", preferences.sessionHandled)
+                putFloat("playbackSpeed", preferences.playbackSpeed)
+                putBundle("audioSelection", preferences.audioSelection.toBundle())
                 preferences.subtitleSelection?.let { putBundle("subtitleSelection", it.toBundle()) }
                 preferences.positionMillis?.let { putLong("positionMillis", it) }
             }
@@ -53,6 +59,8 @@ internal fun Bundle.toRetainedPlayerPreferences(): RetainedPlayerPreferences =
         resumeAfterLifecyclePause = getBoolean("resumeAfterLifecyclePause", true),
         subtitleSelection = getBundle("subtitleSelection")?.toSubtitleSelection(),
         positionMillis = getLong("positionMillis").takeIf { containsKey("positionMillis") },
+        playbackSpeed = getFloat("playbackSpeed", 1f).takeIf { it in MOBILE_PLAYBACK_SPEEDS } ?: 1f,
+        audioSelection = getBundle("audioSelection")?.toAudioSelection() ?: AudioSelection.Automatic,
     ).apply { sessionHandled = getBoolean("sessionHandled", false) }
 
 @Composable

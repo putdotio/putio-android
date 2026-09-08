@@ -18,15 +18,19 @@ import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.input.InputModeManager
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
@@ -36,9 +40,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.media3.common.Format
+import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.text.Cue
+import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import org.junit.Assert.assertEquals
@@ -65,6 +72,81 @@ private fun ImageBitmap.hasVisiblePixel(): Boolean {
 class MobileSubtitleControlsTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun subtitleSheetDisablesThenRestoresAutomaticDefaults() {
+        val player = RecordingPlayer()
+        val defaults = TrackSelectionParameters.Builder(
+            androidx.test.core.app.ApplicationProvider.getApplicationContext(),
+        )
+            .setPreferredTextLanguage("en").setPreferredAudioLanguage("de").build()
+        val selections = mutableListOf<SubtitleSelection>()
+        val visibility = mutableListOf<Boolean>()
+        compose.runOnUiThread {
+            player.trackSelectionParameters = defaults.withSubtitleSelection(SubtitleSelection.Automatic, emptyList())
+        }
+        compose.setContent {
+            PutioTheme {
+                MobileSubtitleControls(
+                    player = player,
+                    defaultTrackSelection = defaults,
+                    onSubtitleSelectionChanged = selections::add,
+                    onMenuVisibilityChanged = visibility::add,
+                    onKeyboardNavigation = {},
+                    onPointerNavigation = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Choose subtitles").performClick()
+        compose.onNodeWithText("Automatic").assertIsSelected()
+        compose.onNodeWithText("Off").performClick()
+        compose.runOnIdle {
+            assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+            assertEquals(listOf(SubtitleSelection.Off), selections)
+        }
+        compose.onNodeWithContentDescription("Choose subtitles")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Subtitles off"))
+            .performClick()
+        compose.onNodeWithText("Off").assertIsSelected()
+        compose.onNodeWithText("Automatic").performClick()
+        compose.runOnIdle {
+            assertTrue(C.TRACK_TYPE_TEXT !in player.trackSelectionParameters.disabledTrackTypes)
+            assertEquals(listOf("en"), player.trackSelectionParameters.preferredTextLanguages)
+            assertEquals(listOf("de"), player.trackSelectionParameters.preferredAudioLanguages)
+            assertEquals(listOf(SubtitleSelection.Off, SubtitleSelection.Automatic), selections)
+            assertEquals(listOf(true, false, true, false), visibility)
+        }
+    }
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun forcedOnlyStartupDoesNotClaimAutomaticSelection() {
+        val player = RecordingPlayer()
+        val defaults = TrackSelectionParameters.Builder(
+            androidx.test.core.app.ApplicationProvider.getApplicationContext(),
+        ).build()
+        compose.runOnUiThread {
+            player.trackSelectionParameters = restoreSubtitleSelection(
+                defaults = defaults,
+                retained = null,
+                systemCaptionsEnabled = false,
+            )
+        }
+        compose.setContent {
+            PutioTheme {
+                MobileSubtitleControls(player, defaults, {}, {}, {}, {})
+            }
+        }
+        compose.onNodeWithContentDescription("Choose subtitles")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Subtitles off"))
+            .performClick()
+        compose.onNodeWithText("Off").assertIsNotSelected()
+        compose.onNodeWithText("Automatic").assertIsNotSelected().performClick()
+        compose.runOnIdle { assertTrue(player.trackSelectionParameters.selectTextByDefault) }
+        compose.onNodeWithContentDescription("Choose subtitles").performClick()
+        compose.onNodeWithText("Automatic").assertIsSelected()
+    }
 
     @Test
     fun selectedSubtitleCueIsRendered() {
@@ -180,22 +262,6 @@ class MobileSubtitleControlsTest {
     }
 
     @Test
-    fun subtitleToggleExposesAndUpdatesCheckedState() {
-        compose.setContent {
-            var enabled by remember { mutableStateOf(true) }
-            PutioTheme {
-                MobileSubtitleToggle(
-                    enabled = enabled,
-                    onToggle = { enabled = it },
-                )
-            }
-        }
-
-        compose.onNodeWithText("Subtitles on").assertIsOn().performClick()
-        compose.onNodeWithText("Subtitles off").assertIsOff()
-    }
-
-    @Test
     fun selectedSubtitleTrackExposesCheckedState() {
         val group =
             TrackGroup(
@@ -216,7 +282,7 @@ class MobileSubtitleControlsTest {
             }
         }
 
-        compose.onNodeWithText("English").assertIsOn()
+        compose.onNodeWithText("English").assertIsSelected()
     }
 
     @Test

@@ -8,11 +8,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
@@ -27,9 +23,9 @@ import androidx.compose.foundation.layout.safeGestures
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +47,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalAccessibilityManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -62,8 +59,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
@@ -79,7 +74,6 @@ import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.ContentFrame
-import androidx.media3.ui.compose.material3.PlayerDefaults
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.playback.PlaybackFailure
@@ -150,6 +144,7 @@ internal fun MobilePlayerScreen(
                     title = state.target.name,
                     mediaType = state.target.mediaType,
                     sessionPlayer = sessionPlayer,
+                    preferences = preferences,
                     sessionHandled = preferences.sessionHandled,
                     onSessionHandled = { preferences.sessionHandled = true },
                     startPositionMillis = preferences.positionMillis ?: state.resumePositionMillis,
@@ -236,6 +231,7 @@ private fun MobileReadyPlayer(
     title: String,
     mediaType: PlaybackMediaType,
     sessionPlayer: Media3Player?,
+    preferences: RetainedPlayerPreferences,
     sessionHandled: Boolean,
     onSessionHandled: () -> Unit,
     startPositionMillis: Long?,
@@ -280,6 +276,7 @@ private fun MobileReadyPlayer(
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
     val currentRetainedSubtitleSelection = rememberUpdatedState(retainedSubtitleSelection)
+    val currentPreferences = rememberUpdatedState(preferences)
     // A session player outlives this screen: it is never paused, released, or recreated here.
     val ownsPlayer = sessionPlayer == null
     val player = remember(context, lifecycle, playerFactory, playerGeneration, mediaType, sessionPlayer) {
@@ -292,6 +289,7 @@ private fun MobileReadyPlayer(
     var activeFileId by remember(player) {
         mutableStateOf(if (sessionHandled) player.activeSessionFileId() else player.resumableSessionFileId())
     }
+    var optionsInitialized by remember(player) { mutableStateOf(false) }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
@@ -342,6 +340,8 @@ private fun MobileReadyPlayer(
         val replacingFileId = activeFileId
         if (!ownsPlayer) onSessionHandled()
         if (!ownsPlayer && replacingFileId == source.fileId) {
+            preferences.adoptPlaybackOptions(player)
+            optionsInitialized = true
             // Returning to audio that kept playing: adopt the live position instead of restarting.
             val livePosition = player.currentPosition.coerceAtLeast(0L)
             retainedPositionMillis = livePosition
@@ -369,6 +369,12 @@ private fun MobileReadyPlayer(
                 )
         }
         activeFileId = source.fileId
+        player.setPlaybackSpeed(preferences.playbackSpeed)
+        player.trackSelectionParameters = player.trackSelectionParameters.withAudioSelection(
+            preferences.audioSelection,
+            emptyList(),
+        )
+        optionsInitialized = true
         player.setMediaItem(preparedPlayback.mediaItem, replacementPosition)
         player.prepare()
         seekWindow = player.currentSeekWindow()
@@ -380,13 +386,18 @@ private fun MobileReadyPlayer(
     LaunchedEffect(player, activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
         val policy = subtitleStartupPolicy ?: return@LaunchedEffect
         if (activeFileId == source.fileId && retainedSubtitleSelection == null) {
+            val current = player.trackSelectionParameters
             val parameters =
-                restoreSubtitleSelection(
-                    defaults = defaultTrackSelection,
-                    retained = null,
-                    startupPolicy = policy,
-                    systemCaptionsEnabled = context.systemCaptionsEnabled(),
-                )
+                if (policy.showSubtitles && policy.autoSelectSubtitles) {
+                    current.withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaultTrackSelection)
+                } else {
+                    restoreSubtitleSelection(
+                        defaults = current,
+                        retained = null,
+                        startupPolicy = policy,
+                        systemCaptionsEnabled = context.systemCaptionsEnabled(),
+                    )
+                }
             if (parameters != player.trackSelectionParameters) {
                 player.trackSelectionParameters = parameters
             }
@@ -538,6 +549,17 @@ private fun MobileReadyPlayer(
 
                 override fun onTracksChanged(tracks: Tracks) {
                     resolveRetainedSubtitleSelection(tracks.mobileSubtitleTracks())
+                    if (optionsInitialized) {
+                        val parameters = player.trackSelectionParameters.withRetainedAudioSelection(
+                            currentPreferences.value.audioSelection,
+                            tracks.mobileAudioTracks(),
+                        )
+                        if (parameters != player.trackSelectionParameters) player.trackSelectionParameters = parameters
+                    }
+                }
+
+                override fun onPlaybackParametersChanged(parameters: androidx.media3.common.PlaybackParameters) {
+                    if (optionsInitialized) currentPreferences.value.playbackSpeed = parameters.speed
                 }
 
                 override fun onPlaybackStateChanged(newPlaybackState: Int) {
@@ -628,12 +650,7 @@ private fun MobileReadyPlayer(
                 controlsActivity += 1
             },
     ) {
-        if (isAudio) {
-            MobileAudioCover(
-                title = title,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
+        if (!isAudio) {
             ContentFrame(
                 player = player,
                 modifier = Modifier.fillMaxSize(),
@@ -697,72 +714,35 @@ private fun MobileReadyPlayer(
                     .align(Alignment.Center)
                     .zIndex(1f),
         )
-        Box(
-            modifier =
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .zIndex(2f)
-                    .fillMaxWidth(),
-        ) {
-            PlayerDefaults.TopControls(
-                player = player,
-                visible = controlsVisible,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .observePlayerControlKeyActivity {
-                            onKeyboardNavigation()
-                            controlsVisible = true
-                            controlsActivity += 1
-                        }
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
-                        .padding(8.dp),
-            ) {
-                if (source.hasSelectableSubtitles() && it != null) {
+        MobilePlayerChrome(
+            player = player,
+            title = title,
+            isAudio = isAudio,
+            visible = controlsVisible,
+            seekEnabled = seekWindow.available,
+            onSeek = ::seek,
+            onScrub = { pendingSeek = null },
+            modifier = Modifier.zIndex(2f),
+            settings = {
+                MobilePlaybackOptions(
+                    player = player,
+                    onAudioSelectionChanged = { preferences.audioSelection = it },
+                    onMenuVisibilityChanged = { controlsMenuOpen = it },
+                    onKeyboardNavigation = onKeyboardNavigation,
+                    onPointerNavigation = onPointerNavigation,
+                )
+                if (!isAudio && source.hasSelectableSubtitles()) {
                     MobileSubtitleControls(
-                        player = it,
+                        player = player,
                         defaultTrackSelection = defaultTrackSelection,
                         onSubtitleSelectionChanged = onSubtitleSelectionChanged,
                         onMenuVisibilityChanged = { controlsMenuOpen = it },
                         onKeyboardNavigation = onKeyboardNavigation,
                         onPointerNavigation = onPointerNavigation,
-                        modifier = Modifier.align(Alignment.TopEnd),
                     )
                 }
-            }
-        }
-        Box(
-            modifier =
-                Modifier
-                    .align(Alignment.Center)
-                    .zIndex(2f),
-        ) {
-            PlayerDefaults.CenterControls(
-                player = player,
-                visible = controlsVisible,
-                modifier =
-                    Modifier
-                        .observePlayerControlKeyActivity {
-                            onKeyboardNavigation()
-                            controlsVisible = true
-                            controlsActivity += 1
-                        },
-                back = {
-                    MobileSeekButton(
-                        direction = SeekDirection.Backward,
-                        enabled = seekWindow.available,
-                        onClick = { seek(SeekDirection.Backward) },
-                    )
-                },
-                forward = {
-                    MobileSeekButton(
-                        direction = SeekDirection.Forward,
-                        enabled = seekWindow.available,
-                        onClick = { seek(SeekDirection.Forward) },
-                    )
-                },
-            )
-        }
+            },
+        )
         pendingSeek?.let { request ->
             // Identical text still needs a fresh accessibility event for each seek.
             key(request.requestId) {
@@ -783,28 +763,7 @@ private fun MobileReadyPlayer(
                 )
             }
         }
-        Box(
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .zIndex(2f)
-                    .fillMaxWidth(),
-        ) {
-            PlayerDefaults.BottomControls(
-                player = player,
-                visible = controlsVisible,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .observePlayerControlKeyActivity {
-                            onKeyboardNavigation()
-                            controlsVisible = true
-                            controlsActivity += 1
-                        }
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
-                        .padding(8.dp),
-            )
-        }
+
     }
 }
 
@@ -860,40 +819,6 @@ internal fun Media3Player.activeSessionFileId(): Long? =
 // A file the session can carry on with; an ended one must be prepared again.
 internal fun Media3Player.resumableSessionFileId(): Long? =
     activeSessionFileId()?.takeIf { playbackState != Media3Player.STATE_ENDED }
-
-@Composable
-private fun MobileAudioCover(
-    title: String,
-    modifier: Modifier = Modifier,
-) {
-    // The center controls overlay this cover; the spacer keeps the artwork above them
-    // and the title below them.
-    Column(
-        modifier = modifier
-            .testTag(MOBILE_AUDIO_COVER_TAG)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(48.dp, Alignment.CenterVertically),
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_ph_file_audio_fill),
-            contentDescription = null,
-            tint = PutioDesignTokens.yellowSolid,
-            modifier = Modifier.size(96.dp),
-        )
-        Spacer(Modifier.height(AUDIO_COVER_CONTROLS_BAND))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            textAlign = TextAlign.Center,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-private val AUDIO_COVER_CONTROLS_BAND = 72.dp
 
 internal enum class SeekDirection {
     Backward,
@@ -1002,11 +927,12 @@ internal fun nextPendingSeek(
 }
 
 @Composable
-private fun MobileSeekButton(
+internal fun MobileSeekButton(
     direction: SeekDirection,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onVideo: Boolean = false,
 ) {
     val intervalSeconds = (MOBILE_SEEK_INTERVAL_MILLIS / 1_000L).toInt()
     val description =
@@ -1019,28 +945,31 @@ private fun MobileSeekButton(
             intervalSeconds,
             intervalSeconds,
         )
-    TextButton(
+    IconButton(
         onClick = onClick,
         enabled = enabled,
-        modifier =
-            modifier
-                .requiredSize(48.dp)
-                .testTag(
-                    if (direction == SeekDirection.Backward) {
-                        MOBILE_SEEK_BACK_TAG
-                    } else {
-                        MOBILE_SEEK_FORWARD_TAG
-                    },
-                ).semantics { contentDescription = description },
+        colors = IconButtonDefaults.iconButtonColors(
+            containerColor = MaterialTheme.colorScheme.background.copy(alpha = if (onVideo) 0.7f else 0f),
+        ),
+        modifier = modifier.requiredSize(56.dp).testTag(
+            if (direction == SeekDirection.Backward) MOBILE_SEEK_BACK_TAG else MOBILE_SEEK_FORWARD_TAG,
+        ).semantics { contentDescription = description },
     ) {
-        Text(
-            if (direction == SeekDirection.Backward) {
-                "−10"
-            } else {
-                "+10"
-            },
-            modifier = Modifier.clearAndSetSemantics {},
-        )
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.clearAndSetSemantics {}) {
+            Icon(
+                painter = painterResource(
+                    if (direction == SeekDirection.Backward) {
+                        R.drawable.ic_ph_arrow_counter_clockwise
+                    } else {
+                        R.drawable.ic_ph_arrow_clockwise
+                    },
+                ),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+            )
+            // The number belongs to the fixed-size glyph; the accessible label carries the interval.
+            Text("10", fontSize = with(LocalDensity.current) { 12.dp.toSp() })
+        }
     }
 }
 
