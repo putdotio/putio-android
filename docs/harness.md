@@ -624,7 +624,7 @@ Foundation | durian.blender.org”, with the [CC BY 3.0 sharing terms](https://d
 
 The mobile launcher accepts `ACTION_SEND` with `text/plain`. A URL or magnet
 opens an editable Add transfer sheet after sign-in; only Add submits it. Text
-with exactly one supported link prefills that link. Multiple links remain
+with one unambiguous supported link prefills that link. Ambiguous prose and multiple links remain
 editable with guidance to choose one. A new share cannot overwrite an existing
 draft without confirmation or interrupt a running mutation. Input is limited to
 16 KiB of UTF-8; oversized shares are rejected without truncation. A rejected

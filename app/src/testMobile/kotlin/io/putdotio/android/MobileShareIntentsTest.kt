@@ -37,10 +37,6 @@ class MobileShareIntentsTest {
             "Episode title\nhttps://example.invalid/episode\nSent from a browser" to "https://example.invalid/episode",
             "Download https://example.invalid/file?token=abc'def now" to "https://example.invalid/file?token=abc'def",
             "Watch <https://example.invalid/episode>" to "https://example.invalid/episode",
-            "Watch [(https://example.invalid/episode)]" to "https://example.invalid/episode",
-            "Watch {[(https://example.invalid/episode_(part_1))]}" to "https://example.invalid/episode_(part_1)",
-            "Watch (https://example.invalid/episode)" to "https://example.invalid/episode",
-            "Watch (https://example.invalid/episode_(part_1))" to "https://example.invalid/episode_(part_1)",
             "Download magnet:?xt=urn:btih:12345&dn=hello%20world now" to "magnet:?xt=urn:btih:12345&dn=hello%20world",
             "https://example.invalid/file\nAgain: https://example.invalid/file" to "https://example.invalid/file",
         )) {
@@ -70,12 +66,29 @@ class MobileShareIntentsTest {
 
     @Test
     fun ambiguousSentencePunctuationKeepsTheOriginalEditableText() {
-        for (ending in listOf(".", ",", ";", ":", "!", "?", "'")) {
+        for (ending in listOf(".", ",", ";", ":", "!", "?", "'", ")", "]", "}")) {
             val text = "Download https://example.invalid/file?token=abc$ending"
             val parsed = parseMobileSharedTransfer(text)
             assertEquals(text, parsed.input)
             assertEquals(MobileShareValidation.InvalidLink, parsed.validation)
         }
+    }
+
+    @Test
+    fun surroundingWrappersNeverCauseUrlCharactersToBeStripped() {
+        for (text in listOf(
+            "Watch (https://example.invalid/episode)",
+            "Watch [(https://example.invalid/episode)]",
+            "Watch {[(https://example.invalid/episode_(part_1))]}",
+            "Download https://example.invalid/file?signature=abc) now",
+        )) {
+            val parsed = parseMobileSharedTransfer(text)
+            assertEquals(text, parsed.input)
+            assertEquals(MobileShareValidation.InvalidLink, parsed.validation)
+        }
+        val exact = "https://example.invalid/file?signature=abc)"
+        assertEquals(exact, parseMobileSharedTransfer(exact).input)
+        assertNull(parseMobileSharedTransfer(exact).validation)
     }
 
     @Test

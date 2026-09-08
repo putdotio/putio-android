@@ -43,7 +43,7 @@ internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
     val trimmed = text.trim()
     if (TransferSubmission.parse(trimmed) != null) return MobileSharedTransfer(trimmed)
     val links = SharedLink.findAll(trimmed)
-        .map { match -> match.value.removeUnmatchedClosingDelimiters() }
+        .map { match -> match.value }
         .distinct()
         .take(2)
         .toList()
@@ -58,24 +58,9 @@ internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
     }
 }
 
-private fun String.removeUnmatchedClosingDelimiters(): String {
-    val unmatched = listOf('(' to ')', '[' to ']', '{' to '}').associate { (opening, closing) ->
-        closing to (count { it == closing } - count { it == opening })
-    }.toMutableMap()
-    var end = length
-    while (end > 0) {
-        val closing = this[end - 1]
-        val remaining = unmatched[closing] ?: break
-        if (remaining <= 0) break
-        unmatched[closing] = remaining - 1
-        end--
-    }
-    return substring(0, end)
-}
-
 internal fun CharSequence.fitsMobileTransferInputLimit(): Boolean =
     length <= MOBILE_TRANSFER_INPUT_LIMIT && toString().toByteArray(Charsets.UTF_8).size <= MOBILE_TRANSFER_INPUT_LIMIT
 
 internal const val MOBILE_TRANSFER_INPUT_LIMIT = 16 * 1024
-private const val AmbiguousProseEndings = ".,;:!?'"
-private val SharedLink = Regex("(?:https?://|magnet:\\?)[^\\s<>\\\"“”]+", RegexOption.IGNORE_CASE)
+private const val AmbiguousProseEndings = ".,;:!?')]}”’"
+private val SharedLink = Regex("(?:https?://|magnet:\\?)[^\\s<>\\\"]+", RegexOption.IGNORE_CASE)
