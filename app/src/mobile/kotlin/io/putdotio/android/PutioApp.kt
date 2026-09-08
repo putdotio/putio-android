@@ -137,7 +137,7 @@ private val TabletMinWidth = 600.dp
 @Composable
 fun PutioApp(
     authTabLauncher: ActivityResultLauncher<Intent>? = null,
-    nowPlayingRequests: NowPlayingRequests = emptyFlow(),
+    nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
 ) {
     val context = LocalContext.current
     val runtime = remember(context.applicationContext) { MobileOAuthRuntime.get(context) }
@@ -332,7 +332,7 @@ internal fun SignedInMobileRoot(
     authController: MobileAuthController,
     rootScope: CoroutineScope,
     playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
-    nowPlayingRequests: NowPlayingRequests = emptyFlow(),
+    nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
 ) {
     val account = signedIn.account
     val sessionId = signedIn.sessionId
@@ -576,7 +576,7 @@ internal fun MobileShell(
     },
     onTransferAuthenticationRequired: suspend () -> Unit = {},
     contentNavigation: Flow<FilesItem> = emptyFlow(),
-    nowPlayingRequests: NowPlayingRequests = emptyFlow(),
+    nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     navigationFailure: FilesFailure? = null,
     onDismissNavigationFailure: () -> Unit = {},
     onSignOut: () -> Unit,
@@ -629,8 +629,12 @@ internal fun MobileShell(
         if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null,
     )
     LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext) {
-        nowPlayingRequests.collect {
-            val target = playbackPlayerFactory.activeAudio(appContext) ?: return@collect
+        nowPlayingRequests.pending.collect { pending ->
+            if (!pending) return@collect
+            val target = playbackPlayerFactory.activeAudio(appContext)
+            // Acknowledged only once the lookup finished: a cancelled lookup leaves it pending.
+            nowPlayingRequests.acknowledge()
+            if (target == null) return@collect
             val onPlaybackRoute = currentPlaybackFileId
             if (onPlaybackRoute == target.fileId.value) return@collect
             // A different item's route, still loading or failed, gives no controls for the live audio.

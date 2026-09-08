@@ -4,9 +4,8 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.browser.auth.AuthTabIntent
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 class MainActivity : BasePutioActivity() {
     internal val authTabLauncher = AuthTabIntent.registerActivityResultLauncher(this) { result ->
@@ -17,22 +16,21 @@ class MainActivity : BasePutioActivity() {
         )
     }
 
-    // A channel holds a request until the shell collects it and hands it over exactly once;
-    // a shared flow without replay would drop it before the first collector exists.
-    private val nowPlayingRequests = Channel<Unit>(Channel.CONFLATED)
-    internal val nowPlayingRequestFlow: NowPlayingRequests = nowPlayingRequests.receiveAsFlow()
+    private val pendingNowPlayingRequest = MutableStateFlow(false)
+
+    /** Stays pending until the shell has acted on it, so a recreation mid-flight cannot lose it. */
+    internal val nowPlayingRequests: NowPlayingRequests =
+        NowPlayingRequests(pendingNowPlayingRequest) { pendingNowPlayingRequest.value = false }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
-        // A restored Activity republishes a request the previous instance never delivered, and
-        // skips one it did; a fresh notification tap arrives through onNewIntent either way.
         when {
             savedInstanceState == null -> publishNowPlayingRequest(intent)
-            savedInstanceState.getBoolean(STATE_NOW_PLAYING_PENDING) -> nowPlayingRequests.trySend(Unit)
+            savedInstanceState.getBoolean(STATE_NOW_PLAYING_PENDING) -> pendingNowPlayingRequest.value = true
         }
         setContent {
-            PutioApp(authTabLauncher, nowPlayingRequestFlow)
+            PutioApp(authTabLauncher, nowPlayingRequests)
         }
     }
 
@@ -46,12 +44,11 @@ class MainActivity : BasePutioActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        // A conflated channel that still holds its element has not been delivered yet.
-        outState.putBoolean(STATE_NOW_PLAYING_PENDING, !nowPlayingRequests.isEmpty)
+        outState.putBoolean(STATE_NOW_PLAYING_PENDING, pendingNowPlayingRequest.value)
     }
 
     private fun publishNowPlayingRequest(intent: Intent?) {
-        if (intent?.action == MobilePlaybackService.ACTION_OPEN_NOW_PLAYING) nowPlayingRequests.trySend(Unit)
+        if (intent?.action == MobilePlaybackService.ACTION_OPEN_NOW_PLAYING) pendingNowPlayingRequest.value = true
     }
 
     private companion object {
@@ -59,4 +56,12 @@ class MainActivity : BasePutioActivity() {
     }
 }
 
-internal typealias NowPlayingRequests = Flow<Unit>
+/** A request to open the live audio player; [acknowledge] clears it once handled. */
+class NowPlayingRequests internal constructor(
+    internal val pending: StateFlow<Boolean>,
+    internal val acknowledge: () -> Unit,
+) {
+    internal companion object {
+        val None = NowPlayingRequests(MutableStateFlow(false)) {}
+    }
+}

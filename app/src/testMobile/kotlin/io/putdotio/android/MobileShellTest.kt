@@ -106,6 +106,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -1078,7 +1079,8 @@ class MobileShellPlaybackTest {
         )
         session.prepare()
         session.play()
-        val requests = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(replay = 1)
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val requests = NowPlayingRequests(pending) { pending.value = false }
         compose.setPlaybackShell(
             filesState = mediaFilesState(),
             playbackRepository = EndingPlaybackRepository,
@@ -1087,13 +1089,14 @@ class MobileShellPlaybackTest {
         )
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
 
-        compose.runOnIdle { requests.tryEmit(Unit) }
+        compose.runOnIdle { pending.value = true }
 
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
         compose.onNodeWithText("song.mp3").assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(1, session.prepareCalls)
             assertTrue(session.playWhenReady)
+            assertFalse(pending.value)
         }
     }
 
@@ -1109,7 +1112,8 @@ class MobileShellPlaybackTest {
         )
         session.prepare()
         session.play()
-        val requests = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(replay = 1)
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val requests = NowPlayingRequests(pending) { pending.value = false }
         compose.setPlaybackShell(
             filesState = videoAndAudioFilesState(),
             playbackRepository = VideoConvertsAudioReadyRepository,
@@ -1119,7 +1123,7 @@ class MobileShellPlaybackTest {
         compose.onNodeWithText("episode.mkv").performClick()
         compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
 
-        compose.runOnIdle { requests.tryEmit(Unit) }
+        compose.runOnIdle { pending.value = true }
 
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
         compose.onAllNodesWithText("Video is being prepared").assertCountEquals(0)
@@ -1171,7 +1175,7 @@ class MobileShellPlaybackTest {
         playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
         onPlaybackAuthenticationRequired: suspend () -> Unit = {},
         filesState: FilesBrowserState = videoFilesState(),
-        nowPlayingRequests: NowPlayingRequests = kotlinx.coroutines.flow.emptyFlow(),
+        nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     ) {
         setContent {
             PutioTheme {
