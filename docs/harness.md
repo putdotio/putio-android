@@ -626,7 +626,9 @@ The mobile launcher accepts `ACTION_SEND` with `text/plain`. A URL or magnet
 opens an editable Add transfer sheet after sign-in; only Add submits it. Text
 with exactly one supported link prefills that link. Multiple links remain
 editable with guidance to choose one. A new share cannot overwrite an existing
-draft without confirmation or interrupt a running mutation.
+draft without confirmation or interrupt a running mutation. Input is limited to
+16 KiB of UTF-8; oversized shares are rejected without truncation. A rejected
+oversized edit keeps the previous draft but blocks Add until the user edits it.
 
 Share payloads and add-transfer drafts stay in Activity-owned memory. Rotation
 retains them; process death discards them. Saved state contains only consumed

@@ -21,7 +21,7 @@ internal fun Intent.consumeMobileSharedTransfer(): MobileSharedTransfer? {
     if (action != Intent.ACTION_SEND || type != "text/plain") return null
     return try {
         val value = getCharSequenceExtra(Intent.EXTRA_TEXT)
-        if (value != null && value.length > MOBILE_TRANSFER_INPUT_LIMIT) {
+        if (value != null && !value.fitsMobileTransferInputLimit()) {
             MobileSharedTransfer("", MobileShareValidation.TooLong)
         } else {
             parseMobileSharedTransfer(value?.toString().orEmpty())
@@ -39,17 +39,20 @@ internal fun Intent.consumeMobileSharedTransfer(): MobileSharedTransfer? {
 }
 
 internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
-    if (text.length > MOBILE_TRANSFER_INPUT_LIMIT) return MobileSharedTransfer("", MobileShareValidation.TooLong)
+    if (!text.fitsMobileTransferInputLimit()) return MobileSharedTransfer("", MobileShareValidation.TooLong)
     val trimmed = text.trim()
     if (TransferSubmission.parse(trimmed) != null) return MobileSharedTransfer(trimmed)
     val links = SharedLink.findAll(trimmed)
         .map { match -> match.value.removeUnmatchedClosingDelimiters() }
-        .filter { TransferSubmission.parse(it) != null }
         .distinct()
         .take(2)
         .toList()
     return when (links.size) {
-        1 -> MobileSharedTransfer(links.single())
+        1 -> if (TransferSubmission.parse(links.single()) != null) {
+            MobileSharedTransfer(links.single())
+        } else {
+            MobileSharedTransfer(text, MobileShareValidation.InvalidLink)
+        }
         0 -> MobileSharedTransfer(text, MobileShareValidation.InvalidLink)
         else -> MobileSharedTransfer(text, MobileShareValidation.MultipleLinks)
     }
@@ -65,5 +68,8 @@ private fun String.removeUnmatchedClosingDelimiters(): String {
     return candidate
 }
 
+internal fun CharSequence.fitsMobileTransferInputLimit(): Boolean =
+    length <= MOBILE_TRANSFER_INPUT_LIMIT && toString().toByteArray(Charsets.UTF_8).size <= MOBILE_TRANSFER_INPUT_LIMIT
+
 internal const val MOBILE_TRANSFER_INPUT_LIMIT = 16 * 1024
-private val SharedLink = Regex("(?:https?://|magnet:\\?)[^\\s<>\\\"'“”]+", RegexOption.IGNORE_CASE)
+private val SharedLink = Regex("(?:https?://|magnet:\\?)[^\\s<>\\\"“”]+", RegexOption.IGNORE_CASE)

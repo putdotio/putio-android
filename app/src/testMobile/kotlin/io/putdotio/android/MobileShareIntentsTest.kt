@@ -34,6 +34,7 @@ class MobileShareIntentsTest {
     fun oneLinkInSurroundingTextIsExtractedWithoutLosingBalancedUrlCharacters() {
         for ((text, expected) in listOf(
             "Episode title\nhttps://example.invalid/episode\nSent from a browser" to "https://example.invalid/episode",
+            "Download https://example.invalid/file?token=abc'def now" to "https://example.invalid/file?token=abc'def",
             "Watch <https://example.invalid/episode>" to "https://example.invalid/episode",
             "Watch (https://example.invalid/episode)" to "https://example.invalid/episode",
             "Watch (https://example.invalid/episode_(part_1))" to "https://example.invalid/episode_(part_1)",
@@ -48,6 +49,9 @@ class MobileShareIntentsTest {
 
     @Test
     fun multipleLinksAndUnsupportedTextRemainEditableWithoutAnArbitrarySelection() {
+        val mixed = "One https://example.invalid/a and two magnet:?dn=missing-hash"
+        assertEquals(mixed, parseMobileSharedTransfer(mixed).input)
+        assertEquals(MobileShareValidation.MultipleLinks, parseMobileSharedTransfer(mixed).validation)
         val multiple = "One https://example.invalid/a and two magnet:?xt=urn:btih:12345"
         val parsed = parseMobileSharedTransfer(multiple)
         assertEquals(multiple, parsed.input)
@@ -66,6 +70,19 @@ class MobileShareIntentsTest {
         val parsed = parseMobileSharedTransfer("https://example.invalid/" + "a".repeat(MOBILE_TRANSFER_INPUT_LIMIT))
         assertEquals("", parsed.input)
         assertEquals(MobileShareValidation.TooLong, parsed.validation)
+    }
+
+    @Test
+    fun unicodeLimitCountsUtf8BytesAtTheShareBoundary() {
+        val text = "https://example.invalid/" + "東".repeat(MOBILE_TRANSFER_INPUT_LIMIT / 2)
+        assertTrue(text.length < MOBILE_TRANSFER_INPUT_LIMIT)
+        val intent = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+        for (result in listOf(parseMobileSharedTransfer(text), requireNotNull(intent.consumeMobileSharedTransfer()))) {
+            assertEquals("", result.input)
+            assertEquals(MobileShareValidation.TooLong, result.validation)
+        }
+        assertTrue("a".repeat(MOBILE_TRANSFER_INPUT_LIMIT).fitsMobileTransferInputLimit())
+        assertTrue("東".repeat(MOBILE_TRANSFER_INPUT_LIMIT / 3).fitsMobileTransferInputLimit())
     }
 
     @Test

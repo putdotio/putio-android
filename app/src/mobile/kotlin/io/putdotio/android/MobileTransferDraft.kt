@@ -81,7 +81,7 @@ class MobileTransferDraft : ViewModel() {
     internal fun edit(input: String) {
         val current = mutableState.value
         if (current.submitting) return
-        mutableState.value = if (input.length > MOBILE_TRANSFER_INPUT_LIMIT) {
+        mutableState.value = if (!input.fitsMobileTransferInputLimit()) {
             current.copy(validation = MobileShareValidation.TooLong)
         } else {
             current.copy(input = input, validation = null)
@@ -95,7 +95,7 @@ class MobileTransferDraft : ViewModel() {
 
     internal fun validate(): String? {
         val current = mutableState.value
-        if (current.submitting) return null
+        if (current.submitting || current.validation == MobileShareValidation.TooLong) return null
         val valid = TransferSubmission.parse(current.input)?.value
         mutableState.value = current.copy(
             input = valid ?: current.input,
@@ -116,8 +116,8 @@ class MobileTransferDraft : ViewModel() {
     internal fun restoreRejectedInput(input: String) {
         val current = mutableState.value
         mutableState.value = current.copy(
-            input = current.input.ifBlank { input.takeIf { it.length <= MOBILE_TRANSFER_INPUT_LIMIT }.orEmpty() },
-            validation = if (input.length > MOBILE_TRANSFER_INPUT_LIMIT) {
+            input = current.input.ifBlank { input.takeIf { it.fitsMobileTransferInputLimit() }.orEmpty() },
+            validation = if (!input.fitsMobileTransferInputLimit()) {
                 MobileShareValidation.TooLong
             } else {
                 current.validation

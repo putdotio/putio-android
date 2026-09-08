@@ -146,6 +146,12 @@ class MobileTransferDraftTest {
         draft.edit("https://example.invalid/" + "a".repeat(MOBILE_TRANSFER_INPUT_LIMIT))
         assertEquals(First, draft.state.value.input)
         assertEquals(MobileShareValidation.TooLong, draft.state.value.validation)
+        assertNull(draft.validate())
+        draft.edit(Edited)
+        assertEquals(Edited, draft.validate())
+        draft.edit("https://example.invalid/" + "東".repeat(MOBILE_TRANSFER_INPUT_LIMIT / 2))
+        assertEquals(Edited, draft.state.value.input)
+        assertNull(draft.validate())
     }
 
     @Test
