@@ -623,12 +623,13 @@ internal fun MobileShell(
     val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
     val resolvingTransfer = transfersState.navigation as? TransferNavigation.Resolving
 
-    val context = LocalContext.current
+    // The collector outlives any one Activity, so it must not hold one.
+    val appContext = LocalContext.current.applicationContext
     val currentIsPlayback by rememberUpdatedState(isPlayback)
-    LaunchedEffect(nowPlayingRequests, playbackPlayerFactory) {
+    LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext) {
         nowPlayingRequests.collect {
             if (currentIsPlayback) return@collect
-            val target = playbackPlayerFactory.activeAudio(context) ?: return@collect
+            val target = playbackPlayerFactory.activeAudio(appContext) ?: return@collect
             navController.navigateToPlayback(target.fileId, target.title, PlaybackMediaType.AUDIO)
         }
     }

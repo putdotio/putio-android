@@ -93,9 +93,8 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
         val future =
             MediaController.Builder(appContext, MobilePlaybackService.sessionToken(appContext)).buildAsync()
         future.addListener(
-            {
-                if (!future.isCancelled) onResult(runCatching { future.get() })
-            },
+            // A cancelled connection still answers, so no caller waits forever.
+            { onResult(runCatching { future.get() }) },
             ContextCompat.getMainExecutor(appContext),
         )
         return Closeable { MediaController.releaseFuture(future) }
