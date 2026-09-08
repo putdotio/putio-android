@@ -94,7 +94,9 @@ internal fun MobileSubtitleControls(
             R.string.mobile_playback_subtitles_off
         },
     )
-    val chooseDescription = stringResource(R.string.mobile_playback_choose_subtitles)
+    val chooseDescription = stringResource(
+        if (showLabel) R.string.mobile_playback_captions_control else R.string.mobile_playback_choose_subtitles,
+    )
     val triggerModifier = modifier.then(interactionModifier).heightIn(min = 48.dp).semantics {
         stateDescription = description
         contentDescription = chooseDescription

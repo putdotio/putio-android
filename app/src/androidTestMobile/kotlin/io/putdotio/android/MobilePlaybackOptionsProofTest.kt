@@ -13,8 +13,10 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.StateRestorationTester
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -56,7 +58,8 @@ import org.junit.runners.model.Statement
 @RunWith(AndroidJUnit4::class)
 class MobilePlaybackOptionsProofTest {
     // Media3 listener coroutines must stay on the main looper; v2's queued dispatcher drains on the test thread.
-    private val compose = createComposeRule()
+    private val compose = createAndroidComposeRule<MobileFullscreenProofActivity>()
+    private var proofMediaType = PlaybackMediaType.VIDEO
     private val optIn = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {
@@ -125,6 +128,7 @@ class MobilePlaybackOptionsProofTest {
         factory: ObservedPlaybackFactory,
         lifecycle: OptionsProofLifecycle,
     ): StateRestorationTester {
+        proofMediaType = mediaType
         val source = fixture(mediaType)
         val state = PlaybackState(
             target = PlaybackTarget(
@@ -166,18 +170,18 @@ class MobilePlaybackOptionsProofTest {
         showControls()
         screenshot("$label-player")
         selectSpeedWithKeyboard(factory)
-        showOptions()
-        compose.onNodeWithText("Playback speed").performTouchInput { click() }
+        openSpeedOptions()
         compose.onNodeWithText("1.5×").performTouchInput { click() }
         val track = compose.runOnIdle { factory.current().currentTracks.mobileAudioTracks()[1] }
         val title = track.label ?: context.getString(R.string.mobile_playback_audio_track_number, 2)
-        showOptions()
-        compose.onNodeWithText("Audio track").performTouchInput { click() }
+        openAudioOptions()
         compose.onNodeWithText(title).performScrollTo().performTouchInput { click() }
         awaitSelection(factory, track.identity)
         showOptions()
         screenshot("$label-settings")
-        compose.onNodeWithText("Audio track").performTouchInput { click() }
+        if (proofMediaType == PlaybackMediaType.AUDIO) {
+            compose.onNodeWithText("Audio track").performTouchInput { click() }
+        }
         compose.onNodeWithText(title).performScrollTo().assertIsDisplayed()
         screenshot("$label-selected")
         compose.onNodeWithText(title).performTouchInput { click() }
@@ -185,8 +189,7 @@ class MobilePlaybackOptionsProofTest {
     }
 
     private fun selectSpeedWithKeyboard(factory: ObservedPlaybackFactory) {
-        showOptions()
-        compose.onNodeWithText("Playback speed").performTouchInput { click() }
+        openSpeedOptions()
         val choice = compose.onNodeWithText("1.25×")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         for (step in 0 until 8) {
@@ -203,7 +206,36 @@ class MobilePlaybackOptionsProofTest {
 
     private fun showOptions() {
         showControls()
-        val center = compose.onNodeWithContentDescription("Playback options").fetchSemanticsNode().boundsInWindow.center
+        if (proofMediaType == PlaybackMediaType.VIDEO) {
+            tapThroughAndroid(compose.onNodeWithText("Audio"))
+            compose.onNodeWithText("Audio track").assertIsDisplayed()
+        } else {
+            tapThroughAndroid(compose.onNodeWithContentDescription("Playback options"))
+            compose.onNodeWithText("Playback speed").assertIsDisplayed()
+        }
+        compose.mainClock.advanceTimeBy(300)
+        compose.waitForIdle()
+    }
+
+    private fun openSpeedOptions() {
+        if (proofMediaType == PlaybackMediaType.VIDEO) {
+            showControls()
+            tapThroughAndroid(compose.onNodeWithContentDescription("Playback speed", substring = true))
+        } else {
+            showOptions()
+            compose.onNodeWithText("Playback speed").performTouchInput { click() }
+        }
+    }
+
+    private fun openAudioOptions() {
+        showOptions()
+        if (proofMediaType == PlaybackMediaType.AUDIO) {
+            compose.onNodeWithText("Audio track").performTouchInput { click() }
+        }
+    }
+
+    private fun tapThroughAndroid(node: SemanticsNodeInteraction) {
+        val center = node.fetchSemanticsNode().boundsInWindow.center
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val downTime = SystemClock.uptimeMillis()
         // Inject through Android so the keyboard-to-touch transition also clears native tooltip focus.
@@ -211,16 +243,18 @@ class MobilePlaybackOptionsProofTest {
             val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, center.x, center.y, 0)
             try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
         }
-        compose.onNodeWithText("Playback speed").assertIsDisplayed()
-        compose.mainClock.advanceTimeBy(300)
-        compose.waitForIdle()
     }
 
     private fun showControls() {
-        if (compose.onAllNodes(hasContentDescription("Playback options")).fetchSemanticsNodes().isEmpty()) {
+        val trigger = if (proofMediaType == PlaybackMediaType.VIDEO) {
+            hasText("Audio")
+        } else {
+            hasContentDescription("Playback options")
+        }
+        if (compose.onAllNodes(trigger).fetchSemanticsNodes().isEmpty()) {
             compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput { click() }
         }
-        compose.onNodeWithContentDescription("Playback options").assertIsDisplayed()
+        compose.onNode(trigger).assertIsDisplayed()
     }
 
     private fun awaitReady(factory: ObservedPlaybackFactory) {

@@ -1919,7 +1919,7 @@ class MobilePlayerScreenTest {
         }
         compose.mainClock.advanceTimeByFrame()
         compose.onNodeWithText("Audio").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Playback speed").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Playback speed", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Captions").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back").assertIsDisplayed()
 

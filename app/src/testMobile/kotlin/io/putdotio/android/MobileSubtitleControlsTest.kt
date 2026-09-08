@@ -96,7 +96,7 @@ class MobileSubtitleControlsTest {
         }
 
         compose.onNodeWithText("Captions").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Choose subtitles").performClick()
+        compose.onNodeWithContentDescription("Captions").performClick()
         compose.onNodeWithText("No captions available").assertIsDisplayed()
         compose.onNodeWithText("Automatic").assertIsDisplayed()
         compose.onNodeWithText("Off").performClick()

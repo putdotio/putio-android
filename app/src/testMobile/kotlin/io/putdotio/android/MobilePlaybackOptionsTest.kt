@@ -72,6 +72,7 @@ class MobilePlaybackOptionsTest {
         compose.onNodeWithContentDescription("Back").assertDoesNotExist()
         compose.onNodeWithText("1.5×").performClick()
         compose.onNodeWithText("1.5×").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Playback speed 1.5×").assertIsDisplayed()
         compose.runOnIdle { assertEquals(1.5f, player.playbackParameters.speed) }
     }
 

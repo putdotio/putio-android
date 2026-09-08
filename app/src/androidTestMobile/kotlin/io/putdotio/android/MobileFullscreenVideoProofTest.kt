@@ -107,7 +107,7 @@ class MobileFullscreenVideoProofTest {
             showControls()
             compose.onNodeWithText("1×").assertIsDisplayed()
             screenshot("landscape-direct-controls")
-            compose.onNodeWithContentDescription("Playback speed").performTouchInput { click() }
+            compose.onNodeWithContentDescription("Playback speed", substring = true).performTouchInput { click() }
             screenshot("landscape-speed-sheet")
             compose.onNodeWithText("1.5×").performScrollTo().performTouchInput { click() }
             val audio = compose.runOnIdle { factory.current().currentTracks.mobileAudioTracks()[1] }
@@ -120,11 +120,25 @@ class MobileFullscreenVideoProofTest {
             awaitChoices(factory, audio.identity, caption.identity)
             showControls()
             screenshot("landscape-selected-caption")
-            val originalPlayer = compose.runOnIdle { factory.current() }
+            val originalPlayer = compose.runOnIdle {
+                factory.current().also { player ->
+                    player.pause()
+                    player.seekTo(45_000L)
+                }
+            }
+            awaitPlayer(factory) { it.playbackState == Player.STATE_READY && it.currentPosition >= 45_000L }
+            val positionBeforeRestore = compose.runOnIdle { originalPlayer.currentPosition }
             restoration.emulateSavedInstanceStateRestore()
             awaitVideo(factory)
             compose.runOnIdle { assertNotSame(originalPlayer, factory.current()) }
             awaitChoices(factory, audio.identity, caption.identity)
+            compose.runOnIdle {
+                val restored = factory.current()
+                assertTrue("Playback position must survive replacement",
+                    restored.currentPosition in positionBeforeRestore..positionBeforeRestore + 1_500L)
+                assertTrue("Paused playback must remain paused", !restored.playWhenReady)
+                restored.play()
+            }
             awaitWindow(Configuration.ORIENTATION_LANDSCAPE, barsVisible = false)
             screenshot("landscape-restored")
             chooseCaption("Off")
@@ -158,7 +172,7 @@ class MobileFullscreenVideoProofTest {
         }
         compose.onNodeWithText("Audio").assertIsDisplayed()
         compose.onNodeWithText("Captions").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Playback speed").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Playback speed", substring = true).assertIsDisplayed()
     }
 
     private fun awaitVideo(factory: FullscreenProofPlayerFactory) {

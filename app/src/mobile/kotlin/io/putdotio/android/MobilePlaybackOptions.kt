@@ -120,7 +120,7 @@ internal fun MobilePlaybackOptions(
         TextButton(
             onClick = { open(PlaybackOptionsPage.Speed) },
             modifier = interactionModifier.heightIn(min = 48.dp).semantics {
-                contentDescription = speedDescription
+                contentDescription = "$speedDescription $speedLabel"
                 stateDescription = speedLabel
             },
             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface),
