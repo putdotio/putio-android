@@ -90,6 +90,8 @@ class MobileAccessibilityProofTest {
         compose.onNodeWithText(ACCESSIBILITY_FILE_NAME).assertIsDisplayed()
         capture("files")
         compose.onNodeWithContentDescription("Actions for $ACCESSIBILITY_FILE_NAME").performClick()
+        compose.onNodeWithText("Move to trash").performScrollTo().assertIsDisplayed()
+        capture("files-actions-bottom")
         compose.onNodeWithText("Rename").performScrollTo().assertIsDisplayed()
         capture("files-actions")
         compose.onNodeWithText("Rename").performClick()
@@ -139,7 +141,10 @@ class MobileAccessibilityProofTest {
         compose.runOnIdle { assertEquals(listOf(RecentSearchEdit.Remove(terms.first())), edits) }
         compose.onNodeWithText(terms.last().value).assertIsDisplayed()
         compose.runOnIdle { transfers = true }
-        compose.onNodeWithText("Clean completed").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Transfer actions").performClick()
+        compose.onNodeWithText("Clean completed").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Clean completed transfers?").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
         compose.onNodeWithText("Rehearsal documentary.mp4").assertIsDisplayed()
         capture("transfers-ready")
         compose.onNodeWithText("Add transfer").performClick()

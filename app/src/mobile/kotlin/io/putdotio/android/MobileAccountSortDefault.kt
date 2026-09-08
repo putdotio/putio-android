@@ -51,21 +51,18 @@ internal fun LazyListScope.defaultSortItem(
         Column(modifier = Modifier.fillMaxWidth()) {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.mobile_settings_default_sort)) },
-                supportingContent = { Text(stringResource(R.string.mobile_settings_default_sort_description)) },
+                supportingContent = {
+                    MobileAccountValueDescription(
+                        value = preferences.defaultSort.displayName(),
+                        description = stringResource(R.string.mobile_settings_default_sort_description),
+                    )
+                },
                 leadingContent = {
                     Icon(painter = painterResource(R.drawable.ic_ph_sort_ascending), contentDescription = null)
                 },
-                trailingContent = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (saving) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        }
-                        Text(preferences.defaultSort.displayName())
-                    }
-                },
+                trailingContent = if (saving) {
+                    { CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp) }
+                } else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag(MOBILE_DEFAULT_SORT_ROW_TAG)

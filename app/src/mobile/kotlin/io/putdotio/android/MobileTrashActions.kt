@@ -15,6 +15,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,7 +54,11 @@ internal fun MobileTrashItemSheet(
     onEvent: (TrashEvent) -> Boolean,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, modifier = Modifier.testTag(MOBILE_TRASH_ITEM_SHEET_TAG)) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        modifier = Modifier.testTag(MOBILE_TRASH_ITEM_SHEET_TAG),
+    ) {
         Column(Modifier.verticalScroll(rememberScrollState())) {
             Text(
                 text = item.name,

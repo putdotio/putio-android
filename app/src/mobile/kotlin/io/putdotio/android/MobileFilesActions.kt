@@ -14,6 +14,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -168,7 +169,10 @@ internal fun MobileFilesActions(
             },
         )
     } else {
-        ModalBottomSheet(onDismissRequest = dismiss) {
+        ModalBottomSheet(
+            onDismissRequest = dismiss,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
                     text = item.name,
