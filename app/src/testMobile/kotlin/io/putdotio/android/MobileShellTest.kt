@@ -1098,6 +1098,38 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun mediaNotificationTapReplacesAnotherItemsPlaybackRoute() {
+        val session = RecordingPlayer()
+        session.setMediaItem(
+            androidx.media3.common.MediaItem.Builder()
+                .setMediaId("9")
+                .setUri("https://example.com/song.mp3")
+                .setMediaMetadata(androidx.media3.common.MediaMetadata.Builder().setTitle("song.mp3").build())
+                .build(),
+        )
+        session.prepare()
+        session.play()
+        val requests = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(replay = 1)
+        compose.setPlaybackShell(
+            filesState = videoAndAudioFilesState(),
+            playbackRepository = ConversionRepository,
+            playbackPlayerFactory = ShellSessionFactory(session) {},
+            nowPlayingRequests = requests,
+        )
+        compose.onNodeWithText("episode.mkv").performClick()
+        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+
+        compose.runOnIdle { requests.tryEmit(Unit) }
+
+        // ConversionRepository answers every resolve, so the audio route lands on its own conversion copy.
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("song.mp3").fetchSemanticsNodes().isEmpty() }
+        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+        compose.onNodeWithText("episode.mkv").assertIsDisplayed()
+    }
+
+    @Test
     fun terminalAutoplayRestoresTheFilesRoute() {
         lateinit var player: RecordingPlayer
         compose.setPlaybackShell(
@@ -1327,6 +1359,17 @@ private fun mediaFilesState(): FilesBrowserState {
     return FilesBrowserReducer.reduce(
         initial.state,
         FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(audio), nextCursor = null)),
+    ).state
+}
+
+private fun videoAndAudioFilesState(): FilesBrowserState {
+    val initial = FilesBrowserReducer.start()
+    val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
+    val video = FilesItem(FilesItemId(8L), FilesFolder.Root.id, "episode.mkv", PutioFileType.VIDEO, 1L, "2026-08-29T00:00:00Z")
+    val audio = FilesItem(FilesItemId(9L), FilesFolder.Root.id, "song.mp3", PutioFileType.AUDIO, 1L, "2026-08-29T00:00:00Z")
+    return FilesBrowserReducer.reduce(
+        initial.state,
+        FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(video, audio), nextCursor = null)),
     ).state
 }
 

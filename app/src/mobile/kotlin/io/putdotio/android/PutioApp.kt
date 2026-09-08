@@ -625,12 +625,21 @@ internal fun MobileShell(
 
     // The collector outlives any one Activity, so it must not hold one.
     val appContext = LocalContext.current.applicationContext
-    val currentIsPlayback by rememberUpdatedState(isPlayback)
+    val currentPlaybackFileId by rememberUpdatedState(
+        if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null,
+    )
     LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext) {
         nowPlayingRequests.collect {
-            if (currentIsPlayback) return@collect
             val target = playbackPlayerFactory.activeAudio(appContext) ?: return@collect
-            navController.navigateToPlayback(target.fileId, target.title, PlaybackMediaType.AUDIO)
+            val onPlaybackRoute = currentPlaybackFileId
+            if (onPlaybackRoute == target.fileId.value) return@collect
+            // A different item's route, still loading or failed, gives no controls for the live audio.
+            navController.navigateToPlayback(
+                target.fileId,
+                target.title,
+                PlaybackMediaType.AUDIO,
+                replaceCurrentPlayback = onPlaybackRoute != null,
+            )
         }
     }
     LaunchedEffect(contentNavigation) {
@@ -1371,6 +1380,9 @@ private fun NavHostController.navigateToPlayback(
     fileId: FilesItemId,
     name: String,
     mediaType: PlaybackMediaType,
+    replaceCurrentPlayback: Boolean = false,
 ) {
-    navigate("playback/${fileId.value}?name=${Uri.encode(name)}&media=${mediaType.name}")
+    navigate("playback/${fileId.value}?name=${Uri.encode(name)}&media=${mediaType.name}") {
+        if (replaceCurrentPlayback) popUpTo(MOBILE_PLAYBACK_ROUTE) { inclusive = true }
+    }
 }

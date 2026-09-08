@@ -1,11 +1,6 @@
 package io.putdotio.android
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityManager
@@ -821,9 +816,6 @@ private fun MobileSessionPlayerHost(
         content(null)
         return
     }
-    // Without it the system hides the media notification and its lock-screen controls on
-    // API 33+; playback itself does not depend on the answer.
-    RequestNotificationPermissionOnce()
     var attempt by remember { mutableIntStateOf(0) }
     var connection by remember { mutableStateOf<Result<Media3Player>?>(null) }
     DisposableEffect(context, playerFactory, attempt) {
@@ -845,19 +837,6 @@ private fun MobileSessionPlayerHost(
                     )
                 },
             )
-    }
-}
-
-@Composable
-private fun RequestNotificationPermissionOnce() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-    val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-    LaunchedEffect(context) {
-        val granted =
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED
-        if (!granted) launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 }
 

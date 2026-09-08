@@ -60,8 +60,8 @@ internal fun interface MobilePlayerFactory {
                 handle?.closeQuietly()
                 if (continuation.isActive) continuation.resume(active)
             }
-            if (delivered) handle.closeQuietly()
-            continuation.invokeOnCancellation { handle.closeQuietly() }
+            if (delivered) handle?.closeQuietly()
+            continuation.invokeOnCancellation { handle?.closeQuietly() }
         }
 }
 
