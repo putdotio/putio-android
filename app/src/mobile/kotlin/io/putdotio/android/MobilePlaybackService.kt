@@ -59,6 +59,20 @@ class MobilePlaybackService : MediaSessionService() {
         return session
     }
 
+    // Bound controllers keep the service alive past stopService, so a stop must end
+    // playback itself instead of waiting for onDestroy.
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            session?.player?.let {
+                it.stop()
+                it.clearMediaItems()
+            }
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     // Active playback outlives the task; once it pauses, ends, or fails afterwards the listener stops us.
     override fun onTaskRemoved(rootIntent: Intent?) {
         taskRemoved = true
@@ -78,12 +92,18 @@ class MobilePlaybackService : MediaSessionService() {
     companion object {
         /** Launcher intent action from the media notification: land on the live player. */
         const val ACTION_OPEN_NOW_PLAYING = "io.putdotio.android.action.OPEN_NOW_PLAYING"
+        private const val ACTION_STOP = "io.putdotio.android.action.STOP_PLAYBACK"
 
         fun sessionToken(context: Context): SessionToken =
             SessionToken(context, ComponentName(context, MobilePlaybackService::class.java))
 
         fun stop(context: Context) {
-            context.stopService(Intent(context, MobilePlaybackService::class.java))
+            val intent = Intent(context, MobilePlaybackService::class.java).setAction(ACTION_STOP)
+            // Starting a not-yet-running service just to stop it is pointless and, in the
+            // background, forbidden; a running one handles the command immediately.
+            runCatching { context.startService(intent) }.onFailure {
+                context.stopService(Intent(context, MobilePlaybackService::class.java))
+            }
         }
     }
 }
