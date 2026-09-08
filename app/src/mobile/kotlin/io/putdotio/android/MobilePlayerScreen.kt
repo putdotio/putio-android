@@ -754,7 +754,7 @@ private fun MobileReadyPlayer(
             modifier =
                 Modifier
                     .align(Alignment.Center)
-                    .zIndex(1f),
+                    .zIndex(3f),
         )
         MobilePlayerChrome(
             player = player,
