@@ -32,6 +32,11 @@ class MobileOAuthRuntime internal constructor(
         write = SdkPlaybackPositionRepository(putioClient)::write,
     )
 
+    /** Background components that outlive the UI restore the session so the download resolver has its token. */
+    fun ensureSessionRestored() {
+        applicationScope.launch { authController.restoreSession() }
+    }
+
     fun dispatchAuthTabResult(
         resultCode: Int,
         rawResultUri: String?,

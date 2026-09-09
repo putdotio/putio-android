@@ -731,7 +731,8 @@ product deep links remain under #29.
 ## Downloads and offline playback
 
 Downloads use Media3's `DownloadService` and `SimpleCache` under the app's
-external files directory. A video download stores the HLS rendition the player
+internal files directory (`files/downloads/`), never external storage: cached
+playlist bodies carry the server's token. A video download stores the HLS rendition the player
 streams, subtitle renditions included; an audio download stores the original
 file. Media3 owns bytes, resume and the foreground notification, which shows a
 count and progress only. The app's index in private SharedPreferences holds
@@ -762,5 +763,5 @@ Cut the network during a larger download and confirm the row reads
 `Waiting for network`, then restore it and confirm the download completes by
 itself. Delete the local copy from the Downloads sheet and confirm the cache
 directory shrinks. Clear only `databases/exoplayer_internal.db*`,
-`shared_prefs/io.putdotio.android.downloads.xml` and `files/downloads/` between
-runs; never wipe app data or the session.
+`shared_prefs/io.putdotio.android.downloads.xml` and the internal
+`files/downloads/` between runs; never wipe app data or the session.

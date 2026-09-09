@@ -38,8 +38,10 @@ internal class MobileDownloadCache private constructor(context: Context) {
     @SuppressLint("StaticFieldLeak")
     private val appContext: Context = context.applicationContext
     private val databaseProvider = StandaloneDatabaseProvider(appContext)
+    // Internal storage: cached playlist bodies carry the server's oauth_token query, and
+    // app-external directories are readable by other apps on Android 8 to 10.
     val cache: SimpleCache = SimpleCache(
-        File(appContext.getExternalFilesDir(null) ?: appContext.filesDir, CACHE_DIRECTORY),
+        File(appContext.filesDir, CACHE_DIRECTORY),
         NoOpCacheEvictor(),
         databaseProvider,
     )

@@ -122,7 +122,12 @@ internal class MobileDownloadEngine(
         val fileId = fileIdOf(download.request.id) ?: return
         if (download.state == Download.STATE_REMOVING) return
         val status = download.toStatus(error, downloadManager.isWaitingForRequirements) ?: return
-        store.updateStatusBlocking(fileId) { it.copy(status = status, accepted = true) }
+        store.updateStatusBlocking(fileId) { current ->
+            // Reconcile sees the failed state without its exception; the stored reason is better.
+            val kept = current.status as? DownloadStatus.Failed
+            val next = if (status is DownloadStatus.Failed && error == null && kept != null) kept else status
+            current.copy(status = next, accepted = true)
+        }
     }
 
     private fun contentId(fileId: FilesItemId): String = "$userId:${fileId.value}"
