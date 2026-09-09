@@ -53,6 +53,10 @@ internal class MobileDownloadCache private constructor(context: Context) {
     @Volatile
     var accessToken: String? = null
 
+    /** Runs before the token is cleared so in-flight transfers park instead of failing with 401. */
+    @Volatile
+    var onTokenClearing: (() -> Unit)? = null
+
     /**
      * Completes once the auth layer has decided whether a stored session exists. A
      * background restart of the download service can open requests before that, so

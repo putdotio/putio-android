@@ -101,6 +101,7 @@ class MobileOAuthRuntime internal constructor(
                 pendingOAuthAttemptStore = SharedPreferencesPendingOAuthAttemptStore(context),
                 sessionGateway = PutioAuthSessionGateway(putioClient) { token ->
                     MobileDownloadCache.get(context).let {
+                        if (token == null) it.onTokenClearing?.invoke()
                         it.accessToken = token
                         it.markSessionSettled()
                     }

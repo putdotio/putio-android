@@ -31,9 +31,11 @@ internal class MobileDownloadEngine(
 ) : DownloadEngine, DownloadManager.Listener {
     private val appContext = context.applicationContext
     private val removing = mutableSetOf<FilesItemId>()
+    private val parkOnTokenClearing: () -> Unit = { park() }
 
     init {
         downloads.activeUserId = userId
+        downloads.onTokenClearing = parkOnTokenClearing
         downloadManager.addListener(this)
         reconcile()
     }
@@ -92,10 +94,19 @@ internal class MobileDownloadEngine(
     /** True while Media3 is still deleting this file's bytes; a new download must wait. */
     override fun isRemoving(fileId: FilesItemId): Boolean = synchronized(removing) { fileId in removing }
 
+    /**
+     * Detaches the UI. Transfers keep running: the service owns them and the token
+     * stays valid while the user is signed in. A sign-in by another user parks them
+     * through that user's reconcile, and a sign-out parks them through [park].
+     */
     fun close() {
         downloadManager.removeListener(this)
         if (downloads.activeUserId == userId) downloads.activeUserId = null
-        // Leave this user's transfers parked until the next session that owns them.
+        if (downloads.onTokenClearing === parkOnTokenClearing) downloads.onTokenClearing = null
+    }
+
+    /** Sign-out: stop this user's transfers before the token disappears; the next sign-in resumes them. */
+    fun park() {
         for (download in downloadManager.currentDownloads) {
             if (fileIdOf(download.request.id) != null) {
                 downloadManager.setStopReason(download.request.id, STOP_REASON_OTHER_USER)

@@ -52,10 +52,12 @@ internal class MobileDownloadsViewModel(
         }
     }
 
+    // The session ended or changed hands: park this user's transfers, then detach.
     private fun reconcile() {
         synchronized(lock) {
             val current = active ?: return
             if (current.key != authState.value.sessionKey()) {
+                current.park()
                 current.close()
                 active = null
             }
@@ -70,6 +72,8 @@ internal class MobileDownloadsViewModel(
         val controller: DownloadsController,
         private val engine: MobileDownloadEngine,
     ) {
+        fun park() = engine.park()
+
         fun close() {
             controller.close()
             engine.close()
