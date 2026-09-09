@@ -739,12 +739,18 @@ file id, name, type, rendition and status per user; it never holds a URL.
 
 Requests carry the token-free API URL, and a resolving data source adds the
 session header for `api.put.io` hosts. Playlist bodies from the server embed
-`oauth_token` in their child URLs; the cache key factory strips that query so
-the Media3 index stays token-free, and playback reads through the same cache.
+`oauth_token` in their child URLs; the cache key factory strips that query and
+prefixes the owning user id, so the Media3 index stays token-free and two
+accounts never share cached bytes. One `DownloadManager` per user drives that
+user's requests and pauses on sign-out. Playback reads through the same cache
+with a null write sink, so streaming never fills the download directory.
 Inspect `databases/exoplayer_internal.db` after a proof and require zero
-`oauth_token` occurrences in `ExoPlayerCacheIndex*` keys. The cached playlist
-bodies are server text and are expected to contain the token; they live only
-in app-private storage and are removed with the download.
+`oauth_token` occurrences and a `u<userId>|` prefix on every
+`ExoPlayerCacheIndex*` key. The cached playlist bodies are server text and are
+expected to contain the token; they live only in app-private storage and are
+removed with the download. On start the engine reconciles Media3's own index
+into the app's rows, so a transfer that completed while the UI was dead reads
+On this device after relaunch.
 
 Prove on the API 37 emulator with the shared `devs-auto` account: download a
 small root video from its Files actions sheet, wait for `On this device` in the

@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Persisted download index for one signed-in user. Implementations never store
- * URLs or credentials; a row is name, sizes, status and a relative path.
+ * URLs or credentials; a row is identity, name, type, rendition and status.
  */
 interface DownloadStore {
     val entries: StateFlow<List<DownloadEntry>>

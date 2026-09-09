@@ -1,57 +1,91 @@
 package io.putdotio.android.downloads
 
 import android.content.Context
-import androidx.media3.common.MediaItem
+import androidx.core.net.toUri
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
-import androidx.core.net.toUri
 import io.putdotio.android.files.FilesItemId
 import java.io.IOException
 import java.net.SocketException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeoutException
-import androidx.media3.datasource.HttpDataSource
 
 /**
- * Bridges the app's download index to Media3. Requests carry the token-free
- * API URL; Media3 persists them, resumes them, and reports progress back here.
+ * Bridges one user's download index to that user's Media3 manager. Requests
+ * carry the token-free API URL; Media3 persists them, resumes them, and reports
+ * progress back here. Closing pauses the manager so another session never
+ * drives this user's transfers with its own token.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadEngine(
     context: Context,
     private val store: MobileDownloadStore,
     private val userId: Long,
-    private val downloadManager: DownloadManager = MobileDownloadCache.get(context).downloadManager,
+    private val downloads: MobileDownloadCache = MobileDownloadCache.get(context),
+    private val downloadManager: DownloadManager = downloads.downloadManager(userId),
 ) : DownloadEngine, DownloadManager.Listener {
     private val appContext = context.applicationContext
+    private val removing = mutableSetOf<FilesItemId>()
 
     init {
+        downloads.activeUserId = userId
         downloadManager.addListener(this)
-        // Reconcile rows written before the process died against Media3's own index.
-        for (download in downloadManager.currentDownloads) reflect(download, null)
+        downloadManager.resumeDownloads()
+        reconcile()
+    }
+
+    /** Media3's index is the source of truth for terminal states reached while no UI listened. */
+    private fun reconcile() {
+        val known = mutableSetOf<FilesItemId>()
+        downloadManager.downloadIndex.getDownloads().use { cursor ->
+            while (cursor.moveToNext()) {
+                val download = cursor.download
+                val fileId = fileIdOf(download.request.id) ?: continue
+                known += fileId
+                reflect(download, null)
+            }
+        }
+        // A row Media3 has never seen was queued before the service accepted it; re-issue it.
+        for (entry in store.entries.value) {
+            if (entry.fileId !in known && entry.isActive) start(entry)
+        }
     }
 
     override fun start(entry: DownloadEntry) {
-        val request = DownloadRequest.Builder(contentId(entry.fileId), entry.artifact.apiUri(entry.fileId))
+        val request = DownloadRequest.Builder(contentId(entry.fileId), entry.artifact.apiUrl(entry.fileId).toUri())
             .setMimeType(if (entry.artifact == DownloadArtifact.HLS) MimeTypes.APPLICATION_M3U8 else null)
             .build()
+        synchronized(removing) { removing -= entry.fileId }
         DownloadService.sendAddDownload(appContext, MobileDownloadService::class.java, request, true)
     }
 
     override fun remove(fileId: FilesItemId) {
+        synchronized(removing) { removing += fileId }
         DownloadService.sendRemoveDownload(appContext, MobileDownloadService::class.java, contentId(fileId), false)
     }
 
+    /** True while Media3 is still deleting this file's bytes; a new download must wait. */
+    override fun isRemoving(fileId: FilesItemId): Boolean = synchronized(removing) { fileId in removing }
+
     fun close() {
         downloadManager.removeListener(this)
+        downloadManager.pauseDownloads()
+        if (downloads.activeUserId == userId) downloads.activeUserId = null
     }
 
     override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
         reflect(download, finalException)
+    }
+
+    override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+        val fileId = fileIdOf(download.request.id) ?: return
+        synchronized(removing) { removing -= fileId }
+        store.removeBlocking(fileId)
     }
 
     // Media3 keeps queued rows queued while offline; the rows show why nothing moves.
@@ -61,6 +95,7 @@ internal class MobileDownloadEngine(
 
     private fun reflect(download: Download, error: Exception?) {
         val fileId = fileIdOf(download.request.id) ?: return
+        if (download.state == Download.STATE_REMOVING) return
         val status = download.toStatus(error, downloadManager.isWaitingForRequirements) ?: return
         store.updateStatusBlocking(fileId) { it.copy(status = status) }
     }
@@ -72,14 +107,6 @@ internal class MobileDownloadEngine(
         if (owner.toLongOrNull() != userId) return null
         return file.toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
     }
-
-    /** Playable item for a completed download; the cache data source serves it offline. */
-    fun mediaItem(entry: DownloadEntry): MediaItem =
-        MediaItem.Builder()
-            .setMediaId(entry.fileId.value.toString())
-            .setUri(entry.artifact.apiUri(entry.fileId))
-            .setMimeType(if (entry.artifact == DownloadArtifact.HLS) MimeTypes.APPLICATION_M3U8 else null)
-            .build()
 }
 
 internal fun DownloadArtifact.apiUrl(fileId: FilesItemId): String =
@@ -87,8 +114,6 @@ internal fun DownloadArtifact.apiUrl(fileId: FilesItemId): String =
         DownloadArtifact.HLS -> "https://api.put.io/v2/files/${fileId.value}/hls/media.m3u8?subtitle_key=all"
         DownloadArtifact.ORIGINAL -> "https://api.put.io/v2/files/${fileId.value}/stream"
     }
-
-private fun DownloadArtifact.apiUri(fileId: FilesItemId): android.net.Uri = apiUrl(fileId).toUri()
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.toStatus(error: Exception?, waitingForNetwork: Boolean): DownloadStatus? =
@@ -101,8 +126,8 @@ private fun Download.toStatus(error: Exception?, waitingForNetwork: Boolean): Do
         )
         Download.STATE_COMPLETED -> DownloadStatus.Completed(bytesDownloaded)
         Download.STATE_FAILED -> DownloadStatus.Failed(error.toFailureReason(), bytesDownloaded)
-        // Paused by requirements (no network) shows as retryable rather than stuck.
-        Download.STATE_STOPPED -> DownloadStatus.Failed(DownloadFailureReason.NETWORK, bytesDownloaded)
+        // Stopped by sign-out or a missing network; both resume without user action.
+        Download.STATE_STOPPED -> DownloadStatus.WaitingForNetwork(bytesDownloaded)
         else -> null
     }
 

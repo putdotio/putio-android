@@ -88,10 +88,14 @@ class DownloadsControllerTest {
 
             assertTrue(controller.dispatch(DownloadsEvent.RequestRemoval(video.fileId)))
             assertTrue(controller.dispatch(DownloadsEvent.ConfirmRemoval))
-            store.await { it.isEmpty() }
-            assertEquals(listOf(video.fileId), engine.removed)
+            engine.await { it.removed == listOf(video.fileId) }
             assertNull(controller.state.value.removal)
+            // The row stays until the engine confirms, and a re-download is refused meanwhile.
+            assertEquals(1, controller.state.value.entries.size)
+            assertFalse(controller.dispatch(DownloadsEvent.Start(video)))
+            engine.finishRemoval(video.fileId, store)
             assertEquals(0L, controller.awaitState { it.entries.isEmpty() }.storageBytes)
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
         }
     }
 
@@ -130,6 +134,7 @@ internal class FakeDownloadStore : DownloadStore {
 internal class FakeDownloadEngine : DownloadEngine {
     val started = mutableListOf<DownloadEntry>()
     val removed = mutableListOf<FilesItemId>()
+    private val removing = mutableSetOf<FilesItemId>()
     private val version = MutableStateFlow(0)
 
     override fun start(entry: DownloadEntry) {
@@ -139,6 +144,15 @@ internal class FakeDownloadEngine : DownloadEngine {
 
     override fun remove(fileId: FilesItemId) {
         removed += fileId
+        removing += fileId
+        version.value += 1
+    }
+
+    override fun isRemoving(fileId: FilesItemId): Boolean = fileId in removing
+
+    suspend fun finishRemoval(fileId: FilesItemId, store: FakeDownloadStore) {
+        removing -= fileId
+        store.remove(fileId)
         version.value += 1
     }
 

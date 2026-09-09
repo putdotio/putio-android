@@ -11,6 +11,9 @@ interface DownloadEngine {
     /** Starts or resumes; a retry after failure is the same call. */
     fun start(entry: DownloadEntry)
 
-    /** Removes cached bytes and any in-flight transfer. Idempotent. */
+    /** Removes cached bytes and any in-flight transfer; the index row goes when the engine confirms. */
     fun remove(fileId: FilesItemId)
+
+    /** True while a removal is still in progress for this file. */
+    fun isRemoving(fileId: FilesItemId): Boolean = false
 }

@@ -53,8 +53,9 @@ class DownloadsController(
 
     private fun start(request: DownloadRequest): Boolean {
         val artifact = request.type.downloadArtifact()
-        val existing = store.find(request.fileId)
-        if (artifact == null || existing?.let { it.isActive || it.isCompleted } == true) return false
+        val blocked = engine.isRemoving(request.fileId) ||
+            store.find(request.fileId)?.let { it.isActive || it.isCompleted } == true
+        if (artifact == null || blocked) return false
         val entry = DownloadEntry(
             fileId = request.fileId,
             name = request.name,
@@ -84,13 +85,11 @@ class DownloadsController(
         return updateRemoval(DownloadRemoval(entry.fileId, entry.name))
     }
 
+    // The row leaves the store only once the engine reports the bytes are gone.
     private fun confirmRemoval(): Boolean {
         val pending = synchronized(lock) { mutableState.value.removal } ?: return false
         updateRemoval(null)
-        scope.launch {
-            engine.remove(pending.fileId)
-            store.remove(pending.fileId)
-        }
+        engine.remove(pending.fileId)
         return true
     }
 

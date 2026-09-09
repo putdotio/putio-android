@@ -1,5 +1,6 @@
 package io.putdotio.android.downloads
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import androidx.media3.common.util.UnstableApi
@@ -29,9 +30,12 @@ private const val API_HOST = "api.put.io"
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadCache private constructor(context: Context) {
-    private val databaseProvider = StandaloneDatabaseProvider(context)
+    // Only the application context is retained; lint cannot see the caller passed it.
+    @SuppressLint("StaticFieldLeak")
+    private val appContext: Context = context.applicationContext
+    private val databaseProvider = StandaloneDatabaseProvider(appContext)
     val cache: SimpleCache = SimpleCache(
-        File(context.getExternalFilesDir(null) ?: context.filesDir, CACHE_DIRECTORY),
+        File(appContext.getExternalFilesDir(null) ?: appContext.filesDir, CACHE_DIRECTORY),
         NoOpCacheEvictor(),
         databaseProvider,
     )
@@ -46,29 +50,51 @@ internal class MobileDownloadCache private constructor(context: Context) {
         ResolvingDataSource(OkHttpDataSource.Factory(httpClient).createDataSource(), ::authorize)
     }
 
-    /** What the player reads through offline: cache first, network only on a miss. */
-    val playbackFactory: CacheDataSource.Factory = CacheDataSource.Factory()
-        .setCache(cache)
-        .setCacheKeyFactory(TokenFreeCacheKeys)
-        .setUpstreamDataSourceFactory(upstreamFactory)
-        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    private val databaseIndex = DefaultDownloadIndex(databaseProvider)
+    private val managers = mutableMapOf<Long, DownloadManager>()
+    private val executor = Executors.newFixedThreadPool(DOWNLOAD_THREADS)
 
-    // The convenience constructor would wrap this factory in one with default keys;
-    // the downloader must write under the same token-free keys the player reads.
-    val downloadManager: DownloadManager = DownloadManager(
-        context,
-        DefaultDownloadIndex(databaseProvider),
-        DefaultDownloaderFactory(
-            CacheDataSource.Factory()
-                .setCache(cache)
-                .setCacheKeyFactory(TokenFreeCacheKeys)
-                .setUpstreamDataSourceFactory(upstreamFactory),
-            Executors.newFixedThreadPool(DOWNLOAD_THREADS),
-        ),
-    ).apply {
-        maxParallelDownloads = 1
-        minRetryCount = MIN_RETRIES
+    /**
+     * The player reads completed downloads from the cache and streams everything
+     * else straight from the network: a null write sink keeps online playback from
+     * filling the no-eviction download directory.
+     */
+    fun playbackFactory(userId: Long): DataSource.Factory =
+        CacheDataSource.Factory()
+            .setCache(cache)
+            .setCacheKeyFactory(UserScopedCacheKeys(userId))
+            .setCacheWriteDataSinkFactory(null)
+            .setUpstreamDataSourceFactory(upstreamFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
+    /**
+     * One manager per user over the shared cache and index. Each writes under
+     * user-prefixed keys, which is the only way to scope HLS child requests since
+     * Media3 hands segment specs to the key factory without the request's key.
+     * The service reads the manager for the signed-in user only.
+     */
+    fun downloadManager(userId: Long): DownloadManager = synchronized(managers) {
+        managers.getOrPut(userId) {
+            DownloadManager(
+                appContext,
+                databaseIndex,
+                DefaultDownloaderFactory(
+                    CacheDataSource.Factory()
+                        .setCache(cache)
+                        .setCacheKeyFactory(UserScopedCacheKeys(userId))
+                        .setUpstreamDataSourceFactory(upstreamFactory),
+                    executor,
+                ),
+            ).apply {
+                maxParallelDownloads = 1
+                minRetryCount = MIN_RETRIES
+            }
+        }
     }
+
+    /** The user whose downloads the foreground service currently drives. */
+    @Volatile
+    var activeUserId: Long? = null
 
     private fun authorize(spec: DataSpec): DataSpec {
         val token = accessToken
@@ -93,10 +119,16 @@ internal class MobileDownloadCache private constructor(context: Context) {
     }
 }
 
-/** The signed segment URL minus its token identifies the bytes; the token is per-session noise. */
+/**
+ * Key for one cached object: the owning user, then the signed URL minus its
+ * token. The token is per-session noise; the user keeps accounts apart on a
+ * shared cache.
+ */
+internal fun userScopedCacheKey(userId: Long, uri: Uri): String = "u$userId|${uri.withoutOauthToken()}"
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal object TokenFreeCacheKeys : CacheKeyFactory {
-    override fun buildCacheKey(dataSpec: DataSpec): String = dataSpec.uri.withoutOauthToken().toString()
+internal class UserScopedCacheKeys(private val userId: Long) : CacheKeyFactory {
+    override fun buildCacheKey(dataSpec: DataSpec): String = userScopedCacheKey(userId, dataSpec.uri)
 }
 
 internal fun Uri.withoutOauthToken(): Uri {

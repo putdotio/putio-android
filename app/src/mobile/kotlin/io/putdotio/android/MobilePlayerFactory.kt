@@ -133,7 +133,9 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
         return ExoPlayer.Builder(context, renderersFactory)
             // Completed downloads play from the cache; everything else streams through the same source.
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(MobileDownloadCache.get(context).playbackFactory),
+                DefaultMediaSourceFactory(
+                    MobileDownloadCache.get(context).let { it.playbackFactory(it.activeUserId ?: NO_DOWNLOAD_USER) },
+                ),
             )
             .setAudioAttributes(mediaType.audioAttributes(), true)
             .setHandleAudioBecomingNoisy(true)
@@ -178,3 +180,6 @@ private val EmulatorMediaCodecSelector =
             .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
             .sortedBy { emulatorCodecPriority(it.name) }
     }
+
+/** Players created before sign-in hold no user; the cache then never matches and everything streams. */
+private const val NO_DOWNLOAD_USER = -1L

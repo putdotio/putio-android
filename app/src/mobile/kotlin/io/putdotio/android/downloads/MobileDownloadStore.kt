@@ -17,8 +17,9 @@ import org.json.JSONObject
 /**
  * One JSON document per user in private SharedPreferences. Rows hold only
  * identity, name, type, rendition and status; Media3 owns bytes and URIs.
+ * Every write commits before the in-memory rows advance. Media3's own index
+ * remains the source of truth for progress and is reconciled on start.
  */
-// Commit waits for durability before the in-memory rows advance.
 internal class MobileDownloadStore internal constructor(
     private val preferences: SharedPreferences,
     private val key: String,
@@ -42,14 +43,22 @@ internal class MobileDownloadStore internal constructor(
         current.filterNot { it.fileId == fileId }
     }
 
-    /** Called by the engine on the main thread; the write happens off it. */
+    /** Engine callbacks arrive on the main thread; the status write is small and committed inline. */
     fun updateStatusBlocking(fileId: FilesItemId, transform: (DownloadEntry) -> DownloadEntry) {
         synchronized(lock) {
             val current = mutableEntries.value
             val entry = current.firstOrNull { it.fileId == fileId } ?: return
             val next = current.map { if (it.fileId == fileId) transform(entry) else it }
+            preferences.edit(commit = true) { putString(key, next.toJson()) }
             mutableEntries.value = next
-            preferences.edit { putString(key, next.toJson()) }
+        }
+    }
+
+    fun removeBlocking(fileId: FilesItemId) {
+        synchronized(lock) {
+            val next = mutableEntries.value.filterNot { it.fileId == fileId }
+            preferences.edit(commit = true) { putString(key, next.toJson()) }
+            mutableEntries.value = next
         }
     }
 
