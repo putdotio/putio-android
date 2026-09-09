@@ -181,7 +181,7 @@ The fixed examples are “Rehearsal video.mp4” at 01:23 and “Rehearsal audio
 at 00:42. Each stage advances only after its real callback fires exactly once;
 a wrong choice or dismissal fails. `talkback-choices-state.txt` records the
 observed action sequence. Require `finished` plus `OK (1 test)`. Each phase is
-bounded to 120 seconds and the whole walkthrough to 360 seconds. Capture and
+bounded to 120 seconds and the whole walkthrough to 400 seconds. Capture and
 inspect the actual TalkBack utterances and host recording; callback assertions
 alone do not prove speech. Preserve and restore device settings and the account
 session using the same host-supervision rules as the player lane.
@@ -199,10 +199,12 @@ is automatic; at `bar-pause` activate the now-playing Pause action, then Play at
 `bar-play`. At `open-player-paused`, open the player from the bar and pause it.
 At `seek`, use Forward 10 seconds or the spoken timeline slider while paused.
 At `return-and-stop`, go Back and activate Stop playback on the bar. The selector
-observes the private player's state and seek events before advancing; it accepts
-no host acknowledgement files. `talkback-session-state.txt` records the observed
+observes the private player's state, new and live player attachments, and
+seek events before advancing; it accepts no host acknowledgement files. The bar
+has no seek control, so the observed seek discontinuity itself proves the player
+screen was open. `talkback-session-state.txt` records the observed
 state. Require `finished` and `OK (1 test)`. Preparation has a 15-second limit,
-each user phase 120 seconds, and the entire selector 600 seconds. Capture real
+each user phase 120 seconds, and the entire selector 660 seconds. Capture real
 TalkBack utterances and video separately; these checks prove private-player
 interaction, not background service behavior or spoken output by themselves.
 

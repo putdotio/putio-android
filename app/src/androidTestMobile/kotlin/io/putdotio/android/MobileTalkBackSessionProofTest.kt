@@ -44,7 +44,8 @@ class MobileTalkBackSessionProofTest {
         directory = accessibilityProofDirectory()
         require(directory.listFiles().orEmpty().isEmpty()) { "Use a fresh proof run ID" }
         val fixture = audioFixture()
-        deadline = SystemClock.uptimeMillis() + 600_000
+        // Preparation plus five host phases at their documented limits, with launch and teardown slack.
+        deadline = SystemClock.uptimeMillis() + 660_000
         var ownedPlayer: ExoPlayer? = null
         try {
             ActivityScenario.launch(MobileFullscreenProofActivity::class.java).use { scenario ->
@@ -89,7 +90,7 @@ class MobileTalkBackSessionProofTest {
                     }
                 }
                 awaitPlayer("preparing", scenario, factory, observations, timeoutMillis = 15_000) {
-                    it.playbackState == Player.STATE_READY && it.isPlaying && factory.connections > 0
+                    it.playbackState == Player.STATE_READY && it.isPlaying && factory.liveConnections == 1
                 }
                 scenario.onActivity {
                     require(factory.player.duration >= 180_000L) { "Supply audio lasting at least 180 seconds" }
@@ -102,8 +103,12 @@ class MobileTalkBackSessionProofTest {
                 awaitPlayer("bar-play", scenario, factory, observations) {
                     it.isPlaying && observations.playRequests > previousPlayRequests
                 }
+                // The shell hides the bar on the playback route, so opening the player is the only new attach.
+                var attachesBeforePlayer = 0
+                scenario.onActivity { attachesBeforePlayer = factory.attaches }
                 awaitPlayer("open-player-paused", scenario, factory, observations) {
-                    factory.connections >= 2 && it.playbackState == Player.STATE_READY && !it.playWhenReady
+                    factory.attaches > attachesBeforePlayer && factory.liveConnections == 1 &&
+                        it.playbackState == Player.STATE_READY && !it.playWhenReady
                 }
                 var previousSeeks = 0
                 var pausedPosition = 0L
@@ -118,7 +123,8 @@ class MobileTalkBackSessionProofTest {
                         abs(it.currentPosition - observations.seekTo) <= 500L
                 }
                 awaitPlayer("return-and-stop", scenario, factory, observations) {
-                    factory.stops == 1 && it.mediaItemCount == 0 && it.playbackState == Player.STATE_IDLE
+                    factory.liveConnections <= 1 && factory.stops >= 1 &&
+                        it.mediaItemCount == 0 && it.playbackState == Player.STATE_IDLE
                 }
             }
             File(directory, STAGE_FILE).writeText("finished")
@@ -149,7 +155,7 @@ class MobileTalkBackSessionProofTest {
                 }
                 snapshot = "phase=$phase playWhenReady=${player.playWhenReady} isPlaying=${player.isPlaying} " +
                     "state=${player.playbackState} position=${player.currentPosition} " +
-                    "connections=${factory.connections} stops=${factory.stops} " +
+                    "attaches=${factory.attaches} liveConnections=${factory.liveConnections} stops=${factory.stops} " +
                     "pauseRequests=${observations.pauseRequests} playRequests=${observations.playRequests} " +
                     "seeks=${observations.seeks} seekFrom=${observations.seekFrom} seekTo=${observations.seekTo}"
                 accepted = predicate(player)
@@ -187,16 +193,18 @@ class MobileTalkBackSessionProofTest {
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private class TalkBackSessionPlayerFactory(val player: Player) : MobilePlayerFactory {
-    var connections = 0
+    var attaches = 0
+    var liveConnections = 0
     var stops = 0
 
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
         error("The proof must attach its existing private audio player")
 
     override fun connectAudio(context: Context, onResult: (Result<Player>) -> Unit): Closeable {
-        connections += 1
+        attaches += 1
+        liveConnections += 1
         onResult(Result.success(player))
-        return Closeable {}
+        return Closeable { liveConnections -= 1 }
     }
 
     override fun stopAudio(context: Context) {
