@@ -32,9 +32,18 @@ class MobileOAuthRuntime internal constructor(
         write = SdkPlaybackPositionRepository(putioClient)::write,
     )
 
-    /** Background components that outlive the UI restore the session so the download resolver has its token. */
-    fun ensureSessionRestored() {
-        applicationScope.launch { authController.restoreSession() }
+    /**
+     * Background components that outlive the UI restore the session so the download
+     * resolver has its token; [onSessionSettled] fires whether or not a token exists.
+     */
+    fun ensureSessionRestored(onSessionSettled: () -> Unit) {
+        applicationScope.launch {
+            try {
+                authController.restoreSession()
+            } finally {
+                onSessionSettled()
+            }
+        }
     }
 
     fun dispatchAuthTabResult(
@@ -91,7 +100,10 @@ class MobileOAuthRuntime internal constructor(
                 tokenStore = KeystoreAuthTokenStore(context),
                 pendingOAuthAttemptStore = SharedPreferencesPendingOAuthAttemptStore(context),
                 sessionGateway = PutioAuthSessionGateway(putioClient) { token ->
-                    MobileDownloadCache.get(context).accessToken = token
+                    MobileDownloadCache.get(context).let {
+                        it.accessToken = token
+                        it.markSessionSettled()
+                    }
                 },
             )
             return MobileOAuthRuntime(

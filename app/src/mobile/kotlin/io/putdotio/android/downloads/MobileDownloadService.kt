@@ -29,8 +29,9 @@ class MobileDownloadService : DownloadService(
     // A scheduler or boot restart reaches here before any UI: bringing the auth runtime
     // up restores the stored session token into the download resolver.
     override fun getDownloadManager(): DownloadManager {
-        MobileOAuthRuntime.get(this).ensureSessionRestored()
-        return MobileDownloadCache.get(this).downloadManager
+        val downloads = MobileDownloadCache.get(this)
+        MobileOAuthRuntime.get(this).ensureSessionRestored(downloads::markSessionSettled)
+        return downloads.downloadManager
     }
 
     override fun getScheduler(): Scheduler = PlatformScheduler(this, JOB_ID)

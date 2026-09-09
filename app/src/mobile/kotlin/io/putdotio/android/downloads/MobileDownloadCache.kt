@@ -20,8 +20,10 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.Downloader
 import androidx.media3.exoplayer.offline.DownloaderFactory
 import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 
 private const val OAUTH_TOKEN_QUERY = "oauth_token"
@@ -50,6 +52,15 @@ internal class MobileDownloadCache private constructor(context: Context) {
     /** Replaced by the auth layer on sign-in and sign-out; never persisted here. */
     @Volatile
     var accessToken: String? = null
+
+    /**
+     * Completes once the auth layer has decided whether a stored session exists. A
+     * background restart of the download service can open requests before that, so
+     * the resolver waits here instead of sending an unauthenticated request.
+     */
+    val sessionSettled = CountDownLatch(1)
+
+    fun markSessionSettled() = sessionSettled.countDown()
 
     /** Network access for downloads and for the player's cache misses. */
     val upstreamFactory: DataSource.Factory = DataSource.Factory {
@@ -90,8 +101,10 @@ internal class MobileDownloadCache private constructor(context: Context) {
     }
 
     private fun authorize(spec: DataSpec): DataSpec {
-        val token = accessToken
-        if (token == null || spec.uri.host != API_HOST) return spec
+        if (spec.uri.host != API_HOST) return spec
+        // Data sources open on Media3's loader threads; the wait is bounded by the restore itself.
+        sessionSettled.await(SESSION_SETTLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        val token = accessToken ?: return spec
         return spec.buildUpon()
             .setHttpRequestHeaders(spec.httpRequestHeaders + ("Authorization" to "Token $token"))
             .build()
@@ -101,6 +114,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
         private const val CACHE_DIRECTORY = "downloads"
         private const val DOWNLOAD_THREADS = 4
         private const val MIN_RETRIES = 3
+        private const val SESSION_SETTLE_TIMEOUT_SECONDS = 30L
 
         @Volatile
         private var instance: MobileDownloadCache? = null

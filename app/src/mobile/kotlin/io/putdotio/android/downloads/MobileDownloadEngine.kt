@@ -161,8 +161,9 @@ private fun Download.toStatus(error: Exception?, waitingForNetwork: Boolean): Do
         )
         Download.STATE_COMPLETED -> DownloadStatus.Completed(bytesDownloaded)
         Download.STATE_FAILED -> DownloadStatus.Failed(error.toFailureReason(), bytesDownloaded)
-        // Stopped by sign-out or a missing network; both resume without user action.
-        Download.STATE_STOPPED -> DownloadStatus.WaitingForNetwork(bytesDownloaded)
+        // Parked by sign-out or held by a missing network; both resume without user action.
+        Download.STATE_STOPPED ->
+            if (waitingForNetwork) DownloadStatus.WaitingForNetwork(bytesDownloaded) else DownloadStatus.Queued
         else -> null
     }
 
