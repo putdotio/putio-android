@@ -1,8 +1,6 @@
 package io.putdotio.android.share
 
 import android.annotation.SuppressLint
-import android.app.Activity
-import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -12,7 +10,6 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.os.Bundle
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -23,7 +20,6 @@ import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.io.IOException
-import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +31,6 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -48,32 +43,12 @@ import okhttp3.Request
  * follows is never surfaced. Copies are pruned before the next export. A service
  * cannot start an Activity from the background, so the chooser opens from the
  * resumed Activity: immediately when one exists, otherwise from the next one to
- * resume, which a "ready" notification brings back.
+ * resume, which a "ready" notification brings back. An export nobody returns for
+ * within the timeout is deleted.
  */
 class MobileFileShareService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var job: Job? = null
-    private var resumedActivity: Activity? = null
-    private var onResume: ((Activity) -> Unit)? = null
-    private val lifecycle = object : Application.ActivityLifecycleCallbacks {
-        override fun onActivityResumed(activity: Activity) {
-            resumedActivity = activity
-            onResume?.let { onResume = null; it(activity) }
-        }
-        override fun onActivityPaused(activity: Activity) {
-            if (resumedActivity === activity) resumedActivity = null
-        }
-        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
-        override fun onActivityStarted(activity: Activity) = Unit
-        override fun onActivityStopped(activity: Activity) = Unit
-        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
-        override fun onActivityDestroyed(activity: Activity) = Unit
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        application.registerActivityLifecycleCallbacks(lifecycle)
-    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -146,26 +121,15 @@ class MobileFileShareService : Service() {
 
     /** A resumed Activity opens the chooser; without one the ready notification brings the app back first. */
     private suspend fun deliver(chooser: Intent, name: String) {
-        val current = resumedActivity
-        if (current != null) {
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            current.startActivity(chooser)
-            return
-        }
-        show(readyNotification(name))
-        val resumed = withTimeoutOrNull(READY_TIMEOUT_MS) { awaitResumedActivity() }
-        if (resumed == null) {
-            // The app was never reopened; leave the export and its notification for the next launch.
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
-            return
-        }
+        if (MobileResumedActivity.current == null) show(readyNotification(name))
+        val resumed = withTimeoutOrNull(READY_TIMEOUT_MS) { MobileResumedActivity.await() }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        if (resumed == null) {
+            // Nobody came back; the export is dropped with its notification rather than left dangling.
+            shareRoot(this).deleteRecursively()
+            return
+        }
         resumed.startActivity(chooser)
-    }
-
-    private suspend fun awaitResumedActivity(): Activity = suspendCancellableCoroutine { continuation ->
-        onResume = { if (continuation.isActive) continuation.resume(it) }
-        continuation.invokeOnCancellation { onResume = null }
     }
 
     private suspend fun copyWithProgress(input: java.io.InputStream, target: File, total: Long, name: String) {
@@ -255,7 +219,6 @@ class MobileFileShareService : Service() {
     }
 
     override fun onDestroy() {
-        application.unregisterActivityLifecycleCallbacks(lifecycle)
         scope.cancel()
         super.onDestroy()
     }

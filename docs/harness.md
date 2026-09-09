@@ -740,7 +740,8 @@ chooser. Progress and failure use the foreground notification, which the drawer
 hides while the app holds no notification permission. A service cannot start an
 Activity from the background, so the chooser opens from the resumed Activity:
 immediately when one exists, otherwise a "ready" notification brings the app
-back and the next resume opens it, giving up after ten minutes. The export directory is cleared before
+back and the next resume opens it. After ten minutes without a resume the
+export and notification are dropped. The export directory is cleared before
 each export, never while a copy may be in use.
 `MobileFileShareServiceTest` asserts the payload shape, the ready notification,
 service stop rules, and the name sanitizer.

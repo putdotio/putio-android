@@ -57,24 +57,27 @@ class MobileFileShareServiceTest {
         )
 
         val activity = Robolectric.buildActivity(Activity::class.java).setup()
+        MobileResumedActivity.resumed(activity.get())
         service.deliverForTest(chooser, "poster.jpg")
         assertEquals(Intent.ACTION_CHOOSER, shadowOf(activity.get()).nextStartedActivity?.action)
-        activity.pause()
+        MobileResumedActivity.paused(activity.get())
 
         val pending = async(Dispatchers.Main) { service.deliverForTest(chooser, "poster.jpg") }
         shadowOf(android.os.Looper.getMainLooper()).idle()
         assertFalse(pending.isCompleted)
         val ready = requireNotNull(shadowOf(service).lastForegroundNotification)
-        val shown = shadowOf(ready).contentText.toString() + (ready.contentIntent?.let { shadowOf(it).savedIntent?.toUri(0) } ?: "")
+        val shown = shadowOf(ready).contentText.toString() +
+            (ready.contentIntent?.let { shadowOf(it).savedIntent?.toUri(0) } ?: "")
         assertFalse(shown.contains("oauth_token"))
         assertFalse(shown.contains("http"))
         assertNull(shadowOf(activity.get()).nextStartedActivity)
 
-        activity.resume()
+        MobileResumedActivity.resumed(activity.get())
         shadowOf(android.os.Looper.getMainLooper()).idle()
         pending.await()
         assertEquals(Intent.ACTION_CHOOSER, shadowOf(activity.get()).nextStartedActivity?.action)
         assertTrue(shadowOf(service).isForegroundStopped)
+        MobileResumedActivity.paused(activity.get())
         controller.destroy()
         Unit
     }

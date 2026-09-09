@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.browser.auth.AuthTabIntent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import io.putdotio.android.share.MobileResumedActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -57,6 +58,16 @@ class MainActivity : BasePutioActivity() {
         outState.putBoolean(STATE_NOW_PLAYING_PENDING, pendingNowPlayingRequest.value)
         outState.putBoolean(STATE_SHARE_CONSUMED, launch.shareLaunchConsumed)
         outState.putBoolean(STATE_DEEP_LINK_CONSUMED, launch.deepLinkLaunchConsumed)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        MobileResumedActivity.resumed(this)
+    }
+
+    override fun onPause() {
+        MobileResumedActivity.paused(this)
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {
