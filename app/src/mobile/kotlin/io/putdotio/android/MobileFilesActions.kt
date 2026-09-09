@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -38,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -49,6 +51,7 @@ import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.canStartOperation
 
 internal const val MOBILE_FILES_RENAME_FIELD_TAG = "mobile-files-rename-field"
+internal const val MOBILE_FILES_DOWNLOAD_ACTION_TAG = "mobile-files-download-action"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +64,8 @@ internal fun MobileFilesActions(
     onDismiss: () -> Unit,
     confirmedTrashEnabled: Boolean? = null,
     onMoveItem: ((FilesItem) -> Unit)? = null,
+    downloadStatus: DownloadStatus? = null,
+    onDownloadItem: ((FilesItem) -> Unit)? = null,
 ) {
     val failed = operation as? FilesFolderOperation.Failed
     val failedRename = (failed?.intent as? FilesFolderOperationIntent.Rename)?.takeIf { it.itemId == item.id }
@@ -187,6 +192,30 @@ internal fun MobileFilesActions(
                     modifier = Modifier
                         .clickable(enabled = operation.canStartOperation, role = Role.Button) { editing = true },
                 )
+                if (onDownloadItem != null && item.isPlayable) {
+                    // A completed or running download shows its state; the row stays informational.
+                    val downloadable = downloadStatus == null || downloadStatus is DownloadStatus.Failed
+                    ListItem(
+                        headlineContent = {
+                            Text(stringResource(
+                                when (downloadStatus) {
+                                    null, is DownloadStatus.Failed -> R.string.mobile_files_download
+                                    is DownloadStatus.Completed -> R.string.mobile_files_downloaded
+                                    else -> R.string.mobile_files_downloading
+                                },
+                            ))
+                        },
+                        supportingContent = (downloadStatus as? DownloadStatus.Failed)?.let {
+                            { Text(it.description(LocalContext.current)) }
+                        },
+                        modifier = Modifier
+                            .testTag(MOBILE_FILES_DOWNLOAD_ACTION_TAG)
+                            .clickable(enabled = downloadable && item.id.value > 0L, role = Role.Button) {
+                                onDownloadItem(item)
+                                dismiss()
+                            },
+                    )
+                }
                 if (onMoveItem != null) {
                     ListItem(
                         headlineContent = { Text(stringResource(R.string.mobile_files_move)) },

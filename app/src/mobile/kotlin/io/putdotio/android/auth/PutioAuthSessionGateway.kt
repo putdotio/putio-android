@@ -54,7 +54,8 @@ internal sealed interface RemoteLogoutResult {
 internal class PutioAuthSessionGateway(
     private val boundary: PutioSdkAuthBoundary,
 ) : AuthSessionGateway {
-    constructor(client: PutioClient) : this(PutioClientAuthBoundary(client))
+    constructor(client: PutioClient, onTokenChanged: (String?) -> Unit = {}) :
+        this(PutioClientAuthBoundary(client, onTokenChanged))
 
     override fun buildLoginUrl(
         redirectUri: String,
@@ -112,6 +113,8 @@ internal interface PutioSdkAuthBoundary {
 
 private class PutioClientAuthBoundary(
     private val client: PutioClient,
+    /** Media downloads and offline playback read the same session token as the SDK. */
+    private val onTokenChanged: (String?) -> Unit = {},
 ) : PutioSdkAuthBoundary {
     override fun buildLoginUrl(
         redirectUri: String,
@@ -120,10 +123,12 @@ private class PutioClientAuthBoundary(
 
     override fun setAccessToken(accessToken: String) {
         client.setAccessToken(accessToken)
+        onTokenChanged(accessToken)
     }
 
     override fun clearAccessToken() {
         client.clearAccessToken()
+        onTokenChanged(null)
     }
 
     override suspend fun validateToken(): Boolean = client.auth.validateToken().result

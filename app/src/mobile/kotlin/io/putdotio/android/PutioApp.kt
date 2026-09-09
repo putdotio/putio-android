@@ -105,6 +105,12 @@ import io.putdotio.android.settings.ConfirmedDefaultSort
 import io.putdotio.android.settings.confirmedDefaultSort
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedTrashEnabled
+import io.putdotio.android.downloads.DownloadRequest
+import io.putdotio.android.downloads.DownloadsController
+import io.putdotio.android.downloads.DownloadsEvent
+import io.putdotio.android.downloads.DownloadsState
+import io.putdotio.android.downloads.OfflinePlaybackRepository
+import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryState
@@ -204,6 +210,9 @@ private fun MobileAuthRoot(
     val transfersViewModel = viewModel<MobileTransfersViewModel>(
         factory = remember(authController) { mobileTransfersViewModelFactory(authController.state) },
     )
+    val downloadsViewModel = viewModel<MobileDownloadsViewModel>(
+        factory = remember(authController) { mobileDownloadsViewModelFactory(authController.state) },
+    )
 
     LaunchedEffect(authController) {
         authController.restoreSession()
@@ -273,6 +282,7 @@ private fun MobileAuthRoot(
                 searchHistoryViewModel = searchHistoryViewModel,
                 transfersViewModel = transfersViewModel,
                 trashViewModel = trashViewModel,
+                downloadsViewModel = downloadsViewModel,
                 authController = authController,
                 rootScope = rootScope,
                 nowPlayingRequests = nowPlayingRequests,
@@ -347,6 +357,7 @@ internal fun SignedInMobileRoot(
     trashViewModel: MobileTrashViewModel,
     authController: MobileAuthController,
     rootScope: CoroutineScope,
+    downloadsViewModel: MobileDownloadsViewModel? = null,
     playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
@@ -409,6 +420,10 @@ internal fun SignedInMobileRoot(
     val trashController = remember(trashViewModel, trashRepository, account.userId, sessionId) {
         trashViewModel.controllerFor(account.userId, sessionId, trashRepository)
     }
+    val downloadsContext = LocalContext.current.applicationContext
+    val downloadsController = remember(downloadsViewModel, downloadsContext, account.userId, sessionId) {
+        downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId)
+    }
     if (trashController == null || filesController == null ||
         accountSettingsController == null ||
         appConfigController == null ||
@@ -419,9 +434,14 @@ internal fun SignedInMobileRoot(
         return
     }
     val appContext = LocalContext.current.applicationContext
-    val playbackRepository = remember(runtime.putioClient, appConfigController) {
-        SdkPlaybackRepository(runtime.putioClient) {
+    val playbackRepository = remember(runtime.putioClient, appConfigController, downloadsController) {
+        val streaming = SdkPlaybackRepository(runtime.putioClient) {
             appConfigController.state.value.playbackPreference()
+        }
+        if (downloadsController == null) {
+            streaming
+        } else {
+            OfflinePlaybackRepository(downloadsController.state, streaming, PutioCredentialUrl::of)
         }
     }
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
@@ -479,6 +499,7 @@ internal fun SignedInMobileRoot(
         playbackRepository = playbackRepository,
         playbackPlayerFactory = reportingPlayerFactory,
         nowPlayingRequests = nowPlayingRequests,
+        downloadsController = downloadsController,
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,
@@ -571,6 +592,7 @@ internal fun MobileShell(
     filesState: FilesBrowserState,
     filesRepository: FilesRepository? = null,
     trashController: TrashController? = null,
+    downloadsController: DownloadsController? = null,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
@@ -615,6 +637,8 @@ internal fun MobileShell(
     }
     val isPlayback = backStackEntry?.destination?.route == MOBILE_PLAYBACK_ROUTE
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
+    val isDownloads = backStackEntry?.destination?.route == MOBILE_DOWNLOADS_ROUTE
+    val downloadsState = downloadsController?.state?.collectAsStateWithLifecycle()?.value ?: DownloadsState()
     val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
     LaunchedEffect(trashState?.restoredVersion) {
         trashState?.lastRestoredItem?.let { item ->
@@ -736,8 +760,8 @@ internal fun MobileShell(
     }
 
     val protectTrashRecovery = trashState?.hasPendingMutation == true && !filesOwnsBack
-    BackHandler(enabled = !isPlayback && (isTrash || protectTrashRecovery)) {
-        if (isTrash) {
+    BackHandler(enabled = !isPlayback && (isTrash || isDownloads || protectTrashRecovery)) {
+        if (isTrash || isDownloads) {
             navController.popBackStack()
         } else {
             navController.navigateTo(MobileDestination.Account)
@@ -752,6 +776,8 @@ internal fun MobileShell(
             filesState = filesState,
             filesRepository = filesRepository,
             trashController = trashController,
+            downloadsController = downloadsController,
+            downloadsState = downloadsState,
             accountSettingsState = accountSettingsState,
             appConfigState = appConfigState,
             searchHistoryState = searchHistoryState,
@@ -791,6 +817,8 @@ internal fun MobileShell(
                         filesState = filesState,
                         filesRepository = filesRepository,
                         trashController = trashController,
+                        downloadsController = downloadsController,
+                        downloadsState = downloadsState,
                         accountSettingsState = accountSettingsState,
                         appConfigState = appConfigState,
                         searchHistoryState = searchHistoryState,
@@ -821,6 +849,8 @@ internal fun MobileShell(
                         filesState = filesState,
                         filesRepository = filesRepository,
                         trashController = trashController,
+                        downloadsController = downloadsController,
+                        downloadsState = downloadsState,
                         accountSettingsState = accountSettingsState,
                         appConfigState = appConfigState,
                         searchHistoryState = searchHistoryState,
@@ -923,6 +953,8 @@ private fun PhoneShell(
     filesState: FilesBrowserState,
     filesRepository: FilesRepository?,
     trashController: TrashController?,
+    downloadsController: DownloadsController? = null,
+    downloadsState: DownloadsState = DownloadsState(),
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -952,6 +984,7 @@ private fun PhoneShell(
                 openNavigation = openNavigation,
                 destination = selectedDestination,
                 isTrash = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_TRASH_ROUTE,
+                isDownloads = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_DOWNLOADS_ROUTE,
                 onTrashBack = { navController.popBackStack() },
                 filesState = filesState,
                 onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
@@ -988,6 +1021,8 @@ private fun PhoneShell(
             filesState = filesState,
             filesRepository = filesRepository,
             trashController = trashController,
+            downloadsController = downloadsController,
+            downloadsState = downloadsState,
             accountSettingsState = accountSettingsState,
             appConfigState = appConfigState,
             searchHistoryState = searchHistoryState,
@@ -1021,6 +1056,8 @@ private fun TabletShell(
     filesState: FilesBrowserState,
     filesRepository: FilesRepository?,
     trashController: TrashController?,
+    downloadsController: DownloadsController? = null,
+    downloadsState: DownloadsState = DownloadsState(),
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -1061,6 +1098,7 @@ private fun TabletShell(
                 MobileTopBar(
                     destination = selectedDestination,
                     isTrash = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_TRASH_ROUTE,
+                    isDownloads = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_DOWNLOADS_ROUTE,
                     onTrashBack = { navController.popBackStack() },
                     filesState = filesState,
                     onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
@@ -1084,6 +1122,8 @@ private fun TabletShell(
                 filesState = filesState,
                 filesRepository = filesRepository,
                 trashController = trashController,
+                downloadsController = downloadsController,
+                downloadsState = downloadsState,
                 accountSettingsState = accountSettingsState,
                 appConfigState = appConfigState,
                 searchHistoryState = searchHistoryState,
@@ -1116,6 +1156,7 @@ private fun MobileTopBar(
     isTrash: Boolean,
     onTrashBack: () -> Unit,
     filesState: FilesBrowserState,
+    isDownloads: Boolean = false,
     onFilesBack: () -> Unit,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     openNavigation: (() -> Unit)? = null,
@@ -1126,6 +1167,8 @@ private fun MobileTopBar(
             Text(
                 if (isTrash) {
                     stringResource(R.string.mobile_trash_title)
+                } else if (isDownloads) {
+                    stringResource(R.string.mobile_downloads_title)
                 } else if (destination == MobileDestination.Files && filesFolderName != null) {
                     filesFolderName
                 } else {
@@ -1136,7 +1179,7 @@ private fun MobileTopBar(
             )
         },
         navigationIcon = {
-            if (isTrash) {
+            if (isTrash || isDownloads) {
                 IconButton(onClick = onTrashBack) {
                     Icon(painterResource(R.drawable.ic_ph_arrow_left),
                         contentDescription = stringResource(R.string.mobile_action_back))
@@ -1221,6 +1264,8 @@ private fun MobileNavHost(
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
+    downloadsController: DownloadsController? = null,
+    downloadsState: DownloadsState = DownloadsState(),
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Failure(
             AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
@@ -1244,6 +1289,10 @@ private fun MobileNavHost(
                 onPlayMedia = navController::navigateToPlayback,
                 onAuthenticationRequired = onFilesAuthenticationRequired,
                 confirmedTrashEnabled = accountSettingsState.confirmedTrashEnabled(),
+                downloads = downloadsState,
+                onDownloadItem = downloadsController?.let { controller ->
+                    { item -> controller.dispatch(DownloadsEvent.Start(item.toDownloadRequest())) }
+                },
             )
         }
         composable(MobileDestination.Search.route) {
@@ -1284,7 +1333,19 @@ private fun MobileNavHost(
                 deviceClass = deviceClass,
                 onSignOut = onSignOut,
                 onManageTrash = { navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true } },
+                onManageDownloads = downloadsController?.let {
+                    { navController.navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true } }
+                },
             )
+        }
+        composable(MOBILE_DOWNLOADS_ROUTE) {
+            downloadsController?.let { controller ->
+                MobileDownloadsScreen(
+                    state = downloadsState,
+                    onEvent = controller::dispatch,
+                    onPlay = navController::navigateToPlayback,
+                )
+            }
         }
         composable(MOBILE_TRASH_ROUTE) {
             trashController?.let { controller ->
@@ -1503,3 +1564,5 @@ private fun NavHostController.navigateToPlayback(
         if (replaceCurrentPlayback) popUpTo(MOBILE_PLAYBACK_ROUTE) { inclusive = true }
     }
 }
+
+private fun FilesItem.toDownloadRequest(): DownloadRequest = DownloadRequest(id, name, type, sizeBytes)

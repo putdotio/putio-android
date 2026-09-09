@@ -39,6 +39,7 @@ internal enum class MobileDestination(
         val start: MobileDestination = Files
 
         fun fromRoute(route: String?): MobileDestination =
-            if (route == MOBILE_TRASH_ROUTE) Account else entries.firstOrNull { it.route == route } ?: start
+            if (route == MOBILE_TRASH_ROUTE || route == MOBILE_DOWNLOADS_ROUTE) Account
+            else entries.firstOrNull { it.route == route } ?: start
     }
 }

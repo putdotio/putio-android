@@ -5,6 +5,7 @@ import android.util.Log
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.MobilePlaybackReporting
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
+import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +31,20 @@ class MobileOAuthRuntime internal constructor(
         onAuthenticationRequired = { sessionId -> authController.rejectAuthoritativeSession(sessionId) },
         write = SdkPlaybackPositionRepository(putioClient)::write,
     )
+
+    /**
+     * Background components that outlive the UI restore the session so the download
+     * resolver has its token; [onSessionSettled] fires whether or not a token exists.
+     */
+    fun ensureSessionRestored(onSessionSettled: () -> Unit) {
+        applicationScope.launch {
+            try {
+                authController.restoreSession()
+            } finally {
+                onSessionSettled()
+            }
+        }
+    }
 
     fun dispatchAuthTabResult(
         resultCode: Int,
@@ -84,7 +99,13 @@ class MobileOAuthRuntime internal constructor(
                 oauthConfiguration = oauthConfiguration,
                 tokenStore = KeystoreAuthTokenStore(context),
                 pendingOAuthAttemptStore = SharedPreferencesPendingOAuthAttemptStore(context),
-                sessionGateway = PutioAuthSessionGateway(putioClient),
+                sessionGateway = PutioAuthSessionGateway(putioClient) { token ->
+                    MobileDownloadCache.get(context).let {
+                        if (token == null) it.onTokenClearing?.invoke()
+                        it.accessToken = token
+                        it.markSessionSettled()
+                    }
+                },
             )
             return MobileOAuthRuntime(
                 putioClient = putioClient,

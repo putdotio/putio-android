@@ -172,6 +172,8 @@ dependencies {
     add("mobileImplementation", libs.androidx.browser)
     add("mobileImplementation", libs.androidx.media3.exoplayer)
     add("mobileImplementation", libs.androidx.media3.exoplayer.hls)
+    add("mobileImplementation", libs.androidx.media3.database)
+    add("mobileImplementation", libs.androidx.media3.datasource.okhttp)
     add("mobileImplementation", libs.androidx.media3.session)
     add("mobileImplementation", libs.androidx.media3.ui)
     add("mobileImplementation", libs.androidx.media3.ui.compose.material3)

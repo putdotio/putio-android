@@ -34,9 +34,12 @@ Mobile, on the emulator harness against the live API:
 - Privacy controls for the support chat widget, shared across put.io apps,
   with a strictly-necessary storage disclosure
 - About section with copyable app, Android, device, and player info
+- Downloads: video saves the same HLS rendition it streams, audio saves the
+  original; a Downloads screen under Account lists local copies, storage used,
+  retry and delete; completed downloads play without a connection
 
 The TV flavor builds and launches on the Android TV emulator but has no
-feature surfaces yet. Not started: downloads, sharing, Chromecast,
+feature surfaces yet. Not started: share-out and deep links, Chromecast,
 Picture-in-Picture, and the Play release lane.
 
 ## Direction

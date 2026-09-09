@@ -457,7 +457,7 @@ class MobileAccountScreenTest {
             SemanticsMatcher.keyIsDefined(SemanticsProperties.SelectableGroup),
             useUnmergedTree = true,
         ).assertExists()
-        compose.onAllNodesWithText("Adaptive (HLS)").assertCountEquals(2)
+        compose.onAllNodesWithText("HLS stream").assertCountEquals(2)
         compose.onNodeWithText("Direct MP4")
             .assert(
                 SemanticsMatcher.expectValue(

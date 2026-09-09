@@ -727,3 +727,41 @@ both replacement choices at 200% font size in portrait and landscape, checks the
 entire confirmation message is reachable, and asserts that choosing a draft
 submits no transfer. This covers share-in only: scoped file export, share-out and
 product deep links remain under #29.
+
+## Downloads and offline playback
+
+Downloads use Media3's `DownloadService` and `SimpleCache` under the app's
+internal files directory (`files/downloads/`), never external storage: cached
+playlist bodies carry the server's token. A video download stores the HLS rendition the player
+streams, subtitle renditions included; an audio download stores the original
+file. Media3 owns bytes, resume and the foreground notification, which shows a
+count and progress only. The app's index in private SharedPreferences holds
+file id, name, type, rendition and status per user; it never holds a URL.
+
+Requests carry the token-free API URL, and a resolving data source adds the
+session header for `api.put.io` hosts. Playlist bodies from the server embed
+`oauth_token` in their child URLs; the cache key factory strips that query and
+prefixes the owning user id, so the Media3 index stays token-free and two
+accounts never share cached bytes. There is one `DownloadManager`; request ids
+are `userId:fileId`, each request downloads under its owner's keys, and a
+sign-out parks that user's transfers with a stop reason until the owner signs in
+again. Playback reads through the same cache with a null write sink, so
+streaming never fills the download directory.
+Inspect `databases/exoplayer_internal.db` after a proof and require zero
+`oauth_token` occurrences and a `u<userId>|` prefix on every
+`ExoPlayerCacheIndex*` key. The cached playlist bodies are server text and are
+expected to contain the token; they live only in app-private storage and are
+removed with the download. On start the engine reconciles Media3's own index
+into the app's rows, so a transfer that completed while the UI was dead reads
+On this device after relaunch.
+
+Prove on the API 37 emulator with the shared `devs-auto` account: download a
+small root video from its Files actions sheet, wait for `On this device` in the
+Files row and the Downloads screen, then enable airplane mode with
+`adb shell cmd connectivity airplane-mode enable` and play it from Downloads.
+Cut the network during a larger download and confirm the row reads
+`Waiting for network`, then restore it and confirm the download completes by
+itself. Delete the local copy from the Downloads sheet and confirm the cache
+directory shrinks. Clear only `databases/exoplayer_internal.db*`,
+`shared_prefs/io.putdotio.android.downloads.xml` and the internal
+`files/downloads/` between runs; never wipe app data or the session.
