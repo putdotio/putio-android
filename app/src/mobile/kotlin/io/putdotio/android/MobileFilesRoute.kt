@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
+import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesMoveDestinationController
@@ -27,6 +28,8 @@ internal fun MobileFilesRoute(
     onPlayMedia: (FilesItem) -> Unit,
     confirmedTrashEnabled: Boolean?,
     onAuthenticationRequired: suspend () -> Unit,
+    downloads: DownloadsState = DownloadsState(),
+    onDownloadItem: ((FilesItem) -> Unit)? = null,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -38,6 +41,8 @@ internal fun MobileFilesRoute(
             onPlayMedia = onPlayMedia,
             confirmedTrashEnabled = confirmedTrashEnabled,
             onMoveItem = if (repository == null || !state.canStartMove) null else { item -> movingItemId = item.id.value },
+            downloads = downloads,
+            onDownloadItem = onDownloadItem,
         )
         if (movingItem != null && repository != null) {
             MobileFilesMoveSession(

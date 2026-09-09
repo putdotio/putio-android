@@ -86,6 +86,7 @@ import java.net.URI
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
+internal const val MOBILE_MANAGE_DOWNLOADS_TAG = "mobile-manage-downloads"
 internal const val MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG = "mobile-account-avatar-fallback"
 internal const val MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG = "mobile-account-storage-progress"
 internal const val MOBILE_STRICTLY_NECESSARY_TAG = "mobile-strictly-necessary"
@@ -103,6 +104,7 @@ internal fun MobileAccountScreen(
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
     onManageTrash: () -> Unit = {},
+    onManageDownloads: (() -> Unit)? = null,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Failure(
             AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
@@ -127,6 +129,19 @@ internal fun MobileAccountScreen(
         }
         item(key = ACCOUNT_IDENTITY_DIVIDER_KEY) {
             HorizontalDivider()
+        }
+        if (onManageDownloads != null) {
+            item(key = "manage-downloads") {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.mobile_downloads_manage)) },
+                    supportingContent = { Text(stringResource(R.string.mobile_downloads_manage_description)) },
+                    leadingContent = {
+                        Icon(painterResource(R.drawable.ic_ph_arrow_circle_down), contentDescription = null)
+                    },
+                    modifier = Modifier.clickable(onClick = onManageDownloads, role = Role.Button)
+                        .testTag(MOBILE_MANAGE_DOWNLOADS_TAG),
+                )
+            }
         }
         item(key = "manage-trash") {
             ListItem(

@@ -67,6 +67,8 @@ import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
 import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.downloads.DownloadStatus
+import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
@@ -82,6 +84,7 @@ internal const val MOBILE_FILES_OPERATION_RETRY_TAG = "mobile-files-operation-re
 internal const val MOBILE_FILES_PAGING_ACTION_TAG = "mobile-files-paging-action"
 internal const val MOBILE_FILES_REFRESH_TAG = "mobile-files-refresh"
 internal const val MOBILE_FILES_WATCHED_TAG = "mobile-files-watched"
+internal const val MOBILE_FILES_DOWNLOAD_TAG = "mobile-files-download"
 
 @Composable
 internal fun MobileFilesScreen(
@@ -91,6 +94,8 @@ internal fun MobileFilesScreen(
     modifier: Modifier = Modifier,
     confirmedTrashEnabled: Boolean? = null,
     onMoveItem: ((FilesItem) -> Unit)? = null,
+    downloads: DownloadsState = DownloadsState(),
+    onDownloadItem: ((FilesItem) -> Unit)? = null,
 ) {
     val current = state.current
     when (val content = current.content) {
@@ -112,7 +117,9 @@ internal fun MobileFilesScreen(
         is FilesContent.Empty,
         is FilesContent.Ready,
         -> key(current.folder.id.value) {
-            MobileRefreshableFilesContent(state, content, onEvent, onPlayMedia, modifier, confirmedTrashEnabled, onMoveItem)
+            MobileRefreshableFilesContent(
+                state, content, onEvent, onPlayMedia, modifier, confirmedTrashEnabled, onMoveItem, downloads, onDownloadItem,
+            )
         }
     }
 }
@@ -126,6 +133,8 @@ private fun MobileRefreshableFilesContent(
     modifier: Modifier = Modifier,
     confirmedTrashEnabled: Boolean? = null,
     onMoveItem: ((FilesItem) -> Unit)? = null,
+    downloads: DownloadsState = DownloadsState(),
+    onDownloadItem: ((FilesItem) -> Unit)? = null,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -145,6 +154,8 @@ private fun MobileRefreshableFilesContent(
                 onDismiss = { selectedItemId = null },
                 confirmedTrashEnabled = confirmedTrashEnabled,
                 onMoveItem = onMoveItem,
+                downloadStatus = downloads.entry(selectedItem.id)?.status,
+                onDownloadItem = onDownloadItem,
             )
         }
     }
@@ -194,6 +205,7 @@ private fun MobileRefreshableFilesContent(
                             onPlayMedia = onPlayMedia,
                             onActions = { selectedItemId = it.id.value },
                             operation = operation,
+                            downloads = downloads,
                         )
                     }
 
@@ -390,6 +402,7 @@ private fun MobileFilesList(
     onActions: (FilesItem) -> Unit,
     operation: FilesFolderOperation,
     modifier: Modifier = Modifier,
+    downloads: DownloadsState = DownloadsState(),
 ) {
     val viewport = content.viewport
     val listState = rememberLazyListState(
@@ -447,6 +460,7 @@ private fun MobileFilesList(
         ) { item ->
             MobileFilesRow(
                 item = item,
+                downloadStatus = downloads.entry(item.id)?.status,
                 onActions = if (item.id.value > 0L) { { onActions(item) } } else null,
                 actionsEnabled = actionsEnabled,
                 onClick = when {
@@ -490,6 +504,7 @@ internal fun MobileFilesRow(
     onClickLabel: String? = null,
     onActions: (() -> Unit)? = null,
     actionsEnabled: Boolean = true,
+    downloadStatus: DownloadStatus? = null,
 ) {
     val metadata = formatFilesItemMetadata(LocalContext.current, item)
     val actionsLabel = stringResource(R.string.mobile_files_actions, item.name)
@@ -522,7 +537,7 @@ internal fun MobileFilesRow(
         modifier = modifier
             .fillMaxWidth()
             .then(interaction),
-        supportingContent = if (metadata == null && item.playback?.isWatched != true) {
+        supportingContent = if (metadata == null && item.playback?.isWatched != true && downloadStatus == null) {
             null
         } else {
             {
@@ -534,6 +549,7 @@ internal fun MobileFilesRow(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                    downloadStatus?.let { MobileFilesDownloadIndicator(it) }
                     item.playback?.takeIf { it.isWatched }?.let { MobileFilesWatchedIndicator(it) }
                 }
             }
@@ -560,6 +576,32 @@ internal fun MobileFilesRow(
             }
         },
     )
+}
+
+// One line under the metadata: the row reads as name, metadata, then device state.
+@Composable
+private fun MobileFilesDownloadIndicator(status: DownloadStatus) {
+    val label = when (status) {
+        is DownloadStatus.Completed -> stringResource(R.string.mobile_files_downloaded)
+        is DownloadStatus.Failed -> stringResource(R.string.mobile_files_download_failed)
+        is DownloadStatus.WaitingForNetwork -> stringResource(R.string.mobile_files_download_waiting)
+        DownloadStatus.Queued, is DownloadStatus.Downloading -> stringResource(R.string.mobile_files_downloading)
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag(MOBILE_FILES_DOWNLOAD_TAG),
+        horizontalArrangement = Arrangement.spacedBy(FILES_PROGRESS_SPACING),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(
+                if (status is DownloadStatus.Completed) R.drawable.ic_ph_check else R.drawable.ic_ph_arrow_circle_down,
+            ),
+            contentDescription = null,
+            modifier = Modifier.size(FILES_BADGE_ICON_SIZE),
+            tint = if (status is DownloadStatus.Failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        )
+        Text(label, style = MaterialTheme.typography.labelMedium)
+    }
 }
 
 // Known duration draws a determinate bar; an unknown duration still marks the row watched.
@@ -714,4 +756,5 @@ private val FILES_ICON_CONTAINER_SIZE = 40.dp
 private val FILES_ICON_SIZE = 24.dp
 private val FILES_PROGRESS_SPACING = 6.dp
 private val FILES_PROGRESS_HEIGHT = 4.dp
+private val FILES_BADGE_ICON_SIZE = 16.dp
 private const val PERCENT_SCALE = 100f

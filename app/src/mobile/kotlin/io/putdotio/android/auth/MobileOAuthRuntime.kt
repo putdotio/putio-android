@@ -5,6 +5,7 @@ import android.util.Log
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.MobilePlaybackReporting
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
+import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
@@ -84,7 +85,9 @@ class MobileOAuthRuntime internal constructor(
                 oauthConfiguration = oauthConfiguration,
                 tokenStore = KeystoreAuthTokenStore(context),
                 pendingOAuthAttemptStore = SharedPreferencesPendingOAuthAttemptStore(context),
-                sessionGateway = PutioAuthSessionGateway(putioClient),
+                sessionGateway = PutioAuthSessionGateway(putioClient) { token ->
+                    MobileDownloadCache.get(context).accessToken = token
+                },
             )
             return MobileOAuthRuntime(
                 putioClient = putioClient,

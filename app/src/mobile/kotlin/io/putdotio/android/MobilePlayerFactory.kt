@@ -9,6 +9,8 @@ import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import io.putdotio.android.downloads.MobileDownloadCache
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.session.MediaController
@@ -129,6 +131,10 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
                 .setEnableDecoderFallback(true)
         }
         return ExoPlayer.Builder(context, renderersFactory)
+            // Completed downloads play from the cache; everything else streams through the same source.
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(MobileDownloadCache.get(context).playbackFactory),
+            )
             .setAudioAttributes(mediaType.audioAttributes(), true)
             .setHandleAudioBecomingNoisy(true)
             .build()

@@ -78,7 +78,7 @@ class MobileAccountLargeTextTest {
         compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG)
             .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ToggleableState))
             .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
-        assertValueAndDescription("Video playback", "Adaptive (HLS)", "Choose how this app streams videos.")
+        assertValueAndDescription("Video playback", "HLS stream", "Choose how this app streams videos.")
         assertValueAndDescription(
             "App info", BuildConfig.VERSION_NAME, "Version, build, and device details for support.",
         )
