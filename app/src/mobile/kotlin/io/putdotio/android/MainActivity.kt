@@ -6,7 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.browser.auth.AuthTabIntent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import io.putdotio.android.share.MobileFileShareService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -40,7 +39,6 @@ class MainActivity : BasePutioActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
-        MobileFileShareService.prune(applicationContext)
         consumeShare(intent, savedInstanceState?.getBoolean(STATE_SHARE_CONSUMED) == true)
         consumeDeepLink(intent, savedInstanceState?.getBoolean(STATE_DEEP_LINK_CONSUMED) == true)
         if (shouldPublishLaunchIntent(intent, launch.launchIntentConsumed)) {

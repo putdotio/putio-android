@@ -736,9 +736,14 @@ download endpoint with the session header, stores it under private
 `files/shares/<fileId>/<name>`, and opens the system chooser with a
 `FileProvider` content URI (`${applicationId}.share`) carrying a read grant.
 The payload is the stream only: no text, subject or URL, so no token reaches the
-chooser. Progress and failure use the foreground notification. The export
-directory is cleared before each export and on launch. `MobileFileShareServiceTest`
-asserts the payload shape and the name sanitizer.
+chooser. Progress and failure use the foreground notification, which the drawer
+hides while the app holds no notification permission. A service cannot start an
+Activity from the background, so when the app is not in the foreground the
+service keeps a "ready" notification and opens the chooser from the next resumed
+Activity, giving up after ten minutes. The export directory is cleared before
+each export, never while a copy may be in use.
+`MobileFileShareServiceTest` asserts the payload shape, the ready notification,
+service stop rules, and the name sanitizer.
 
 Deep links: `https://{app.put.io,put.io,www.put.io}/{files,files/<id>,transfers,search,history,trash}`
 (`autoVerify`; the `assetlinks.json` publication is a release-owner task, so
