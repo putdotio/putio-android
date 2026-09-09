@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,7 +72,7 @@ internal fun MobileTrashItemSheet(
                 headlineContent = { Text(stringResource(R.string.mobile_trash_restore)) },
                 modifier = Modifier
                     .testTag(MOBILE_TRASH_ITEM_RESTORE_TAG)
-                    .clickable(enabled = state.canRestore(item.id)) {
+                    .clickable(enabled = state.canRestore(item.id), role = Role.Button) {
                         onDismiss()
                         onEvent(TrashEvent.SelectRestore(item.id))
                     },
@@ -83,7 +84,7 @@ internal fun MobileTrashItemSheet(
                 },
                 modifier = Modifier
                     .testTag(MOBILE_TRASH_ITEM_DELETE_TAG)
-                    .clickable(enabled = state.canDelete(item.id)) {
+                    .clickable(enabled = state.canDelete(item.id), role = Role.Button) {
                         onDismiss()
                         onEvent(TrashEvent.SelectDelete(item.id))
                     }

@@ -165,6 +165,60 @@ These acknowledgements record caller inspection, not automated speech assertions
 The selector limits each stage to 120 seconds and the whole flow to 360 seconds.
 Require `OK (1 test)` and inspect the corresponding recording and utterance log.
 
+`MobileTalkBackChoicesProofTest#talkBackActivatesSignInResumeAndStartOver`
+completes the ordinary Sign in and resume-choice TalkBack lane. It mounts the
+production signed-out screen and Resume dialog with controlled callbacks;
+it opens no browser, starts no player and initializes no account runtime.
+Use the same API 37, font scale 2.0, disabled-animation and actual TalkBack setup,
+with a fresh UUID and the existing `putio.accessibility.enabled=true` and
+`putio.accessibility.runId=<UUID>` instrumentation arguments. Install with
+`adb install -r`, then invoke this exact selector through bounded `am instrument`;
+no media fixture arguments are needed.
+
+Follow `talkback-choices-stage.txt` under `accessibility-proof-<UUID>/`: activate
+Sign in at `sign-in`, Resume at `resume`, and Start over at `start-over`.
+The fixed examples are “Rehearsal video.mp4” at 01:23 and “Rehearsal audio.mp3”
+at 00:42. Each stage advances only after its real callback fires exactly once;
+a wrong choice or dismissal fails. `talkback-choices-state.txt` records the
+observed action sequence. Require `finished` plus `OK (1 test)`. Each phase is
+bounded to 120 seconds and the whole walkthrough to 400 seconds. Capture and
+inspect the actual TalkBack utterances and host recording; callback assertions
+alone do not prove speech. Preserve and restore device settings and the account
+session using the same host-supervision rules as the player lane.
+
+`MobileTalkBackSessionProofTest#talkBackControlsNowPlayingAndSeeksPrivateAudio`
+mounts the production shell around one private, muted audio player. It connects
+no account runtime or media-session service. Use the same accessibility opt-in
+and device settings, a fresh run UUID, and `putio.accessibility.audio` pointing
+to caller-owned audio beneath the app's external files directory. The fixture
+must last at least 300 seconds: playback starts at 30 seconds and may run through
+the preparation and two playing phases at their full budgets before the host
+pauses it. Install with `adb install -r` and invoke this
+exact selector through bounded `am instrument`.
+
+Watch `talkback-session-stage.txt` in `accessibility-proof-<UUID>/`. Preparation
+is automatic; at `bar-pause` activate the now-playing Pause action, then Play at
+`bar-play`. At `open-player-paused`, open the player from the bar and pause it.
+At `seek`, use Forward 10 seconds or the spoken timeline slider while paused.
+At `return-and-stop`, go Back and activate Stop playback on the bar. The selector
+observes the private player's state, new and live player attachments, and
+seek events before advancing; it accepts no host acknowledgement files. The bar
+has no seek control, so the observed seek discontinuity itself proves the player
+screen was open. `talkback-session-state.txt` records the observed
+state. Require `finished` and `OK (1 test)`. Preparation has a 15-second limit,
+each user phase 120 seconds, and the entire selector 660 seconds. Capture real
+TalkBack utterances and video separately; these checks prove private-player
+interaction, not background service behavior or spoken output by themselves.
+
+The reduced-motion check reuses the same zero animation scales without TalkBack.
+Open the navigation drawer, a Files or Trash item sheet, the Files sort menu, a
+Settings choice dialog, the Add transfer sheet with a shared-link replacement
+prompt, and the player, then pull to refresh Files and Transfers. Each surface
+must appear in its final state on the first frame after the tap; capture a
+screenshot within half a second and a short recording. The app defines no
+animation of its own: Material transitions, sheet drags and progress indicators
+all read the system scales, so a non-zero scale here is a regression.
+
 Send one hardware gesture at a time, waiting for TalkBack to speak and show the
 focused control before the next gesture:
 

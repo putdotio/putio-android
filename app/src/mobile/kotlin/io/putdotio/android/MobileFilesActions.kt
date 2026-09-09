@@ -32,6 +32,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -184,12 +185,15 @@ internal fun MobileFilesActions(
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.mobile_files_rename)) },
                     modifier = Modifier
-                        .clickable(enabled = operation.canStartOperation) { editing = true },
+                        .clickable(enabled = operation.canStartOperation, role = Role.Button) { editing = true },
                 )
                 if (onMoveItem != null) {
                     ListItem(
                         headlineContent = { Text(stringResource(R.string.mobile_files_move)) },
-                        modifier = Modifier.clickable(enabled = item.id.value > 0L && operation.canStartOperation) {
+                        modifier = Modifier.clickable(
+                            enabled = item.id.value > 0L && operation.canStartOperation,
+                            role = Role.Button,
+                        ) {
                             onMoveItem(item)
                             dismiss()
                         },
@@ -209,7 +213,10 @@ internal fun MobileFilesActions(
                         null
                     },
                     modifier = Modifier
-                        .clickable(enabled = confirmedTrashEnabled != null && item.id.value > 0L && operation.canStartOperation) {
+                        .clickable(
+                            enabled = confirmedTrashEnabled != null && item.id.value > 0L && operation.canStartOperation,
+                            role = Role.Button,
+                        ) {
                             confirmedDeleteTrash = currentTrashEnabled
                         }
                         .padding(bottom = 24.dp),
