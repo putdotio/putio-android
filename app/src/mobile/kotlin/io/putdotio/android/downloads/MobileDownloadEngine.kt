@@ -62,11 +62,10 @@ internal class MobileDownloadEngine(
             }
         }
         // Media3 is the source of truth for bytes: a row it does not know either never
-        // reached the service (re-issue a fresh Queued row) or was removed while nothing
-        // listened (drop it, its bytes are gone).
+        // reached the service (re-issue it) or was removed while nothing listened (drop it).
         for (entry in store.entries.value) {
             if (entry.fileId in known) continue
-            if (entry.status == DownloadStatus.Queued) start(entry) else store.removeBlocking(entry.fileId)
+            if (entry.accepted) store.removeBlocking(entry.fileId) else start(entry)
         }
         downloadManager.resumeDownloads()
     }
@@ -75,7 +74,6 @@ internal class MobileDownloadEngine(
         val request = DownloadRequest.Builder(contentId(entry.fileId), entry.artifact.apiUrl(entry.fileId).toUri())
             .setMimeType(if (entry.artifact == DownloadArtifact.HLS) MimeTypes.APPLICATION_M3U8 else null)
             .build()
-        synchronized(removing) { removing -= entry.fileId }
         DownloadService.sendAddDownload(appContext, MobileDownloadService::class.java, request, true)
     }
 
@@ -123,7 +121,7 @@ internal class MobileDownloadEngine(
         val fileId = fileIdOf(download.request.id) ?: return
         if (download.state == Download.STATE_REMOVING) return
         val status = download.toStatus(error, downloadManager.isWaitingForRequirements) ?: return
-        store.updateStatusBlocking(fileId) { it.copy(status = status) }
+        store.updateStatusBlocking(fileId) { it.copy(status = status, accepted = true) }
     }
 
     private fun contentId(fileId: FilesItemId): String = "$userId:${fileId.value}"

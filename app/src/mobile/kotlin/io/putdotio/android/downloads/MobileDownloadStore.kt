@@ -100,6 +100,7 @@ private fun DownloadEntry.toJson(): JSONObject =
         .put("type", type.raw)
         .put("artifact", artifact.name)
         .put("createdAt", createdAt)
+        .put("accepted", accepted)
         .put("status", status.toJson())
 
 private fun DownloadStatus.toJson(): JSONObject =
@@ -129,6 +130,7 @@ private fun JSONObject.toEntryOrNull(): DownloadEntry? {
         artifact = artifact,
         status = status,
         createdAt = optLong("createdAt"),
+        accepted = optBoolean("accepted", false),
     )
 }
 

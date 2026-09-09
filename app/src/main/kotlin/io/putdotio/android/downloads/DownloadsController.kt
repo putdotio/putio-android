@@ -1,5 +1,6 @@
 package io.putdotio.android.downloads
 
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
 import java.io.Closeable
 import kotlinx.coroutines.CoroutineScope
@@ -10,6 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * One controller per signed-in user. Rows come from the store, which the engine
@@ -26,6 +29,7 @@ class DownloadsController(
     private val controllerJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + controllerJob)
     private val mutableState = MutableStateFlow(DownloadsState().withEntries(store.entries.value))
+    private val mutations = Mutex()
     private var closed = false
 
     val state: StateFlow<DownloadsState> = mutableState.asStateFlow()
@@ -53,9 +57,7 @@ class DownloadsController(
 
     private fun start(request: DownloadRequest): Boolean {
         val artifact = request.type.downloadArtifact()
-        val blocked = engine.isRemoving(request.fileId) ||
-            store.find(request.fileId)?.let { it.isActive || it.isCompleted } == true
-        if (artifact == null || blocked) return false
+        if (artifact == null || !canStart(request.fileId)) return false
         val entry = DownloadEntry(
             fileId = request.fileId,
             name = request.name,
@@ -64,7 +66,9 @@ class DownloadsController(
             status = DownloadStatus.Queued,
             createdAt = clock(),
         )
-        scope.launch {
+        enqueue {
+            // Re-check under the mutation lock: a removal may have landed since dispatch.
+            if (!canStart(entry.fileId)) return@enqueue
             store.upsert(entry)
             engine.start(entry)
         }
@@ -72,13 +76,24 @@ class DownloadsController(
     }
 
     private fun retry(event: DownloadsEvent.Retry): Boolean {
-        val entry = store.find(event.fileId)?.takeIf { it.canRetry && !engine.isRemoving(it.fileId) } ?: return false
-        scope.launch {
+        if (!canRetry(event.fileId)) return false
+        enqueue {
+            val entry = store.find(event.fileId)?.takeIf { canRetry(it.fileId) } ?: return@enqueue
             store.upsert(entry.copy(status = DownloadStatus.Queued))
             engine.start(entry)
         }
         return true
     }
+
+    private fun canStart(fileId: FilesItemId): Boolean {
+        if (engine.isRemoving(fileId) || synchronized(lock) { fileId in mutableState.value.removing }) return false
+        return store.find(fileId)?.let { it.isActive || it.isCompleted } != true
+    }
+
+    private fun canRetry(fileId: FilesItemId): Boolean =
+        store.find(fileId)?.canRetry == true &&
+            !engine.isRemoving(fileId) &&
+            synchronized(lock) { fileId !in mutableState.value.removing }
 
     private fun requestRemoval(event: DownloadsEvent.RequestRemoval): Boolean {
         val entry = store.find(event.fileId) ?: return false
@@ -92,8 +107,13 @@ class DownloadsController(
             val current = mutableState.value
             mutableState.value = current.copy(removal = null, removing = current.removing + pending.fileId)
         }
-        engine.remove(pending.fileId)
+        enqueue { engine.remove(pending.fileId) }
         return true
+    }
+
+    /** Store writes and engine calls run one at a time, in dispatch order. */
+    private fun enqueue(block: suspend () -> Unit) {
+        scope.launch { mutations.withLock { block() } }
     }
 
     private fun updateRemoval(removal: DownloadRemoval?): Boolean {

@@ -54,6 +54,8 @@ data class DownloadEntry(
     val artifact: DownloadArtifact,
     val status: DownloadStatus,
     val createdAt: Long,
+    /** Set once the platform downloader has recorded this request; only then is its absence meaningful. */
+    val accepted: Boolean = false,
 ) {
     val isCompleted: Boolean get() = status is DownloadStatus.Completed
     val canRetry: Boolean get() = status is DownloadStatus.Failed
