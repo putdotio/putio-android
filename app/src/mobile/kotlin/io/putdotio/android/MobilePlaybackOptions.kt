@@ -250,7 +250,7 @@ private fun PlaybackSettingsRow(label: String, value: String, enabled: Boolean, 
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         supportingContent = { Text(value, style = MaterialTheme.typography.bodyMedium) },
         modifier = Modifier.fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .alpha(if (enabled) 1f else 0.38f),
     )
 }

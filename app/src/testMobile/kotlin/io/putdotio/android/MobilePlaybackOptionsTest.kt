@@ -66,7 +66,7 @@ class MobilePlaybackOptionsTest {
         }
 
         compose.onNodeWithContentDescription("Playback options").assertDoesNotExist()
-        compose.onNodeWithText("Speed (1×)").performClick()
+        compose.onNodeWithText("Speed (1×)").assertIsButton().performClick()
         compose.onNode(hasText("1×") and isSelectable()).assertIsSelected()
         compose.onNodeWithText("1.5×").assertIsNotSelected()
         compose.onNodeWithContentDescription("Back").assertDoesNotExist()

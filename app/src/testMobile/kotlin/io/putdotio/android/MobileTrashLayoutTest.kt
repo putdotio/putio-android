@@ -51,8 +51,9 @@ class MobileTrashLayoutTest {
             }
         }
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_DELETE_TAG).performScrollTo()
-        compose.onNodeWithTag(MOBILE_TRASH_ITEM_DELETE_TAG).assertIsDisplayed().performClick()
-        compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithTag(MOBILE_TRASH_ITEM_DELETE_TAG).assertIsDisplayed().assertIsButton().performClick()
+        compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performScrollTo().assertIsDisplayed().assertIsButton()
+            .performClick()
         compose.runOnIdle {
             assertEquals(listOf(TrashEvent.SelectDelete(item.id), TrashEvent.SelectRestore(item.id)), events)
         }

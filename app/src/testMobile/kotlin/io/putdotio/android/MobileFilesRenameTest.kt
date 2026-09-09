@@ -82,7 +82,7 @@ class MobileFilesRenameTest {
         val queuedRefresh = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
             .fetchSemanticsNode().config[SemanticsActions.CustomActions].single().action
         compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
-        compose.onNodeWithText("Rename").performClick()
+        compose.onNodeWithText("Rename").assertIsButton().performClick()
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("saved.mkv")
         compose.onNodeWithText("Save").performClick()
         compose.runOnIdle {
