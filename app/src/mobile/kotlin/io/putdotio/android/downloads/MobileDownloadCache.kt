@@ -16,7 +16,11 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import androidx.media3.exoplayer.offline.DefaultDownloaderFactory
 import androidx.media3.exoplayer.offline.DownloadManager
+import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.exoplayer.offline.Downloader
+import androidx.media3.exoplayer.offline.DownloaderFactory
 import java.io.File
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import okhttp3.OkHttpClient
 
@@ -50,51 +54,38 @@ internal class MobileDownloadCache private constructor(context: Context) {
         ResolvingDataSource(OkHttpDataSource.Factory(httpClient).createDataSource(), ::authorize)
     }
 
-    private val databaseIndex = DefaultDownloadIndex(databaseProvider)
-    private val managers = mutableMapOf<Long, DownloadManager>()
-    private val executor = Executors.newFixedThreadPool(DOWNLOAD_THREADS)
-
     /**
      * The player reads completed downloads from the cache and streams everything
      * else straight from the network: a null write sink keeps online playback from
      * filling the no-eviction download directory.
      */
-    fun playbackFactory(userId: Long): DataSource.Factory =
+    fun playbackFactory(userId: Long): DataSource.Factory = cacheFactory(userId).setCacheWriteDataSinkFactory(null)
+
+    /** Who the signed-in player belongs to; a player built before sign-in matches no cached bytes. */
+    @Volatile
+    var activeUserId: Long? = null
+
+    private fun cacheFactory(userId: Long): CacheDataSource.Factory =
         CacheDataSource.Factory()
             .setCache(cache)
             .setCacheKeyFactory(UserScopedCacheKeys(userId))
-            .setCacheWriteDataSinkFactory(null)
             .setUpstreamDataSourceFactory(upstreamFactory)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
     /**
-     * One manager per user over the shared cache and index. Each writes under
-     * user-prefixed keys, which is the only way to scope HLS child requests since
-     * Media3 hands segment specs to the key factory without the request's key.
-     * The service reads the manager for the signed-in user only.
+     * Media3's DownloadService binds the first manager it sees for the whole
+     * process, so there is exactly one. Request ids are `userId:fileId`; each
+     * request gets a downloader writing under that user's cache keys, and the
+     * engine stops requests that belong to a user who is not signed in.
      */
-    fun downloadManager(userId: Long): DownloadManager = synchronized(managers) {
-        managers.getOrPut(userId) {
-            DownloadManager(
-                appContext,
-                databaseIndex,
-                DefaultDownloaderFactory(
-                    CacheDataSource.Factory()
-                        .setCache(cache)
-                        .setCacheKeyFactory(UserScopedCacheKeys(userId))
-                        .setUpstreamDataSourceFactory(upstreamFactory),
-                    executor,
-                ),
-            ).apply {
-                maxParallelDownloads = 1
-                minRetryCount = MIN_RETRIES
-            }
-        }
+    val downloadManager: DownloadManager = DownloadManager(
+        appContext,
+        DefaultDownloadIndex(databaseProvider),
+        UserScopedDownloaderFactory(::cacheFactory, Executors.newFixedThreadPool(DOWNLOAD_THREADS)),
+    ).apply {
+        maxParallelDownloads = 1
+        minRetryCount = MIN_RETRIES
     }
-
-    /** The user whose downloads the foreground service currently drives. */
-    @Volatile
-    var activeUserId: Long? = null
 
     private fun authorize(spec: DataSpec): DataSpec {
         val token = accessToken
@@ -119,16 +110,25 @@ internal class MobileDownloadCache private constructor(context: Context) {
     }
 }
 
-/**
- * Key for one cached object: the owning user, then the signed URL minus its
- * token. The token is per-session noise; the user keeps accounts apart on a
- * shared cache.
- */
-internal fun userScopedCacheKey(userId: Long, uri: Uri): String = "u$userId|${uri.withoutOauthToken()}"
+/** Request ids are `userId:fileId`; the user prefix scopes every cached byte the request produces. */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun DownloadRequest.ownerUserId(): Long? = id.substringBefore(':', missingDelimiterValue = "").toLongOrNull()
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private class UserScopedDownloaderFactory(
+    private val cacheFactory: (Long) -> CacheDataSource.Factory,
+    private val executor: Executor,
+) : DownloaderFactory {
+    override fun createDownloader(request: DownloadRequest): Downloader {
+        val userId = requireNotNull(request.ownerUserId()) { "Download request without an owner" }
+        return DefaultDownloaderFactory(cacheFactory(userId), executor).createDownloader(request)
+    }
+}
+
+/** The owning user, then the signed URL minus its token. The token is per-session noise. */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class UserScopedCacheKeys(private val userId: Long) : CacheKeyFactory {
-    override fun buildCacheKey(dataSpec: DataSpec): String = userScopedCacheKey(userId, dataSpec.uri)
+    override fun buildCacheKey(dataSpec: DataSpec): String = "u$userId|${dataSpec.uri.withoutOauthToken()}"
 }
 
 internal fun Uri.withoutOauthToken(): Uri {

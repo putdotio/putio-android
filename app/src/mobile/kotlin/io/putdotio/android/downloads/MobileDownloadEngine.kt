@@ -16,10 +16,10 @@ import java.net.UnknownHostException
 import java.util.concurrent.TimeoutException
 
 /**
- * Bridges one user's download index to that user's Media3 manager. Requests
- * carry the token-free API URL; Media3 persists them, resumes them, and reports
- * progress back here. Closing pauses the manager so another session never
- * drives this user's transfers with its own token.
+ * Bridges one user's download index to the process-wide Media3 manager.
+ * Requests carry the token-free API URL; Media3 persists them, resumes them, and
+ * reports progress back here. Requests of any other user are stopped while this
+ * user is signed in, so no session ever drives another account's transfers.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadEngine(
@@ -27,7 +27,7 @@ internal class MobileDownloadEngine(
     private val store: MobileDownloadStore,
     private val userId: Long,
     private val downloads: MobileDownloadCache = MobileDownloadCache.get(context),
-    private val downloadManager: DownloadManager = downloads.downloadManager(userId),
+    private val downloadManager: DownloadManager = downloads.downloadManager,
 ) : DownloadEngine, DownloadManager.Listener {
     private val appContext = context.applicationContext
     private val removing = mutableSetOf<FilesItemId>()
@@ -35,7 +35,6 @@ internal class MobileDownloadEngine(
     init {
         downloads.activeUserId = userId
         downloadManager.addListener(this)
-        downloadManager.resumeDownloads()
         reconcile()
     }
 
@@ -45,15 +44,28 @@ internal class MobileDownloadEngine(
         downloadManager.downloadIndex.getDownloads().use { cursor ->
             while (cursor.moveToNext()) {
                 val download = cursor.download
-                val fileId = fileIdOf(download.request.id) ?: continue
+                val owner = download.request.ownerUserId()
+                val fileId = fileIdOf(download.request.id)
+                if (fileId == null) {
+                    // Another account's request: park it; its owner's session resumes it.
+                    if (owner != null && !download.isTerminalState) {
+                        downloadManager.setStopReason(download.request.id, STOP_REASON_OTHER_USER)
+                    }
+                    continue
+                }
                 known += fileId
+                if (download.state == Download.STATE_REMOVING) synchronized(removing) { removing += fileId }
+                if (download.stopReason == STOP_REASON_OTHER_USER) {
+                    downloadManager.setStopReason(download.request.id, Download.STOP_REASON_NONE)
+                }
                 reflect(download, null)
             }
         }
-        // A row Media3 has never seen was queued before the service accepted it; re-issue it.
+        // Rows Media3 never saw were queued before the service accepted them; re-issue them.
         for (entry in store.entries.value) {
             if (entry.fileId !in known && entry.isActive) start(entry)
         }
+        downloadManager.resumeDownloads()
     }
 
     override fun start(entry: DownloadEntry) {
@@ -65,6 +77,12 @@ internal class MobileDownloadEngine(
     }
 
     override fun remove(fileId: FilesItemId) {
+        val known = runCatching { downloadManager.downloadIndex.getDownload(contentId(fileId)) }.getOrNull()
+        if (known == null) {
+            // Media3 never accepted this row, so there are no bytes to wait for.
+            store.removeBlocking(fileId)
+            return
+        }
         synchronized(removing) { removing += fileId }
         DownloadService.sendRemoveDownload(appContext, MobileDownloadService::class.java, contentId(fileId), false)
     }
@@ -74,8 +92,13 @@ internal class MobileDownloadEngine(
 
     fun close() {
         downloadManager.removeListener(this)
-        downloadManager.pauseDownloads()
         if (downloads.activeUserId == userId) downloads.activeUserId = null
+        // Leave this user's transfers parked until the next session that owns them.
+        for (download in downloadManager.currentDownloads) {
+            if (fileIdOf(download.request.id) != null) {
+                downloadManager.setStopReason(download.request.id, STOP_REASON_OTHER_USER)
+            }
+        }
     }
 
     override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
@@ -106,6 +129,11 @@ internal class MobileDownloadEngine(
         val (owner, file) = contentId.split(':', limit = 2).takeIf { it.size == 2 } ?: return null
         if (owner.toLongOrNull() != userId) return null
         return file.toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
+    }
+
+    private companion object {
+        /** Media3 stop reason for requests whose owner is not the signed-in user. */
+        const val STOP_REASON_OTHER_USER = 1
     }
 }
 

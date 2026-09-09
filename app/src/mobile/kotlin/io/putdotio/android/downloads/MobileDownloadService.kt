@@ -25,12 +25,7 @@ class MobileDownloadService : DownloadService(
     R.string.mobile_downloads_channel_name,
     0,
 ) {
-    // Restart intents can arrive before any session; a paused stand-in keeps them harmless.
-    override fun getDownloadManager(): DownloadManager {
-        val downloads = MobileDownloadCache.get(this)
-        val userId = downloads.activeUserId ?: return downloads.downloadManager(NO_USER).apply { pauseDownloads() }
-        return downloads.downloadManager(userId)
-    }
+    override fun getDownloadManager(): DownloadManager = MobileDownloadCache.get(this).downloadManager
 
     override fun getScheduler(): Scheduler = PlatformScheduler(this, JOB_ID)
 
@@ -53,6 +48,5 @@ class MobileDownloadService : DownloadService(
         const val FOREGROUND_NOTIFICATION_ID = 2001
         const val JOB_ID = 2001
         const val CHANNEL_ID = "downloads"
-        const val NO_USER = -1L
     }
 }

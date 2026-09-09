@@ -17,8 +17,9 @@ import org.json.JSONObject
 /**
  * One JSON document per user in private SharedPreferences. Rows hold only
  * identity, name, type, rendition and status; Media3 owns bytes and URIs.
- * Every write commits before the in-memory rows advance. Media3's own index
- * remains the source of truth for progress and is reconciled on start.
+ * User and terminal writes commit before the in-memory rows advance; progress
+ * writes apply asynchronously. Media3's own index remains the source of truth
+ * for progress and is reconciled on start.
  */
 internal class MobileDownloadStore internal constructor(
     private val preferences: SharedPreferences,
@@ -43,13 +44,21 @@ internal class MobileDownloadStore internal constructor(
         current.filterNot { it.fileId == fileId }
     }
 
-    /** Engine callbacks arrive on the main thread; the status write is small and committed inline. */
+    /**
+     * Engine callbacks arrive on the main thread. Progress updates are frequent
+     * and expendable, so they persist asynchronously; terminal states commit so a
+     * completed download survives an immediate process death. Media3's own index
+     * is reconciled on start either way.
+     */
     fun updateStatusBlocking(fileId: FilesItemId, transform: (DownloadEntry) -> DownloadEntry) {
         synchronized(lock) {
             val current = mutableEntries.value
             val entry = current.firstOrNull { it.fileId == fileId } ?: return
-            val next = current.map { if (it.fileId == fileId) transform(entry) else it }
-            preferences.edit(commit = true) { putString(key, next.toJson()) }
+            val updated = transform(entry)
+            if (updated == entry) return
+            val next = current.map { if (it.fileId == fileId) updated else it }
+            val terminal = updated.status is DownloadStatus.Completed || updated.status is DownloadStatus.Failed
+            preferences.edit(commit = terminal) { putString(key, next.toJson()) }
             mutableEntries.value = next
         }
     }

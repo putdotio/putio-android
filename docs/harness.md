@@ -741,9 +741,11 @@ Requests carry the token-free API URL, and a resolving data source adds the
 session header for `api.put.io` hosts. Playlist bodies from the server embed
 `oauth_token` in their child URLs; the cache key factory strips that query and
 prefixes the owning user id, so the Media3 index stays token-free and two
-accounts never share cached bytes. One `DownloadManager` per user drives that
-user's requests and pauses on sign-out. Playback reads through the same cache
-with a null write sink, so streaming never fills the download directory.
+accounts never share cached bytes. There is one `DownloadManager`; request ids
+are `userId:fileId`, each request downloads under its owner's keys, and a
+sign-out parks that user's transfers with a stop reason until the owner signs in
+again. Playback reads through the same cache with a null write sink, so
+streaming never fills the download directory.
 Inspect `databases/exoplayer_internal.db` after a proof and require zero
 `oauth_token` occurrences and a `u<userId>|` prefix on every
 `ExoPlayerCacheIndex*` key. The cached playlist bodies are server text and are
