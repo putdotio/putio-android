@@ -61,6 +61,7 @@ class MobileFileShareServiceTest {
         val service = controller.get()
         service.onStartCommand(Intent(service, MobileFileShareService::class.java), 0, 7)
         shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertTrue(shadowOf(service).isForegroundStopped)
         assertEquals(7, shadowOf(service).stopSelfId)
     }
 

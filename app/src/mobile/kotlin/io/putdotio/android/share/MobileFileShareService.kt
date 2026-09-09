@@ -61,7 +61,10 @@ class MobileFileShareService : Service() {
         val fileId = intent?.getLongExtra(EXTRA_FILE_ID, -1L)?.takeIf { it > 0L }
         val name = intent?.getStringExtra(EXTRA_NAME)?.takeIf { it.isNotBlank() }
         if (fileId == null || name == null || intent.action == ACTION_CANCEL) {
+            // Every start arrives through startForegroundService; the promise must be kept before stopping.
+            show(progressNotification(name.orEmpty(), indeterminate = true, progress = 0))
             job?.cancel()
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf(startId)
             return START_NOT_STICKY
         }
@@ -75,9 +78,10 @@ class MobileFileShareService : Service() {
             } catch (error: CancellationException) {
                 throw error
             } catch (error: IOException) {
-                // Foreground updates need no POST_NOTIFICATIONS grant; detaching keeps the result visible.
-                show(failedNotification(name))
-                ServiceCompat.stopForeground(this@MobileFileShareService, ServiceCompat.STOP_FOREGROUND_DETACH)
+                fail(name)
+            } catch (error: RuntimeException) {
+                // FileProvider, notification posting and Activity launch report failure as runtime errors.
+                fail(name)
             } finally {
                 // A newer start keeps the service alive; only the latest startId stops it.
                 stopSelf(startId)
@@ -111,18 +115,29 @@ class MobileFileShareService : Service() {
         target
     }
 
-    /** Foreground apps get the chooser directly; otherwise the next resumed Activity opens it. */
+    /** Foreground updates need no POST_NOTIFICATIONS grant; detaching keeps the result visible. */
+    private fun fail(name: String) {
+        show(failedNotification(name))
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+    }
+
+    /** Visible apps get the chooser directly; otherwise the next resumed Activity opens it. */
     private suspend fun deliver(chooser: Intent, name: String) {
         val state = ActivityManager.RunningAppProcessInfo().also(ActivityManager::getMyMemoryState)
-        if (state.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+        if (state.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE) {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
             startActivity(chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             return
         }
         show(readyNotification(name, chooser))
         val resumed = withTimeoutOrNull(READY_TIMEOUT_MS) { awaitResumedActivity() }
+        if (resumed == null) {
+            // The notification keeps the chooser reachable after the service stops.
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+            return
+        }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-        resumed?.startActivity(chooser)
+        resumed.startActivity(chooser)
     }
 
     private suspend fun awaitResumedActivity(): Activity = suspendCancellableCoroutine { continuation ->
@@ -185,7 +200,7 @@ class MobileFileShareService : Service() {
             .putExtra(Intent.EXTRA_STREAM, uri)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         send.clipData = ClipData.newRawUri(null, uri)
-        return Intent.createChooser(send, null)
+        return Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 
     private fun progressNotification(name: String, indeterminate: Boolean, progress: Int): Notification =

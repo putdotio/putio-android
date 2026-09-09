@@ -36,7 +36,7 @@
                 <data android:host="put.io" />
                 <data android:host="www.put.io" />
                 <data android:pathPattern="/files" />
-                <data android:pathPattern="/files/..*" />
+                <data android:pathPrefix="/files/" />
                 <data android:pathPattern="/transfers" />
                 <data android:pathPattern="/search" />
                 <data android:pathPattern="/history" />

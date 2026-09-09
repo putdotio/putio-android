@@ -48,10 +48,10 @@ internal fun parseMobileDeepLink(uri: Uri?): MobileDeepLink? {
     }
 }
 
-/** Removes the URI so a replayed launch intent cannot route again or leak into saved state. */
+/** Removes a recognised URI so a replayed launch intent cannot route again or leak into saved state. */
 internal fun Intent.consumeMobileDeepLink(): MobileDeepLink? {
     if (action != Intent.ACTION_VIEW) return null
-    val link = parseMobileDeepLink(data)
+    val link = parseMobileDeepLink(data) ?: return null
     setDataAndType(null, null)
     return link
 }

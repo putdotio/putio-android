@@ -45,5 +45,8 @@ class MobileDeepLinksTest {
         assertNull(intent.data)
         assertNull(intent.consumeMobileDeepLink())
         assertNull(Intent(Intent.ACTION_SEND, "https://app.put.io/files/7".toUri()).consumeMobileDeepLink())
+        val foreign = Intent(Intent.ACTION_VIEW, "https://example.com/x".toUri())
+        assertNull(foreign.consumeMobileDeepLink())
+        assertEquals("https://example.com/x", foreign.data.toString())
     }
 }
