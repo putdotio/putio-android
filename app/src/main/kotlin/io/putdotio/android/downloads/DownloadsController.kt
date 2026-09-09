@@ -72,7 +72,7 @@ class DownloadsController(
     }
 
     private fun retry(event: DownloadsEvent.Retry): Boolean {
-        val entry = store.find(event.fileId)?.takeIf { it.canRetry } ?: return false
+        val entry = store.find(event.fileId)?.takeIf { it.canRetry && !engine.isRemoving(it.fileId) } ?: return false
         scope.launch {
             store.upsert(entry.copy(status = DownloadStatus.Queued))
             engine.start(entry)
@@ -88,7 +88,10 @@ class DownloadsController(
     // The row leaves the store only once the engine reports the bytes are gone.
     private fun confirmRemoval(): Boolean {
         val pending = synchronized(lock) { mutableState.value.removal } ?: return false
-        updateRemoval(null)
+        synchronized(lock) {
+            val current = mutableState.value
+            mutableState.value = current.copy(removal = null, removing = current.removing + pending.fileId)
+        }
         engine.remove(pending.fileId)
         return true
     }

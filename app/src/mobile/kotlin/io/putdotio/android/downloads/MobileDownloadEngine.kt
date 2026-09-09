@@ -61,9 +61,12 @@ internal class MobileDownloadEngine(
                 reflect(download, null)
             }
         }
-        // Rows Media3 never saw were queued before the service accepted them; re-issue them.
+        // Media3 is the source of truth for bytes: a row it does not know either never
+        // reached the service (re-issue a fresh Queued row) or was removed while nothing
+        // listened (drop it, its bytes are gone).
         for (entry in store.entries.value) {
-            if (entry.fileId !in known && entry.isActive) start(entry)
+            if (entry.fileId in known) continue
+            if (entry.status == DownloadStatus.Queued) start(entry) else store.removeBlocking(entry.fileId)
         }
         downloadManager.resumeDownloads()
     }

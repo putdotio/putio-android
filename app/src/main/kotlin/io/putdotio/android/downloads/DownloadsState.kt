@@ -7,6 +7,8 @@ data class DownloadsState(
     /** Bytes held by completed downloads; the cache reports partial progress per row. */
     val storageBytes: Long = 0L,
     val removal: DownloadRemoval? = null,
+    /** Rows whose bytes Media3 is still deleting; they take no action until it confirms. */
+    val removing: Set<FilesItemId> = emptySet(),
 ) {
     fun entry(fileId: FilesItemId): DownloadEntry? = entries.firstOrNull { it.fileId == fileId }
 
@@ -37,4 +39,5 @@ internal fun DownloadsState.withEntries(entries: List<DownloadEntry>): Downloads
         entries = entries.sortedByDescending { it.createdAt },
         storageBytes = entries.sumOf { (it.status as? DownloadStatus.Completed)?.bytes ?: 0L },
         removal = removal?.takeIf { pending -> entries.any { it.fileId == pending.fileId } },
+        removing = removing.filterTo(mutableSetOf()) { id -> entries.any { it.fileId == id } },
     )

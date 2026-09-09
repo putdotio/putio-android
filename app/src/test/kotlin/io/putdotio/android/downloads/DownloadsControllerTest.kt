@@ -90,11 +90,17 @@ class DownloadsControllerTest {
             assertTrue(controller.dispatch(DownloadsEvent.ConfirmRemoval))
             engine.await { it.removed == listOf(video.fileId) }
             assertNull(controller.state.value.removal)
-            // The row stays until the engine confirms, and a re-download is refused meanwhile.
+            // The row stays until the engine confirms; re-download and retry are refused meanwhile.
             assertEquals(1, controller.state.value.entries.size)
+            assertTrue(controller.state.value.removing.contains(video.fileId))
             assertFalse(controller.dispatch(DownloadsEvent.Start(video)))
+            store.fail(video.fileId)
+            controller.awaitState { it.entry(video.fileId)?.canRetry == true }
+            assertFalse(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
             engine.finishRemoval(video.fileId, store)
-            assertEquals(0L, controller.awaitState { it.entries.isEmpty() }.storageBytes)
+            val cleared = controller.awaitState { it.entries.isEmpty() }
+            assertEquals(0L, cleared.storageBytes)
+            assertTrue(cleared.removing.isEmpty())
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
         }
     }

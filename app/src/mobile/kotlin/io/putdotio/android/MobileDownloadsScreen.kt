@@ -95,6 +95,7 @@ internal fun MobileDownloadsScreen(
     sheetEntry?.let { entry ->
         MobileDownloadItemSheet(
             entry = entry,
+            removing = state.removing.contains(entry.fileId),
             onEvent = onEvent,
             onPlay = { onPlay(entry.toFilesItem()) },
             onDismiss = { sheetFileId = null },
@@ -171,6 +172,7 @@ private fun MobileDownloadRow(entry: DownloadEntry, onOpen: (() -> Unit)?, onAct
 @Composable
 private fun MobileDownloadItemSheet(
     entry: DownloadEntry,
+    removing: Boolean,
     onEvent: (DownloadsEvent) -> Boolean,
     onPlay: () -> Unit,
     onDismiss: () -> Unit,
@@ -188,7 +190,7 @@ private fun MobileDownloadItemSheet(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
             )
-            if (entry.isCompleted) {
+            if (entry.isCompleted && !removing) {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.mobile_downloads_play)) },
                     modifier = Modifier.clickable(role = Role.Button) {
@@ -197,7 +199,7 @@ private fun MobileDownloadItemSheet(
                     },
                 )
             }
-            if (entry.canRetry) {
+            if (entry.canRetry && !removing) {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.mobile_action_retry)) },
                     modifier = Modifier.clickable(role = Role.Button) {
@@ -212,7 +214,7 @@ private fun MobileDownloadItemSheet(
                     Text(stringResource(R.string.mobile_downloads_remove), color = MaterialTheme.colorScheme.error)
                 },
                 modifier = Modifier
-                    .clickable(role = Role.Button) {
+                    .clickable(enabled = !removing, role = Role.Button) {
                         onDismiss()
                         onEvent(DownloadsEvent.RequestRemoval(entry.fileId))
                     }
