@@ -20,6 +20,7 @@ class MobileDeepLinkRequests internal constructor() : ViewModel() {
     }
 
     internal companion object {
-        val None = MobileDeepLinkRequests()
+        /** A fresh, empty holder for callers without an Activity; never shared between them. */
+        val None: MobileDeepLinkRequests get() = MobileDeepLinkRequests()
     }
 }

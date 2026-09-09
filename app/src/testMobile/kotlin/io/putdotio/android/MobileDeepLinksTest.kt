@@ -51,6 +51,12 @@ class MobileDeepLinksTest {
         val unroutable = Intent(Intent.ACTION_VIEW, "https://app.put.io/files/download?oauth_token=secret".toUri())
         assertNull(unroutable.consumeMobileDeepLink())
         assertNull(unroutable.data)
+        val mixedCase = Intent(Intent.ACTION_VIEW, "https://App.Put.io/transfers?oauth_token=secret".toUri())
+        assertEquals(MobileDeepLink.Transfers, mixedCase.consumeMobileDeepLink())
+        assertNull(mixedCase.data)
+        val auth = Intent(Intent.ACTION_VIEW, "putio://auth?code=abc&state=xyz".toUri())
+        assertNull(auth.consumeMobileDeepLink())
+        assertEquals("putio://auth?code=abc&state=xyz", auth.data.toString())
     }
 
     @Test

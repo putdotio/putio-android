@@ -159,7 +159,6 @@ internal class ActiveSearchHistorySession(
     }
 
     /** A product link names a file; resolve it like a history row so Files opens its folder. */
-    /** Resolves a linked item and navigates to it; the caller's scope bounds the resolve. */
     suspend fun openFile(fileId: FilesItemId) {
         when (val result = filesItemResolver.resolveItem(fileId)) {
             is FilesRepositoryResult.Success -> {

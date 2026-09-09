@@ -3,6 +3,7 @@ package io.putdotio.android
 import android.content.Intent
 import android.net.Uri
 import androidx.core.net.toUri
+import io.putdotio.android.auth.MOBILE_OAUTH_HOST
 import io.putdotio.android.files.FilesItemId
 
 /** Where a supported product link lands; the shell resolves file ids through Files. */
@@ -29,9 +30,10 @@ internal sealed interface MobileDeepLink {
  */
 internal fun parseMobileDeepLink(uri: Uri?): MobileDeepLink? {
     if (uri == null) return null
+    val host = uri.host?.lowercase()
     val segments = when {
-        uri.scheme == "putio" && uri.host != "auth" -> listOfNotNull(uri.host) + uri.pathSegments
-        uri.scheme == "https" && uri.host in WEB_HOSTS -> uri.pathSegments
+        uri.scheme == "putio" && host != MOBILE_OAUTH_HOST -> listOfNotNull(host) + uri.pathSegments
+        uri.scheme == "https" && host in WEB_HOSTS -> uri.pathSegments
         else -> return null
     }.filter { it.isNotBlank() }
     return when (segments.firstOrNull()) {
@@ -61,15 +63,19 @@ internal fun MobileDeepLink.toRouteUri(): Uri = when (this) {
 }.toUri()
 
 /**
- * Removes any put.io URI, recognised or not, so a replayed launch intent cannot route
- * again and a web link's query never reaches saved state. Foreign URIs are left alone.
+ * Removes any product URI, recognised or not, so a replayed launch intent cannot route
+ * again and a web link's query never reaches saved state. The OAuth callback and
+ * foreign URIs are left alone.
  */
 internal fun Intent.consumeMobileDeepLink(): MobileDeepLink? {
     if (action != Intent.ACTION_VIEW) return null
     val uri = data ?: return null
-    if (uri.scheme != "putio" && uri.host !in WEB_HOSTS) return null
+    val host = uri.host?.lowercase()
+    val product = (uri.scheme == "putio" && host != MOBILE_OAUTH_HOST) || (uri.scheme == "https" && host in WEB_HOSTS)
+    if (!product) return null
     setDataAndType(null, null)
     return parseMobileDeepLink(uri)
 }
+
 
 private val WEB_HOSTS = setOf("app.put.io", "put.io", "www.put.io")
