@@ -78,14 +78,15 @@ internal class MobileDownloadEngine(
     }
 
     override fun remove(fileId: FilesItemId) {
+        // The service queue runs a remove after any add already posted, so the intent
+        // always goes out; only the row's fate depends on whether Media3 has a record.
+        DownloadService.sendRemoveDownload(appContext, MobileDownloadService::class.java, contentId(fileId), false)
         val known = runCatching { downloadManager.downloadIndex.getDownload(contentId(fileId)) }.getOrNull()
         if (known == null) {
-            // Media3 never accepted this row, so there are no bytes to wait for.
             store.removeBlocking(fileId)
-            return
+        } else {
+            synchronized(removing) { removing += fileId }
         }
-        synchronized(removing) { removing += fileId }
-        DownloadService.sendRemoveDownload(appContext, MobileDownloadService::class.java, contentId(fileId), false)
     }
 
     /** True while Media3 is still deleting this file's bytes; a new download must wait. */
