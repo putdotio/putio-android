@@ -17,9 +17,10 @@ internal object MobileResumedActivity {
     private val waiters = mutableListOf<(Activity) -> Unit>()
 
     fun resumed(activity: Activity) {
-        current = activity
-        val pending = waiters.toList()
-        waiters.clear()
+        val pending = synchronized(waiters) {
+            current = activity
+            waiters.toList().also { waiters.clear() }
+        }
         pending.forEach { it(activity) }
     }
 
@@ -27,9 +28,11 @@ internal object MobileResumedActivity {
         if (current === activity) current = null
     }
 
-    suspend fun await(): Activity = current ?: suspendCancellableCoroutine { continuation ->
+    /** Cancellation may arrive off the main thread, so registration and removal share one lock. */
+    suspend fun await(): Activity = suspendCancellableCoroutine { continuation ->
         val waiter: (Activity) -> Unit = { if (continuation.isActive) continuation.resume(it) }
-        waiters += waiter
-        continuation.invokeOnCancellation { waiters -= waiter }
+        val now = synchronized(waiters) { current.also { if (it == null) waiters += waiter } }
+        if (now != null) continuation.resume(now)
+        continuation.invokeOnCancellation { synchronized(waiters) { waiters -= waiter } }
     }
 }

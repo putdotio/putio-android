@@ -109,6 +109,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -1073,6 +1074,33 @@ class MobileShellTest {
         }
     }
 
+    @Test
+    fun deepLinksRouteOnceAfterNavigationIsReadyAndFileLinksAcknowledgeAfterResolving() {
+        val requests = MobileDeepLinkRequests.None
+        val opened = mutableListOf<FilesItemId>()
+        val resolveGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        compose.setShell(
+            deepLinkRequests = requests,
+            onOpenFile = { id -> opened += id; resolveGate.await() },
+        )
+        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.runOnIdle { requests.receive(MobileDeepLink.Transfers) }
+        compose.onNodeWithText("Add transfer").assertIsDisplayed()
+        compose.runOnIdle { assertNull(requests.pending.value) }
+
+        compose.runOnIdle { requests.receive(MobileDeepLink.File(FilesItemId(7L))) }
+        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(listOf(FilesItemId(7L)), opened)
+            assertEquals(MobileDeepLink.File(FilesItemId(7L)), requests.pending.value)
+            resolveGate.complete(Unit)
+        }
+        compose.runOnIdle {
+            assertNull(requests.pending.value)
+            assertEquals(listOf(FilesItemId(7L)), opened)
+        }
+    }
+
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         transferDraft: MobileTransferDraft = MobileTransferDraft(),
         contentNavigation: kotlinx.coroutines.flow.Flow<FilesItem> = kotlinx.coroutines.flow.emptyFlow(),
@@ -1080,12 +1108,16 @@ class MobileShellTest {
         onFilesEvent: (FilesBrowserEvent) -> Boolean = { true },
         onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
         onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
+        deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
+        onOpenFile: suspend (FilesItemId) -> Unit = {},
     ) {
         setContent {
             PutioTheme {
                 MobileShell(
                     transferDraft = transferDraft,
                     contentNavigation = contentNavigation,
+                    deepLinkRequests = deepLinkRequests,
+                    onOpenFile = onOpenFile,
                     playbackPlayerFactory = NoAudioSessionFactory,
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),

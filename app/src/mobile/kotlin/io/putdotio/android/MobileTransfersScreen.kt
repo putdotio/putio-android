@@ -102,7 +102,7 @@ internal fun MobileTransfersScreen(
         draft.reconcileTransfers(state)
     }
     var confirmation by remember(sessionId) { mutableStateOf<TransferConfirmation?>(null) }
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = remember(sessionId) { SnackbarHostState() }
     val addedMessage = stringResource(R.string.mobile_transfers_added)
     // The successful add id changes once per accepted submission; the first value is history, not news.
     var announcedAdd by remember(sessionId) { mutableStateOf(state.lastSuccessfulAddRequestId) }

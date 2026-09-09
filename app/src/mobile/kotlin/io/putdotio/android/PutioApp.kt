@@ -667,13 +667,18 @@ internal fun MobileShell(
     } || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving ||
         transfersState.mutation is TransferMutation.Running || nowPlayingPending
     val pendingDeepLink by deepLinkRequests.pending.collectAsStateWithLifecycle()
-    LaunchedEffect(pendingDeepLink, backStackEntry, shareNavigationBlocked) {
+    val navigationReady = backStackEntry != null
+    // Keyed on readiness rather than the entry so the navigation a link causes cannot restart it.
+    LaunchedEffect(pendingDeepLink, navigationReady, shareNavigationBlocked) {
         val link = pendingDeepLink ?: return@LaunchedEffect
-        if (backStackEntry == null || shareNavigationBlocked) return@LaunchedEffect
+        if (!navigationReady || shareNavigationBlocked) return@LaunchedEffect
         // A newer link restarts this effect and cancels an unfinished file resolve.
         when (link) {
             MobileDeepLink.Files -> navController.navigateTo(MobileDestination.Files)
-            is MobileDeepLink.File -> onOpenFile(link.id)
+            is MobileDeepLink.File -> {
+                navController.navigateTo(MobileDestination.Files)
+                onOpenFile(link.id)
+            }
             MobileDeepLink.Transfers -> navController.navigateTo(MobileDestination.Transfers)
             MobileDeepLink.Search, MobileDeepLink.History -> navController.navigateTo(MobileDestination.Search)
             MobileDeepLink.Trash -> {
