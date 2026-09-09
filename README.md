@@ -37,10 +37,13 @@ Mobile, on the emulator harness against the live API:
 - Downloads: video saves the same HLS rendition it streams, audio saves the
   original; a Downloads screen under Account lists local copies, storage used,
   retry and delete; completed downloads play without a connection
+- Share out: Share file exports the original through a scoped content URI; the
+  chooser never sees a token. Product deep links open Files, a folder,
+  Transfers, Search, History, Trash and Downloads
 
 The TV flavor builds and launches on the Android TV emulator but has no
-feature surfaces yet. Not started: share-out and deep links, Chromecast,
-Picture-in-Picture, and the Play release lane.
+feature surfaces yet. Not started: Chromecast, Picture-in-Picture, and the
+Play release lane.
 
 ## Direction
 

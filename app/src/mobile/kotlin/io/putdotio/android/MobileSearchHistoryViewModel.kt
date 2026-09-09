@@ -158,6 +158,17 @@ internal class ActiveSearchHistorySession(
         mutableNavigationFailure.value = null
     }
 
+    /** A product link names a file; resolve it like a history row so Files opens its folder. */
+    suspend fun openFile(fileId: FilesItemId) {
+        when (val result = filesItemResolver.resolveItem(fileId)) {
+            is FilesRepositoryResult.Success -> {
+                mutableNavigationFailure.value = null
+                navigationChannel.send(result.value)
+            }
+            is FilesRepositoryResult.Failure -> mutableNavigationFailure.value = result.failure
+        }
+    }
+
     fun retryRecentSearches() {
         recentSearchStore.retry()
     }

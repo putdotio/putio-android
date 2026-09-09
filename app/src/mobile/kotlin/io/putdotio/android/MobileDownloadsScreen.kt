@@ -57,6 +57,7 @@ internal fun MobileDownloadsScreen(
     onEvent: (DownloadsEvent) -> Boolean,
     onPlay: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
+    onShare: ((FilesItem) -> Unit)? = null,
 ) {
     var sheetFileId by rememberSaveable { mutableStateOf<Long?>(null) }
     val sheetEntry = state.entries.firstOrNull { it.fileId.value == sheetFileId }
@@ -98,6 +99,7 @@ internal fun MobileDownloadsScreen(
             removing = state.removing.contains(entry.fileId),
             onEvent = onEvent,
             onPlay = { onPlay(entry.toFilesItem()) },
+            onShare = onShare?.let { share -> { share(entry.toFilesItem()) } },
             onDismiss = { sheetFileId = null },
         )
     }
@@ -175,6 +177,7 @@ private fun MobileDownloadItemSheet(
     removing: Boolean,
     onEvent: (DownloadsEvent) -> Boolean,
     onPlay: () -> Unit,
+    onShare: (() -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(
@@ -196,6 +199,16 @@ private fun MobileDownloadItemSheet(
                     modifier = Modifier.clickable(role = Role.Button) {
                         onDismiss()
                         onPlay()
+                    },
+                )
+            }
+            if (onShare != null && !removing) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.mobile_files_share)) },
+                    supportingContent = { Text(stringResource(R.string.mobile_files_share_description)) },
+                    modifier = Modifier.clickable(role = Role.Button) {
+                        onDismiss()
+                        onShare()
                     },
                 )
             }

@@ -329,6 +329,13 @@
     <string name="mobile_downloads_actions_named">Download actions for %1$s</string>
     <string name="mobile_downloads_channel_name">Downloads</string>
     <string name="mobile_files_download">Download to this device</string>
+    <string name="mobile_files_share">Share file</string>
+    <string name="mobile_files_share_description">Copies the original to this device, then opens the share sheet.</string>
+    <string name="mobile_share_preparing">Preparing %1$s</string>
+    <string name="mobile_share_ready">%1$s is ready to share</string>
+    <string name="mobile_share_failed">Couldn’t prepare %1$s. Try again.</string>
+    <string name="mobile_share_channel_name">Sharing</string>
+    <string name="mobile_transfers_added">Transfer added</string>
     <string name="mobile_files_downloaded">On this device</string>
     <string name="mobile_files_downloading">Downloading</string>
     <string name="mobile_files_download_failed">Download failed</string>

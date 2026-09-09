@@ -25,7 +25,49 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- Product links. autoVerify needs assetlinks.json on each host; until the release
+                 owner publishes it Android offers the app in the disambiguation sheet. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="app.put.io" />
+                <data android:host="put.io" />
+                <data android:host="www.put.io" />
+                <data android:pathPattern="/files" />
+                <data android:pathPrefix="/files/" />
+                <data android:pathPattern="/transfers" />
+                <data android:pathPattern="/search" />
+                <data android:pathPattern="/history" />
+                <data android:pathPattern="/trash" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="putio" />
+                <data android:host="files" />
+                <data android:host="transfers" />
+                <data android:host="search" />
+                <data android:host="history" />
+                <data android:host="trash" />
+                <data android:host="downloads" />
+            </intent-filter>
         </activity>
+        <service
+            android:name=".share.MobileFileShareService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.share"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_paths" />
+        </provider>
         <service
             android:name=".downloads.MobileDownloadService"
             android:exported="false"

@@ -96,6 +96,7 @@ internal fun MobileFilesScreen(
     onMoveItem: ((FilesItem) -> Unit)? = null,
     downloads: DownloadsState = DownloadsState(),
     onDownloadItem: ((FilesItem) -> Unit)? = null,
+    onShareItem: ((FilesItem) -> Unit)? = null,
 ) {
     val current = state.current
     when (val content = current.content) {
@@ -119,6 +120,7 @@ internal fun MobileFilesScreen(
         -> key(current.folder.id.value) {
             MobileRefreshableFilesContent(
                 state, content, onEvent, onPlayMedia, modifier, confirmedTrashEnabled, onMoveItem, downloads, onDownloadItem,
+                onShareItem,
             )
         }
     }
@@ -135,6 +137,7 @@ private fun MobileRefreshableFilesContent(
     onMoveItem: ((FilesItem) -> Unit)? = null,
     downloads: DownloadsState = DownloadsState(),
     onDownloadItem: ((FilesItem) -> Unit)? = null,
+    onShareItem: ((FilesItem) -> Unit)? = null,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -156,6 +159,7 @@ private fun MobileRefreshableFilesContent(
                 onMoveItem = onMoveItem,
                 downloadStatus = downloads.entry(selectedItem.id)?.status,
                 onDownloadItem = onDownloadItem,
+                onShareItem = onShareItem,
             )
         }
     }

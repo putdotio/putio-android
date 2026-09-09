@@ -725,8 +725,47 @@ confirmation. Follow the existing session-preserving installation and fixture
 cleanup rules. The controlled `MobileShellAccessibilityProofTest` also exercises
 both replacement choices at 200% font size in portrait and landscape, checks the
 entire confirmation message is reachable, and asserts that choosing a draft
-submits no transfer. This covers share-in only: scoped file export, share-out and
-product deep links remain under #29.
+submits no transfer. After a successful Add, Transfers shows a "Transfer added"
+snackbar once per request; the share proof captures it.
+
+## Mobile share-out and deep links
+
+Share file (Files and Downloads action sheets, non-folder items only) starts a
+foreground `dataSync` service that fetches the original file through the API
+download endpoint with the session header, stores it under private
+`files/shares/<fileId>/<name>`, and opens the system chooser with a
+`FileProvider` content URI (`${applicationId}.share`) carrying a read grant.
+The payload is the stream only: no text, subject or URL, so no token reaches the
+chooser. Progress and failure use the foreground notification, which the drawer
+hides while the app holds no notification permission. A service cannot start an
+Activity from the background, so the chooser opens from the resumed Activity:
+immediately when one exists, otherwise a "ready" notification brings the app
+back and the next resume opens it. After ten minutes without a resume the
+export and notification are dropped. Each export removes every earlier export
+first; a recipient still reading one keeps its open descriptor. Launch removes
+exports older than a day.
+`MobileFileShareServiceTest` asserts the payload shape, the ready notification,
+service stop rules, and the name sanitizer.
+
+Deep links: `https://{app.put.io,put.io,www.put.io}/{files,files/<id>,transfers,search,history,trash}`
+(`autoVerify`; the `assetlinks.json` publication is a release-owner task, so
+unverified installs still open through the app chooser or an explicit package)
+and `putio://{files,transfers,search,history,trash,downloads}`. `putio://auth`
+stays with the OAuth receiver. A link is consumed once per Activity intent, any
+put.io URI is removed from the retained intent, and routing waits for sign-in;
+an unrouted link survives process death as its token-free `putio://` form. A file
+id resolves through the item resolver and reuses the navigation-failure dialog.
+
+Prove on the signed-in API 37 emulator:
+
+```bash
+adb shell am start -a android.intent.action.VIEW -d putio://transfers
+adb shell am start -a android.intent.action.VIEW -d https://app.put.io/files/<id> -p io.put.putio.mobile.debug
+```
+
+Then open a small image's action sheet, choose Share file, and confirm the
+chooser shows the content preview. Inspect `dumpsys activity activities` for the
+chooser: `clip=` must reference only a `content://` URI and no `oauth_token`.
 
 ## Downloads and offline playback
 
