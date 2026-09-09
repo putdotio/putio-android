@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.browser.auth.AuthTabIntent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import io.putdotio.android.share.MobileFileShareService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -22,6 +23,10 @@ class MainActivity : BasePutioActivity() {
         ViewModelProvider(this)[MobileTransferDraft::class.java]
     }
 
+    internal val deepLinkRequests: MobileDeepLinkRequests by lazy {
+        ViewModelProvider(this)[MobileDeepLinkRequests::class.java]
+    }
+
     private val pendingNowPlayingRequest = MutableStateFlow(false)
 
     /** Stays pending until the shell has acted on it, so a recreation mid-flight cannot lose it. */
@@ -35,7 +40,9 @@ class MainActivity : BasePutioActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
+        MobileFileShareService.prune(applicationContext)
         consumeShare(intent, savedInstanceState?.getBoolean(STATE_SHARE_CONSUMED) == true)
+        consumeDeepLink(intent, savedInstanceState?.getBoolean(STATE_DEEP_LINK_CONSUMED) == true)
         if (shouldPublishLaunchIntent(intent, launch.launchIntentConsumed)) {
             launch.launchIntentConsumed = true
             pendingNowPlayingRequest.value = true
@@ -43,7 +50,7 @@ class MainActivity : BasePutioActivity() {
             pendingNowPlayingRequest.value = true
         }
         setContent {
-            PutioApp(authTabLauncher, nowPlayingRequests, transferDraft)
+            PutioApp(authTabLauncher, nowPlayingRequests, transferDraft, deepLinkRequests)
         }
     }
 
@@ -51,12 +58,14 @@ class MainActivity : BasePutioActivity() {
         super.onSaveInstanceState(outState)
         outState.putBoolean(STATE_NOW_PLAYING_PENDING, pendingNowPlayingRequest.value)
         outState.putBoolean(STATE_SHARE_CONSUMED, launch.shareLaunchConsumed)
+        outState.putBoolean(STATE_DEEP_LINK_CONSUMED, launch.deepLinkLaunchConsumed)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         consumeShare(intent, restoredConsumed = false, freshIntent = true)
+        consumeDeepLink(intent, restoredConsumed = false, freshIntent = true)
         launch.launchIntentConsumed = true
         if (intent.isNowPlayingAction) pendingNowPlayingRequest.value = true
     }
@@ -69,11 +78,20 @@ class MainActivity : BasePutioActivity() {
         if (!consumed && !fromHistory) transferDraft.receive(shared)
     }
 
+    private fun consumeDeepLink(intent: Intent?, restoredConsumed: Boolean, freshIntent: Boolean = false) {
+        val link = intent?.consumeMobileDeepLink() ?: return
+        val consumed = if (freshIntent) false else launch.deepLinkLaunchConsumed || restoredConsumed
+        launch.deepLinkLaunchConsumed = true
+        val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (!consumed && !fromHistory) deepLinkRequests.receive(link)
+    }
+
     @androidx.annotation.VisibleForTesting
     internal fun deliverIntentForTest(intent: Intent) = onNewIntent(intent)
 
     private companion object {
         const val STATE_SHARE_CONSUMED = "shareLaunchConsumed"
+        const val STATE_DEEP_LINK_CONSUMED = "deepLinkLaunchConsumed"
         const val STATE_NOW_PLAYING_PENDING = "nowPlayingPending"
     }
 }
@@ -81,6 +99,7 @@ class MainActivity : BasePutioActivity() {
 internal class NowPlayingLaunchState : ViewModel() {
     var launchIntentConsumed = false
     var shareLaunchConsumed = false
+    var deepLinkLaunchConsumed = false
 }
 
 /** A request to open the live audio player; [acknowledge] clears it once handled. */

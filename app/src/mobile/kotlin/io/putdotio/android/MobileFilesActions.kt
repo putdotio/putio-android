@@ -52,6 +52,7 @@ import io.putdotio.android.files.canStartOperation
 
 internal const val MOBILE_FILES_RENAME_FIELD_TAG = "mobile-files-rename-field"
 internal const val MOBILE_FILES_DOWNLOAD_ACTION_TAG = "mobile-files-download-action"
+internal const val MOBILE_FILES_SHARE_ACTION_TAG = "mobile-files-share-action"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +67,7 @@ internal fun MobileFilesActions(
     onMoveItem: ((FilesItem) -> Unit)? = null,
     downloadStatus: DownloadStatus? = null,
     onDownloadItem: ((FilesItem) -> Unit)? = null,
+    onShareItem: ((FilesItem) -> Unit)? = null,
 ) {
     val failed = operation as? FilesFolderOperation.Failed
     val failedRename = (failed?.intent as? FilesFolderOperationIntent.Rename)?.takeIf { it.itemId == item.id }
@@ -212,6 +214,18 @@ internal fun MobileFilesActions(
                             .testTag(MOBILE_FILES_DOWNLOAD_ACTION_TAG)
                             .clickable(enabled = downloadable && item.id.value > 0L, role = Role.Button) {
                                 onDownloadItem(item)
+                                dismiss()
+                            },
+                    )
+                }
+                if (onShareItem != null && !item.isFolder && item.id.value > 0L) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.mobile_files_share)) },
+                        supportingContent = { Text(stringResource(R.string.mobile_files_share_description)) },
+                        modifier = Modifier
+                            .testTag(MOBILE_FILES_SHARE_ACTION_TAG)
+                            .clickable(role = Role.Button) {
+                                onShareItem(item)
                                 dismiss()
                             },
                     )

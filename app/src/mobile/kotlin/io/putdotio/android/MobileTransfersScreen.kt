@@ -36,6 +36,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -84,6 +86,7 @@ import java.text.NumberFormat
 
 internal const val MOBILE_TRANSFERS_LIST_TAG = "mobile-transfers-list"
 internal const val MOBILE_TRANSFER_ADD_FIELD_TAG = "mobile-transfer-add-field"
+internal const val MOBILE_TRANSFERS_SNACKBAR_TAG = "mobile-transfers-snackbar"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,6 +102,17 @@ internal fun MobileTransfersScreen(
         draft.reconcileTransfers(state)
     }
     var confirmation by remember(sessionId) { mutableStateOf<TransferConfirmation?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val addedMessage = stringResource(R.string.mobile_transfers_added)
+    // The successful add id changes once per accepted submission; the first value is history, not news.
+    var announcedAdd by remember(sessionId) { mutableStateOf(state.lastSuccessfulAddRequestId) }
+    LaunchedEffect(state.lastSuccessfulAddRequestId) {
+        val added = state.lastSuccessfulAddRequestId
+        if (added != null && added != announcedAdd) {
+            announcedAdd = added
+            snackbarHostState.showSnackbar(addedMessage)
+        }
+    }
 
     val controlsEnabled =
         state.mutation !is TransferMutation.Running &&
@@ -115,47 +129,53 @@ internal fun MobileTransfersScreen(
             (state.content is TransfersContent.Empty || state.content is TransfersContent.Ready) &&
             !state.refresh.isRunning &&
             !state.content.isPaging
-    Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                MobileAddTransfer(
-                    draft = draft,
-                    state = state,
-                    onEvent = onEvent,
-                    enabled = controlsEnabled,
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                    MobileAddTransfer(
+                        draft = draft,
+                        state = state,
+                        onEvent = onEvent,
+                        enabled = controlsEnabled,
+                    )
+                }
+                MobileTransferActionsMenu(
+                    refreshEnabled = refreshEnabled,
+                    cleanEnabled = controlsEnabled,
+                    showClean = state.content is TransfersContent.Ready,
+                    sessionId = sessionId,
+                    onRefresh = { onEvent(TransfersEvent.Refresh) },
+                    onClean = { confirmation = TransferConfirmation.Clean },
                 )
             }
-            MobileTransferActionsMenu(
-                refreshEnabled = refreshEnabled,
-                cleanEnabled = controlsEnabled,
-                showClean = state.content is TransfersContent.Ready,
-                sessionId = sessionId,
-                onRefresh = { onEvent(TransfersEvent.Refresh) },
-                onClean = { confirmation = TransferConfirmation.Clean },
-            )
-        }
 
-        MobileTransfersRefreshFailure(state.refresh, controlsEnabled, onEvent)
-        PullToRefreshBox(
-            isRefreshing = state.refresh is TransfersRefresh.Refreshing,
-            onRefresh = { if (refreshEnabled) onEvent(TransfersEvent.Refresh) },
-            modifier = Modifier.weight(1f),
-        ) {
-            MobileTransfersContent(
-                content = state.content,
-                mutation = state.mutation,
-                interactionsEnabled = rowInteractionsEnabled,
-                pagingEnabled = pagingInteractionsEnabled,
-                onEvent = onEvent,
-                onConfirmation = { confirmation = it },
-            )
+            MobileTransfersRefreshFailure(state.refresh, controlsEnabled, onEvent)
+            PullToRefreshBox(
+                isRefreshing = state.refresh is TransfersRefresh.Refreshing,
+                onRefresh = { if (refreshEnabled) onEvent(TransfersEvent.Refresh) },
+                modifier = Modifier.weight(1f),
+            ) {
+                MobileTransfersContent(
+                    content = state.content,
+                    mutation = state.mutation,
+                    interactionsEnabled = rowInteractionsEnabled,
+                    pagingEnabled = pagingInteractionsEnabled,
+                    onEvent = onEvent,
+                    onConfirmation = { confirmation = it },
+                )
+            }
         }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).testTag(MOBILE_TRANSFERS_SNACKBAR_TAG),
+        )
     }
 
     confirmation?.let { pending ->

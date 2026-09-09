@@ -110,6 +110,7 @@ import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.downloads.OfflinePlaybackRepository
+import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -151,6 +152,7 @@ fun PutioApp(
     authTabLauncher: ActivityResultLauncher<Intent>? = null,
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     transferDraft: MobileTransferDraft = viewModel(),
+    deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
 ) {
     val context = LocalContext.current
     val runtime = remember(context.applicationContext) { MobileOAuthRuntime.get(context) }
@@ -165,6 +167,7 @@ fun PutioApp(
                 runtime = runtime,
                 oauthBrowser = oauthBrowser,
                 nowPlayingRequests = nowPlayingRequests,
+                deepLinkRequests = deepLinkRequests,
             )
         }
     }
@@ -176,6 +179,7 @@ private fun MobileAuthRoot(
     runtime: MobileOAuthRuntime,
     oauthBrowser: AuthTabOAuthBrowser?,
     nowPlayingRequests: NowPlayingRequests,
+    deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
 ) {
     val context = LocalContext.current
     val authController = runtime.authController
@@ -286,6 +290,7 @@ private fun MobileAuthRoot(
                 authController = authController,
                 rootScope = rootScope,
                 nowPlayingRequests = nowPlayingRequests,
+                deepLinkRequests = deepLinkRequests,
             )
     }
 }
@@ -360,6 +365,7 @@ internal fun SignedInMobileRoot(
     downloadsViewModel: MobileDownloadsViewModel? = null,
     playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
+    deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
     transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
 ) {
     val account = signedIn.account
@@ -499,6 +505,9 @@ internal fun SignedInMobileRoot(
         playbackRepository = playbackRepository,
         playbackPlayerFactory = reportingPlayerFactory,
         nowPlayingRequests = nowPlayingRequests,
+        deepLinkRequests = deepLinkRequests,
+        onOpenFile = searchHistorySession::openFile,
+        onShareItem = { item -> MobileFileShareService.start(appContext, item.id, item.name) },
         downloadsController = downloadsController,
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
@@ -620,6 +629,9 @@ internal fun MobileShell(
     onTransferAuthenticationRequired: suspend () -> Unit = {},
     contentNavigation: Flow<FilesItem> = emptyFlow(),
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
+    deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
+    onOpenFile: (FilesItemId) -> Unit = {},
+    onShareItem: ((FilesItem) -> Unit)? = null,
     navigationFailure: FilesFailure? = null,
     onDismissNavigationFailure: () -> Unit = {},
     onSignOut: () -> Unit,
@@ -654,6 +666,26 @@ internal fun MobileShell(
         it.operation.pendingDelete != null || it.operation.pendingMove != null
     } || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving ||
         transfersState.mutation is TransferMutation.Running || nowPlayingPending
+    val pendingDeepLink by deepLinkRequests.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingDeepLink, backStackEntry, shareNavigationBlocked) {
+        val link = pendingDeepLink ?: return@LaunchedEffect
+        if (backStackEntry == null || shareNavigationBlocked) return@LaunchedEffect
+        when (link) {
+            MobileDeepLink.Files -> navController.navigateTo(MobileDestination.Files)
+            is MobileDeepLink.File -> onOpenFile(link.id)
+            MobileDeepLink.Transfers -> navController.navigateTo(MobileDestination.Transfers)
+            MobileDeepLink.Search, MobileDeepLink.History -> navController.navigateTo(MobileDestination.Search)
+            MobileDeepLink.Trash -> {
+                navController.navigateTo(MobileDestination.Account)
+                navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true }
+            }
+            MobileDeepLink.Downloads -> {
+                navController.navigateTo(MobileDestination.Account)
+                navController.navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true }
+            }
+        }
+        deepLinkRequests.acknowledge(link)
+    }
     LaunchedEffect(incomingDraft.incomingRequestId, backStackEntry, shareNavigationBlocked) {
         val requestId = incomingDraft.incomingRequestId ?: return@LaunchedEffect
         if (backStackEntry == null || shareNavigationBlocked) return@LaunchedEffect
@@ -778,6 +810,7 @@ internal fun MobileShell(
             trashController = trashController,
             downloadsController = downloadsController,
             downloadsState = downloadsState,
+            onShareItem = onShareItem,
             accountSettingsState = accountSettingsState,
             appConfigState = appConfigState,
             searchHistoryState = searchHistoryState,
@@ -819,6 +852,7 @@ internal fun MobileShell(
                         trashController = trashController,
                         downloadsController = downloadsController,
                         downloadsState = downloadsState,
+                        onShareItem = onShareItem,
                         accountSettingsState = accountSettingsState,
                         appConfigState = appConfigState,
                         searchHistoryState = searchHistoryState,
@@ -851,6 +885,7 @@ internal fun MobileShell(
                         trashController = trashController,
                         downloadsController = downloadsController,
                         downloadsState = downloadsState,
+                        onShareItem = onShareItem,
                         accountSettingsState = accountSettingsState,
                         appConfigState = appConfigState,
                         searchHistoryState = searchHistoryState,
@@ -955,6 +990,7 @@ private fun PhoneShell(
     trashController: TrashController?,
     downloadsController: DownloadsController? = null,
     downloadsState: DownloadsState = DownloadsState(),
+    onShareItem: ((FilesItem) -> Unit)? = null,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -1023,6 +1059,7 @@ private fun PhoneShell(
             trashController = trashController,
             downloadsController = downloadsController,
             downloadsState = downloadsState,
+            onShareItem = onShareItem,
             accountSettingsState = accountSettingsState,
             appConfigState = appConfigState,
             searchHistoryState = searchHistoryState,
@@ -1058,6 +1095,7 @@ private fun TabletShell(
     trashController: TrashController?,
     downloadsController: DownloadsController? = null,
     downloadsState: DownloadsState = DownloadsState(),
+    onShareItem: ((FilesItem) -> Unit)? = null,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -1266,6 +1304,7 @@ private fun MobileNavHost(
     modifier: Modifier = Modifier,
     downloadsController: DownloadsController? = null,
     downloadsState: DownloadsState = DownloadsState(),
+    onShareItem: ((FilesItem) -> Unit)? = null,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Failure(
             AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
@@ -1293,6 +1332,7 @@ private fun MobileNavHost(
                 onDownloadItem = downloadsController?.let { controller ->
                     { item -> controller.dispatch(DownloadsEvent.Start(item.toDownloadRequest())) }
                 },
+                onShareItem = onShareItem,
             )
         }
         composable(MobileDestination.Search.route) {
@@ -1344,6 +1384,7 @@ private fun MobileNavHost(
                     state = downloadsState,
                     onEvent = controller::dispatch,
                     onPlay = navController::navigateToPlayback,
+                    onShare = onShareItem,
                 )
             }
         }
