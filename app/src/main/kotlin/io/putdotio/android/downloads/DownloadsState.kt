@@ -12,8 +12,9 @@ data class DownloadsState(
 ) {
     fun entry(fileId: FilesItemId): DownloadEntry? = entries.firstOrNull { it.fileId == fileId }
 
-    /** True when the row has a complete local copy the player can open offline. */
-    fun isAvailableOffline(fileId: FilesItemId): Boolean = entry(fileId)?.isCompleted == true
+    /** True when the row has a complete local copy the player can open offline and nothing is deleting it. */
+    fun isAvailableOffline(fileId: FilesItemId): Boolean =
+        entry(fileId)?.isCompleted == true && fileId !in removing
 }
 
 /** A pending "delete local copy" confirmation. */

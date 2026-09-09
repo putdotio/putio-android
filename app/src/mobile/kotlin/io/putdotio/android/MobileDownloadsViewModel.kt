@@ -33,7 +33,7 @@ internal class MobileDownloadsViewModel(
             active?.close()
             active = null
             val store = MobileDownloadStore(context.applicationContext, userId)
-            val engine = MobileDownloadEngine(context.applicationContext, store, userId)
+            val engine = MobileDownloadEngine(context.applicationContext, store, userId, viewModelScope)
             val controller = DownloadsController(store, engine, viewModelScope)
             if (authState.value.sessionKey() != key) {
                 controller.close()

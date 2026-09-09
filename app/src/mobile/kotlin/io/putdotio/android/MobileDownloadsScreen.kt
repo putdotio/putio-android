@@ -86,7 +86,7 @@ internal fun MobileDownloadsScreen(
         items(state.entries, key = { it.fileId.value }) { entry ->
             MobileDownloadRow(
                 entry = entry,
-                onOpen = if (entry.isCompleted) { { onPlay(entry.toFilesItem()) } } else null,
+                onOpen = if (state.isAvailableOffline(entry.fileId)) { { onPlay(entry.toFilesItem()) } } else null,
                 onActions = { sheetFileId = entry.fileId.value },
             )
             HorizontalDivider(Modifier.padding(start = 72.dp))

@@ -23,7 +23,8 @@ internal class OfflinePlaybackRepository(
     private val credentialUrl: (String) -> PutioCredentialUrl,
 ) : PlaybackRepository {
     override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
-        val entry = downloads.value.entry(target.fileId)?.takeIf { it.isCompleted }
+        val state = downloads.value
+        val entry = state.entry(target.fileId)?.takeIf { state.isAvailableOffline(target.fileId) }
             ?: return delegate.resolve(target)
         val source = PlaybackSource(
             fileId = entry.fileId.value,

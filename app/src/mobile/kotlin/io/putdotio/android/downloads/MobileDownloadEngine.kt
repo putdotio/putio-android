@@ -14,6 +14,11 @@ import java.io.IOException
 import java.net.SocketException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeoutException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Bridges one user's download index to the process-wide Media3 manager.
@@ -26,8 +31,10 @@ internal class MobileDownloadEngine(
     context: Context,
     private val store: MobileDownloadStore,
     private val userId: Long,
+    scope: CoroutineScope,
     private val downloads: MobileDownloadCache = MobileDownloadCache.get(context),
     private val downloadManager: DownloadManager = downloads.downloadManager,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : DownloadEngine, DownloadManager.Listener {
     private val appContext = context.applicationContext
     private val removing = mutableSetOf<FilesItemId>()
@@ -37,31 +44,36 @@ internal class MobileDownloadEngine(
         downloads.activeUserId = userId
         downloads.onTokenClearing = parkOnTokenClearing
         downloadManager.addListener(this)
-        reconcile()
+        // The index read is SQLite; only the manager calls must run on its looper.
+        scope.launch {
+            val snapshot = withContext(ioDispatcher) {
+                downloadManager.downloadIndex.getDownloads().use { cursor ->
+                    buildList { while (cursor.moveToNext()) add(cursor.download) }
+                }
+            }
+            reconcile(snapshot)
+        }
     }
 
     /** Media3's index is the source of truth for terminal states reached while no UI listened. */
-    private fun reconcile() {
+    private fun reconcile(indexed: List<Download>) {
         val known = mutableSetOf<FilesItemId>()
-        downloadManager.downloadIndex.getDownloads().use { cursor ->
-            while (cursor.moveToNext()) {
-                val download = cursor.download
-                val owner = download.request.ownerUserId()
-                val fileId = fileIdOf(download.request.id)
-                if (fileId == null) {
-                    // Another account's request: park it; its owner's session resumes it.
-                    if (owner != null && !download.isTerminalState) {
-                        downloadManager.setStopReason(download.request.id, STOP_REASON_OTHER_USER)
-                    }
-                    continue
+        for (download in indexed) {
+            val owner = download.request.ownerUserId()
+            val fileId = fileIdOf(download.request.id)
+            if (fileId == null) {
+                // Another account's request: park it; its owner's session resumes it.
+                if (owner != null && !download.isTerminalState) {
+                    downloadManager.setStopReason(download.request.id, STOP_REASON_OTHER_USER)
                 }
-                known += fileId
-                if (download.state == Download.STATE_REMOVING) synchronized(removing) { removing += fileId }
-                if (download.stopReason == STOP_REASON_OTHER_USER) {
-                    downloadManager.setStopReason(download.request.id, Download.STOP_REASON_NONE)
-                }
-                reflect(download, null)
+                continue
             }
+            known += fileId
+            if (download.state == Download.STATE_REMOVING) synchronized(removing) { removing += fileId }
+            if (download.stopReason == STOP_REASON_OTHER_USER) {
+                downloadManager.setStopReason(download.request.id, Download.STOP_REASON_NONE)
+            }
+            reflect(download, null)
         }
         // Media3 is the source of truth for bytes: a row it does not know either never
         // reached the service (re-issue it) or was removed while nothing listened (drop it).
