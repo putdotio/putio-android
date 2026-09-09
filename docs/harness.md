@@ -191,7 +191,9 @@ mounts the production shell around one private, muted audio player. It connects
 no account runtime or media-session service. Use the same accessibility opt-in
 and device settings, a fresh run UUID, and `putio.accessibility.audio` pointing
 to caller-owned audio beneath the app's external files directory. The fixture
-must last at least 180 seconds. Install with `adb install -r` and invoke this
+must last at least 300 seconds: playback starts at 30 seconds and may run through
+the preparation and two playing phases at their full budgets before the host
+pauses it. Install with `adb install -r` and invoke this
 exact selector through bounded `am instrument`.
 
 Watch `talkback-session-stage.txt` in `accessibility-proof-<UUID>/`. Preparation

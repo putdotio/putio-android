@@ -94,7 +94,11 @@ class MobileTalkBackSessionProofTest {
                     it.playbackState == Player.STATE_READY && it.isPlaying && factory.liveConnections == 1
                 }
                 scenario.onActivity {
-                    require(factory.player.duration >= 180_000L) { "Supply audio lasting at least 180 seconds" }
+                    // Playback runs from the 30s start through preparing (15s), bar-pause (120s) and
+                    // open-player-paused (120s) at their full budgets before the host must pause it.
+                    require(factory.player.duration >= MINIMUM_FIXTURE_MILLIS) {
+                        "Supply audio lasting at least ${MINIMUM_FIXTURE_MILLIS / 1_000} seconds"
+                    }
                 }
                 awaitPlayer("bar-pause", scenario, factory, observations) {
                     it.playbackState == Player.STATE_READY && !it.playWhenReady && observations.pauseRequests > 0
@@ -187,6 +191,7 @@ class MobileTalkBackSessionProofTest {
 
     private companion object {
         const val PRIVATE_MEDIA_ID = "9147003"
+        const val MINIMUM_FIXTURE_MILLIS = 300_000L
         const val STAGE_FILE = "talkback-session-stage.txt"
         const val STATE_FILE = "talkback-session-state.txt"
     }
