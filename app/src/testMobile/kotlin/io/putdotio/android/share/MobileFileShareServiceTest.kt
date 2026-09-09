@@ -44,6 +44,9 @@ class MobileFileShareServiceTest {
         assertFalse(everything.contains("oauth_token"))
         assertFalse(everything.contains("http"))
         assertEquals(stream, send.clipData?.getItemAt(0)?.uri)
+        // createChooser migrates the grant onto the wrapper; the launched intent is what carries it.
+        assertEquals(stream, chooser.clipData?.getItemAt(0)?.uri)
+        assertTrue(chooser.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
 
     }
 

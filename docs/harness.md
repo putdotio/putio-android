@@ -741,7 +741,7 @@ hides while the app holds no notification permission. A service cannot start an
 Activity from the background, so the chooser opens from the resumed Activity:
 immediately when one exists, otherwise a "ready" notification brings the app
 back and the next resume opens it. After ten minutes without a resume the
-export and notification are dropped. Each export removes the other exports
+export and notification are dropped. Each export removes every earlier export
 first; a recipient still reading one keeps its open descriptor. Launch removes
 exports older than a day.
 `MobileFileShareServiceTest` asserts the payload shape, the ready notification,

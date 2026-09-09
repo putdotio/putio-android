@@ -159,24 +159,14 @@ internal class ActiveSearchHistorySession(
     }
 
     /** A product link names a file; resolve it like a history row so Files opens its folder. */
-    private var openFileJob: Job? = null
-
-    /** A later non-file route drops a file resolve that has not navigated yet. */
-    fun cancelOpenFile() {
-        openFileJob?.cancel()
-        openFileJob = null
-    }
-
-    fun openFile(fileId: FilesItemId) {
-        openFileJob?.cancel()
-        openFileJob = scope.launch {
-            when (val result = filesItemResolver.resolveItem(fileId)) {
-                is FilesRepositoryResult.Success -> {
-                    mutableNavigationFailure.value = null
-                    navigationChannel.send(result.value)
-                }
-                is FilesRepositoryResult.Failure -> mutableNavigationFailure.value = result.failure
+    /** Resolves a linked item and navigates to it; the caller's scope bounds the resolve. */
+    suspend fun openFile(fileId: FilesItemId) {
+        when (val result = filesItemResolver.resolveItem(fileId)) {
+            is FilesRepositoryResult.Success -> {
+                mutableNavigationFailure.value = null
+                navigationChannel.send(result.value)
             }
+            is FilesRepositoryResult.Failure -> mutableNavigationFailure.value = result.failure
         }
     }
 

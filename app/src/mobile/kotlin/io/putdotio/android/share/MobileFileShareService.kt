@@ -40,8 +40,8 @@ import okhttp3.Request
  * Exports one original file into private storage, then hands a content URI to the
  * system chooser. The chooser payload is the stream only: no text, no URL, no
  * credential. The API request carries the session header; the CDN redirect it
- * follows is never surfaced. Other copies are pruned before each export and copies
- * older than a day on launch. A service
+ * follows is never surfaced. Every earlier copy is pruned before an export and
+ * copies older than a day on launch. A service
  * cannot start an Activity from the background, so the chooser opens from the
  * resumed Activity: immediately when one exists, otherwise from the next one to
  * resume, which a "ready" notification brings back. An export nobody returns for
@@ -96,9 +96,9 @@ class MobileFileShareService : Service() {
 
     private suspend fun export(fileId: FilesItemId, name: String): File = withContext(Dispatchers.IO) {
         val root = shareRoot(this@MobileFileShareService)
-        val directory = File(root, fileId.value.toString())
         // Unlinking an open file is safe on Android; a recipient still reading keeps its descriptor.
-        root.listFiles()?.filter { it != directory }?.forEach { it.deleteRecursively() }
+        root.deleteRecursively()
+        val directory = File(root, fileId.value.toString())
         directory.mkdirs()
         var complete = false
         try {

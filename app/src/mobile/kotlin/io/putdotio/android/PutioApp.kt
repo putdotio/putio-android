@@ -507,7 +507,6 @@ internal fun SignedInMobileRoot(
         nowPlayingRequests = nowPlayingRequests,
         deepLinkRequests = deepLinkRequests,
         onOpenFile = searchHistorySession::openFile,
-        onCancelOpenFile = searchHistorySession::cancelOpenFile,
         onShareItem = { item -> MobileFileShareService.start(appContext, item.id, item.name) },
         downloadsController = downloadsController,
         sessionId = sessionId,
@@ -631,8 +630,7 @@ internal fun MobileShell(
     contentNavigation: Flow<FilesItem> = emptyFlow(),
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
-    onOpenFile: (FilesItemId) -> Unit = {},
-    onCancelOpenFile: () -> Unit = {},
+    onOpenFile: suspend (FilesItemId) -> Unit = {},
     onShareItem: ((FilesItem) -> Unit)? = null,
     navigationFailure: FilesFailure? = null,
     onDismissNavigationFailure: () -> Unit = {},
@@ -672,7 +670,7 @@ internal fun MobileShell(
     LaunchedEffect(pendingDeepLink, backStackEntry, shareNavigationBlocked) {
         val link = pendingDeepLink ?: return@LaunchedEffect
         if (backStackEntry == null || shareNavigationBlocked) return@LaunchedEffect
-        if (link !is MobileDeepLink.File) onCancelOpenFile()
+        // A newer link restarts this effect and cancels an unfinished file resolve.
         when (link) {
             MobileDeepLink.Files -> navController.navigateTo(MobileDestination.Files)
             is MobileDeepLink.File -> onOpenFile(link.id)
