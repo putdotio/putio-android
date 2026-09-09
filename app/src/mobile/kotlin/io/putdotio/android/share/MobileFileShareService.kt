@@ -2,7 +2,6 @@ package io.putdotio.android.share
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.ActivityManager
 import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
@@ -47,13 +46,34 @@ import okhttp3.Request
  * system chooser. The chooser payload is the stream only: no text, no URL, no
  * credential. The API request carries the session header; the CDN redirect it
  * follows is never surfaced. Copies are pruned before the next export. A service
- * cannot start an Activity from the background, and the app holds no notification
- * permission, so when the app is not in the foreground the chooser waits for the
- * next resumed Activity and opens from there.
+ * cannot start an Activity from the background, so the chooser opens from the
+ * resumed Activity: immediately when one exists, otherwise from the next one to
+ * resume, which a "ready" notification brings back.
  */
 class MobileFileShareService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var job: Job? = null
+    private var resumedActivity: Activity? = null
+    private var onResume: ((Activity) -> Unit)? = null
+    private val lifecycle = object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityResumed(activity: Activity) {
+            resumedActivity = activity
+            onResume?.let { onResume = null; it(activity) }
+        }
+        override fun onActivityPaused(activity: Activity) {
+            if (resumedActivity === activity) resumedActivity = null
+        }
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
+        override fun onActivityStarted(activity: Activity) = Unit
+        override fun onActivityStopped(activity: Activity) = Unit
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
+        override fun onActivityDestroyed(activity: Activity) = Unit
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        application.registerActivityLifecycleCallbacks(lifecycle)
+    }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -121,18 +141,21 @@ class MobileFileShareService : Service() {
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
     }
 
-    /** Visible apps get the chooser directly; otherwise the next resumed Activity opens it. */
+    @androidx.annotation.VisibleForTesting
+    internal suspend fun deliverForTest(chooser: Intent, name: String) = deliver(chooser, name)
+
+    /** A resumed Activity opens the chooser; without one the ready notification brings the app back first. */
     private suspend fun deliver(chooser: Intent, name: String) {
-        val state = ActivityManager.RunningAppProcessInfo().also(ActivityManager::getMyMemoryState)
-        if (state.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE) {
+        val current = resumedActivity
+        if (current != null) {
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            startActivity(chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            current.startActivity(chooser)
             return
         }
-        show(readyNotification(name, chooser))
+        show(readyNotification(name))
         val resumed = withTimeoutOrNull(READY_TIMEOUT_MS) { awaitResumedActivity() }
         if (resumed == null) {
-            // The notification keeps the chooser reachable after the service stops.
+            // The app was never reopened; leave the export and its notification for the next launch.
             ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
             return
         }
@@ -141,21 +164,8 @@ class MobileFileShareService : Service() {
     }
 
     private suspend fun awaitResumedActivity(): Activity = suspendCancellableCoroutine { continuation ->
-        val app = application
-        val callbacks = object : Application.ActivityLifecycleCallbacks {
-            override fun onActivityResumed(activity: Activity) {
-                app.unregisterActivityLifecycleCallbacks(this)
-                if (continuation.isActive) continuation.resume(activity)
-            }
-            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
-            override fun onActivityStarted(activity: Activity) = Unit
-            override fun onActivityPaused(activity: Activity) = Unit
-            override fun onActivityStopped(activity: Activity) = Unit
-            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
-            override fun onActivityDestroyed(activity: Activity) = Unit
-        }
-        app.registerActivityLifecycleCallbacks(callbacks)
-        continuation.invokeOnCancellation { app.unregisterActivityLifecycleCallbacks(callbacks) }
+        onResume = { if (continuation.isActive) continuation.resume(it) }
+        continuation.invokeOnCancellation { onResume = null }
     }
 
     private suspend fun copyWithProgress(input: java.io.InputStream, target: File, total: Long, name: String) {
@@ -219,21 +229,9 @@ class MobileFileShareService : Service() {
             )
             .build()
 
-    @androidx.annotation.VisibleForTesting
-    internal fun readyNotificationForTest(name: String, chooser: Intent): Notification = readyNotification(name, chooser)
-
-    private fun readyNotification(name: String, chooser: Intent): Notification =
-        baseNotification(getString(R.string.mobile_share_ready, name))
-            .setContentIntent(
-                PendingIntent.getActivity(
-                    this,
-                    READY_REQUEST_CODE,
-                    chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-                ),
-            )
-            .setAutoCancel(true)
-            .build()
+    /** Tapping returns to the app, whose resume opens the chooser; the payload stays out of the notification. */
+    private fun readyNotification(name: String): Notification =
+        baseNotification(getString(R.string.mobile_share_ready, name)).setAutoCancel(true).build()
 
     private fun failedNotification(name: String): Notification =
         baseNotification(getString(R.string.mobile_share_failed, name)).setAutoCancel(true).build()
@@ -257,6 +255,7 @@ class MobileFileShareService : Service() {
     }
 
     override fun onDestroy() {
+        application.unregisterActivityLifecycleCallbacks(lifecycle)
         scope.cancel()
         super.onDestroy()
     }
@@ -267,7 +266,6 @@ class MobileFileShareService : Service() {
         private const val ACTION_CANCEL = "io.putdotio.android.action.CANCEL_SHARE"
         private const val CHANNEL_ID = "share"
         private const val NOTIFICATION_ID = 3001
-        private const val READY_REQUEST_CODE = 1
         private const val READY_TIMEOUT_MS = 10L * 60L * 1000L
         private const val BUFFER_SIZE = 64 * 1024
         private const val PERCENT = 100L

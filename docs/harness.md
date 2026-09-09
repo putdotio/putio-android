@@ -738,9 +738,9 @@ download endpoint with the session header, stores it under private
 The payload is the stream only: no text, subject or URL, so no token reaches the
 chooser. Progress and failure use the foreground notification, which the drawer
 hides while the app holds no notification permission. A service cannot start an
-Activity from the background, so when the app is not in the foreground the
-service keeps a "ready" notification and opens the chooser from the next resumed
-Activity, giving up after ten minutes. The export directory is cleared before
+Activity from the background, so the chooser opens from the resumed Activity:
+immediately when one exists, otherwise a "ready" notification brings the app
+back and the next resume opens it, giving up after ten minutes. The export directory is cleared before
 each export, never while a copy may be in use.
 `MobileFileShareServiceTest` asserts the payload shape, the ready notification,
 service stop rules, and the name sanitizer.

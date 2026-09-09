@@ -1,12 +1,17 @@
 package io.putdotio.android.share
 
+import android.app.Activity
 import android.content.Intent
+import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -38,13 +43,40 @@ class MobileFileShareServiceTest {
         assertFalse(everything.contains("http"))
         assertEquals(stream, send.clipData?.getItemAt(0)?.uri)
 
-        val notification = service.readyNotificationForTest("Sintel.mp4", chooser)
-        val launched = requireNotNull(shadowOf(notification.contentIntent).savedIntent)
-        assertEquals(Intent.ACTION_CHOOSER, launched.action)
-        assertTrue(launched.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
-        val shown = shadowOf(notification).contentText.toString() + launched.toUri(0)
+    }
+
+    @Test
+    fun deliveryUsesTheResumedActivityOrWaitsForTheNextOne(): Unit = runBlocking {
+        val controller = Robolectric.buildService(MobileFileShareService::class.java).create()
+        val service = controller.get()
+        // FileProvider caches its root per authority across tests, so build the payload directly here.
+        val chooser = Intent.createChooser(
+            Intent(Intent.ACTION_SEND).setType("image/jpeg")
+                .putExtra(Intent.EXTRA_STREAM, "content://${service.packageName}.share/shares/9/poster.jpg".toUri()),
+            null,
+        )
+
+        val activity = Robolectric.buildActivity(Activity::class.java).setup()
+        service.deliverForTest(chooser, "poster.jpg")
+        assertEquals(Intent.ACTION_CHOOSER, shadowOf(activity.get()).nextStartedActivity?.action)
+        activity.pause()
+
+        val pending = async(Dispatchers.Main) { service.deliverForTest(chooser, "poster.jpg") }
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertFalse(pending.isCompleted)
+        val ready = requireNotNull(shadowOf(service).lastForegroundNotification)
+        val shown = shadowOf(ready).contentText.toString() + (ready.contentIntent?.let { shadowOf(it).savedIntent?.toUri(0) } ?: "")
         assertFalse(shown.contains("oauth_token"))
         assertFalse(shown.contains("http"))
+        assertNull(shadowOf(activity.get()).nextStartedActivity)
+
+        activity.resume()
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        pending.await()
+        assertEquals(Intent.ACTION_CHOOSER, shadowOf(activity.get()).nextStartedActivity?.action)
+        assertTrue(shadowOf(service).isForegroundStopped)
+        controller.destroy()
+        Unit
     }
 
     @Test
