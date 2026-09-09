@@ -48,5 +48,17 @@ class MobileDeepLinksTest {
         val foreign = Intent(Intent.ACTION_VIEW, "https://example.com/x".toUri())
         assertNull(foreign.consumeMobileDeepLink())
         assertEquals("https://example.com/x", foreign.data.toString())
+        val unroutable = Intent(Intent.ACTION_VIEW, "https://app.put.io/files/download?oauth_token=secret".toUri())
+        assertNull(unroutable.consumeMobileDeepLink())
+        assertNull(unroutable.data)
+    }
+
+    @Test
+    fun routeUrisRoundTripWithoutQueries() {
+        val links = listOf(
+            MobileDeepLink.Files, MobileDeepLink.File(FilesItemId(42L)), MobileDeepLink.Transfers,
+            MobileDeepLink.Search, MobileDeepLink.History, MobileDeepLink.Trash, MobileDeepLink.Downloads,
+        )
+        for (link in links) assertEquals(link, parseMobileDeepLink(link.toRouteUri()))
     }
 }

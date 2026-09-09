@@ -47,13 +47,24 @@ class MainActivityDeepLinkTest {
     }
 
     @Test
-    fun aNewProcessRestoringTheConsumedFlagDoesNotRouteTheLaunchLinkAgain() {
-        val saved = Bundle()
+    fun aNewProcessKeepsAnUnroutedLinkAndDropsARoutedOne() {
+        val unrouted = Bundle()
+        Robolectric.buildActivity(MainActivity::class.java, view("putio://trash?x=1")).setup().use { controller ->
+            controller.saveInstanceState(unrouted)
+        }
+        assertEquals("putio://trash", unrouted.getString("deepLinkPending"))
+        Robolectric.buildActivity(MainActivity::class.java, view("putio://trash"))
+            .create(unrouted).start().resume().visible().use { restored ->
+                assertEquals(MobileDeepLink.Trash, restored.get().deepLinkRequests.pending.value)
+            }
+
+        val routed = Bundle()
         Robolectric.buildActivity(MainActivity::class.java, view("putio://trash")).setup().use { controller ->
-            controller.saveInstanceState(saved)
+            controller.get().deepLinkRequests.acknowledge(MobileDeepLink.Trash)
+            controller.saveInstanceState(routed)
         }
         Robolectric.buildActivity(MainActivity::class.java, view("putio://trash"))
-            .create(saved).start().resume().visible().use { restored ->
+            .create(routed).start().resume().visible().use { restored ->
                 assertNull(restored.get().deepLinkRequests.pending.value)
             }
     }

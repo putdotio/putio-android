@@ -5,7 +5,9 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.browser.auth.AuthTabIntent
 import androidx.lifecycle.ViewModel
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
+import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.share.MobileResumedActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,8 +42,10 @@ class MainActivity : BasePutioActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
+        if (savedInstanceState == null) MobileFileShareService.pruneStale(applicationContext)
         consumeShare(intent, savedInstanceState?.getBoolean(STATE_SHARE_CONSUMED) == true)
         consumeDeepLink(intent, savedInstanceState?.getBoolean(STATE_DEEP_LINK_CONSUMED) == true)
+        restorePendingDeepLink(savedInstanceState)
         if (shouldPublishLaunchIntent(intent, launch.launchIntentConsumed)) {
             launch.launchIntentConsumed = true
             pendingNowPlayingRequest.value = true
@@ -58,6 +62,7 @@ class MainActivity : BasePutioActivity() {
         outState.putBoolean(STATE_NOW_PLAYING_PENDING, pendingNowPlayingRequest.value)
         outState.putBoolean(STATE_SHARE_CONSUMED, launch.shareLaunchConsumed)
         outState.putBoolean(STATE_DEEP_LINK_CONSUMED, launch.deepLinkLaunchConsumed)
+        outState.putString(STATE_DEEP_LINK_PENDING, deepLinkRequests.pending.value?.toRouteUri()?.toString())
     }
 
     override fun onResume() {
@@ -95,12 +100,20 @@ class MainActivity : BasePutioActivity() {
         if (!consumed && !fromHistory) deepLinkRequests.receive(link)
     }
 
+    /** A link the shell has not routed yet, for example one received signed out, survives process death. */
+    private fun restorePendingDeepLink(savedInstanceState: Bundle?) {
+        if (deepLinkRequests.pending.value != null) return
+        val saved = savedInstanceState?.getString(STATE_DEEP_LINK_PENDING) ?: return
+        parseMobileDeepLink(saved.toUri())?.let(deepLinkRequests::receive)
+    }
+
     @androidx.annotation.VisibleForTesting
     internal fun deliverIntentForTest(intent: Intent) = onNewIntent(intent)
 
     private companion object {
         const val STATE_SHARE_CONSUMED = "shareLaunchConsumed"
         const val STATE_DEEP_LINK_CONSUMED = "deepLinkLaunchConsumed"
+        const val STATE_DEEP_LINK_PENDING = "deepLinkPending"
         const val STATE_NOW_PLAYING_PENDING = "nowPlayingPending"
     }
 }

@@ -159,8 +159,11 @@ internal class ActiveSearchHistorySession(
     }
 
     /** A product link names a file; resolve it like a history row so Files opens its folder. */
+    private var openFileJob: Job? = null
+
     fun openFile(fileId: FilesItemId) {
-        scope.launch {
+        openFileJob?.cancel()
+        openFileJob = scope.launch {
             when (val result = filesItemResolver.resolveItem(fileId)) {
                 is FilesRepositoryResult.Success -> {
                     mutableNavigationFailure.value = null

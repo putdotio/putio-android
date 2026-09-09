@@ -3,6 +3,7 @@ package io.putdotio.android.share
 import android.app.Activity
 import android.content.Intent
 import androidx.core.net.toUri
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.File
 import org.junit.Assert.assertEquals
@@ -88,6 +89,20 @@ class MobileFileShareServiceTest {
         assertEquals("file", "..".sanitizedFileName())
         assertEquals("file", "   ".sanitizedFileName())
         assertEquals(200, "x".repeat(300).sanitizedFileName().length)
+    }
+
+    @Test
+    fun launchPruneKeepsRecentExportsAndDropsStaleOnes() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val root = MobileFileShareService.shareRoot(context)
+        val stale = File(root, "1").apply { mkdirs(); File(this, "a.bin").writeText("a") }
+        val recent = File(root, "2").apply { mkdirs(); File(this, "b.bin").writeText("b") }
+        val now = System.currentTimeMillis()
+        stale.setLastModified(now - 2L * 24L * 60L * 60L * 1000L)
+        recent.setLastModified(now)
+        MobileFileShareService.pruneStale(context, now)
+        assertFalse(stale.exists())
+        assertTrue(File(recent, "b.bin").exists())
     }
 
     @Test

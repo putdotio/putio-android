@@ -741,8 +741,9 @@ hides while the app holds no notification permission. A service cannot start an
 Activity from the background, so the chooser opens from the resumed Activity:
 immediately when one exists, otherwise a "ready" notification brings the app
 back and the next resume opens it. After ten minutes without a resume the
-export and notification are dropped. The export directory is cleared before
-each export, never while a copy may be in use.
+export and notification are dropped. Each export removes the other exports
+first; a recipient still reading one keeps its open descriptor. Launch removes
+exports older than a day.
 `MobileFileShareServiceTest` asserts the payload shape, the ready notification,
 service stop rules, and the name sanitizer.
 
@@ -750,8 +751,9 @@ Deep links: `https://{app.put.io,put.io,www.put.io}/{files,files/<id>,transfers,
 (`autoVerify`; the `assetlinks.json` publication is a release-owner task, so
 unverified installs still open through the app chooser or an explicit package)
 and `putio://{files,transfers,search,history,trash,downloads}`. `putio://auth`
-stays with the OAuth receiver. A link is consumed once per Activity intent, the
-URI is removed from the retained intent, and routing waits for sign-in. A file
+stays with the OAuth receiver. A link is consumed once per Activity intent, any
+put.io URI is removed from the retained intent, and routing waits for sign-in;
+an unrouted link survives process death as its token-free `putio://` form. A file
 id resolves through the item resolver and reuses the navigation-failure dialog.
 
 Prove on the signed-in API 37 emulator:

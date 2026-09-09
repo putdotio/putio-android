@@ -40,7 +40,8 @@ import okhttp3.Request
  * Exports one original file into private storage, then hands a content URI to the
  * system chooser. The chooser payload is the stream only: no text, no URL, no
  * credential. The API request carries the session header; the CDN redirect it
- * follows is never surfaced. Copies are pruned before the next export. A service
+ * follows is never surfaced. Other copies are pruned before each export and copies
+ * older than a day on launch. A service
  * cannot start an Activity from the background, so the chooser opens from the
  * resumed Activity: immediately when one exists, otherwise from the next one to
  * resume, which a "ready" notification brings back. An export nobody returns for
@@ -73,9 +74,12 @@ class MobileFileShareService : Service() {
             } catch (error: CancellationException) {
                 throw error
             } catch (error: IOException) {
+                // A cancelled call surfaces as IOException; cancellation is not a failure to report.
+                ensureActive()
                 fail(name)
             } catch (error: RuntimeException) {
                 // FileProvider, notification posting and Activity launch report failure as runtime errors.
+                ensureActive()
                 fail(name)
             } finally {
                 // A newer start keeps the service alive; only the latest startId stops it.
@@ -87,8 +91,10 @@ class MobileFileShareService : Service() {
 
     private suspend fun export(fileId: FilesItemId, name: String): File = withContext(Dispatchers.IO) {
         val root = shareRoot(this@MobileFileShareService)
-        root.listFiles()?.forEach { it.deleteRecursively() }
-        val directory = File(root, fileId.value.toString()).apply { mkdirs() }
+        val directory = File(root, fileId.value.toString())
+        // Unlinking an open file is safe on Android; a recipient still reading keeps its descriptor.
+        root.listFiles()?.filter { it != directory }?.forEach { it.deleteRecursively() }
+        directory.mkdirs()
         val target = File(directory, name.sanitizedFileName())
         val token = MobileOAuthRuntime.get(this@MobileFileShareService).putioClient.config.accessToken
             ?: throw IOException("No session")
@@ -98,14 +104,17 @@ class MobileFileShareService : Service() {
             .build()
         val call = http.newCall(request)
         val cancelOnAbort = currentCoroutineContext().job.invokeOnCompletion { if (it != null) call.cancel() }
+        var complete = false
         try {
             call.execute().use { response ->
                 if (!response.isSuccessful) throw IOException("Download failed with ${response.code}")
                 val body = response.body ?: throw IOException("Empty body")
                 copyWithProgress(body.byteStream(), target, body.contentLength(), name)
             }
+            complete = true
         } finally {
             cancelOnAbort.dispose()
+            if (!complete) directory.deleteRecursively()
         }
         target
     }
@@ -230,6 +239,7 @@ class MobileFileShareService : Service() {
         private const val CHANNEL_ID = "share"
         private const val NOTIFICATION_ID = 3001
         private const val READY_TIMEOUT_MS = 10L * 60L * 1000L
+        private const val STALE_EXPORT_MS = 24L * 60L * 60L * 1000L
         private const val BUFFER_SIZE = 64 * 1024
         private const val PERCENT = 100L
         private val http = OkHttpClient()
@@ -242,6 +252,13 @@ class MobileFileShareService : Service() {
         }
 
         internal fun shareRoot(context: Context): File = File(context.filesDir, "shares")
+
+        /** Exports a recipient may still read are kept for a day; older leftovers go on launch. */
+        fun pruneStale(context: Context, now: Long = System.currentTimeMillis()) {
+            shareRoot(context).listFiles()
+                ?.filter { now - it.lastModified() > STALE_EXPORT_MS }
+                ?.forEach { it.deleteRecursively() }
+        }
     }
 }
 

@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import io.putdotio.android.files.FilesItemId
 
 /** Where a supported product link lands; the shell resolves file ids through Files. */
@@ -48,12 +49,27 @@ internal fun parseMobileDeepLink(uri: Uri?): MobileDeepLink? {
     }
 }
 
-/** Removes a recognised URI so a replayed launch intent cannot route again or leak into saved state. */
+/** The token-free `putio://` form of a link, for saved state. */
+internal fun MobileDeepLink.toRouteUri(): Uri = when (this) {
+    MobileDeepLink.Files -> "putio://files"
+    is MobileDeepLink.File -> "putio://files/${id.value}"
+    MobileDeepLink.Transfers -> "putio://transfers"
+    MobileDeepLink.Search -> "putio://search"
+    MobileDeepLink.History -> "putio://history"
+    MobileDeepLink.Trash -> "putio://trash"
+    MobileDeepLink.Downloads -> "putio://downloads"
+}.toUri()
+
+/**
+ * Removes any put.io URI, recognised or not, so a replayed launch intent cannot route
+ * again and a web link's query never reaches saved state. Foreign URIs are left alone.
+ */
 internal fun Intent.consumeMobileDeepLink(): MobileDeepLink? {
     if (action != Intent.ACTION_VIEW) return null
-    val link = parseMobileDeepLink(data) ?: return null
+    val uri = data ?: return null
+    if (uri.scheme != "putio" && uri.host !in WEB_HOSTS) return null
     setDataAndType(null, null)
-    return link
+    return parseMobileDeepLink(uri)
 }
 
 private val WEB_HOSTS = setOf("app.put.io", "put.io", "www.put.io")
