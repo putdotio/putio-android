@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.files.FilesItemId
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -81,6 +82,34 @@ class MobileFileShareServiceTest {
         MobileResumedActivity.paused(activity.get())
         controller.destroy()
         Unit
+    }
+
+    @Test
+    fun downloadRequestKeepsTheTokenInTheHeaderOnly() {
+        val request = MobileFileShareService.downloadRequest(FilesItemId(9L), "secret-token")
+        assertEquals("https://api.put.io/v2/files/9/download", request.url.toString())
+        assertEquals("Token secret-token", request.header("Authorization"))
+        assertFalse(request.url.toString().contains("secret-token"))
+    }
+
+    @Test
+    fun cancelJoinsTheRunningExportBeforeStopping() {
+        val controller = Robolectric.buildService(MobileFileShareService::class.java).create()
+        val service = controller.get()
+        val start = Intent(service, MobileFileShareService::class.java).putExtra("fileId", 1L).putExtra("name", "a")
+        service.onStartCommand(start, 0, 1)
+        val cancel = Intent(service, MobileFileShareService::class.java)
+            .setAction("io.putdotio.android.action.CANCEL_SHARE")
+        service.onStartCommand(cancel, 0, 2)
+        val deadline = System.currentTimeMillis() + 10_000
+        while (shadowOf(service).stopSelfId != 2 && System.currentTimeMillis() < deadline) {
+            shadowOf(android.os.Looper.getMainLooper()).idle()
+            Thread.sleep(20)
+        }
+        assertEquals(2, shadowOf(service).stopSelfId)
+        assertTrue(shadowOf(service).isForegroundStopped)
+        assertFalse(File(MobileFileShareService.shareRoot(service), "1").exists())
+        controller.destroy()
     }
 
     @Test

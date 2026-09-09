@@ -58,10 +58,15 @@ class MobileFileShareService : Service() {
         val name = intent?.getStringExtra(EXTRA_NAME)?.takeIf { it.isNotBlank() }
         if (fileId == null || name == null || intent.action == ACTION_CANCEL) {
             // Every start arrives through startForegroundService; the promise must be kept before stopping.
-            show(progressNotification(name.orEmpty(), indeterminate = true, progress = 0))
-            job?.cancel()
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-            stopSelf(startId)
+            val label = name ?: getString(R.string.mobile_files_share)
+            show(progressNotification(label, indeterminate = true, progress = 0))
+            val previous = job
+            job = scope.launch {
+                // Join so no progress update from the cancelled export lands after this stop.
+                previous?.cancelAndJoin()
+                ServiceCompat.stopForeground(this@MobileFileShareService, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+            }
             return START_NOT_STICKY
         }
         show(progressNotification(name, indeterminate = true, progress = 0))
@@ -95,28 +100,27 @@ class MobileFileShareService : Service() {
         // Unlinking an open file is safe on Android; a recipient still reading keeps its descriptor.
         root.listFiles()?.filter { it != directory }?.forEach { it.deleteRecursively() }
         directory.mkdirs()
-        val target = File(directory, name.sanitizedFileName())
-        val token = MobileOAuthRuntime.get(this@MobileFileShareService).putioClient.config.accessToken
-            ?: throw IOException("No session")
-        val request = Request.Builder()
-            .url("https://api.put.io/v2/files/${fileId.value}/download")
-            .header("Authorization", "Token $token")
-            .build()
-        val call = http.newCall(request)
-        val cancelOnAbort = currentCoroutineContext().job.invokeOnCompletion { if (it != null) call.cancel() }
         var complete = false
         try {
-            call.execute().use { response ->
-                if (!response.isSuccessful) throw IOException("Download failed with ${response.code}")
-                val body = response.body ?: throw IOException("Empty body")
-                copyWithProgress(body.byteStream(), target, body.contentLength(), name)
+            val target = File(directory, name.sanitizedFileName())
+            val token = MobileOAuthRuntime.get(this@MobileFileShareService).putioClient.config.accessToken
+                ?: throw IOException("No session")
+            val call = http.newCall(downloadRequest(fileId, token))
+            val cancelOnAbort = currentCoroutineContext().job.invokeOnCompletion { if (it != null) call.cancel() }
+            try {
+                call.execute().use { response ->
+                    if (!response.isSuccessful) throw IOException("Download failed with ${response.code}")
+                    val body = response.body ?: throw IOException("Empty body")
+                    copyWithProgress(body.byteStream(), target, body.contentLength(), name)
+                }
+            } finally {
+                cancelOnAbort.dispose()
             }
             complete = true
+            target
         } finally {
-            cancelOnAbort.dispose()
             if (!complete) directory.deleteRecursively()
         }
-        target
     }
 
     /** Foreground updates need no POST_NOTIFICATIONS grant; detaching keeps the result visible. */
@@ -157,6 +161,7 @@ class MobileFileShareService : Service() {
                     val percent = (copied * PERCENT / total).toInt()
                     if (percent != lastPercent) {
                         lastPercent = percent
+                        currentCoroutineContextActive()
                         show(progressNotification(name, false, percent))
                     }
                 }
@@ -252,6 +257,12 @@ class MobileFileShareService : Service() {
         }
 
         internal fun shareRoot(context: Context): File = File(context.filesDir, "shares")
+
+        /** The session travels in the header only; the URL is the token-free API endpoint. */
+        internal fun downloadRequest(fileId: FilesItemId, token: String): Request = Request.Builder()
+            .url("https://api.put.io/v2/files/${fileId.value}/download")
+            .header("Authorization", "Token $token")
+            .build()
 
         /** Exports a recipient may still read are kept for a day; older leftovers go on launch. */
         fun pruneStale(context: Context, now: Long = System.currentTimeMillis()) {
