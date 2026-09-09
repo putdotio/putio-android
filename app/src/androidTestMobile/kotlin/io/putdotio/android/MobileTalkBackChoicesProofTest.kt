@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.pm.ActivityInfo
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityManager
@@ -36,7 +37,7 @@ class MobileTalkBackChoicesProofTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val manager = context.getSystemService(AccessibilityManager::class.java)
         require(manager.isTouchExplorationEnabled) { "Enable TalkBack before this selector" }
-        require(manager.getEnabledAccessibilityServiceList(-1).any {
+        require(manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK).any {
             it.resolveInfo.serviceInfo.packageName == "com.google.android.marvin.talkback"
         }) { "Actual TalkBack is required" }
         directory = accessibilityProofDirectory()

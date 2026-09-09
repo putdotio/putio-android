@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.net.Uri
@@ -169,7 +170,7 @@ class MobileTalkBackSessionProofTest {
     private fun requireTalkBack() {
         val manager = instrumentation.targetContext.getSystemService(AccessibilityManager::class.java)
         require(manager.isTouchExplorationEnabled) { "Enable TalkBack before this selector" }
-        require(manager.getEnabledAccessibilityServiceList(-1).any {
+        require(manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK).any {
             it.resolveInfo.serviceInfo.packageName == "com.google.android.marvin.talkback"
         }) { "Actual TalkBack is required" }
     }
