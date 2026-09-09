@@ -135,10 +135,15 @@ class MobileFileShareService : Service() {
     /** A resumed Activity opens the chooser; without one the ready notification brings the app back first. */
     private suspend fun deliver(chooser: Intent, name: String) {
         if (MobileResumedActivity.current == null) show(readyNotification(name))
-        val resumed = withTimeoutOrNull(READY_TIMEOUT_MS) { MobileResumedActivity.await() }
+        val resumed = try {
+            withTimeoutOrNull(READY_TIMEOUT_MS) { MobileResumedActivity.await() }
+        } catch (error: CancellationException) {
+            // A dismissed or superseded wait drops its export together with the notification.
+            shareRoot(this).deleteRecursively()
+            throw error
+        }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         if (resumed == null) {
-            // Nobody came back; the export is dropped with its notification rather than left dangling.
             shareRoot(this).deleteRecursively()
             return
         }

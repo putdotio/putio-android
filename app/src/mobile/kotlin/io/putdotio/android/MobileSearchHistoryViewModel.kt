@@ -161,6 +161,12 @@ internal class ActiveSearchHistorySession(
     /** A product link names a file; resolve it like a history row so Files opens its folder. */
     private var openFileJob: Job? = null
 
+    /** A later non-file route drops a file resolve that has not navigated yet. */
+    fun cancelOpenFile() {
+        openFileJob?.cancel()
+        openFileJob = null
+    }
+
     fun openFile(fileId: FilesItemId) {
         openFileJob?.cancel()
         openFileJob = scope.launch {

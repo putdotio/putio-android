@@ -80,6 +80,16 @@ class MobileFileShareServiceTest {
         assertEquals(Intent.ACTION_CHOOSER, shadowOf(activity.get()).nextStartedActivity?.action)
         assertTrue(shadowOf(service).isForegroundStopped)
         MobileResumedActivity.paused(activity.get())
+
+        val export = File(MobileFileShareService.shareRoot(service), "9/poster.jpg").apply {
+            parentFile?.mkdirs()
+            writeText("bytes")
+        }
+        val waiting = async(Dispatchers.Main) { service.deliverForTest(chooser, "poster.jpg") }
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        waiting.cancel()
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        assertFalse(export.exists())
         controller.destroy()
         Unit
     }
