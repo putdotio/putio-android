@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -98,22 +99,20 @@ internal fun TvFilesScreen(
     focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableMapOf() },
 ) {
     val current = state.current
-    // Whether D-pad focus is inside this pane. A content change while the user is on the
-    // rail must not pull focus back; the first composition counts as owning it, since the
-    // shell hands focus to the pane on entry before any descendant can report it. Remembered
-    // above the unsupported overlay so dismissing it does not read as a fresh entry.
+    // Whether D-pad focus belongs to this pane. A content change while the user is on the
+    // rail must not pull focus back. Only a directional exit from the pane clears it: a
+    // focused row being disposed (folder change, overlay) also drops focus, but the pane is
+    // still the owner and must re-request. Remembered above the unsupported overlay so
+    // dismissing it does not read as a fresh entry.
     val paneHasFocus = remember { mutableStateOf(true) }
-    // The first focus callback reports "no focus" before anything has been focused at all;
-    // only a loss after a gain means the user left for the rail.
-    val paneEverHadFocus = remember { mutableStateOf(false) }
-    val trackPaneFocus = Modifier.onFocusChanged {
-        if (it.hasFocus) {
-            paneEverHadFocus.value = true
-            paneHasFocus.value = true
-        } else if (paneEverHadFocus.value) {
-            paneHasFocus.value = false
+    val trackPaneFocus = Modifier
+        .onFocusChanged { if (it.hasFocus) paneHasFocus.value = true }
+        .focusProperties {
+            exit = {
+                paneHasFocus.value = false
+                FocusRequester.Default
+            }
         }
-    }
     var unsupported by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
     val unsupportedItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == unsupported }
     if (unsupportedItem != null) {
@@ -123,7 +122,9 @@ internal fun TvFilesScreen(
             item = unsupportedItem,
             onBack = dismiss,
             claimFocus = paneHasFocus.value,
-            modifier = modifier.then(trackPaneFocus),
+            modifier = modifier
+                .then(trackPaneFocus)
+                .focusGroup(),
         )
         return
     }
@@ -152,8 +153,8 @@ internal fun TvFilesScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .then(trackPaneFocus)
             .focusProperties { enter = { entryTarget.value } }
+            .then(trackPaneFocus)
             .focusGroup(),
     ) {
         TvFilesHeader(state, onEvent, refreshFocus, sessionKey)
@@ -189,7 +190,7 @@ internal fun TvFilesScreen(
                     content = content,
                     pagingEnabled = current.operation.canStartOperation,
                     focusMemory = focusMemory,
-                    paneHasFocus = paneHasFocus.value,
+                    paneHasFocus = paneHasFocus,
                     onEntryTarget = { entryTarget.value = it },
                     modifier = Modifier.weight(1f),
                     onEvent = onEvent,
@@ -317,7 +318,7 @@ private fun TvFilesList(
     content: FilesContent.Ready,
     pagingEnabled: Boolean,
     focusMemory: MutableMap<Long, Long>,
-    paneHasFocus: Boolean,
+    paneHasFocus: State<Boolean>,
     onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
@@ -385,7 +386,7 @@ private fun TvFilesList(
         val index = content.items.indexOfFirst { it.id.value == focusTarget }
         // A list mounted while the user is on the rail (Loading → Ready after Left) keeps its
         // entry target ready but does not take focus; the enter redirect delivers it later.
-        val claimFocus = paneHasFocus
+        // Read after the layout waits, since the user may leave for the rail during them.
         if (index >= 0 && listState.layoutInfo.visibleItemsInfo.none { it.key == focusTarget }) {
             listState.scrollToItem(index)
         }
@@ -393,12 +394,12 @@ private fun TvFilesList(
             listState.scrollToItem(content.items.size)
             snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == TV_FILES_PAGING_KEY } }.first { it }
             withFrameNanos {}
-            if (claimFocus) listPagingFocus.requestFocus()
+            if (paneHasFocus.value) listPagingFocus.requestFocus()
         } else {
             snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == focusTarget } }.first { it }
             // The shell's pane request lands one frame earlier; this one settles on the row.
             withFrameNanos {}
-            if (claimFocus) rowFocus.requestFocus()
+            if (paneHasFocus.value) rowFocus.requestFocus()
         }
         // Started after the programmatic scroll so the settled position it reports is the one
         // on screen. Only the mount position is skipped: it came from the reducer already.
