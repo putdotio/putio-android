@@ -31,10 +31,12 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -113,7 +115,9 @@ internal fun TvSearchScreen(
     modifier: Modifier = Modifier,
     /** A failure that is not the search itself: the recent-search store or a blocked open. */
     notice: FilesFailure? = null,
-) {
+    /** Changes with the signed-in session so one account's typed text never reaches the next. */
+    sessionKey: Any? = null,
+) = key(sessionKey) {
     // The shell asks the pane for focus on entry, and Right from the drawer enters it by
     // direction. Both land on the section that held focus last, the field the first time.
     val fieldFocus = remember { FocusRequester() }
@@ -147,7 +151,8 @@ internal fun TvSearchScreen(
         LaunchedEffect(state.recentTerms.isEmpty()) {
             if (state.recentTerms.isEmpty() && hadRecent.value && owner.owns(fieldFocus)) {
                 withFrameNanos {}
-                fieldFocus.requestFocus()
+                // Re-read after the frame: the user may have left for the drawer meanwhile.
+                if (owner.owns(fieldFocus)) fieldFocus.requestFocus()
             }
             hadRecent.value = state.recentTerms.isNotEmpty()
         }
@@ -249,8 +254,9 @@ private fun TvSearchField(
     val focused by interaction.collectIsFocusedAsState()
     // While the field is focused the user is the source of the text and the controller only
     // mirrors it; a query it reports then is at best one edit behind and must not overwrite
-    // the IME. Rewrites from elsewhere, a chip replay or a new session, land unfocused.
-    LaunchedEffect(query, focused) {
+    // the IME. Rewrites from elsewhere, a chip replay, land unfocused. Keyed on the query
+    // alone: a blur must not replay a lagging query over what was typed.
+    LaunchedEffect(query) {
         if (!focused && state.text.toString() != query) state.setTextAndPlaceCursorAtEnd(query)
     }
     val focusManager = LocalFocusManager.current
@@ -440,6 +446,7 @@ private fun TvSearchNotice(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun TvSearchResults(
     items: List<FilesItem>,
@@ -450,21 +457,24 @@ private fun TvSearchResults(
     owner: TvSearchFocusOwner,
     modifier: Modifier = Modifier,
 ) {
-    val firstRow = remember { FocusRequester() }
+    // The restorer's fallback must name a composed row: the first visible one, since a lazy
+    // list composes neither a first row scrolled away nor a last row not yet reached.
+    val anchorRow = remember { FocusRequester() }
     val lastRow = remember { FocusRequester() }
     val listFocus = remember { FocusRequester() }
     // The paging control leaves the list when the last page lands; if it still held focus,
     // the last row takes over once it is on screen. A move to a row or the drawer clears the
     // latch first; the blur its disposal reports arrives after this composition decides.
+    // Decided during composition: the restorer answers the removed paging node in the same
+    // frame with the anchor row, and the effect moves on to the last row from there.
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
-    // Decided during composition: the restorer answers the removed paging node in the same
-    // frame, so its fallback must already name the last row rather than the first.
     if (paging == SearchPaging.Complete && pagingHeldFocus.value) {
         pagingHeldFocus.value = false
         handOffToLastRow.value = true
     }
     val listState = rememberLazyListState()
+    val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
         val lastId = items.last().id.value
@@ -482,7 +492,13 @@ private fun TvSearchResults(
             .padding(top = 16.dp)
             .then(owner.section(listFocus))
             .focusRequester(listFocus)
-            .focusRestorer(if (handOffToLastRow.value) lastRow else firstRow)
+            // Answered when the paging node is removed, before the hand-off effect runs: the
+            // last row if it is already composed, else the anchor until the effect scrolls.
+            .focusRestorer {
+                val lastId = items.last().id.value
+                val lastComposed = listState.layoutInfo.visibleItemsInfo.any { it.key == lastId }
+                if (handOffToLastRow.value && lastComposed) lastRow else anchorRow
+            }
             .focusGroup()
             .testTag(TV_SEARCH_RESULTS_TAG),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -493,7 +509,7 @@ private fun TvSearchResults(
                 onClick = { onResult(item) },
                 label = stringResource(R.string.tv_search_open_result, item.name),
                 modifier = Modifier
-                    .then(if (index == 0) Modifier.focusRequester(firstRow) else Modifier)
+                    .then(if (index == anchorIndex) Modifier.focusRequester(anchorRow) else Modifier)
                     .then(if (index == items.lastIndex) Modifier.focusRequester(lastRow) else Modifier),
             )
         }

@@ -382,6 +382,65 @@ class TvSearchScreenTest {
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
     }
 
+    @Test
+    fun aLaggingQueryDoesNotOverwriteTypedTextOnBlur() {
+        var state by mutableStateOf(searchState(SearchContent.Idle, recent = listOf(SearchTerm("x"))))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvSearchScreen(state = state, actions = actions)
+            }
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("ab")
+        // The controller has only seen the first edit when the user moves on.
+        state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "a")
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Search again for x").assertIsFocused()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("ab"))
+        state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "ab")
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("ab"))
+    }
+
+    @Test
+    fun aNewSessionStartsWithAnEmptyField() {
+        var session by mutableStateOf(1)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvSearchScreen(state = searchState(SearchContent.Idle), actions = actions, sessionKey = session)
+            }
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("private")
+        session = 2
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tap to start typing"))
+        assertEquals(listOf("query:private"), log)
+    }
+
+    @Test
+    fun theLastPageLandingOffScreenStillHandsFocusToTheLastRow() {
+        val page = (1..12).map { item(it.toLong(), "row-$it.mkv", PutioFileType.VIDEO) }
+        var state by mutableStateOf(
+            searchState(SearchContent.Ready(SearchTerm("r"), page, SearchPaging.Available(FilesCursor("c1"))), query = "r"),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvSearchScreen(state = state, actions = actions)
+            }
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
+            repeat(page.size + 1) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        val more = (13..30).map { item(it.toLong(), "row-$it.mkv", PutioFileType.VIDEO) }
+        state = searchState(SearchContent.Ready(SearchTerm("r"), page + more, SearchPaging.Complete), query = "r")
+        compose.onNodeWithContentDescription("Open row-30.mkv").assertIsFocused()
+        assertEquals(listOf("next"), log)
+    }
+
     private fun searchState(
         content: SearchContent,
         recent: List<SearchTerm> = emptyList(),

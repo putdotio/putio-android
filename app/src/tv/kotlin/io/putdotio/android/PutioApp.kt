@@ -162,6 +162,7 @@ private fun TvSignedInApp(
                     else -> recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
                 },
                 modifier = Modifier.focusRequester(paneFocus),
+                sessionKey = sessionKey,
             )
         },
     )
