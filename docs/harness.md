@@ -567,6 +567,25 @@ adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc
 
 Media rows call the playback hook, which is a no-op until #34.
 
+## TV Search proof
+
+Search is the second drawer destination. Focus enters on the pill field;
+Center summons the system IME (Gboard TV on the emulator), Search on the IME
+submits, and the field also searches 300 ms after typing stops. Down from
+the field reaches the recent-query chips, then the result rows and the
+Load more control; Left from any of them returns to the drawer. Center on a
+row opens it in Files, which jumps to the result's folder. Long-press on a
+chip removes that term. The recent terms are the account's `searchHistory`
+app-config entry, shared with mobile, so remove any proof terms afterwards:
+
+```bash
+adb -s emulator-5554 shell input text 'tears' && adb -s emulator-5554 shell input keyevent KEYCODE_ENTER
+adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc="(Open|Search again for) [^"]+"' | head
+```
+
+`adb shell input text` reaches the field without the IME, which is how a
+headless proof types; the recorded proof drives Gboard with D-pad keys.
+
 ## Account Trash and single-item Restore proof
 
 Trash is opened from Account → Manage Trash, including when the Trash setting

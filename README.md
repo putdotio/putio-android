@@ -45,8 +45,10 @@ The TV flavor signs in with a device code (put.io/link), keeps the token in
 Keystore-backed storage, restores it on relaunch, and shows the M3 navigation
 drawer with Files, Search, History and Account. Files browses folders with
 Refresh, Sort, paging, watched progress and the unsupported-type screen;
-media rows do not play yet. Search and History are placeholders until TV
-browse parity lands. Not started:
+media rows do not play yet. Search types through the system IME, replays
+recent queries from chips, pages results in the standard rows, and opens a
+result in Files. History is a placeholder until TV browse parity lands.
+Not started:
 Chromecast, Picture-in-Picture, and the Play release lane.
 
 ## Direction

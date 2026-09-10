@@ -49,8 +49,18 @@ internal fun TvShell(
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
     filesPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Files, it) },
+    searchPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Search, it) },
+    /** Set by a pane that wants another destination shown, such as Search opening a result in Files. */
+    requestedDestination: TvDestination? = null,
+    onDestinationRequestHandled: () -> Unit = {},
 ) {
     var destination by rememberSaveable { mutableStateOf(TvDestination.Files) }
+    LaunchedEffect(requestedDestination) {
+        if (requestedDestination != null) {
+            destination = requestedDestination
+            onDestinationRequestHandled()
+        }
+    }
     val paneFocus = remember { FocusRequester() }
     val selectedItemFocus = remember { FocusRequester() }
 
@@ -100,6 +110,7 @@ internal fun TvShell(
         ) {
             when (destination) {
                 TvDestination.Files -> filesPane(paneFocus)
+                TvDestination.Search -> searchPane(paneFocus)
                 TvDestination.Account -> TvAccountPane(account, onSignOut, paneFocus)
                 else -> TvPlaceholderPane(destination, paneFocus)
             }

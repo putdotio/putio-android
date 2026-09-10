@@ -31,7 +31,15 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.search.SearchContent
+import io.putdotio.android.search.SearchState
+import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvLinkScreen
+import io.putdotio.android.tv.search.TV_SEARCH_FIELD_TAG
+import io.putdotio.android.tv.search.TvSearchActions
+import io.putdotio.android.tv.search.TvSearchScreen
+import androidx.compose.ui.test.onNodeWithTag
 import io.putdotio.android.tv.files.TvFilesScreen
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
@@ -490,4 +498,53 @@ class TvShellTest {
         compose.onNodeWithText("Signed in as user").assertIsDisplayed()
         compose.onNodeWithText("Sign out").assertIsFocused()
     }
+    @Test
+    fun searchDestinationFocusesTheFieldAndAResultRequestReturnsToFiles() {
+        val search = SearchState(
+            query = "",
+            content = SearchContent.Idle,
+            recentTerms = listOf(SearchTerm("tears")),
+            consumedCursors = emptySet(),
+            nextRequestValue = 5L,
+        )
+        val actions = TvSearchActions(
+            onQueryChanged = {}, onSubmit = {}, onResult = {}, onNextPage = {}, onRetry = {},
+            onRecentSearch = {}, onRecentEdit = {}, onRecentRetry = {},
+        )
+        var requested by mutableStateOf<TvDestination?>(null)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    searchPane = { paneFocus ->
+                        TvSearchScreen(state = search, actions = actions, modifier = Modifier.focusRequester(paneFocus))
+                    },
+                    requestedDestination = requested,
+                    onDestinationRequestHandled = { requested = null },
+                )
+            }
+        }
+        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
+            pressKey(Key.DirectionDown)
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNodeWithContentDescription("Search again for tears").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNode(hasText("Search") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithContentDescription("Search again for tears").assertIsFocused()
+
+        compose.runOnIdle { requested = TvDestination.Files }
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused()
+        compose.runOnIdle { assertEquals(null, requested) }
+    }
+
 }

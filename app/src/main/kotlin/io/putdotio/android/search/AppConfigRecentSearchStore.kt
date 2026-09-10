@@ -1,7 +1,5 @@
-package io.putdotio.android
+package io.putdotio.android.search
 
-import io.putdotio.android.search.RecentSearchStore
-import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.PutioClient
@@ -24,19 +22,19 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
-internal interface MobileRecentSearchStoreOwner : RecentSearchStore, Closeable {
+internal interface RecentSearchStoreOwner : RecentSearchStore, Closeable {
     val failure: StateFlow<FilesFailure?>
 
     fun retry()
 }
 
-internal class MobileRecentSearchStore internal constructor(
-    private val loadConfig: suspend () -> MobileSearchConfig,
+internal class AppConfigRecentSearchStore internal constructor(
+    private val loadConfig: suspend () -> RecentSearchConfig,
     private val saveTerms: suspend (List<String>) -> Unit,
     parentScope: CoroutineScope,
-) : MobileRecentSearchStoreOwner {
+) : RecentSearchStoreOwner {
     constructor(client: PutioClient, parentScope: CoroutineScope) : this(
-        loadConfig = { client.appConfig.get().toMobileSearchConfig() },
+        loadConfig = { client.appConfig.get().toRecentSearchConfig() },
         saveTerms = { client.appConfig.save(recentSearchConfigUpdate(it)) },
         parentScope = parentScope,
     )
@@ -97,7 +95,7 @@ internal class MobileRecentSearchStore internal constructor(
     }
 
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun loadConfigOrNull(): MobileSearchConfig? =
+    private suspend fun loadConfigOrNull(): RecentSearchConfig? =
         try {
             loadConfig().also { mutableFailure.value = null }
         } catch (error: CancellationException) {
@@ -110,7 +108,7 @@ internal class MobileRecentSearchStore internal constructor(
             null
         }
 
-    private fun applyLoadedConfig(config: MobileSearchConfig) {
+    private fun applyLoadedConfig(config: RecentSearchConfig) {
         mutableTerms.value = if (config.enabled) normalize(config.terms) else emptyList()
     }
 
@@ -150,13 +148,13 @@ internal class MobileRecentSearchStore internal constructor(
             .take(MAX_RECENT_SEARCHES)
 }
 
-internal data class MobileSearchConfig(
+internal data class RecentSearchConfig(
     val enabled: Boolean,
     val terms: List<String>,
 )
 
-internal fun AppConfig.toMobileSearchConfig(): MobileSearchConfig =
-    MobileSearchConfig(
+internal fun AppConfig.toRecentSearchConfig(): RecentSearchConfig =
+    RecentSearchConfig(
         enabled =
             (this[SEARCH_HISTORY_ENABLED_KEY] as? JsonPrimitive)
                 ?.takeUnless(JsonPrimitive::isString)

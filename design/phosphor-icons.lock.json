@@ -321,6 +321,20 @@
       "asset": "assets/regular/caret-right.svg",
       "sourceSha256": "e6dec01e074807965b7f3146b976a9b5e82c31d9c2c88aeb52e77cc2ab16c1d7",
       "outputSha256": "fc0a578ae88e79240491be8fb9c330a1b5074bcdfa4ebf8cc75c242a23f94c63"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_magnifying_glass",
+      "asset": "assets/regular/magnifying-glass.svg",
+      "sourceSha256": "f9fa2561978a9a3291e8ae0ebfcb651104f5069fade8f84871627bca68889cde",
+      "outputSha256": "472bc34c4cc5f9f9eb92934cc05e13356361ea1f37c2479f6e9fe307095c78c4"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_clock_counter_clockwise",
+      "asset": "assets/regular/clock-counter-clockwise.svg",
+      "sourceSha256": "06aa1cb0d2664789232f4addb1c5932c8ce14e48465c8e8fb09a651b619b44e3",
+      "outputSha256": "771062155c549a4b1466bf5dc577fc889c4a28fb232142d4d79c019005dc01aa"
     }
   ]
 }

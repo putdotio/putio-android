@@ -122,6 +122,7 @@ import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.search.authoritativeSessionFailure
 import io.putdotio.android.trash.SdkTrashRepository
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
@@ -1504,17 +1505,6 @@ internal fun TransfersVisibilityEffect(
         onStopOrDispose { onEvent(TransfersEvent.VisibilityChanged(false)) }
     }
 }
-
-internal fun SearchState.authoritativeSessionFailure(): FilesFailure? =
-    when (val value = content) {
-        is SearchContent.Failed -> value.failure
-        is SearchContent.Empty -> (value.paging as? io.putdotio.android.search.SearchPaging.Failed)?.failure
-        is SearchContent.Ready -> (value.paging as? io.putdotio.android.search.SearchPaging.Failed)?.failure
-        SearchContent.Idle,
-        is SearchContent.Debouncing,
-        is SearchContent.Loading,
-        -> null
-    }?.takeIf { it is FilesFailure.AuthenticationRequired }
 
 internal fun HistoryState.authoritativeSessionFailure(): FilesFailure? =
     listOfNotNull(

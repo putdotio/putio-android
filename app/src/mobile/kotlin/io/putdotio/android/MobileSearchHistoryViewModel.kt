@@ -15,6 +15,8 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.search.AppConfigRecentSearchStore
+import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchOutput
 import io.putdotio.android.search.SearchRepository
@@ -34,8 +36,8 @@ import kotlinx.coroutines.launch
 internal class MobileSearchHistoryViewModel(
     application: Application,
     private val authState: StateFlow<MobileAuthState>,
-    private val recentSearchStoreFactory: (PutioClient, CoroutineScope) -> MobileRecentSearchStoreOwner =
-        { client, scope -> MobileRecentSearchStore(client, scope) },
+    private val recentSearchStoreFactory: (PutioClient, CoroutineScope) -> RecentSearchStoreOwner =
+        { client, scope -> AppConfigRecentSearchStore(client, scope) },
 ) : AndroidViewModel(application) {
     private val lock = Any()
     private var activeSession: ActiveSearchHistorySession? = null
@@ -118,7 +120,7 @@ internal class MobileSearchHistoryViewModel(
 
 internal class ActiveSearchHistorySession(
     internal val key: SessionKey,
-    private val recentSearchStore: MobileRecentSearchStoreOwner,
+    private val recentSearchStore: RecentSearchStoreOwner,
     val search: SearchController,
     val history: HistoryController,
     parentScope: CoroutineScope,
@@ -190,8 +192,8 @@ internal data class SessionKey(
 internal fun mobileSearchHistoryViewModelFactory(
     application: Application,
     authState: StateFlow<MobileAuthState>,
-    recentSearchStoreFactory: (PutioClient, CoroutineScope) -> MobileRecentSearchStoreOwner =
-        { client, scope -> MobileRecentSearchStore(client, scope) },
+    recentSearchStoreFactory: (PutioClient, CoroutineScope) -> RecentSearchStoreOwner =
+        { client, scope -> AppConfigRecentSearchStore(client, scope) },
 ): ViewModelProvider.Factory =
     viewModelFactory {
         initializer {
