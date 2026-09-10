@@ -117,9 +117,11 @@ internal fun TvFilesScreen(
     }
     // The shell asks the pane for focus on entry. A Column is not a target itself, so the
     // request is redirected to whichever control this pane currently wants focused.
+    val retryFocus = remember { FocusRequester() }
     val entryTarget = remember { mutableStateOf(FocusRequester.Default) }
     entryTarget.value = when {
         headerOwnsFocus -> refreshFocus
+        content is FilesContent.Failed -> retryFocus
         content is FilesContent.Ready -> entryTarget.value
         else -> FocusRequester.Default
     }
@@ -140,6 +142,7 @@ internal fun TvFilesScreen(
                     action = stringResource(R.string.tv_files_retry),
                     onAction = { onEvent(FilesBrowserEvent.Retry) },
                     modifier = Modifier.weight(1f),
+                    actionFocus = retryFocus,
                 )
             is FilesContent.Empty ->
                 Column(modifier = Modifier.weight(1f)) {
@@ -186,7 +189,11 @@ private fun TvFilesHeader(
     val current = state.current
     // The buttons stay focusable while a load runs: a disabled TV button drops focus, and
     // Refresh is the one holding it when the refresh starts. The reducer rejects the events.
-    val idle = current.operation.canStartOperation && current.content !is FilesContent.Loading
+    // Refresh and Sort act on a loaded folder; a failed one has only its Retry, and the
+    // reducer rejects Refresh and SelectSort there, so the header stays inert.
+    val idle = current.operation.canStartOperation &&
+        current.content !is FilesContent.Loading &&
+        current.content !is FilesContent.Failed
     var sorting by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf(false) }
     // A dialog left open across a folder change or a running operation would offer choices
     // the reducer rejects, so it closes as soon as the header stops being idle.
@@ -264,7 +271,12 @@ private fun TvFilesList(
     }
     val currentOnEvent by rememberUpdatedState(onEvent)
     val rowFocus = remember(listState) { FocusRequester() }
-    SideEffect { onEntryTarget(rowFocus) }
+    // Follows whichever row holds focus, so re-entering the pane from the rail lands on
+    // the live owner rather than the row that was focused at mount.
+    var focusedRowId by remember(listState) { mutableStateOf<Long?>(null) }
+    val liveRowFocus = remember(listState) { FocusRequester() }
+    val entryFocus = if (focusedRowId == null) rowFocus else liveRowFocus
+    SideEffect { onEntryTarget(entryFocus) }
     // The paging control leaves the list when the last page lands; if it held focus, the
     // last row becomes the remembered row so the restorer's fallback lands there.
     // Set when the paging control gains focus and cleared only when a row does, so the
@@ -274,7 +286,9 @@ private fun TvFilesList(
     // focus to an earlier row and clears the latch before any effect could read it.
     val handOffToLastRow = remember(listState) { mutableStateOf(false) }
     if (content.paging == FilesPaging.Complete && pagingHeldFocus.value) {
-        focusMemory[folderId] = content.items.last().id.value
+        val lastId = content.items.last().id.value
+        focusMemory[folderId] = lastId
+        focusedRowId = lastId
         handOffToLastRow.value = true
         pagingHeldFocus.value = false
     }
@@ -285,13 +299,14 @@ private fun TvFilesList(
         ?: content.items.first().id.value
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
-        if (listState.layoutInfo.visibleItemsInfo.none { it.key == focusTarget }) {
+        val lastId = content.items.last().id.value
+        if (listState.layoutInfo.visibleItemsInfo.none { it.key == lastId }) {
             listState.scrollToItem(content.items.lastIndex)
         }
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == focusTarget } }.first { it }
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == lastId } }.first { it }
         // The restorer answers the removed node first; the request goes out after that frame.
         withFrameNanos {}
-        rowFocus.requestFocus()
+        liveRowFocus.requestFocus()
         handOffToLastRow.value = false
     }
     LaunchedEffect(listState) {
@@ -327,7 +342,7 @@ private fun TvFilesList(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = modifier
             .fillMaxWidth()
-            .focusRestorer(rowFocus)
+            .focusRestorer(entryFocus)
             .focusGroup()
             .testTag(TV_FILES_LIST_TAG),
     ) {
@@ -337,9 +352,11 @@ private fun TvFilesList(
                 onClick = { onOpen(item) },
                 modifier = Modifier
                     .then(if (item.id.value == focusTarget) Modifier.focusRequester(rowFocus) else Modifier)
+                    .then(if (item.id.value == focusedRowId) Modifier.focusRequester(liveRowFocus) else Modifier)
                     .onFocusChanged {
                         if (it.isFocused) {
                             focusMemory[folderId] = item.id.value
+                            focusedRowId = item.id.value
                             pagingHeldFocus.value = false
                         }
                     },

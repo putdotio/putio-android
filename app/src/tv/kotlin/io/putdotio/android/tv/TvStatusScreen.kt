@@ -25,8 +25,8 @@ internal fun TvStatusScreen(
     action: String? = null,
     onAction: () -> Unit = {},
     modifier: Modifier = Modifier,
+    actionFocus: FocusRequester = remember { FocusRequester() },
 ) {
-    val actionFocus = remember { FocusRequester() }
     LaunchedEffect(action) { if (action != null) actionFocus.requestFocus() }
     Column(
         modifier = modifier

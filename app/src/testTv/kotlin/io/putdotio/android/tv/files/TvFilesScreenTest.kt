@@ -388,6 +388,32 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun aFailedFolderKeepsRefreshAndSortInert() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = state(FilesContent.Failed(networkFailure())),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onAllNodesWithText("Sort by").assertCountEquals(0)
+        assertEquals(emptyList<FilesBrowserEvent>(), events)
+    }
+
+    @Test
     fun aLoadingFolderKeepsFocusInThePane() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {

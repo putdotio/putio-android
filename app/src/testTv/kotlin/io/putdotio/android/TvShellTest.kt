@@ -161,6 +161,42 @@ class TvShellTest {
     }
 
     @Test
+    fun railRoundTripWithoutLeavingFilesReturnsToTheLiveRow() {
+        val files = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    folder = FilesFolder.Root,
+                    content = FilesContent.Ready(
+                        listOf(row(1, "first.txt"), row(2, "second.txt"), row(3, "third.txt")),
+                        FilesPaging.Complete,
+                    ),
+                ),
+            ),
+            nextRequestValue = 10L,
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                    },
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("first.txt").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithContentDescription("third.txt").assertIsFocused()
+    }
+
+    @Test
     fun hardwareBackPopsTheFolderOnlyWhileFilesIsShowing() {
         val events = mutableListOf<FilesBrowserEvent>()
         val nested = FilesBrowserState(
