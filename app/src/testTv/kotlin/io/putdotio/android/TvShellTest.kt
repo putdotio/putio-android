@@ -371,6 +371,38 @@ class TvShellTest {
     }
 
     @Test
+    fun dismissingTheUnsupportedScreenFromTheRailKeepsFocusOnTheRail() {
+        val files = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "notes.txt")), FilesPaging.Complete)),
+            ),
+            nextRequestValue = 10L,
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                    },
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
+
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.waitForIdle()
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused()
+    }
+
+    @Test
     fun hardwareBackPopsTheFolderOnlyWhileFilesIsShowing() {
         val events = mutableListOf<FilesBrowserEvent>()
         val nested = FilesBrowserState(

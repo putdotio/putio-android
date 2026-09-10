@@ -98,12 +98,33 @@ internal fun TvFilesScreen(
     focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableMapOf() },
 ) {
     val current = state.current
+    // Whether D-pad focus is inside this pane. A content change while the user is on the
+    // rail must not pull focus back; the first composition counts as owning it, since the
+    // shell hands focus to the pane on entry before any descendant can report it. Remembered
+    // above the unsupported overlay so dismissing it does not read as a fresh entry.
+    val paneHasFocus = remember { mutableStateOf(true) }
+    // The first focus callback reports "no focus" before anything has been focused at all;
+    // only a loss after a gain means the user left for the rail.
+    val paneEverHadFocus = remember { mutableStateOf(false) }
+    val trackPaneFocus = Modifier.onFocusChanged {
+        if (it.hasFocus) {
+            paneEverHadFocus.value = true
+            paneHasFocus.value = true
+        } else if (paneEverHadFocus.value) {
+            paneHasFocus.value = false
+        }
+    }
     var unsupported by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
     val unsupportedItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == unsupported }
     if (unsupportedItem != null) {
         val dismiss = { unsupported = null }
         BackHandler(onBack = dismiss)
-        TvUnsupportedFileScreen(item = unsupportedItem, onBack = dismiss, modifier = modifier)
+        TvUnsupportedFileScreen(
+            item = unsupportedItem,
+            onBack = dismiss,
+            claimFocus = paneHasFocus.value,
+            modifier = modifier.then(trackPaneFocus),
+        )
         return
     }
 
@@ -113,13 +134,6 @@ internal fun TvFilesScreen(
     val content = current.content
     val headerOwnsFocus = content is FilesContent.Loading ||
         (content is FilesContent.Empty && content.paging is FilesPaging.Complete)
-    // Whether D-pad focus is inside this pane. A content change while the user is on the
-    // rail must not pull focus back; the first composition counts as owning it, since the
-    // shell hands focus to the pane on entry before any descendant can report it.
-    val paneHasFocus = remember { mutableStateOf(true) }
-    // The first focus callback reports "no focus" before anything has been focused at all;
-    // only a loss after a gain means the user left for the rail.
-    val paneEverHadFocus = remember { mutableStateOf(false) }
     LaunchedEffect(current.folder.id.value, headerOwnsFocus) {
         if (headerOwnsFocus && paneHasFocus.value) refreshFocus.requestFocus()
     }
@@ -138,14 +152,7 @@ internal fun TvFilesScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .onFocusChanged {
-                if (it.hasFocus) {
-                    paneEverHadFocus.value = true
-                    paneHasFocus.value = true
-                } else if (paneEverHadFocus.value) {
-                    paneHasFocus.value = false
-                }
-            }
+            .then(trackPaneFocus)
             .focusProperties { enter = { entryTarget.value } }
             .focusGroup(),
     ) {
@@ -581,6 +588,7 @@ private fun TvFilesPaging(
 private fun TvUnsupportedFileScreen(
     item: FilesItem,
     onBack: () -> Unit,
+    claimFocus: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -615,7 +623,7 @@ private fun TvUnsupportedFileScreen(
                 modifier = Modifier.padding(top = 16.dp),
             )
             val backFocus = remember { FocusRequester() }
-            LaunchedEffect(Unit) { backFocus.requestFocus() }
+            LaunchedEffect(Unit) { if (claimFocus) backFocus.requestFocus() }
             TvButton(
                 onClick = onBack,
                 modifier = Modifier
