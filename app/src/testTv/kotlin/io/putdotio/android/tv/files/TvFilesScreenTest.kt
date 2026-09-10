@@ -415,6 +415,59 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun aFailedRefreshShowsTheErrorWithRetryAndKeepsPagingEnabled() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = state(
+                        FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Available(FilesCursor("c"))),
+                        operation = FilesFolderOperation.Failed(
+                            networkFailure(),
+                            FilesFolderOperationIntent.Refresh,
+                            FilesFolderOperationPhase.RELOADING,
+                        ),
+                    ),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Couldn’t refresh files.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+            pressKey(Key.DirectionUp)
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage, FilesBrowserEvent.Retry), events)
+    }
+
+    @Test
+    fun loadMoreFocusOutlivesThePaneWhenItIsRemounted() {
+        val memory = mutableMapOf<Long, Long>()
+        var shown by mutableStateOf(true)
+        val paged = ready(item(1, "first.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c")))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                if (shown) TvFilesScreen(state = paged, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
+            }
+        }
+        compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Load more").assertIsFocused()
+
+        shown = false
+        compose.waitForIdle()
+        shown = true
+        compose.onNodeWithText("Load more").assertIsFocused()
+    }
+
+    @Test
     fun aLoadingFolderKeepsFocusInThePane() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {

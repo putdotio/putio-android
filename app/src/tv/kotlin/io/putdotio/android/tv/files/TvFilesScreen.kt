@@ -58,6 +58,7 @@ import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
+import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
@@ -154,7 +155,7 @@ internal fun TvFilesScreen(
                     }
                     TvFilesPaging(
                         paging = content.paging,
-                        enabled = current.operation == FilesFolderOperation.Idle,
+                        enabled = current.operation.canStartOperation,
                         onEvent = onEvent,
                         buttonModifier = Modifier.focusRequester(pagingFocus),
                     )
@@ -163,7 +164,7 @@ internal fun TvFilesScreen(
                 TvFilesList(
                     folderId = current.folder.id.value,
                     content = content,
-                    pagingEnabled = current.operation == FilesFolderOperation.Idle,
+                    pagingEnabled = current.operation.canStartOperation,
                     focusMemory = focusMemory,
                     onEntryTarget = { entryTarget.value = it },
                     modifier = Modifier.weight(1f),
@@ -242,6 +243,30 @@ private fun TvFilesHeader(
             modifier = Modifier.padding(bottom = 8.dp),
         )
     }
+    val failed = current.operation as? FilesFolderOperation.Failed
+    if (failed != null) {
+        val message = when {
+            failed.intent == FilesFolderOperationIntent.Refresh -> R.string.tv_files_refresh_error
+            failed.phase == FilesFolderOperationPhase.PERSISTING_SORT -> R.string.tv_files_sort_error
+            else -> R.string.tv_files_reload_error
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+            TvButton(onClick = { onEvent(FilesBrowserEvent.Retry) }) {
+                Text(stringResource(R.string.tv_files_retry))
+            }
+        }
+    }
     if (sorting) {
         TvSortDialog(
             selected = current.folder.sort,
@@ -270,6 +295,8 @@ private fun TvFilesList(
         rememberLazyListState(viewport.firstVisibleItemIndex, viewport.firstVisibleItemScrollOffset)
     }
     val currentOnEvent by rememberUpdatedState(onEvent)
+    val remembered = focusMemory[folderId]
+    val resumeOnPaging = remembered == PAGING_FOCUS_MARKER && content.paging != FilesPaging.Complete
     val rowFocus = remember(listState) { FocusRequester() }
     // Follows whichever row holds focus, so re-entering the pane from the rail lands on
     // the live owner rather than the row that was focused at mount.
@@ -278,7 +305,7 @@ private fun TvFilesList(
     val listPagingFocus = remember(listState) { FocusRequester() }
     // Set when the paging control gains focus and cleared only when a row does, so the
     // control losing focus by being disposed does not erase the fact that it had it.
-    val pagingHeldFocus = remember(listState) { mutableStateOf(false) }
+    val pagingHeldFocus = remember(listState) { mutableStateOf(resumeOnPaging) }
     val entryFocus = when {
         pagingHeldFocus.value && content.paging != FilesPaging.Complete -> listPagingFocus
         focusedRowId == null -> rowFocus
@@ -300,7 +327,7 @@ private fun TvFilesList(
     // On every mount the remembered row for this folder takes focus, or the first row the
     // first time in. The row is scrolled into view first, since a lazy row that is not
     // composed has no focus requester to answer.
-    val focusTarget = content.items.firstOrNull { it.id.value == focusMemory[folderId] }?.id?.value
+    val focusTarget = content.items.firstOrNull { it.id.value == remembered }?.id?.value
         ?: content.items.first().id.value
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
@@ -319,10 +346,17 @@ private fun TvFilesList(
         if (index >= 0 && listState.layoutInfo.visibleItemsInfo.none { it.key == focusTarget }) {
             listState.scrollToItem(index)
         }
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == focusTarget } }.first { it }
-        // The shell's pane request lands one frame earlier; this one settles on the row.
-        withFrameNanos {}
-        rowFocus.requestFocus()
+        if (resumeOnPaging) {
+            listState.scrollToItem(content.items.size)
+            snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == TV_FILES_PAGING_KEY } }.first { it }
+            withFrameNanos {}
+            listPagingFocus.requestFocus()
+        } else {
+            snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == focusTarget } }.first { it }
+            // The shell's pane request lands one frame earlier; this one settles on the row.
+            withFrameNanos {}
+            rowFocus.requestFocus()
+        }
         // Started after the programmatic scroll so the settled position it reports is the one
         // on screen. Only the mount position is skipped: it came from the reducer already.
         var reported = viewport
@@ -375,7 +409,12 @@ private fun TvFilesList(
                     onEvent = onEvent,
                     buttonModifier = Modifier
                         .focusRequester(listPagingFocus)
-                        .onFocusChanged { if (it.isFocused) pagingHeldFocus.value = true },
+                        .onFocusChanged {
+                            if (it.isFocused) {
+                                pagingHeldFocus.value = true
+                                focusMemory[folderId] = PAGING_FOCUS_MARKER
+                            }
+                        },
                 )
             }
         }
@@ -553,5 +592,8 @@ private fun TvUnsupportedFileScreen(
 }
 
 private const val TV_FILES_PAGING_KEY = "tv-files-paging"
+
+/** Item ids are positive, so this marks "the paging control" in the per-folder focus memory. */
+private const val PAGING_FOCUS_MARKER = -1L
 private const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
 private const val PERCENT_SCALE = 100f

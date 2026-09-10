@@ -62,6 +62,10 @@
     <string name="tv_files_unsupported_title">Unsupported file type</string>
     <string name="tv_files_unsupported_message">This app plays video and audio. Other files stay in your account.</string>
     <string name="tv_files_go_back">Go back</string>
+    <string name="tv_files_refresh_error">Couldn’t refresh files.</string>
+    <string name="tv_files_sort_error">Couldn’t change sorting.</string>
+    <string name="tv_files_reload_error">Couldn’t reload files.</string>
+    <string name="tv_error_navigation_blocked">This item can’t be opened right now. Check Files, then try again.</string>
     <string name="tv_error_title">Couldn’t load this</string>
     <string name="tv_error_network">Check the network and try again.</string>
     <string name="tv_error_session">Your session expired. Sign in again.</string>

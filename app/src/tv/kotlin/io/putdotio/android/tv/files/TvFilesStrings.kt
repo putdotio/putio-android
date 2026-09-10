@@ -29,7 +29,7 @@ internal fun FilesFailure.tvMessage(): Int =
         is FilesFailure.AccessDenied -> R.string.tv_error_forbidden
         is FilesFailure.RateLimited -> R.string.tv_error_rate_limited
         is FilesFailure.NetworkUnavailable -> R.string.tv_error_network
-        FilesFailure.NavigationBlocked,
+        FilesFailure.NavigationBlocked -> R.string.tv_error_navigation_blocked
         is FilesFailure.ServerUnavailable,
         is FilesFailure.ApiRejected,
         is FilesFailure.InvalidResponse,
