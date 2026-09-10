@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -117,11 +118,21 @@ internal fun TvSearchScreen(
     // direction. Both land on the section that held focus last, the field the first time.
     val fieldFocus = remember { FocusRequester() }
     val entryTarget = remember { mutableStateOf(fieldFocus) }
-    val owner = remember { TvSearchFocusOwner(entryTarget, fieldFocus) }
+    // Whether D-pad focus belongs to this pane. Only a directional exit clears it: a node
+    // being disposed also drops focus, but the pane still owns it and may re-place it.
+    val paneHasFocus = remember { mutableStateOf(true) }
+    val owner = remember { TvSearchFocusOwner(entryTarget, fieldFocus, paneHasFocus) }
     Column(
         modifier = modifier
             .fillMaxSize()
-            .focusProperties { enter = { entryTarget.value } }
+            .onFocusChanged { if (it.hasFocus) paneHasFocus.value = true }
+            .focusProperties {
+                enter = { entryTarget.value }
+                exit = {
+                    paneHasFocus.value = false
+                    FocusRequester.Default
+                }
+            }
             .focusGroup(),
     ) {
         TvSearchField(
@@ -134,7 +145,7 @@ internal fun TvSearchScreen(
         // and its section() hands the entry target back, but focus itself must be re-placed.
         val hadRecent = remember { mutableStateOf(false) }
         LaunchedEffect(state.recentTerms.isEmpty()) {
-            if (state.recentTerms.isEmpty() && hadRecent.value && entryTarget.value === fieldFocus) {
+            if (state.recentTerms.isEmpty() && hadRecent.value && owner.owns(fieldFocus)) {
                 withFrameNanos {}
                 fieldFocus.requestFocus()
             }
@@ -200,8 +211,10 @@ internal fun TvSearchScreen(
 private class TvSearchFocusOwner(
     private val entryTarget: MutableState<FocusRequester>,
     private val fieldFocus: FocusRequester,
+    private val paneHasFocus: State<Boolean>,
 ) {
-    fun focusField() = fieldFocus.requestFocus()
+    /** True while the pane holds focus and this section was the last to have it. */
+    fun owns(requester: FocusRequester): Boolean = paneHasFocus.value && entryTarget.value === requester
 
     /** Tracks focus for a section; the requester itself is attached where focus should land. */
     @Composable
@@ -328,20 +341,28 @@ private fun TvRecentSearches(
     // should land on the newest term instead, and later entries on the chip left last.
     val firstChip = remember { FocusRequester() }
     val rowFocus = remember { FocusRequester() }
-    // A removed chip takes focus with it; the newest remaining chip picks it up, or the
-    // field when the row is now empty. Read after the frame so the row has re-laid out.
+    // A removed chip takes focus with it; the newest remaining chip picks it up. Decided
+    // during composition, since the chip's disposal drops the row's focus only after this
+    // pass, and a term dropped by the cap while focus was elsewhere must not pull it back.
+    val rowHasFocus = remember { mutableStateOf(false) }
     var focusedTerm by remember { mutableStateOf<SearchTerm?>(null) }
-    LaunchedEffect(terms) {
-        val lost = focusedTerm ?: return@LaunchedEffect
-        if (lost in terms) return@LaunchedEffect
+    val refocus = remember { mutableStateOf(false) }
+    val lost = focusedTerm
+    if (lost != null && lost !in terms) {
         focusedTerm = null
+        if (rowHasFocus.value) refocus.value = true
+    }
+    LaunchedEffect(refocus.value) {
+        if (!refocus.value) return@LaunchedEffect
         withFrameNanos {}
-        if (terms.isEmpty()) owner.focusField() else firstChip.requestFocus()
+        if (owner.owns(rowFocus)) firstChip.requestFocus()
+        refocus.value = false
     }
     LazyRow(
         modifier = modifier
             .fillMaxWidth()
             .then(owner.section(rowFocus))
+            .onFocusChanged { rowHasFocus.value = it.hasFocus }
             .focusRequester(rowFocus)
             .focusRestorer(firstChip)
             .focusGroup(),
@@ -438,7 +459,8 @@ private fun TvSearchResults(
         if (listState.layoutInfo.visibleItemsInfo.none { it.key == lastId }) listState.scrollToItem(items.lastIndex)
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == lastId } }.first { it }
         withFrameNanos {}
-        lastRow.requestFocus()
+        // The user may have left for the drawer or the field during the wait.
+        if (owner.owns(listFocus)) lastRow.requestFocus()
         handOffToLastRow.value = false
     }
     LazyColumn(

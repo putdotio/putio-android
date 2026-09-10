@@ -313,6 +313,30 @@ class TvSearchScreenTest {
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
     }
 
+    @Test
+    fun aTermDroppedByTheCapWhileFocusIsOnTheFieldDoesNotPullFocusBack() {
+        var recent by mutableStateOf((1..5).map { SearchTerm("term-$it") })
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvSearchScreen(state = searchState(SearchContent.Idle, recent = recent), actions = actions)
+            }
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Search again for term-1").assertIsFocused().performKeyInput {
+            repeat(4) { pressKey(Key.DirectionRight) }
+        }
+        compose.onNodeWithContentDescription("Search again for term-5").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
+
+        // A new search records term-6 and the cap drops term-5, the chip focused last.
+        recent = listOf(SearchTerm("term-6")) + recent.dropLast(1)
+        compose.onAllNodesWithContentDescription("Search again for term-5").assertCountEquals(0)
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
+    }
+
     private fun searchState(
         content: SearchContent,
         recent: List<SearchTerm> = emptyList(),
