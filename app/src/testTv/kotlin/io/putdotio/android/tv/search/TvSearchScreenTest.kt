@@ -17,6 +17,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTextInput
@@ -334,6 +335,50 @@ class TvSearchScreenTest {
         // A new search records term-6 and the cap drops term-5, the chip focused last.
         recent = listOf(SearchTerm("term-6")) + recent.dropLast(1)
         compose.onAllNodesWithContentDescription("Search again for term-5").assertCountEquals(0)
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
+    }
+
+    @Test
+    fun aChipReplayRewritesTheFieldAndAStaleQueryDoesNotOverwriteTyping() {
+        var state by mutableStateOf(searchState(SearchContent.Idle, recent = listOf(SearchTerm("Tears Of Steel"))))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvSearchScreen(state = state, actions = actions)
+            }
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused()
+        state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel")
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel"))
+
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("!")
+        // The controller reporting the previous text back must not undo the edit.
+        state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel")
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel!"))
+        assertEquals(listOf("query:Tears Of Steel!"), log)
+    }
+
+    @Test
+    fun aSuccessfulRecentRetryHandsFocusToTheField() {
+        var notice by mutableStateOf<FilesFailure?>(FilesFailure.Misconfigured(PutioConfigurationException("boom")))
+        val retrying = TvSearchActions(
+            onQueryChanged = {}, onSubmit = {}, onResult = {}, onNextPage = {}, onRetry = {},
+            onRecentSearch = {}, onRecentEdit = {}, onRecentRetry = { notice = null },
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvSearchScreen(state = searchState(SearchContent.Idle), actions = retrying, notice = notice)
+            }
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onAllNodesWithText("Try again").assertCountEquals(0)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
     }
 

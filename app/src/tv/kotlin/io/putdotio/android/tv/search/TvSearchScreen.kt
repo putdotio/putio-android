@@ -216,6 +216,8 @@ private class TvSearchFocusOwner(
     /** True while the pane holds focus and this section was the last to have it. */
     fun owns(requester: FocusRequester): Boolean = paneHasFocus.value && entryTarget.value === requester
 
+    fun focusField() = fieldFocus.requestFocus()
+
     /** Tracks focus for a section; the requester itself is attached where focus should land. */
     @Composable
     fun section(requester: FocusRequester): Modifier {
@@ -243,11 +245,14 @@ private fun TvSearchField(
         // Only edits made here go up; text the controller already knows is not echoed.
         snapshotFlow { state.text.toString() }.collect { if (it != currentQuery) currentOnQueryChanged(it) }
     }
-    LaunchedEffect(query) {
-        if (state.text.toString() != query) state.setTextAndPlaceCursorAtEnd(query)
-    }
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    // While the field is focused the user is the source of the text and the controller only
+    // mirrors it; a query it reports then is at best one edit behind and must not overwrite
+    // the IME. Rewrites from elsewhere, a chip replay or a new session, land unfocused.
+    LaunchedEffect(query, focused) {
+        if (!focused && state.text.toString() != query) state.setTextAndPlaceCursorAtEnd(query)
+    }
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     // The IME appears only on Center, never on focus alone: the pane opens with the field
@@ -408,7 +413,7 @@ private fun TvSearchNotice(
 ) {
     val retryFocus = remember { FocusRequester() }
     Row(
-        modifier = owner.section(retryFocus)
+        modifier = Modifier
             .fillMaxWidth()
             .padding(top = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -421,7 +426,14 @@ private fun TvSearchNotice(
         }
         Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (failure != FilesFailure.NavigationBlocked) {
-            TvButton(onClick = onRetry, modifier = Modifier.focusRequester(retryFocus)) {
+            TvButton(
+                onClick = {
+                    // A retry that succeeds removes this button; the field takes over first.
+                    owner.focusField()
+                    onRetry()
+                },
+                modifier = owner.section(retryFocus).focusRequester(retryFocus),
+            ) {
                 Text(stringResource(R.string.tv_files_retry))
             }
         }
@@ -516,7 +528,7 @@ private fun TvSearchPaging(
         SearchPaging.Complete -> null
     } ?: return
     Row(
-        modifier = (owner?.section(pagingFocus) ?: Modifier)
+        modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
@@ -533,7 +545,9 @@ private fun TvSearchPaging(
                     is SearchPaging.Loading, SearchPaging.Complete -> Unit
                 }
             },
-            modifier = buttonModifier.focusRequester(pagingFocus),
+            modifier = buttonModifier
+                .then(owner?.section(pagingFocus) ?: Modifier)
+                .focusRequester(pagingFocus),
         ) {
             Text(stringResource(label))
         }

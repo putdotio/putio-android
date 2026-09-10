@@ -113,7 +113,7 @@ private fun TvSignedInApp(
 
     // A search result opens in Files: the browser jumps to the result's folder and the
     // shell switches destinations. A refused jump stays on Search with an explanation.
-    var requestedDestination by remember { mutableStateOf<TvDestination?>(null) }
+    var requestedDestination by remember(session) { mutableStateOf<TvDestination?>(null) }
     var openRejected by remember(session) { mutableStateOf(false) }
     LaunchedEffect(session) {
         session.search.outputs.collect { output ->
