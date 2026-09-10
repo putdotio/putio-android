@@ -204,8 +204,10 @@ class FilesRestoreInvalidationTest {
         val video = FilesItem(FilesItemId(30), child.id, "clip.mp4", PutioFileType.VIDEO, 5, "2026-09-06",
             playback = FilesPlaybackProgress(0.0, 600.0))
         val original = FilesBrowserState(listOf(
-            FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(video.copy(playback = null)), FilesPaging.Complete)),
-            FilesFolderState(child, FilesContent.Ready(listOf(video, item(31, child.id)), FilesPaging.Complete, viewport)),
+            FilesFolderState(FilesFolder.Root,
+                FilesContent.Ready(listOf(video.copy(playback = null)), FilesPaging.Complete)),
+            FilesFolderState(child,
+                FilesContent.Ready(listOf(video, item(31, child.id)), FilesPaging.Complete, viewport)),
         ), 100)
 
         val updated = FilesBrowserReducer.reduce(original, FilesBrowserEvent.PlaybackPositionReported(video.id, 90.0))
@@ -220,7 +222,8 @@ class FilesRestoreInvalidationTest {
         assertEquals(viewport, updated.state.current.content.viewport())
         assertSame(original.current.content.items()[1], updated.state.current.content.items()[1])
 
-        val unknown = FilesBrowserReducer.reduce(original, FilesBrowserEvent.PlaybackPositionReported(FilesItemId(31), 5.0))
+        val unknown = FilesBrowserReducer.reduce(original,
+            FilesBrowserEvent.PlaybackPositionReported(FilesItemId(31), 5.0))
         assertFalse(unknown.consumed)
         assertSame(original, unknown.state)
         val invalid = FilesBrowserReducer.reduce(original, FilesBrowserEvent.PlaybackPositionReported(video.id, -1.0))

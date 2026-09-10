@@ -24,7 +24,8 @@ internal class MobilePlaybackReporting(
     onAuthenticationRequired: suspend (MobileAuthSessionId) -> Unit = {},
     write: suspend (Long, Double) -> PlaybackRepositoryResult<Unit>,
 ) {
-    private val mutableSavedPositions = MutableSharedFlow<SavedPlaybackPosition>(extraBufferCapacity = SAVED_POSITION_BUFFER)
+    private val mutableSavedPositions =
+        MutableSharedFlow<SavedPlaybackPosition>(extraBufferCapacity = SAVED_POSITION_BUFFER)
 
     /** Positions the server accepted, for surfaces that cache `start_from`. Late subscribers see only new saves. */
     val savedPositions: SharedFlow<SavedPlaybackPosition> = mutableSavedPositions
@@ -32,7 +33,9 @@ internal class MobilePlaybackReporting(
     private val writer = PlaybackPositionWriter(scope) { fileId, seconds ->
         val sessionId = (auth.value as? MobileAuthState.SignedIn)?.sessionId
         write(fileId, seconds).also { result ->
-            if (result is PlaybackRepositoryResult.Success) mutableSavedPositions.tryEmit(SavedPlaybackPosition(fileId, seconds))
+            if (result is PlaybackRepositoryResult.Success) {
+                mutableSavedPositions.tryEmit(SavedPlaybackPosition(fileId, seconds))
+            }
             if (sessionId != null && result is PlaybackRepositoryResult.Failure &&
                 result.failure is PlaybackFailure.AuthenticationRequired
             ) {

@@ -49,7 +49,8 @@ private fun TrashMachine.confirmAction(event: TrashEvent.ConfirmAction): TrashMa
         TrashRestoreSnapshot(
             itemIds = it.itemIds.toSet(),
             coversUnloadedItems = it.cursor != null,
-            newestDeletedAt = content.items.mapNotNull { item -> item.deletedAt?.let(::parseTrashTimestamp) }.maxOrNull(),
+            newestDeletedAt = content.items.mapNotNull { item -> item.deletedAt?.let(::parseTrashTimestamp) }
+                .maxOrNull(),
         )
     }
     return copy(

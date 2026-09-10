@@ -313,7 +313,9 @@ class TrashActionTest {
             assertFalse(controller.dispatch(TrashEvent.SelectRestoreAll))
             repository.onLoad = { page(trashItem()) }
             assertTrue(controller.dispatch(TrashEvent.Retry))
-            val fresh = controller.awaitState { (it.content as? TrashContent.Loaded)?.let { c -> !c.isRefreshing && c.refreshFailure == null } == true }
+            val fresh = controller.awaitState {
+                (it.content as? TrashContent.Loaded)?.let { c -> !c.isRefreshing && c.refreshFailure == null } == true
+            }
             assertTrue(fresh.canActOnAll)
         }
     }

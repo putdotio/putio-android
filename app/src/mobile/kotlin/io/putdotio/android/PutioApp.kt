@@ -455,7 +455,9 @@ internal fun SignedInMobileRoot(
     }
     LaunchedEffect(runtime, filesController) {
         runtime.playbackReporting.savedPositions.collect { saved ->
-            filesController.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(saved.fileId), saved.seconds))
+            filesController.dispatch(
+                FilesBrowserEvent.PlaybackPositionReported(FilesItemId(saved.fileId), saved.seconds),
+            )
         }
     }
     val trashState by trashController.state.collectAsStateWithLifecycle()

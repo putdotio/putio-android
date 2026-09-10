@@ -36,7 +36,9 @@ internal fun FilesBrowserState.invalidateSortOrder(): FilesBrowserTransition =
 
 // Duration is kept from the cached row; the server supplies it on the next read.
 internal fun FilesBrowserState.updatePlaybackPosition(itemId: FilesItemId, seconds: Double): FilesBrowserTransition {
-    if (itemId.value <= 0L || !seconds.isFinite() || seconds < 0.0) return FilesBrowserTransition(this, consumed = false)
+    if (itemId.value <= 0L || !seconds.isFinite() || seconds < 0.0) {
+        return FilesBrowserTransition(this, consumed = false)
+    }
     var changed = false
     val updated = stack.map { folder ->
         val content = folder.content as? FilesContent.Ready ?: return@map folder
@@ -51,7 +53,11 @@ internal fun FilesBrowserState.updatePlaybackPosition(itemId: FilesItemId, secon
         }
         folder.copy(content = content.copy(items = items))
     }
-    return if (changed) FilesBrowserTransition(copy(stack = updated)) else FilesBrowserTransition(this, consumed = false)
+    return if (changed) {
+        FilesBrowserTransition(copy(stack = updated))
+    } else {
+        FilesBrowserTransition(this, consumed = false)
+    }
 }
 
 internal fun FilesBrowserState.reloadIfStale(): FilesBrowserTransition =
