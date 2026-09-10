@@ -508,6 +508,28 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun theUnsupportedScreenDoesNotReturnOnItsOwnAfterARefresh() {
+        val listed = ready(item(3, "notes.txt", PutioFileType.TEXT))
+        var state by mutableStateOf(listed)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {})
+            }
+        }
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Unsupported file type").assertIsDisplayed()
+
+        state = state(FilesContent.Loading(FilesRequestId(2)))
+        compose.onAllNodesWithText("Unsupported file type").assertCountEquals(0)
+        state = listed
+        compose.onAllNodesWithText("Unsupported file type").assertCountEquals(0)
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused()
+    }
+
+    @Test
     fun aLoadingFolderKeepsFocusInThePane() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {

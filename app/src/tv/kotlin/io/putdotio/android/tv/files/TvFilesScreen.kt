@@ -115,6 +115,9 @@ internal fun TvFilesScreen(
         }
     var unsupported by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
     val unsupportedItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == unsupported }
+    // The overlay closes when its item leaves the listing (refresh, sort, deletion); it must
+    // not come back on its own if the item reappears later.
+    if (unsupported != null && unsupportedItem == null) unsupported = null
     if (unsupportedItem != null) {
         val dismiss = { unsupported = null }
         BackHandler(onBack = dismiss)
@@ -377,9 +380,10 @@ private fun TvFilesList(
             listState.scrollToItem(content.items.lastIndex)
         }
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == lastId } }.first { it }
-        // The restorer answers the removed node first; the request goes out after that frame.
+        // The restorer answers the removed node first; the request goes out after that frame,
+        // and only if the user has not left for the rail during the wait.
         withFrameNanos {}
-        liveRowFocus.requestFocus()
+        if (paneHasFocus.value) liveRowFocus.requestFocus()
         handOffToLastRow.value = false
     }
     LaunchedEffect(listState) {
