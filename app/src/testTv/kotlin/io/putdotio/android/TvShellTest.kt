@@ -29,6 +29,7 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.tv.TvLinkScreen
 import io.putdotio.android.tv.files.TvFilesScreen
 import io.putdotio.sdk.files.PutioFileType
@@ -296,6 +297,39 @@ class TvShellTest {
         compose.waitForIdle()
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithContentDescription("second.txt").assertIsFocused()
+    }
+
+    @Test
+    fun aFolderThatFinishesLoadingWhileOnTheRailDoesNotStealFocus() {
+        var files by mutableStateOf(
+            FilesBrowserState(
+                stack = listOf(FilesFolderState(FilesFolder.Root, FilesContent.Loading(FilesRequestId(1)))),
+                nextRequestValue = 10L,
+            ),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                    },
+                )
+            }
+        }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
+
+        files = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Complete)),
+            ),
+            nextRequestValue = 11L,
+        )
+        compose.waitForIdle()
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithContentDescription("first.txt").assertIsFocused()
     }
 
     @Test

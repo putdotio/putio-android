@@ -113,8 +113,15 @@ internal fun TvFilesScreen(
     val content = current.content
     val headerOwnsFocus = content is FilesContent.Loading ||
         (content is FilesContent.Empty && content.paging is FilesPaging.Complete)
+    // Whether D-pad focus is inside this pane. A content change while the user is on the
+    // rail must not pull focus back; the first composition counts as owning it, since the
+    // shell hands focus to the pane on entry before any descendant can report it.
+    val paneHasFocus = remember { mutableStateOf(true) }
+    // The first focus callback reports "no focus" before anything has been focused at all;
+    // only a loss after a gain means the user left for the rail.
+    val paneEverHadFocus = remember { mutableStateOf(false) }
     LaunchedEffect(current.folder.id.value, headerOwnsFocus) {
-        if (headerOwnsFocus) refreshFocus.requestFocus()
+        if (headerOwnsFocus && paneHasFocus.value) refreshFocus.requestFocus()
     }
     // The shell asks the pane for focus on entry. A Column is not a target itself, so the
     // request is redirected to whichever control this pane currently wants focused.
@@ -131,6 +138,14 @@ internal fun TvFilesScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .onFocusChanged {
+                if (it.hasFocus) {
+                    paneEverHadFocus.value = true
+                    paneHasFocus.value = true
+                } else if (paneEverHadFocus.value) {
+                    paneHasFocus.value = false
+                }
+            }
             .focusProperties { enter = { entryTarget.value } }
             .focusGroup(),
     ) {
@@ -166,6 +181,7 @@ internal fun TvFilesScreen(
                     content = content,
                     pagingEnabled = current.operation.canStartOperation,
                     focusMemory = focusMemory,
+                    paneHasFocus = paneHasFocus.value,
                     onEntryTarget = { entryTarget.value = it },
                     modifier = Modifier.weight(1f),
                     onEvent = onEvent,
@@ -293,6 +309,7 @@ private fun TvFilesList(
     content: FilesContent.Ready,
     pagingEnabled: Boolean,
     focusMemory: MutableMap<Long, Long>,
+    paneHasFocus: Boolean,
     onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
@@ -358,6 +375,9 @@ private fun TvFilesList(
     }
     LaunchedEffect(listState) {
         val index = content.items.indexOfFirst { it.id.value == focusTarget }
+        // A list mounted while the user is on the rail (Loading → Ready after Left) keeps its
+        // entry target ready but does not take focus; the enter redirect delivers it later.
+        val claimFocus = paneHasFocus
         if (index >= 0 && listState.layoutInfo.visibleItemsInfo.none { it.key == focusTarget }) {
             listState.scrollToItem(index)
         }
@@ -365,12 +385,12 @@ private fun TvFilesList(
             listState.scrollToItem(content.items.size)
             snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == TV_FILES_PAGING_KEY } }.first { it }
             withFrameNanos {}
-            listPagingFocus.requestFocus()
+            if (claimFocus) listPagingFocus.requestFocus()
         } else {
             snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == focusTarget } }.first { it }
             // The shell's pane request lands one frame earlier; this one settles on the row.
             withFrameNanos {}
-            rowFocus.requestFocus()
+            if (claimFocus) rowFocus.requestFocus()
         }
         // Started after the programmatic scroll so the settled position it reports is the one
         // on screen. Only the mount position is skipped: it came from the reducer already.
