@@ -204,8 +204,17 @@ class TvAuthController internal constructor(
         }
         mutableState.value = TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired)
         val generation = ++linkGeneration
+        // The SDK reports its own failures as Failed states; anything else escaping the
+        // flow would otherwise strand the screen on "Getting a code" with no action.
+        @Suppress("TooGenericExceptionCaught")
         linkAttempt = scope.launch {
-            sessionGateway.link().collect { linkState -> onLinkState(generation, linkState, sessionExpired) }
+            try {
+                sessionGateway.link().collect { linkState -> onLinkState(generation, linkState, sessionExpired) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                if (generation == linkGeneration) stopLinking(TvLinkStop.Failed(TvLinkFailure.SERVER), sessionExpired)
+            }
         }
     }
 

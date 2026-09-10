@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -118,6 +119,17 @@ class TvAuthControllerTest {
             harness.controller.state.value,
         )
         assertEquals(0, harness.gateway.linkAttempts)
+    }
+
+    @Test
+    fun `an exception escaping the link flow stops the attempt with a new code on offer`() = runTest {
+        val harness = Harness()
+        harness.controller.restoreSession()
+
+        harness.gateway.fail(IllegalStateException("sdk bug"))
+
+        assertEquals(stopped(TvLinkFailure.SERVER), harness.controller.state.value)
+        assertTrue(harness.controller.requestNewCode())
     }
 
     @Test
@@ -244,9 +256,14 @@ class TvAuthControllerTest {
         val calls = mutableListOf<String>()
         var linkAttempts = 0
         private val linkStates = MutableSharedFlow<DeviceCodeAuthState>()
+        private val linkFailures = MutableSharedFlow<Throwable>()
 
         suspend fun emit(state: DeviceCodeAuthState) {
             linkStates.emit(state)
+        }
+
+        suspend fun fail(error: Throwable) {
+            linkFailures.emit(error)
         }
 
         override fun link(): Flow<DeviceCodeAuthState> = flow {
@@ -254,8 +271,9 @@ class TvAuthControllerTest {
             linkAttempts += 1
             try {
                 while (true) {
-                    val next = linkStates.first()
-                    emit(next)
+                    val next = merge(linkStates, linkFailures).first()
+                    if (next is Throwable) throw next
+                    emit(next as DeviceCodeAuthState)
                     if (next.isTerminal()) return@flow
                 }
             } catch (error: CancellationException) {
