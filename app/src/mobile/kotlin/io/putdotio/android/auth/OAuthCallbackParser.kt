@@ -6,23 +6,6 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
-internal class AccessToken private constructor(
-    private val value: String,
-) {
-    fun reveal(): String = value
-
-    override fun toString(): String = "AccessToken([REDACTED])"
-
-    companion object {
-        fun parse(value: String?): AccessToken? =
-            when {
-                value.isNullOrEmpty() || value.length > MAX_ACCESS_TOKEN_LENGTH -> null
-                value.any { it.code !in ACCESS_TOKEN_CHARACTER_RANGE } -> null
-                else -> AccessToken(value)
-            }
-    }
-}
-
 internal sealed interface OAuthCallbackParseResult {
     data class Success(
         val accessToken: AccessToken,
@@ -191,5 +174,3 @@ private const val VALUE_SEPARATOR = '='
 private const val OAUTH_ACCESS_TOKEN_PARAMETER = "access_token"
 private const val OAUTH_STATE_PARAMETER = "state"
 private const val OAUTH_ERROR_PARAMETER = "error"
-private const val MAX_ACCESS_TOKEN_LENGTH = 8_192
-private val ACCESS_TOKEN_CHARACTER_RANGE = '!'.code..'~'.code
