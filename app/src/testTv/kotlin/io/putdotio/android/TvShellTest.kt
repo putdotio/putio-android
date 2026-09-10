@@ -542,7 +542,7 @@ class TvShellTest {
         }
         compose.onNodeWithContentDescription("Search again for tears").assertIsFocused()
 
-        requested = TvDestination.Files
+        compose.runOnIdle { requested = TvDestination.Files }
         compose.onNodeWithText("Your files will show up here.").assertIsFocused()
         compose.runOnIdle { assertEquals(null, requested) }
     }
