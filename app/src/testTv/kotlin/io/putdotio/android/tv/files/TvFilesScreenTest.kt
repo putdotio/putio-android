@@ -148,6 +148,7 @@ class TvFilesScreenTest {
         }
         compose.onNodeWithText("This folder is empty.").assertIsDisplayed()
         compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+        compose.onNode(hasText("Account default") and hasClickAction()).assertIsDisplayed()
     }
 
     @Test

@@ -174,7 +174,7 @@ private fun TvFilesHeader(
             TvButton(onClick = { sorting = true }, enabled = enabled) {
                 Icon(painterResource(R.drawable.ic_ph_sort_ascending), contentDescription = null, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(stringResource(current.folder.sort?.tvLabel() ?: R.string.tv_files_sort))
+                Text(stringResource(current.folder.sort?.tvLabel() ?: R.string.tv_files_sort_account_default))
             }
         }
     }

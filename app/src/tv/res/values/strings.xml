@@ -35,7 +35,6 @@
 
     <string name="tv_files_title">Your Files</string>
     <string name="tv_files_refresh">Refresh</string>
-    <string name="tv_files_sort">Sort</string>
     <string name="tv_files_sort_title">Sort by</string>
     <string name="tv_files_sort_account_default">Account default</string>
     <string name="tv_files_sort_name_ascending">Name, A–Z</string>
@@ -63,7 +62,6 @@
     <string name="tv_files_unsupported_title">Unsupported file type</string>
     <string name="tv_files_unsupported_message">This app plays video and audio. Other files stay in your account.</string>
     <string name="tv_files_go_back">Go back</string>
-    <string name="tv_files_playback_pending">Playback lands with TV playback parity.</string>
     <string name="tv_error_title">Couldn’t load this</string>
     <string name="tv_error_network">Check the network and try again.</string>
     <string name="tv_error_session">Your session expired. Sign in again.</string>
