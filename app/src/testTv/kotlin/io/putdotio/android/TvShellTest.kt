@@ -544,7 +544,7 @@ class TvShellTest {
 
         requested = TvDestination.Files
         compose.onNodeWithText("Your files will show up here.").assertIsFocused()
-        assertEquals(null, requested)
+        compose.runOnIdle { assertEquals(null, requested) }
     }
 
 }

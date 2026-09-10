@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
@@ -126,6 +127,14 @@ internal fun TvSearchScreen(
     // being disposed also drops focus, but the pane still owns it and may re-place it.
     val paneHasFocus = remember { mutableStateOf(true) }
     val owner = remember { TvSearchFocusOwner(entryTarget, fieldFocus, paneHasFocus) }
+    // The field's text is owned here, not mirrored from the controller: a query the
+    // controller reports is at best one edit behind the IME, so it is never written back.
+    // The two rewrites the pane makes itself, a chip replay and the trimmed submit, are
+    // explicit; a new session gets a fresh state through the key above.
+    val textState = rememberTextFieldState(state.query)
+    // Text the pane wrote itself; the field's edit collector skips it instead of reporting
+    // it as a typed edit, which would restart the debounce over the submit that follows.
+    val rewrite = remember { mutableStateOf<String?>(null) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -140,6 +149,8 @@ internal fun TvSearchScreen(
             .focusGroup(),
     ) {
         TvSearchField(
+            state = textState,
+            rewrite = rewrite,
             query = state.query,
             onQueryChanged = actions.onQueryChanged,
             onSubmit = actions.onSubmit,
@@ -159,7 +170,11 @@ internal fun TvSearchScreen(
         if (state.recentTerms.isNotEmpty()) {
             TvRecentSearches(
                 terms = state.recentTerms,
-                onSearch = actions.onRecentSearch,
+                onSearch = { term ->
+                    rewrite.value = term.value
+                    textState.setTextAndPlaceCursorAtEnd(term.value)
+                    actions.onRecentSearch(term)
+                },
                 onRemove = { actions.onRecentEdit(RecentSearchEdit.Remove(it)) },
                 owner = owner,
                 modifier = Modifier.padding(top = 16.dp),
@@ -209,6 +224,20 @@ internal fun TvSearchScreen(
     }
 }
 
+/** The controller searches the trimmed query; the field shows the same text it recorded. */
+private fun submit(
+    state: TextFieldState,
+    rewrite: MutableState<String?>,
+    onSubmit: () -> Unit,
+) {
+    val trimmed = state.text.toString().trim()
+    if (trimmed != state.text.toString()) {
+        rewrite.value = trimmed
+        state.setTextAndPlaceCursorAtEnd(trimmed)
+    }
+    onSubmit()
+}
+
 /**
  * Which section of the pane focus should return to. Sections register themselves while
  * they hold focus and hand the target back to the field when they leave composition.
@@ -236,29 +265,27 @@ private class TvSearchFocusOwner(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TvSearchField(
+    state: TextFieldState,
+    rewrite: MutableState<String?>,
     query: String,
     onQueryChanged: (String) -> Unit,
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // The controller owns the query; the field keeps its own selection and follows the
-    // controller when a chip or a submit rewrites the text.
-    val state = rememberTextFieldState(query)
     val currentQuery by rememberUpdatedState(query)
     val currentOnQueryChanged by rememberUpdatedState(onQueryChanged)
     LaunchedEffect(state) {
-        // Only edits made here go up; text the controller already knows is not echoed.
-        snapshotFlow { state.text.toString() }.collect { if (it != currentQuery) currentOnQueryChanged(it) }
+        // Only edits made here go up; text the pane wrote or the controller already knows
+        // is not echoed.
+        snapshotFlow { state.text.toString() }.collect { text ->
+            when {
+                text == rewrite.value -> rewrite.value = null
+                text != currentQuery -> currentOnQueryChanged(text)
+            }
+        }
     }
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    // While the field is focused the user is the source of the text and the controller only
-    // mirrors it; a query it reports then is at best one edit behind and must not overwrite
-    // the IME. Rewrites from elsewhere, a chip replay, land unfocused. Keyed on the query
-    // alone: a blur must not replay a lagging query over what was typed.
-    LaunchedEffect(query) {
-        if (!focused && state.text.toString() != query) state.setTextAndPlaceCursorAtEnd(query)
-    }
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     // The IME appears only on Center, never on focus alone: the pane opens with the field
@@ -269,6 +296,15 @@ private fun TvSearchField(
     var keyboardRequested by remember { mutableStateOf(false) }
     val imeVisible = WindowInsets.isImeVisible
     LaunchedEffect(imeVisible, focused) { if (!imeVisible || !focused) keyboardRequested = false }
+    // A TV that never reports IME insets leaves the flag up after Back dismisses Gboard;
+    // Center then lowers it for a frame so the option changes and the session restarts.
+    var resummon by remember { mutableStateOf(false) }
+    LaunchedEffect(resummon) {
+        if (!resummon) return@LaunchedEffect
+        withFrameNanos {}
+        keyboardRequested = true
+        resummon = false
+    }
     val label = stringResource(R.string.tv_search_field)
     val border = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.border
     BasicTextField(
@@ -280,7 +316,7 @@ private fun TvSearchField(
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, showKeyboardOnFocus = keyboardRequested),
         onKeyboardAction = {
             keyboard?.hide()
-            onSubmit()
+            submit(state, rewrite, onSubmit)
         },
         modifier = modifier
             .fillMaxWidth()
@@ -301,7 +337,12 @@ private fun TvSearchField(
                         selection.collapsed && selection.end == state.text.length &&
                             focusManager.moveFocus(FocusDirection.Right)
                     Key.DirectionCenter -> {
-                        keyboardRequested = true
+                        if (keyboardRequested) {
+                            keyboardRequested = false
+                            resummon = true
+                        } else {
+                            keyboardRequested = true
+                        }
                         true
                     }
                     else -> false

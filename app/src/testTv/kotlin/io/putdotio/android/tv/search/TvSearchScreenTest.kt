@@ -348,16 +348,23 @@ class TvSearchScreenTest {
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused()
-        state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel")
+        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel"))
+        assertEquals(listOf("recent:Tears Of Steel"), log)
+        state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel")
 
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("!")
-        // The controller reporting the previous text back must not undo the edit.
+        // The controller reporting the previous text back, while the user is on the chips,
+        // must not undo the edit.
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused()
         state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel")
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel!"))
-        assertEquals(listOf("query:Tears Of Steel!"), log)
+        assertEquals(listOf("recent:Tears Of Steel", "query:Tears Of Steel!"), log)
     }
 
     @Test
