@@ -291,14 +291,14 @@ class TvShellTest {
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
-                    FilesContent.Ready(listOf(row(1, "first.txt"), row(2, "second.txt")), FilesPaging.Complete),
+                    FilesContent.Ready((1..30L).map { row(it, "file-$it.txt") }, FilesPaging.Complete),
                 ),
             ),
             nextRequestValue = 11L,
         )
         compose.waitForIdle()
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNodeWithContentDescription("second.txt").assertIsFocused()
+        compose.onNodeWithContentDescription("file-30.txt").assertIsFocused()
     }
 
     @Test

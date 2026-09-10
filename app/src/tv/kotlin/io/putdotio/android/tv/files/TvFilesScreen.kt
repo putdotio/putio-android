@@ -117,7 +117,8 @@ internal fun TvFilesScreen(
     val unsupportedItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == unsupported }
     // The overlay closes when its item leaves the listing (refresh, sort, deletion); it must
     // not come back on its own if the item reappears later.
-    if (unsupported != null && unsupportedItem == null) unsupported = null
+    val overlayOrphaned = unsupported != null && unsupportedItem == null
+    SideEffect { if (overlayOrphaned) unsupported = null }
     if (unsupportedItem != null) {
         val dismiss = { unsupported = null }
         BackHandler(onBack = dismiss)
@@ -361,7 +362,7 @@ private fun TvFilesList(
         val lastId = content.items.last().id.value
         focusMemory[folderId] = lastId
         focusedRowId = lastId
-        handOffToLastRow.value = pagingIsFocused.value
+        handOffToLastRow.value = true
         pagingHeldFocus.value = false
     }
     // On every mount the remembered row for this folder takes focus, or the first row the
@@ -380,7 +381,8 @@ private fun TvFilesList(
             listState.scrollToItem(content.items.lastIndex)
         }
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == lastId } }.first { it }
-        // The restorer answers the removed node first; the request goes out after that frame,
+        // The row is always scrolled into view so the rail's enter target is composed; the
+        // restorer answers the removed node first, so the request goes out after that frame,
         // and only if the user has not left for the rail during the wait.
         withFrameNanos {}
         if (paneHasFocus.value) liveRowFocus.requestFocus()
@@ -477,7 +479,9 @@ internal fun TvFilesRow(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val size = remember(item.sizeBytes) { Formatter.formatShortFileSize(context, item.sizeBytes.coerceAtLeast(0L)) }
+    val size = remember(context, item.sizeBytes) {
+        Formatter.formatShortFileSize(context, item.sizeBytes.coerceAtLeast(0L))
+    }
     val label = when {
         item.isFolder -> stringResource(R.string.tv_files_open_folder, item.name)
         item.isPlayable -> stringResource(R.string.tv_files_play_media, item.name)
