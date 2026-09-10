@@ -118,10 +118,12 @@ internal fun TvFilesScreen(
     // The shell asks the pane for focus on entry. A Column is not a target itself, so the
     // request is redirected to whichever control this pane currently wants focused.
     val retryFocus = remember { FocusRequester() }
+    val pagingFocus = remember { FocusRequester() }
     val entryTarget = remember { mutableStateOf(FocusRequester.Default) }
     entryTarget.value = when {
         headerOwnsFocus -> refreshFocus
         content is FilesContent.Failed -> retryFocus
+        content is FilesContent.Empty -> pagingFocus
         content is FilesContent.Ready -> entryTarget.value
         else -> FocusRequester.Default
     }
@@ -147,7 +149,6 @@ internal fun TvFilesScreen(
             is FilesContent.Empty ->
                 Column(modifier = Modifier.weight(1f)) {
                     TvStatusScreen(stringResource(R.string.tv_files_empty), modifier = Modifier.weight(1f))
-                    val pagingFocus = remember { FocusRequester() }
                     LaunchedEffect(content.paging is FilesPaging.Complete) {
                         if (content.paging !is FilesPaging.Complete) pagingFocus.requestFocus()
                     }

@@ -20,6 +20,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import androidx.compose.ui.focus.focusRequester
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
+import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
@@ -194,6 +195,32 @@ class TvShellTest {
             pressKey(Key.DirectionRight)
         }
         compose.onNodeWithContentDescription("third.txt").assertIsFocused()
+    }
+
+    @Test
+    fun railRoundTripOnAnEmptyPageReturnsToItsPagingControl() {
+        val files = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(FilesFolder.Root, FilesContent.Empty(FilesPaging.Available(FilesCursor("c")))),
+            ),
+            nextRequestValue = 10L,
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                    },
+                )
+            }
+        }
+        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithText("Load more").assertIsFocused()
     }
 
     @Test

@@ -39,6 +39,7 @@ import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -303,7 +304,7 @@ class TvFilesScreenTest {
         }
         compose.waitForIdle()
         val scrolled = events.filterIsInstance<FilesBrowserEvent.ViewportChanged>().last()
-        assert(scrolled.position.firstVisibleItemIndex > 0)
+        assertTrue(scrolled.position.firstVisibleItemIndex > 0)
         compose.onNodeWithContentDescription("file-13.txt").performKeyInput { repeat(12) { pressKey(Key.DirectionUp) } }
         compose.waitForIdle()
         assertEquals(
