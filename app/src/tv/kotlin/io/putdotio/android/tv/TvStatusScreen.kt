@@ -24,11 +24,12 @@ internal fun TvStatusScreen(
     message: String? = null,
     action: String? = null,
     onAction: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     val actionFocus = remember { FocusRequester() }
     LaunchedEffect(action) { if (action != null) actionFocus.requestFocus() }
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(80.dp),

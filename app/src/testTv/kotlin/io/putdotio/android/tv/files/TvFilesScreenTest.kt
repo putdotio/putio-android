@@ -1,12 +1,16 @@
 package io.putdotio.android.tv.files
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
@@ -25,6 +29,8 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
+import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
@@ -41,7 +47,7 @@ import org.robolectric.annotation.GraphicsMode
 @Config(sdk = [35], qualifiers = "en-rUS-w960dp-h540dp-television")
 class TvFilesScreenTest {
     @get:Rule
-    val compose = createComposeRule()
+    val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
 
     @Test
     fun rootListsRowsWithSizeAndWatchedProgressAndFocusesTheFirstRow() {
@@ -102,6 +108,87 @@ class TvFilesScreenTest {
             keyUp(Key.DirectionCenter)
         }
         compose.onNodeWithContentDescription("notes.txt").assertIsDisplayed()
+    }
+
+    @Test
+    fun hardwareBackClosesTheUnsupportedScreenWithoutPoppingTheFolder() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Unsupported file type").assertIsDisplayed()
+
+        compose.runOnUiThread { pressSystemBack() }
+        compose.waitForIdle()
+
+        compose.onNodeWithContentDescription("notes.txt").assertIsDisplayed()
+        assertEquals(emptyList<FilesBrowserEvent>(), events)
+    }
+
+    @Test
+    fun anEmptyFolderFocusesRefreshSoThePaneStaysReachable() {
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = state(FilesContent.Empty(FilesPaging.Complete)),
+                    onEvent = { true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithText("This folder is empty.").assertIsDisplayed()
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun aFailedPageOffersRetryAndLoadingKeepsAFocusOwner() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        var paging by mutableStateOf<FilesPaging>(FilesPaging.Failed(FilesCursor("c"), networkFailure()))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(item(1, "a.txt", PutioFileType.TEXT), paging = paging),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
+
+        paging = FilesPaging.Loading(FilesCursor("c"), FilesRequestId(9))
+        compose.onNodeWithText("Loading more files").assertIsDisplayed().assertIsNotEnabled()
+    }
+
+    @Test
+    fun aRestoredViewportDoesNotPullFocusBackToTheFirstRow() {
+        val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = state(FilesContent.Ready(rows, FilesPaging.Complete, FilesViewportPosition(30, 0))),
+                    onEvent = { true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("file-31.txt").assertIsDisplayed()
+        compose.onNodeWithContentDescription("file-1.txt").assertDoesNotExist()
     }
 
     @Test
@@ -180,6 +267,12 @@ class TvFilesScreenTest {
     }
 
     private fun hasSelectedState() = androidx.compose.ui.test.isSelected()
+
+    private fun pressSystemBack() {
+        compose.activity.onBackPressedDispatcher.onBackPressed()
+    }
+
+    private fun networkFailure() = FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))
 
     private fun ready(
         vararg items: FilesItem,

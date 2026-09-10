@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.files
 
 import android.text.format.Formatter
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -85,13 +87,21 @@ internal fun TvFilesScreen(
     var unsupported by rememberSaveable(current.folder.id.value) { mutableStateOf<Long?>(null) }
     val unsupportedItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == unsupported }
     if (unsupportedItem != null) {
+        BackHandler { unsupported = null }
         TvUnsupportedFileScreen(item = unsupportedItem, onBack = { unsupported = null }, modifier = modifier)
         return
     }
 
+    // Empty and failed folders have no rows, so the header's Refresh takes focus instead.
+    val refreshFocus = remember { FocusRequester() }
+    val content = current.content
+    val headerOwnsFocus = content is FilesContent.Empty && content.paging !is FilesPaging.Available
+    LaunchedEffect(current.folder.id.value, headerOwnsFocus) {
+        if (headerOwnsFocus) refreshFocus.requestFocus()
+    }
     Column(modifier = modifier.fillMaxSize()) {
-        TvFilesHeader(state, onEvent)
-        when (val content = current.content) {
+        TvFilesHeader(state, onEvent, refreshFocus)
+        when (content) {
             is FilesContent.Loading -> TvStatusScreen(stringResource(R.string.tv_files_loading))
             is FilesContent.Failed ->
                 TvStatusScreen(
@@ -105,6 +115,7 @@ internal fun TvFilesScreen(
                     title = stringResource(R.string.tv_files_empty),
                     action = stringResource(R.string.tv_files_load_more).takeIf { content.paging is FilesPaging.Available },
                     onAction = { onEvent(FilesBrowserEvent.LoadNextPage) },
+                    modifier = Modifier.weight(1f),
                 )
             is FilesContent.Ready ->
                 TvFilesList(
@@ -128,6 +139,7 @@ internal fun TvFilesScreen(
 private fun TvFilesHeader(
     state: FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Boolean,
+    refreshFocus: FocusRequester,
 ) {
     val current = state.current
     val enabled = current.operation == FilesFolderOperation.Idle && current.content !is FilesContent.Loading
@@ -150,7 +162,11 @@ private fun TvFilesHeader(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.focusGroup(),
         ) {
-            TvButton(onClick = { onEvent(FilesBrowserEvent.Refresh) }, enabled = enabled) {
+            TvButton(
+                onClick = { onEvent(FilesBrowserEvent.Refresh) },
+                enabled = enabled,
+                modifier = Modifier.focusRequester(refreshFocus),
+            ) {
                 Icon(painterResource(R.drawable.ic_ph_arrow_clockwise), contentDescription = null, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.tv_files_refresh))
@@ -194,11 +210,16 @@ private fun TvFilesList(
     onOpen: (FilesItem) -> Unit,
 ) {
     val viewport = content.viewport
-    val listState = rememberLazyListState(viewport.firstVisibleItemIndex, viewport.firstVisibleItemScrollOffset)
+    val listState = key(folderId) {
+        rememberLazyListState(viewport.firstVisibleItemIndex, viewport.firstVisibleItemScrollOffset)
+    }
     val currentOnEvent by rememberUpdatedState(onEvent)
     val firstRowFocus = remember(folderId) { FocusRequester() }
-    // Lazy rows attach in the layout pass, so wait for the first one before asking for focus.
+    // A folder entered for the first time starts on its first row. After Back the reducer
+    // restores the viewport and focusRestorer returns to the row that was focused, so the
+    // request must not fire: the first row may not even be composed.
     LaunchedEffect(folderId, listState) {
+        if (viewport != FilesViewportPosition()) return@LaunchedEffect
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.isNotEmpty() }.first { it }
         firstRowFocus.requestFocus()
     }
@@ -338,7 +359,10 @@ private fun TvFilesPaging(
                     Text(stringResource(R.string.tv_files_load_more))
                 }
             is FilesPaging.Loading ->
-                Text(stringResource(R.string.tv_files_loading_more), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // Disabled rather than removed, so D-pad focus has somewhere to stay.
+                TvButton(onClick = {}, enabled = false) {
+                    Text(stringResource(R.string.tv_files_loading_more))
+                }
             is FilesPaging.Failed -> {
                 Text(stringResource(R.string.tv_files_paging_error), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 TvButton(onClick = { onEvent(FilesBrowserEvent.Retry) }, enabled = enabled) {
