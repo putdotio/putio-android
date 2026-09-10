@@ -12,6 +12,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.files.FilesItem

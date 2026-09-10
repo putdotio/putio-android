@@ -1,0 +1,212 @@
+package io.putdotio.android.tv.files
+
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.tv.material3.MaterialTheme
+import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.FilesContent
+import io.putdotio.android.files.FilesCursor
+import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesFolderState
+import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.FilesPlaybackProgress
+import io.putdotio.android.files.FilesSort
+import io.putdotio.sdk.errors.PutioConfigurationException
+import io.putdotio.sdk.files.PutioFileType
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+
+@OptIn(ExperimentalTestApi::class)
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS-w960dp-h540dp-television")
+class TvFilesScreenTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
+    fun rootListsRowsWithSizeAndWatchedProgressAndFocusesTheFirstRow() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(
+                        item(1, "tears_of_steel", PutioFileType.FOLDER, sizeBytes = 544_890_000),
+                        item(2, "Tears of Steel.webm", PutioFileType.VIDEO, playback = FilesPlaybackProgress(243.0, 734.0)),
+                        item(3, "notes.txt", PutioFileType.TEXT, sizeBytes = 1_137),
+                    ),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Your Files").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Open tears_of_steel").assertIsFocused()
+        compose.onNodeWithText("33% watched").assertIsDisplayed()
+        compose.onNodeWithText("1.1 kB").assertIsDisplayed()
+
+        compose.onNodeWithContentDescription("Open tears_of_steel").performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.OpenFolder(FilesItemId(1))), events)
+    }
+
+    @Test
+    fun aPlayableRowPlaysAndAnUnsupportedRowExplainsThenGoesBack() {
+        val played = mutableListOf<FilesItem>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(item(2, "clip.mp4", PutioFileType.VIDEO), item(3, "notes.txt", PutioFileType.TEXT)),
+                    onEvent = { true },
+                    onPlayMedia = { played += it },
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf(FilesItemId(2)), played.map { it.id })
+
+        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Unsupported file type").assertIsDisplayed()
+        compose.onNodeWithText("Go back").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithContentDescription("notes.txt").assertIsDisplayed()
+    }
+
+    @Test
+    fun headerOffersRefreshAndSortAndTheSortDialogDispatchesTheChoice() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(item(1, "a.txt", PutioFileType.TEXT), sort = FilesSort.NAME_ASCENDING),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Refresh), events)
+
+        compose.onNode(hasText("Refresh") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Name, A–Z") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Sort by").assertIsDisplayed()
+        compose.onNode(hasText("Name, A–Z") and hasClickAction() and hasSelectedState()).assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Name, Z–A") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_DESCENDING), events.last())
+    }
+
+    @Test
+    fun failedAndEmptyAndPagingStatesOfferTheRightAction() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = state(FilesContent.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("x")))),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
+    }
+
+    @Test
+    fun aPagedFolderOffersLoadMoreAfterTheLastRow() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(item(1, "a.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c"))),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events)
+    }
+
+    private fun hasSelectedState() = androidx.compose.ui.test.isSelected()
+
+    private fun ready(
+        vararg items: FilesItem,
+        sort: FilesSort? = null,
+        paging: FilesPaging = FilesPaging.Complete,
+    ): FilesBrowserState = state(FilesContent.Ready(items.toList(), paging), sort)
+
+    private fun state(content: FilesContent, sort: FilesSort? = null): FilesBrowserState =
+        FilesBrowserState(
+            stack = listOf(FilesFolderState(folder = FilesFolder.Root.copy(sort = sort), content = content)),
+            nextRequestValue = 10L,
+        )
+
+    private fun item(
+        id: Long,
+        name: String,
+        type: PutioFileType,
+        sizeBytes: Long = 128L,
+        playback: FilesPlaybackProgress? = null,
+    ): FilesItem =
+        FilesItem(
+            id = FilesItemId(id),
+            parentId = FilesFolder.Root.id,
+            name = name,
+            type = type,
+            sizeBytes = sizeBytes,
+            createdAt = "2026-04-20T10:00:00Z",
+            playback = playback,
+        )
+}

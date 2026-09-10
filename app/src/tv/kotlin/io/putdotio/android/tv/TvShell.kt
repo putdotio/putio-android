@@ -48,6 +48,7 @@ internal fun TvShell(
     account: TvAccount,
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
+    filesPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Files, it) },
 ) {
     var destination by rememberSaveable { mutableStateOf(TvDestination.Files) }
     val paneFocus = remember { FocusRequester() }
@@ -98,6 +99,7 @@ internal fun TvShell(
                 .padding(horizontal = OVERSCAN_X + PANE_INSET, vertical = OVERSCAN_Y + PANE_INSET),
         ) {
             when (destination) {
+                TvDestination.Files -> filesPane(paneFocus)
                 TvDestination.Account -> TvAccountPane(account, onSignOut, paneFocus)
                 else -> TvPlaceholderPane(destination, paneFocus)
             }

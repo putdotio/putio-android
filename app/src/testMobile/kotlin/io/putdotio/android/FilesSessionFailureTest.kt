@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
