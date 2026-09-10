@@ -188,10 +188,9 @@ private fun TvFilesHeader(
     sessionKey: Any?,
 ) {
     val current = state.current
-    // The buttons stay focusable while a load runs: a disabled TV button drops focus, and
-    // Refresh is the one holding it when the refresh starts. The reducer rejects the events.
-    // Refresh and Sort act on a loaded folder; a failed one has only its Retry, and the
-    // reducer rejects Refresh and SelectSort there, so the header stays inert.
+    // The buttons stay focusable while a load runs, since a disabled TV button drops focus
+    // and Refresh is the one holding it when a refresh starts. Clicks are ignored locally
+    // outside a loaded, idle folder; a failed folder acts only through its Retry.
     val idle = current.operation.canStartOperation &&
         current.content !is FilesContent.Loading &&
         current.content !is FilesContent.Failed
@@ -276,13 +275,18 @@ private fun TvFilesList(
     // the live owner rather than the row that was focused at mount.
     var focusedRowId by remember(listState) { mutableStateOf<Long?>(null) }
     val liveRowFocus = remember(listState) { FocusRequester() }
-    val entryFocus = if (focusedRowId == null) rowFocus else liveRowFocus
-    SideEffect { onEntryTarget(entryFocus) }
-    // The paging control leaves the list when the last page lands; if it held focus, the
-    // last row becomes the remembered row so the restorer's fallback lands there.
+    val listPagingFocus = remember(listState) { FocusRequester() }
     // Set when the paging control gains focus and cleared only when a row does, so the
     // control losing focus by being disposed does not erase the fact that it had it.
     val pagingHeldFocus = remember(listState) { mutableStateOf(false) }
+    val entryFocus = when {
+        pagingHeldFocus.value && content.paging != FilesPaging.Complete -> listPagingFocus
+        focusedRowId == null -> rowFocus
+        else -> liveRowFocus
+    }
+    SideEffect { onEntryTarget(entryFocus) }
+    // The paging control leaves the list when the last page lands; if it held focus, the
+    // last row becomes the remembered row so the restorer's fallback lands there.
     // Decided during composition: once the paging item is gone the list's restorer moves
     // focus to an earlier row and clears the latch before any effect could read it.
     val handOffToLastRow = remember(listState) { mutableStateOf(false) }
@@ -369,7 +373,9 @@ private fun TvFilesList(
                     paging = content.paging,
                     enabled = pagingEnabled,
                     onEvent = onEvent,
-                    buttonModifier = Modifier.onFocusChanged { if (it.isFocused) pagingHeldFocus.value = true },
+                    buttonModifier = Modifier
+                        .focusRequester(listPagingFocus)
+                        .onFocusChanged { if (it.isFocused) pagingHeldFocus.value = true },
                 )
             }
         }
