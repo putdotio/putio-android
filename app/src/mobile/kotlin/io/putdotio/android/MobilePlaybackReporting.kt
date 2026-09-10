@@ -11,7 +11,10 @@ import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.confirmedResumePlayback
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -22,9 +25,20 @@ internal class MobilePlaybackReporting(
     onAuthenticationRequired: suspend (MobileAuthSessionId) -> Unit = {},
     write: suspend (Long, Double) -> PlaybackRepositoryResult<Unit>,
 ) {
+    private val mutableSavedPositions = MutableSharedFlow<SavedPlaybackPosition>(
+        extraBufferCapacity = SAVED_POSITION_BUFFER,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /** Positions the server accepted, for surfaces that cache `start_from`. Late subscribers see only new saves. */
+    val savedPositions: SharedFlow<SavedPlaybackPosition> = mutableSavedPositions
+
     private val writer = PlaybackPositionWriter(scope) { fileId, seconds ->
         val sessionId = (auth.value as? MobileAuthState.SignedIn)?.sessionId
         write(fileId, seconds).also { result ->
+            if (result is PlaybackRepositoryResult.Success) {
+                mutableSavedPositions.tryEmit(SavedPlaybackPosition(fileId, seconds))
+            }
             if (sessionId != null && result is PlaybackRepositoryResult.Failure &&
                 result.failure is PlaybackFailure.AuthenticationRequired
             ) {
@@ -75,7 +89,9 @@ internal class MobilePlaybackReporting(
                 }
                 val extras = Bundle(item.mediaMetadata.extras ?: Bundle())
                 extras.putString(PLAYBACK_REPORTING_LEASE_KEY, token)
-                return item.buildUpon().setMediaMetadata(item.mediaMetadata.buildUpon().setExtras(extras).build()).build()
+                return item.buildUpon()
+                    .setMediaMetadata(item.mediaMetadata.buildUpon().setExtras(extras).build())
+                    .build()
             }
         }
     }
@@ -88,3 +104,7 @@ internal class MobilePlaybackReporting(
         val state: StateFlow<AccountSettingsState>,
     )
 }
+
+internal data class SavedPlaybackPosition(val fileId: Long, val seconds: Double)
+
+private const val SAVED_POSITION_BUFFER = 16

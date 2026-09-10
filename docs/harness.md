@@ -507,12 +507,18 @@ summary offers Restore all and Empty Trash. Every action confirms in a dialog,
 submits exactly once, then verifies with one fresh first-page Trash read.
 Delete permanently is verified when the item is absent from a complete first
 page, or from any first page after an acknowledged request; an uncertain
-request whose item is absent from a partial page stays inconclusive. Empty
-Trash verifies only a known-empty Trash. Restore all submits the initial
-snapshot cursor when the server issued one (so every ID of that listing is
-covered), otherwise the loaded IDs, and marks every cached Files folder stale
-because restored items can land anywhere. While an action is pending, Check
-Trash repeats only the read; no other mutation is offered.
+request whose item is absent from a partial page stays inconclusive, and a
+complete page that still lists it settles the outcome as not done. Empty
+Trash verifies only a known-empty Trash; a page with items settles it as not
+done. Restore all submits the initial snapshot cursor when the server issued
+one (so every ID of that listing is covered), otherwise the loaded IDs, and
+marks every cached Files folder stale because restored items can land
+anywhere. It verifies against that snapshot: a complete page holding none of
+the submitted IDs, and (with a cursor) only rows deleted after the newest
+loaded one, counts as done even when newer items have since arrived. While an
+action is inconclusive or its read failed, Check Trash repeats only the read;
+no other mutation is offered. After a failed refresh the loaded snapshot may
+be stale, so Restore all and Empty Trash wait for a successful read.
 
 Live proof on the shared `devs-auto` account covers Delete permanently on an
 owned fixture only. Restore all and Empty Trash act on the whole account, which

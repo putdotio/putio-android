@@ -5,6 +5,7 @@ import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.errors.PutioException
+import java.time.Instant
 
 sealed interface TrashContent {
     data object Loading : TrashContent
@@ -43,9 +44,21 @@ data class TrashActionOutcome(
     val check: TrashActionCheck = TrashActionCheck.NOT_CHECKED,
     val submissionFailure: FilesFailure? = null,
     val checkFailure: FilesFailure? = null,
+    // What Restore all submitted; verification compares the fresh listing against it, not against empty.
+    val restoreSnapshot: TrashRestoreSnapshot? = null,
 ) {
-    val isPending: Boolean get() = submission != TrashActionSubmission.REJECTED && check != TrashActionCheck.VERIFIED
+    // A complete read that still lists the target answers the question; only a failed read keeps recovery open.
+    val isPending: Boolean
+        get() = submission != TrashActionSubmission.REJECTED && check != TrashActionCheck.VERIFIED &&
+            !(check == TrashActionCheck.FAILED && checkFailure == null)
 }
+
+data class TrashRestoreSnapshot(
+    val itemIds: Set<FilesItemId>,
+    // A cursor covers IDs beyond the loaded ones; anything deleted after the newest loaded row is outside it.
+    val coversUnloadedItems: Boolean,
+    val newestDeletedAt: Instant?,
+)
 
 enum class TrashRestoreSubmission { SUBMITTING, ACKNOWLEDGED, UNCERTAIN, REJECTED }
 enum class TrashRestoreCheck { NOT_CHECKED, CHECKING, UNAVAILABLE, AVAILABLE, FAILED }
@@ -86,7 +99,9 @@ data class TrashState(
     fun canRestore(itemId: FilesItemId): Boolean =
         isIdleLoaded && itemId.value > 0L && itemId !in restoredItemIds
     fun canDelete(itemId: FilesItemId): Boolean = isIdleLoaded && itemId.value > 0L
-    val canActOnAll: Boolean get() = isIdleLoaded && !(content as TrashContent.Loaded).isKnownEmpty
+    // A failed refresh leaves a snapshot the server may have moved past; bulk actions wait for a fresh one.
+    val canActOnAll: Boolean
+        get() = isIdleLoaded && (content as TrashContent.Loaded).let { !it.isKnownEmpty && it.refreshFailure == null }
 }
 
 sealed interface TrashEvent {

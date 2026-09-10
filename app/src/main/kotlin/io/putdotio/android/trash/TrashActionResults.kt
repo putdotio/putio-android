@@ -43,8 +43,24 @@ private fun TrashActionOutcome.verify(page: TrashContent.Loaded): TrashActionChe
         else -> TrashActionCheck.INCONCLUSIVE
     }
     TrashAction.Empty -> if (page.isKnownEmpty) TrashActionCheck.VERIFIED else TrashActionCheck.FAILED
-    // Bulk restore drains asynchronously; anything still listed means it is in progress.
-    TrashAction.RestoreAll -> if (page.isKnownEmpty) TrashActionCheck.VERIFIED else TrashActionCheck.INCONCLUSIVE
+    // Bulk restore drains asynchronously. Items deleted after the snapshot were never part of the
+    // request, so a complete page holding only those still verifies it.
+    TrashAction.RestoreAll -> verifyRestoreAll(page)
+}
+
+private fun TrashActionOutcome.verifyRestoreAll(page: TrashContent.Loaded): TrashActionCheck {
+    val snapshot = restoreSnapshot
+    val newest = snapshot?.newestDeletedAt
+    return when {
+        page.isKnownEmpty -> TrashActionCheck.VERIFIED
+        snapshot == null || page.nextCursor != null -> TrashActionCheck.INCONCLUSIVE
+        page.items.any { it.id in snapshot.itemIds } -> TrashActionCheck.INCONCLUSIVE
+        !snapshot.coversUnloadedItems -> TrashActionCheck.VERIFIED
+        newest != null && page.items.all { item ->
+            item.deletedAt?.let(::parseTrashTimestamp)?.isAfter(newest) == true
+        } -> TrashActionCheck.VERIFIED
+        else -> TrashActionCheck.INCONCLUSIVE
+    }
 }
 
 internal fun TrashMachine.failActionVerification(failure: FilesFailure): TrashMachine {

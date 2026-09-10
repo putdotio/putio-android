@@ -38,7 +38,7 @@ class TrashActionTest {
     }
 
     @Test
-    fun uncertainDeleteThatIsStillListedRetainsReadOnlyRecoveryWithoutResubmitting() = runBlocking {
+    fun uncertainDeleteThatIsStillListedIsAnsweredWithoutResubmitting() = runBlocking {
         val repository = FakeTrashRepository().apply { onDelete = { error("lost response") } }
         TrashController(repository, this).use { controller ->
             controller.openLoaded()
@@ -46,23 +46,44 @@ class TrashActionTest {
             val failed = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.FAILED }
             assertEquals(TrashActionSubmission.UNCERTAIN, failed.actionOutcome?.submission)
             assertNull(failed.actionOutcome?.checkFailure)
-            assertTrue(failed.hasPendingAction)
-            assertFalse(failed.canRestore(trashItem().id))
-            assertFalse(failed.canDelete(trashItem().id))
-            assertFalse(failed.canActOnAll)
+            // The complete read that still lists the item answers the question: nothing happened.
+            assertFalse(failed.hasPendingAction)
+            assertTrue(failed.canDelete(trashItem().id))
+            assertTrue(failed.canRestore(trashItem().id))
+            assertTrue(failed.canActOnAll)
+            assertFalse(controller.dispatch(TrashEvent.CheckAction))
+            assertTrue(controller.dispatch(TrashEvent.DismissActionOutcome))
+            // Selecting a new action would also have cleared the settled outcome.
+            assertTrue(controller.dispatch(TrashEvent.SelectEmpty))
+            assertTrue(controller.dispatch(TrashEvent.CancelAction))
+            assertEquals(1, repository.deletedIds.size)
+            assertEquals(2, repository.loadCount)
+        }
+    }
+
+    @Test
+    fun uncertainDeleteWhoseReadFailsRetainsReadOnlyRecoveryWithoutResubmitting() = runBlocking {
+        val repository = FakeTrashRepository().apply { onDelete = { error("lost response") } }
+        TrashController(repository, this).use { controller ->
+            controller.openLoaded()
+            repository.onLoad = { FilesRepositoryResult.Failure(offlineFailure()) }
+            controller.confirmAction(TrashEvent.SelectDelete(trashItem().id))
+            val offline = controller.awaitState { it.actionOutcome?.checkFailure != null }
+            assertEquals(TrashActionCheck.FAILED, offline.actionOutcome?.check)
+            assertTrue(offline.actionOutcome?.checkFailure is FilesFailure.Unexpected)
+            assertTrue((offline.content as TrashContent.Loaded).refreshFailure != null)
+            assertTrue(offline.hasPendingAction)
+            assertFalse(offline.canRestore(trashItem().id))
+            assertFalse(offline.canDelete(trashItem().id))
+            assertFalse(offline.canActOnAll)
             assertFalse(controller.dispatch(TrashEvent.DismissActionOutcome))
             assertFalse(controller.dispatch(TrashEvent.SelectRestore(trashItem().id)))
             assertFalse(controller.dispatch(TrashEvent.SelectEmpty))
-            repository.onLoad = { FilesRepositoryResult.Failure(offlineFailure()) }
-            assertTrue(controller.dispatch(TrashEvent.CheckAction))
-            val offline = controller.awaitState { it.actionOutcome?.checkFailure != null }
-            assertTrue(offline.actionOutcome?.checkFailure is FilesFailure.Unexpected)
-            assertTrue((offline.content as TrashContent.Loaded).refreshFailure != null)
             repository.onLoad = { page() }
             assertTrue(controller.dispatch(TrashEvent.CheckAction))
             controller.awaitState { it.actionOutcome?.check == TrashActionCheck.VERIFIED }
             assertEquals(1, repository.deletedIds.size)
-            assertEquals(4, repository.loadCount)
+            assertEquals(3, repository.loadCount)
         }
     }
 
@@ -159,11 +180,11 @@ class TrashActionTest {
             val stillPresent = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.FAILED }
             assertEquals(1, repository.emptyCount)
             assertEquals(TrashActionSubmission.ACKNOWLEDGED, stillPresent.actionOutcome?.submission)
-            assertTrue(stillPresent.hasPendingAction)
+            assertFalse(stillPresent.hasPendingAction)
+            assertTrue(stillPresent.canActOnAll)
             assertEquals(0L, stillPresent.bulkRestoreVersion)
-            repository.onLoad = { page() }
-            assertTrue(controller.dispatch(TrashEvent.CheckAction))
-            controller.awaitState { it.actionOutcome?.check == TrashActionCheck.VERIFIED }
+            assertFalse(controller.dispatch(TrashEvent.CheckAction))
+            assertTrue(controller.dispatch(TrashEvent.DismissActionOutcome))
             assertEquals(1, repository.emptyCount)
         }
     }
@@ -186,6 +207,7 @@ class TrashActionTest {
         }
         TrashController(actionRepository, this).use { controller ->
             controller.openLoaded()
+            actionRepository.onLoad = { FilesRepositoryResult.Failure(offlineFailure()) }
             controller.confirmAction(TrashEvent.SelectDelete(trashItem().id))
             controller.awaitState { it.actionOutcome?.check == TrashActionCheck.FAILED }
             assertFalse(controller.dispatch(TrashEvent.SelectRestore(trashItem(8L).id)))
@@ -248,6 +270,92 @@ class TrashActionTest {
             assertFalse(controller.dispatch(TrashEvent.ConfirmAction(liveId)))
             assertEquals(0, repository.emptyCount)
             assertEquals(listOf(trashItem().id), repository.deletedIds)
+        }
+    }
+
+    @Test
+    fun restoreAllVerifiesAgainstItsSnapshotSoLaterDeletionsDoNotStrandRecovery() = runBlocking {
+        val newer = trashItem(9L).copy(deletedAt = "2026-09-07T10:00:00")
+        val older = trashItem(3L).copy(deletedAt = "2026-09-01T10:00:00")
+        // Loaded IDs only: a complete page without any of them is verified whatever else arrived.
+        val idsRepository = FakeTrashRepository().apply { onLoad = { page(trashItem(), trashItem(8L)) } }
+        TrashController(idsRepository, this).use { controller ->
+            controller.openLoaded()
+            idsRepository.onLoad = { page(newer, older) }
+            controller.confirmAction(TrashEvent.SelectRestoreAll)
+            val verified = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.VERIFIED }
+            assertFalse(verified.hasPendingAction)
+            assertTrue(verified.canActOnAll)
+        }
+        // A submitted ID still listed is still draining, whatever else the page holds.
+        val listedRepository = FakeTrashRepository().apply { onLoad = { page(trashItem(), trashItem(8L)) } }
+        TrashController(listedRepository, this).use { controller ->
+            controller.openLoaded()
+            listedRepository.onLoad = { page(trashItem(8L), newer) }
+            controller.confirmAction(TrashEvent.SelectRestoreAll)
+            val draining = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.INCONCLUSIVE }
+            assertTrue(draining.hasPendingAction)
+        }
+        // A cursor covers unloaded IDs too: only rows deleted after the newest loaded one are provably new.
+        val cursorRepository = FakeTrashRepository().apply {
+            onLoad = { FilesRepositoryResult.Success(TrashPage(listOf(trashItem()), FilesCursor("snapshot"), 80, 5L)) }
+        }
+        TrashController(cursorRepository, this).use { controller ->
+            controller.openLoaded()
+            cursorRepository.onLoad = { page(older) }
+            controller.confirmAction(TrashEvent.SelectRestoreAll)
+            val inconclusive = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.INCONCLUSIVE }
+            assertTrue(inconclusive.hasPendingAction)
+            cursorRepository.onLoad = { page(newer, older) }
+            assertTrue(controller.dispatch(TrashEvent.CheckAction))
+            controller.awaitState { it.actionOutcome?.check == TrashActionCheck.INCONCLUSIVE && !it.content.isBusy() }
+            cursorRepository.onLoad = { page(newer, newer.copy(id = FilesItemId(10L), deletedAt = "garbage")) }
+            assertTrue(controller.dispatch(TrashEvent.CheckAction))
+            controller.awaitState { it.actionOutcome?.check == TrashActionCheck.INCONCLUSIVE && !it.content.isBusy() }
+            cursorRepository.onLoad = { page(newer) }
+            assertTrue(controller.dispatch(TrashEvent.CheckAction))
+            val verified = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.VERIFIED }
+            assertFalse(verified.hasPendingAction)
+            assertEquals(1, cursorRepository.bulkRestores.size)
+        }
+        // A loaded row without a usable deleted_at leaves the bound unknown, so only empty verifies.
+        val unboundedRepository = FakeTrashRepository().apply {
+            onLoad = { FilesRepositoryResult.Success(TrashPage(
+                listOf(trashItem(), trashItem(8L).copy(deletedAt = null)), FilesCursor("snapshot"), 80, 5L)) }
+        }
+        TrashController(unboundedRepository, this).use { controller ->
+            controller.openLoaded()
+            unboundedRepository.onLoad = { page(newer) }
+            controller.confirmAction(TrashEvent.SelectRestoreAll)
+            val draining = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.INCONCLUSIVE }
+            assertTrue(draining.hasPendingAction)
+            unboundedRepository.onLoad = { page() }
+            assertTrue(controller.dispatch(TrashEvent.CheckAction))
+            controller.awaitState { it.actionOutcome?.check == TrashActionCheck.VERIFIED }
+            Unit
+        }
+    }
+
+    private fun TrashContent.isBusy(): Boolean = (this as? TrashContent.Loaded)?.isBusy != false
+
+    @Test
+    fun aFailedRefreshWithholdsBulkActionsUntilAFreshSnapshot() = runBlocking {
+        val repository = FakeTrashRepository()
+        TrashController(repository, this).use { controller ->
+            controller.openLoaded()
+            repository.onLoad = { FilesRepositoryResult.Failure(offlineFailure()) }
+            assertTrue(controller.dispatch(TrashEvent.Refresh))
+            val stale = controller.awaitState { (it.content as? TrashContent.Loaded)?.refreshFailure != null }
+            assertFalse(stale.canActOnAll)
+            assertTrue(stale.canDelete(trashItem().id))
+            assertFalse(controller.dispatch(TrashEvent.SelectRestoreAll))
+            assertFalse(controller.dispatch(TrashEvent.SelectEmpty))
+            repository.onLoad = { page(trashItem()) }
+            assertTrue(controller.dispatch(TrashEvent.Retry))
+            val fresh = controller.awaitState {
+                (it.content as? TrashContent.Loaded)?.let { c -> !c.isRefreshing && c.refreshFailure == null } == true
+            }
+            assertTrue(fresh.canActOnAll)
         }
     }
 

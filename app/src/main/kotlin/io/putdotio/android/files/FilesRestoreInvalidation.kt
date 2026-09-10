@@ -34,6 +34,33 @@ internal fun FilesBrowserState.invalidateSortOrder(): FilesBrowserTransition =
         ),
     )
 
+// Duration comes only from a cached progress; a row without one shows the unlabelled watched
+// indicator until the next read supplies it.
+internal fun FilesBrowserState.updatePlaybackPosition(itemId: FilesItemId, seconds: Double): FilesBrowserTransition {
+    if (itemId.value <= 0L || !seconds.isFinite() || seconds < 0.0) {
+        return FilesBrowserTransition(this, consumed = false)
+    }
+    var changed = false
+    val updated = stack.map { folder ->
+        val content = folder.content as? FilesContent.Ready ?: return@map folder
+        if (content.items.none { it.id == itemId && it.isPlayable }) return@map folder
+        changed = true
+        val items = content.items.map { item ->
+            if (item.id == itemId && item.isPlayable) {
+                item.copy(playback = FilesPlaybackProgress(seconds, item.playback?.durationSeconds))
+            } else {
+                item
+            }
+        }
+        folder.copy(content = content.copy(items = items))
+    }
+    return if (changed) {
+        FilesBrowserTransition(copy(stack = updated))
+    } else {
+        FilesBrowserTransition(this, consumed = false)
+    }
+}
+
 internal fun FilesBrowserState.reloadIfStale(): FilesBrowserTransition =
     if (current.needsReload && current.operation == FilesFolderOperation.Idle &&
         current.content !is FilesContent.Loading

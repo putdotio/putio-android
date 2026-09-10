@@ -200,6 +200,45 @@ class FilesRestoreInvalidationTest {
         FilesItem(FilesItemId(id), parentId, "Item $id", PutioFileType.FOLDER, 0, "2026-09-06")
 
     @Test
+    fun reportedPlaybackPositionsUpdateCachedMediaRowsInPlaceWithoutReloading() {
+        val video = FilesItem(FilesItemId(30), child.id, "clip.mp4", PutioFileType.VIDEO, 5, "2026-09-06",
+            playback = FilesPlaybackProgress(0.0, 600.0))
+        val original = FilesBrowserState(listOf(
+            FilesFolderState(FilesFolder.Root,
+                FilesContent.Ready(listOf(video.copy(playback = null)), FilesPaging.Complete)),
+            FilesFolderState(child,
+                FilesContent.Ready(listOf(video, item(31, child.id)), FilesPaging.Complete, viewport)),
+        ), 100)
+
+        val updated = FilesBrowserReducer.reduce(original, FilesBrowserEvent.PlaybackPositionReported(video.id, 90.0))
+
+        assertNull(updated.effect)
+        assertTrue(updated.consumed)
+        assertFalse(updated.state.current.needsReload)
+        assertEquals(FilesPlaybackProgress(90.0, 600.0),
+            (updated.state.current.content as FilesContent.Ready).items[0].playback)
+        assertEquals(FilesPlaybackProgress(90.0, null),
+            (updated.state.stack[0].content as FilesContent.Ready).items[0].playback)
+        assertEquals(viewport, updated.state.current.content.viewport())
+        assertSame(original.current.content.items()[1], updated.state.current.content.items()[1])
+
+        val unknown = FilesBrowserReducer.reduce(original,
+            FilesBrowserEvent.PlaybackPositionReported(FilesItemId(31), 5.0))
+        assertFalse(unknown.consumed)
+        assertSame(original, unknown.state)
+        for (event in listOf(
+            FilesBrowserEvent.PlaybackPositionReported(video.id, -1.0),
+            FilesBrowserEvent.PlaybackPositionReported(video.id, Double.NaN),
+            FilesBrowserEvent.PlaybackPositionReported(video.id, Double.POSITIVE_INFINITY),
+            FilesBrowserEvent.PlaybackPositionReported(FilesItemId(0), 5.0),
+        )) {
+            val invalid = FilesBrowserReducer.reduce(original, event)
+            assertFalse(invalid.consumed)
+            assertSame(original, invalid.state)
+        }
+    }
+
+    @Test
     fun sortOrderInvalidationDropsEveryViewportAndAdvancesGenerationsWithoutReloadingEagerly() {
         val original = nested()
         val invalidated = FilesBrowserReducer.reduce(original, FilesBrowserEvent.InvalidateSortOrder)
