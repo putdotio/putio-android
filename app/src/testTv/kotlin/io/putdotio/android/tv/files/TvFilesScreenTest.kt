@@ -488,6 +488,26 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun theSortDialogScrollsAChoiceBelowTheFoldIntoView() {
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(item(1, "a.txt", PutioFileType.TEXT), sort = FilesSort.WATCH_STATUS_DESCENDING),
+                    onEvent = { true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Refresh") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Watched first") and hasClickAction()).performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNode(hasText("Watched first") and hasClickAction() and hasSelectedState()).assertIsFocused().assertIsDisplayed()
+    }
+
+    @Test
     fun aLoadingFolderKeepsFocusInThePane() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {

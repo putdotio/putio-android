@@ -7,12 +7,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -41,9 +44,16 @@ internal fun TvSortDialog(
     onDismiss: () -> Unit,
 ) {
     val selectedFocus = remember { FocusRequester() }
+    val bringSelectedIntoView = remember { BringIntoViewRequester() }
     Dialog(onDismissRequest = onDismiss) {
-        // Requested from inside the dialog window, after its content has attached.
-        LaunchedEffect(Unit) { selectedFocus.requestFocus() }
+        // Requested from inside the dialog window, after its content has attached. The
+        // column is scrolled first so a choice below the fold is on screen when it lights up.
+        LaunchedEffect(Unit) {
+            // The rows are laid out one frame after the window opens.
+            withFrameNanos {}
+            bringSelectedIntoView.bringIntoView()
+            selectedFocus.requestFocus()
+        }
         Column(
             modifier = Modifier
                 .width(560.dp)
@@ -70,7 +80,15 @@ internal fun TvSortDialog(
                     leadingContent = { RadioButton(selected = isSelected, onClick = null) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .then(if (focusTarget) Modifier.focusRequester(selectedFocus) else Modifier)
+                        .then(
+                            if (focusTarget) {
+                                Modifier
+                                    .bringIntoViewRequester(bringSelectedIntoView)
+                                    .focusRequester(selectedFocus)
+                            } else {
+                                Modifier
+                            },
+                        )
                         .semantics {
                             role = Role.RadioButton
                             this.selected = isSelected
