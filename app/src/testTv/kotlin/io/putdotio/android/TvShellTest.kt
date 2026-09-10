@@ -24,6 +24,7 @@ import androidx.compose.ui.focus.focusRequester
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
+import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
@@ -32,6 +33,7 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.tv.TvLinkScreen
 import io.putdotio.android.tv.files.TvFilesScreen
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.auth.TvAccount
@@ -330,6 +332,42 @@ class TvShellTest {
         compose.waitForIdle()
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithContentDescription("first.txt").assertIsFocused()
+    }
+
+    @Test
+    fun aFolderThatFailsWhileOnTheRailDoesNotStealFocus() {
+        var files by mutableStateOf(
+            FilesBrowserState(
+                stack = listOf(FilesFolderState(FilesFolder.Root, FilesContent.Loading(FilesRequestId(1)))),
+                nextRequestValue = 10L,
+            ),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                    },
+                )
+            }
+        }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
+
+        files = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))),
+                ),
+            ),
+            nextRequestValue = 11L,
+        )
+        compose.waitForIdle()
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Try again").assertIsFocused()
     }
 
     @Test

@@ -161,12 +161,13 @@ internal fun TvFilesScreen(
                     onAction = { onEvent(FilesBrowserEvent.Retry) },
                     modifier = Modifier.weight(1f),
                     actionFocus = retryFocus,
+                    claimFocus = paneHasFocus.value,
                 )
             is FilesContent.Empty ->
                 Column(modifier = Modifier.weight(1f)) {
                     TvStatusScreen(stringResource(R.string.tv_files_empty), modifier = Modifier.weight(1f))
                     LaunchedEffect(content.paging is FilesPaging.Complete) {
-                        if (content.paging !is FilesPaging.Complete) pagingFocus.requestFocus()
+                        if (content.paging !is FilesPaging.Complete && paneHasFocus.value) pagingFocus.requestFocus()
                     }
                     TvFilesPaging(
                         paging = content.paging,

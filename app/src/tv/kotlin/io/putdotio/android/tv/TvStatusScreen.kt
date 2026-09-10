@@ -26,8 +26,10 @@ internal fun TvStatusScreen(
     onAction: () -> Unit = {},
     modifier: Modifier = Modifier,
     actionFocus: FocusRequester = remember { FocusRequester() },
+    /** False while D-pad focus is elsewhere, so the action does not pull it back. */
+    claimFocus: Boolean = true,
 ) {
-    LaunchedEffect(action) { if (action != null) actionFocus.requestFocus() }
+    LaunchedEffect(action, claimFocus) { if (action != null && claimFocus) actionFocus.requestFocus() }
     Column(
         modifier = modifier
             .fillMaxSize()
