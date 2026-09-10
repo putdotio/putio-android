@@ -137,12 +137,17 @@ class TvAuthController internal constructor(
         if (linking.phase == TvLinkPhase.Validating) {
             return@withLock false
         }
-        linkAttempt?.cancelAndJoin()
-        if (mutableState.value !is TvAuthState.Linking) {
-            return@withLock false
+        // The caller is a UI scope; if it dies between the join and the launch the old
+        // code would stay on screen with nothing polling it.
+        withContext(NonCancellable) {
+            linkAttempt?.cancelAndJoin()
+            if (mutableState.value is TvAuthState.Linking) {
+                startLinkAttempt(linking.sessionExpired)
+                true
+            } else {
+                false
+            }
         }
-        startLinkAttempt(linking.sessionExpired)
-        true
     }
 
     suspend fun retryValidation(): Boolean = operationMutex.withLock {

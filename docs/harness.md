@@ -540,7 +540,7 @@ test identity instead of a browser:
 ./scripts/emulator.sh boot tv --headless
 adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
 adb -s emulator-5554 shell am start -n io.put.putio.debug/io.putdotio.android.MainActivity
-code=$(adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -o 'Activation code [A-Z0-9]\+' | awk '{print $3}')
+code=$(adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'Activation code [A-Z0-9]+' | awk '{print $3}')
 PUTIO_CLI_PROFILE=devs-auto putio auth approve "$code"
 ```
 
