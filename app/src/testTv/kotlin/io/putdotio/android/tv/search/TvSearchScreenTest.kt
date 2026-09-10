@@ -448,6 +448,28 @@ class TvSearchScreenTest {
         assertEquals(listOf("next"), log)
     }
 
+    @Test
+    fun replayingTheTermAlreadyInTheFieldDoesNotSwallowTheNextEdit() {
+        var state by mutableStateOf(searchState(SearchContent.Idle, recent = listOf(SearchTerm("ab")), query = "ab"))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvSearchScreen(state = state, actions = actions)
+            }
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Search again for ab").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("c")
+        state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "abc")
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.Backspace) }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("ab"))
+        assertEquals(listOf("recent:ab", "query:abc", "query:ab"), log)
+    }
+
     private fun searchState(
         content: SearchContent,
         recent: List<SearchTerm> = emptyList(),

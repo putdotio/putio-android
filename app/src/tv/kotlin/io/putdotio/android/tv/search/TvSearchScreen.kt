@@ -171,8 +171,12 @@ internal fun TvSearchScreen(
             TvRecentSearches(
                 terms = state.recentTerms,
                 onSearch = { term ->
-                    rewrite.value = term.value
-                    textState.setTextAndPlaceCursorAtEnd(term.value)
+                    // Marked only when the text changes: an unchanged field emits nothing,
+                    // and a stale mark would swallow the next real edit to the same text.
+                    if (textState.text.toString() != term.value) {
+                        rewrite.value = term.value
+                        textState.setTextAndPlaceCursorAtEnd(term.value)
+                    }
                     actions.onRecentSearch(term)
                 },
                 onRemove = { actions.onRecentEdit(RecentSearchEdit.Remove(it)) },
