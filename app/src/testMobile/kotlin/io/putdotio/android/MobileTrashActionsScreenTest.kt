@@ -88,10 +88,10 @@ class MobileTrashActionsScreenTest {
     fun pendingActionOffersOnlyCheckTrashAndDisablesEveryOtherMutation() {
         val events = mutableListOf<TrashEvent>()
         var state by mutableStateOf(TrashState(content = loaded, actionOutcome = TrashActionOutcome(
-            TrashAction.DeleteItem(item), TrashActionSubmission.UNCERTAIN, TrashActionCheck.FAILED)))
+            TrashAction.DeleteItem(item), TrashActionSubmission.UNCERTAIN, TrashActionCheck.INCONCLUSIVE)))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { events += it; true }) } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
-        compose.onNodeWithText("“${item.name}” is still in Trash. Check Trash again before taking another action.")
+        compose.onNodeWithText("“${item.name}” was not in the first page. Check Trash again in a moment.")
             .assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CHECK_TAG).performClick()
         compose.runOnIdle {

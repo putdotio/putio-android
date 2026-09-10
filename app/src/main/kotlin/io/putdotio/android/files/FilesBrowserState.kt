@@ -166,6 +166,9 @@ sealed interface FilesBrowserEvent {
 
     data object ReloadIfStale : InvalidationEvent
 
+    /** A saved position for [itemId]; cached rows update in place so leaving playback shows the new progress. */
+    data class PlaybackPositionReported(val itemId: FilesItemId, val seconds: Double) : InvalidationEvent
+
     data class SelectSort(
         val sort: FilesSort,
     ) : FilesBrowserEvent
@@ -344,6 +347,7 @@ object FilesBrowserReducer {
             FilesBrowserEvent.InvalidateAllFolders -> invalidateAllFolders()
             FilesBrowserEvent.InvalidateSortOrder -> invalidateSortOrder()
             FilesBrowserEvent.ReloadIfStale -> reloadIfStale()
+            is FilesBrowserEvent.PlaybackPositionReported -> updatePlaybackPosition(event.itemId, event.seconds)
         }
 
     private fun FilesBrowserState.itemMutation(event: FilesBrowserEvent.ItemMutationEvent): FilesBrowserTransition =

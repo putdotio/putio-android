@@ -29,6 +29,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -46,6 +47,19 @@ import java.util.UUID
 @UnstableApi
 @OptIn(ExperimentalCoroutinesApi::class)
 class MobilePlaybackReportingTest {
+    @Test
+    fun acceptedWritesArePublishedForCachedListings() = runTest {
+        val fixture = ReportingFixture(backgroundScope)
+        val saved = mutableListOf<SavedPlaybackPosition>()
+        backgroundScope.launch { fixture.runtime.savedPositions.collect { saved += it } }
+        runCurrent()
+        fixture.player.show(fixture.item(), 10_000L)
+        fixture.observer.flush()
+        runCurrent()
+        assertEquals(listOf(SavedPlaybackPosition(42L, 10.0)), saved)
+        fixture.close()
+    }
+
     @Test
     fun authenticationRejectionOutlivesTheWriterItRevokes() = runTest {
         val finishRejection = CompletableDeferred<Unit>()

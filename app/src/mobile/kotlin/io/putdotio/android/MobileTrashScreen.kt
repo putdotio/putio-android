@@ -41,7 +41,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashItem

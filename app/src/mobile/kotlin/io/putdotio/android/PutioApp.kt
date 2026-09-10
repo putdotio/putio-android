@@ -453,6 +453,11 @@ internal fun SignedInMobileRoot(
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
     }
+    LaunchedEffect(runtime, filesController) {
+        runtime.playbackReporting.savedPositions.collect { saved ->
+            filesController.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(saved.fileId), saved.seconds))
+        }
+    }
     val trashState by trashController.state.collectAsStateWithLifecycle()
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
