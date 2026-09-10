@@ -8,6 +8,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -81,8 +82,10 @@ enum class TvSessionValidationSource {
 /**
  * Owns the TV session: restores a stored token, otherwise drives one device-code
  * attempt at a time through the SDK orchestrator, and persists the linked token
- * in Keystore-backed storage. One attempt runs on [scope]; [requestNewCode]
- * replaces it.
+ * in Keystore-backed storage. One attempt runs on [scope] at a time: a
+ * replacement joins the previous collector first, and every event carries the
+ * generation it belongs to, so an abandoned poll can neither repaint the screen
+ * nor persist a token after the user asked for a new code.
  */
 class TvAuthController internal constructor(
     private val tokenStore: AuthTokenStore,
@@ -93,6 +96,7 @@ class TvAuthController internal constructor(
     private val mutableState = MutableStateFlow<TvAuthState>(TvAuthState.Initializing)
     private var sessionSequence = 0L
     private var linkAttempt: Job? = null
+    private var linkGeneration = 0L
 
     val state: StateFlow<TvAuthState> = mutableState.asStateFlow()
 
@@ -103,10 +107,16 @@ class TvAuthController internal constructor(
 
         mutableState.value = TvAuthState.RestoringSession
         try {
-            val accessToken = readStoredToken()
-            if (accessToken == null) {
-                startLinkAttempt(sessionExpired = false)
-                return@withLock
+            val accessToken = when (val stored = readStoredToken()) {
+                is StoredToken.Present -> stored.accessToken
+                StoredToken.Absent -> {
+                    startLinkAttempt(sessionExpired = false)
+                    return@withLock
+                }
+                StoredToken.Unreadable -> {
+                    stopLinking(TvLinkStop.StorageUnavailable, sessionExpired = false)
+                    return@withLock
+                }
             }
             sessionGateway.setAccessToken(accessToken)
             validateStoredSession(TvSessionValidationSource.RESTORE)
@@ -117,13 +127,20 @@ class TvAuthController internal constructor(
         }
     }
 
-    /** Abandons the current code, if any, and requests another. Ignored while a code is being validated. */
+    /**
+     * Abandons the current code, if any, and requests another. Ignored while a
+     * code is being validated, and after joining an attempt that was linked
+     * in the meantime: an approved code wins over the request to replace it.
+     */
     suspend fun requestNewCode(): Boolean = operationMutex.withLock {
         val linking = mutableState.value as? TvAuthState.Linking ?: return@withLock false
         if (linking.phase == TvLinkPhase.Validating) {
             return@withLock false
         }
-        linkAttempt?.cancel()
+        linkAttempt?.cancelAndJoin()
+        if (mutableState.value !is TvAuthState.Linking) {
+            return@withLock false
+        }
         startLinkAttempt(linking.sessionExpired)
         true
     }
@@ -131,10 +148,16 @@ class TvAuthController internal constructor(
     suspend fun retryValidation(): Boolean = operationMutex.withLock {
         val unavailable = mutableState.value as? TvAuthState.ValidationUnavailable ?: return@withLock false
         try {
-            val accessToken = readStoredToken()
-            if (accessToken == null) {
-                startLinkAttempt(sessionExpired = false)
-                return@withLock false
+            val accessToken = when (val stored = readStoredToken()) {
+                is StoredToken.Present -> stored.accessToken
+                StoredToken.Absent -> {
+                    startLinkAttempt(sessionExpired = false)
+                    return@withLock false
+                }
+                StoredToken.Unreadable -> {
+                    stopLinking(TvLinkStop.StorageUnavailable, sessionExpired = false)
+                    return@withLock false
+                }
             }
             sessionGateway.setAccessToken(accessToken)
             validateStoredSession(TvSessionValidationSource.RETRY)
@@ -180,15 +203,20 @@ class TvAuthController internal constructor(
             return
         }
         mutableState.value = TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired)
+        val generation = ++linkGeneration
         linkAttempt = scope.launch {
-            sessionGateway.link().collect { linkState -> onLinkState(linkState, sessionExpired) }
+            sessionGateway.link().collect { linkState -> onLinkState(generation, linkState, sessionExpired) }
         }
     }
 
     private suspend fun onLinkState(
+        generation: Long,
         linkState: DeviceCodeAuthState,
         sessionExpired: Boolean,
     ) {
+        if (generation != linkGeneration) {
+            return
+        }
         when (linkState) {
             DeviceCodeAuthState.Requesting -> Unit
             is DeviceCodeAuthState.AwaitingLink ->
@@ -255,12 +283,24 @@ class TvAuthController internal constructor(
         startLinkAttempt(sessionExpired = true, storageCleared = cleared)
     }
 
-    private suspend fun readStoredToken(): AccessToken? =
+    // An unreadable store is not an absent session: the ciphertext may still be
+    // there, so the screen says so instead of quietly offering a fresh link.
+    private suspend fun readStoredToken(): StoredToken =
         try {
-            tokenStore.read()
+            tokenStore.read()?.let(StoredToken::Present) ?: StoredToken.Absent
         } catch (_: AuthTokenStorageException) {
-            null
+            StoredToken.Unreadable
         }
+
+    private sealed interface StoredToken {
+        data class Present(
+            val accessToken: AccessToken,
+        ) : StoredToken
+
+        data object Absent : StoredToken
+
+        data object Unreadable : StoredToken
+    }
 
     private suspend fun clearLocalSession(): Boolean {
         sessionGateway.clearAccessToken()

@@ -11,6 +11,7 @@ import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.errors.PutioTransportException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -93,6 +94,30 @@ class TvAuthControllerTest {
 
         assertFalse(harness.controller.requestNewCode())
         assertEquals(2, harness.gateway.linkAttempts)
+    }
+
+    @Test
+    fun `a new code request joins the abandoned attempt before starting another`() = runTest {
+        val harness = Harness()
+        harness.controller.restoreSession()
+        harness.gateway.emit(DeviceCodeAuthState.AwaitingLink("ABCDEF", "https://put.io/link", budget = BUDGET))
+
+        assertTrue(harness.controller.requestNewCode())
+
+        assertEquals(listOf("link", "link-cancelled", "link"), harness.gateway.calls)
+    }
+
+    @Test
+    fun `an unreadable token store stops at storage unavailable instead of offering a fresh link`() = runTest {
+        val harness = Harness(tokenStore = FakeTokenStore(readFails = true))
+
+        harness.controller.restoreSession()
+
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            harness.controller.state.value,
+        )
+        assertEquals(0, harness.gateway.linkAttempts)
     }
 
     @Test
@@ -194,10 +219,14 @@ class TvAuthControllerTest {
 
     private class FakeTokenStore(
         private val writeFails: Boolean = false,
+        private val readFails: Boolean = false,
     ) : AuthTokenStore {
         var stored: AccessToken? = null
 
-        override suspend fun read(): AccessToken? = stored
+        override suspend fun read(): AccessToken? {
+            if (readFails) throw AuthTokenStorageException("read")
+            return stored
+        }
 
         override suspend fun write(accessToken: AccessToken) {
             if (writeFails) throw AuthTokenStorageException("write")
@@ -223,11 +252,15 @@ class TvAuthControllerTest {
         override fun link(): Flow<DeviceCodeAuthState> = flow {
             calls += "link"
             linkAttempts += 1
-            val attempt = linkAttempts
-            while (true) {
-                val next = linkStates.first()
-                emit(next)
-                if (next.isTerminal() || attempt != linkAttempts) return@flow
+            try {
+                while (true) {
+                    val next = linkStates.first()
+                    emit(next)
+                    if (next.isTerminal()) return@flow
+                }
+            } catch (error: CancellationException) {
+                calls += "link-cancelled"
+                throw error
             }
         }
 

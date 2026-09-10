@@ -1,7 +1,6 @@
 package io.putdotio.android.tv
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -98,9 +97,7 @@ private fun AwaitingLinkBody(code: String) {
     )
     val description = stringResource(R.string.tv_link_code_description, code)
     Row(
-        modifier = Modifier
-            .semantics(mergeDescendants = true) { contentDescription = description }
-            .focusable(),
+        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         code.forEach { character ->
