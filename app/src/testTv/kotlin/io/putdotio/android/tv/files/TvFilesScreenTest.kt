@@ -11,6 +11,8 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -237,6 +239,34 @@ class TvFilesScreenTest {
 
         state = root
         compose.onNodeWithContentDescription("Open Movies").assertIsFocused()
+    }
+
+    @Test
+    fun theSortDialogClosesWhenTheFolderStartsAnOperation() {
+        var operation by mutableStateOf<FilesFolderOperation>(FilesFolderOperation.Idle)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = state(FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Complete), operation = operation),
+                    onEvent = { true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Refresh") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Account default") and hasClickAction()).performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Sort by").assertIsDisplayed()
+
+        operation = FilesFolderOperation.Loading(
+            FilesRequestId(3),
+            FilesFolderOperationIntent.Refresh,
+            FilesFolderOperationPhase.RELOADING,
+        )
+        compose.onAllNodesWithText("Sort by").assertCountEquals(0)
     }
 
     @Test

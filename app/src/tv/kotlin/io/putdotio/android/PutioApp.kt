@@ -87,17 +87,22 @@ private fun TvSignedInApp(
     val filesState by filesController.state.collectAsStateWithLifecycle()
     val sessionRejected = filesState.authoritativeSessionFailure() != null
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
-    BackHandler(enabled = filesState.canNavigateBack) { filesController.dispatch(FilesBrowserEvent.NavigateBack) }
 
     TvShell(
         account = signedIn.account,
         onSignOut = onSignOut,
         filesPane = { paneFocus ->
+            // Composed only while Files is the destination, so Back on another pane
+            // cannot pop the folder stack behind it.
+            BackHandler(enabled = filesState.canNavigateBack) {
+                filesController.dispatch(FilesBrowserEvent.NavigateBack)
+            }
             TvFilesScreen(
                 state = filesState,
                 onEvent = filesController::dispatch,
                 onPlayMedia = {},
                 modifier = Modifier.focusRequester(paneFocus),
+                sessionKey = signedIn.sessionId.value,
             )
         },
     )

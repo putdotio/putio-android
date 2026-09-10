@@ -87,13 +87,15 @@ internal fun TvFilesScreen(
     onEvent: (FilesBrowserEvent) -> Boolean,
     onPlayMedia: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
+    /** Changes with the signed-in session so one account's saved UI state never greets the next. */
+    sessionKey: Any? = null,
 ) {
     val current = state.current
-    var unsupported by rememberSaveable(current.folder.id.value) { mutableStateOf<Long?>(null) }
+    var unsupported by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
     // Which row last held focus in each folder. A LazyColumn is remounted on every folder
     // change and after the unsupported screen, so Compose's own restorer has no history;
     // this is what puts D-pad focus back on the row the user came from.
-    val focusMemory = rememberSaveable(saver = focusMemorySaver) { mutableStateMapOf<Long, Long>() }
+    val focusMemory = rememberSaveable(sessionKey, saver = focusMemorySaver) { mutableStateMapOf<Long, Long>() }
     val unsupportedItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == unsupported }
     if (unsupportedItem != null) {
         val dismiss = { unsupported = null }
@@ -102,7 +104,8 @@ internal fun TvFilesScreen(
         return
     }
 
-    // A folder without rows has no focus owner of its own, so the header's Refresh takes it.
+    // Loading and complete-empty folders have no focusable content, so the header's Refresh
+    // takes focus; a failed folder focuses its own Retry action instead.
     val refreshFocus = remember { FocusRequester() }
     val content = current.content
     val headerOwnsFocus = content is FilesContent.Loading ||
@@ -111,15 +114,17 @@ internal fun TvFilesScreen(
         if (headerOwnsFocus) refreshFocus.requestFocus()
     }
     Column(modifier = modifier.fillMaxSize()) {
-        TvFilesHeader(state, onEvent, refreshFocus)
+        TvFilesHeader(state, onEvent, refreshFocus, sessionKey)
         when (content) {
-            is FilesContent.Loading -> TvStatusScreen(stringResource(R.string.tv_files_loading))
+            is FilesContent.Loading ->
+                TvStatusScreen(stringResource(R.string.tv_files_loading), modifier = Modifier.weight(1f))
             is FilesContent.Failed ->
                 TvStatusScreen(
                     title = stringResource(R.string.tv_error_title),
                     message = stringResource(content.failure.tvMessage()),
                     action = stringResource(R.string.tv_files_retry),
                     onAction = { onEvent(FilesBrowserEvent.Retry) },
+                    modifier = Modifier.weight(1f),
                 )
             is FilesContent.Empty ->
                 TvStatusScreen(
@@ -134,6 +139,7 @@ internal fun TvFilesScreen(
                     content = content,
                     pagingEnabled = current.operation == FilesFolderOperation.Idle,
                     focusMemory = focusMemory,
+                    modifier = Modifier.weight(1f),
                     onEvent = onEvent,
                     onOpen = { item ->
                         when {
@@ -152,12 +158,16 @@ private fun TvFilesHeader(
     state: FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Boolean,
     refreshFocus: FocusRequester,
+    sessionKey: Any?,
 ) {
     val current = state.current
     // The buttons stay focusable while a load runs: a disabled TV button drops focus, and
     // Refresh is the one holding it when the refresh starts. The reducer rejects the events.
     val idle = current.operation.canStartOperation && current.content !is FilesContent.Loading
-    var sorting by rememberSaveable { mutableStateOf(false) }
+    var sorting by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf(false) }
+    // A dialog left open across a folder change or a running operation would offer choices
+    // the reducer rejects, so it closes as soon as the header stops being idle.
+    LaunchedEffect(idle) { if (!idle) sorting = false }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -222,6 +232,7 @@ private fun TvFilesList(
     focusMemory: MutableMap<Long, Long>,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val viewport = content.viewport
     val listState = key(folderId) {
@@ -259,8 +270,8 @@ private fun TvFilesList(
     LazyColumn(
         state = listState,
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier
-            .fillMaxSize()
+        modifier = modifier
+            .fillMaxWidth()
             .focusRestorer(rowFocus)
             .focusGroup()
             .testTag(TV_FILES_LIST_TAG),
