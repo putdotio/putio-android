@@ -34,7 +34,8 @@ internal fun FilesBrowserState.invalidateSortOrder(): FilesBrowserTransition =
         ),
     )
 
-// Duration is kept from the cached row; the server supplies it on the next read.
+// Duration comes only from a cached progress; a row without one shows the unlabelled watched
+// indicator until the next read supplies it.
 internal fun FilesBrowserState.updatePlaybackPosition(itemId: FilesItemId, seconds: Double): FilesBrowserTransition {
     if (itemId.value <= 0L || !seconds.isFinite() || seconds < 0.0) {
         return FilesBrowserTransition(this, consumed = false)
