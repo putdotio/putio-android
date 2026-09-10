@@ -1,6 +1,5 @@
-package io.putdotio.android
+package io.putdotio.android.search
 
-import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.sdk.config.AppConfig
 import kotlinx.coroutines.CompletableDeferred
@@ -15,7 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
 
-class MobileRecentSearchStoreTest {
+class AppConfigRecentSearchStoreTest {
     @Test
     fun parsesAndroidOwnedSearchKeysFromAppConfig() {
         val config =
@@ -26,7 +25,7 @@ class MobileRecentSearchStoreTest {
                 ),
             )
 
-        assertEquals(MobileSearchConfig(enabled = false, terms = listOf("one", "two")), config.toMobileSearchConfig())
+        assertEquals(RecentSearchConfig(enabled = false, terms = listOf("one", "two")), config.toRecentSearchConfig())
         assertEquals(
             JsonArray(listOf(JsonPrimitive("one"), JsonPrimitive("two"))),
             recentSearchConfigUpdate(listOf("one", "two")).value,
@@ -53,7 +52,7 @@ class MobileRecentSearchStoreTest {
                 ),
             )
 
-        assertEquals(MobileSearchConfig(enabled = true, terms = listOf("kept")), config.toMobileSearchConfig())
+        assertEquals(RecentSearchConfig(enabled = true, terms = listOf("kept")), config.toRecentSearchConfig())
     }
 
     @Test
@@ -61,8 +60,8 @@ class MobileRecentSearchStoreTest {
         runBlocking {
             val saved = mutableListOf<List<String>>()
             val store =
-                MobileRecentSearchStore(
-                    loadConfig = { MobileSearchConfig(enabled = true, terms = listOf(" existing ", "existing", "")) },
+                AppConfigRecentSearchStore(
+                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf(" existing ", "existing", "")) },
                     saveTerms = { saved += it },
                     parentScope = this,
                 )
@@ -90,8 +89,8 @@ class MobileRecentSearchStoreTest {
         runBlocking {
             val saved = mutableListOf<List<String>>()
             val store =
-                MobileRecentSearchStore(
-                    loadConfig = { MobileSearchConfig(enabled = true, terms = listOf("one", "two")) },
+                AppConfigRecentSearchStore(
+                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one", "two")) },
                     saveTerms = { saved += it },
                     parentScope = this,
                 )
@@ -118,10 +117,10 @@ class MobileRecentSearchStoreTest {
             val loaded = CompletableDeferred<Unit>()
             val saved = mutableListOf<List<String>>()
             val store =
-                MobileRecentSearchStore(
+                AppConfigRecentSearchStore(
                     loadConfig = {
                         loaded.complete(Unit)
-                        MobileSearchConfig(enabled = false, terms = listOf("private"))
+                        RecentSearchConfig(enabled = false, terms = listOf("private"))
                     },
                     saveTerms = { saved += it },
                     parentScope = this,
@@ -146,14 +145,14 @@ class MobileRecentSearchStoreTest {
             var loadCalls = 0
             val saved = mutableListOf<List<String>>()
             val store =
-                MobileRecentSearchStore(
+                AppConfigRecentSearchStore(
                     loadConfig = {
                         loadCalls += 1
                         if (loadCalls == 1) {
                             firstLoadFailed.complete(Unit)
                             error("offline")
                         }
-                        MobileSearchConfig(enabled = true, terms = listOf("existing"))
+                        RecentSearchConfig(enabled = true, terms = listOf("existing"))
                     },
                     saveTerms = { saved += it },
                     parentScope = this,
@@ -181,14 +180,14 @@ class MobileRecentSearchStoreTest {
             val firstLoadFailed = CompletableDeferred<Unit>()
             var loadCalls = 0
             val store =
-                MobileRecentSearchStore(
+                AppConfigRecentSearchStore(
                     loadConfig = {
                         loadCalls += 1
                         if (loadCalls == 1) {
                             firstLoadFailed.complete(Unit)
                             error("offline")
                         }
-                        MobileSearchConfig(enabled = true, terms = listOf("existing"))
+                        RecentSearchConfig(enabled = true, terms = listOf("existing"))
                     },
                     saveTerms = { error("No edit should be saved") },
                     parentScope = this,
@@ -214,8 +213,8 @@ class MobileRecentSearchStoreTest {
             val attempted = CompletableDeferred<Unit>()
             val failure = IllegalStateException("offline")
             val store =
-                MobileRecentSearchStore(
-                    loadConfig = { MobileSearchConfig(enabled = true, terms = listOf("one")) },
+                AppConfigRecentSearchStore(
+                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
                     saveTerms = {
                         attempted.complete(Unit)
                         throw failure
@@ -244,8 +243,8 @@ class MobileRecentSearchStoreTest {
             val saved = mutableListOf<List<String>>()
             val firstAttempt = CompletableDeferred<Unit>()
             val store =
-                MobileRecentSearchStore(
-                    loadConfig = { MobileSearchConfig(enabled = true, terms = listOf("one")) },
+                AppConfigRecentSearchStore(
+                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
                     saveTerms = {
                         attempts += 1
                         if (attempts == 1) {
@@ -286,8 +285,8 @@ class MobileRecentSearchStoreTest {
             val saved = mutableListOf<List<String>>()
             val firstAttempt = CompletableDeferred<Unit>()
             val store =
-                MobileRecentSearchStore(
-                    loadConfig = { MobileSearchConfig(enabled = true, terms = listOf("one")) },
+                AppConfigRecentSearchStore(
+                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
                     saveTerms = {
                         attempts += 1
                         if (attempts == 1) {
@@ -319,7 +318,7 @@ class MobileRecentSearchStoreTest {
             }
         }
 
-    private suspend fun MobileRecentSearchStore.awaitTerms(vararg expected: String) {
+    private suspend fun AppConfigRecentSearchStore.awaitTerms(vararg expected: String) {
         val terms = expected.map(::SearchTerm)
         withTimeout(TIMEOUT) { this@awaitTerms.terms.first { it == terms } }
     }

@@ -21,6 +21,7 @@ import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.history.HistoryRepositoryResult
 import io.putdotio.android.search.SearchContent
+import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
@@ -236,7 +237,7 @@ class MobileSearchHistoryViewModelTest {
             filesItemResolver = EmptyFilesItemResolver,
         )
 
-    private class FakeRecentSearchStore : MobileRecentSearchStoreOwner {
+    private class FakeRecentSearchStore : RecentSearchStoreOwner {
         override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
         override val failure = MutableStateFlow<FilesFailure?>(null)
         var closed = false

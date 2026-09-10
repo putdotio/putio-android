@@ -504,15 +504,16 @@ internal fun TvFilesRow(
     item: FilesItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** What Center does here, when it is not the Files default of open, play, or explain. */
+    label: String = when {
+        item.isFolder -> stringResource(R.string.tv_files_open_folder, item.name)
+        item.isPlayable -> stringResource(R.string.tv_files_play_media, item.name)
+        else -> item.name
+    },
 ) {
     val context = LocalContext.current
     val size = remember(context, item.sizeBytes) {
         Formatter.formatShortFileSize(context, item.sizeBytes.coerceAtLeast(0L))
-    }
-    val label = when {
-        item.isFolder -> stringResource(R.string.tv_files_open_folder, item.name)
-        item.isPlayable -> stringResource(R.string.tv_files_play_media, item.name)
-        else -> item.name
     }
     ListItem(
         selected = false,
