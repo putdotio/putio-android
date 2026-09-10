@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -46,6 +47,8 @@ internal fun TvSortDialog(
         Column(
             modifier = Modifier
                 .width(560.dp)
+                // Twelve rows outgrow a 540dp canvas; the bound is what lets the column scroll.
+                .heightIn(max = 480.dp)
                 .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(28.dp))
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState())

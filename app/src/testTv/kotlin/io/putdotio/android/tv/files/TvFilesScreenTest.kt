@@ -7,7 +7,6 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -24,6 +23,9 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesFolderOperation
+import io.putdotio.android.files.FilesFolderOperationIntent
+import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -116,12 +118,13 @@ class TvFilesScreenTest {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvFilesScreen(
-                    state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                    state = ready(item(2, "clip.mp4", PutioFileType.VIDEO), item(3, "notes.txt", PutioFileType.TEXT)),
                     onEvent = { events += it; true },
                     onPlayMedia = {},
                 )
             }
         }
+        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("notes.txt").performKeyInput {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
@@ -131,7 +134,7 @@ class TvFilesScreenTest {
         compose.runOnUiThread { pressSystemBack() }
         compose.waitForIdle()
 
-        compose.onNodeWithContentDescription("notes.txt").assertIsDisplayed()
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused()
         assertEquals(emptyList<FilesBrowserEvent>(), events)
     }
 
@@ -173,11 +176,81 @@ class TvFilesScreenTest {
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
 
         paging = FilesPaging.Loading(FilesCursor("c"), FilesRequestId(9))
-        compose.onNodeWithText("Loading more files").assertIsDisplayed().assertIsNotEnabled()
+        compose.onNodeWithText("Loading more files").assertIsFocused()
     }
 
     @Test
-    fun aRestoredViewportDoesNotPullFocusBackToTheFirstRow() {
+    fun aRefreshKeepsFocusOnTheHeaderWhileTheFolderReloads() {
+        var operation by mutableStateOf<FilesFolderOperation>(FilesFolderOperation.Idle)
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = state(FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Complete), operation = operation),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        operation = FilesFolderOperation.Loading(
+            FilesRequestId(3),
+            FilesFolderOperationIntent.Refresh,
+            FilesFolderOperationPhase.RELOADING,
+        )
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Refresh), events)
+    }
+
+    @Test
+    fun backFromAFolderReturnsFocusToTheRowThatOpenedIt() {
+        val root = ready(
+            item(1, "first.txt", PutioFileType.TEXT),
+            item(2, "Movies", PutioFileType.FOLDER),
+            item(3, "third.txt", PutioFileType.TEXT),
+        )
+        val child = FilesBrowserState(
+            stack = root.stack + FilesFolderState(
+                folder = FilesFolder(FilesItemId(2), "Movies"),
+                content = FilesContent.Ready(listOf(item(4, "inner.mp4", PutioFileType.VIDEO)), FilesPaging.Complete),
+            ),
+            nextRequestValue = 11L,
+        )
+        var state by mutableStateOf(root)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {})
+            }
+        }
+        compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Open Movies").assertIsFocused()
+
+        state = child
+        compose.onNodeWithContentDescription("Play inner.mp4").assertIsFocused()
+
+        state = root
+        compose.onNodeWithContentDescription("Open Movies").assertIsFocused()
+    }
+
+    @Test
+    fun aLoadingFolderKeepsFocusInThePane() {
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = state(FilesContent.Loading(FilesRequestId(1))), onEvent = { true }, onPlayMedia = {})
+            }
+        }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun aRestoredViewportWithoutFocusMemoryScrollsToAndFocusesTheFirstRow() {
         val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
@@ -188,8 +261,7 @@ class TvFilesScreenTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("file-31.txt").assertIsDisplayed()
-        compose.onNodeWithContentDescription("file-1.txt").assertDoesNotExist()
+        compose.onNodeWithContentDescription("file-1.txt").assertIsFocused()
     }
 
     @Test
@@ -281,9 +353,13 @@ class TvFilesScreenTest {
         paging: FilesPaging = FilesPaging.Complete,
     ): FilesBrowserState = state(FilesContent.Ready(items.toList(), paging), sort)
 
-    private fun state(content: FilesContent, sort: FilesSort? = null): FilesBrowserState =
+    private fun state(
+        content: FilesContent,
+        sort: FilesSort? = null,
+        operation: FilesFolderOperation = FilesFolderOperation.Idle,
+    ): FilesBrowserState =
         FilesBrowserState(
-            stack = listOf(FilesFolderState(folder = FilesFolder.Root.copy(sort = sort), content = content)),
+            stack = listOf(FilesFolderState(folder = FilesFolder.Root.copy(sort = sort), content = content, operation = operation)),
             nextRequestValue = 10L,
         )
 
