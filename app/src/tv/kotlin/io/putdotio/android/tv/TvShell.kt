@@ -39,7 +39,8 @@ import io.putdotio.android.tv.auth.TvAccount
  * left, one destination pane on the right. Focus starts in the pane; the
  * drawer's focusRestorer returns D-pad focus to the last chosen item.
  *
- * Overscan is the tv token group's 4% x 2% of a 1920x1080 canvas at xhdpi.
+ * The pane inset is the tv token group's overscan (4% x 2% of a 1920x1080
+ * canvas, halved for xhdpi: 38dp x 11dp) plus one `space.sm` step (16dp).
  */
 @Composable
 internal fun TvShell(
@@ -93,7 +94,7 @@ internal fun TvShell(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 76.dp, vertical = 22.dp),
+                .padding(horizontal = OVERSCAN_X + PANE_INSET, vertical = OVERSCAN_Y + PANE_INSET),
         ) {
             when (destination) {
                 TvDestination.Account -> TvAccountPane(account, onSignOut, paneFocus)
@@ -171,3 +172,6 @@ private fun PaneTitle(text: String) {
 
 /** Full-width rows scale less than compact surfaces so they stay inside the safe area. */
 private const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
+private val OVERSCAN_X = 38.dp
+private val OVERSCAN_Y = 11.dp
+private val PANE_INSET = 16.dp
