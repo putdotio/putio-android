@@ -232,7 +232,8 @@ class TvAuthController internal constructor(
                 mutableState.value = TvAuthState.Linking(TvLinkPhase.AwaitingLink(linkState.code), sessionExpired)
             DeviceCodeAuthState.Validating ->
                 mutableState.value = TvAuthState.Linking(TvLinkPhase.Validating, sessionExpired)
-            is DeviceCodeAuthState.Linked -> withContext(NonCancellable) { persistLinkedSession(linkState) }
+            is DeviceCodeAuthState.Linked ->
+                withContext(NonCancellable) { persistLinkedSession(linkState, sessionExpired) }
             is DeviceCodeAuthState.Expired -> stopLinking(TvLinkStop.CodeExpired, sessionExpired)
             is DeviceCodeAuthState.Failed ->
                 stopLinking(TvLinkStop.Failed(linkState.error.toTvLinkFailure()), sessionExpired)
@@ -241,16 +242,19 @@ class TvAuthController internal constructor(
 
     // The token leaves the SDK exactly once, here; a store failure discards it rather than
     // running an unpersisted session that would vanish on the next launch.
-    private suspend fun persistLinkedSession(linked: DeviceCodeAuthState.Linked) {
+    private suspend fun persistLinkedSession(
+        linked: DeviceCodeAuthState.Linked,
+        sessionExpired: Boolean,
+    ) {
         val accessToken = AccessToken.parse(linked.accessToken)
         if (accessToken == null) {
-            stopLinking(TvLinkStop.Failed(TvLinkFailure.SERVER), sessionExpired = false)
+            stopLinking(TvLinkStop.Failed(TvLinkFailure.SERVER), sessionExpired)
             return
         }
         try {
             tokenStore.write(accessToken)
         } catch (_: AuthTokenStorageException) {
-            stopLinking(TvLinkStop.StorageUnavailable, sessionExpired = false)
+            stopLinking(TvLinkStop.StorageUnavailable, sessionExpired)
             return
         }
         sessionGateway.setAccessToken(accessToken)

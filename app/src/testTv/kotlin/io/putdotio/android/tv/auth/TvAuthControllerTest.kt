@@ -146,14 +146,19 @@ class TvAuthControllerTest {
     }
 
     @Test
-    fun `a token store that cannot write discards the linked token`() = runTest {
-        val harness = Harness(tokenStore = FakeTokenStore(writeFails = true))
+    fun `a token store that cannot write discards the linked token and keeps the expired flag`() = runTest {
+        val harness = Harness(
+            storedToken = "stale",
+            validation = TvSessionValidation.Rejected,
+            tokenStore = FakeTokenStore(writeFails = true),
+        )
         harness.controller.restoreSession()
+        harness.gateway.calls.clear()
 
         harness.gateway.emit(DeviceCodeAuthState.Linked("fresh-token", accountInfo()))
 
         assertEquals(
-            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable), sessionExpired = true),
             harness.controller.state.value,
         )
         assertFalse(harness.gateway.calls.contains("set"))
