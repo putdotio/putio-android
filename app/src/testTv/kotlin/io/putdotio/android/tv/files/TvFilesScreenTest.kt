@@ -561,6 +561,46 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun aMiddlePageArrivingKeepsFocusOnLoadMore() {
+        var state by mutableStateOf(
+            ready(item(1, "a.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c1"))),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {})
+            }
+        }
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Load more").assertIsFocused()
+
+        state = ready(
+            item(1, "a.txt", PutioFileType.TEXT),
+            item(2, "b.txt", PutioFileType.TEXT),
+            paging = FilesPaging.Available(FilesCursor("c2")),
+        )
+        compose.onNodeWithText("Load more").assertIsFocused()
+    }
+
+    @Test
+    fun aRefreshWhileOnTheHeaderKeepsFocusOnTheHeader() {
+        var state by mutableStateOf(ready(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT)))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {})
+            }
+        }
+        compose.onNodeWithContentDescription("a.txt").performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionUp)
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+
+        state = ready(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT), item(3, "c.txt", PutioFileType.TEXT))
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
     fun aLoadingFolderKeepsFocusInThePane() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {

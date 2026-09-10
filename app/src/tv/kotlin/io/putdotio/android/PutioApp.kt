@@ -105,7 +105,7 @@ private fun TvSignedInApp(
                 onEvent = filesController::dispatch,
                 onPlayMedia = {},
                 modifier = Modifier.focusRequester(paneFocus),
-                sessionKey = signedIn.sessionId.value,
+                sessionKey = signedIn.account.userId to signedIn.sessionId.value,
                 focusMemory = focusMemory,
             )
         },
