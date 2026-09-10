@@ -55,6 +55,18 @@ class TvShellTest {
     }
 
     @Test
+    fun anExpiredSessionIsExplainedWhileTheNewCodeIsLive() {
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvLinkScreen(phase = TvLinkPhase.AwaitingLink("GIQTKN"), sessionExpired = true, onRequestNewCode = {})
+            }
+        }
+
+        compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+    }
+
+    @Test
     fun expiredCodeExplainsAndOffersANewOne() {
         var requests = 0
         compose.setContent {

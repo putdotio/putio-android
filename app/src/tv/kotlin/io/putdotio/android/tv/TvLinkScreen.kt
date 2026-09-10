@@ -68,11 +68,14 @@ internal fun TvLinkScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (sessionExpired) {
+                StatusLine(stringResource(R.string.tv_link_session_expired))
+            }
             when (phase) {
                 TvLinkPhase.RequestingCode -> StatusLine(stringResource(R.string.tv_link_requesting))
                 is TvLinkPhase.AwaitingLink -> AwaitingLinkBody(phase.code)
                 TvLinkPhase.Validating -> StatusLine(stringResource(R.string.tv_link_validating))
-                is TvLinkPhase.Stopped -> StoppedBody(phase.reason, sessionExpired)
+                is TvLinkPhase.Stopped -> StoppedBody(phase.reason)
             }
         }
         if (canRequestNewCode) {
@@ -131,13 +134,7 @@ private fun AwaitingLinkBody(code: String) {
 }
 
 @Composable
-private fun StoppedBody(
-    reason: TvLinkStop,
-    sessionExpired: Boolean,
-) {
-    if (sessionExpired) {
-        StatusLine(stringResource(R.string.tv_link_session_expired))
-    }
+private fun StoppedBody(reason: TvLinkStop) {
     val message = when (reason) {
         TvLinkStop.CodeExpired -> R.string.tv_link_expired
         TvLinkStop.StorageUnavailable -> R.string.tv_link_failed_storage
