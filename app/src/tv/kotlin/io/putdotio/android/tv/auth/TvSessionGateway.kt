@@ -86,7 +86,7 @@ internal class PutioTvSessionGateway(
         }
 }
 
-/** The SDK calls the gateway maps; a seam so the mapping is testable without a transport. */
+/** The SDK calls behind the gateway, seamed so the verdict mapping is testable without a transport. */
 internal interface TvSdkBoundary {
     fun link(): Flow<DeviceCodeAuthState>
 

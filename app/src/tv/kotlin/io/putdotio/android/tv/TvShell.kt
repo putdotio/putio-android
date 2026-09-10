@@ -36,8 +36,9 @@ import io.putdotio.android.tv.auth.TvAccount
 /**
  * Signed-in shell per putio-design platforms/android/DESIGN.md §Android TV: the
  * M3 TV navigation drawer (80dp icon rail, labels while focus is inside) on the
- * left, one destination pane on the right. Focus starts in the pane; the
- * drawer's focusRestorer returns D-pad focus to the last chosen item.
+ * left, one destination pane on the right. Focus starts in the pane; on
+ * re-entry the drawer restores focus to the item that last held it, and on
+ * first entry to the selected destination.
  *
  * The pane inset is the tv token group's overscan (4% x 2% of a 1920x1080
  * canvas, halved for xhdpi: 38dp x 11dp) plus one `space.sm` step (16dp).
