@@ -468,6 +468,26 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun aRemountAfterTheLastPageLandedFocusesTheLastRow() {
+        val memory = mutableMapOf<Long, Long>()
+        var shown by mutableStateOf(true)
+        var state by mutableStateOf(ready(item(1, "first.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c"))))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                if (shown) TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
+            }
+        }
+        compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Load more").assertIsFocused()
+
+        shown = false
+        compose.waitForIdle()
+        state = ready(item(1, "first.txt", PutioFileType.TEXT), item(2, "second.txt", PutioFileType.TEXT))
+        shown = true
+        compose.onNodeWithContentDescription("second.txt").assertIsFocused()
+    }
+
+    @Test
     fun aLoadingFolderKeepsFocusInThePane() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {

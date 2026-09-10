@@ -15,6 +15,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.putioTvDarkColorScheme
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.putdotio.android.files.FilesBrowserEvent
 import androidx.compose.ui.focus.focusRequester
@@ -251,6 +254,48 @@ class TvShellTest {
             pressKey(Key.DirectionRight)
         }
         compose.onNodeWithText("Load more").assertIsFocused()
+    }
+
+    @Test
+    fun theLastPageLandingWhileOnTheRailDoesNotStealFocus() {
+        var files by mutableStateOf(
+            FilesBrowserState(
+                stack = listOf(
+                    FilesFolderState(
+                        FilesFolder.Root,
+                        FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Available(FilesCursor("c"))),
+                    ),
+                ),
+                nextRequestValue = 10L,
+            ),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                    },
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
+
+        files = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(listOf(row(1, "first.txt"), row(2, "second.txt")), FilesPaging.Complete),
+                ),
+            ),
+            nextRequestValue = 11L,
+        )
+        compose.waitForIdle()
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithContentDescription("second.txt").assertIsFocused()
     }
 
     @Test

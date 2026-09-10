@@ -221,12 +221,20 @@ private fun TvFilesHeader(
                 onClick = { if (idle) onEvent(FilesBrowserEvent.Refresh) },
                 modifier = Modifier.focusRequester(refreshFocus),
             ) {
-                Icon(painterResource(R.drawable.ic_ph_arrow_clockwise), contentDescription = null, Modifier.size(20.dp))
+                Icon(
+                    painter = painterResource(R.drawable.ic_ph_arrow_clockwise),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.tv_files_refresh))
             }
             TvButton(onClick = { if (idle) sorting = true }) {
-                Icon(painterResource(R.drawable.ic_ph_sort_ascending), contentDescription = null, Modifier.size(20.dp))
+                Icon(
+                    painter = painterResource(R.drawable.ic_ph_sort_ascending),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(current.folder.sort?.tvLabel() ?: R.string.tv_files_sort_account_default))
             }
@@ -306,6 +314,9 @@ private fun TvFilesList(
     // Set when the paging control gains focus and cleared only when a row does, so the
     // control losing focus by being disposed does not erase the fact that it had it.
     val pagingHeldFocus = remember(listState) { mutableStateOf(resumeOnPaging) }
+    // True only while the paging control is the focused node; the latch above survives its
+    // disposal, this does not, so a hand-off never steals focus back from the rail.
+    val pagingIsFocused = remember(listState) { mutableStateOf(false) }
     val entryFocus = when {
         pagingHeldFocus.value && content.paging != FilesPaging.Complete -> listPagingFocus
         focusedRowId == null -> rowFocus
@@ -321,14 +332,18 @@ private fun TvFilesList(
         val lastId = content.items.last().id.value
         focusMemory[folderId] = lastId
         focusedRowId = lastId
-        handOffToLastRow.value = true
+        handOffToLastRow.value = pagingIsFocused.value
         pagingHeldFocus.value = false
     }
     // On every mount the remembered row for this folder takes focus, or the first row the
     // first time in. The row is scrolled into view first, since a lazy row that is not
     // composed has no focus requester to answer.
-    val focusTarget = content.items.firstOrNull { it.id.value == remembered }?.id?.value
-        ?: content.items.first().id.value
+    // The paging control that held focus is gone if the last page landed while the pane was
+    // away; the row that replaced it is the last one.
+    val focusTarget = when {
+        remembered == PAGING_FOCUS_MARKER && content.paging == FilesPaging.Complete -> content.items.last().id.value
+        else -> content.items.firstOrNull { it.id.value == remembered }?.id?.value ?: content.items.first().id.value
+    }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
         val lastId = content.items.last().id.value
@@ -410,6 +425,7 @@ private fun TvFilesList(
                     buttonModifier = Modifier
                         .focusRequester(listPagingFocus)
                         .onFocusChanged {
+                            pagingIsFocused.value = it.isFocused
                             if (it.isFocused) {
                                 pagingHeldFocus.value = true
                                 focusMemory[folderId] = PAGING_FOCUS_MARKER
