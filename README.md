@@ -41,9 +41,11 @@ Mobile, on the emulator harness against the live API:
   chooser never sees a token. Product deep links open Files, a folder,
   Transfers, Search, History, Trash and Downloads
 
-The TV flavor builds and launches on the Android TV emulator but has no
-feature surfaces yet. Not started: Chromecast, Picture-in-Picture, and the
-Play release lane.
+The TV flavor signs in with a device code (put.io/link), keeps the token in
+Keystore-backed storage, restores it on relaunch, and shows the M3 navigation
+drawer with Files, Search, History and Account. Only Account has content;
+the other panes are placeholders until TV browse parity lands. Not started:
+Chromecast, Picture-in-Picture, and the Play release lane.
 
 ## Direction
 

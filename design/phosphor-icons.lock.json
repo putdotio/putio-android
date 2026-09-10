@@ -169,20 +169,6 @@
       "outputSha256": "5a75cd6827f05ea5d9e204ade07ad11b94c6d2c2076f4c4d009f225876263518"
     },
     {
-      "sourceSet": "tv",
-      "resource": "ic_ph_arrow_circle_down_fill",
-      "asset": "assets/fill/arrow-circle-down-fill.svg",
-      "sourceSha256": "55ad201e30ef64bd200bdb261d2f78a64bfac03958fe93994b07606b5dee2927",
-      "outputSha256": "196338e5911488d6fe49f8ff70147fdd4c0d8a2edfa4be2bc5baaecdabdf3b23"
-    },
-    {
-      "sourceSet": "tv",
-      "resource": "ic_ph_gear_fill",
-      "asset": "assets/fill/gear-fill.svg",
-      "sourceSha256": "564f53f72b0bd4371dc14a3d39a3fcf4c5a1a74d285eb56fff465a954f993ec8",
-      "outputSha256": "479d5dc5efb4b4452e26b8a5d1bc101a99f59b1bdd81f874cd0fdfb9de019f83"
-    },
-    {
       "sourceSet": "mobile",
       "resource": "ic_ph_globe",
       "asset": "assets/regular/globe.svg",
@@ -286,6 +272,27 @@
       "asset": "assets/regular/gauge.svg",
       "sourceSha256": "053e22a3b54c3baa7997bd0fddbf2cc35cbdd2662842b553d13d9f2a58c67f4a",
       "outputSha256": "2b5c94c8369719eb5f221ad097b74c492f6620cab639100d06315e2a3c8e87fa"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_magnifying_glass_fill",
+      "asset": "assets/fill/magnifying-glass-fill.svg",
+      "sourceSha256": "e7cf953bb787af2a4b11f8a248f35b56aab2f2b44f535d03593f490a4a633244",
+      "outputSha256": "416338f45ea5f43b6f83d098eeb9773b64c8267335e2c9394240056810e3b8de"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_clock_counter_clockwise_fill",
+      "asset": "assets/fill/clock-counter-clockwise-fill.svg",
+      "sourceSha256": "618d6c238df479c26b40aab3271602a801797338d5521a28a1b254a86edf5398",
+      "outputSha256": "13bacf73d16efcf1a1403021d530434ed29c08a9a60aa09563b028bb04316a37"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_user_circle_fill",
+      "asset": "assets/fill/user-circle-fill.svg",
+      "sourceSha256": "4e16cdba116195993e6398bb097e7c4b354fb129fafdf2b56fd4b7c069f440d3",
+      "outputSha256": "5a75cd6827f05ea5d9e204ade07ad11b94c6d2c2076f4c4d009f225876263518"
     }
   ]
 }

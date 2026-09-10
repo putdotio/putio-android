@@ -531,6 +531,27 @@ ignored ledger, run the in-app Delete permanently, verify exact
 `GET /files/<id>` 404 plus absence from Trash, then delete the empty container
 last.
 
+## TV device-code sign-in proof
+
+The TV build links through `put.io/link`; approve its code with the shared
+test identity instead of a browser:
+
+```bash
+./scripts/emulator.sh boot tv --headless
+adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
+adb -s emulator-5554 shell am start -n io.put.putio.debug/io.putdotio.android.MainActivity
+code=$(adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -o 'Activation code [A-Z0-9]*' | awk '{print $3}')
+PUTIO_CLI_PROFILE=devs-auto putio auth approve "$code"
+```
+
+The shell appears within one poll interval (3 s). `Get new code` on the
+sign-in screen cancels the current attempt and requests another; `Sign out`
+under Account revokes the grant and returns to a fresh code. A force-stop and
+relaunch must land in the shell without a code: that is the Keystore restore.
+`pm clear io.put.putio.debug` drops the stored token. The emulator has no
+Fire TV feature flag, so it always links as the Android TV client (6221);
+Fire TV (6233) needs the physical device set from #51.
+
 ## Account Trash and single-item Restore proof
 
 Trash is opened from Account → Manage Trash, including when the Trash setting

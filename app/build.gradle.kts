@@ -54,6 +54,9 @@ android {
 
         create("tv") {
             dimension = "surface"
+            // Device-code OAuth apps from the legacy tv-native lane: one per TV store.
+            buildConfigField("String", "PUTIO_TV_OAUTH_CLIENT_ID_ANDROID_TV", "\"6221\"")
+            buildConfigField("String", "PUTIO_TV_OAUTH_CLIENT_ID_FIRE_TV", "\"6233\"")
         }
 
         create("production") {

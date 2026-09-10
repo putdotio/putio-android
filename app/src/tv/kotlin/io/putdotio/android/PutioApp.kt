@@ -1,90 +1,110 @@
 package io.putdotio.android
 
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.Icon
-import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.TvLinkScreen
+import io.putdotio.android.tv.TvShell
+import io.putdotio.android.tv.auth.TvAuthController
+import io.putdotio.android.tv.auth.TvAuthState
+import kotlinx.coroutines.launch
 
-/**
- * TV shell: Compose for TV, list-first, per putio-design
- * platforms/android/DESIGN.md §Android TV. Focus behavior is the platform
- * engine's scale + elevate from tv-material — no tilt, no parallax, no
- * poster wall.
- *
- * Metrics use the tv token group's px values halved: the tv_1080p profile
- * renders 1920x1080 at xhdpi, so 1dp here is 2px on the card's canvas
- * (80px side padding -> 40dp, 64px top -> 32dp, 42px glyph -> 21dp).
- */
-private enum class TvDestination(
-    val label: String,
-    val subline: String,
-    @DrawableRes val icon: Int,
-) {
-    Files("Files", "Browse your cloud storage", R.drawable.ic_ph_folder_fill),
-    Transfers("Transfers", "Watch downloads land", R.drawable.ic_ph_arrow_circle_down_fill),
-    Settings("Settings", "Playback and account", R.drawable.ic_ph_gear_fill),
-}
-
+/** TV root: the generated Compose for TV scheme, then whichever screen the session state names. */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun PutioApp() {
+fun PutioApp(authController: TvAuthController) {
+    val authState by authController.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(authController) { authController.restoreSession() }
+
     MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(horizontal = 40.dp)
-                .padding(top = 32.dp),
-        ) {
+        when (val state = authState) {
+            TvAuthState.Initializing, TvAuthState.RestoringSession ->
+                TvStatusScreen(stringResource(R.string.tv_session_restoring))
+            is TvAuthState.ValidatingSession -> TvStatusScreen(stringResource(R.string.tv_session_validating))
+            TvAuthState.SigningOut -> TvStatusScreen(stringResource(R.string.tv_session_signing_out))
+            is TvAuthState.ValidationUnavailable ->
+                TvStatusScreen(
+                    title = stringResource(R.string.tv_session_unavailable_title),
+                    message = stringResource(R.string.tv_session_unavailable_message),
+                    action = stringResource(R.string.tv_session_retry),
+                    onAction = { scope.launch { authController.retryValidation() } },
+                )
+            is TvAuthState.Linking ->
+                TvLinkScreen(
+                    phase = state.phase,
+                    sessionExpired = state.sessionExpired,
+                    onRequestNewCode = { scope.launch { authController.requestNewCode() } },
+                )
+            is TvAuthState.SignedIn ->
+                TvShell(
+                    account = state.account,
+                    onSignOut = { scope.launch { authController.logout() } },
+                )
+        }
+    }
+}
+
+@Composable
+private fun TvStatusScreen(
+    title: String,
+    message: String? = null,
+    action: String? = null,
+    onAction: () -> Unit = {},
+) {
+    val actionFocus = remember { FocusRequester() }
+    LaunchedEffect(action) { if (action != null) actionFocus.requestFocus() }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(80.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.displaySmall,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+        if (message != null) {
             Text(
-                text = "put.io",
-                style = MaterialTheme.typography.headlineMedium,
-                color = PutioDesignTokens.yellowSolid,
+                text = message,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 16.dp),
             )
-            Spacer(
+        }
+        if (action != null) {
+            TvButton(
+                onClick = onAction,
                 modifier = Modifier
-                    .padding(top = 16.dp)
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(MaterialTheme.colorScheme.borderVariant),
-            )
-            Column(
-                modifier = Modifier.padding(top = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(top = 40.dp)
+                    .focusRequester(actionFocus),
             ) {
-                TvDestination.entries.forEach { destination ->
-                    ListItem(
-                        selected = false,
-                        onClick = {},
-                        headlineContent = { Text(destination.label) },
-                        supportingContent = { Text(destination.subline) },
-                        leadingContent = {
-                            Icon(
-                                painter = painterResource(destination.icon),
-                                contentDescription = null,
-                                tint = PutioDesignTokens.yellowSolid,
-                                modifier = Modifier.size(21.dp),
-                            )
-                        },
-                    )
-                }
+                Text(action)
             }
         }
     }
