@@ -50,24 +50,28 @@ internal interface TvSessionGateway {
 }
 
 internal class PutioTvSessionGateway(
-    private val client: PutioClient,
+    private val boundary: TvSdkBoundary,
 ) : TvSessionGateway {
-    override fun link(): Flow<DeviceCodeAuthState> = client.deviceCodeAuth.link()
+    constructor(client: PutioClient) : this(PutioClientTvBoundary(client))
+
+    override fun link(): Flow<DeviceCodeAuthState> = boundary.link()
 
     override fun setAccessToken(accessToken: AccessToken) {
-        client.setAccessToken(accessToken.reveal())
+        boundary.setAccessToken(accessToken.reveal())
     }
 
     override fun clearAccessToken() {
-        client.clearAccessToken()
+        boundary.clearAccessToken()
     }
 
+    // A false verdict or a 401/403 anywhere in the chain is authoritative; every
+    // other failure keeps the stored token so the user can retry when put.io is back.
     override suspend fun validateSession(): TvSessionValidation =
         try {
-            if (!client.auth.validateToken().result) {
+            if (!boundary.validateToken()) {
                 TvSessionValidation.Rejected
             } else {
-                TvSessionValidation.Valid(client.account.getInfo().toTvAccount())
+                TvSessionValidation.Valid(boundary.getAccountInfo().toTvAccount())
             }
         } catch (error: PutioException) {
             if (error.isAuthoritativeAuthRejection()) TvSessionValidation.Rejected else TvSessionValidation.Unavailable(error)
@@ -75,11 +79,44 @@ internal class PutioTvSessionGateway(
 
     override suspend fun logout(): Boolean =
         try {
-            client.auth.logout()
+            boundary.logout()
             true
         } catch (_: PutioException) {
             false
         }
+}
+
+/** The SDK calls the gateway maps; a seam so the mapping is testable without a transport. */
+internal interface TvSdkBoundary {
+    fun link(): Flow<DeviceCodeAuthState>
+
+    fun setAccessToken(accessToken: String)
+
+    fun clearAccessToken()
+
+    suspend fun validateToken(): Boolean
+
+    suspend fun getAccountInfo(): AccountInfo
+
+    suspend fun logout()
+}
+
+private class PutioClientTvBoundary(
+    private val client: PutioClient,
+) : TvSdkBoundary {
+    override fun link(): Flow<DeviceCodeAuthState> = client.deviceCodeAuth.link()
+
+    override fun setAccessToken(accessToken: String) = client.setAccessToken(accessToken)
+
+    override fun clearAccessToken() = client.clearAccessToken()
+
+    override suspend fun validateToken(): Boolean = client.auth.validateToken().result
+
+    override suspend fun getAccountInfo(): AccountInfo = client.account.getInfo()
+
+    override suspend fun logout() {
+        client.auth.logout()
+    }
 }
 
 internal fun AccountInfo.toTvAccount(): TvAccount =
