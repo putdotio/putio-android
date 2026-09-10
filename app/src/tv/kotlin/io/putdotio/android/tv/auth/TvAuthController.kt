@@ -121,8 +121,7 @@ class TvAuthController internal constructor(
             sessionGateway.setAccessToken(accessToken)
             validateStoredSession(TvSessionValidationSource.RESTORE)
         } catch (error: CancellationException) {
-            sessionGateway.clearAccessToken()
-            mutableState.value = TvAuthState.Initializing
+            rollBackInterruptedValidation(TvAuthState.Initializing)
             throw error
         }
     }
@@ -168,9 +167,19 @@ class TvAuthController internal constructor(
             validateStoredSession(TvSessionValidationSource.RETRY)
             true
         } catch (error: CancellationException) {
-            sessionGateway.clearAccessToken()
-            mutableState.value = unavailable
+            rollBackInterruptedValidation(unavailable)
             throw error
+        }
+    }
+
+    // Only an in-flight validation is rolled back. A verdict that already settled
+    // (signed in, unavailable, or expired with a link attempt running) stands, since
+    // the caller's cancellation arrived after the NonCancellable work finished.
+    private fun rollBackInterruptedValidation(previous: TvAuthState) {
+        val current = mutableState.value
+        if (current is TvAuthState.ValidatingSession || current == TvAuthState.RestoringSession) {
+            sessionGateway.clearAccessToken()
+            mutableState.value = previous
         }
     }
 

@@ -12,6 +12,9 @@ import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.errors.PutioTransportException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -208,6 +211,34 @@ class TvAuthControllerTest {
     }
 
     @Test
+    fun `a restore cancelled after its verdict settled keeps the verdict`() = runTest {
+        val harness = Harness(storedToken = "stale", validation = TvSessionValidation.Rejected)
+        val restore = launch(start = CoroutineStart.UNDISPATCHED) { harness.controller.restoreSession() }
+
+        restore.cancel()
+        restore.join()
+
+        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true), harness.controller.state.value)
+        assertEquals(1, harness.gateway.linkAttempts)
+        harness.controller.restoreSession()
+        assertEquals(1, harness.gateway.linkAttempts)
+    }
+
+    @Test
+    fun `a restore cancelled mid validation returns to initializing`() = runTest {
+        val harness = Harness(storedToken = "stored-token", validation = TvSessionValidation.Valid(accountInfo().toTvAccount()))
+        harness.gateway.validationGate = CompletableDeferred()
+        val restore = launch(start = CoroutineStart.UNDISPATCHED) { harness.controller.restoreSession() }
+        assertEquals(TvAuthState.ValidatingSession(TvSessionValidationSource.RESTORE), harness.controller.state.value)
+
+        restore.cancel()
+        restore.join()
+
+        assertEquals(TvAuthState.Initializing, harness.controller.state.value)
+        assertEquals(listOf("set", "validate", "clear"), harness.gateway.calls)
+    }
+
+    @Test
     fun `an authoritative rejection for a stale session id is ignored`() = runTest {
         val harness = Harness(storedToken = "stored-token")
         harness.controller.restoreSession()
@@ -295,8 +326,11 @@ class TvAuthControllerTest {
             calls += "clear"
         }
 
+        var validationGate: CompletableDeferred<Unit>? = null
+
         override suspend fun validateSession(): TvSessionValidation {
             calls += "validate"
+            validationGate?.await()
             return validation
         }
 
