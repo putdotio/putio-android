@@ -5,12 +5,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
@@ -24,6 +29,7 @@ import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchRequestId
@@ -71,11 +77,12 @@ class TvSearchScreenTest {
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performTextInput("tears")
 
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("tears"))
         assertEquals(listOf("query:tears"), log)
     }
 
     @Test
-    fun recentChipsReplayTheTermAsTypedAndLongPressRemovesIt() {
+    fun recentChipsReplayTheTermAsTyped() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvSearchScreen(
@@ -231,6 +238,79 @@ class TvSearchScreenTest {
         )
         compose.onNodeWithContentDescription("Open two.mkv").assertIsFocused()
         assertEquals(listOf("next", "retry"), log)
+    }
+
+    @Test
+    fun aLastPageLandingAfterLeavingLoadMoreDoesNotStealFocus() {
+        var state by mutableStateOf(
+            searchState(
+                SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO)), SearchPaging.Available(FilesCursor("c1"))),
+                query = "t",
+            ),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvSearchScreen(state = state, actions = actions)
+            }
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        state = searchState(
+            SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO)), SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2))),
+            query = "t",
+        )
+        compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
+
+        state = searchState(
+            SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO), item(2, "two.mkv", PutioFileType.VIDEO)), SearchPaging.Complete),
+            query = "t",
+        )
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
+        assertEquals(listOf("next"), log)
+    }
+
+    @Test
+    fun longPressOnAChipRemovesItAndFocusStaysOnTheChips() {
+        var recent by mutableStateOf(listOf(SearchTerm("tears"), SearchTerm("sintel")))
+        val removing = TvSearchActions(
+            onQueryChanged = {}, onSubmit = {}, onResult = {}, onNextPage = {}, onRetry = {},
+            onRecentSearch = { log += "recent:${it.value}" },
+            onRecentEdit = { edit ->
+                log += "edit:$edit"
+                if (edit is RecentSearchEdit.Remove) recent = recent.filterNot { it == edit.term }
+            },
+            onRecentRetry = {},
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvSearchScreen(state = searchState(SearchContent.Idle, recent = recent), actions = removing)
+            }
+        }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
+        // The D-pad hold-to-long-press timing belongs to the TV surface; the wiring is what
+        // this proves, so the semantics action stands in for the held Center.
+        compose.onNodeWithContentDescription("Search again for tears").assertIsFocused()
+            .performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.onAllNodesWithContentDescription("Search again for tears").assertCountEquals(0)
+        assertEquals(listOf("edit:Remove(term=SearchTerm(value=tears))"), log)
+
+        // The remaining chip picks up focus; removing it too hands focus to the field.
+        compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused()
+            .performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.onAllNodesWithContentDescription("Search again for sintel").assertCountEquals(0)
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
     }
 
     private fun searchState(

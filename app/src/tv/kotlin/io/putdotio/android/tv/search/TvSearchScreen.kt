@@ -8,8 +8,11 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,8 +25,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -31,6 +36,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -56,11 +62,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.AssistChip
+import androidx.tv.material3.AssistChipDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
@@ -123,8 +128,18 @@ internal fun TvSearchScreen(
             query = state.query,
             onQueryChanged = actions.onQueryChanged,
             onSubmit = actions.onSubmit,
-            modifier = owner.section(fieldFocus),
+            modifier = owner.section(fieldFocus).focusRequester(fieldFocus),
         )
+        // Composed while there are terms; when the last one is removed the section disposes
+        // and its section() hands the entry target back, but focus itself must be re-placed.
+        val hadRecent = remember { mutableStateOf(false) }
+        LaunchedEffect(state.recentTerms.isEmpty()) {
+            if (state.recentTerms.isEmpty() && hadRecent.value && entryTarget.value === fieldFocus) {
+                withFrameNanos {}
+                fieldFocus.requestFocus()
+            }
+            hadRecent.value = state.recentTerms.isNotEmpty()
+        }
         if (state.recentTerms.isNotEmpty()) {
             TvRecentSearches(
                 terms = state.recentTerms,
@@ -186,17 +201,19 @@ private class TvSearchFocusOwner(
     private val entryTarget: MutableState<FocusRequester>,
     private val fieldFocus: FocusRequester,
 ) {
+    fun focusField() = fieldFocus.requestFocus()
+
+    /** Tracks focus for a section; the requester itself is attached where focus should land. */
     @Composable
     fun section(requester: FocusRequester): Modifier {
         DisposableEffect(requester) {
             onDispose { if (entryTarget.value === requester) entryTarget.value = fieldFocus }
         }
-        return Modifier
-            .focusRequester(requester)
-            .onFocusChanged { if (it.hasFocus) entryTarget.value = requester }
+        return Modifier.onFocusChanged { if (it.hasFocus) entryTarget.value = requester }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TvSearchField(
     query: String,
@@ -206,59 +223,67 @@ private fun TvSearchField(
 ) {
     // The controller owns the query; the field keeps its own selection and follows the
     // controller when a chip or a submit rewrites the text.
-    var value by remember { mutableStateOf(TextFieldValue(query, TextRange(query.length))) }
+    val state = rememberTextFieldState(query)
+    val currentQuery by rememberUpdatedState(query)
+    val currentOnQueryChanged by rememberUpdatedState(onQueryChanged)
+    LaunchedEffect(state) {
+        // Only edits made here go up; text the controller already knows is not echoed.
+        snapshotFlow { state.text.toString() }.collect { if (it != currentQuery) currentOnQueryChanged(it) }
+    }
     LaunchedEffect(query) {
-        if (value.text != query) value = TextFieldValue(query, TextRange(query.length))
+        if (state.text.toString() != query) state.setTextAndPlaceCursorAtEnd(query)
     }
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
+    // The IME appears only on Center, never on focus alone: the pane opens with the field
+    // focused and the oracle idle state shows no keyboard. Center flips the option, which
+    // restarts the field's input session with the keyboard shown; that session is what
+    // gives Gboard TV the D-pad, and a plain show request from outside it does not. The
+    // flag is dropped when the IME goes away so the next Center can raise it again.
+    var keyboardRequested by remember { mutableStateOf(false) }
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible, focused) { if (!imeVisible || !focused) keyboardRequested = false }
     val label = stringResource(R.string.tv_search_field)
     val border = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.border
     BasicTextField(
-        value = value,
-        onValueChange = {
-            value = it
-            if (it.text != query) onQueryChanged(it.text)
-        },
-        singleLine = true,
+        state = state,
+        lineLimits = TextFieldLineLimits.SingleLine,
         interactionSource = interaction,
         textStyle = MaterialTheme.typography.titleLarge.copy(color = MaterialTheme.colorScheme.onSurface),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(
-            onSearch = {
-                keyboard?.hide()
-                onSubmit()
-            },
-        ),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, showKeyboardOnFocus = keyboardRequested),
+        onKeyboardAction = {
+            keyboard?.hide()
+            onSubmit()
+        },
         modifier = modifier
             .fillMaxWidth()
             .semantics { contentDescription = label }
             .testTag(TV_SEARCH_FIELD_TAG)
             // A five-way pad moves between controls; the IME, once summoned with Center,
             // takes the keys itself. Left and Right stay with the cursor while it has
-            // text to cross.
+            // text to cross. Enter reaches the field and runs the search action.
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                val selection = state.selection
                 when (event.key) {
                     Key.DirectionDown -> focusManager.moveFocus(FocusDirection.Down)
                     Key.DirectionUp -> focusManager.moveFocus(FocusDirection.Up)
                     Key.DirectionLeft ->
-                        value.selection.collapsed && value.selection.start == 0 &&
-                            focusManager.moveFocus(FocusDirection.Left)
+                        selection.collapsed && selection.start == 0 && focusManager.moveFocus(FocusDirection.Left)
                     Key.DirectionRight ->
-                        value.selection.collapsed && value.selection.end == value.text.length &&
+                        selection.collapsed && selection.end == state.text.length &&
                             focusManager.moveFocus(FocusDirection.Right)
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
-                        keyboard?.show()
+                    Key.DirectionCenter -> {
+                        keyboardRequested = true
                         true
                     }
                     else -> false
                 }
             },
-        decorationBox = { inner ->
+        decorator = { inner ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -276,7 +301,7 @@ private fun TvSearchField(
                 )
                 Spacer(Modifier.width(12.dp))
                 Box(modifier = Modifier.weight(1f)) {
-                    if (value.text.isEmpty()) {
+                    if (state.text.isEmpty()) {
                         Text(
                             text = stringResource(R.string.tv_search_placeholder),
                             style = MaterialTheme.typography.titleLarge,
@@ -303,10 +328,21 @@ private fun TvRecentSearches(
     // should land on the newest term instead, and later entries on the chip left last.
     val firstChip = remember { FocusRequester() }
     val rowFocus = remember { FocusRequester() }
+    // A removed chip takes focus with it; the newest remaining chip picks it up, or the
+    // field when the row is now empty. Read after the frame so the row has re-laid out.
+    var focusedTerm by remember { mutableStateOf<SearchTerm?>(null) }
+    LaunchedEffect(terms) {
+        val lost = focusedTerm ?: return@LaunchedEffect
+        if (lost in terms) return@LaunchedEffect
+        focusedTerm = null
+        withFrameNanos {}
+        if (terms.isEmpty()) owner.focusField() else firstChip.requestFocus()
+    }
     LazyRow(
         modifier = modifier
             .fillMaxWidth()
             .then(owner.section(rowFocus))
+            .focusRequester(rowFocus)
             .focusRestorer(firstChip)
             .focusGroup(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -316,6 +352,14 @@ private fun TvRecentSearches(
             AssistChip(
                 onClick = { onSearch(term) },
                 onLongClick = { onRemove(term) },
+                // Focused chips fill `primary` like buttons: the stock focused pair binds to
+                // the same light token in the put.io scheme, so the label would vanish.
+                colors = AssistChipDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.primary,
+                    focusedContentColor = MaterialTheme.colorScheme.onPrimary,
+                    pressedContainerColor = MaterialTheme.colorScheme.primary,
+                    pressedContentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
                 leadingIcon = {
                     Icon(
                         painter = painterResource(R.drawable.ic_ph_clock_counter_clockwise),
@@ -325,6 +369,7 @@ private fun TvRecentSearches(
                 },
                 modifier = Modifier
                     .then(if (index == 0) Modifier.focusRequester(firstChip) else Modifier)
+                    .onFocusChanged { if (it.isFocused) focusedTerm = term }
                     .semantics { contentDescription = label },
             ) {
                 // As typed: the term is what the user searched, not a normalized key.
@@ -355,7 +400,9 @@ private fun TvSearchNotice(
         }
         Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (failure != FilesFailure.NavigationBlocked) {
-            TvButton(onClick = onRetry) { Text(stringResource(R.string.tv_files_retry)) }
+            TvButton(onClick = onRetry, modifier = Modifier.focusRequester(retryFocus)) {
+                Text(stringResource(R.string.tv_files_retry))
+            }
         }
     }
 }
@@ -373,8 +420,9 @@ private fun TvSearchResults(
     val firstRow = remember { FocusRequester() }
     val lastRow = remember { FocusRequester() }
     val listFocus = remember { FocusRequester() }
-    // The paging control leaves the list when the last page lands; if it held focus, the
-    // last row takes over once it is on screen.
+    // The paging control leaves the list when the last page lands; if it still held focus,
+    // the last row takes over once it is on screen. A move to a row or the drawer clears the
+    // latch first; the blur its disposal reports arrives after this composition decides.
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
     // Decided during composition: the restorer answers the removed paging node in the same
@@ -399,6 +447,7 @@ private fun TvSearchResults(
             .fillMaxWidth()
             .padding(top = 16.dp)
             .then(owner.section(listFocus))
+            .focusRequester(listFocus)
             .focusRestorer(if (handOffToLastRow.value) lastRow else firstRow)
             .focusGroup()
             .testTag(TV_SEARCH_RESULTS_TAG),
@@ -420,7 +469,7 @@ private fun TvSearchResults(
                     paging = paging,
                     onNextPage = onNextPage,
                     onRetry = onRetry,
-                    buttonModifier = Modifier.onFocusChanged { if (it.isFocused) pagingHeldFocus.value = true },
+                    buttonModifier = Modifier.onFocusChanged { pagingHeldFocus.value = it.isFocused },
                 )
             }
         }
@@ -462,7 +511,7 @@ private fun TvSearchPaging(
                     is SearchPaging.Loading, SearchPaging.Complete -> Unit
                 }
             },
-            modifier = buttonModifier,
+            modifier = buttonModifier.focusRequester(pagingFocus),
         ) {
             Text(stringResource(label))
         }
