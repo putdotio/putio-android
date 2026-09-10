@@ -530,6 +530,37 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun aSortThatMovesTheFocusedRowBelowTheFoldKeepsItFocusedAndVisible() {
+        val rows = (1..30L).map { item(it, "file-%02d.txt".format(it), PutioFileType.TEXT) }
+        var state by mutableStateOf(ready(*rows.toTypedArray()))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {})
+            }
+        }
+        compose.onNodeWithContentDescription("file-01.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("file-02.txt").assertIsFocused()
+
+        state = ready(*rows.reversed().toTypedArray(), sort = FilesSort.NAME_DESCENDING)
+        compose.onNodeWithContentDescription("file-02.txt").assertIsFocused().assertIsDisplayed()
+    }
+
+    @Test
+    fun aRefreshThatDropsTheFocusedRowFallsBackToTheFirstRow() {
+        var state by mutableStateOf(ready(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT)))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {})
+            }
+        }
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("b.txt").assertIsFocused()
+
+        state = ready(item(1, "a.txt", PutioFileType.TEXT), item(3, "c.txt", PutioFileType.TEXT))
+        compose.onNodeWithContentDescription("a.txt").assertIsFocused()
+    }
+
+    @Test
     fun aLoadingFolderKeepsFocusInThePane() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {

@@ -344,9 +344,13 @@ private fun TvFilesList(
     // Set when the paging control gains focus and cleared only when a row does, so the
     // control losing focus by being disposed does not erase the fact that it had it.
     val pagingHeldFocus = remember(listState) { mutableStateOf(resumeOnPaging) }
+    // A sort or refresh swaps the rows without remounting the list; the row that held focus
+    // may have moved off screen or gone, so the live requester is only trusted while it is
+    // attached to a row that is still listed.
+    val liveRowListed = focusedRowId != null && content.items.any { it.id.value == focusedRowId }
     val entryFocus = when {
         pagingHeldFocus.value && content.paging != FilesPaging.Complete -> listPagingFocus
-        focusedRowId == null -> rowFocus
+        !liveRowListed -> rowFocus
         else -> liveRowFocus
     }
     SideEffect { onEntryTarget(entryFocus) }
@@ -370,6 +374,21 @@ private fun TvFilesList(
     val focusTarget = when {
         remembered == PAGING_FOCUS_MARKER && content.paging == FilesPaging.Complete -> content.items.last().id.value
         else -> content.items.firstOrNull { it.id.value == remembered }?.id?.value ?: content.items.first().id.value
+    }
+    // After the rows change under a mounted list, keep focus on the row that had it, or on
+    // the fallback target when that row is gone.
+    LaunchedEffect(content.items) {
+        val liveId = focusedRowId ?: return@LaunchedEffect
+        val index = content.items.indexOfFirst { it.id.value == liveId }
+        val (targetId, requester) = if (index >= 0) liveId to liveRowFocus else focusTarget to rowFocus
+        if (index < 0) focusedRowId = null
+        val targetIndex = content.items.indexOfFirst { it.id.value == targetId }
+        if (targetIndex >= 0 && listState.layoutInfo.visibleItemsInfo.none { it.key == targetId }) {
+            listState.scrollToItem(targetIndex)
+        }
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == targetId } }.first { it }
+        withFrameNanos {}
+        if (paneHasFocus.value) requester.requestFocus()
     }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
