@@ -49,6 +49,20 @@ class TvFilesViewModelTest {
     }
 
     @Test
+    fun `focus memory is shared with the controller's session and dropped with it`() {
+        val viewModel = TvFilesViewModel(auth)
+        val memory = checkNotNull(viewModel.focusMemoryFor(42, TvAuthSessionId(1), repository))
+        memory[0L] = 7L
+
+        assertSame(memory, viewModel.focusMemoryFor(42, TvAuthSessionId(1), repository))
+
+        auth.value = signedIn(2)
+        val next = checkNotNull(viewModel.focusMemoryFor(42, TvAuthSessionId(2), repository))
+        assertNotSame(memory, next)
+        assertNull(next[0L])
+    }
+
+    @Test
     fun `a controller is refused for a session that is not the signed-in one`() {
         val viewModel = TvFilesViewModel(auth)
 

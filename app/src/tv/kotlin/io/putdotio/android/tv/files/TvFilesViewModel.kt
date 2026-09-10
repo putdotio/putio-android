@@ -1,5 +1,7 @@
 package io.putdotio.android.tv.files
 
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -31,11 +33,28 @@ internal class TvFilesViewModel(
         userId: Long,
         sessionId: TvAuthSessionId,
         repository: FilesRepository,
-    ): FilesBrowserController? =
+    ): FilesBrowserController? = sessionFor(userId, sessionId, repository)?.controller
+
+    /**
+     * Which row last held D-pad focus in each folder. It lives here, not in the pane,
+     * because the pane is disposed whenever another destination is shown and must
+     * come back to the same row; it dies with the session like the controller.
+     */
+    fun focusMemoryFor(
+        userId: Long,
+        sessionId: TvAuthSessionId,
+        repository: FilesRepository,
+    ): SnapshotStateMap<Long, Long>? = sessionFor(userId, sessionId, repository)?.focusMemory
+
+    private fun sessionFor(
+        userId: Long,
+        sessionId: TvAuthSessionId,
+        repository: FilesRepository,
+    ): ActiveSession? =
         synchronized(lock) {
             val key = SessionKey(userId, sessionId)
             if (authState.value.sessionKey() != key) return@synchronized null
-            active?.takeIf { it.key == key }?.let { return@synchronized it.controller }
+            active?.takeIf { it.key == key }?.let { return@synchronized it }
             active?.controller?.close()
             active = null
             val controller = FilesBrowserController(repository, viewModelScope)
@@ -43,8 +62,7 @@ internal class TvFilesViewModel(
                 controller.close()
                 null
             } else {
-                active = ActiveSession(key, controller)
-                controller
+                ActiveSession(key, controller, mutableStateMapOf()).also { active = it }
             }
         }
 
@@ -68,9 +86,10 @@ internal class TvFilesViewModel(
     private fun TvAuthState.sessionKey(): SessionKey? =
         (this as? TvAuthState.SignedIn)?.let { SessionKey(it.account.userId, it.sessionId) }
 
-    private data class ActiveSession(
+    private class ActiveSession(
         val key: SessionKey,
         val controller: FilesBrowserController,
+        val focusMemory: SnapshotStateMap<Long, Long>,
     )
 
     private data class SessionKey(

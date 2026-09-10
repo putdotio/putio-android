@@ -80,7 +80,10 @@ private fun TvSignedInApp(
     val filesController = remember(filesViewModel, filesRepository, signedIn.account.userId, signedIn.sessionId) {
         filesViewModel.controllerFor(signedIn.account.userId, signedIn.sessionId, filesRepository)
     }
-    if (filesController == null) {
+    val focusMemory = remember(filesController) {
+        filesViewModel.focusMemoryFor(signedIn.account.userId, signedIn.sessionId, filesRepository)
+    }
+    if (filesController == null || focusMemory == null) {
         TvStatusScreen(stringResource(R.string.tv_session_restoring))
         return
     }
@@ -97,12 +100,15 @@ private fun TvSignedInApp(
             BackHandler(enabled = filesState.canNavigateBack) {
                 filesController.dispatch(FilesBrowserEvent.NavigateBack)
             }
+            // A requester on the pane lands on its first focusable descendant (Refresh); the
+            // pane's own entry effects then move focus to the row it remembers.
             TvFilesScreen(
                 state = filesState,
                 onEvent = filesController::dispatch,
                 onPlayMedia = {},
                 modifier = Modifier.focusRequester(paneFocus),
                 sessionKey = signedIn.sessionId.value,
+                focusMemory = focusMemory,
             )
         },
     )

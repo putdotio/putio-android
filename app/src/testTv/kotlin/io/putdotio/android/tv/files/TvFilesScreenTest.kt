@@ -270,6 +270,85 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun completingTheLastPageMovesFocusFromLoadMoreToTheLastRow() {
+        var content by mutableStateOf<FilesContent>(
+            FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Available(FilesCursor("c"))),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = state(content), onEvent = { true }, onPlayMedia = {})
+            }
+        }
+        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Load more").assertIsFocused()
+
+        content = FilesContent.Ready(
+            listOf(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT)),
+            FilesPaging.Complete,
+        )
+        compose.onNodeWithContentDescription("b.txt").assertIsFocused()
+    }
+
+    @Test
+    fun aProgrammaticScrollToTheFocusedRowReportsTheViewport() {
+        val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = state(FilesContent.Ready(rows, FilesPaging.Complete, FilesViewportPosition(30, 0))),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("file-1.txt").assertIsFocused()
+        assertEquals(
+            listOf<FilesBrowserEvent>(FilesBrowserEvent.ViewportChanged(FilesViewportPosition(0, 0))),
+            events,
+        )
+    }
+
+    @Test
+    fun anEmptyPageThatFailedOffersRetryWithFocus() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = state(FilesContent.Empty(FilesPaging.Failed(FilesCursor("c"), networkFailure()))),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
+    }
+
+    @Test
+    fun focusMemoryOutlivesThePaneWhenItIsHostedBySomeoneElse() {
+        val memory = mutableMapOf<Long, Long>()
+        var shown by mutableStateOf(true)
+        val root = ready(item(1, "first.txt", PutioFileType.TEXT), item(2, "second.txt", PutioFileType.TEXT))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                if (shown) TvFilesScreen(state = root, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
+            }
+        }
+        compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("second.txt").assertIsFocused()
+
+        shown = false
+        compose.waitForIdle()
+        shown = true
+        compose.onNodeWithContentDescription("second.txt").assertIsFocused()
+    }
+
+    @Test
     fun aLoadingFolderKeepsFocusInThePane() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
