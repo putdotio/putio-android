@@ -560,6 +560,14 @@ private fun TvFilesPaging(
     onEvent: (FilesBrowserEvent) -> Boolean,
     buttonModifier: Modifier = Modifier,
 ) {
+    // One button across every paging phase, so the node that holds focus survives the
+    // transition from Load more to loading to a retry.
+    val label = when (paging) {
+        is FilesPaging.Available -> R.string.tv_files_load_more
+        is FilesPaging.Loading -> R.string.tv_files_loading_more
+        is FilesPaging.Failed -> R.string.tv_files_retry
+        FilesPaging.Complete -> null
+    } ?: return
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -569,14 +577,6 @@ private fun TvFilesPaging(
     ) {
         if (paging is FilesPaging.Failed) {
             Text(stringResource(R.string.tv_files_paging_error), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        // One button across every paging phase, so the node that holds focus survives the
-        // transition from Load more to loading to a retry.
-        val label = when (paging) {
-            is FilesPaging.Available -> R.string.tv_files_load_more
-            is FilesPaging.Loading -> R.string.tv_files_loading_more
-            is FilesPaging.Failed -> R.string.tv_files_retry
-            FilesPaging.Complete -> return
         }
         TvButton(
             onClick = {
