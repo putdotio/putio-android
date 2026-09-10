@@ -16,11 +16,13 @@ import androidx.tv.material3.MaterialTheme
 internal fun TvButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     content: @Composable RowScope.() -> Unit,
 ) {
     Button(
         onClick = onClick,
         modifier = modifier,
+        enabled = enabled,
         colors = ButtonDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.primary,
             focusedContentColor = MaterialTheme.colorScheme.onPrimary,

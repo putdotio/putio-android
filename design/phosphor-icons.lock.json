@@ -293,6 +293,34 @@
       "asset": "assets/fill/user-circle-fill.svg",
       "sourceSha256": "4e16cdba116195993e6398bb097e7c4b354fb129fafdf2b56fd4b7c069f440d3",
       "outputSha256": "5a75cd6827f05ea5d9e204ade07ad11b94c6d2c2076f4c4d009f225876263518"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_arrow_clockwise",
+      "asset": "assets/regular/arrow-clockwise.svg",
+      "sourceSha256": "4a78a777b692cb74826e3071ae7049cc0d3927e68a7b8272e7251b1760cd771f",
+      "outputSha256": "5af28423594a422a782da1348331ff44edd568d1092d6acb90c8bf753d2d01e3"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_sort_ascending",
+      "asset": "assets/regular/sort-ascending.svg",
+      "sourceSha256": "a9791208ad848f553cc7eb38a6adaf3dedcbb5922841dd05c683d123fd6272f6",
+      "outputSha256": "55c11f6b84b5770e3cf17faef89ad0e5fec5fa58e3d2e140f7f349ec5fba1efa"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_x_circle",
+      "asset": "assets/regular/x-circle.svg",
+      "sourceSha256": "cff9cacbd83ab11a01585dc63af07d289479bdb332708b0de2ad4c953f67d223",
+      "outputSha256": "4cdaa2c5c11806b30172de56bcb5677197e2a2fbf28cd730e3d37a459e3ec840"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_caret_right",
+      "asset": "assets/regular/caret-right.svg",
+      "sourceSha256": "e6dec01e074807965b7f3146b976a9b5e82c31d9c2c88aeb52e77cc2ab16c1d7",
+      "outputSha256": "fc0a578ae88e79240491be8fb9c330a1b5074bcdfa4ebf8cc75c242a23f94c63"
     }
   ]
 }

@@ -67,6 +67,7 @@ import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolderOperation
@@ -1503,21 +1504,6 @@ internal fun TransfersVisibilityEffect(
         onStopOrDispose { onEvent(TransfersEvent.VisibilityChanged(false)) }
     }
 }
-
-internal fun FilesBrowserState.authoritativeSessionFailure(): FilesFailure? =
-    stack.asReversed().firstNotNullOfOrNull { folder ->
-        val contentFailure = folder.content.authoritativeSessionFailure()
-        val operationFailure = (folder.operation as? FilesFolderOperation.Failed)?.failure
-        listOfNotNull(contentFailure, operationFailure)
-            .firstOrNull { it is FilesFailure.AuthenticationRequired }
-    }
-
-internal fun FilesContent.authoritativeSessionFailure(): FilesFailure? = when (this) {
-    is FilesContent.Failed -> failure
-    is FilesContent.Empty -> (paging as? FilesPaging.Failed)?.failure
-    is FilesContent.Ready -> (paging as? FilesPaging.Failed)?.failure
-    is FilesContent.Loading -> null
-}?.takeIf { it is FilesFailure.AuthenticationRequired }
 
 internal fun SearchState.authoritativeSessionFailure(): FilesFailure? =
     when (val value = content) {

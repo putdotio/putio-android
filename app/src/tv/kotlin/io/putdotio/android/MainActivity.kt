@@ -10,7 +10,7 @@ class MainActivity : BasePutioActivity() {
         configureEdgeToEdge()
         val runtime = TvAuthRuntime.get(applicationContext)
         setContent {
-            PutioApp(runtime.authController)
+            PutioApp(runtime)
         }
     }
 }

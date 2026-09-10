@@ -43,8 +43,10 @@ Mobile, on the emulator harness against the live API:
 
 The TV flavor signs in with a device code (put.io/link), keeps the token in
 Keystore-backed storage, restores it on relaunch, and shows the M3 navigation
-drawer with Files, Search, History and Account. Only Account has content;
-the other panes are placeholders until TV browse parity lands. Not started:
+drawer with Files, Search, History and Account. Files browses folders with
+Refresh, Sort, paging, watched progress and the unsupported-type screen;
+media rows do not play yet. Search and History are placeholders until TV
+browse parity lands. Not started:
 Chromecast, Picture-in-Picture, and the Play release lane.
 
 ## Direction

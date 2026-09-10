@@ -552,6 +552,21 @@ relaunch must land in the shell without a code: that is the Keystore restore.
 Fire TV feature flag, so it always links as the Android TV client (6221);
 Fire TV (6233) needs the physical device set from #51.
 
+## TV Files browse proof
+
+After the device-code sign-in above, the shell lands in Files with focus on
+the first row. D-pad Center opens a folder or explains an unsupported type;
+Back pops the folder stack until the root, then the shell owns Back. Up from
+the first row reaches Refresh and the Sort button, which opens the centred
+sort dialog with focus on the current choice. Sort changes persist to the
+account like mobile, so restore the previous order after a proof:
+
+```bash
+adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc="(Open|Play) [^"]+"' | head
+```
+
+Media rows call the playback hook, which is a no-op until #34.
+
 ## Account Trash and single-item Restore proof
 
 Trash is opened from Account → Manage Trash, including when the Trash setting
