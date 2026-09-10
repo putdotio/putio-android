@@ -77,12 +77,10 @@ private fun TvSignedInApp(
     onSessionRejected: suspend () -> Unit,
 ) {
     val filesRepository = remember(runtime.putioClient) { SdkFilesRepository(runtime.putioClient) }
-    val filesController = remember(filesViewModel, filesRepository, signedIn.account.userId, signedIn.sessionId) {
-        filesViewModel.controllerFor(signedIn.account.userId, signedIn.sessionId, filesRepository)
-    }
-    val focusMemory = remember(filesController) {
-        filesViewModel.focusMemoryFor(signedIn.account.userId, signedIn.sessionId, filesRepository)
-    }
+    // Looked up every composition, not remembered: the view model closes the session on its
+    // own auth collector, and a cached closed controller would silently swallow events.
+    val filesController = filesViewModel.controllerFor(signedIn.account.userId, signedIn.sessionId, filesRepository)
+    val focusMemory = filesViewModel.focusMemoryFor(signedIn.account.userId, signedIn.sessionId, filesRepository)
     if (filesController == null || focusMemory == null) {
         TvStatusScreen(stringResource(R.string.tv_session_restoring))
         return

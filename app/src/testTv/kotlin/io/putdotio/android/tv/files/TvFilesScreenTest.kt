@@ -290,6 +290,45 @@ class TvFilesScreenTest {
     }
 
     @Test
+    fun returningToTheMountOffsetIsReportedAgain() {
+        val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = ready(*rows.toTypedArray()), onEvent = { events += it; true }, onPlayMedia = {})
+            }
+        }
+        compose.onNodeWithContentDescription("file-1.txt").assertIsFocused().performKeyInput {
+            repeat(12) { pressKey(Key.DirectionDown) }
+        }
+        compose.waitForIdle()
+        val scrolled = events.filterIsInstance<FilesBrowserEvent.ViewportChanged>().last()
+        assert(scrolled.position.firstVisibleItemIndex > 0)
+        compose.onNodeWithContentDescription("file-13.txt").performKeyInput { repeat(12) { pressKey(Key.DirectionUp) } }
+        compose.waitForIdle()
+        assertEquals(
+            FilesViewportPosition(),
+            events.filterIsInstance<FilesBrowserEvent.ViewportChanged>().last().position,
+        )
+    }
+
+    @Test
+    fun completingAPageWithRowsBelowTheFoldScrollsTheNewLastRowIntoFocus() {
+        val firstPage = (1..8L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
+        var content by mutableStateOf<FilesContent>(FilesContent.Ready(firstPage, FilesPaging.Available(FilesCursor("c"))))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = state(content), onEvent = { true }, onPlayMedia = {})
+            }
+        }
+        compose.onNodeWithContentDescription("file-1.txt").performKeyInput { repeat(8) { pressKey(Key.DirectionDown) } }
+        compose.onNodeWithText("Load more").assertIsFocused()
+
+        content = FilesContent.Ready(firstPage + (9..30L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }, FilesPaging.Complete)
+        compose.onNodeWithContentDescription("file-30.txt").assertIsFocused()
+    }
+
+    @Test
     fun aProgrammaticScrollToTheFocusedRowReportsTheViewport() {
         val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
         val events = mutableListOf<FilesBrowserEvent>()

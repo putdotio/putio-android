@@ -20,17 +20,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusRestorer
@@ -63,7 +65,6 @@ import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvStatusScreen
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
@@ -79,6 +80,7 @@ internal const val TV_FILES_ROW_TAG = "tv-files-row"
  * type. Focus starts on the first row and the header is reachable with Up.
  * Back pops the folder stack; the shell owns Back when the stack is at root.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvFilesScreen(
     state: FilesBrowserState,
@@ -92,7 +94,7 @@ internal fun TvFilesScreen(
      * being disposed for another destination. A LazyColumn is remounted on every folder
      * change and after the unsupported screen, so Compose's own restorer has no history.
      */
-    focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableStateMapOf() },
+    focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableMapOf() },
 ) {
     val current = state.current
     var unsupported by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
@@ -113,7 +115,20 @@ internal fun TvFilesScreen(
     LaunchedEffect(current.folder.id.value, headerOwnsFocus) {
         if (headerOwnsFocus) refreshFocus.requestFocus()
     }
-    Column(modifier = modifier.fillMaxSize()) {
+    // The shell asks the pane for focus on entry. A Column is not a target itself, so the
+    // request is redirected to whichever control this pane currently wants focused.
+    val entryTarget = remember { mutableStateOf(FocusRequester.Default) }
+    entryTarget.value = when {
+        headerOwnsFocus -> refreshFocus
+        content is FilesContent.Ready -> entryTarget.value
+        else -> FocusRequester.Default
+    }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .focusProperties { enter = { entryTarget.value } }
+            .focusGroup(),
+    ) {
         TvFilesHeader(state, onEvent, refreshFocus, sessionKey)
         when (content) {
             is FilesContent.Loading ->
@@ -146,6 +161,7 @@ internal fun TvFilesScreen(
                     content = content,
                     pagingEnabled = current.operation == FilesFolderOperation.Idle,
                     focusMemory = focusMemory,
+                    onEntryTarget = { entryTarget.value = it },
                     modifier = Modifier.weight(1f),
                     onEvent = onEvent,
                     onOpen = { item ->
@@ -237,6 +253,7 @@ private fun TvFilesList(
     content: FilesContent.Ready,
     pagingEnabled: Boolean,
     focusMemory: MutableMap<Long, Long>,
+    onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -247,6 +264,7 @@ private fun TvFilesList(
     }
     val currentOnEvent by rememberUpdatedState(onEvent)
     val rowFocus = remember(listState) { FocusRequester() }
+    SideEffect { onEntryTarget(rowFocus) }
     // The paging control leaves the list when the last page lands; if it held focus, the
     // last row becomes the remembered row so the restorer's fallback lands there.
     // Set when the paging control gains focus and cleared only when a row does, so the
@@ -267,6 +285,9 @@ private fun TvFilesList(
         ?: content.items.first().id.value
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
+        if (listState.layoutInfo.visibleItemsInfo.none { it.key == focusTarget }) {
+            listState.scrollToItem(content.items.lastIndex)
+        }
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == focusTarget } }.first { it }
         // The restorer answers the removed node first; the request goes out after that frame.
         withFrameNanos {}
@@ -279,11 +300,12 @@ private fun TvFilesList(
             listState.scrollToItem(index)
         }
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == focusTarget } }.first { it }
+        // The shell's pane request lands one frame earlier; this one settles on the row.
+        withFrameNanos {}
         rowFocus.requestFocus()
         // Started after the programmatic scroll so the settled position it reports is the one
         // on screen. Only the mount position is skipped: it came from the reducer already.
-        val initial = FilesViewportPosition(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
-        if (initial != viewport) currentOnEvent(FilesBrowserEvent.ViewportChanged(initial))
+        var reported = viewport
         snapshotFlow {
             if (listState.isScrollInProgress) {
                 null
@@ -292,8 +314,12 @@ private fun TvFilesList(
             }
         }
             .filterNotNull()
-            .distinctUntilChanged()
-            .collect { if (it != initial) currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
+            .collect {
+                if (it != reported) {
+                    reported = it
+                    currentOnEvent(FilesBrowserEvent.ViewportChanged(it))
+                }
+            }
     }
 
     LazyColumn(

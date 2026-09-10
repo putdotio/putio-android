@@ -1,7 +1,5 @@
 package io.putdotio.android.tv.files
 
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -44,7 +42,7 @@ internal class TvFilesViewModel(
         userId: Long,
         sessionId: TvAuthSessionId,
         repository: FilesRepository,
-    ): SnapshotStateMap<Long, Long>? = sessionFor(userId, sessionId, repository)?.focusMemory
+    ): MutableMap<Long, Long>? = sessionFor(userId, sessionId, repository)?.focusMemory
 
     private fun sessionFor(
         userId: Long,
@@ -62,7 +60,7 @@ internal class TvFilesViewModel(
                 controller.close()
                 null
             } else {
-                ActiveSession(key, controller, mutableStateMapOf()).also { active = it }
+                ActiveSession(key, controller, mutableMapOf()).also { active = it }
             }
         }
 
@@ -89,7 +87,8 @@ internal class TvFilesViewModel(
     private class ActiveSession(
         val key: SessionKey,
         val controller: FilesBrowserController,
-        val focusMemory: SnapshotStateMap<Long, Long>,
+        // Plain, not snapshot state: a focus move must not recompose the list.
+        val focusMemory: MutableMap<Long, Long>,
     )
 
     private data class SessionKey(
