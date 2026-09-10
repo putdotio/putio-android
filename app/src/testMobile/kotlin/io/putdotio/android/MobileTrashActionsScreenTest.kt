@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -82,6 +83,24 @@ class MobileTrashActionsScreenTest {
         }
         compose.onNodeWithTag(MOBILE_TRASH_RESTORE_ALL_TAG).assertIsNotEnabled()
         compose.onNodeWithTag(MOBILE_TRASH_EMPTY_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun aDeleteStillListedAfterACompleteReadIsSettledAndLeavesEveryActionEnabled() {
+        val events = mutableListOf<TrashEvent>()
+        val state = TrashState(content = loaded, actionOutcome = TrashActionOutcome(
+            TrashAction.DeleteItem(item), TrashActionSubmission.UNCERTAIN, TrashActionCheck.FAILED))
+        compose.setContent { PutioTheme { MobileTrashScreen(state, { events += it; true }) } }
+        compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
+        compose.onNodeWithText("“${item.name}” is still in Trash.").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_TRASH_ACTION_CHECK_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_TRASH_RESTORE_ALL_TAG).assertIsEnabled()
+        compose.onNodeWithTag(MOBILE_TRASH_EMPTY_TAG).assertIsEnabled()
+        compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
+        compose.onNodeWithContentDescription("Actions for ${item.name}").assertIsEnabled()
+        compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
+        compose.onNodeWithText("OK").performClick()
+        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.DismissActionOutcome), events) }
     }
 
     @Test

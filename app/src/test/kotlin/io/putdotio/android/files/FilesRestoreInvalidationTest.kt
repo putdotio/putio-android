@@ -226,9 +226,16 @@ class FilesRestoreInvalidationTest {
             FilesBrowserEvent.PlaybackPositionReported(FilesItemId(31), 5.0))
         assertFalse(unknown.consumed)
         assertSame(original, unknown.state)
-        val invalid = FilesBrowserReducer.reduce(original, FilesBrowserEvent.PlaybackPositionReported(video.id, -1.0))
-        assertFalse(invalid.consumed)
-        assertSame(original, invalid.state)
+        for (event in listOf(
+            FilesBrowserEvent.PlaybackPositionReported(video.id, -1.0),
+            FilesBrowserEvent.PlaybackPositionReported(video.id, Double.NaN),
+            FilesBrowserEvent.PlaybackPositionReported(video.id, Double.POSITIVE_INFINITY),
+            FilesBrowserEvent.PlaybackPositionReported(FilesItemId(0), 5.0),
+        )) {
+            val invalid = FilesBrowserReducer.reduce(original, event)
+            assertFalse(invalid.consumed)
+            assertSame(original, invalid.state)
+        }
     }
 
     @Test

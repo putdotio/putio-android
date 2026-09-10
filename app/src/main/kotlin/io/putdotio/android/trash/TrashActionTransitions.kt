@@ -49,8 +49,9 @@ private fun TrashMachine.confirmAction(event: TrashEvent.ConfirmAction): TrashMa
         TrashRestoreSnapshot(
             itemIds = it.itemIds.toSet(),
             coversUnloadedItems = it.cursor != null,
-            newestDeletedAt = content.items.mapNotNull { item -> item.deletedAt?.let(::parseTrashTimestamp) }
-                .maxOrNull(),
+            // One unparseable row makes the bound unknown; a partial maximum would let snapshot rows pass as newer.
+            newestDeletedAt = content.items.map { item -> item.deletedAt?.let(::parseTrashTimestamp) }
+                .takeIf { stamps -> stamps.none { it == null } }?.filterNotNull()?.maxOrNull(),
         )
     }
     return copy(
