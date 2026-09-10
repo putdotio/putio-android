@@ -344,9 +344,6 @@ private fun TvFilesList(
     // Set when the paging control gains focus and cleared only when a row does, so the
     // control losing focus by being disposed does not erase the fact that it had it.
     val pagingHeldFocus = remember(listState) { mutableStateOf(resumeOnPaging) }
-    // True only while the paging control is the focused node; the latch above survives its
-    // disposal, this does not, so a hand-off never steals focus back from the rail.
-    val pagingIsFocused = remember(listState) { mutableStateOf(false) }
     val entryFocus = when {
         pagingHeldFocus.value && content.paging != FilesPaging.Complete -> listPagingFocus
         focusedRowId == null -> rowFocus
@@ -460,7 +457,6 @@ private fun TvFilesList(
                     buttonModifier = Modifier
                         .focusRequester(listPagingFocus)
                         .onFocusChanged {
-                            pagingIsFocused.value = it.isFocused
                             if (it.isFocused) {
                                 pagingHeldFocus.value = true
                                 focusMemory[folderId] = PAGING_FOCUS_MARKER
