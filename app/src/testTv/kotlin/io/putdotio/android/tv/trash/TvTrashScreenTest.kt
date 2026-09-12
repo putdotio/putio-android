@@ -114,7 +114,8 @@ class TvTrashScreenTest {
 
     @Test
     fun headerActionsAskForBulkConfirmations() {
-        show { TrashState(content = loaded) }
+        var state by mutableStateOf(TrashState(content = loaded))
+        show { state }
 
         compose.onNodeWithContentDescription("Actions for smoke-two.txt").performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
@@ -130,6 +131,23 @@ class TvTrashScreenTest {
             keyUp(Key.DirectionCenter)
         }
         assertEquals(listOf<TrashEvent>(TrashEvent.SelectRestoreAll, TrashEvent.SelectEmpty), events)
+
+        compose.runOnIdle { state = state.copy(actionConfirmation = TrashAction.Empty, actionConfirmationId = 5L) }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(TrashEvent.CancelAction, events.last())
+        compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
+        // The button that opened the confirmation takes focus back, not the list.
+        compose.onNode(hasText("Empty trash") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun dateOnlyStampsFormatLikeTimestamps() {
+        show { TrashState(content = loaded.copy(items = listOf(item.copy(deletedAt = "2026-09-06", expirationDate = "2026-09-20")))) }
+
+        compose.onNodeWithText("10 B · Deleted Sep 6, 2026 · Expires Sep 20, 2026").assertIsDisplayed()
     }
 
     @Test

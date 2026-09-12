@@ -70,6 +70,8 @@ import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.files.tvMessage
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.flow.first
 
 internal const val TV_TRASH_LIST_TAG = "tv-trash-list"
@@ -96,6 +98,8 @@ internal fun TvTrashScreen(
     // A page can be empty and still carry a cursor; only a known-empty trash shows the empty state.
     val hasRows = loaded != null && !loaded.isKnownEmpty
     val refreshFocus = remember { FocusRequester() }
+    val restoreAllFocus = remember { FocusRequester() }
+    val emptyFocus = remember { FocusRequester() }
     val listFocus = remember { FocusRequester() }
     val retryFocus = remember { FocusRequester() }
     val paneHasFocus = remember { mutableStateOf(true) }
@@ -137,11 +141,15 @@ internal fun TvTrashScreen(
             }
             .focusGroup(),
     ) {
+        // Each header button is a section, so the one that opened a confirmation takes
+        // focus back when the dialog closes.
         TvTrashHeader(
             onRefresh = { onEvent(TrashEvent.Refresh) },
             onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
             onEmpty = { onEvent(TrashEvent.SelectEmpty) },
             refreshModifier = owner.section(refreshFocus).focusRequester(refreshFocus),
+            restoreAllModifier = owner.section(restoreAllFocus).focusRequester(restoreAllFocus),
+            emptyModifier = owner.section(emptyFocus).focusRequester(emptyFocus),
         )
         val enabled = state.authenticationFailure == null
         state.restoreOutcome?.let { TvTrashRestoreOutcome(it, enabled, onEvent, owner) }
@@ -213,6 +221,8 @@ private fun TvTrashHeader(
     onRestoreAll: () -> Unit,
     onEmpty: () -> Unit,
     refreshModifier: Modifier,
+    restoreAllModifier: Modifier,
+    emptyModifier: Modifier,
 ) {
     Row(
         modifier = Modifier
@@ -237,8 +247,10 @@ private fun TvTrashHeader(
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.tv_trash_refresh))
             }
-            TvButton(onClick = onRestoreAll) { Text(stringResource(R.string.tv_trash_restore_all)) }
-            TvButton(onClick = onEmpty) {
+            TvButton(onClick = onRestoreAll, modifier = restoreAllModifier) {
+                Text(stringResource(R.string.tv_trash_restore_all))
+            }
+            TvButton(onClick = onEmpty, modifier = emptyModifier) {
                 Icon(
                     painter = painterResource(R.drawable.ic_ph_trash),
                     contentDescription = null,
@@ -301,7 +313,14 @@ private fun TvTrashNotice(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        // Bounded so a long server-supplied name cannot push the action below the fold.
+        Text(
+            text = text,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
         if (action != null) {
             TvButton(onClick = onAction, modifier = owner.section(actionFocus).focusRequester(actionFocus)) {
                 Text(action)
@@ -550,9 +569,12 @@ private fun TvTrashRow(
     )
 }
 
-/** A date for the row; the raw stamp when it cannot be parsed, never a fabricated deadline. */
+/** A date for the row, from a stamp or a plain date; the raw value when neither, never a fabricated deadline. */
 private fun trashDate(context: android.content.Context, value: String): String {
-    val millis = parseTrashTimestamp(value)?.toEpochMilli() ?: return value
+    val millis = parseTrashTimestamp(value)?.toEpochMilli()
+        ?: runCatching { LocalDate.parse(value).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }
+            .getOrNull()
+        ?: return value
     return DateUtils.formatDateTime(
         context,
         millis,

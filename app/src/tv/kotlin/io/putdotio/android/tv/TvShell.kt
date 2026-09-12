@@ -164,8 +164,13 @@ private fun TvAccountPane(
     // another destination and coming back lands on Account itself, and the row that opened
     // Trash takes focus again on Back.
     var showingTrash by rememberSaveable { mutableStateOf(false) }
+    // Set by Back only, so a first visit to Account never pulls focus off the drawer.
+    val returningFromTrash = remember { mutableStateOf(false) }
     if (trashPane != null && showingTrash) {
-        BackHandler { showingTrash = false }
+        BackHandler {
+            showingTrash = false
+            returningFromTrash.value = true
+        }
         trashPane(paneFocus)
         return
     }
@@ -216,7 +221,12 @@ private fun TvAccountPane(
         )
     }
     // Back from Trash: the pane is recomposed with the row that opened it, which takes focus.
-    LaunchedEffect(showingTrash) { if (!showingTrash && trashPane != null) trashFocus.requestFocus() }
+    LaunchedEffect(Unit) {
+        if (returningFromTrash.value) {
+            returningFromTrash.value = false
+            trashFocus.requestFocus()
+        }
+    }
 }
 
 @Composable
