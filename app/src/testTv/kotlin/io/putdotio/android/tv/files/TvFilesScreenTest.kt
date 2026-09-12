@@ -783,8 +783,16 @@ class TvFilesScreenTest {
         compose.onAllNodesWithText("Open in VLC").assertCountEquals(0)
         compose.runOnIdle { trash = false }
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused()
+        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
         compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
+        // The setting flipping under an open confirmation withdraws it rather than rewording it.
+        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        compose.runOnIdle { trash = true }
+        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+        compose.onNodeWithText("Move to trash").assertIsFocused()
     }
 
     @Test

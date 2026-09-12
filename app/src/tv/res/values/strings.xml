@@ -65,7 +65,6 @@
     <string name="tv_files_refresh_error">Couldn’t refresh files.</string>
     <string name="tv_files_sort_error">Couldn’t change sorting.</string>
     <string name="tv_files_reload_error">Couldn’t reload files.</string>
-    <string name="tv_files_actions">Actions for %1$s</string>
     <string name="tv_files_action_vlc">Open in VLC</string>
     <string name="tv_files_action_mark_watched">Mark as watched</string>
     <string name="tv_files_action_mark_unwatched">Mark as unwatched</string>

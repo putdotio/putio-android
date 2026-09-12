@@ -155,13 +155,18 @@ internal fun TvFilesScreen(
     // The row whose actions are up, and whether its deletion is being confirmed. Both close
     // when the row leaves the listing, like the unsupported overlay.
     var actionsFor by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
-    var confirmingDelete by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf(false) }
+    // The trash mode the user chose, kept while the confirmation is up: the dialog and the
+    // event use it, and a setting that changes underneath closes the confirmation instead.
+    var confirmingDeleteTrash by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Boolean?>(null) }
     val actionsItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == actionsFor }
     val actionsOrphaned = actionsFor != null && actionsItem == null
+    val confirmationStale = confirmingDeleteTrash != null && confirmingDeleteTrash != confirmedTrashEnabled
     SideEffect {
         if (actionsOrphaned) {
             actionsFor = null
-            confirmingDelete = false
+            confirmingDeleteTrash = null
+        } else if (confirmationStale) {
+            confirmingDeleteTrash = null
         }
     }
     val dialogOpen = actionsItem != null || notice != null
@@ -263,17 +268,16 @@ internal fun TvFilesScreen(
     } else if (actionsItem != null) {
         val close = {
             actionsFor = null
-            confirmingDelete = false
+            confirmingDeleteTrash = null
         }
-        val deleteAction = (actionsItem.tvActions(watchedToggleEnabled, confirmedTrashEnabled, current.operation.canStartOperation)
-            .firstOrNull { it is TvFilesAction.Delete } as? TvFilesAction.Delete)
-        if (confirmingDelete && deleteAction != null) {
+        val confirmTrash = confirmingDeleteTrash
+        if (confirmTrash != null && !confirmationStale) {
             TvFilesDeleteDialog(
                 item = actionsItem,
-                trash = deleteAction.trash,
+                trash = confirmTrash,
                 onConfirm = {
                     close()
-                    val mode = if (deleteAction.trash) FilesDeleteMode.TRASH else FilesDeleteMode.PERMANENT
+                    val mode = if (confirmTrash) FilesDeleteMode.TRASH else FilesDeleteMode.PERMANENT
                     onEvent(FilesBrowserEvent.Delete(current.folder.id, actionsItem.id, mode))
                 },
                 onDismiss = close,
@@ -292,7 +296,7 @@ internal fun TvFilesScreen(
                             close()
                             onSetWatched(actionsItem, action.watched)
                         }
-                        is TvFilesAction.Delete -> confirmingDelete = true
+                        is TvFilesAction.Delete -> confirmingDeleteTrash = action.trash
                     }
                 },
                 onDismiss = close,
@@ -448,7 +452,9 @@ private fun TvFilesHeader(
             modifier = Modifier.padding(bottom = 8.dp),
         )
     }
-    val failed = current.operation as? FilesFolderOperation.Failed
+    // A failed delete reports through its own status line, with Check status or Retry.
+    val failed = (current.operation as? FilesFolderOperation.Failed)
+        ?.takeUnless { it.intent is FilesFolderOperationIntent.Delete }
     if (failed != null) {
         val message = when {
             failed.intent == FilesFolderOperationIntent.Refresh -> R.string.tv_files_refresh_error

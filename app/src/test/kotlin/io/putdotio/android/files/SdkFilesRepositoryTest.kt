@@ -403,6 +403,10 @@ class SdkFilesRepositoryTest {
         val unwatched = sdkFile(3L, "c.mkv", PutioFileType.VIDEO).copy(startFrom = 0.0).toFilesItem().playback
         assertEquals(false, checkNotNull(unwatched).isWatched)
         assertNull(sdkFile(4L, "d.mkv", PutioFileType.VIDEO).toFilesItem().playback)
+        // A never-played video keeps its duration, unwatched, so it can be marked watched.
+        val neverPlayed = sdkFile(4L, "d.mkv", PutioFileType.VIDEO)
+            .copy(videoMetadata = PutioVideoMetadata(duration = 120.0)).toFilesItem().playback
+        assertEquals(FilesPlaybackProgress(0.0, 120.0), neverPlayed)
         assertNull(sdkFile(5L, "e.txt", PutioFileType.TEXT).copy(startFrom = 10.0).toFilesItem().playback)
         assertNull(sdkFile(6L, "f.mkv", PutioFileType.VIDEO).copy(startFrom = -1.0).toFilesItem().playback)
         for (invalidDuration in listOf(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
