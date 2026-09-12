@@ -6,12 +6,15 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.putdotio.android.files.FilesBrowserController
+import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.FilesStreamUrls
+import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.search.RecentSearchStoreOwner
@@ -27,6 +30,7 @@ import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -38,6 +42,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** What one signed-in TV session needs to build its controllers. */
@@ -48,6 +53,10 @@ internal class TvSessionDependencies(
     val trashRepository: TrashRepository,
     val settingsRepository: AccountSettingsRepository,
     val appConfigRepository: AndroidAppConfigRepository,
+    /** Saves or clears a media file's position, which is what marks it watched. */
+    val watchedRepository: FilesWatchedRepository,
+    /** Original stream URLs for handing a file to another player. */
+    val streamUrls: FilesStreamUrls,
     /** Turns the file id a history event names into the item Files can open. */
     val filesItemResolver: FilesItemResolver,
     val recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
@@ -69,12 +78,16 @@ internal class TvSession internal constructor(
     val appConfig: AndroidAppConfigController,
     private val recentSearches: RecentSearchStoreOwner,
     private val filesItemResolver: FilesItemResolver,
+    private val watchedRepository: FilesWatchedRepository,
+    private val streamUrls: FilesStreamUrls,
     parentScope: CoroutineScope,
 ) {
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + sessionJob)
     private val historyOpenChannel = Channel<FilesItem>(Channel.BUFFERED)
     private val mutableHistoryOpenFailure = MutableStateFlow<FilesFailure?>(null)
+    private val mutableFileActionFailure = MutableStateFlow<FilesFailure?>(null)
+    private val watchedJobs = mutableMapOf<FilesItemId, Job>()
 
     /**
      * Which Files row last held D-pad focus in each folder. It lives here, not in the pane,
@@ -90,6 +103,9 @@ internal class TvSession internal constructor(
 
     /** Why the last history row could not be resolved; cleared by the next success or dismissal. */
     val historyOpenFailure: StateFlow<FilesFailure?> = mutableHistoryOpenFailure.asStateFlow()
+
+    /** Why the last watched toggle failed; cleared by the next attempt or dismissal. */
+    val fileActionFailure: StateFlow<FilesFailure?> = mutableFileActionFailure.asStateFlow()
 
     init {
         // Resolved here rather than in the pane so a row chosen just before the pane is
@@ -109,6 +125,50 @@ internal class TvSession internal constructor(
     }
 
     fun retryRecentSearches() = recentSearches.retry()
+
+    /**
+     * Marks a media file watched (its position becomes its duration) or unwatched (no
+     * position). Runs here so a choice made just before the pane is disposed still lands;
+     * the listing row follows through the browser's own position invalidation.
+     */
+    fun setWatched(item: FilesItem, watched: Boolean) {
+        val seconds = if (watched) item.playback?.durationSeconds ?: return else 0.0
+        // One write per file at a time: a newer choice for the same file supersedes an
+        // unfinished one, so a slow first request cannot report after a faster second one
+        // has settled the row; writes for other files run on their own.
+        watchedJobs.remove(item.id)?.cancel()
+        // Started lazily so the write is registered before its body can run and compare itself.
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            // A session verdict from any write stays until the session is rejected.
+            mutableFileActionFailure.update { it?.takeIf { failure -> failure is FilesFailure.AuthenticationRequired } }
+            val result = if (watched) {
+                watchedRepository.setPosition(item.id, seconds)
+            } else {
+                watchedRepository.clearPosition(item.id)
+            }
+            // Cancellation is cooperative: a superseded write that still returns must not
+            // settle the row or report, so only the write still registered for the file does.
+            if (!isActive || watchedJobs[item.id] !== coroutineContext[Job]) return@launch
+            when (result) {
+                is FilesRepositoryResult.Success ->
+                    files.dispatch(FilesBrowserEvent.PlaybackPositionReported(item.id, seconds))
+                is FilesRepositoryResult.Failure -> mutableFileActionFailure.update { current ->
+                    if (current is FilesFailure.AuthenticationRequired) current else result.failure
+                }
+            }
+        }
+        watchedJobs[item.id] = job
+        job.invokeOnCompletion { if (watchedJobs[item.id] === job) watchedJobs.remove(item.id) }
+        job.start()
+    }
+
+    /** The original file's URL for an external player, or null without a session token. */
+    fun originalStreamUrl(item: FilesItem): String? = streamUrls.originalStreamUrl(item.id)
+
+    /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
+    fun dismissFileActionFailure() {
+        mutableFileActionFailure.update { it?.takeIf { failure -> failure is FilesFailure.AuthenticationRequired } }
+    }
 
     /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissHistoryOpenFailure() {
@@ -166,6 +226,8 @@ internal class TvSessionViewModel(
                 appConfig = AndroidAppConfigController(dependencies.appConfigRepository, viewModelScope),
                 recentSearches = recentSearches,
                 filesItemResolver = dependencies.filesItemResolver,
+                watchedRepository = dependencies.watchedRepository,
+                streamUrls = dependencies.streamUrls,
                 parentScope = viewModelScope,
             )
             if (authState.value.sessionKey() != key) {

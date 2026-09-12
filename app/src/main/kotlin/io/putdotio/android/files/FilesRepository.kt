@@ -226,14 +226,18 @@ internal fun PutioFile.toFilesItem(): FilesItem =
         playback = toPlaybackProgress(),
     )
 
-// Only media rows carry a position. Malformed server values drop the indicator instead of failing the list.
+// Only media rows carry a position. Malformed server values drop the indicator instead of
+// failing the list. A never-played media file has no position but may still have a
+// duration, which is kept so it can be marked watched.
 private fun PutioFile.toPlaybackProgress(): FilesPlaybackProgress? {
     val isMedia = fileType == PutioFileType.VIDEO || fileType == PutioFileType.AUDIO
-    val position = startFrom?.takeIf { isMedia && it.isFinite() && it >= 0.0 }
+    val position = startFrom ?: 0.0
     // Absent duration is a known unknown; a supplied but unusable one is malformed data.
     val duration = videoMetadata?.duration
     val durationValid = duration == null || (duration.isFinite() && duration > 0.0)
-    return position?.takeIf { durationValid }?.let { FilesPlaybackProgress(it, duration) }
+    val known = startFrom != null || duration != null
+    val usable = isMedia && known && position.isFinite() && position >= 0.0 && durationValid
+    return if (usable) FilesPlaybackProgress(position, duration) else null
 }
 
 // Mirrors PutioAuthSessionGateway.isAuthoritativeAuthRejection: a contract-derived

@@ -1,6 +1,7 @@
 package io.putdotio.android.tv
 
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
@@ -8,6 +9,8 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.FilesStreamUrls
+import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.files.StubFilesRepository
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventId
@@ -58,6 +61,7 @@ import org.junit.Test
 class TvSessionViewModelTest {
     private val auth = MutableStateFlow<TvAuthState>(signedIn(1))
     private val stores = mutableListOf<FakeRecentSearchStore>()
+    private val watched = FakeWatchedRepository()
     private val dependencies = TvSessionDependencies(
         filesRepository = object : StubFilesRepository() {
             override suspend fun loadFolder(folderId: FilesItemId) =
@@ -78,6 +82,8 @@ class TvSessionViewModelTest {
         trashRepository = StubTrashRepository,
         settingsRepository = StubAccountSettingsRepository,
         appConfigRepository = StubAndroidAppConfigRepository,
+        watchedRepository = watched,
+        streamUrls = FilesStreamUrls { "https://api.put.io/v2/files/${it.value}/stream?oauth_token=t" },
         filesItemResolver = object : FilesItemResolver {
             override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Success(
                 FilesItem(
@@ -139,6 +145,8 @@ class TvSessionViewModelTest {
             trashRepository = dependencies.trashRepository,
             settingsRepository = dependencies.settingsRepository,
             appConfigRepository = dependencies.appConfigRepository,
+            watchedRepository = dependencies.watchedRepository,
+            streamUrls = dependencies.streamUrls,
             filesItemResolver = object : FilesItemResolver {
                 override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Failure(rejected)
             },
@@ -151,6 +159,49 @@ class TvSessionViewModelTest {
 
         session.dismissHistoryOpenFailure()
         assertEquals(rejected, session.historyOpenFailure.value)
+    }
+
+    @Test
+    fun `marking watched writes the duration and the listing row follows`() = runTest {
+        val viewModel = TvSessionViewModel(auth)
+        val session = checkNotNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val video = FilesItem(
+            id = FilesItemId(9),
+            parentId = FilesItemId(0L),
+            name = "clip.mp4",
+            type = PutioFileType.VIDEO,
+            sizeBytes = 1L,
+            createdAt = "2026-04-20T10:00:00Z",
+            playback = FilesPlaybackProgress(0.0, 120.0),
+        )
+        session.setWatched(video, watched = true)
+        assertEquals(listOf(FilesItemId(9) to 120.0), watched.calls)
+        assertNull(session.fileActionFailure.value)
+
+        session.setWatched(video.copy(playback = FilesPlaybackProgress(120.0, 120.0)), watched = false)
+        assertEquals(FilesItemId(9) to null, watched.calls.last())
+    }
+
+    @Test
+    fun `a failed watched write is reported and a session verdict survives dismissal`() = runTest {
+        val rejected = FilesFailure.AuthenticationRequired(PutioConfigurationException("401"))
+        watched.failure = rejected
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val video = FilesItem(
+            id = FilesItemId(9),
+            parentId = FilesItemId(0L),
+            name = "clip.mp4",
+            type = PutioFileType.VIDEO,
+            sizeBytes = 1L,
+            createdAt = "2026-04-20T10:00:00Z",
+            playback = FilesPlaybackProgress(30.0, 120.0),
+        )
+
+        session.setWatched(video, watched = false)
+        assertEquals(rejected, session.fileActionFailure.value)
+        session.dismissFileActionFailure()
+        assertEquals(rejected, session.fileActionFailure.value)
+        assertEquals("https://api.put.io/v2/files/9/stream?oauth_token=t", session.originalStreamUrl(video))
     }
 
     @Test
@@ -187,6 +238,21 @@ class TvSessionViewModelTest {
         override suspend fun deleteItem(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
         override suspend fun restoreAll(selection: TrashBulkSelection) = FilesRepositoryResult.Success(Unit)
         override suspend fun empty() = FilesRepositoryResult.Success(Unit)
+    }
+
+    private class FakeWatchedRepository : FilesWatchedRepository {
+        val calls = mutableListOf<Pair<FilesItemId, Double?>>()
+        var failure: FilesFailure? = null
+
+        override suspend fun setPosition(itemId: FilesItemId, seconds: Double): FilesRepositoryResult<Unit> {
+            calls += itemId to seconds
+            return failure?.let { FilesRepositoryResult.Failure(it) } ?: FilesRepositoryResult.Success(Unit)
+        }
+
+        override suspend fun clearPosition(itemId: FilesItemId): FilesRepositoryResult<Unit> {
+            calls += itemId to null
+            return failure?.let { FilesRepositoryResult.Failure(it) } ?: FilesRepositoryResult.Success(Unit)
+        }
     }
 
     private object StubAccountSettingsRepository : AccountSettingsRepository {

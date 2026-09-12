@@ -23,6 +23,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
+import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
@@ -707,6 +708,124 @@ class TvFilesScreenTest {
     }
 
     private fun networkFailure() = FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))
+
+    @Test
+    fun theMenuKeyOpensTheRowActionsAndDeleteConfirmsBeforeDispatching() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val toggled = mutableListOf<Pair<Long, Boolean>>()
+        val opened = mutableListOf<Long>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(
+                        item(2, "clip.mp4", PutioFileType.VIDEO, playback = FilesPlaybackProgress(0.0, 120.0)),
+                        item(3, "notes.txt", PutioFileType.TEXT),
+                    ),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                    confirmedTrashEnabled = true,
+                    watchedToggleEnabled = true,
+                    onOpenInVlc = { opened += it.id.value },
+                    onSetWatched = { item, watched -> toggled += item.id.value to watched },
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
+        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Mark as watched").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf(2L to true), toggled)
+        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
+        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNodeWithText("Move to trash").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Move to trash?").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText("Move to trash").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(
+            listOf<FilesBrowserEvent>(FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(2), FilesDeleteMode.TRASH)),
+            events,
+        )
+        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused()
+        assertEquals(emptyList<Long>(), opened)
+    }
+
+    @Test
+    fun aTextRowOffersOnlyDeletionAndNothingWithoutTheTrashSetting() {
+        var trash by mutableStateOf<Boolean?>(null)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                    onEvent = { true },
+                    onPlayMedia = {},
+                    confirmedTrashEnabled = trash,
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onAllNodesWithText("Open in VLC").assertCountEquals(0)
+        compose.runOnIdle { trash = false }
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
+        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
+        // The setting flipping under an open confirmation withdraws it rather than rewording it.
+        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        compose.runOnIdle { trash = true }
+        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+        compose.onNodeWithText("Move to trash").assertIsFocused()
+    }
+
+    @Test
+    fun aRunningDeleteShowsItsPhaseAndAFailedCheckOffersCheckStatus() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val intent = FilesFolderOperationIntent.Delete(FilesItemId(2), FilesDeleteMode.TRASH)
+        var state by mutableStateOf(
+            state(
+                FilesContent.Ready(listOf(item(2, "clip.mp4", PutioFileType.VIDEO)), FilesPaging.Complete),
+                operation = FilesFolderOperation.Loading(FilesRequestId(3), intent, FilesFolderOperationPhase.DELETING),
+            ),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(state = state, onEvent = { events += it; true }, onPlayMedia = {})
+            }
+        }
+
+        compose.onNodeWithText("Moving to trash").assertIsDisplayed()
+        compose.runOnIdle {
+            state = state(
+                FilesContent.Ready(listOf(item(2, "clip.mp4", PutioFileType.VIDEO)), FilesPaging.Complete),
+                operation = FilesFolderOperation.Failed(networkFailure(), intent, FilesFolderOperationPhase.CHECKING_DELETE),
+            )
+        }
+        compose.onNodeWithText("Couldn’t confirm the result. Check the item before trying again.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNode(hasText("Check status") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
+    }
 
     private fun ready(
         vararg items: FilesItem,
