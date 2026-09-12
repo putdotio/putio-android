@@ -22,6 +22,8 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.SdkFilesRepository
+import io.putdotio.android.files.SdkFilesStreamUrls
+import io.putdotio.android.files.SdkFilesWatchedRepository
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.history.HistoryEvent
@@ -37,6 +39,11 @@ import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
+import io.putdotio.android.settings.confirmedResumePlayback
+import io.putdotio.android.settings.confirmedTrashEnabled
+import io.putdotio.android.tv.files.launchVlc
+import io.putdotio.android.tv.files.tvMessage
+import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.tv.account.TvAccountScreen
 import io.putdotio.android.tv.TvDestination
@@ -116,6 +123,8 @@ private fun TvSignedInApp(
             trashRepository = SdkTrashRepository(runtime.putioClient),
             settingsRepository = SdkAccountSettingsRepository(runtime.putioClient),
             appConfigRepository = SdkAndroidAppConfigRepository(runtime.putioClient),
+            watchedRepository = SdkFilesWatchedRepository(runtime.putioClient),
+            streamUrls = SdkFilesStreamUrls(runtime.putioClient),
             filesItemResolver = filesRepository,
             recentSearchStore = { scope -> AppConfigRecentSearchStore(runtime.putioClient, scope) },
         )
@@ -132,6 +141,7 @@ private fun TvSignedInApp(
     val historyState by session.history.state.collectAsStateWithLifecycle()
     val recentSearchFailure by session.recentSearchFailure.collectAsStateWithLifecycle()
     val historyOpenFailure by session.historyOpenFailure.collectAsStateWithLifecycle()
+    val fileActionFailure by session.fileActionFailure.collectAsStateWithLifecycle()
     val trashState by session.trash.state.collectAsStateWithLifecycle()
     val settingsState by session.settings.state.collectAsStateWithLifecycle()
     val appConfigState by session.appConfig.state.collectAsStateWithLifecycle()
@@ -145,6 +155,7 @@ private fun TvSignedInApp(
         searchState.authoritativeSessionFailure() != null ||
         historyState.authoritativeSessionFailure() != null ||
         recentSearchFailure is FilesFailure.AuthenticationRequired ||
+        fileActionFailure is FilesFailure.AuthenticationRequired ||
         historyOpenFailure is FilesFailure.AuthenticationRequired
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
     // The controller starts from the setting read at validation; each confirmed value from
@@ -211,6 +222,10 @@ private fun TvSignedInApp(
                     session.files.dispatch(FilesBrowserEvent.ReloadIfStale)
                 }
             }
+            // A row's actions: VLC gets the original file; a watched toggle writes the
+            // account's position; deletion runs on the shared browser operation.
+            val context = LocalContext.current
+            var filesNotice by remember(session) { mutableStateOf<Int?>(null) }
             // A requester on the pane lands on its first focusable descendant (Refresh); the
             // pane's own entry effects then move focus to the row it remembers.
             TvFilesScreen(
@@ -220,6 +235,24 @@ private fun TvSignedInApp(
                 modifier = Modifier.focusRequester(paneFocus),
                 sessionKey = sessionKey,
                 focusMemory = session.filesFocusMemory,
+                confirmedTrashEnabled = settingsState.confirmedTrashEnabled(),
+                watchedToggleEnabled = settingsState.confirmedResumePlayback() == true,
+                onOpenInVlc = { item ->
+                    val url = session.originalStreamUrl(item)
+                    filesNotice = when {
+                        url == null -> R.string.tv_files_stream_unavailable
+                        launchVlc(context, url, item) -> null
+                        else -> R.string.tv_files_vlc_missing
+                    }
+                },
+                onSetWatched = session::setWatched,
+                notice = filesNotice?.let { stringResource(it) }
+                    ?: fileActionFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
+                        ?.let { stringResource(R.string.tv_files_watched_error, stringResource(it.tvMessage())) },
+                onDismissNotice = {
+                    filesNotice = null
+                    session.dismissFileActionFailure()
+                },
             )
         },
         searchPane = { paneFocus ->

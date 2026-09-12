@@ -57,6 +57,10 @@ import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
+import io.putdotio.android.files.FilesDeleteMode
+import io.putdotio.android.files.FilesDeleteStatus
+import io.putdotio.android.files.FilesFolderState
+import io.putdotio.android.files.pendingIntent
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
 import io.putdotio.android.files.FilesFolderOperationPhase
@@ -66,6 +70,12 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.TvDialog
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import io.putdotio.android.tv.TvStatusScreen
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -91,6 +101,15 @@ internal fun TvFilesScreen(
     modifier: Modifier = Modifier,
     /** Changes with the signed-in session so one account's saved UI state never greets the next. */
     sessionKey: Any? = null,
+    /** The account's confirmed `trash_enabled`; null hides deletion, since its wording depends on it. */
+    confirmedTrashEnabled: Boolean? = null,
+    /** True when the account keeps positions (`use_start_from`), which is what the watched toggle writes. */
+    watchedToggleEnabled: Boolean = false,
+    onOpenInVlc: (FilesItem) -> Unit = {},
+    onSetWatched: (FilesItem, Boolean) -> Unit = { _, _ -> },
+    /** An explanation from outside the browser (a failed watched write, no VLC); OK dismisses it. */
+    notice: String? = null,
+    onDismissNotice: () -> Unit = {},
     /**
      * Which row last held focus in each folder; owned by the session so it survives the pane
      * being disposed for another destination. A LazyColumn is remounted on every folder
@@ -133,6 +152,19 @@ internal fun TvFilesScreen(
         return
     }
 
+    // The row whose actions are up, and whether its deletion is being confirmed. Both close
+    // when the row leaves the listing, like the unsupported overlay.
+    var actionsFor by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
+    var confirmingDelete by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf(false) }
+    val actionsItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == actionsFor }
+    val actionsOrphaned = actionsFor != null && actionsItem == null
+    SideEffect {
+        if (actionsOrphaned) {
+            actionsFor = null
+            confirmingDelete = false
+        }
+    }
+    val dialogOpen = actionsItem != null || notice != null
     // Loading and complete-empty folders have no focusable content, so the header's Refresh
     // takes focus; a failed folder focuses its own Retry, an empty page its paging control.
     val refreshFocus = remember { FocusRequester() }
@@ -155,6 +187,15 @@ internal fun TvFilesScreen(
         content is FilesContent.Ready -> entryTarget.value
         else -> FocusRequester.Default
     }
+    // A closed dialog hands focus back to the row that opened it (the pane's live entry).
+    val dialogWasOpen = remember { mutableStateOf(false) }
+    LaunchedEffect(dialogOpen) {
+        val closing = dialogWasOpen.value && !dialogOpen
+        dialogWasOpen.value = dialogOpen
+        if (!closing || !paneHasFocus.value) return@LaunchedEffect
+        withFrameNanos {}
+        if (paneHasFocus.value) entryTarget.value.requestFocus()
+    }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -163,6 +204,7 @@ internal fun TvFilesScreen(
             .focusGroup(),
     ) {
         TvFilesHeader(state, onEvent, refreshFocus, sessionKey, onFocusChanged = { headerHasFocus.value = it })
+        TvFilesDeleteStatus(current, onEvent)
         when (content) {
             is FilesContent.Loading ->
                 TvStatusScreen(stringResource(R.string.tv_files_loading), modifier = Modifier.weight(1f))
@@ -207,8 +249,129 @@ internal fun TvFilesScreen(
                             else -> unsupported = item.id.value
                         }
                     },
+                    onActions = { item -> actionsFor = item.id.value },
                 )
         }
+    }
+
+    if (notice != null) {
+        TvDialog(title = notice, message = null, onDismiss = onDismissNotice) { focus ->
+            TvButton(onClick = onDismissNotice, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
+                Text(stringResource(R.string.tv_files_ok))
+            }
+        }
+    } else if (actionsItem != null) {
+        val close = {
+            actionsFor = null
+            confirmingDelete = false
+        }
+        val deleteAction = (actionsItem.tvActions(watchedToggleEnabled, confirmedTrashEnabled, current.operation.canStartOperation)
+            .firstOrNull { it is TvFilesAction.Delete } as? TvFilesAction.Delete)
+        if (confirmingDelete && deleteAction != null) {
+            TvFilesDeleteDialog(
+                item = actionsItem,
+                trash = deleteAction.trash,
+                onConfirm = {
+                    close()
+                    val mode = if (deleteAction.trash) FilesDeleteMode.TRASH else FilesDeleteMode.PERMANENT
+                    onEvent(FilesBrowserEvent.Delete(current.folder.id, actionsItem.id, mode))
+                },
+                onDismiss = close,
+            )
+        } else {
+            TvFilesActionsDialog(
+                item = actionsItem,
+                actions = actionsItem.tvActions(watchedToggleEnabled, confirmedTrashEnabled, current.operation.canStartOperation),
+                onAction = { action ->
+                    when (action) {
+                        TvFilesAction.OpenInVlc -> {
+                            close()
+                            onOpenInVlc(actionsItem)
+                        }
+                        is TvFilesAction.SetWatched -> {
+                            close()
+                            onSetWatched(actionsItem, action.watched)
+                        }
+                        is TvFilesAction.Delete -> confirmingDelete = true
+                    }
+                },
+                onDismiss = close,
+            )
+        }
+    }
+}
+
+/**
+ * The shared delete operation, above the list: its phases while it runs, Check status or
+ * Retry when it fails, and what the fresh listing said about the item once it settled.
+ */
+@Composable
+private fun TvFilesDeleteStatus(
+    current: FilesFolderState,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+) {
+    val operation = current.operation
+    val intent = operation.pendingIntent<FilesFolderOperationIntent.Delete>()
+    when {
+        intent != null && operation is FilesFolderOperation.Loading -> TvFilesNotice(
+            text = stringResource(
+                when (operation.phase) {
+                    FilesFolderOperationPhase.DELETING ->
+                        if (intent.mode == FilesDeleteMode.TRASH) R.string.tv_files_deleting else R.string.tv_files_deleting_permanently
+                    FilesFolderOperationPhase.CHECKING_DELETE -> R.string.tv_files_delete_checking
+                    else -> R.string.tv_files_delete_reloading
+                },
+            ),
+        )
+        intent != null && operation is FilesFolderOperation.Failed -> TvFilesNotice(
+            text = stringResource(
+                if (operation.phase == FilesFolderOperationPhase.RELOADING) {
+                    R.string.tv_files_delete_reload_error
+                } else {
+                    R.string.tv_files_delete_unknown
+                },
+            ),
+            action = stringResource(
+                if (operation.phase == FilesFolderOperationPhase.RELOADING) R.string.tv_files_retry else R.string.tv_files_check_status,
+            ),
+            onAction = { onEvent(FilesBrowserEvent.Retry) },
+        )
+        operation == FilesFolderOperation.Idle -> current.deleteOutcome?.let { outcome ->
+            val message = when (outcome.status) {
+                FilesDeleteStatus.NO_LONGER_AVAILABLE -> R.string.tv_files_delete_unavailable
+                FilesDeleteStatus.STILL_PRESENT -> R.string.tv_files_delete_still_present
+                FilesDeleteStatus.SKIPPED -> R.string.tv_files_delete_skipped
+                FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN -> null
+            }
+            if (message != null) TvFilesNotice(text = stringResource(message, outcome.itemName))
+        }
+    }
+}
+
+/** A line above the rows, with an optional action in its own focus group so Up from a row reaches it. */
+@Composable
+private fun TvFilesNotice(
+    text: String,
+    action: String? = null,
+    onAction: () -> Unit = {},
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+            .focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (action != null) TvButton(onClick = onAction) { Text(action) }
     }
 }
 
@@ -332,6 +495,7 @@ private fun TvFilesList(
     onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
+    onActions: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val viewport = content.viewport
@@ -467,6 +631,7 @@ private fun TvFilesList(
             TvFilesRow(
                 item = item,
                 onClick = { onOpen(item) },
+                onActions = { onActions(item) },
                 modifier = Modifier
                     .then(if (item.id.value == focusTarget) Modifier.focusRequester(rowFocus) else Modifier)
                     .then(if (item.id.value == focusedRowId) Modifier.focusRequester(liveRowFocus) else Modifier)
@@ -504,6 +669,8 @@ internal fun TvFilesRow(
     item: FilesItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Long-press Center or the Menu key; null when the row offers nothing beyond opening. */
+    onActions: (() -> Unit)? = null,
     /** What Center does here, when it is not the Files default of open, play, or explain. */
     label: String = when {
         item.isFolder -> stringResource(R.string.tv_files_open_folder, item.name)
@@ -518,6 +685,7 @@ internal fun TvFilesRow(
     ListItem(
         selected = false,
         onClick = onClick,
+        onLongClick = onActions,
         headlineContent = { Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -547,6 +715,15 @@ internal fun TvFilesRow(
         scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
         modifier = modifier
             .fillMaxWidth()
+            // Remotes with a Menu key open the actions without holding Center.
+            .onKeyEvent { event ->
+                if (onActions != null && event.type == KeyEventType.KeyUp && event.key == Key.Menu) {
+                    onActions()
+                    true
+                } else {
+                    false
+                }
+            }
             .semantics { contentDescription = label }
             .testTag(TV_FILES_ROW_TAG),
     )

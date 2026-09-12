@@ -605,6 +605,26 @@ The pane is disabled when the account's `history_enabled` setting is off; the
 mobile Account screen toggles it, and the TV pane follows on the next session
 validation.
 
+## TV Files actions proof
+
+Long-press Center or press Menu on a Files row for the oracle's files-actions
+state: a centred dialog titled with the file's name, one full-width button per
+action and Cancel last, the first action focused. Open in VLC hands the
+original `/files/{id}/stream` URL to `org.videolan.vlc` with `ACTION_VIEW`; a
+dialog explains when VLC is not installed. Mark as watched writes the video's
+duration as its position and Mark as unwatched clears it; both appear only
+when the account's `use_start_from` is confirmed on, and marking watched also
+needs a known duration. Move to trash or Delete permanently follows the
+confirmed `trash_enabled` setting, confirms with Cancel focused, then runs the
+shared delete operation: its phases, Check status or Retry on failure, and the
+fresh listing's verdict show above the rows. Every dialog returns focus to
+its row. The shared identity's files are the fixture, so create a throwaway
+file before proving a deletion and read the watched state back:
+
+```bash
+PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation files.getStartFrom --args '[<id>]' --execute --output json
+```
+
 ## TV Account proof
 
 Account per oracle captures 09–12 and 14: the avatar, username, "X of Y free"

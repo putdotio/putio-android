@@ -45,7 +45,10 @@ The TV flavor signs in with a device code (put.io/link), keeps the token in
 Keystore-backed storage, restores it on relaunch, and shows the M3 navigation
 drawer with Files, Search, History and Account. Files browses folders with
 Refresh, Sort, paging, watched progress and the unsupported-type screen;
-media rows do not play yet. Search types through the system IME, replays
+media rows do not play yet. Long-press or the Menu key on a row offers Open
+in VLC (the original file), Mark as watched or unwatched, and Move to trash
+or Delete permanently per the account's Trash setting, each confirmed and
+reported above the list. Search types through the system IME, replays
 recent queries from chips, pages results in the standard rows, and opens a
 result in Files. History lists the account's events under relative-date
 headers, opens an event's file in Files, and clears with a confirmation.
