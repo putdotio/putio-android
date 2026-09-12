@@ -208,9 +208,17 @@ private fun TvAccountBody(
             withFrameNanos {}
             returningFromTrash.value = false
             if (paneHasFocus.value && !dialogShowing.value) trashFocus.requestFocus()
-        } else if (!rowsPresent.value && !dialogShowing.value) {
+        } else if (!rowsPresent.value && paneHasFocus.value && !dialogShowing.value) {
             entryTarget.value.requestFocus()
         }
+    }
+    // A row or notice that held focus left composition (Try again starts the retry that
+    // removes it): the entry point it named takes focus once the frame has settled.
+    val refocusRequests by owner.refocusRequests
+    LaunchedEffect(refocusRequests) {
+        if (refocusRequests == 0) return@LaunchedEffect
+        withFrameNanos {}
+        if (paneHasFocus.value && !dialogShowing.value) owner.focusEntry()
     }
 
     Column(
@@ -259,51 +267,80 @@ private fun TvAccountBody(
                 val change = { change: AccountSettingsChange ->
                     if (controls) onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
                 }
-                TvSwitchRow(
+                TvSettingsSwitchRow(
                     title = stringResource(R.string.tv_account_show_subtitles),
                     icon = R.drawable.ic_ph_subtitles,
                     checked = ready.preferences.showSubtitles,
+                    key = AccountSettingsKey.ShowSubtitles,
+                    state = settingsState,
+                    onEvent = onSettingsEvent,
                     onToggle = { change(AccountSettingsChange(AccountSettingsKey.ShowSubtitles, it)) },
                     owner = owner,
                 )
                 // The oracle words this one negatively; the account key is the positive one.
-                TvSwitchRow(
+                TvSettingsSwitchRow(
                     title = stringResource(R.string.tv_account_no_auto_subtitles),
                     icon = R.drawable.ic_ph_list_checks,
                     checked = !ready.preferences.autoSelectSubtitles,
+                    key = AccountSettingsKey.AutoSelectSubtitles,
+                    state = settingsState,
+                    onEvent = onSettingsEvent,
                     onToggle = { change(AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, !it)) },
                     owner = owner,
                 )
-                TvSectionHeader(stringResource(R.string.tv_account_section_storage))
-                TvSwitchRow(
+            }
+            TvSectionHeader(stringResource(R.string.tv_account_section_storage))
+            settingsReady?.let { ready ->
+                val controls = settingsState.controlsEnabled()
+                TvSettingsSwitchRow(
                     title = stringResource(R.string.tv_account_trash_enabled),
                     icon = R.drawable.ic_ph_recycle,
                     checked = ready.preferences.trashEnabled,
+                    key = AccountSettingsKey.Trash,
+                    state = settingsState,
+                    onEvent = onSettingsEvent,
                     onToggle = { enabled ->
-                        if (!enabled && controls) {
+                        if (!controls) {
+                            Unit
+                        } else if (!enabled) {
                             confirmTrashOff = true
                         } else {
-                            change(AccountSettingsChange(AccountSettingsKey.Trash, enabled))
+                            onSettingsEvent(
+                                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.Trash, true)),
+                            )
                         }
                     },
                     owner = owner,
                 )
-                if (onManageTrash != null) {
-                    val context = LocalContext.current
-                    TvChoiceRow(
-                        title = stringResource(R.string.tv_account_manage_trash),
-                        value = trashSizeBytes?.let { Formatter.formatShortFileSize(context, it.coerceAtLeast(0L)) },
-                        icon = R.drawable.ic_ph_trash,
-                        onClick = onManageTrash,
-                        owner = owner,
-                        focus = trashFocus,
-                    )
-                }
-                TvSwitchRow(
+            }
+            // Trash is its own listing: reachable whether or not account settings loaded.
+            if (onManageTrash != null) {
+                val context = LocalContext.current
+                TvChoiceRow(
+                    title = stringResource(R.string.tv_account_manage_trash),
+                    value = trashSizeBytes?.let { Formatter.formatShortFileSize(context, it.coerceAtLeast(0L)) },
+                    icon = R.drawable.ic_ph_trash,
+                    onClick = onManageTrash,
+                    owner = owner,
+                    focus = trashFocus,
+                )
+            }
+            settingsReady?.let { ready ->
+                val controls = settingsState.controlsEnabled()
+                TvSettingsSwitchRow(
                     title = stringResource(R.string.tv_account_history_enabled),
                     icon = R.drawable.ic_ph_clock_counter_clockwise,
                     checked = ready.preferences.historyEnabled,
-                    onToggle = { change(AccountSettingsChange(AccountSettingsKey.History, it)) },
+                    key = AccountSettingsKey.History,
+                    state = settingsState,
+                    onEvent = onSettingsEvent,
+                    onToggle = {
+                        if (controls) {
+                            onSettingsEvent(
+                                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.History, it)),
+                            )
+                        }
+                    },
                     owner = owner,
                 )
             }
@@ -464,21 +501,6 @@ private fun TvAccountSettingsSection(
     dialogShowing: Boolean,
     onChooseRoute: () -> Unit,
 ) {
-    val mutation = state.mutation
-    if (mutation is AccountSettingsMutation.Failed) {
-        val message = when (mutation.operation) {
-            AccountSettingsMutation.Operation.Save -> R.string.tv_account_save_error
-            AccountSettingsMutation.Operation.Refresh -> R.string.tv_account_refresh_error
-        }
-        TvAccountNotice(
-            text = stringResource(message, stringResource(mutation.failure.tvMessage())),
-            action = stringResource(R.string.tv_account_retry).takeUnless {
-                mutation.failure is AccountSettingsFailure.AuthenticationRequired
-            },
-            onAction = { onEvent(AccountSettingsEvent.RetryChange) },
-            owner = owner,
-        )
-    }
     when (val content = state.content) {
         is AccountSettingsContent.Loading -> TvAccountStatusText(stringResource(R.string.tv_account_settings_loading))
         is AccountSettingsContent.Failed -> TvAccountNotice(
@@ -509,10 +531,14 @@ private fun TvAccountSettingsSection(
                 owner = owner,
                 focus = firstRowFocus,
             )
-            TvSwitchRow(
+            TvSettingsFailureNotice(state, AccountSettingsKey.TunnelRoute, onEvent, owner, firstRowFocus)
+            TvSettingsSwitchRow(
                 title = stringResource(R.string.tv_account_resume_playback),
                 icon = R.drawable.ic_ph_bookmark_simple,
                 checked = content.preferences.resumePlayback,
+                key = AccountSettingsKey.ResumePlayback,
+                state = state,
+                onEvent = onEvent,
                 onToggle = {
                     if (controls) {
                         onEvent(
@@ -528,6 +554,48 @@ private fun TvAccountSettingsSection(
     }
 }
 
+/** A switch on an account setting, with the failure of its own last write shown under it. */
+@Composable
+private fun TvSettingsSwitchRow(
+    title: String,
+    @DrawableRes icon: Int,
+    checked: Boolean,
+    key: AccountSettingsKey,
+    state: AccountSettingsState,
+    onEvent: (AccountSettingsEvent) -> Boolean,
+    onToggle: (Boolean) -> Unit,
+    owner: TvPaneFocusOwner,
+) {
+    val focus = remember { FocusRequester() }
+    TvSwitchRow(title = title, icon = icon, checked = checked, onToggle = onToggle, owner = owner, focus = focus)
+    TvSettingsFailureNotice(state, key, onEvent, owner, focus)
+}
+
+/** The failed write for [key], beside its row; Try again hands focus back to that row. */
+@Composable
+private fun TvSettingsFailureNotice(
+    state: AccountSettingsState,
+    key: AccountSettingsKey,
+    onEvent: (AccountSettingsEvent) -> Boolean,
+    owner: TvPaneFocusOwner,
+    rowFocus: FocusRequester,
+) {
+    val failed = (state.mutation as? AccountSettingsMutation.Failed)?.takeIf { it.change.key == key } ?: return
+    val message = when (failed.operation) {
+        AccountSettingsMutation.Operation.Save -> R.string.tv_account_save_error
+        AccountSettingsMutation.Operation.Refresh -> R.string.tv_account_refresh_error
+    }
+    TvAccountNotice(
+        text = stringResource(message, stringResource(failed.failure.tvMessage())),
+        action = stringResource(R.string.tv_account_retry).takeUnless {
+            failed.failure is AccountSettingsFailure.AuthenticationRequired
+        },
+        onAction = { onEvent(AccountSettingsEvent.RetryChange) },
+        owner = owner,
+        returnTo = rowFocus,
+    )
+}
+
 @Composable
 private fun TvAppConfigSection(
     state: AndroidAppConfigState,
@@ -535,21 +603,6 @@ private fun TvAppConfigSection(
     owner: TvPaneFocusOwner,
     onChoosePlaybackType: () -> Unit,
 ) {
-    val mutation = state.mutation
-    if (mutation is AndroidAppConfigMutation.Failed) {
-        val message = when (mutation.operation) {
-            AndroidAppConfigMutation.Operation.Save -> R.string.tv_account_save_error
-            AndroidAppConfigMutation.Operation.Refresh -> R.string.tv_account_refresh_error
-        }
-        TvAccountNotice(
-            text = stringResource(message, stringResource(mutation.failure.tvMessage())),
-            action = stringResource(R.string.tv_account_retry).takeUnless {
-                mutation.failure is AndroidAppConfigFailure.AuthenticationRequired
-            },
-            onAction = { onEvent(AndroidAppConfigEvent.RetryChange) },
-            owner = owner,
-        )
-    }
     when (val content = state.content) {
         is AndroidAppConfigContent.Loading -> TvAccountStatusText(stringResource(R.string.tv_account_playback_loading))
         is AndroidAppConfigContent.Failed -> TvAccountNotice(
@@ -562,13 +615,17 @@ private fun TvAppConfigSection(
         )
         is AndroidAppConfigContent.Ready -> {
             val controls = state.controlsEnabled()
+            val typeFocus = remember { FocusRequester() }
             TvChoiceRow(
                 title = stringResource(R.string.tv_account_video_playback_type),
                 value = stringResource(content.preferences.videoPlaybackType.tvLabel()),
                 icon = R.drawable.ic_ph_monitor_play,
                 onClick = { if (controls) onChoosePlaybackType() },
                 owner = owner,
+                focus = typeFocus,
             )
+            TvAppConfigFailureNotice(state, onEvent, owner, typeFocus) { it is AndroidAppConfigChange.VideoPlayback }
+            val autoplayFocus = remember { FocusRequester() }
             TvSwitchRow(
                 title = stringResource(R.string.tv_account_autoplay_next),
                 icon = R.drawable.ic_ph_list_checks,
@@ -579,9 +636,35 @@ private fun TvAppConfigSection(
                     }
                 },
                 owner = owner,
+                focus = autoplayFocus,
             )
+            TvAppConfigFailureNotice(state, onEvent, owner, autoplayFocus) { it is AndroidAppConfigChange.AutoplayNextVideo }
         }
     }
+}
+
+@Composable
+private fun TvAppConfigFailureNotice(
+    state: AndroidAppConfigState,
+    onEvent: (AndroidAppConfigEvent) -> Boolean,
+    owner: TvPaneFocusOwner,
+    rowFocus: FocusRequester,
+    owns: (AndroidAppConfigChange) -> Boolean,
+) {
+    val failed = (state.mutation as? AndroidAppConfigMutation.Failed)?.takeIf { owns(it.change) } ?: return
+    val message = when (failed.operation) {
+        AndroidAppConfigMutation.Operation.Save -> R.string.tv_account_save_error
+        AndroidAppConfigMutation.Operation.Refresh -> R.string.tv_account_refresh_error
+    }
+    TvAccountNotice(
+        text = stringResource(message, stringResource(failed.failure.tvMessage())),
+        action = stringResource(R.string.tv_account_retry).takeUnless {
+            failed.failure is AndroidAppConfigFailure.AuthenticationRequired
+        },
+        onAction = { onEvent(AndroidAppConfigEvent.RetryChange) },
+        owner = owner,
+        returnTo = rowFocus,
+    )
 }
 
 @Composable
@@ -589,7 +672,7 @@ private fun TvDeviceSection(
     owner: TvPaneFocusOwner,
     onDiagnostics: () -> Unit,
 ) {
-    TvAccountRow(
+    TvInfoRow(
         title = stringResource(R.string.tv_account_app),
         value = stringResource(
             R.string.tv_account_app_value,
@@ -598,22 +681,16 @@ private fun TvDeviceSection(
             BuildConfig.VERSION_CODE,
         ),
         icon = R.drawable.ic_ph_android_logo,
-        onClick = {},
-        owner = owner,
     )
-    TvAccountRow(
+    TvInfoRow(
         title = stringResource(R.string.tv_account_device),
         value = stringResource(R.string.tv_account_device_value, Build.MANUFACTURER, Build.MODEL),
         icon = R.drawable.ic_ph_television,
-        onClick = {},
-        owner = owner,
     )
-    TvAccountRow(
+    TvInfoRow(
         title = stringResource(R.string.tv_account_os),
         value = stringResource(R.string.tv_account_os_value, Build.VERSION.RELEASE),
         icon = R.drawable.ic_ph_circles_four,
-        onClick = {},
-        owner = owner,
     )
     TvChoiceRow(
         title = stringResource(R.string.tv_account_diagnostics),
@@ -622,6 +699,41 @@ private fun TvDeviceSection(
         onClick = onDiagnostics,
         owner = owner,
     )
+}
+
+/** A fact with nothing to do: laid out like a row, but not in the D-pad chain. */
+@Composable
+private fun TvInfoRow(
+    title: String,
+    value: String,
+    @DrawableRes icon: Int,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        TvRowIcon(icon)
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }
 
 @Composable
@@ -667,6 +779,8 @@ private fun TvAccountNotice(
     action: String?,
     onAction: () -> Unit,
     owner: TvPaneFocusOwner,
+    /** Where focus goes when the notice leaves while its action holds focus; the pane's home otherwise. */
+    returnTo: FocusRequester? = null,
 ) {
     val actionFocus = remember { FocusRequester() }
     Row(
@@ -686,7 +800,10 @@ private fun TvAccountNotice(
             modifier = Modifier.weight(1f),
         )
         if (action != null) {
-            TvButton(onClick = onAction, modifier = owner.section(actionFocus).focusRequester(actionFocus)) {
+            TvButton(
+                onClick = onAction,
+                modifier = owner.section(actionFocus, fallback = returnTo?.let { { it } }).focusRequester(actionFocus),
+            ) {
                 Text(action)
             }
         }
@@ -700,8 +817,8 @@ private fun TvSwitchRow(
     checked: Boolean,
     onToggle: (Boolean) -> Unit,
     owner: TvPaneFocusOwner,
+    focus: FocusRequester = remember { FocusRequester() },
 ) {
-    val focus = remember { FocusRequester() }
     ListItem(
         selected = false,
         onClick = { onToggle(!checked) },

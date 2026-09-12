@@ -217,15 +217,22 @@ class TvAccountScreenTest {
             requested,
             AccountSettingsEvent.SaveFailed(AccountSettingsRequestId(2), failure),
         ).state
-        show(settingsState = { failed })
+        var settings by mutableStateOf(failed)
+        show(settingsState = { settings })
 
-        compose.onNodeWithText("Couldn’t save this setting. Check the network and try again.").assertIsDisplayed()
+        // Beside its row, below the fold until Try again takes focus and scrolls to it.
+        compose.onNodeWithText("Couldn’t save this setting. Check the network and try again.").assertExists()
         compose.onNodeWithText("Keep account history").assertIsOn()
         compose.onNode(hasText("Try again") and hasClickAction()).requestFocus().performKeyInput {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
         }
         assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), settingsEvents)
+
+        // The retry removes the notice from under Try again; its row takes the focus back.
+        compose.runOnIdle { settings = AccountSettingsReducer.reduce(failed, AccountSettingsEvent.RetryChange).state }
+        compose.onAllNodesWithText("Try again").assertCountEquals(0)
+        compose.onNodeWithText("Keep account history").assertIsFocused()
     }
 
     @Test
@@ -238,6 +245,8 @@ class TvAccountScreenTest {
         show(settingsState = { failed })
 
         compose.onNodeWithText("Couldn’t load account settings. Check the network and try again.").assertIsDisplayed()
+        // Trash is its own listing and stays reachable without account settings.
+        compose.onNodeWithText("Manage your trash").assertIsDisplayed()
         compose.onAllNodesWithText("Sign out")[0].assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
             keyDown(Key.DirectionCenter)
