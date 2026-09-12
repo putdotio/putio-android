@@ -76,7 +76,8 @@ internal fun TvTrashConfirmations(
             title = stringResource(R.string.tv_trash_restore_title),
             message = stringResource(R.string.tv_trash_restore_message, item.name),
             confirmLabel = stringResource(R.string.tv_trash_restore),
-            onConfirm = { if (canConfirm && confirmationId != null) onEvent(TrashEvent.ConfirmRestore(confirmationId)) },
+            confirmEnabled = canConfirm && confirmationId != null,
+            onConfirm = { confirmationId?.let { onEvent(TrashEvent.ConfirmRestore(it)) } },
             onCancel = { onEvent(TrashEvent.CancelRestore) },
         )
     }
@@ -103,7 +104,8 @@ internal fun TvTrashConfirmations(
             title = title,
             message = message,
             confirmLabel = confirm,
-            onConfirm = { if (canConfirm && confirmationId != null) onEvent(TrashEvent.ConfirmAction(confirmationId)) },
+            confirmEnabled = canConfirm && confirmationId != null,
+            onConfirm = { confirmationId?.let { onEvent(TrashEvent.ConfirmAction(it)) } },
             onCancel = { onEvent(TrashEvent.CancelAction) },
         )
     }
@@ -114,11 +116,13 @@ private fun TvConfirmDialog(
     title: String,
     message: String,
     confirmLabel: String,
+    confirmEnabled: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
     TvDialog(title = title, message = message, onDismiss = onCancel) { focus ->
-        TvButton(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) { Text(confirmLabel) }
+        // Disabled, not a silent no-op, while a 401 or another mutation makes confirming pointless.
+        TvButton(onClick = onConfirm, enabled = confirmEnabled, modifier = Modifier.fillMaxWidth()) { Text(confirmLabel) }
         TvButton(
             onClick = onCancel,
             modifier = Modifier
