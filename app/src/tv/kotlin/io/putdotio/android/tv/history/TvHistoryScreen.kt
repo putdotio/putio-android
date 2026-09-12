@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -98,10 +99,14 @@ internal fun TvHistoryScreen(
     // there are any, Try again on a failure, Clear otherwise. Sections move it as they take
     // focus; the effects below set it as content changes, before any focus can arrive.
     val entryTarget = remember { mutableStateOf(clearFocus) }
-    val listMounted = remember { TvHistoryListMount() }
     val clearHasFocus = remember { mutableStateOf(false) }
+    // The home section follows the content, read when a section leaves: by then the
+    // content is already the one replacing it, and its own nodes are attached.
+    val currentContent = rememberUpdatedState(content)
     val owner = remember {
-        TvPaneFocusOwner(entryTarget, paneHasFocus) { if (listMounted.value) listFocus else clearFocus }
+        TvPaneFocusOwner(entryTarget, paneHasFocus) {
+            if (currentContent.value is HistoryContent.Ready) listFocus else clearFocus
+        }
     }
     // Loading, empty, and disabled lists have no focusable content, so Clear takes focus
     // when they replace one that had some; a failed list focuses its own Try again.
@@ -187,9 +192,8 @@ internal fun TvHistoryScreen(
                 // the list's own effects: a list that mounts while Clear does not hold
                 // focus is where entry lands.
                 DisposableEffect(Unit) {
-                    listMounted.value = true
                     if (entryTarget.value === clearFocus && !clearHasFocus.value) entryTarget.value = listFocus
-                    onDispose { listMounted.value = false }
+                    onDispose {}
                 }
                 TvHistoryList(
                     content = content,
@@ -443,11 +447,6 @@ private fun TvHistoryPaging(
             Text(stringResource(label))
         }
     }
-}
-
-/** Plain, not snapshot state: read from focus callbacks, never from composition. */
-private class TvHistoryListMount {
-    var value = false
 }
 
 /** Full-width rows scale less than compact surfaces so they stay inside the safe area. */

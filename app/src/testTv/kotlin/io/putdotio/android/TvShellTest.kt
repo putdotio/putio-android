@@ -608,4 +608,47 @@ class TvShellTest {
         compose.onNodeWithText("Your files will show up here.").assertIsFocused()
         compose.runOnIdle { assertEquals(null, requested) }
     }
+    @Test
+    fun historyRowsThatGoWhileTheUserIsOnTheDrawerLeaveClearAsTheEntryPoint() {
+        var history by mutableStateOf(
+            HistoryState(
+                HistoryContent.Ready(
+                    listOf(
+                        HistoryItem(HistoryEventId(1), "2026-09-10T10:00:00", HistoryEventKind.File(HistoryFileId(5), "Sintel.mp4")),
+                    ),
+                    HistoryPaging.Complete,
+                ),
+            ),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    historyPane = { paneFocus ->
+                        TvHistoryScreen(state = history, onEvent = { true }, modifier = Modifier.focusRequester(paneFocus))
+                    },
+                )
+            }
+        }
+        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNode(hasText("History") and hasClickAction()).assertIsFocused()
+
+        compose.runOnIdle { history = HistoryState(HistoryContent.Empty) }
+        compose.onNodeWithText("No activity yet.").assertIsDisplayed()
+        // The rows went while the drawer held focus: nothing pulled it back.
+        compose.onNode(hasText("History") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
+    }
 }

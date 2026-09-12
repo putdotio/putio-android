@@ -47,10 +47,13 @@ class SdkHistoryRepositoryTest {
             result.value.items[1].kind,
         )
         assertEquals(
-            HistoryEventKind.Other("TRANSFER_ERROR", "failed movie"),
+            HistoryEventKind.Other(HistoryEventType.TRANSFER_ERROR.raw, "failed movie"),
             result.value.items[2].kind,
         )
-        assertEquals(HistoryEventKind.Other("RSS_FILTER_PAUSED", "Shows"), result.value.items[3].kind)
+        assertEquals(
+            HistoryEventKind.Other(HistoryEventType.RSS_FILTER_PAUSED.raw, "Shows"),
+            result.value.items[3].kind,
+        )
     }
 
     @Test
