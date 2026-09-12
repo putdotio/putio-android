@@ -93,7 +93,8 @@ internal fun TvTrashScreen(
 ) = key(sessionKey) {
     val content = state.content
     val loaded = content as? TrashContent.Loaded
-    val hasRows = loaded != null && loaded.items.isNotEmpty()
+    // A page can be empty and still carry a cursor; only a known-empty trash shows the empty state.
+    val hasRows = loaded != null && !loaded.isKnownEmpty
     val refreshFocus = remember { FocusRequester() }
     val listFocus = remember { FocusRequester() }
     val retryFocus = remember { FocusRequester() }
@@ -106,12 +107,15 @@ internal fun TvTrashScreen(
     // Refresh is the one node that outlives every content change; it takes focus when the
     // rows go (an emptied trash, a reload) and a failed read focuses its own Try again.
     val headerOwnsFocus = content is TrashContent.Loading || (loaded != null && !hasRows)
-    LaunchedEffect(headerOwnsFocus) {
-        if (headerOwnsFocus && paneHasFocus.value) refreshFocus.requestFocus()
-    }
     var chosenItemId by remember { mutableStateOf<Long?>(null) }
     val chosenItem = loaded?.items?.firstOrNull { it.id.value == chosenItemId }
+    // A confirmation lives on the controller and can greet a recreated pane together with
+    // the rows; the pane's own placement must not take focus from it.
     val dialogOpen = chosenItem != null || state.confirmation != null || state.actionConfirmation != null
+    val dialogShowing = rememberUpdatedState(dialogOpen)
+    LaunchedEffect(headerOwnsFocus) {
+        if (headerOwnsFocus && paneHasFocus.value && !dialogShowing.value) refreshFocus.requestFocus()
+    }
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) {
         val closing = dialogWasOpen.value && !dialogOpen
@@ -151,8 +155,13 @@ internal fun TvTrashScreen(
             )
         }
         when (content) {
-            TrashContent.Loading ->
+            TrashContent.Loading -> {
+                DisposableEffect(Unit) {
+                    entryTarget.value = refreshFocus
+                    onDispose {}
+                }
                 TvStatusScreen(stringResource(R.string.tv_trash_loading), modifier = Modifier.weight(1f))
+            }
             is TrashContent.Error -> {
                 DisposableEffect(Unit) {
                     entryTarget.value = retryFocus
@@ -170,6 +179,10 @@ internal fun TvTrashScreen(
             }
             is TrashContent.Loaded ->
                 if (!hasRows) {
+                    DisposableEffect(Unit) {
+                        entryTarget.value = refreshFocus
+                        onDispose {}
+                    }
                     TvTrashEmpty(modifier = Modifier.weight(1f))
                 } else {
                     DisposableEffect(Unit) {
@@ -184,6 +197,7 @@ internal fun TvTrashScreen(
                         owner = owner,
                         listFocus = listFocus,
                         paneHasFocus = paneHasFocus,
+                        dialogShowing = dialogShowing,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -363,7 +377,8 @@ private fun TrashActionOutcome.tvText(): String {
         }
         check == TrashActionCheck.INCONCLUSIVE -> when (action) {
             is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_inconclusive, name)
-            else -> stringResource(R.string.tv_trash_restore_all_inconclusive)
+            TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_inconclusive)
+            TrashAction.Empty -> stringResource(R.string.tv_trash_empty_inconclusive)
         }
         check == TrashActionCheck.FAILED -> checkFailure?.let { stringResource(it.tvMessage()) }
             ?: when (action) {
@@ -428,11 +443,13 @@ private fun TvTrashList(
     owner: TvPaneFocusOwner,
     listFocus: FocusRequester,
     paneHasFocus: State<Boolean>,
+    dialogShowing: State<Boolean>,
     modifier: Modifier = Modifier,
 ) {
     val items = content.items
     val anchorRow = remember { FocusRequester() }
     val lastRow = remember { FocusRequester() }
+    val pagingFocus = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
     val pagingShown = content.nextCursor != null || content.isLoadingMore || content.pageFailure != null
@@ -443,14 +460,16 @@ private fun TvTrashList(
     val listState = rememberLazyListState()
     val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
     LaunchedEffect(listState) {
-        val anchorKey = items.getOrNull(anchorIndex)?.id?.value ?: return@LaunchedEffect
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == anchorKey } }.first { it }
+        // A page with no rows of its own has only the paging control to land on.
+        val targetKey = items.getOrNull(anchorIndex)?.id?.value ?: TV_TRASH_PAGING_KEY.takeIf { pagingShown }
+            ?: return@LaunchedEffect
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == targetKey } }.first { it }
         withFrameNanos {}
-        if (paneHasFocus.value) listFocus.requestFocus()
+        if (paneHasFocus.value && !dialogShowing.value) listFocus.requestFocus()
     }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
-        val lastId = items.last().id.value
+        val lastId = items.lastOrNull()?.id?.value ?: return@LaunchedEffect
         if (listState.layoutInfo.visibleItemsInfo.none { it.key == lastId }) listState.scrollToItem(items.lastIndex)
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == lastId } }.first { it }
         withFrameNanos {}
@@ -464,7 +483,8 @@ private fun TvTrashList(
             .then(owner.section(listFocus))
             .focusRequester(listFocus)
             .focusRestorer {
-                val lastComposed = listState.layoutInfo.visibleItemsInfo.any { it.key == items.last().id.value }
+                val lastId = items.lastOrNull()?.id?.value ?: return@focusRestorer pagingFocus
+                val lastComposed = listState.layoutInfo.visibleItemsInfo.any { it.key == lastId }
                 if (handOffToLastRow.value && lastComposed) lastRow else anchorRow
             }
             .focusGroup()
@@ -486,7 +506,9 @@ private fun TvTrashList(
                     content = content,
                     onNextPage = onNextPage,
                     onRetry = onRetry,
-                    buttonModifier = Modifier.onFocusChanged { pagingHeldFocus.value = it.isFocused },
+                    buttonModifier = Modifier
+                        .focusRequester(pagingFocus)
+                        .onFocusChanged { pagingHeldFocus.value = it.isFocused },
                 )
             }
         }

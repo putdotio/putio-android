@@ -56,10 +56,13 @@ internal fun TvDialog(
                 overflow = TextOverflow.Ellipsis,
             )
             if (message != null) {
+                // Bounded so a long server-supplied name cannot push the actions off screen.
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(bottom = 12.dp),
                 )
             }

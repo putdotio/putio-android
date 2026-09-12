@@ -173,6 +173,8 @@ private fun TvSignedInApp(
             BackHandler(enabled = filesState.canNavigateBack) {
                 session.files.dispatch(FilesBrowserEvent.NavigateBack)
             }
+            // A restore from Trash marks its folder stale; the listing reloads when Files shows again.
+            LaunchedEffect(session) { session.files.dispatch(FilesBrowserEvent.ReloadIfStale) }
             // A requester on the pane lands on its first focusable descendant (Refresh); the
             // pane's own entry effects then move focus to the row it remembers.
             TvFilesScreen(

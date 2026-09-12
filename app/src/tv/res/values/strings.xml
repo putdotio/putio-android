@@ -159,6 +159,7 @@
     <string name="tv_trash_restore_all_verified">Restored items are back in Files.</string>
     <string name="tv_trash_empty_verified">Trash is empty.</string>
     <string name="tv_trash_delete_inconclusive">%1$s was not on the first page. Check trash again in a moment.</string>
+    <string name="tv_trash_empty_inconclusive">Trash is still emptying. Check again in a moment.</string>
     <string name="tv_trash_restore_all_inconclusive">Items are still leaving trash. Check again in a moment.</string>
     <string name="tv_trash_delete_still_present">%1$s is still in trash.</string>
     <string name="tv_trash_empty_still_present">Trash still has items. Refresh in a moment and try again.</string>

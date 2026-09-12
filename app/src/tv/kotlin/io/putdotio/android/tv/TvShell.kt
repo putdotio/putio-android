@@ -160,9 +160,10 @@ private fun TvAccountPane(
     paneFocus: FocusRequester,
     trashPane: (@Composable (paneFocus: FocusRequester) -> Unit)?,
 ) {
-    // Forgotten with the pane: leaving for another destination and coming back lands on
-    // Account itself, and the row that opened Trash takes focus again on Back.
-    var showingTrash by remember { mutableStateOf(false) }
+    // Saved across recreation like the destination, forgotten with the pane: leaving for
+    // another destination and coming back lands on Account itself, and the row that opened
+    // Trash takes focus again on Back.
+    var showingTrash by rememberSaveable { mutableStateOf(false) }
     if (trashPane != null && showingTrash) {
         BackHandler { showingTrash = false }
         trashPane(paneFocus)

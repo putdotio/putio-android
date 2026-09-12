@@ -200,6 +200,29 @@ class TvTrashScreenTest {
         compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused()
     }
 
+    @Test
+    fun anEmptyPageWithACursorKeepsLoadMoreReachable() {
+        show { TrashState(content = TrashContent.Loaded(emptyList(), FilesCursor("c"), total = 5, trashSizeBytes = 1)) }
+
+        compose.onAllNodesWithText("Your trash is empty").assertCountEquals(0)
+        // The list has only its paging control, which is where entry lands.
+        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+            pressKey(Key.DirectionUp)
+        }
+        assertEquals(listOf<TrashEvent>(TrashEvent.LoadNextPage), events)
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun aConfirmationThatGreetsTheRowsKeepsItsFocus() {
+        show { TrashState(content = loaded, actionConfirmation = TrashAction.Empty, actionConfirmationId = 9L) }
+
+        compose.onNodeWithText("Empty trash?").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").assertIsFocused()
+    }
+
     private fun show(state: () -> TrashState) {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
