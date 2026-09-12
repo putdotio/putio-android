@@ -18,10 +18,12 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.authoritativeSessionFailure
+import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.SdkHistoryRepository
 import io.putdotio.android.history.authoritativeSessionFailure
@@ -40,6 +42,9 @@ import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.files.TvFilesScreen
 import io.putdotio.android.tv.history.TvHistoryScreen
+import io.putdotio.android.tv.trash.TvTrashScreen
+import io.putdotio.android.trash.SdkTrashRepository
+import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.tvSessionViewModelFactory
@@ -100,6 +105,7 @@ private fun TvSignedInApp(
             filesRepository = filesRepository,
             searchRepository = SdkSearchRepository(runtime.putioClient),
             historyRepository = SdkHistoryRepository(runtime.putioClient),
+            trashRepository = SdkTrashRepository(runtime.putioClient),
             filesItemResolver = filesRepository,
             recentSearchStore = { scope -> AppConfigRecentSearchStore(runtime.putioClient, scope) },
         )
@@ -116,7 +122,9 @@ private fun TvSignedInApp(
     val historyState by session.history.state.collectAsStateWithLifecycle()
     val recentSearchFailure by session.recentSearchFailure.collectAsStateWithLifecycle()
     val historyOpenFailure by session.historyOpenFailure.collectAsStateWithLifecycle()
+    val trashState by session.trash.state.collectAsStateWithLifecycle()
     val sessionRejected = filesState.authoritativeSessionFailure() != null ||
+        trashState.authenticationFailure != null ||
         searchState.authoritativeSessionFailure() != null ||
         historyState.authoritativeSessionFailure() != null ||
         recentSearchFailure is FilesFailure.AuthenticationRequired ||
@@ -147,6 +155,13 @@ private fun TvSignedInApp(
     LaunchedEffect(session) {
         session.historyOpens.collect { item -> historyOpenRejected = !openInFiles(item) }
     }
+    // A restore changes Files behind the browser's cache: one item's folder, or every folder.
+    LaunchedEffect(session, trashState.restoredVersion) {
+        trashState.lastRestoredItem?.let { session.files.dispatch(FilesBrowserEvent.InvalidateRestoredItem(it)) }
+    }
+    LaunchedEffect(session, trashState.bulkRestoreVersion) {
+        if (trashState.bulkRestoreVersion > 0L) session.files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
+    }
     val sessionKey = signedIn.account.userId to signedIn.sessionId.value
 
     TvShell(
@@ -159,6 +174,22 @@ private fun TvSignedInApp(
             // cannot pop the folder stack behind it.
             BackHandler(enabled = filesState.canNavigateBack) {
                 session.files.dispatch(FilesBrowserEvent.NavigateBack)
+            }
+            // A restore from Trash marks its folder stale; the listing reloads when Files shows
+            // again, or once a refresh that was running at that moment has settled.
+            // Keyed like mobile: the folder, the operation, and whether the content is still
+            // loading, so a reload deferred by any of them runs once that settles.
+            val current = filesState.current
+            LaunchedEffect(
+                session,
+                current.folder.id,
+                current.needsReload,
+                current.operation,
+                current.content is FilesContent.Loading,
+            ) {
+                if (current.needsReload && current.operation.canStartOperation && current.content !is FilesContent.Loading) {
+                    session.files.dispatch(FilesBrowserEvent.ReloadIfStale)
+                }
             }
             // A requester on the pane lands on its first focusable descendant (Refresh); the
             // pane's own entry effects then move focus to the row it remembers.
@@ -204,6 +235,17 @@ private fun TvSignedInApp(
                     historyOpenRejected -> FilesFailure.NavigationBlocked
                     else -> historyOpenFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
                 },
+                modifier = Modifier.focusRequester(paneFocus),
+                sessionKey = sessionKey,
+            )
+        },
+        trashPane = { paneFocus ->
+            // The listing is read on entry and kept while the pane is away; a pending mutation's
+            // recovery stays available because the controller outlives the pane.
+            LaunchedEffect(session) { session.trash.dispatch(TrashEvent.Open) }
+            TvTrashScreen(
+                state = trashState,
+                onEvent = session.trash::dispatch,
                 modifier = Modifier.focusRequester(paneFocus),
                 sessionKey = sessionKey,
             )

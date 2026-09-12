@@ -19,6 +19,10 @@ import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.trash.TrashBulkSelection
+import io.putdotio.android.trash.TrashEvent
+import io.putdotio.android.trash.TrashPage
+import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
@@ -63,6 +67,7 @@ class TvSessionViewModelTest {
 
             override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
         },
+        trashRepository = StubTrashRepository,
         filesItemResolver = object : FilesItemResolver {
             override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Success(
                 FilesItem(
@@ -98,6 +103,7 @@ class TvSessionViewModelTest {
         assertNull(second.filesFocusMemory[0L])
         assertFalse(first.files.dispatch(FilesBrowserEvent.Refresh))
         assertFalse(first.search.updateQuery("late"))
+        assertFalse(first.trash.dispatch(TrashEvent.Open))
         assertTrue(stores.first().closed)
         assertFalse(stores.last().closed)
     }
@@ -120,6 +126,7 @@ class TvSessionViewModelTest {
             filesRepository = dependencies.filesRepository,
             searchRepository = dependencies.searchRepository,
             historyRepository = dependencies.historyRepository,
+            trashRepository = dependencies.trashRepository,
             filesItemResolver = object : FilesItemResolver {
                 override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Failure(rejected)
             },
@@ -159,6 +166,16 @@ class TvSessionViewModelTest {
         TvAccount(userId = userId, username = "u", email = "u@example.com", historyEnabled = true)
 
     private fun signedIn(session: Long) = TvAuthState.SignedIn(account(), TvAuthSessionId(session))
+
+    private object StubTrashRepository : TrashRepository {
+        override suspend fun load() = FilesRepositoryResult.Success(TrashPage(emptyList(), nextCursor = null))
+        override suspend fun loadNextPage(cursor: FilesCursor) = error("No continuation expected")
+        override suspend fun restore(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
+        override suspend fun resolveItem(itemId: FilesItemId) = error("No check expected")
+        override suspend fun deleteItem(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
+        override suspend fun restoreAll(selection: TrashBulkSelection) = FilesRepositoryResult.Success(Unit)
+        override suspend fun empty() = FilesRepositoryResult.Success(Unit)
+    }
 
     private class FakeRecentSearchStore : RecentSearchStoreOwner {
         override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())

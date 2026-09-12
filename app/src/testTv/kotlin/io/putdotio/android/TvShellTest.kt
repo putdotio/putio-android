@@ -50,6 +50,9 @@ import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.tv.history.TvHistoryScreen
+import io.putdotio.android.tv.trash.TvTrashScreen
+import io.putdotio.android.trash.TrashContent
+import io.putdotio.android.trash.TrashState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.android.tv.TvShell
@@ -650,5 +653,42 @@ class TvShellTest {
             pressKey(Key.DirectionRight)
         }
         compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
+    }
+    @Test
+    fun accountOpensTrashFromItsRowAndBackReturnsToThatRow() {
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    trashPane = { paneFocus ->
+                        TvTrashScreen(
+                            state = TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0)),
+                            onEvent = { true },
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
+                    },
+                )
+            }
+        }
+        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Sign out").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
+
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.onNodeWithText("Manage your trash").assertIsFocused()
     }
 }

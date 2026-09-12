@@ -349,6 +349,13 @@
       "asset": "assets/fill/arrow-circle-down-fill.svg",
       "sourceSha256": "55ad201e30ef64bd200bdb261d2f78a64bfac03958fe93994b07606b5dee2927",
       "outputSha256": "196338e5911488d6fe49f8ff70147fdd4c0d8a2edfa4be2bc5baaecdabdf3b23"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_trash",
+      "asset": "assets/regular/trash.svg",
+      "sourceSha256": "e6a830c0409f9e101e3695c981eef98427d39fd01f502b9cbd6900930b01f19c",
+      "outputSha256": "43cf4b9ae31a1bab692ffbb5ac80f2e09454011dea73006a8ceb7fbaa2cd92e7"
     }
   ]
 }
