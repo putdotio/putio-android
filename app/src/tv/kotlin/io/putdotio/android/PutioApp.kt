@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +22,9 @@ import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.authoritativeSessionFailure
+import io.putdotio.android.history.HistoryEvent
+import io.putdotio.android.history.SdkHistoryRepository
+import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.search.AppConfigRecentSearchStore
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.SearchOutput
@@ -35,6 +39,7 @@ import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.files.TvFilesScreen
+import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.tvSessionViewModelFactory
@@ -90,44 +95,57 @@ private fun TvSignedInApp(
     onSessionRejected: suspend () -> Unit,
 ) {
     val dependencies = remember(runtime.putioClient) {
+        val filesRepository = SdkFilesRepository(runtime.putioClient)
         TvSessionDependencies(
-            filesRepository = SdkFilesRepository(runtime.putioClient),
+            filesRepository = filesRepository,
             searchRepository = SdkSearchRepository(runtime.putioClient),
+            historyRepository = SdkHistoryRepository(runtime.putioClient),
+            filesItemResolver = filesRepository,
             recentSearchStore = { scope -> AppConfigRecentSearchStore(runtime.putioClient, scope) },
         )
     }
     // Looked up every composition, not remembered: the view model closes the session on its
     // own auth collector, and a cached closed controller would silently swallow events.
-    val session = sessionViewModel.sessionFor(signedIn.account.userId, signedIn.sessionId, dependencies)
+    val session = sessionViewModel.sessionFor(signedIn.account, signedIn.sessionId, dependencies)
     if (session == null) {
         TvStatusScreen(stringResource(R.string.tv_session_restoring))
         return
     }
     val filesState by session.files.state.collectAsStateWithLifecycle()
     val searchState by session.search.state.collectAsStateWithLifecycle()
+    val historyState by session.history.state.collectAsStateWithLifecycle()
     val recentSearchFailure by session.recentSearchFailure.collectAsStateWithLifecycle()
+    val historyOpenFailure by session.historyOpenFailure.collectAsStateWithLifecycle()
     val sessionRejected = filesState.authoritativeSessionFailure() != null ||
         searchState.authoritativeSessionFailure() != null ||
-        recentSearchFailure is FilesFailure.AuthenticationRequired
+        historyState.authoritativeSessionFailure() != null ||
+        recentSearchFailure is FilesFailure.AuthenticationRequired ||
+        historyOpenFailure is FilesFailure.AuthenticationRequired
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
+    // The account's setting is read at validation; a re-validated session may flip it.
+    LaunchedEffect(session, signedIn.account.historyEnabled) {
+        session.history.dispatch(HistoryEvent.SetEnabled(signedIn.account.historyEnabled))
+    }
 
-    // A search result opens in Files: the browser jumps to the result's folder and the
-    // shell switches destinations. A refused jump stays on Search with an explanation.
+    // A search result or a history event opens in Files: the browser jumps to the item's
+    // folder and the shell switches destinations. A refused jump stays put with an explanation.
     var requestedDestination by remember(session) { mutableStateOf<TvDestination?>(null) }
     var openRejected by remember(session) { mutableStateOf(false) }
+    var historyOpenRejected by remember(session) { mutableStateOf(false) }
+    val openInFiles: (FilesItem) -> Boolean = { item ->
+        session.files.dispatch(FilesBrowserEvent.OpenExternalItem(item)).also { accepted ->
+            if (accepted) requestedDestination = TvDestination.Files
+        }
+    }
     LaunchedEffect(session) {
         session.search.outputs.collect { output ->
             when (output) {
-                is SearchOutput.OpenResult -> {
-                    if (session.files.dispatch(FilesBrowserEvent.OpenExternalItem(output.item))) {
-                        openRejected = false
-                        requestedDestination = TvDestination.Files
-                    } else {
-                        openRejected = true
-                    }
-                }
+                is SearchOutput.OpenResult -> openRejected = !openInFiles(output.item)
             }
         }
+    }
+    LaunchedEffect(session) {
+        session.historyOpens.collect { item -> historyOpenRejected = !openInFiles(item) }
     }
     val sessionKey = signedIn.account.userId to signedIn.sessionId.value
 
@@ -160,6 +178,31 @@ private fun TvSignedInApp(
                 notice = when {
                     openRejected -> FilesFailure.NavigationBlocked
                     else -> recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
+                },
+                modifier = Modifier.focusRequester(paneFocus),
+                sessionKey = sessionKey,
+            )
+        },
+        historyPane = { paneFocus ->
+            // A stale explanation must not greet a visit to the pane: cleared on entry as well
+            // as on leaving, since a slow resolution can settle after the user has left.
+            DisposableEffect(session) {
+                historyOpenRejected = false
+                session.dismissHistoryOpenFailure()
+                onDispose {
+                    historyOpenRejected = false
+                    session.dismissHistoryOpenFailure()
+                }
+            }
+            TvHistoryScreen(
+                state = historyState,
+                onEvent = { event ->
+                    if (event is HistoryEvent.OpenFile) historyOpenRejected = false
+                    session.history.dispatch(event)
+                },
+                notice = when {
+                    historyOpenRejected -> FilesFailure.NavigationBlocked
+                    else -> historyOpenFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
                 },
                 modifier = Modifier.focusRequester(paneFocus),
                 sessionKey = sessionKey,

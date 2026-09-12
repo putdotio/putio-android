@@ -21,6 +21,7 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
+import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame

@@ -117,6 +117,7 @@ import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.SdkHistoryRepository
+import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.SearchContent
@@ -1505,21 +1506,6 @@ internal fun TransfersVisibilityEffect(
         onStopOrDispose { onEvent(TransfersEvent.VisibilityChanged(false)) }
     }
 }
-
-internal fun HistoryState.authoritativeSessionFailure(): FilesFailure? =
-    listOfNotNull(
-        authoritativeFailure,
-        when (val value = content) {
-            is HistoryContent.Failed -> value.failure
-            is HistoryContent.Ready ->
-                (value.paging as? io.putdotio.android.history.HistoryPaging.Failed)?.failure
-            HistoryContent.Disabled,
-            HistoryContent.Empty,
-            is HistoryContent.Loading,
-            -> null
-        },
-        (clearing as? io.putdotio.android.history.HistoryClearing.Failed)?.failure,
-    ).firstOrNull { it is FilesFailure.AuthenticationRequired }
 
 internal fun TransfersState.authoritativeSessionFailure(): FilesFailure? =
     listOfNotNull(

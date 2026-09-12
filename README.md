@@ -47,7 +47,8 @@ drawer with Files, Search, History and Account. Files browses folders with
 Refresh, Sort, paging, watched progress and the unsupported-type screen;
 media rows do not play yet. Search types through the system IME, replays
 recent queries from chips, pages results in the standard rows, and opens a
-result in Files. History is a placeholder until TV browse parity lands.
+result in Files. History lists the account's events under relative-date
+headers, opens an event's file in Files, and clears with a confirmation.
 Not started:
 Chromecast, Picture-in-Picture, and the Play release lane.
 

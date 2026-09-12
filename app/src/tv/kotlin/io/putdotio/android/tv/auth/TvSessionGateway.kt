@@ -16,6 +16,8 @@ data class TvAccount(
     val username: String,
     val email: String,
     val storage: TvAccountStorage = TvAccountStorage(),
+    /** The account's `history_enabled` setting; History is a disabled pane without it. */
+    val historyEnabled: Boolean = false,
 )
 
 data class TvAccountStorage(
@@ -125,6 +127,7 @@ internal fun AccountInfo.toTvAccount(): TvAccount =
         username = username,
         email = mail,
         storage = TvAccountStorage(availableBytes = disk.available, sizeBytes = disk.size, usedBytes = disk.used),
+        historyEnabled = settings.historyEnabled,
     )
 
 enum class TvLinkFailure {

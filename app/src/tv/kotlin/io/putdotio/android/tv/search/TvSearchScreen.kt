@@ -31,7 +31,6 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -83,6 +82,7 @@ import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvButton
+import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.android.tv.files.tvMessage
@@ -126,7 +126,7 @@ internal fun TvSearchScreen(
     // Whether D-pad focus belongs to this pane. Only a directional exit clears it: a node
     // being disposed also drops focus, but the pane still owns it and may re-place it.
     val paneHasFocus = remember { mutableStateOf(true) }
-    val owner = remember { TvSearchFocusOwner(entryTarget, fieldFocus, paneHasFocus) }
+    val owner = remember { TvPaneFocusOwner(entryTarget, paneHasFocus, home = { fieldFocus }) }
     // The field's text is owned here, not mirrored from the controller: a query the
     // controller reports is at best one edit behind the IME, so it is never written back.
     // The two rewrites the pane makes itself, a chip replay and the trimmed submit, are
@@ -240,30 +240,6 @@ private fun submit(
         state.setTextAndPlaceCursorAtEnd(trimmed)
     }
     onSubmit()
-}
-
-/**
- * Which section of the pane focus should return to. Sections register themselves while
- * they hold focus and hand the target back to the field when they leave composition.
- */
-private class TvSearchFocusOwner(
-    private val entryTarget: MutableState<FocusRequester>,
-    private val fieldFocus: FocusRequester,
-    private val paneHasFocus: State<Boolean>,
-) {
-    /** True while the pane holds focus and this section was the last to have it. */
-    fun owns(requester: FocusRequester): Boolean = paneHasFocus.value && entryTarget.value === requester
-
-    fun focusField() = fieldFocus.requestFocus()
-
-    /** Tracks focus for a section; the requester itself is attached where focus should land. */
-    @Composable
-    fun section(requester: FocusRequester): Modifier {
-        DisposableEffect(requester) {
-            onDispose { if (entryTarget.value === requester) entryTarget.value = fieldFocus }
-        }
-        return Modifier.onFocusChanged { if (it.hasFocus) entryTarget.value = requester }
-    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -390,7 +366,7 @@ private fun TvRecentSearches(
     terms: List<SearchTerm>,
     onSearch: (SearchTerm) -> Unit,
     onRemove: (SearchTerm) -> Unit,
-    owner: TvSearchFocusOwner,
+    owner: TvPaneFocusOwner,
     modifier: Modifier = Modifier,
 ) {
     // Down from the full-width field lands on the geometrically nearest chip; first entry
@@ -460,7 +436,7 @@ private fun TvRecentSearches(
 private fun TvSearchNotice(
     failure: FilesFailure,
     onRetry: () -> Unit,
-    owner: TvSearchFocusOwner,
+    owner: TvPaneFocusOwner,
 ) {
     val retryFocus = remember { FocusRequester() }
     Row(
@@ -480,7 +456,7 @@ private fun TvSearchNotice(
             TvButton(
                 onClick = {
                     // A retry that succeeds removes this button; the field takes over first.
-                    owner.focusField()
+                    owner.focusHome()
                     onRetry()
                 },
                 modifier = owner.section(retryFocus).focusRequester(retryFocus),
@@ -499,7 +475,7 @@ private fun TvSearchResults(
     onResult: (FilesItem) -> Unit,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
-    owner: TvSearchFocusOwner,
+    owner: TvPaneFocusOwner,
     modifier: Modifier = Modifier,
 ) {
     // The restorer's fallback must name a composed row: the first visible one, since a lazy
@@ -576,7 +552,7 @@ private fun TvSearchPaging(
     paging: SearchPaging,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
-    owner: TvSearchFocusOwner? = null,
+    owner: TvPaneFocusOwner? = null,
     buttonModifier: Modifier = Modifier,
 ) {
     val pagingFocus = remember { FocusRequester() }
