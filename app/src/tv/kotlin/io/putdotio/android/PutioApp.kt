@@ -40,6 +40,9 @@ import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.files.TvFilesScreen
 import io.putdotio.android.tv.history.TvHistoryScreen
+import io.putdotio.android.tv.trash.TvTrashScreen
+import io.putdotio.android.trash.SdkTrashRepository
+import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.tvSessionViewModelFactory
@@ -100,6 +103,7 @@ private fun TvSignedInApp(
             filesRepository = filesRepository,
             searchRepository = SdkSearchRepository(runtime.putioClient),
             historyRepository = SdkHistoryRepository(runtime.putioClient),
+            trashRepository = SdkTrashRepository(runtime.putioClient),
             filesItemResolver = filesRepository,
             recentSearchStore = { scope -> AppConfigRecentSearchStore(runtime.putioClient, scope) },
         )
@@ -116,7 +120,9 @@ private fun TvSignedInApp(
     val historyState by session.history.state.collectAsStateWithLifecycle()
     val recentSearchFailure by session.recentSearchFailure.collectAsStateWithLifecycle()
     val historyOpenFailure by session.historyOpenFailure.collectAsStateWithLifecycle()
+    val trashState by session.trash.state.collectAsStateWithLifecycle()
     val sessionRejected = filesState.authoritativeSessionFailure() != null ||
+        trashState.authenticationFailure != null ||
         searchState.authoritativeSessionFailure() != null ||
         historyState.authoritativeSessionFailure() != null ||
         recentSearchFailure is FilesFailure.AuthenticationRequired ||
@@ -146,6 +152,13 @@ private fun TvSignedInApp(
     }
     LaunchedEffect(session) {
         session.historyOpens.collect { item -> historyOpenRejected = !openInFiles(item) }
+    }
+    // A restore changes Files behind the browser's cache: one item's folder, or every folder.
+    LaunchedEffect(session, trashState.restoredVersion) {
+        trashState.lastRestoredItem?.let { session.files.dispatch(FilesBrowserEvent.InvalidateRestoredItem(it)) }
+    }
+    LaunchedEffect(session, trashState.bulkRestoreVersion) {
+        if (trashState.bulkRestoreVersion > 0L) session.files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
     }
     val sessionKey = signedIn.account.userId to signedIn.sessionId.value
 
@@ -204,6 +217,17 @@ private fun TvSignedInApp(
                     historyOpenRejected -> FilesFailure.NavigationBlocked
                     else -> historyOpenFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
                 },
+                modifier = Modifier.focusRequester(paneFocus),
+                sessionKey = sessionKey,
+            )
+        },
+        trashPane = { paneFocus ->
+            // The listing is read on entry and kept while the pane is away; a pending mutation's
+            // recovery stays available because the controller outlives the pane.
+            LaunchedEffect(session) { session.trash.dispatch(TrashEvent.Open) }
+            TvTrashScreen(
+                state = trashState,
+                onEvent = session.trash::dispatch,
                 modifier = Modifier.focusRequester(paneFocus),
                 sessionKey = sessionKey,
             )

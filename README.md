@@ -49,6 +49,9 @@ media rows do not play yet. Search types through the system IME, replays
 recent queries from chips, pages results in the standard rows, and opens a
 result in Files. History lists the account's events under relative-date
 headers, opens an event's file in Files, and clears with a confirmation.
+Account opens Trash: rows with deleted and expiry dates, Restore or Delete
+permanently per row, Restore all and Empty trash, each confirmed and
+reported with Check status or Check trash until put.io confirms it.
 Not started:
 Chromecast, Picture-in-Picture, and the Play release lane.
 

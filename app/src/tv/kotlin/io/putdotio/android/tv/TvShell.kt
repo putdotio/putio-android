@@ -1,5 +1,6 @@
 package io.putdotio.android.tv
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
@@ -51,6 +52,8 @@ internal fun TvShell(
     filesPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Files, it) },
     searchPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Search, it) },
     historyPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.History, it) },
+    /** Shown in Account's place after Manage your trash; null hides the row. Back returns to Account. */
+    trashPane: (@Composable (paneFocus: FocusRequester) -> Unit)? = null,
     /** Set by a pane that wants another destination shown, such as Search opening a result in Files. */
     requestedDestination: TvDestination? = null,
     onDestinationRequestHandled: () -> Unit = {},
@@ -113,7 +116,7 @@ internal fun TvShell(
                 TvDestination.Files -> filesPane(paneFocus)
                 TvDestination.Search -> searchPane(paneFocus)
                 TvDestination.History -> historyPane(paneFocus)
-                TvDestination.Account -> TvAccountPane(account, onSignOut, paneFocus)
+                TvDestination.Account -> TvAccountPane(account, onSignOut, paneFocus, trashPane)
             }
         }
     }
@@ -155,7 +158,17 @@ private fun TvAccountPane(
     account: TvAccount,
     onSignOut: () -> Unit,
     paneFocus: FocusRequester,
+    trashPane: (@Composable (paneFocus: FocusRequester) -> Unit)?,
 ) {
+    // Forgotten with the pane: leaving for another destination and coming back lands on
+    // Account itself, and the row that opened Trash takes focus again on Back.
+    var showingTrash by remember { mutableStateOf(false) }
+    if (trashPane != null && showingTrash) {
+        BackHandler { showingTrash = false }
+        trashPane(paneFocus)
+        return
+    }
+    val trashFocus = remember { FocusRequester() }
     Column(modifier = Modifier.fillMaxSize()) {
         PaneTitle(stringResource(R.string.tv_destination_account))
         Text(
@@ -164,16 +177,45 @@ private fun TvAccountPane(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp),
         )
+        if (trashPane != null) {
+            ListItem(
+                selected = false,
+                onClick = { showingTrash = true },
+                headlineContent = { Text(stringResource(R.string.tv_account_manage_trash)) },
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ph_trash),
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ph_caret_right),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                    )
+                },
+                scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
+                modifier = Modifier
+                    .padding(top = 32.dp)
+                    .focusRequester(paneFocus)
+                    .focusRequester(trashFocus),
+            )
+        }
+        // Sign out is the last row, per the contract.
         ListItem(
             selected = false,
             onClick = onSignOut,
             headlineContent = { Text(stringResource(R.string.tv_account_sign_out)) },
             scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
             modifier = Modifier
-                .padding(top = 32.dp)
-                .focusRequester(paneFocus),
+                .padding(top = if (trashPane != null) 8.dp else 32.dp)
+                .then(if (trashPane == null) Modifier.focusRequester(paneFocus) else Modifier),
         )
     }
+    // Back from Trash: the pane is recomposed with the row that opened it, which takes focus.
+    LaunchedEffect(showingTrash) { if (!showingTrash && trashPane != null) trashFocus.requestFocus() }
 }
 
 @Composable

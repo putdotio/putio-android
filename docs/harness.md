@@ -605,6 +605,22 @@ The pane is disabled when the account's `history_enabled` setting is off; the
 mobile Account screen toggles it, and the TV pane follows on the next session
 validation.
 
+## TV Trash proof
+
+Trash opens from Account → Manage your trash; Back returns to that row. Focus
+enters on the first row, or Refresh while there are none; Up from the first
+row reaches Refresh, Restore all, and Empty trash. Center on a row opens a
+choice dialog with Restore and Delete permanently; every mutation confirms
+in a centred dialog with focus on Cancel, then reports above the list with
+Check status or Check trash until the fresh listing confirms it. Restores
+invalidate the Files cache like mobile. The empty state carries the oracle's
+14-day copy. Trash contents are the shared test identity's, so list the
+items before a proof and never confirm a mutation you have not fixtured:
+
+```bash
+PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation trash.list --execute --output json
+```
+
 ## Account Trash and single-item Restore proof
 
 Trash is opened from Account → Manage Trash, including when the Trash setting

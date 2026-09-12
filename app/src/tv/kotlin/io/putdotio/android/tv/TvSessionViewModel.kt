@@ -17,6 +17,8 @@ import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchRepository
+import io.putdotio.android.trash.TrashController
+import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
@@ -39,6 +41,7 @@ internal class TvSessionDependencies(
     val filesRepository: FilesRepository,
     val searchRepository: SearchRepository,
     val historyRepository: HistoryRepository,
+    val trashRepository: TrashRepository,
     /** Turns the file id a history event names into the item Files can open. */
     val filesItemResolver: FilesItemResolver,
     val recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
@@ -53,6 +56,7 @@ internal class TvSession internal constructor(
     val files: FilesBrowserController,
     val search: SearchController,
     val history: HistoryController,
+    val trash: TrashController,
     private val recentSearches: RecentSearchStoreOwner,
     private val filesItemResolver: FilesItemResolver,
     parentScope: CoroutineScope,
@@ -107,6 +111,7 @@ internal class TvSession internal constructor(
         search.close()
         recentSearches.close()
         history.close()
+        trash.close()
         files.close()
     }
 }
@@ -144,6 +149,7 @@ internal class TvSessionViewModel(
                 files = FilesBrowserController(dependencies.filesRepository, viewModelScope),
                 search = SearchController(dependencies.searchRepository, recentSearches, viewModelScope),
                 history = HistoryController(dependencies.historyRepository, account.historyEnabled, viewModelScope),
+                trash = TrashController(dependencies.trashRepository, viewModelScope),
                 recentSearches = recentSearches,
                 filesItemResolver = dependencies.filesItemResolver,
                 parentScope = viewModelScope,
