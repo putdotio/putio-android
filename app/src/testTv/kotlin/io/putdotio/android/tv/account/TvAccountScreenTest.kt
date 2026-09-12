@@ -269,6 +269,24 @@ class TvAccountScreenTest {
         assertEquals(1, signOuts)
     }
 
+    @Test
+    fun settingsArrivingWhileADialogIsUpLeaveTheReturnTargetOnItsRow() {
+        var settings by mutableStateOf(AccountSettingsReducer.start().state)
+        show(settingsState = { settings })
+
+        compose.onNodeWithText("Diagnostics").requestFocus().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("OK").assertIsFocused()
+        compose.runOnIdle { settings = ready(preferences) }
+        compose.onNodeWithText("OK").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Diagnostics").assertIsFocused()
+    }
+
     private fun ready(preferences: AccountSettingsPreferences): AccountSettingsState =
         AccountSettingsReducer.reduce(
             AccountSettingsReducer.start().state,

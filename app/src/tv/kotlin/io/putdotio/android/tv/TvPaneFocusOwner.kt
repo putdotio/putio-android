@@ -23,9 +23,12 @@ internal class TvPaneFocusOwner(
 
     fun focusHome() = home().requestFocus()
 
-    /** Makes the requester the next entry point without moving focus. */
-    fun claim(requester: FocusRequester) {
-        entryTarget.value = requester
+    /**
+     * Makes the requester the next entry point without moving focus, but only while
+     * [from] still is: a section that has since taken the target keeps it.
+     */
+    fun claim(requester: FocusRequester, from: FocusRequester) {
+        if (entryTarget.value === from) entryTarget.value = requester
     }
 
     /** Tracks focus for a section; the requester itself is attached where focus should land. */

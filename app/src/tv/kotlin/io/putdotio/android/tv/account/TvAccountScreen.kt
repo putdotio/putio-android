@@ -199,14 +199,16 @@ private fun TvAccountBody(
         if (paneHasFocus.value) entryTarget.value.requestFocus()
     }
     // Back from Trash: the pane is recomposed with the row that opened it, which takes focus
-    // once the rows are laid out. Otherwise the pane's entry point takes it, unless settings
-    // rows are about to.
+    // once the rows are laid out. Otherwise the entry point takes it, unless settings rows
+    // are about to: the body only mounts when the shell is entering the pane or Trash is
+    // handing it back, so this never pulls focus off the drawer, and the shell's own request
+    // through the Column's entry cannot be relied on before the first layout.
     LaunchedEffect(Unit) {
         if (returningFromTrash.value) {
             withFrameNanos {}
             returningFromTrash.value = false
             if (paneHasFocus.value && !dialogShowing.value) trashFocus.requestFocus()
-        } else if (!rowsPresent.value && paneHasFocus.value && !dialogShowing.value) {
+        } else if (!rowsPresent.value && !dialogShowing.value) {
             entryTarget.value.requestFocus()
         }
     }
@@ -243,7 +245,6 @@ private fun TvAccountBody(
                 owner = owner,
                 firstRowFocus = firstRowFocus,
                 signOutFocus = signOutFocus,
-                returningFromTrash = returningFromTrash,
                 dialogShowing = dialogShowing.value,
                 onChooseRoute = { chooseRoute = true },
             )
@@ -460,7 +461,6 @@ private fun TvAccountSettingsSection(
     owner: TvPaneFocusOwner,
     firstRowFocus: FocusRequester,
     signOutFocus: FocusRequester,
-    returningFromTrash: MutableState<Boolean>,
     dialogShowing: Boolean,
     onChooseRoute: () -> Unit,
 ) {
@@ -491,12 +491,13 @@ private fun TvAccountSettingsSection(
         )
         is AccountSettingsContent.Ready -> {
             val controls = state.controlsEnabled()
-            // Rows that arrive while the header's Sign out holds focus take it; rows that were
-            // entered directly, or a row the user has since moved to, are left alone.
+            // Rows that arrive while the header's Sign out is the entry point become it, and
+            // take focus if Sign out holds it; a row the user has since moved to, or a dialog
+            // another row opened, keeps the entry point so focus returns there.
             val dialogUp = rememberUpdatedState(dialogShowing)
             LaunchedEffect(Unit) {
                 val fromHeader = owner.owns(signOutFocus)
-                if (!returningFromTrash.value) owner.claim(firstRowFocus)
+                owner.claim(firstRowFocus, from = signOutFocus)
                 withFrameNanos {}
                 if (fromHeader && owner.owns(firstRowFocus) && !dialogUp.value) firstRowFocus.requestFocus()
             }

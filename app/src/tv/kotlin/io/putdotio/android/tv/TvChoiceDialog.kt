@@ -54,7 +54,9 @@ internal fun <T> TvChoiceDialog(
     Dialog(onDismissRequest = onDismiss) {
         // Requested from inside the dialog window, after its content has attached. The
         // column is scrolled first so a choice below the fold is on screen when it lights up.
-        LaunchedEffect(Unit) {
+        // Nothing carries the requesters when there are no choices, so nothing is requested.
+        LaunchedEffect(choices.isEmpty()) {
+            if (choices.isEmpty()) return@LaunchedEffect
             // The rows are laid out one frame after the window opens.
             withFrameNanos {}
             bringSelectedIntoView.bringIntoView()
