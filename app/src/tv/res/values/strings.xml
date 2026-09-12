@@ -106,7 +106,7 @@
     <string name="tv_history_load_more">Load more</string>
     <string name="tv_history_loading_more">Loading more history</string>
     <string name="tv_history_paging_error">Couldn’t load more history.</string>
-    <string name="tv_history_open_error">Couldn’t open this file. Check Files, then try again.</string>
+    <string name="tv_history_open_error">Couldn’t open this file. %1$s</string>
     <string name="tv_history_clear_title">Clear history?</string>
     <string name="tv_history_clear_message">This removes all activity from your put.io history.</string>
     <string name="tv_history_clear_confirm">Clear history</string>

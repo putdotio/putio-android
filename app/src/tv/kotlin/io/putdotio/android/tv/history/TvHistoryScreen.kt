@@ -149,13 +149,11 @@ internal fun TvHistoryScreen(
         )
         if (notice != null) {
             Text(
-                text = stringResource(
-                    if (notice == FilesFailure.NavigationBlocked) {
-                        R.string.tv_error_navigation_blocked
-                    } else {
-                        R.string.tv_history_open_error
-                    },
-                ),
+                text = if (notice == FilesFailure.NavigationBlocked) {
+                    stringResource(R.string.tv_error_navigation_blocked)
+                } else {
+                    stringResource(R.string.tv_history_open_error, stringResource(notice.tvMessage()))
+                },
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(bottom = 8.dp),

@@ -209,6 +209,16 @@ class TvHistoryScreenTest {
     }
 
     @Test
+    fun aFailedOpenNamesItsCause() {
+        show(
+            HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)),
+            notice = FilesFailure.NetworkUnavailable(PutioConfigurationException("offline")),
+        )
+
+        compose.onNodeWithText("Couldn’t open this file. Check the network and try again.").assertIsDisplayed()
+    }
+
+    @Test
     fun aBlockedOpenIsExplainedAboveTheList() {
         show(HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)), notice = FilesFailure.NavigationBlocked)
 

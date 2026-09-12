@@ -184,8 +184,11 @@ private fun TvSignedInApp(
             )
         },
         historyPane = { paneFocus ->
-            // A stale explanation must not greet the next visit to the pane.
+            // A stale explanation must not greet a visit to the pane: cleared on entry as well
+            // as on leaving, since a slow resolution can settle after the user has left.
             DisposableEffect(session) {
+                historyOpenRejected = false
+                session.dismissHistoryOpenFailure()
                 onDispose {
                     historyOpenRejected = false
                     session.dismissHistoryOpenFailure()
