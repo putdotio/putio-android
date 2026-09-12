@@ -30,6 +30,7 @@ import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -41,6 +42,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** What one signed-in TV session needs to build its controllers. */
@@ -135,19 +137,26 @@ internal class TvSession internal constructor(
         // unfinished one, so a slow first request cannot report after a faster second one
         // has settled the row; writes for other files run on their own.
         watchedJobs.remove(item.id)?.cancel()
-        watchedJobs[item.id] = scope.launch {
+        // Started lazily so the write is registered before its body can run and compare itself.
+        val job = scope.launch(start = CoroutineStart.LAZY) {
             mutableFileActionFailure.value = null
             val result = if (watched) {
                 watchedRepository.setPosition(item.id, seconds)
             } else {
                 watchedRepository.clearPosition(item.id)
             }
+            // Cancellation is cooperative: a superseded write that still returns must not
+            // settle the row or report, so only the write still registered for the file does.
+            if (!isActive || watchedJobs[item.id] !== coroutineContext[Job]) return@launch
             when (result) {
                 is FilesRepositoryResult.Success ->
                     files.dispatch(FilesBrowserEvent.PlaybackPositionReported(item.id, seconds))
                 is FilesRepositoryResult.Failure -> mutableFileActionFailure.value = result.failure
             }
-        }.also { job -> job.invokeOnCompletion { if (watchedJobs[item.id] === job) watchedJobs.remove(item.id) } }
+        }
+        watchedJobs[item.id] = job
+        job.invokeOnCompletion { if (watchedJobs[item.id] === job) watchedJobs.remove(item.id) }
+        job.start()
     }
 
     /** The original file's URL for an external player, or null without a session token. */
