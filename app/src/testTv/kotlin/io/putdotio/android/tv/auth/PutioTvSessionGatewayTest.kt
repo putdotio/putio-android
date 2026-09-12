@@ -34,6 +34,7 @@ class PutioTvSessionGatewayTest {
                     username = "user",
                     email = "user@example.com",
                     storage = TvAccountStorage(availableBytes = 1, sizeBytes = 2, usedBytes = 1),
+                    avatarUrl = "https://example.com/avatar.png",
                 ),
             ),
             result,

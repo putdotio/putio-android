@@ -17,6 +17,10 @@ import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchRepository
+import io.putdotio.android.settings.AccountSettingsController
+import io.putdotio.android.settings.AccountSettingsRepository
+import io.putdotio.android.settings.AndroidAppConfigController
+import io.putdotio.android.settings.AndroidAppConfigRepository
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
@@ -42,6 +46,8 @@ internal class TvSessionDependencies(
     val searchRepository: SearchRepository,
     val historyRepository: HistoryRepository,
     val trashRepository: TrashRepository,
+    val settingsRepository: AccountSettingsRepository,
+    val appConfigRepository: AndroidAppConfigRepository,
     /** Turns the file id a history event names into the item Files can open. */
     val filesItemResolver: FilesItemResolver,
     val recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
@@ -57,6 +63,10 @@ internal class TvSession internal constructor(
     val search: SearchController,
     val history: HistoryController,
     val trash: TrashController,
+    /** Account-wide `/account/settings`; shared with mobile, read once per session. */
+    val settings: AccountSettingsController,
+    /** This app's `/config` playback keys; shared with mobile. */
+    val appConfig: AndroidAppConfigController,
     private val recentSearches: RecentSearchStoreOwner,
     private val filesItemResolver: FilesItemResolver,
     parentScope: CoroutineScope,
@@ -112,6 +122,8 @@ internal class TvSession internal constructor(
         recentSearches.close()
         history.close()
         trash.close()
+        appConfig.close()
+        settings.close()
         files.close()
     }
 }
@@ -150,6 +162,8 @@ internal class TvSessionViewModel(
                 search = SearchController(dependencies.searchRepository, recentSearches, viewModelScope),
                 history = HistoryController(dependencies.historyRepository, account.historyEnabled, viewModelScope),
                 trash = TrashController(dependencies.trashRepository, viewModelScope),
+                settings = AccountSettingsController(dependencies.settingsRepository, viewModelScope),
+                appConfig = AndroidAppConfigController(dependencies.appConfigRepository, viewModelScope),
                 recentSearches = recentSearches,
                 filesItemResolver = dependencies.filesItemResolver,
                 parentScope = viewModelScope,

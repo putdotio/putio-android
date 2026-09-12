@@ -31,6 +31,14 @@ import io.putdotio.android.search.AppConfigRecentSearchStore
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.SearchOutput
 import io.putdotio.android.search.authoritativeSessionFailure
+import io.putdotio.android.settings.AccountSettingsFailure
+import io.putdotio.android.settings.AccountSettingsRepositoryResult
+import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.SdkAndroidAppConfigRepository
+import io.putdotio.android.settings.authoritativeSessionFailure
+import io.putdotio.android.settings.confirmedHistoryEnabled
+import io.putdotio.android.trash.TrashContent
+import io.putdotio.android.tv.account.TvAccountScreen
 import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvLinkScreen
 import io.putdotio.android.tv.TvSession
@@ -106,6 +114,8 @@ private fun TvSignedInApp(
             searchRepository = SdkSearchRepository(runtime.putioClient),
             historyRepository = SdkHistoryRepository(runtime.putioClient),
             trashRepository = SdkTrashRepository(runtime.putioClient),
+            settingsRepository = SdkAccountSettingsRepository(runtime.putioClient),
+            appConfigRepository = SdkAndroidAppConfigRepository(runtime.putioClient),
             filesItemResolver = filesRepository,
             recentSearchStore = { scope -> AppConfigRecentSearchStore(runtime.putioClient, scope) },
         )
@@ -123,16 +133,26 @@ private fun TvSignedInApp(
     val recentSearchFailure by session.recentSearchFailure.collectAsStateWithLifecycle()
     val historyOpenFailure by session.historyOpenFailure.collectAsStateWithLifecycle()
     val trashState by session.trash.state.collectAsStateWithLifecycle()
+    val settingsState by session.settings.state.collectAsStateWithLifecycle()
+    val appConfigState by session.appConfig.state.collectAsStateWithLifecycle()
+    // A 401 from the proxy list is as authoritative as one from any controller.
+    var tunnelRoutesRejected by remember(session) { mutableStateOf(false) }
     val sessionRejected = filesState.authoritativeSessionFailure() != null ||
         trashState.authenticationFailure != null ||
+        settingsState.authoritativeSessionFailure() != null ||
+        appConfigState.authoritativeSessionFailure() != null ||
+        tunnelRoutesRejected ||
         searchState.authoritativeSessionFailure() != null ||
         historyState.authoritativeSessionFailure() != null ||
         recentSearchFailure is FilesFailure.AuthenticationRequired ||
         historyOpenFailure is FilesFailure.AuthenticationRequired
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
-    // The account's setting is read at validation; a re-validated session may flip it.
-    LaunchedEffect(session, signedIn.account.historyEnabled) {
-        session.history.dispatch(HistoryEvent.SetEnabled(signedIn.account.historyEnabled))
+    // The controller starts from the setting read at validation; each confirmed value from
+    // the settings controller supersedes it, so the Account toggle flips the History pane.
+    // An unsettled History write confirms nothing and leaves the last value in place, like mobile.
+    val confirmedHistoryEnabled = settingsState.confirmedHistoryEnabled()
+    LaunchedEffect(session, confirmedHistoryEnabled) {
+        confirmedHistoryEnabled?.let { session.history.dispatch(HistoryEvent.SetEnabled(it)) }
     }
 
     // A search result or a history event opens in Files: the browser jumps to the item's
@@ -239,14 +259,37 @@ private fun TvSignedInApp(
                 sessionKey = sessionKey,
             )
         },
-        trashPane = { paneFocus ->
-            // The listing is read on entry and kept while the pane is away; a pending mutation's
-            // recovery stays available because the controller outlives the pane.
+        accountPane = { paneFocus ->
+            // The listing is read on entry so Manage your trash can show the trash's size, and
+            // kept while the pane is away; a pending mutation's recovery stays available
+            // because the controller outlives the pane.
             LaunchedEffect(session) { session.trash.dispatch(TrashEvent.Open) }
-            TvTrashScreen(
-                state = trashState,
-                onEvent = session.trash::dispatch,
-                modifier = Modifier.focusRequester(paneFocus),
+            TvAccountScreen(
+                account = signedIn.account,
+                settingsState = settingsState,
+                appConfigState = appConfigState,
+                onSettingsEvent = session.settings::dispatch,
+                onAppConfigEvent = session.appConfig::dispatch,
+                onSignOut = onSignOut,
+                paneFocus = paneFocus,
+                trashSizeBytes = (trashState.content as? TrashContent.Loaded)?.trashSizeBytes,
+                trashPane = { trashFocus ->
+                    TvTrashScreen(
+                        state = trashState,
+                        onEvent = session.trash::dispatch,
+                        modifier = Modifier.focusRequester(trashFocus),
+                        sessionKey = sessionKey,
+                    )
+                },
+                loadTunnelRoutes = {
+                    dependencies.settingsRepository.loadTunnelRoutes().also { result ->
+                        if (result is AccountSettingsRepositoryResult.Failure &&
+                            result.failure is AccountSettingsFailure.AuthenticationRequired
+                        ) {
+                            tunnelRoutesRejected = true
+                        }
+                    }
+                },
                 sessionKey = sessionKey,
             )
         },

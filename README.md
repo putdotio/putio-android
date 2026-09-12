@@ -49,9 +49,14 @@ media rows do not play yet. Search types through the system IME, replays
 recent queries from chips, pages results in the standard rows, and opens a
 result in Files. History lists the account's events under relative-date
 headers, opens an event's file in Files, and clears with a confirmation.
-Account opens Trash: rows with deleted and expiry dates, Restore or Delete
-permanently per row, Restore all and Empty trash, each confirmed and
-reported with Check status or Check trash until put.io confirms it.
+Account shows the identity and quota header with Sign out, then Playback
+settings (proxy, resume, playback type, autoplay, subtitles), Storage settings
+(Trash on or off, Manage your trash with its size, history) and App and
+device information with a Diagnostics dialog, each switch and choice dialog
+saving through the shared settings controllers. Manage your trash opens Trash:
+rows with deleted and expiry dates, Restore or Delete permanently per row,
+Restore all and Empty trash, each confirmed and reported with Check status or
+Check trash until put.io confirms it.
 Not started:
 Chromecast, Picture-in-Picture, and the Play release lane.
 

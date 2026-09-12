@@ -605,6 +605,27 @@ The pane is disabled when the account's `history_enabled` setting is off; the
 mobile Account screen toggles it, and the TV pane follows on the next session
 validation.
 
+## TV Account proof
+
+Account per oracle captures 09–12 and 14: the avatar, username, "X of Y free"
+bar and Sign out button in the header, then Playback settings, Storage
+settings and App and device information as full-width rows, with Sign out as
+the final row. Focus enters on Choose your proxy once account settings load,
+and on the header's Sign out until then. Switches save through the shared
+`AccountSettingsController` (account-wide `/account/settings`) and
+`AndroidAppConfigController` (this app's `/config`); a failed save keeps the
+row on the server value and offers Try again above the section. Choose your
+proxy loads `/tunnel/routes` when it opens and lists the direct route first;
+Video playback type lists MP4 above HLS (default) as the oracle does. Turning
+Trash off confirms first with Cancel focused. Keep account history flips the
+History pane. Video playback buffer size stays out: there is no server key.
+Every dialog returns focus to the row that opened it. Settings are the shared
+test identity's, so read them before a proof and restore what you flip:
+
+```bash
+PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation account.getSettings --execute --output json
+```
+
 ## TV Trash proof
 
 Trash opens from Account → Manage your trash; Back returns to that row. Focus
