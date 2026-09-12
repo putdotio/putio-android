@@ -91,6 +91,14 @@ import io.putdotio.sdk.files.PlaybackPreference
 
 internal const val TV_ACCOUNT_STORAGE_TAG = "tv-account-storage"
 
+/** The pane's dialogs; each is opened by one row, which takes focus back when it closes. */
+internal enum class TvAccountDialog {
+    Route,
+    PlaybackType,
+    TrashOff,
+    Diagnostics,
+}
+
 /**
  * Account per oracle captures 09–12 and 14: the identity and quota header with Sign out
  * on the right, then Playback settings, Storage settings, and App and device information
@@ -169,26 +177,44 @@ private fun TvAccountBody(
     returningFromTrash: MutableState<Boolean>,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
 ) {
-    var chooseRoute by rememberSaveable { mutableStateOf(false) }
-    var choosePlaybackType by rememberSaveable { mutableStateOf(false) }
-    var confirmTrashOff by rememberSaveable { mutableStateOf(false) }
-    var showDiagnostics by rememberSaveable { mutableStateOf(false) }
+    // Which dialog is up survives recreation, and names the row that opened it.
+    var openDialog by rememberSaveable { mutableStateOf<TvAccountDialog?>(null) }
     val settingsReady = settingsState.content as? AccountSettingsContent.Ready
     val appConfigReady = appConfigState.content as? AndroidAppConfigContent.Ready
 
     val signOutFocus = remember { FocusRequester() }
     val firstRowFocus = remember { FocusRequester() }
     val trashFocus = remember { FocusRequester() }
+    val playbackTypeFocus = remember { FocusRequester() }
+    val trashToggleFocus = remember { FocusRequester() }
+    val diagnosticsFocus = remember { FocusRequester() }
+    val opener = { dialog: TvAccountDialog ->
+        when (dialog) {
+            TvAccountDialog.Route -> firstRowFocus
+            TvAccountDialog.PlaybackType -> playbackTypeFocus
+            TvAccountDialog.TrashOff -> trashToggleFocus
+            TvAccountDialog.Diagnostics -> diagnosticsFocus
+        }
+    }
     val paneHasFocus = remember { mutableStateOf(true) }
     // Losing the Trash pane's focused node makes the window re-enter this pane on its own;
     // the entry point is the row that opened Trash from the first composition, so that
-    // re-entry lands there rather than on the first row.
-    val entryTarget = remember { mutableStateOf(if (returningFromTrash.value) trashFocus else signOutFocus) }
+    // re-entry lands there rather than on the first row. A dialog restored with the pane
+    // likewise returns to the row that opened it.
+    val entryTarget = remember {
+        mutableStateOf(
+            when {
+                returningFromTrash.value -> trashFocus
+                openDialog != null -> opener(openDialog!!)
+                else -> signOutFocus
+            },
+        )
+    }
     val rowsPresent = rememberUpdatedState(settingsReady != null)
     val owner = remember {
         TvPaneFocusOwner(entryTarget, paneHasFocus) { if (rowsPresent.value) firstRowFocus else signOutFocus }
     }
-    val dialogOpen = chooseRoute || choosePlaybackType || confirmTrashOff || showDiagnostics
+    val dialogOpen = openDialog != null
     val dialogShowing = rememberUpdatedState(dialogOpen)
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) {
@@ -254,13 +280,14 @@ private fun TvAccountBody(
                 firstRowFocus = firstRowFocus,
                 signOutFocus = signOutFocus,
                 dialogShowing = dialogShowing.value,
-                onChooseRoute = { chooseRoute = true },
+                onChooseRoute = { openDialog = TvAccountDialog.Route },
             )
             TvAppConfigSection(
                 state = appConfigState,
                 onEvent = onAppConfigEvent,
                 owner = owner,
-                onChoosePlaybackType = { choosePlaybackType = true },
+                onChoosePlaybackType = { openDialog = TvAccountDialog.PlaybackType },
+                playbackTypeFocus = playbackTypeFocus,
             )
             settingsReady?.let { ready ->
                 val controls = settingsState.controlsEnabled()
@@ -297,13 +324,14 @@ private fun TvAccountBody(
                     icon = R.drawable.ic_ph_recycle,
                     checked = ready.preferences.trashEnabled,
                     key = AccountSettingsKey.Trash,
+                    focus = trashToggleFocus,
                     state = settingsState,
                     onEvent = onSettingsEvent,
                     onToggle = { enabled ->
                         if (!controls) {
                             Unit
                         } else if (!enabled) {
-                            confirmTrashOff = true
+                            openDialog = TvAccountDialog.TrashOff
                         } else {
                             onSettingsEvent(
                                 AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.Trash, true)),
@@ -345,7 +373,11 @@ private fun TvAccountBody(
                 )
             }
             TvSectionHeader(stringResource(R.string.tv_account_section_device))
-            TvDeviceSection(owner = owner, onDiagnostics = { showDiagnostics = true })
+            TvDeviceSection(
+                owner = owner,
+                onDiagnostics = { openDialog = TvAccountDialog.Diagnostics },
+                diagnosticsFocus = diagnosticsFocus,
+            )
             // Sign out is the last row, per the contract.
             TvAccountRow(
                 title = stringResource(R.string.tv_account_sign_out),
@@ -357,42 +389,42 @@ private fun TvAccountBody(
         }
     }
 
-    if (chooseRoute && settingsReady != null) {
+    if (openDialog == TvAccountDialog.Route && settingsReady != null) {
         TvTunnelRouteDialog(
             selected = settingsReady.preferences.tunnelRoute,
             loadRoutes = loadTunnelRoutes,
             onSelect = { route ->
-                chooseRoute = false
+                openDialog = null
                 onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(route)))
             },
-            onDismiss = { chooseRoute = false },
+            onDismiss = { openDialog = null },
         )
     }
-    if (choosePlaybackType && appConfigReady != null) {
+    if (openDialog == TvAccountDialog.PlaybackType && appConfigReady != null) {
         TvChoiceDialogForPlayback(
             selected = appConfigReady.preferences.videoPlaybackType,
             onSelect = { type ->
-                choosePlaybackType = false
+                openDialog = null
                 onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(type)))
             },
-            onDismiss = { choosePlaybackType = false },
+            onDismiss = { openDialog = null },
         )
     }
-    if (confirmTrashOff) {
+    if (openDialog == TvAccountDialog.TrashOff) {
         TvTrashDisableDialog(
             onConfirm = {
-                confirmTrashOff = false
+                openDialog = null
                 onSettingsEvent(
                     AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)),
                 )
             },
-            onDismiss = { confirmTrashOff = false },
+            onDismiss = { openDialog = null },
         )
     }
-    if (showDiagnostics) {
+    if (openDialog == TvAccountDialog.Diagnostics) {
         TvDiagnosticsDialog(
             diagnostics = tvAppDiagnostics(appConfigState.playbackPreference()),
-            onDismiss = { showDiagnostics = false },
+            onDismiss = { openDialog = null },
         )
     }
 }
@@ -565,8 +597,8 @@ private fun TvSettingsSwitchRow(
     onEvent: (AccountSettingsEvent) -> Boolean,
     onToggle: (Boolean) -> Unit,
     owner: TvPaneFocusOwner,
+    focus: FocusRequester = remember { FocusRequester() },
 ) {
-    val focus = remember { FocusRequester() }
     TvSwitchRow(title = title, icon = icon, checked = checked, onToggle = onToggle, owner = owner, focus = focus)
     TvSettingsFailureNotice(state, key, onEvent, owner, focus)
 }
@@ -602,6 +634,7 @@ private fun TvAppConfigSection(
     onEvent: (AndroidAppConfigEvent) -> Boolean,
     owner: TvPaneFocusOwner,
     onChoosePlaybackType: () -> Unit,
+    playbackTypeFocus: FocusRequester,
 ) {
     when (val content = state.content) {
         is AndroidAppConfigContent.Loading -> TvAccountStatusText(stringResource(R.string.tv_account_playback_loading))
@@ -615,16 +648,15 @@ private fun TvAppConfigSection(
         )
         is AndroidAppConfigContent.Ready -> {
             val controls = state.controlsEnabled()
-            val typeFocus = remember { FocusRequester() }
             TvChoiceRow(
                 title = stringResource(R.string.tv_account_video_playback_type),
                 value = stringResource(content.preferences.videoPlaybackType.tvLabel()),
                 icon = R.drawable.ic_ph_monitor_play,
                 onClick = { if (controls) onChoosePlaybackType() },
                 owner = owner,
-                focus = typeFocus,
+                focus = playbackTypeFocus,
             )
-            TvAppConfigFailureNotice(state, onEvent, owner, typeFocus) { it is AndroidAppConfigChange.VideoPlayback }
+            TvAppConfigFailureNotice(state, onEvent, owner, playbackTypeFocus) { it is AndroidAppConfigChange.VideoPlayback }
             val autoplayFocus = remember { FocusRequester() }
             TvSwitchRow(
                 title = stringResource(R.string.tv_account_autoplay_next),
@@ -671,6 +703,7 @@ private fun TvAppConfigFailureNotice(
 private fun TvDeviceSection(
     owner: TvPaneFocusOwner,
     onDiagnostics: () -> Unit,
+    diagnosticsFocus: FocusRequester,
 ) {
     TvInfoRow(
         title = stringResource(R.string.tv_account_app),
@@ -698,6 +731,7 @@ private fun TvDeviceSection(
         icon = R.drawable.ic_ph_bug,
         onClick = onDiagnostics,
         owner = owner,
+        focus = diagnosticsFocus,
     )
 }
 

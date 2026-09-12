@@ -147,11 +147,12 @@ private fun TvSignedInApp(
         recentSearchFailure is FilesFailure.AuthenticationRequired ||
         historyOpenFailure is FilesFailure.AuthenticationRequired
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
-    // The account's setting is read at validation; the settings controller's confirmed
-    // value supersedes it once loaded, so the Account toggle flips the History pane.
-    val historyEnabled = settingsState.confirmedHistoryEnabled() ?: signedIn.account.historyEnabled
-    LaunchedEffect(session, historyEnabled) {
-        session.history.dispatch(HistoryEvent.SetEnabled(historyEnabled))
+    // The controller starts from the setting read at validation; each confirmed value from
+    // the settings controller supersedes it, so the Account toggle flips the History pane.
+    // An unsettled History write confirms nothing and leaves the last value in place, like mobile.
+    val confirmedHistoryEnabled = settingsState.confirmedHistoryEnabled()
+    LaunchedEffect(session, confirmedHistoryEnabled) {
+        confirmedHistoryEnabled?.let { session.history.dispatch(HistoryEvent.SetEnabled(it)) }
     }
 
     // A search result or a history event opens in Files: the browser jumps to the item's
