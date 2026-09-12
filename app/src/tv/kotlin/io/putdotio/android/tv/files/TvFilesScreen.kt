@@ -156,11 +156,14 @@ internal fun TvFilesScreen(
     // when the row leaves the listing, like the unsupported overlay.
     var actionsFor by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
     // The trash mode the user chose, kept while the confirmation is up: the dialog and the
-    // event use it, and a setting that changes underneath closes the confirmation instead.
+    // event use it. A setting that changes underneath, or an operation the folder starts on
+    // its own (a reload after a restore), closes the confirmation rather than offering a
+    // Delete the reducer would refuse.
     var confirmingDeleteTrash by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Boolean?>(null) }
     val actionsItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == actionsFor }
     val actionsOrphaned = actionsFor != null && actionsItem == null
-    val confirmationStale = confirmingDeleteTrash != null && confirmingDeleteTrash != confirmedTrashEnabled
+    val confirmationStale = confirmingDeleteTrash != null &&
+        (confirmingDeleteTrash != confirmedTrashEnabled || !current.operation.canStartOperation)
     SideEffect {
         if (actionsOrphaned) {
             actionsFor = null

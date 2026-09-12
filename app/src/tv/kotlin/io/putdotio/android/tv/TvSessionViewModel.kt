@@ -139,7 +139,8 @@ internal class TvSession internal constructor(
         watchedJobs.remove(item.id)?.cancel()
         // Started lazily so the write is registered before its body can run and compare itself.
         val job = scope.launch(start = CoroutineStart.LAZY) {
-            mutableFileActionFailure.value = null
+            // A session verdict from any write stays until the session is rejected.
+            mutableFileActionFailure.update { it?.takeIf { failure -> failure is FilesFailure.AuthenticationRequired } }
             val result = if (watched) {
                 watchedRepository.setPosition(item.id, seconds)
             } else {
@@ -151,7 +152,9 @@ internal class TvSession internal constructor(
             when (result) {
                 is FilesRepositoryResult.Success ->
                     files.dispatch(FilesBrowserEvent.PlaybackPositionReported(item.id, seconds))
-                is FilesRepositoryResult.Failure -> mutableFileActionFailure.value = result.failure
+                is FilesRepositoryResult.Failure -> mutableFileActionFailure.update { current ->
+                    if (current is FilesFailure.AuthenticationRequired) current else result.failure
+                }
             }
         }
         watchedJobs[item.id] = job
