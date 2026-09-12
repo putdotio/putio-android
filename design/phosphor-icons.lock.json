@@ -335,6 +335,20 @@
       "asset": "assets/regular/clock-counter-clockwise.svg",
       "sourceSha256": "06aa1cb0d2664789232f4addb1c5932c8ce14e48465c8e8fb09a651b619b44e3",
       "outputSha256": "771062155c549a4b1466bf5dc577fc889c4a28fb232142d4d79c019005dc01aa"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_backspace",
+      "asset": "assets/regular/backspace.svg",
+      "sourceSha256": "4d0d07f12e8a2e735c9aa0dc843837a5e61bba3792be1196071e2aff6cd46723",
+      "outputSha256": "795d40ac47deae8c0cea26c19d4b4b702050be12c5a9ccd863384149d3a5e2ec"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_arrow_circle_down_fill",
+      "asset": "assets/fill/arrow-circle-down-fill.svg",
+      "sourceSha256": "55ad201e30ef64bd200bdb261d2f78a64bfac03958fe93994b07606b5dee2927",
+      "outputSha256": "196338e5911488d6fe49f8ff70147fdd4c0d8a2edfa4be2bc5baaecdabdf3b23"
     }
   ]
 }

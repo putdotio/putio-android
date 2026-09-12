@@ -586,6 +586,25 @@ adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc
 `adb shell input text` reaches the field without the IME, which is how a
 headless proof types; the recorded proof drives Gboard with D-pad keys.
 
+## TV History proof
+
+History is the third drawer destination. Focus enters on the first event row;
+Up from it reaches Clear, Left from anything returns to the drawer. Rows are
+grouped under Today, Yesterday, Last week, Last month, and Earlier, and show
+the event's relative time and kind. Center on an event that names a file
+resolves it and opens its folder in Files; an event without a file is a row
+the D-pad can rest on. Clear opens a centred confirmation with stacked buttons
+and focus on Cancel; confirming removes the account's whole history, shared
+with mobile and the web, so only clear on a proof account:
+
+```bash
+adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc="Open [^"]+"' | head
+```
+
+The pane is disabled when the account's `history_enabled` setting is off; the
+mobile Account screen toggles it, and the TV pane follows on the next session
+validation.
+
 ## Account Trash and single-item Restore proof
 
 Trash is opened from Account → Manage Trash, including when the Trash setting

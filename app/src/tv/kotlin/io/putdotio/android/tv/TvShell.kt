@@ -50,6 +50,7 @@ internal fun TvShell(
     modifier: Modifier = Modifier,
     filesPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Files, it) },
     searchPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Search, it) },
+    historyPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.History, it) },
     /** Set by a pane that wants another destination shown, such as Search opening a result in Files. */
     requestedDestination: TvDestination? = null,
     onDestinationRequestHandled: () -> Unit = {},
@@ -111,8 +112,8 @@ internal fun TvShell(
             when (destination) {
                 TvDestination.Files -> filesPane(paneFocus)
                 TvDestination.Search -> searchPane(paneFocus)
+                TvDestination.History -> historyPane(paneFocus)
                 TvDestination.Account -> TvAccountPane(account, onSignOut, paneFocus)
-                else -> TvPlaceholderPane(destination, paneFocus)
             }
         }
     }

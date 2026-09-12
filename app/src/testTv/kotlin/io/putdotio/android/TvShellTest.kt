@@ -41,6 +41,15 @@ import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
 import androidx.compose.ui.test.onNodeWithTag
 import io.putdotio.android.tv.files.TvFilesScreen
+import io.putdotio.android.history.HistoryContent
+import io.putdotio.android.history.HistoryEvent
+import io.putdotio.android.history.HistoryEventId
+import io.putdotio.android.history.HistoryEventKind
+import io.putdotio.android.history.HistoryFileId
+import io.putdotio.android.history.HistoryItem
+import io.putdotio.android.history.HistoryPaging
+import io.putdotio.android.history.HistoryState
+import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.android.tv.TvShell
@@ -547,4 +556,56 @@ class TvShellTest {
         compose.runOnIdle { assertEquals(null, requested) }
     }
 
+    @Test
+    fun historyDestinationFocusesTheFirstRowAndAnOpenRequestReturnsToFiles() {
+        val history = HistoryState(
+            HistoryContent.Ready(
+                listOf(
+                    HistoryItem(HistoryEventId(1), "2026-09-10T10:00:00", HistoryEventKind.File(HistoryFileId(5), "Sintel.mp4")),
+                ),
+                HistoryPaging.Complete,
+            ),
+        )
+        val events = mutableListOf<HistoryEvent>()
+        var requested by mutableStateOf<TvDestination?>(null)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    historyPane = { paneFocus ->
+                        TvHistoryScreen(
+                            state = history,
+                            onEvent = { events += it; true },
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
+                    },
+                    requestedDestination = requested,
+                    onDestinationRequestHandled = { requested = null },
+                )
+            }
+        }
+        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNode(hasText("History") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(5))), events)
+
+        compose.runOnIdle { requested = TvDestination.Files }
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused()
+        compose.runOnIdle { assertEquals(null, requested) }
+    }
 }
