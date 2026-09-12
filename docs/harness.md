@@ -591,7 +591,8 @@ headless proof types; the recorded proof drives Gboard with D-pad keys.
 History is the third drawer destination. Focus enters on the first event row;
 Up from it reaches Clear, Left from anything returns to the drawer. Rows are
 grouped under Today, Yesterday, Last week, Last month, and Earlier, and show
-the event's relative time and kind. Center on an event that names a file
+the event's kind with its relative time, or its date once it is more than a
+week old. Center on an event that names a file
 resolves it and opens its folder in Files; an event without a file is a row
 the D-pad can rest on. Clear opens a centred confirmation with stacked buttons
 and focus on Cancel; confirming removes the account's whole history, shared

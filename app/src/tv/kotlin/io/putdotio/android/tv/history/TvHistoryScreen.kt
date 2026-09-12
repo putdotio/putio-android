@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -99,7 +100,6 @@ internal fun TvHistoryScreen(
     // there are any, Try again on a failure, Clear otherwise. Sections move it as they take
     // focus; the effects below set it as content changes, before any focus can arrive.
     val entryTarget = remember { mutableStateOf(clearFocus) }
-    val clearHasFocus = remember { mutableStateOf(false) }
     // The home section follows the content, read when a section leaves: by then the
     // content is already the one replacing it, and its own nodes are attached.
     val currentContent = rememberUpdatedState(content)
@@ -142,10 +142,7 @@ internal fun TvHistoryScreen(
     ) {
         TvHistoryHeader(
             onClear = { onEvent(HistoryEvent.RequestClear) },
-            modifier = owner
-                .section(clearFocus)
-                .onFocusChanged { clearHasFocus.value = it.hasFocus }
-                .focusRequester(clearFocus),
+            modifier = owner.section(clearFocus).focusRequester(clearFocus),
         )
         if (notice != null) {
             Text(
@@ -187,12 +184,14 @@ internal fun TvHistoryScreen(
             }
             is HistoryContent.Ready -> {
                 // Runs after the section that left has handed the target back, and before
-                // the list's own effects: a list that mounts while Clear does not hold
-                // focus is where entry lands.
+                // the list's own effects: rows that mount are where entry lands, as in Files.
                 DisposableEffect(Unit) {
-                    if (entryTarget.value === clearFocus && !clearHasFocus.value) entryTarget.value = listFocus
+                    entryTarget.value = listFocus
                     onDispose {}
                 }
+                // Read once per listing, not per recomposition: a moving "now" would regroup
+                // the rows and relabel every one of them on each focus change.
+                val now = remember(content.items) { clock.instant() }
                 TvHistoryList(
                     content = content,
                     onOpen = { onEvent(HistoryEvent.OpenFile(it)) },
@@ -200,7 +199,8 @@ internal fun TvHistoryScreen(
                     onRetry = { onEvent(HistoryEvent.Retry) },
                     owner = owner,
                     listFocus = listFocus,
-                    now = clock.instant(),
+                    paneHasFocus = paneHasFocus,
+                    now = now,
                     zone = clock.zone,
                     modifier = Modifier.weight(1f),
                 )
@@ -275,6 +275,7 @@ private fun TvHistoryList(
     onRetry: () -> Unit,
     owner: TvPaneFocusOwner,
     listFocus: FocusRequester,
+    paneHasFocus: State<Boolean>,
     now: Instant,
     zone: ZoneId,
     modifier: Modifier = Modifier,
@@ -303,13 +304,16 @@ private fun TvHistoryList(
         }
     }
     val lastIndex = entries.lastIndex
-    // On mount the first row takes focus, unless the user is on Clear or has left for the
-    // drawer; the enter redirect delivers it later in that case. The shell's own pane
-    // request lands one frame earlier on first entry; this one settles on the row.
+    // On mount the first row takes focus, also from Clear, which held it while the list
+    // loaded; not when the user has left for the drawer, where the enter redirect delivers
+    // it later. The shell's own pane request lands one frame earlier on first entry; this
+    // one settles on the row. The anchor is read once, at mount: this list is the one that
+    // mounted, whatever paging appends to it later.
     LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == entries[anchorIndex].key } }.first { it }
+        val anchorKey = entries.getOrNull(anchorIndex)?.key ?: return@LaunchedEffect
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == anchorKey } }.first { it }
         withFrameNanos {}
-        if (owner.owns(listFocus)) listFocus.requestFocus()
+        if (paneHasFocus.value) listFocus.requestFocus()
     }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect

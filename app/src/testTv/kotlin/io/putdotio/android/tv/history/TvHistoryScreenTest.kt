@@ -155,6 +155,18 @@ class TvHistoryScreenTest {
     }
 
     @Test
+    fun rowsTakeFocusFromClearWhenTheListLoads() {
+        var state by mutableStateOf(HistoryState(HistoryContent.Loading(HistoryRequestId(1))))
+        show { state }
+
+        compose.onNodeWithText("Loading history").assertIsDisplayed()
+        compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
+
+        compose.runOnIdle { state = HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
+    }
+
+    @Test
     fun disabledExplainsTheAccountSettingAndKeepsClearAsTheEntryPoint() {
         show(HistoryState(HistoryContent.Disabled))
 

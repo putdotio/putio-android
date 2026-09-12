@@ -29,7 +29,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** What one signed-in TV session needs to build its controllers. */
@@ -77,9 +79,10 @@ internal class TvSession internal constructor(
 
     init {
         // Resolved here rather than in the pane so a row chosen just before the pane is
-        // disposed still opens, like a search result does.
+        // disposed still opens, like a search result does. Only the latest choice counts:
+        // a second Center while the first still resolves must not open two folders in turn.
         scope.launch {
-            history.navigation.collect { request ->
+            history.navigation.collectLatest { request ->
                 when (val result = filesItemResolver.resolveItem(FilesItemId(request.fileId.value))) {
                     is FilesRepositoryResult.Success -> {
                         mutableHistoryOpenFailure.value = null
@@ -93,8 +96,9 @@ internal class TvSession internal constructor(
 
     fun retryRecentSearches() = recentSearches.retry()
 
+    /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissHistoryOpenFailure() {
-        mutableHistoryOpenFailure.value = null
+        mutableHistoryOpenFailure.update { it?.takeIf { failure -> failure is FilesFailure.AuthenticationRequired } }
     }
 
     internal fun close() {

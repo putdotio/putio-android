@@ -22,6 +22,7 @@ import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -110,6 +111,27 @@ class TvSessionViewModelTest {
 
         assertEquals("resolved-55", session.historyOpens.first().name)
         assertNull(session.historyOpenFailure.value)
+    }
+
+    @Test
+    fun `dismissing a history open failure keeps a session verdict`() = runTest {
+        val rejected = FilesFailure.AuthenticationRequired(PutioConfigurationException("401"))
+        val deps = TvSessionDependencies(
+            filesRepository = dependencies.filesRepository,
+            searchRepository = dependencies.searchRepository,
+            historyRepository = dependencies.historyRepository,
+            filesItemResolver = object : FilesItemResolver {
+                override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Failure(rejected)
+            },
+            recentSearchStore = dependencies.recentSearchStore,
+        )
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), deps))
+
+        session.history.dispatch(HistoryEvent.OpenFile(HistoryFileId(55)))
+        assertEquals(rejected, session.historyOpenFailure.value)
+
+        session.dismissHistoryOpenFailure()
+        assertEquals(rejected, session.historyOpenFailure.value)
     }
 
     @Test
