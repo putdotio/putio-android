@@ -19,6 +19,14 @@ import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.settings.AccountSettingsChange
+import io.putdotio.android.settings.AccountSettingsPreferences
+import io.putdotio.android.settings.AccountSettingsRepository
+import io.putdotio.android.settings.AccountSettingsRepositoryResult
+import io.putdotio.android.settings.AndroidAppConfigChange
+import io.putdotio.android.settings.AndroidAppConfigPreferences
+import io.putdotio.android.settings.AndroidAppConfigRepository
+import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import io.putdotio.android.trash.TrashBulkSelection
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashPage
@@ -68,6 +76,8 @@ class TvSessionViewModelTest {
             override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
         },
         trashRepository = StubTrashRepository,
+        settingsRepository = StubAccountSettingsRepository,
+        appConfigRepository = StubAndroidAppConfigRepository,
         filesItemResolver = object : FilesItemResolver {
             override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Success(
                 FilesItem(
@@ -127,6 +137,8 @@ class TvSessionViewModelTest {
             searchRepository = dependencies.searchRepository,
             historyRepository = dependencies.historyRepository,
             trashRepository = dependencies.trashRepository,
+            settingsRepository = dependencies.settingsRepository,
+            appConfigRepository = dependencies.appConfigRepository,
             filesItemResolver = object : FilesItemResolver {
                 override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Failure(rejected)
             },
@@ -175,6 +187,27 @@ class TvSessionViewModelTest {
         override suspend fun deleteItem(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
         override suspend fun restoreAll(selection: TrashBulkSelection) = FilesRepositoryResult.Success(Unit)
         override suspend fun empty() = FilesRepositoryResult.Success(Unit)
+    }
+
+    private object StubAccountSettingsRepository : AccountSettingsRepository {
+        override suspend fun load() = AccountSettingsRepositoryResult.Success(
+            AccountSettingsPreferences(
+                historyEnabled = true,
+                trashEnabled = true,
+                showSubtitles = true,
+                autoSelectSubtitles = true,
+            ),
+        )
+
+        override suspend fun save(change: AccountSettingsChange) = AccountSettingsRepositoryResult.Success(Unit)
+
+        override suspend fun loadTunnelRoutes() = error("No route list expected")
+    }
+
+    private object StubAndroidAppConfigRepository : AndroidAppConfigRepository {
+        override suspend fun load() = AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences())
+
+        override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
     }
 
     private class FakeRecentSearchStore : RecentSearchStoreOwner {

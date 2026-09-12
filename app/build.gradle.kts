@@ -184,6 +184,8 @@ dependencies {
     add("mobileImplementation", libs.coil.compose)
     add("mobileImplementation", libs.coil.network.okhttp)
     add("mobileImplementation", libs.okhttp)
+    add("tvImplementation", libs.coil.compose)
+    add("tvImplementation", libs.coil.network.okhttp)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
 

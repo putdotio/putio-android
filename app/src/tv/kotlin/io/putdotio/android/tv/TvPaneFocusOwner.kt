@@ -23,6 +23,11 @@ internal class TvPaneFocusOwner(
 
     fun focusHome() = home().requestFocus()
 
+    /** Makes the requester the next entry point without moving focus. */
+    fun claim(requester: FocusRequester) {
+        entryTarget.value = requester
+    }
+
     /** Tracks focus for a section; the requester itself is attached where focus should land. */
     @Composable
     fun section(requester: FocusRequester): Modifier {

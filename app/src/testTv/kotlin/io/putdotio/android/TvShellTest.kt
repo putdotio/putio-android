@@ -51,6 +51,13 @@ import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.trash.TvTrashScreen
+import io.putdotio.android.tv.account.TvAccountScreen
+import io.putdotio.android.settings.AccountSettingsContent
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsPreferences
+import io.putdotio.android.settings.AccountSettingsReducer
+import io.putdotio.android.settings.AccountSettingsRequestId
+import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashState
 import io.putdotio.sdk.errors.PutioConfigurationException
@@ -661,11 +668,22 @@ class TvShellTest {
                 TvShell(
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
-                    trashPane = { paneFocus ->
-                        TvTrashScreen(
-                            state = TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0)),
-                            onEvent = { true },
-                            modifier = Modifier.focusRequester(paneFocus),
+                    accountPane = { paneFocus ->
+                        TvAccountScreen(
+                            account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                            settingsState = readySettings(),
+                            appConfigState = AndroidAppConfigReducer.start().state,
+                            onSettingsEvent = { true },
+                            onAppConfigEvent = { true },
+                            onSignOut = {},
+                            paneFocus = paneFocus,
+                            trashPane = { trashFocus ->
+                                TvTrashScreen(
+                                    state = TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0)),
+                                    onEvent = { true },
+                                    modifier = Modifier.focusRequester(trashFocus),
+                                )
+                            },
                         )
                     },
                 )
@@ -679,8 +697,9 @@ class TvShellTest {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
         }
-        compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Sign out").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput {
+            repeat(5) { pressKey(Key.DirectionDown) }
+        }
         compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
@@ -691,4 +710,18 @@ class TvShellTest {
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.onNodeWithText("Manage your trash").assertIsFocused()
     }
+
+    private fun readySettings() =
+        AccountSettingsReducer.reduce(
+            AccountSettingsReducer.start().state,
+            AccountSettingsEvent.LoadSucceeded(
+                AccountSettingsRequestId(1),
+                AccountSettingsPreferences(
+                    historyEnabled = true,
+                    trashEnabled = true,
+                    showSubtitles = true,
+                    autoSelectSubtitles = true,
+                ),
+            ),
+        ).state
 }

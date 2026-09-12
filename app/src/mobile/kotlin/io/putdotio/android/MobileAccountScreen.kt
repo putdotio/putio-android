@@ -82,8 +82,6 @@ import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.VideoPlaybackType
-import java.net.URI
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
 internal const val MOBILE_MANAGE_DOWNLOADS_TAG = "mobile-manage-downloads"
@@ -373,19 +371,6 @@ private fun MobileAccountAvatarFallback(modifier: Modifier) {
             contentDescription = null,
             modifier = Modifier.size(28.dp),
         )
-    }
-}
-
-internal fun String.isSupportedAvatarUrl(): Boolean {
-    val uri = runCatching { URI(this) }.getOrNull() ?: return false
-    return when {
-        !uri.scheme.equals("https", ignoreCase = true) -> false
-        uri.host.isNullOrBlank() -> false
-        uri.userInfo != null -> false
-        uri.rawAuthority?.endsWith(':') == true -> false
-        else -> toHttpUrlOrNull()?.let { url ->
-            url.isHttps && url.username.isEmpty() && url.password.isEmpty()
-        } ?: false
     }
 }
 

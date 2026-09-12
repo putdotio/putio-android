@@ -1,6 +1,5 @@
 package io.putdotio.android.tv
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
@@ -52,8 +51,7 @@ internal fun TvShell(
     filesPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Files, it) },
     searchPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.Search, it) },
     historyPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvPlaceholderPane(TvDestination.History, it) },
-    /** Shown in Account's place after Manage your trash; null hides the row. Back returns to Account. */
-    trashPane: (@Composable (paneFocus: FocusRequester) -> Unit)? = null,
+    accountPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvAccountFallbackPane(account, onSignOut, it) },
     /** Set by a pane that wants another destination shown, such as Search opening a result in Files. */
     requestedDestination: TvDestination? = null,
     onDestinationRequestHandled: () -> Unit = {},
@@ -116,7 +114,7 @@ internal fun TvShell(
                 TvDestination.Files -> filesPane(paneFocus)
                 TvDestination.Search -> searchPane(paneFocus)
                 TvDestination.History -> historyPane(paneFocus)
-                TvDestination.Account -> TvAccountPane(account, onSignOut, paneFocus, trashPane)
+                TvDestination.Account -> accountPane(paneFocus)
             }
         }
     }
@@ -153,28 +151,13 @@ private fun TvPlaceholderPane(
     }
 }
 
+/** The Account pane before the settings screen is wired in: who is signed in, and Sign out. */
 @Composable
-private fun TvAccountPane(
+private fun TvAccountFallbackPane(
     account: TvAccount,
     onSignOut: () -> Unit,
     paneFocus: FocusRequester,
-    trashPane: (@Composable (paneFocus: FocusRequester) -> Unit)?,
 ) {
-    // Saved across recreation like the destination, forgotten with the pane: leaving for
-    // another destination and coming back lands on Account itself, and the row that opened
-    // Trash takes focus again on Back.
-    var showingTrash by rememberSaveable { mutableStateOf(false) }
-    // Set by Back only, so a first visit to Account never pulls focus off the drawer.
-    val returningFromTrash = remember { mutableStateOf(false) }
-    if (trashPane != null && showingTrash) {
-        BackHandler {
-            showingTrash = false
-            returningFromTrash.value = true
-        }
-        trashPane(paneFocus)
-        return
-    }
-    val trashFocus = remember { FocusRequester() }
     Column(modifier = Modifier.fillMaxSize()) {
         PaneTitle(stringResource(R.string.tv_destination_account))
         Text(
@@ -183,49 +166,15 @@ private fun TvAccountPane(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp),
         )
-        if (trashPane != null) {
-            ListItem(
-                selected = false,
-                onClick = { showingTrash = true },
-                headlineContent = { Text(stringResource(R.string.tv_account_manage_trash)) },
-                leadingContent = {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_ph_trash),
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                    )
-                },
-                trailingContent = {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_ph_caret_right),
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                    )
-                },
-                scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
-                modifier = Modifier
-                    .padding(top = 32.dp)
-                    .focusRequester(paneFocus)
-                    .focusRequester(trashFocus),
-            )
-        }
-        // Sign out is the last row, per the contract.
         ListItem(
             selected = false,
             onClick = onSignOut,
             headlineContent = { Text(stringResource(R.string.tv_account_sign_out)) },
             scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
             modifier = Modifier
-                .padding(top = if (trashPane != null) 8.dp else 32.dp)
-                .then(if (trashPane == null) Modifier.focusRequester(paneFocus) else Modifier),
+                .padding(top = 32.dp)
+                .focusRequester(paneFocus),
         )
-    }
-    // Back from Trash: the pane is recomposed with the row that opened it, which takes focus.
-    LaunchedEffect(Unit) {
-        if (returningFromTrash.value) {
-            returningFromTrash.value = false
-            trashFocus.requestFocus()
-        }
     }
 }
 
@@ -239,7 +188,7 @@ private fun PaneTitle(text: String) {
 }
 
 /** Full-width rows scale less than compact surfaces so they stay inside the safe area. */
-private const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
+internal const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
 private val OVERSCAN_X = 38.dp
 private val OVERSCAN_Y = 11.dp
 private val PANE_INSET = 16.dp

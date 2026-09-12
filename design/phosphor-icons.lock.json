@@ -356,6 +356,83 @@
       "asset": "assets/regular/trash.svg",
       "sourceSha256": "e6a830c0409f9e101e3695c981eef98427d39fd01f502b9cbd6900930b01f19c",
       "outputSha256": "43cf4b9ae31a1bab692ffbb5ac80f2e09454011dea73006a8ceb7fbaa2cd92e7"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_tree_structure",
+      "asset": "assets/regular/tree-structure.svg",
+      "sourceSha256": "b44cc8e3cfb16309ee80aa43bb581427d57796a702ddace498ba41ff0709c461",
+      "outputSha256": "d00f6159511ae008b4f50034f23a218ad43f93ea73bd169fea7b04faffa5b8d0"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_bookmark_simple",
+      "asset": "assets/regular/bookmark-simple.svg",
+      "sourceSha256": "493a836009ab98f8d4ca84f088cc03f2785cdee86daa1643e003865ff3168b41",
+      "outputSha256": "5a62eb5fc71b1c8f5a973602d4e3e14abee786996363d50ede30e524c9fda4a7"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_monitor_play",
+      "asset": "assets/regular/monitor-play.svg",
+      "sourceSha256": "7534556c726dfd4f291fd7fb4ab3b4a9ea6e8c7aaeec39a731dda6eecd0f6258",
+      "outputSha256": "99f5b85326c74418becee1f2eba0be8466115b874d953119e2ca000b32719900"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_subtitles",
+      "asset": "assets/regular/subtitles.svg",
+      "sourceSha256": "830b60f447804704071506de91ee161dd721813d795968faaa5a42be85e88cf1",
+      "outputSha256": "eba6daa271095723bcec51192794b6a758b43039572d4346e05d9b9caf1a0521"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_list_checks",
+      "asset": "assets/regular/list-checks.svg",
+      "sourceSha256": "b2d11fc95de627d6abe9feeced5f7e0cdce3ccdf8d9f9d2334d596b8b5cc5cc4",
+      "outputSha256": "6aa7b867a0246c3ac0179b915f8b9c484b98602bfb2745d8be52d16d389c3703"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_recycle",
+      "asset": "assets/regular/recycle.svg",
+      "sourceSha256": "85e74a2e58dae5cb178dc23e73216edad052da022c401c676a294245c6093965",
+      "outputSha256": "72064060dd62d39b0a5020ceddbe9fe5478e6e1d145a8fbc17b531985737e9af"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_android_logo",
+      "asset": "assets/regular/android-logo.svg",
+      "sourceSha256": "a7913ed07623ade21545cc0d271021e30753a370b2b9e96251cb521b591cc371",
+      "outputSha256": "ccfb7fcd7d50f0bfaa36806a97f60764316eb76c8cdbb1092ad9dbf5e53b6408"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_television",
+      "asset": "assets/regular/television.svg",
+      "sourceSha256": "db6c3b07832e504d5634abfacd740e8aa45358bfc29b884f3ffd6819ec3ed124",
+      "outputSha256": "fe9c191ea5235c231086ba503a12f9f0d88ffe7395601aa73c7f4f989dc67db1"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_circles_four",
+      "asset": "assets/regular/circles-four.svg",
+      "sourceSha256": "f090eb563b7cd379c4d92b8e9332d6614800f3c549d8fc2689a58a3c646fdc0c",
+      "outputSha256": "9e82dfb09accf05fd2934318914d07dc1f4322d71f8800e21b37474add98abb4"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_bug",
+      "asset": "assets/regular/bug.svg",
+      "sourceSha256": "05041640c72e5cccc75ffe9b5138ff173c8097ee75183f231deeadcdf108dd0a",
+      "outputSha256": "0281c5408c4e9ef2cf7e48c447b0d775066b55defdb8f1553a79247da74a19cb"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_sign_out",
+      "asset": "assets/regular/sign-out.svg",
+      "sourceSha256": "511fe7958ef31f8904185631fd7045c11f35c8034a2a64ccb3bdcc4dfa81df77",
+      "outputSha256": "949961773b0904f56714dd01919baf46726dca80c6f9c8611bf67305c03bb4c3"
     }
   ]
 }
