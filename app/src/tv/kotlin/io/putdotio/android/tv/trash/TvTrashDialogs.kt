@@ -14,7 +14,10 @@ import io.putdotio.android.trash.TrashState
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvDialog
 
-/** Center on a row: the item's actions as a choice dialog, Restore first. */
+/**
+ * Center on a row: the item's actions as a choice dialog, Restore first. An action the
+ * controller would refuse is disabled; focus lands on the first one it allows.
+ */
 @Composable
 internal fun TvTrashItemDialog(
     item: TrashItem,
@@ -22,28 +25,39 @@ internal fun TvTrashItemDialog(
     onEvent: (TrashEvent) -> Boolean,
     onDismiss: () -> Unit,
 ) {
+    val canRestore = state.canRestore(item.id)
+    val canDelete = state.canDelete(item.id)
     TvDialog(title = item.name, message = null, onDismiss = onDismiss) { focus ->
         TvButton(
             onClick = {
                 onDismiss()
-                if (state.canRestore(item.id)) onEvent(TrashEvent.SelectRestore(item.id))
+                onEvent(TrashEvent.SelectRestore(item.id))
             },
+            enabled = canRestore,
             modifier = Modifier
                 .fillMaxWidth()
-                .focusRequester(focus),
+                .then(if (canRestore) Modifier.focusRequester(focus) else Modifier),
         ) {
             Text(stringResource(R.string.tv_trash_restore))
         }
         TvButton(
             onClick = {
                 onDismiss()
-                if (state.canDelete(item.id)) onEvent(TrashEvent.SelectDelete(item.id))
+                onEvent(TrashEvent.SelectDelete(item.id))
             },
-            modifier = Modifier.fillMaxWidth(),
+            enabled = canDelete,
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (!canRestore && canDelete) Modifier.focusRequester(focus) else Modifier),
         ) {
             Text(stringResource(R.string.tv_trash_delete))
         }
-        TvButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+        TvButton(
+            onClick = onDismiss,
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (!canRestore && !canDelete) Modifier.focusRequester(focus) else Modifier),
+        ) {
             Text(stringResource(R.string.tv_trash_cancel))
         }
     }

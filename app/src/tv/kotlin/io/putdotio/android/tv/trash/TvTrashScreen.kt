@@ -53,7 +53,6 @@ import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.fileTypeIconRes
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.trash.TrashAction
 import io.putdotio.android.trash.TrashActionCheck
 import io.putdotio.android.trash.TrashActionOutcome
@@ -156,7 +155,7 @@ internal fun TvTrashScreen(
         state.actionOutcome?.let { TvTrashActionOutcome(it, enabled, onEvent, owner) }
         loaded?.refreshFailure?.let { failure ->
             TvTrashNotice(
-                text = stringResource(R.string.tv_trash_refresh_error) + " " + stringResource(failure.tvMessage()),
+                text = stringResource(R.string.tv_trash_refresh_error, stringResource(failure.tvMessage())),
                 action = stringResource(R.string.tv_files_retry),
                 onAction = { onEvent(TrashEvent.Refresh) },
                 owner = owner,
@@ -199,7 +198,8 @@ internal fun TvTrashScreen(
                     }
                     TvTrashList(
                         content = content,
-                        onChoose = { chosenItemId = it.id.value },
+                        // A row with nothing the controller allows right now has no dialog to offer.
+                        onChoose = { if (state.canRestore(it.id) || state.canDelete(it.id)) chosenItemId = it.id.value },
                         onNextPage = { onEvent(TrashEvent.LoadNextPage) },
                         onRetry = { onEvent(TrashEvent.Retry) },
                         owner = owner,

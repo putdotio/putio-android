@@ -144,6 +144,46 @@ class TvTrashScreenTest {
     }
 
     @Test
+    fun aRestoredRowOffersOnlyDeleteAndAPendingMutationOffersNoDialog() {
+        var state by mutableStateOf(TrashState(content = loaded, restoredItemIds = setOf(FilesItemId(7))))
+        show { state }
+
+        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        // Restore is disabled: it can be reached and seen as such, but Center does nothing.
+        compose.onNodeWithText("Restore").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Delete permanently").assertIsDisplayed()
+        compose.onNodeWithText("Restore").performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onAllNodesWithText("Delete permanently").assertCountEquals(0)
+
+        compose.runOnIdle {
+            state = TrashState(
+                content = loaded,
+                restoreOutcome = TrashRestoreOutcome(item, TrashRestoreSubmission.ACKNOWLEDGED),
+            )
+        }
+        compose.onNodeWithContentDescription("Actions for smoke-two.txt").performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onAllNodesWithText("Delete permanently").assertCountEquals(0)
+        assertEquals(emptyList<TrashEvent>(), events)
+    }
+
+    @Test
     fun dateOnlyStampsFormatLikeTimestamps() {
         show { TrashState(content = loaded.copy(items = listOf(item.copy(deletedAt = "2026-09-06", expirationDate = "2026-09-20")))) }
 

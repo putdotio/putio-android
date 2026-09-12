@@ -623,8 +623,8 @@ PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation trash.list --execute --ou
 
 ## Account Trash and single-item Restore proof
 
-Trash is opened from Account → Manage Trash, including when the Trash setting
-is off. Restore acknowledges queueing with “Restore started.” An exact-ID Files
+On mobile, Trash is opened from Account → Manage Trash, including when the
+Trash setting is off. Restore acknowledges queueing with “Restore started.” An exact-ID Files
 GET must return the selected kind and a valid current parent before the app says
 the item is available again. Restored names and parents can change. Pending
 recovery survives tab navigation and activity recreation; Check status repeats

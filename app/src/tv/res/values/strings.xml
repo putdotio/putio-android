@@ -123,7 +123,7 @@
     <string name="tv_trash_empty_title">Your trash is empty</string>
     <string name="tv_trash_empty_message">When you send files to trash, we keep them here for 14 days.</string>
     <string name="tv_trash_error_title">Couldn’t load trash</string>
-    <string name="tv_trash_refresh_error">Couldn’t refresh trash.</string>
+    <string name="tv_trash_refresh_error">Couldn’t refresh trash. %1$s</string>
     <string name="tv_trash_load_more">Load more</string>
     <string name="tv_trash_loading_more">Loading more items</string>
     <string name="tv_trash_paging_error">Couldn’t load more items.</string>
