@@ -249,9 +249,10 @@ private fun TvSignedInApp(
                 notice = filesNotice?.let { stringResource(it) }
                     ?: fileActionFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
                         ?.let { stringResource(R.string.tv_files_watched_error, stringResource(it.tvMessage())) },
+                // OK clears only what it was shown; a failure that arrived behind a VLC
+                // notice is shown next.
                 onDismissNotice = {
-                    filesNotice = null
-                    session.dismissFileActionFailure()
+                    if (filesNotice != null) filesNotice = null else session.dismissFileActionFailure()
                 },
             )
         },

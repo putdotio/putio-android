@@ -85,7 +85,7 @@ internal class TvSession internal constructor(
     private val historyOpenChannel = Channel<FilesItem>(Channel.BUFFERED)
     private val mutableHistoryOpenFailure = MutableStateFlow<FilesFailure?>(null)
     private val mutableFileActionFailure = MutableStateFlow<FilesFailure?>(null)
-    private var watchedJob: Job? = null
+    private val watchedJobs = mutableMapOf<FilesItemId, Job>()
 
     /**
      * Which Files row last held D-pad focus in each folder. It lives here, not in the pane,
@@ -131,10 +131,11 @@ internal class TvSession internal constructor(
      */
     fun setWatched(item: FilesItem, watched: Boolean) {
         val seconds = if (watched) item.playback?.durationSeconds ?: return else 0.0
-        // One write at a time: a newer choice supersedes an unfinished one, so a slow first
-        // request cannot report after a faster second one has already settled the row.
-        watchedJob?.cancel()
-        watchedJob = scope.launch {
+        // One write per file at a time: a newer choice for the same file supersedes an
+        // unfinished one, so a slow first request cannot report after a faster second one
+        // has settled the row; writes for other files run on their own.
+        watchedJobs.remove(item.id)?.cancel()
+        watchedJobs[item.id] = scope.launch {
             mutableFileActionFailure.value = null
             val result = if (watched) {
                 watchedRepository.setPosition(item.id, seconds)
@@ -146,7 +147,7 @@ internal class TvSession internal constructor(
                     files.dispatch(FilesBrowserEvent.PlaybackPositionReported(item.id, seconds))
                 is FilesRepositoryResult.Failure -> mutableFileActionFailure.value = result.failure
             }
-        }
+        }.also { job -> job.invokeOnCompletion { if (watchedJobs[item.id] === job) watchedJobs.remove(item.id) } }
     }
 
     /** The original file's URL for an external player, or null without a session token. */
