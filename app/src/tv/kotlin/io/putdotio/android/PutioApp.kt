@@ -18,6 +18,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.SdkFilesRepository
@@ -176,9 +177,17 @@ private fun TvSignedInApp(
             }
             // A restore from Trash marks its folder stale; the listing reloads when Files shows
             // again, or once a refresh that was running at that moment has settled.
+            // Keyed like mobile: the folder, the operation, and whether the content is still
+            // loading, so a reload deferred by any of them runs once that settles.
             val current = filesState.current
-            LaunchedEffect(session, current.needsReload, current.operation.canStartOperation) {
-                if (current.needsReload && current.operation.canStartOperation) {
+            LaunchedEffect(
+                session,
+                current.folder.id,
+                current.needsReload,
+                current.operation,
+                current.content is FilesContent.Loading,
+            ) {
+                if (current.needsReload && current.operation.canStartOperation && current.content !is FilesContent.Loading) {
                     session.files.dispatch(FilesBrowserEvent.ReloadIfStale)
                 }
             }
