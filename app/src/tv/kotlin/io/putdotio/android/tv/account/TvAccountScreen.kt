@@ -196,6 +196,14 @@ private fun TvAccountBody(
             TvAccountDialog.Diagnostics -> diagnosticsFocus
         }
     }
+    // A restored choice dialog waits for the content it chooses from; until then it is not up.
+    val shownDialog = openDialog?.takeIf { dialog ->
+        when (dialog) {
+            TvAccountDialog.Route -> settingsReady != null
+            TvAccountDialog.PlaybackType -> appConfigReady != null
+            TvAccountDialog.TrashOff, TvAccountDialog.Diagnostics -> true
+        }
+    }
     val paneHasFocus = remember { mutableStateOf(true) }
     // Losing the Trash pane's focused node makes the window re-enter this pane on its own;
     // the entry point is the row that opened Trash from the first composition, so that
@@ -205,7 +213,7 @@ private fun TvAccountBody(
         mutableStateOf(
             when {
                 returningFromTrash.value -> trashFocus
-                openDialog != null -> opener(openDialog!!)
+                shownDialog != null -> opener(shownDialog)
                 else -> signOutFocus
             },
         )
@@ -214,12 +222,15 @@ private fun TvAccountBody(
     val owner = remember {
         TvPaneFocusOwner(entryTarget, paneHasFocus) { if (rowsPresent.value) firstRowFocus else signOutFocus }
     }
-    val dialogOpen = openDialog != null
+    val dialogOpen = shownDialog != null
     val dialogShowing = rememberUpdatedState(dialogOpen)
     val dialogWasOpen = remember { mutableStateOf(false) }
-    LaunchedEffect(dialogOpen) {
-        val closing = dialogWasOpen.value && !dialogOpen
-        dialogWasOpen.value = dialogOpen
+    LaunchedEffect(shownDialog) {
+        val closing = dialogWasOpen.value && shownDialog == null
+        dialogWasOpen.value = shownDialog != null
+        // The row that opened the dialog is where focus returns, also when the dialog only
+        // came up once its content arrived after a recreation.
+        if (shownDialog != null) entryTarget.value = opener(shownDialog)
         if (!closing || !paneHasFocus.value) return@LaunchedEffect
         withFrameNanos {}
         if (paneHasFocus.value) entryTarget.value.requestFocus()
@@ -389,7 +400,7 @@ private fun TvAccountBody(
         }
     }
 
-    if (openDialog == TvAccountDialog.Route && settingsReady != null) {
+    if (shownDialog == TvAccountDialog.Route && settingsReady != null) {
         TvTunnelRouteDialog(
             selected = settingsReady.preferences.tunnelRoute,
             loadRoutes = loadTunnelRoutes,
@@ -400,7 +411,7 @@ private fun TvAccountBody(
             onDismiss = { openDialog = null },
         )
     }
-    if (openDialog == TvAccountDialog.PlaybackType && appConfigReady != null) {
+    if (shownDialog == TvAccountDialog.PlaybackType && appConfigReady != null) {
         TvChoiceDialogForPlayback(
             selected = appConfigReady.preferences.videoPlaybackType,
             onSelect = { type ->
@@ -410,7 +421,7 @@ private fun TvAccountBody(
             onDismiss = { openDialog = null },
         )
     }
-    if (openDialog == TvAccountDialog.TrashOff) {
+    if (shownDialog == TvAccountDialog.TrashOff) {
         TvTrashDisableDialog(
             onConfirm = {
                 openDialog = null
@@ -421,7 +432,7 @@ private fun TvAccountBody(
             onDismiss = { openDialog = null },
         )
     }
-    if (openDialog == TvAccountDialog.Diagnostics) {
+    if (shownDialog == TvAccountDialog.Diagnostics) {
         TvDiagnosticsDialog(
             diagnostics = tvAppDiagnostics(appConfigState.playbackPreference()),
             onDismiss = { openDialog = null },
