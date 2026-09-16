@@ -15,6 +15,7 @@ evidence for PRs.
 
 - [Overview](./README.md)
 - [Harness](./docs/harness.md)
+- [Behaviour](./docs/behavior.md): product rules the harness proves
 - Kotlin SDK guide: `../putio-sdk-kotlin/AGENTS.md` (sibling checkout; see Toolchain)
 
 ## Toolchain
