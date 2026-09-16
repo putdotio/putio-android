@@ -58,8 +58,8 @@ the JVM), and an unsigned minified `mobileProductionRelease` build that proves
 the composite Kotlin SDK against minSdk 26 and R8. It also compiles the mobile
 production debug instrumentation APK without running it, checks the Phosphor
 icon lock (`scripts/generate-icons.sh --check`), and runs the shell and Python
-contract tests for the emulator harness, TalkBack input, evidence capture, icon pipeline, and
-attach publishing (`python3`, `bash`, and `ffprobe` on PATH). `:buildSrc:test`
+contract tests for the emulator harness, TalkBack input, evidence capture, and
+icon pipeline (`python3`, `bash`, and `ffprobe` on PATH). `:buildSrc:test`
 covers design-token codegen and host proof tooling; run it alongside `verify`
 (CI does). Fix findings at the
 source; suppress only with a comment stating the platform constraint.
@@ -151,7 +151,7 @@ One command from source to a verified, evidenced launch:
 ```
 
 The exit code is the proof. Emulator lifecycle, flags, recording, evidence
-validation and publishing, live API proof with the `putio` CLI, and headless
+validation and upload, live API proof with the `putio` CLI, and headless
 notes: [Harness](./docs/harness.md).
 
 ## Definition of Done
@@ -161,8 +161,8 @@ Every change ships with:
 1. `./gradlew verify` plus both flavor assembles green
 2. The behavior exercised on the local harness (`scripts/prove.sh` or a
    feature-specific flow on the emulator)
-3. Visual proof captured from the harness and published from the PR via the
-   attach CLI
+3. Visual proof captured from the harness and uploaded to the PR with
+   `gh pr comment <n> --attach <file>`, never committed
 
 ## Worktrees
 

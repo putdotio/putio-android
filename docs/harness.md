@@ -274,19 +274,10 @@ near-black captures fail and are quarantined as `*.black.*` unless
 `--allow-dark` is passed for legitimately dark content (playback, dark
 scenes). Quarantined files are never printed as evidence paths.
 
-Never commit evidence files. Eyeball each validated capture before publishing
-it with the wrapper. The wrapper selects installed `attach` first, falls back
-to `gh attach`, rejects quarantined files, and never invokes login or touches
-`gh auth`:
-
-```bash
-./scripts/publish-evidence.sh .evidence/<file> --pr <number>
-```
-
-Follow the installed `attach-cli` skill for login and safe handling; use
-`--markdown` only when the PR needs an inline embed. The harness deliberately
-fails closed on a missing CLI, custom deployment client id, authentication, or
-allowlist error while preserving the validated local capture.
+Never commit evidence files. Eyeball each validated capture, then upload it to
+the pull request with `gh pr create --attach .evidence/<file>.png` or
+`gh pr comment <n> --attach .evidence/<file>.mp4` (gh 2.99+). Never upload a
+quarantined file.
 
 ## Live API Proof (putio CLI)
 

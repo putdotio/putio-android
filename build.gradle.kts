@@ -10,12 +10,6 @@ val testEvidence = tasks.register<Exec>("testEvidence") {
     commandLine("bash", "scripts/test-evidence.sh")
 }
 
-val testPublishEvidence = tasks.register<Exec>("testPublishEvidence") {
-    group = "verification"
-    description = "Run Attach evidence publishing regression tests"
-    commandLine("bash", "scripts/test-publish-evidence.sh")
-}
-
 val testEmulatorHarness = tasks.register<Exec>("testEmulatorHarness") {
     group = "verification"
     description = "Run emulator provisioning and readiness contract tests"
@@ -52,7 +46,6 @@ tasks.register("verify") {
         testEmulatorHarness,
         testEvidence,
         testIconPipeline,
-        testPublishEvidence,
         testTalkBackInput,
     )
 }
