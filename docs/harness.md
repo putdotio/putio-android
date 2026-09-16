@@ -82,6 +82,19 @@ Still eyeball captures before publishing them as evidence.
 
 ## Evidence
 
+The opt-in device lanes below share one contract. Build the mobile production
+debug app and instrumentation APKs, install both with `adb install -r` on the
+existing API 37 emulator, and invoke only the named class or selector through
+bounded `am instrument` with the lane's opt-in flag and a fresh `runId` UUID.
+Never run `connectedAndroidTest` or `prove.sh` on an authenticated
+installation. Screenshots land in the lane's `<lane>-proof-<UUID>/` directory
+under the target app's external files directory; pull and inspect them,
+validate recordings with `scripts/evidence.sh validate-recording`, and publish
+as in [Capture and publish](#capture-and-publish). The caller owns bounded
+instrumentation supervision, recording, emulator lifetime, fixture cleanup, and
+restoring every device setting a lane changes; report lanes that make no API
+calls as synthetic proof.
+
 ### Mobile accessibility proof
 
 `MobileAccessibilityProofTest` mounts controlled production auth, Files,
@@ -94,13 +107,10 @@ Record their exact prior values, including absent keys, and restore them after
 proof. This lane proves large-font reachability with animations disabled;
 Compose semantics assertions do not establish actual TalkBack speech.
 
-Install the mobile production debug app and test APKs with `adb install -r`.
-Invoke only the named class through bounded `am instrument`, passing
-`putio.accessibility.enabled=true` and `putio.accessibility.runId=<UUID>`.
-Require `OK (3 tests)`. Screenshots land in `accessibility-proof-<UUID>/`
-under the target app's external files directory. Follow the session-preserving
-invocation and guest-idleness rules below; do not use `connectedAndroidTest`
-or `prove.sh` on the authenticated installation.
+Opt in with `putio.accessibility.enabled=true` and
+`putio.accessibility.runId=<UUID>` as instrumentation arguments. Require
+`OK (3 tests)`. Screenshots land in the `accessibility-proof-<UUID>/` run
+directory.
 
 `MobileShellAccessibilityProofTest` adds the actual navigation shell, app bars
 and Transfers toolbar to the controlled proof. Run each named selector once in
@@ -130,7 +140,7 @@ ID and expected orientation. It requires the normal bar/rail before typing and
 checks that navigation, focus and the editable query survive the keyboard inset
 change. Screenshots use `normal-portrait-` and `normal-landscape-` prefixes. This
 controlled shell does not initialize authentication, connect audio or call the API.
-Require `OK (1 test)` per invocation; preserve and restore caller settings.
+Require `OK (1 test)` per invocation.
 
 `MobileTalkBackProofTest` is a separate, manually driven TalkBack lane. It
 mounts controlled auth and private local players, then checks the real auth
@@ -169,11 +179,8 @@ Require `OK (1 test)` and inspect the corresponding recording and utterance log.
 completes the ordinary Sign in and resume-choice TalkBack lane. It mounts the
 production signed-out screen and Resume dialog with controlled callbacks;
 it opens no browser, starts no player and initializes no account runtime.
-Use the same API 37, font scale 2.0, disabled-animation and actual TalkBack setup,
-with a fresh UUID and the existing `putio.accessibility.enabled=true` and
-`putio.accessibility.runId=<UUID>` instrumentation arguments. Install with
-`adb install -r`, then invoke this exact selector through bounded `am instrument`;
-no media fixture arguments are needed.
+Use the same font scale, animation and TalkBack setup with the accessibility
+opt-in arguments; no media fixture arguments are needed.
 
 Follow `talkback-choices-stage.txt` under `accessibility-proof-<UUID>/`: activate
 Sign in at `sign-in`, Resume at `resume`, and Start over at `start-over`.
@@ -183,8 +190,7 @@ a wrong choice or dismissal fails. `talkback-choices-state.txt` records the
 observed action sequence. Require `finished` plus `OK (1 test)`. Each phase is
 bounded to 120 seconds and the whole walkthrough to 400 seconds. Capture and
 inspect the actual TalkBack utterances and host recording; callback assertions
-alone do not prove speech. Preserve and restore device settings and the account
-session using the same host-supervision rules as the player lane.
+alone do not prove speech.
 
 `MobileTalkBackSessionProofTest#talkBackControlsNowPlayingAndSeeksPrivateAudio`
 mounts the production shell around one private, muted audio player. It connects
@@ -193,8 +199,7 @@ and device settings, a fresh run UUID, and `putio.accessibility.audio` pointing
 to caller-owned audio beneath the app's external files directory. The fixture
 must last at least 300 seconds: playback starts at 30 seconds and may run through
 the preparation and two playing phases at their full budgets before the host
-pauses it. Install with `adb install -r` and invoke this
-exact selector through bounded `am instrument`.
+pauses it.
 
 Watch `talkback-session-stage.txt` in `accessibility-proof-<UUID>/`. Preparation
 is automatic; at `bar-pause` activate the now-playing Pause action, then Play at
@@ -241,8 +246,7 @@ instrumentation, recording, artifact capture and settings restoration.
 
 `MobilePlaybackOptionsProofTest` uses the real mobile player and audio service
 with caller-owned, local two-track media. It makes no API calls and preserves
-the installed account session. Install the debug app and test APKs with
-`adb install -r`, then invoke this exact class through `am instrument` with
+the installed account session. Opt in with
 `putio.playback.options.enabled=true`, `putio.playback.options.runId=<UUID>`,
 and `putio.playback.options.audio` / `putio.playback.options.video` set to
 readable fixture paths under the app's external files directory.
@@ -253,9 +257,8 @@ and the second track, check
 the real player state, recreate the video player, and reconnect to background
 audio. Lifecycle and saved-state transitions use a controlled Compose host;
 this is local-media proof, not live API or full Activity-recreation proof.
-Screenshots go to `playback-options-proof-<UUID>/` under external files.
-Validate and inspect them before publishing, and remove only the caller-owned
-fixtures after instrumentation is idle. The audio test stops its playback at
+Screenshots go to the `playback-options-proof-<UUID>/` run directory. Remove
+only the caller-owned fixtures after instrumentation is idle. The audio test stops its playback at
 completion; use an otherwise idle media session.
 
 ### Capture and publish
@@ -311,7 +314,6 @@ after changing it. Say which client a proof ran on when you attach evidence.
 - macOS needs Hypervisor.framework (default on Apple Silicon); Linux devboxes need KVM (`emulator -accel-check`). Without acceleration arm64 images are unusably slow
 - First boot of a fresh AVD is the slow path (~1 min on an M-series Mac); subsequent boots are faster with `-no-snapshot` still enforced for reproducibility
 - On shared machines check `scripts/emulator.sh status` before assuming a free console port; the scripts scan 5554–5584
-
 
 ## Authenticated rename proof
 
@@ -399,8 +401,8 @@ Run logs and raw capture remain under `.evidence/rename-<run-id>/`. Raw captures
 are not publication evidence. The existing capture gates validate and normalize
 them through `scripts/evidence.sh validate-recording --input <file>`, and only a
 successful task prints `EVIDENCE <validated-path>` followed by
-`PROOF PASS authenticated-rename`. Inspect the clip before publishing it with the
-repository wrapper. No fixture or credential payload is printed by CLI preflight.
+`PROOF PASS authenticated-rename`. No fixture or credential payload is printed
+by CLI preflight.
 
 ## Authenticated Trash/Delete device test
 
@@ -411,10 +413,8 @@ exact item through the SDK and verifies Trash membership when appropriate.
 It never changes the account's Trash setting. A passing run covers only the
 mode recorded in its fixture; folder descendant completion is outside this test.
 
-Build the mobile production debug app and instrumentation APK, install both
-with `adb install -r`, and invoke only the named test on an explicitly selected
-API 37 emulator with the existing shared-account session. Instrumentation
-arguments are `putio.delete.enabled=true`, `putio.delete.runId=<UUID>`, and
+With the existing shared-account session, the instrumentation arguments are
+`putio.delete.enabled=true`, `putio.delete.runId=<UUID>`, and
 `putio.delete.fixture=<base64 JSON>`. The fixture requires `expectedAccountId`,
 `containerId`, `containerName`, `actionItemId`, `actionName`,
 `expectedTrashEnabled`, `cancelItemId`, and `cancelName`. Use two distinct empty
@@ -423,8 +423,7 @@ cancel names whose descending order places the cancel item first. IDs must be
 positive, the three file IDs and names must be distinct, and the Trash mode
 must match the current account. The parser rejects duplicate or unknown keys.
 
-The caller owns bounded process supervision, recording, fixture cleanup, and
-emulator lifetime, following the guest-idleness contract above. Track a trashed
+Follow the guest-idleness contract above. Track a trashed
 item separately: removing its active parent does not remove its Trash entry.
 Clean only exact owned IDs; never empty Trash or use ID zero. Preserve fixtures
 when guest activity or cleanup outcomes remain unknown.
@@ -432,10 +431,8 @@ when guest activity or cleanup outcomes remain unknown.
 The separately opted-in
 `FilesDeleteRecoveryUiProofTest#uncertainDeleteKeepsItemAndOffersStatusCheck`
 uses `putio.delete.ui.enabled=true` and the same run ID to capture controlled
-error UI without API calls. Report this as synthetic UI evidence. Both tests
-write screenshots below the target app's external files directory at
-`delete-proof-<UUID>/`. Pull and inspect them, validate the caller's recording
-with the existing evidence command, then publish through the repository wrapper.
+error UI without API calls. Both tests write screenshots to the
+`delete-proof-<UUID>/` run directory.
 
 `FilesDeleteNavigationUiProofTest#rejectedSearchAndTransferNavigationPreserveRecovery`
 uses the same synthetic opt-in and run ID. It mounts the real mobile shell with
@@ -453,7 +450,6 @@ a cached ancestor, and a folder move to root. Each confirmed move checks the exa
 item ID and destination parent through the SDK. It preserves the existing shared
 account session and checks source sort and viewport after Cancel.
 
-Use the same API 37 installation and caller supervision contract as Delete above.
 First run `MoveProofFixtureTest#acceptsSevenOwnedItemsAndRejectsAmbiguousFixtures`.
 The authenticated selector requires `putio.move.enabled=true`,
 `putio.move.runId=<UUID>`, and `putio.move.fixture=<base64 JSON>`.
@@ -481,9 +477,7 @@ picker paging/error UI. With the same opt-in arguments,
 `FilesMoveNavigationUiProofTest#rootMoveConsumesBackOnFilesAndAccountUntilRecoveryCompletes`
 exercises the activity Back dispatcher while a root Move is pending or awaiting
 read recovery, on both Files and Account. These controlled tests perform no API
-operations; report them as synthetic proof. Screenshots are written to `move-proof-<UUID>/` below the target app's
-external files directory. Pull and inspect these and the validated recording
-before publishing through the repository evidence wrapper.
+operations. Screenshots go to the `move-proof-<UUID>/` run directory.
 
 The debug-only Compose test host handles asset-path configuration changes. API 37
 can update asset overlays during a test; recreating the plain `ComponentActivity`
@@ -667,8 +661,7 @@ selector
 `AuthenticatedTrashRestoreTest#cancelPreservesTrashAndRestoreMakesTheExactItemAvailable`.
 The live selector requires `putio.trash.restore.enabled=true`,
 `putio.trash.restore.runId=<UUID>`, and
-`putio.trash.restore.fixture=<base64 JSON>`. Use the same existing authenticated
-API 37 installation and caller supervision contract above.
+`putio.trash.restore.fixture=<base64 JSON>` as instrumentation arguments.
 
 Create a unique root container named `android-trash-restore-proof-<UUID>` with
 three children: a tiny UTF-8 file (1–128 bytes), an empty Cancel folder, and an
@@ -703,10 +696,9 @@ The synthetic selectors
 `TrashRestoreUiProofTest#queuedRestoreRetainsRecoveryAndRetriesOnlyReads` and
 `TrashRestoreUiProofTest#ambiguousRestoreAndAuthenticationFailureNeverRepeatMutation`
 use `putio.trash.restore.ui.enabled=true` with the same UUID. They mount the real
-shell with controlled repositories and make no API calls. Screenshots go to
-`trash-restore-proof-<UUID>/` in the target app’s external files directory. Keep
-synthetic images separate from the live recording; inspect and validate media
-before publishing through the existing evidence wrapper.
+shell with controlled repositories and make no API calls. Screenshots go to the
+`trash-restore-proof-<UUID>/` run directory. Keep synthetic images separate
+from the live recording.
 
 ## Live audio attachment without source resolution
 
@@ -720,9 +712,7 @@ position, speed and the selected audio track, and support Play/Pause. This prove
 real service attachment through shell navigation; it does not tap the Android
 notification, exercise MainActivity intent delivery, or simulate process death.
 
-Install the app and test APKs with `adb install -r`, then run only this selector
-on the existing API 37 emulator. Do not use `connectedAndroidTest` or `prove.sh`
-on an authenticated installation. Required instrumentation arguments are:
+Required instrumentation arguments are:
 
 - `putio.audio.attach.enabled=true`
 - `putio.audio.attach.runId=<UUID>`
@@ -739,12 +729,9 @@ matches the run's owned media ID, releases its controller, and leaves the local
 fixture and account storage intact.
 
 Screenshots `attached-without-resolve.png` and `reopened-without-resolve.png` go to
-`live-audio-attachment-proof-<UUID>/` below the target app's external files
-directory. Pull and inspect them before publishing with the existing evidence
-wrapper. Describe them as real local-service playback with controlled shell
-requests, not notification-tap or live-API evidence. The caller owns bounded
-instrumentation supervision, emulator lifetime, and any recording, following the
-session-preserving invocation contract above.
+the `live-audio-attachment-proof-<UUID>/` run directory. Describe them as real
+local-service playback with controlled shell requests, not notification-tap or
+live-API evidence.
 
 ## Resume and position reporting
 
@@ -778,14 +765,12 @@ and checks the session identity again under the authentication controller's lock
 For live proof, use the CLI's explicit `devs-auto` profile to upload a short audio
 file and a video in a uniquely named owned folder. Record exact IDs, names, kinds,
 initial `start_from` values and ownership before setting a positive saved position.
-Install with `adb install -r`, preserving the existing authenticated API 37 app.
 Open each owned file in the real shell; exercise Resume, Start over, pause, Back,
 and background audio with notification controls. Read back exact saved positions
 through the CLI after the reporting interval and pause. Keep shared account
 settings unchanged. Restore initial positions and delete only owned fixtures
 after confirming playback and instrumentation are idle. Capture the prompt and
-its playback outcome, validate recordings, inspect, and publish through the
-existing evidence wrapper. Local test-player proof does not establish live API
+its playback outcome. Local test-player proof does not establish live API
 write-back or service ownership.
 
 ## Immersive landscape video proof
@@ -798,8 +783,7 @@ with visible system bars becomes landscape with both bars hidden, and Back resto
 the original orientation and bar visibility. Saved-state recreation uses Compose's
 `StateRestorationTester`; this does not claim full Activity or process recreation.
 
-Run only this selector on API 37 after installing app and instrumentation APKs
-with `adb install -r`. Required arguments are:
+Required arguments are:
 
 - `putio.video.fullscreen.enabled=true`
 - `putio.video.fullscreen.runId=<UUID>`
@@ -819,12 +803,9 @@ restores them. It does not initialize authentication, use an API fixture, clear
 account storage, or stop a preexisting audio service; its player factory uses the
 production private video player with the service-stop hook disabled.
 
-Screenshots are written below the target app's external files directory in
-`fullscreen-video-proof-<UUID>/`: initial landscape controls, selected captions,
-the speed/audio/captions sheets, restored selections, Automatic captions and the
-restored portrait window. Pull and
-inspect them before using the existing evidence publisher. The caller owns the
-local fixture, bounded instrumentation supervision, recording and emulator lifetime.
+Screenshots go to `fullscreen-video-proof-<UUID>/`: initial landscape controls,
+selected captions, the speed/audio/captions sheets, restored selections,
+Automatic captions and the restored portrait window.
 
 The local Sintel fixture derives from the Blender Foundation's
 [720p trailer](https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4),

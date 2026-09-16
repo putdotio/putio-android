@@ -90,20 +90,15 @@ Requires JDK 21, `python3`, and, on macOS, Homebrew. Everything else is scripted
 ./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof with evidence
 ```
 
-`verify` runs lint, detekt, the unit tests, the icon lock check, and the
-harness script contract tests (needs `python3` and `ffprobe`), then assembles
-an unsigned minified mobile release APK to prove the composite SDK survives
-minSdk 26 and R8. The phone AVD runs the API 37 Google Play image and checks Chrome Auth Tab
-readiness on every boot; Android TV and the scheduled CI device stay on API 36.
-
-The `bootstrap` script expects `putio-sdk-kotlin` cloned as a sibling
-directory, or a `putioSdkKotlinPath` in `local.properties`.
+What `verify` covers, the AVD images, and the `putio-sdk-kotlin` sibling
+checkout `bootstrap` expects: [Agent guide](./AGENTS.md#toolchain).
 
 ## Docs
 
-- [Agent guide](./AGENTS.md): setup, emulator flows, evidence conventions, and
-  the definition of done
-- [Harness](./docs/harness.md): emulator lifecycle, recording, live API proof
+- [Agent guide](./AGENTS.md): toolchain, build and verify, CI, and the
+  definition of done
+- [Harness](./docs/harness.md): emulator lifecycle, recording, proof lanes,
+  live API proof
 - [Design system binding](./design/README.md): tokens and icon generation
 
 ## License

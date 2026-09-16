@@ -134,25 +134,17 @@ worktree's ignored `local.properties` before running Gradle. Include local
 modifications with a failure report; SHA pairs describe only committed source.
 
 Emulator-on-CI: `.github/workflows/emulator-smoke.yml` (weekly schedule +
-`workflow_dispatch`) runs `LaunchSmokeTest` on a Gradle Managed Device
-(`ciPhone`, Pixel 7, API 36, swiftshader) with KVM enabled on the runner. The
-ephemeral runner removes its unused .NET, Haskell, Swift, and PowerShell
-toolchains before setup to leave room for the managed-device snapshot.
-It is deliberately not a PR gate — shared-runner emulator boots are too slow
-and flaky to block merges; local proof stays on `scripts/prove.sh`.
+`workflow_dispatch`) runs `LaunchSmokeTest` on the `ciPhone` Gradle Managed
+Device (`app/build.gradle.kts`, API 36, swiftshader) with KVM enabled on the
+runner. It is deliberately not a PR gate — shared-runner emulator boots are too
+slow and flaky to block merges; local proof stays on `scripts/prove.sh`.
 
 ## Harness
 
-One command from source to a verified, evidenced launch:
-
-```bash
-./scripts/prove.sh mobile            # build → boot → install → launch → verify → screenshot → teardown
-./scripts/prove.sh tv --record       # also captures a screen recording
-```
-
-The exit code is the proof. Emulator lifecycle, flags, recording, evidence
-validation and upload, live API proof with the `putio` CLI, and headless
-notes: [Harness](./docs/harness.md).
+`./scripts/prove.sh <mobile|tv>` builds, boots, installs, launches, verifies,
+captures, and tears down; the exit code is the proof. Flags, emulator
+lifecycle, evidence validation and upload, feature proof lanes, live API proof
+with the `putio` CLI, and headless notes: [Harness](./docs/harness.md).
 
 ## Definition of Done
 
