@@ -82,7 +82,7 @@ is unsigned; nothing in this harness needs release credentials.
 The theme is a tier-2 binding of putio-design (Material 3 + tokens, dark
 only). `design/tokens.dtcg.json` is vendored from `@putdotio/design`;
 `:app:generateDesignTokens` (buildSrc) generates `PutioDesignTokens.kt` with
-the color schemes — never hand-write colors. See `design/README.md`.
+the color schemes; never hand-write colors. See `design/README.md`.
 Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 
 ## CI
@@ -137,8 +137,8 @@ modifications with a failure report; SHA pairs describe only committed source.
 Emulator-on-CI: `.github/workflows/emulator-smoke.yml` (weekly schedule +
 `workflow_dispatch`) runs `LaunchSmokeTest` on the `ciPhone` Gradle Managed
 Device (`app/build.gradle.kts`, API 36, swiftshader) with KVM enabled on the
-runner. It is deliberately not a PR gate — shared-runner emulator boots are too
-slow and flaky to block merges; local proof stays on `scripts/prove.sh`.
+runner. It is deliberately not a PR gate: shared-runner emulator boots are too
+slow and flaky to block merges, so `scripts/prove.sh` stays the local proof.
 
 ## Harness
 
