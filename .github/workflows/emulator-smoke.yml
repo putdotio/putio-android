@@ -1,7 +1,8 @@
 name: Emulator smoke
 
 # Opt-in / scheduled lane: boots the app on a Gradle Managed Device and runs
-# the instrumented LaunchSmokeTest (RESUMED + stability + composited pixels).
+# LaunchSmokeTest (RESUMED + stability + composited pixels) and the credential-free
+# stale OAuth callback regression. Other device suites require explicit opt-in.
 # Not a PR gate — emulator boots on shared runners are too slow and flaky to
 # block merges; the PR gate is the CI workflow. Local day-to-day proof stays
 # on scripts/prove.sh.
@@ -20,7 +21,7 @@ concurrency:
 
 jobs:
   smoke:
-    name: Launch smoke (mobile, managed device)
+    name: Launch and OAuth smoke (mobile, managed device)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
 
@@ -82,12 +83,31 @@ jobs:
         working-directory: putio-android
         run: >-
           ./gradlew :app:ciPhoneMobileProductionDebugAndroidTest
+          -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest
           -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader
 
-      - name: Upload device test results
+      - name: Upload launch test results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: managed-device-results
+          name: launch-smoke-results
+          if-no-files-found: warn
+          path: putio-android/app/build/outputs/androidTest-results/**
+
+      # AGP's instrumentation-args map drops comma-separated class selectors.
+      # Keep the OAuth regression explicit and retain each run's result files.
+      - name: Run stale OAuth callback regression
+        id: oauth-smoke
+        working-directory: putio-android
+        run: >-
+          ./gradlew :app:ciPhoneMobileProductionDebugAndroidTest
+          -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.auth.StaleOAuthCallbackTest
+          -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader
+
+      - name: Upload OAuth test results
+        if: ${{ !cancelled() && steps.oauth-smoke.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: oauth-smoke-results
           if-no-files-found: warn
           path: putio-android/app/build/outputs/androidTest-results/**

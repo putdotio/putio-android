@@ -11,6 +11,7 @@ import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -49,7 +50,7 @@ class MobileOAuthRuntime internal constructor(
     fun dispatchAuthTabResult(
         resultCode: Int,
         rawResultUri: String?,
-    ) {
+    ): Job =
         // Activity results outlive individual UI owners; keep a boundary failure inside this application scope.
         @Suppress("TooGenericExceptionCaught")
         applicationScope.launch {
@@ -65,7 +66,6 @@ class MobileOAuthRuntime internal constructor(
                 failureReporter.report(error)
             }
         }
-    }
 
     companion object {
         @Volatile

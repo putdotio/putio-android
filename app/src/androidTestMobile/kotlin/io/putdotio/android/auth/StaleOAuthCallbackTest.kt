@@ -11,7 +11,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
@@ -57,22 +56,22 @@ class StaleOAuthCallbackTest {
             val newerAttempt = requireNotNull(pendingStore.read())
             assertNotEquals(olderAttempt.state, newerAttempt.state)
 
-            runtime.dispatchAuthTabResult(
+            val staleCallback = runtime.dispatchAuthTabResult(
                 AuthTabIntent.RESULT_OK,
                 "putio://auth#state=${olderAttempt.state}&access_token=synthetic-stale-token",
             )
-            withTimeout(CALLBACK_TIMEOUT_MILLIS) { runtimeJob.children.toList().joinAll() }
+            withTimeout(CALLBACK_TIMEOUT_MILLIS) { staleCallback.join() }
 
             assertNull(runtimeFailure.get())
             assertEquals(newerAttempt, pendingStore.read())
             assertEquals(MobileAuthState.AwaitingOAuthCallback, controller.state.value)
             assertNull(tokenStore.read())
 
-            runtime.dispatchAuthTabResult(
+            val matchingCallback = runtime.dispatchAuthTabResult(
                 AuthTabIntent.RESULT_OK,
                 "putio://auth#state=${newerAttempt.state}&access_token=",
             )
-            withTimeout(CALLBACK_TIMEOUT_MILLIS) { runtimeJob.children.toList().joinAll() }
+            withTimeout(CALLBACK_TIMEOUT_MILLIS) { matchingCallback.join() }
 
             assertNull(runtimeFailure.get())
             assertNull(pendingStore.read())

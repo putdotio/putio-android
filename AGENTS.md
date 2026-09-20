@@ -135,9 +135,11 @@ worktree's ignored `local.properties` before running Gradle. Include local
 modifications with a failure report; SHA pairs describe only committed source.
 
 Emulator-on-CI: `.github/workflows/emulator-smoke.yml` (weekly schedule +
-`workflow_dispatch`) runs `LaunchSmokeTest` on the `ciPhone` Gradle Managed
-Device (`app/build.gradle.kts`, API 36, swiftshader) with KVM enabled on the
-runner. It is deliberately not a PR gate: shared-runner emulator boots are too
+`workflow_dispatch`) explicitly selects `LaunchSmokeTest` and the credential-free
+`StaleOAuthCallbackTest` in separate invocations with separate result artifacts;
+opt-in feature suites remain separate. Both run on the
+`ciPhone` Gradle Managed Device (`app/build.gradle.kts`, API 36, swiftshader) with
+KVM enabled on the runner. It is deliberately not a PR gate: shared-runner emulator boots are too
 slow and flaky to block merges, so `scripts/prove.sh` stays the local proof.
 
 ## Harness
