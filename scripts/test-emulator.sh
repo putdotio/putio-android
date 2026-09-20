@@ -105,6 +105,7 @@ case "$*" in
     pid="$(cat "${state}/emulator-pid" 2>/dev/null || true)"
     [[ "${pid}" =~ ^[0-9]+$ ]] && kill "${pid}" 2>/dev/null || true
     ;;
+  *" install -r "*) echo "Success" ;;
   *" settings put global hide_error_dialogs 1") ;;
   *" getprop sys.boot_completed") echo 1 ;;
   *" getprop ro.build.version.sdk")
@@ -501,6 +502,34 @@ grep -q '^PROOF FAIL mobile$' "${prove_out}" || fail "negative proof omitted its
 grep -q " install " "${state}/adb-calls" && fail "negative proof attempted app install"
 [[ "$(<"${state}/running")" == "1" ]] || fail "negative proof stopped a reused emulator"
 grep -q " emu kill" "${state}/adb-calls" && fail "negative proof killed a reused emulator"
+
+# Exercise the real launch-proof script through its Gradle boundary without
+# starting a device or reaching screenshot capture.
+proof_repo="${tmpdir}/proof-repo"
+mkdir -p "${proof_repo}/scripts"
+cp "${REPO_ROOT}/scripts/"{prove,emulator,lib}.sh "${proof_repo}/scripts/"
+cat > "${proof_repo}/gradlew" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$#" == 2 && "$1" == ":app:verifyMobileLaunchProof" &&
+  "$2" == "-Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest" ]] || {
+  echo "unscoped instrumentation would run opt-in feature suites" >&2
+  exit 1
+}
+echo "selected LaunchSmokeTest" >> "${FAKE_STATE_DIR}/proof-selection"
+echo "stopping after selected instrumentation boundary" >&2
+exit 1
+EOF
+chmod +x "${proof_repo}/gradlew"
+reset_avd "${PHONE_AVD}" "${target_image}" 1
+reset_runtime
+if PUTIO_PROVE_APK="${fake_apk}" "${proof_repo}/scripts/prove.sh" mobile --skip-build >"${prove_out}" 2>&1; then
+  fail "launch proof ignored its failed instrumentation gate"
+fi
+[[ -f "${state}/proof-selection" ]] || fail "launch proof did not select only LaunchSmokeTest"
+[[ "$(wc -l < "${state}/proof-selection" | tr -d ' ')" == "1" ]] || fail "non-render failure retried instrumentation"
+[[ "$(<"${state}/running")" == "1" ]] || fail "launch-proof failure stopped a reused emulator"
+grep -q '^PROOF FAIL mobile$' "${prove_out}" || fail "launch-proof failure omitted its failure marker"
 
 # A readiness failure after this invocation starts an emulator must stop that
 # exact process. prove.sh must also delete an ephemeral registration it created.

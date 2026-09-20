@@ -249,7 +249,8 @@ esac
 smoke_out="$(mktemp)"
 
 run_smoke_test() {
-  (cd "${REPO_ROOT}" && ANDROID_SERIAL="${SERIAL}" ./gradlew "${CONNECTED_TASK}") >"${smoke_out}" 2>&1
+  (cd "${REPO_ROOT}" && ANDROID_SERIAL="${SERIAL}" ./gradlew "${CONNECTED_TASK}" \
+    -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest) >"${smoke_out}" 2>&1
 }
 
 # Only the black-render assertion earns a retry; crashes, ANRs, and other
