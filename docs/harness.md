@@ -48,9 +48,12 @@ One command from source to a verified, evidenced launch:
 ./scripts/prove.sh tv --record       # also captures a screen recording
 ```
 
-Verification is the instrumented smoke test (`LaunchSmokeTest`), run through
-`connectedAndroidTest` on the booted emulator. It asserts RESUMED state, a
-3 s stability window, and real composited pixels (mean luma) via platform
+Verification explicitly selects the instrumented smoke test (`LaunchSmokeTest`)
+through `verifyMobileLaunchProof` or `verifyTvLaunchProof` on the booted emulator.
+These tasks run the matching production-debug connected instrumentation task.
+Opt-in feature suites and the separately scheduled OAuth regression are not
+part of this launch proof.
+It asserts RESUMED state, a 3 s stability window, and real composited pixels (mean luma) via platform
 test APIs; a crash or ANR fails the instrumentation. The exit code is the
 proof. The `verifyMobileLaunchProof` and `verifyTvLaunchProof` tasks also
 require the named smoke test's successful XML result; an empty, skipped, or
