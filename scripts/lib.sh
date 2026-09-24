@@ -96,6 +96,7 @@ image_for() {
     phone) phone_image ;;
     tv) tv_image ;;
     google-tv) google_tv_image ;;
+    *) die "unknown emulator profile '$1' (expected phone|tv|google-tv)" ;;
   esac
 }
 
