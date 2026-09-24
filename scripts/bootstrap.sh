@@ -129,9 +129,7 @@ if [[ ! -d "${SDK_KOTLIN_PATH}" ]]; then
   die "putio-sdk-kotlin checkout missing at ${SDK_KOTLIN_PATH}; run: git clone git@github.com:putdotio/putio-sdk-kotlin.git '${SDK_KOTLIN_PATH}' (or point putioSdkKotlinPath in local.properties at an existing checkout), then re-run bootstrap"
 fi
 
-for profile in phone tv; do
-  "${REPO_ROOT}/scripts/emulator.sh" create "${profile}"
-done
+provision_avds || exit 1
 
 log "bootstrap complete"
 log "next: ./gradlew verify :app:assembleMobileProductionDebug :app:assembleTvProductionDebug"

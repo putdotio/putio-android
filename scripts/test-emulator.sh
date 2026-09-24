@@ -550,4 +550,31 @@ if find "${state}/avds" -mindepth 1 -maxdepth 1 -type d -name 'putio-phone-eph-*
   fail "ephemeral readiness failure leaked its AVD registration"
 fi
 
+# Bootstrap provisioning: a refused phone AVD must not block the TV AVD.
+tv_target_image="system-images;android-36;android-tv;$(sdk_arch)"
+[[ "$(tv_image)" == "${tv_target_image}" ]] || fail "TV image is not pinned to API 36 Android TV"
+mkdir -p "${fake_sdk}/$(tr ';' '/' <<<"${tv_target_image}")"
+reset_avd "${PHONE_AVD}" "${legacy_image}" 0
+provision_out="${tmpdir}/provision.log"
+if (provision_avds) >"${provision_out}" 2>&1; then
+  fail "provisioning passed with a mismatched phone AVD"
+fi
+[[ "$(avd_image_for_name "${TV_AVD}")" == "${tv_target_image}" ]] || \
+  fail "a mismatched phone AVD blocked TV AVD creation"
+[[ "$(avd_image_for_name "${PHONE_AVD}")" == "${legacy_image}" ]] || \
+  fail "provisioning replaced a mismatched phone AVD"
+[[ "$(<"${state}/avd-operations")" == "create:${TV_AVD}:${tv_target_image}" ]] || \
+  fail "provisioning performed unexpected AVD operations"
+grep -Fq "explicitly run scripts/emulator.sh stop phone, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh" \
+  "${provision_out}" || fail "provisioning omitted the phone recovery command"
+grep -Fq "AVD provisioning failed for: phone" "${provision_out}" || \
+  fail "provisioning did not name the refused profile"
+
+: > "${state}/avd-operations"
+"${REPO_ROOT}/scripts/emulator.sh" delete phone >/dev/null 2>&1 || fail "could not delete the mismatched phone AVD"
+: > "${state}/avd-operations"
+(provision_avds) >"${provision_out}" 2>&1 || fail "provisioning failed after the phone AVD was recovered"
+[[ "$(<"${state}/avd-operations")" == "create:${PHONE_AVD}:${target_image}" ]] || \
+  fail "recovered provisioning touched the existing TV AVD"
+
 echo "emulator contract tests passed"
