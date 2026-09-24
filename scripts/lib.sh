@@ -63,6 +63,7 @@ require_sdk_root() {
 # system images are not published for API 37 yet, so TV remains on API 36.
 PHONE_AVD="putio-phone"
 TV_AVD="putio-tv"
+GOOGLE_TV_AVD="putio-google-tv"
 PHONE_API_LEVEL="37"
 CHROME_PACKAGE="com.android.chrome"
 AUTH_TAB_SERVICE_ACTION="android.support.customtabs.action.CustomTabsService"
@@ -78,19 +79,31 @@ sdk_arch() {
 
 phone_image() { echo "system-images;android-37.0;google_apis_playstore;$(sdk_arch)"; }
 tv_image() { echo "system-images;android-36;android-tv;$(sdk_arch)"; }
+# Opt-in: only `scripts/bootstrap.sh --google-tv` installs and provisions it.
+google_tv_image() { echo "system-images;android-36;google-tv;$(sdk_arch)"; }
 
 # profile -> AVD name / image / avdmanager device id
 avd_name_for() {
   case "$1" in
     phone) echo "${PHONE_AVD}" ;;
     tv) echo "${TV_AVD}" ;;
-    *) die "unknown emulator profile '$1' (expected phone|tv)" ;;
+    google-tv) echo "${GOOGLE_TV_AVD}" ;;
+    *) die "unknown emulator profile '$1' (expected phone|tv|google-tv)" ;;
   esac
 }
 image_for() {
   case "$1" in
     phone) phone_image ;;
     tv) tv_image ;;
+    google-tv) google_tv_image ;;
+    *) die "unknown emulator profile '$1' (expected phone|tv|google-tv)" ;;
+  esac
+}
+
+bootstrap_command_for() {
+  case "$1" in
+    google-tv) echo "scripts/bootstrap.sh --google-tv" ;;
+    *) echo "scripts/bootstrap.sh" ;;
   esac
 }
 
@@ -111,7 +124,7 @@ avd_stop_command() {
 avd_recreate_command() {
   local profile="$1" name="$2"
   if [[ "${name}" == "$(avd_name_for "${profile}")" ]]; then
-    echo "scripts/bootstrap.sh"
+    bootstrap_command_for "${profile}"
   else
     echo "scripts/emulator.sh create ${profile} --name ${name}"
   fi
@@ -119,15 +132,16 @@ avd_recreate_command() {
 device_for() {
   case "$1" in
     phone) echo "pixel_7" ;;
-    tv) echo "tv_1080p" ;;
+    tv|google-tv) echo "tv_1080p" ;;
   esac
 }
 
 # A refused profile keeps its recovery message and fails the run, but must not
-# stop the other profile from being provisioned.
+# stop the other profiles from being provisioned.
 provision_avds() {
-  local profile failed=()
-  for profile in phone tv; do
+  local profile failed=() profiles=("$@")
+  [[ $# -gt 0 ]] || profiles=(phone tv)
+  for profile in "${profiles[@]}"; do
     "${REPO_ROOT}/scripts/emulator.sh" create "${profile}" || failed+=("${profile}")
   done
   [[ ${#failed[@]} -eq 0 ]] || { log "ERROR: AVD provisioning failed for: ${failed[*]}"; return 1; }

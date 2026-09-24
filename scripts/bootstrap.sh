@@ -11,8 +11,22 @@
 # Google Play phone image, the API 36 Android TV image, and both reusable
 # AVDs. Writes local.properties.
 # Idempotent: safe to re-run; already-installed packages are skipped.
+#
+#   scripts/bootstrap.sh [--google-tv]
+#
+# --google-tv also installs the API 36 Google TV image and provisions the
+# opt-in putio-google-tv AVD.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+AVD_PROFILES=(phone tv)
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --google-tv) AVD_PROFILES=(phone tv google-tv) ;;
+    *) print_usage "${BASH_SOURCE[0]}"; exit 64 ;;
+  esac
+  shift
+done
 
 COMPILE_SDK_PLATFORM="platforms;android-37.0"
 BUILD_TOOLS="build-tools;37.0.0"
@@ -32,8 +46,13 @@ SDKMANAGER="${SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
 [[ -x "${SDKMANAGER}" ]] || die "sdkmanager missing under ${SDK_ROOT}"
 log "SDK root: ${SDK_ROOT}"
 
+SDK_PACKAGES=("platform-tools" "emulator" "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}")
+for profile in "${AVD_PROFILES[@]}"; do
+  SDK_PACKAGES+=("$(image_for "${profile}")")
+done
+
 packages_missing=0
-for pkg in "platform-tools" "emulator" "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}" "$(phone_image)" "$(tv_image)"; do
+for pkg in "${SDK_PACKAGES[@]}"; do
   [[ -d "${SDK_ROOT}/$(echo "${pkg}" | tr ';' '/')" ]] || packages_missing=1
 done
 
@@ -44,15 +63,9 @@ if [[ "${packages_missing}" == "1" ]]; then
   (yes || true) | "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --licenses >/dev/null
 
   log "installing SDK packages (first run downloads several GB)"
-  "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --install \
-    "platform-tools" \
-    "emulator" \
-    "${COMPILE_SDK_PLATFORM}" \
-    "${BUILD_TOOLS}" \
-    "$(phone_image)" \
-    "$(tv_image)"
+  "${SDKMANAGER}" --sdk_root="${SDK_ROOT}" --install "${SDK_PACKAGES[@]}"
 
-  for pkg in "platform-tools" "emulator" "${COMPILE_SDK_PLATFORM}" "${BUILD_TOOLS}" "$(phone_image)" "$(tv_image)"; do
+  for pkg in "${SDK_PACKAGES[@]}"; do
     [[ -d "${SDK_ROOT}/$(echo "${pkg}" | tr ';' '/')" ]] || die "package ${pkg} missing after install"
   done
 else
@@ -129,7 +142,7 @@ if [[ ! -d "${SDK_KOTLIN_PATH}" ]]; then
   die "putio-sdk-kotlin checkout missing at ${SDK_KOTLIN_PATH}; run: git clone git@github.com:putdotio/putio-sdk-kotlin.git '${SDK_KOTLIN_PATH}' (or point putioSdkKotlinPath in local.properties at an existing checkout), then re-run bootstrap"
 fi
 
-provision_avds || exit 1
+provision_avds "${AVD_PROFILES[@]}" || exit 1
 
 log "bootstrap complete"
 log "next: ./gradlew verify :app:assembleMobileProductionDebug :app:assembleTvProductionDebug"
