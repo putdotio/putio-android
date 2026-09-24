@@ -123,6 +123,16 @@ device_for() {
   esac
 }
 
+# A refused profile keeps its recovery message and fails the run, but must not
+# stop the other profile from being provisioned.
+provision_avds() {
+  local profile failed=()
+  for profile in phone tv; do
+    "${REPO_ROOT}/scripts/emulator.sh" create "${profile}" || failed+=("${profile}")
+  done
+  [[ ${#failed[@]} -eq 0 ]] || { log "ERROR: AVD provisioning failed for: ${failed[*]}"; return 1; }
+}
+
 avd_exists() {
   "${AVDMANAGER}" list avd -c 2>/dev/null | grep -qx "$1"
 }

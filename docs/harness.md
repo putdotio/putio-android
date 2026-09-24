@@ -36,8 +36,12 @@ Chrome as the browser role holder, and requires its AndroidX Auth Tab service
 category. The harness fails closed before install when that secure OAuth
 transport is unavailable. TV and the CI managed device remain API 36.
 
-Bootstrap never replaces a mismatched AVD. It fails with an explicit command;
-stop and delete that exact profile yourself before rerunning bootstrap.
+Bootstrap never replaces a mismatched AVD. It still provisions the other
+profile, then fails with an explicit command; stop and delete that exact
+profile yourself before rerunning bootstrap. The harness owns only
+`putio-phone`, `putio-tv`, and the `--ephemeral` AVDs it creates; other AVDs on
+the machine are left alone, even when `avdmanager list avd` reports them as
+unloadable.
 
 ## Launch Proof
 
