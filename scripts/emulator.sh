@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Manage the repo's emulators: putio-phone and putio-tv.
+# Manage the repo's emulators: putio-phone, putio-tv, and the opt-in
+# putio-google-tv (provisioned by `scripts/bootstrap.sh --google-tv`).
 #
-#   scripts/emulator.sh create <phone|tv> [--name NAME]
-#   scripts/emulator.sh boot   <phone|tv> [--headless] [--name NAME]
-#   scripts/emulator.sh stop   <phone|tv> [--name NAME]
+#   scripts/emulator.sh create <phone|tv|google-tv> [--name NAME]
+#   scripts/emulator.sh boot   <phone|tv|google-tv> [--headless] [--name NAME]
+#   scripts/emulator.sh stop   <phone|tv|google-tv> [--name NAME]
 #   scripts/emulator.sh stop   <emulator-NNNN>
-#   scripts/emulator.sh delete <phone|tv> [--name NAME]
+#   scripts/emulator.sh delete <phone|tv|google-tv> [--name NAME]
 #   scripts/emulator.sh status
 #
 # Ownership contract:
@@ -35,7 +36,7 @@ parse_profile_args() {
   HEADLESS="${PUTIO_EMULATOR_HEADLESS:-0}"
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      phone|tv) PROFILE="$1" ;;
+      phone|tv|google-tv) PROFILE="$1" ;;
       --name) NAME="${2:?--name requires a value}"; shift ;;
       --headless) HEADLESS=1 ;;
       *) die "unknown argument: $1" ;;
@@ -64,7 +65,7 @@ do_create() {
   local image create_out
   image="$(image_for "${PROFILE}")"
   [[ -d "${SDK_ROOT}/$(echo "${image}" | tr ';' '/')" ]] || \
-    die "system image ${image} not installed; run scripts/bootstrap.sh"
+    die "system image ${image} not installed; run $(bootstrap_command_for "${PROFILE}")"
   if avd_registered "${NAME}"; then
     require_matching_avd_image
     log "AVD ${NAME} already exists (${image})"
@@ -197,7 +198,7 @@ do_stop() {
       [[ $# -eq 1 ]] || usage
       serial="${target}"
       ;;
-    phone|tv)
+    phone|tv|google-tv)
       parse_profile_args "$@"
       serial="$(serial_for_avd "${NAME}")" || \
         { log "no running emulator for AVD ${NAME}"; return 0; }

@@ -37,7 +37,8 @@ rest.
 Idempotent. Installs cmdline-tools (via Homebrew if missing), accepts
 licenses, installs platform/build-tools for the compileSdk, the emulator, the
 API 37 Google Play phone image and API 36 Android TV image, creates
-the two reusable AVDs, and writes
+the two reusable AVDs (`--google-tv` adds the opt-in Google TV image and
+AVD), and writes
 `local.properties` (`sdk.dir` plus `putioSdkKotlinPath`, defaulting to the
 sibling `../putio-sdk-kotlin` checkout, which must be cloned).
 

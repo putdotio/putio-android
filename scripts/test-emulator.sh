@@ -577,4 +577,51 @@ grep -Fq "AVD provisioning failed for: phone" "${provision_out}" || \
 [[ "$(<"${state}/avd-operations")" == "create:${PHONE_AVD}:${target_image}" ]] || \
   fail "recovered provisioning touched the existing TV AVD"
 
+# Google TV is opt-in: default provisioning never creates it, and its recovery
+# commands point at the opt-in bootstrap.
+google_tv_target_image="system-images;android-36;google-tv;$(sdk_arch)"
+[[ "$(google_tv_image)" == "${google_tv_target_image}" ]] || \
+  fail "Google TV image is not pinned to API 36 Google TV"
+reset_avd "${PHONE_AVD}" "${target_image}" 0
+google_tv_out="${tmpdir}/google-tv.log"
+if "${REPO_ROOT}/scripts/emulator.sh" create google-tv >"${google_tv_out}" 2>&1; then
+  fail "Google TV AVD was created without its system image"
+fi
+grep -Fq "system image ${google_tv_target_image} not installed; run scripts/bootstrap.sh --google-tv" \
+  "${google_tv_out}" || fail "missing Google TV image omitted the opt-in bootstrap command"
+[[ ! -s "${state}/avd-operations" ]] || fail "missing Google TV image mutated state"
+
+mkdir -p "${fake_sdk}/$(tr ';' '/' <<<"${google_tv_target_image}")"
+(provision_avds) >"${provision_out}" 2>&1 || fail "default provisioning failed"
+[[ "$(<"${state}/avd-operations")" == "create:${TV_AVD}:${tv_target_image}" ]] || \
+  fail "default provisioning did not keep to the phone and TV AVDs"
+
+: > "${state}/avd-operations"
+(provision_avds phone tv google-tv) >"${provision_out}" 2>&1 || \
+  fail "opt-in provisioning failed"
+[[ "$(<"${state}/avd-operations")" == "create:${GOOGLE_TV_AVD}:${google_tv_target_image}" ]] || \
+  fail "opt-in provisioning did not create only the Google TV AVD"
+[[ "$(avd_image_for_name "${GOOGLE_TV_AVD}")" == "${google_tv_target_image}" ]] || \
+  fail "Google TV AVD did not use the pinned Google TV image"
+
+reset_avd "${GOOGLE_TV_AVD}" "${tv_target_image}" 0
+if "${REPO_ROOT}/scripts/emulator.sh" create google-tv >"${google_tv_out}" 2>&1; then
+  fail "mismatched Google TV AVD was replaced"
+fi
+grep -Fq "explicitly run scripts/emulator.sh stop google-tv, then scripts/emulator.sh delete google-tv, then scripts/bootstrap.sh --google-tv" \
+  "${google_tv_out}" || fail "mismatched Google TV AVD omitted its opt-in recovery command"
+[[ ! -s "${state}/avd-operations" ]] || fail "mismatched Google TV AVD refusal mutated state"
+
+reset_avd "${GOOGLE_TV_AVD}" "${google_tv_target_image}" 0
+reset_runtime
+google_tv_serial="$(PUTIO_EMULATOR_BOOT_TIMEOUT=10 "${REPO_ROOT}/scripts/emulator.sh" boot google-tv --headless 2>"${google_tv_out}")" || \
+  fail "Google TV AVD did not boot"
+[[ "${google_tv_serial}" == "emulator-5554" ]] || fail "Google TV boot printed '${google_tv_serial}'"
+[[ "$(<"${state}/name")" == "${GOOGLE_TV_AVD}" ]] || fail "Google TV boot started the wrong AVD"
+if grep -q 'ro.build.version.sdk\|com.android.chrome' "${state}/adb-calls"; then
+  fail "Google TV boot ran phone readiness checks"
+fi
+"${REPO_ROOT}/scripts/emulator.sh" stop google-tv >/dev/null 2>&1 || fail "could not stop the Google TV emulator"
+[[ "$(<"${state}/running")" == "0" ]] || fail "Google TV stop left its emulator running"
+
 echo "emulator contract tests passed"

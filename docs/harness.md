@@ -14,6 +14,23 @@ Two reusable AVDs, arm64 on Apple Silicon (x86_64 elsewhere):
 | `putio-phone` | pixel_7 | `android-37.0;google_apis_playstore` |
 | `putio-tv` | tv_1080p | `android-36;android-tv` |
 
+An opt-in Google TV AVD covers the Google TV launcher and Play surfaces. The
+default bootstrap does not install its image or create it:
+
+| AVD | Device profile | System image |
+| --- | --- | --- |
+| `putio-google-tv` | tv_1080p | `android-36;google-tv` |
+
+```bash
+./scripts/bootstrap.sh --google-tv                # adds the image and AVD
+./scripts/emulator.sh boot google-tv --headless
+./scripts/emulator.sh stop google-tv
+```
+
+A fresh `putio-google-tv` boots into Google TV setup; finish or cancel it
+before launcher proof. `scripts/prove.sh tv` still targets `putio-tv`; install
+on the Google TV emulator with `adb -s <serial> install` for manual proof.
+
 ```bash
 ./scripts/emulator.sh boot phone --headless   # prints serial; reuses if running
 ./scripts/emulator.sh status
@@ -37,11 +54,11 @@ category. The harness fails closed before install when that secure OAuth
 transport is unavailable. TV and the CI managed device remain API 36.
 
 Bootstrap never replaces a mismatched AVD. It still provisions the other
-profile, then fails with an explicit command; stop and delete that exact
+profiles, then fails with an explicit command; stop and delete that exact
 profile yourself before rerunning bootstrap. The harness owns only
-`putio-phone`, `putio-tv`, and the `--ephemeral` AVDs it creates; other AVDs on
-the machine are left alone, even when `avdmanager list avd` reports them as
-unloadable.
+`putio-phone`, `putio-tv`, the opt-in `putio-google-tv`, and the
+`--ephemeral` AVDs it creates; other AVDs on the machine are left alone, even
+when `avdmanager list avd` reports them as unloadable.
 
 ## Launch Proof
 
