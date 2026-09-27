@@ -63,7 +63,7 @@ class DesignTokenCodegenTest {
     @Test
     fun generatesSchemeFromFullGraph() {
         val dtcg = java.io.File("../design/tokens.dtcg.json").readText()
-        val code = DesignTokenCodegen.generate(dtcg, "3.2.1")
+        val code = DesignTokenCodegen.generate(dtcg, "3.3.0")
         assertTrue(code.contains("val yellowSolid: Color = Color(0xFFFDCE45)"))
         assertTrue(code.contains("val yellowTextSecondary: Color = Color(0xFFFFD147)"))
         assertTrue(code.contains("val appBg: Color = Color(0xFF161616)"))
