@@ -125,7 +125,7 @@ android {
 
 val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDesignTokens") {
     tokensFile.set(rootProject.layout.projectDirectory.file("design/tokens.dtcg.json"))
-    designVersion.set("3.2.1")
+    designVersion.set("3.3.0")
     outputDir.set(layout.buildDirectory.dir("generated/designTokens/kotlin"))
 }
 
