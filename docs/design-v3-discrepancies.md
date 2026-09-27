@@ -5,32 +5,9 @@ binding. Components and interaction stay native to Material 3 and Compose for
 TV. This ledger records the remaining cross-repo gaps without treating preview
 CSS as Compose source.
 
-## August 2026 design update
-
-`putio-design` commit `15a3201` expands the Android TV contract with an M3
-navigation drawer, Search, Account and continue-watching cards. It changes no
-token source or generated token artifact. The app's vendored graph and design's
-`dist/tokens.dtcg.json` remain byte-identical at SHA-256
-`a915906059426c95bde3fea77b4de72e1097fc50d46842b417143172dfc5c0c6`, so the
-Android token version advances to `3.2.1` while retaining the byte-identical
-graph.
-
-The update resolves two earlier discrepancies:
-
-- Android TV is now documented as Compose for TV with scale and elevation,
-  rather than as the app this repository replaces.
-- TV cards now state their 1920x1080 canvas is a 2x rendering of the
-  960x540dp app surface.
-
-No Android mobile behavior changed. The TV implementation work belongs to
-[#32](https://github.com/putdotio/putio-android/issues/32),
-[#33](https://github.com/putdotio/putio-android/issues/33) and
-[#34](https://github.com/putdotio/putio-android/issues/34).
-
 ## Reconciled binding details
 
-The paired design-contract update records the behavior already shipped by the
-Android adapter:
+The design contract records these Android adapter behaviors:
 
 - Navigation indicator geometry remains Material-owned. The current Compose
   Material 3 Expressive implementation renders `56x32dp`, not the older

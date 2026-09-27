@@ -7,22 +7,13 @@ the proof lanes exercise.
 
 ## Emulators
 
-Two reusable AVDs, arm64 on Apple Silicon (x86_64 elsewhere):
-
-| AVD | Device profile | System image |
-| --- | --- | --- |
-| `putio-phone` | pixel_7 | `android-37.0;google_apis_playstore` |
-| `putio-tv` | tv_1080p | `android-36;android-tv` |
-
-An opt-in Google TV AVD covers the Google TV launcher and Play surfaces. The
-default bootstrap does not install its image or create it:
-
-| AVD | Device profile | System image |
-| --- | --- | --- |
-| `putio-google-tv` | tv_1080p | `android-36;google-tv` |
+Bootstrap creates two reusable AVDs, `putio-phone` (API 37) and `putio-tv`
+(API 36). The opt-in `putio-google-tv` covers the Google TV launcher and Play
+surfaces. [scripts/lib.sh](../scripts/lib.sh) (`avd_name_for`, `image_for`, `device_for`)
+owns their device profiles and system images.
 
 ```bash
-./scripts/bootstrap.sh --google-tv                # adds the image and AVD
+./scripts/bootstrap.sh --google-tv                # adds the Google TV image and AVD
 ./scripts/emulator.sh boot google-tv --headless
 ./scripts/emulator.sh stop google-tv
 ```
@@ -125,11 +116,12 @@ calls as synthetic proof.
 `MobileAccessibilityProofTest` mounts controlled production auth, Files,
 Search, Transfers, Trash and Settings surfaces without API calls or session
 changes. Its three selectors exercise named actions, sheets, dialogs and the
-real keyboard. Set the API 37 emulator's system `font_scale` to `2.0` and all
+real keyboard. Unless a selector says otherwise, every accessibility lane
+below runs with the API 37 emulator's system `font_scale` at `2.0` and all
 three global animation scales (`animator_duration_scale`,
-`window_animation_scale`, `transition_animation_scale`) to `0` before running.
-Record their exact prior values, including absent keys, and restore them after
-proof. This lane proves large-font reachability with animations disabled;
+`window_animation_scale`, `transition_animation_scale`) at `0`. Record their
+exact prior values, including absent keys, and restore them after proof. This
+lane proves large-font reachability with animations disabled;
 Compose semantics assertions do not establish actual TalkBack speech.
 
 Opt in with `putio.accessibility.enabled=true` and
@@ -204,8 +196,8 @@ Require `OK (1 test)` and inspect the corresponding recording and utterance log.
 completes the ordinary Sign in and resume-choice TalkBack lane. It mounts the
 production signed-out screen and Resume dialog with controlled callbacks;
 it opens no browser, starts no player and initializes no account runtime.
-Use the same font scale, animation and TalkBack setup with the accessibility
-opt-in arguments; no media fixture arguments are needed.
+Use the TalkBack setup above with the accessibility opt-in arguments; no media
+fixture arguments are needed.
 
 Follow `talkback-choices-stage.txt` under `accessibility-proof-<UUID>/`: activate
 Sign in at `sign-in`, Resume at `resume`, and Start over at `start-over`.
@@ -219,8 +211,8 @@ alone do not prove speech.
 
 `MobileTalkBackSessionProofTest#talkBackControlsNowPlayingAndSeeksPrivateAudio`
 mounts the production shell around one private, muted audio player. It connects
-no account runtime or media-session service. Use the same accessibility opt-in
-and device settings, a fresh run UUID, and `putio.accessibility.audio` pointing
+no account runtime or media-session service. Use the TalkBack setup above, a
+fresh run UUID, and `putio.accessibility.audio` pointing
 to caller-owned audio beneath the app's external files directory. The fixture
 must last at least 300 seconds: playback starts at 30 seconds and may run through
 the preparation and two playing phases at their full budgets before the host
@@ -392,22 +384,14 @@ canonical `verify` task assembles the mobile production debug test APK without
 running it, so device-test compilation is checked on each CI change.
 
 Host preflight, install, instrumentation, and capture processing share a
-240-second deadline after assembly. Instrumentation output is limited to 1 MiB
-before decoding. A failed, skipped, absent, interrupted,
-or incomplete named test fails the task. Recording starts before instrumentation
-and uses a unique guest path with a checked process ID. Cleanup reaps owned host
-processes and the verified recorder, and removes only that run's guest capture
-files. It reaps adb clients without their descendants: a client can start the
-shared adb server. SDK, CLI, and validation helpers retain tree cleanup.
-Recorder shutdown checks the guest PID independently of the host adb
-client, waits for graceful exit, and escalates only while ownership still matches.
-Missing recorder ownership fails cleanup and preserves its capture files.
-It never force-stops the app. If instrumentation remains active, even with
-the same runner component, cleanup preserves it and explicitly fails: API 37
-process dumps can hide arguments in a parcelled Bundle, so the harness cannot
-establish which invocation owns that instrumentation. Interruption therefore does
-not guarantee remote instrumentation has stopped; inspect the reported state
-before another run.
+240-second deadline after assembly. A failed, skipped, absent, interrupted, or
+incomplete named test fails the task. Cleanup stops only the run's own host
+processes and screen recorder, removes only that run's guest capture files, and
+never force-stops the app. If instrumentation remains active, cleanup preserves
+it and fails: API 37 process dumps can hide instrumentation arguments, so the
+harness cannot tell which invocation owns it. Interruption therefore does not
+guarantee remote instrumentation has stopped; inspect the reported state before
+another run.
 
 The emulator, app installation, authentication, and fixture ledger remain intact.
 Cleanup has its own 20-second command budget and preserves failure causes.
@@ -601,6 +585,9 @@ mobile Account screen toggles it, and the TV pane follows on the next session
 validation.
 
 ## TV Files actions proof
+
+"Oracle" below is the 34-capture TV behavior oracle that
+[#33](https://github.com/putdotio/putio-android/issues/33) gates parity on.
 
 Long-press Center or press Menu on a Files row for the oracle's files-actions
 state: a centred dialog titled with the file's name, one full-width button per
