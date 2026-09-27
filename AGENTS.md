@@ -53,30 +53,22 @@ SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
 ./gradlew :app:assembleTvProductionDebug      # Android TV debug APK
 ```
 
-`verify` runs Android Lint (`warningsAsErrors`, config in `app/lint.xml`),
-detekt (config in `detekt.yml`, Compose exemptions only), the local unit
-tests (`app/src/test/`, JUnit4 + Robolectric, Compose UI assertions run on
-the JVM), and an unsigned minified `mobileProductionRelease` build that proves
-the composite Kotlin SDK against minSdk 26 and R8. It also compiles the mobile
-production debug instrumentation APK without running it, checks the Phosphor
-icon lock (`scripts/generate-icons.sh --check`), and runs the shell and Python
-contract tests for the emulator harness, TalkBack input, evidence capture, and
-icon pipeline (`python3`, `bash`, and `ffprobe` on PATH). `:buildSrc:test`
-covers design-token codegen and host proof tooling; run it alongside `verify`
-(CI does). Fix findings at the
+The root [`verify` task](./build.gradle.kts) runs `:app:check` (Android Lint
+with warnings as errors, detekt, JVM unit tests), an unsigned minified
+`mobileProductionRelease` build that proves the composite Kotlin SDK against
+R8, the instrumentation APK compile, the Phosphor icon lock check, and the
+shell and Python contract tests; those need `python3`, `bash`, and `ffprobe`
+on PATH. `verify` does not include `:buildSrc:test` (design-token codegen and
+host proof tooling), so always run both, as CI does. Fix findings at the
 source; suppress only with a comment stating the platform constraint.
-The evidence regression wraps the installed FFmpeg tools to assert that
-recording normalization pins `LC_ALL=C`; it does not require or generate a
-host locale.
 
 Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
-`nightly`). Nightly carries its own application id, label, and the stars
-launcher icon (`scripts/generate-nightly-icon.sh`); Play internal/closed
-tracks ship nightly, the public listing keeps production. Debug application
-ids: `io.put.putio.mobile.debug` (mobileProduction), `io.put.putio.debug`
-(tvProduction), plus `.nightly` before `.debug` for the nightly channel.
-Harness launch proof uses debug builds. The minified release verification APK
-is unsigned; nothing in this harness needs release credentials.
+`nightly`); [app/build.gradle.kts](./app/build.gradle.kts) owns the application
+ids. Nightly carries its own id, label, and the stars launcher icon
+(`scripts/generate-nightly-icon.sh`); Play internal/closed tracks ship nightly,
+the public listing keeps production. Harness launch proof uses debug builds,
+`io.put.putio.mobile.debug` and `io.put.putio.debug` for production. Nothing in
+the harness needs release credentials.
 
 ## Design system
 
@@ -88,22 +80,17 @@ Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every PR and push to main: `./gradlew
-verify :buildSrc:test` (including the minified SDK-consumer build) plus all
-four debug flavor assembles. Manual workflow dispatches additionally upload
-the four debug APKs as a one-day `debug-apks` artifact. Failed runs retain app unit-test and
-`buildSrc` JUnit XML as `failed-unit-test-reports` for three days, including
-assertion diagnostics omitted from the job log. Treat the `Verify Android app` check as
-the merge gate for `main`; no branch protection enforces it. Conventions mirror `putio-sdk-kotlin`: pinned
-action SHAs, Temurin 21, `gradle/actions/setup-gradle` caching, concurrency
-cancellation.
+[CI](./.github/workflows/ci.yml) runs `./gradlew verify :buildSrc:test` plus
+all four debug flavor assembles on every PR and push to main. Failed runs keep
+unit-test JUnit XML, including assertion diagnostics the job log omits, as the
+`failed-unit-test-reports` artifact; manual dispatches also upload the debug
+APKs. Treat the `Verify Android app` check as the merge gate for `main`; no
+branch protection enforces it. CI checks out the public `putio-sdk-kotlin` as a
+sibling without credentials and holds no secrets.
 
-The public `putio-sdk-kotlin` composite build is checked out as a sibling
-without credentials; CI holds no secrets.
-
-Both CI lanes record the actual app and SDK checkout SHAs and the app commit's
-parent SHAs in the job log and run summary before building. The SDK still follows its default branch; an app
-SHA alone does not identify the composite build used by a previous run.
+Both CI workflows record the app and SDK checkout SHAs and the app commit's
+parents in the job log and run summary. The SDK follows its default branch, so
+an app SHA alone does not identify the composite build a previous run used.
 For local proof, record both SHAs and worktree status, using the SDK path
 selected by `local.properties` `putioSdkKotlinPath` (or the sibling default):
 
@@ -135,13 +122,11 @@ Set `sdk.dir` and the absolute `putioSdkKotlinPath` in the reproduction
 worktree's ignored `local.properties` before running Gradle. Include local
 modifications with a failure report; SHA pairs describe only committed source.
 
-Emulator-on-CI: `.github/workflows/emulator-smoke.yml` (weekly schedule +
-`workflow_dispatch`) explicitly selects `LaunchSmokeTest` and the credential-free
-`StaleOAuthCallbackTest` in separate invocations with separate result artifacts;
-opt-in feature suites remain separate. Both run on the
-`ciPhone` Gradle Managed Device (`app/build.gradle.kts`, API 36, swiftshader) with
-KVM enabled on the runner. It is deliberately not a PR gate: shared-runner emulator boots are too
-slow and flaky to block merges, so `scripts/prove.sh` stays the local proof.
+[Emulator smoke](./.github/workflows/emulator-smoke.yml) runs weekly and on
+dispatch: `LaunchSmokeTest` and the credential-free `StaleOAuthCallbackTest` on
+the `ciPhone` Gradle Managed Device. It is deliberately not a PR gate:
+shared-runner emulator boots are too slow and flaky to block merges, so
+`scripts/prove.sh` stays the local proof.
 
 ## Harness
 
@@ -154,7 +139,7 @@ with the `putio` CLI, and headless notes: [Harness](./docs/harness.md).
 
 Every change ships with:
 
-1. `./gradlew verify` plus both flavor assembles green
+1. `./gradlew verify :buildSrc:test` plus both flavor assembles green
 2. The behavior exercised on the local harness (`scripts/prove.sh` or a
    feature-specific flow on the emulator)
 3. Visual proof captured from the harness and uploaded to the PR with
@@ -164,7 +149,7 @@ Every change ships with:
 
 `.worktreeinclude` carries `local.properties` into Codex and Claude worktrees.
 Set `sdk.dir` and an absolute `putioSdkKotlinPath` there, then run
-`./gradlew verify`. The optional `putioMobileOAuthClientIdDebugOverride` key
+`./gradlew verify :buildSrc:test`. The optional `putioMobileOAuthClientIdDebugOverride` key
 is validated on every build; see [Harness](./docs/harness.md#borrowing-another-oauth-client-for-local-proof).
 
 ## Rules
@@ -175,4 +160,4 @@ is validated on every build; see [Harness](./docs/harness.md#borrowing-another-o
 - Preserve the current Android TV package/release identity unless product/release owners decide to create a new listing
 - Store tokens in Android platform secure storage; never commit sample secrets or OAuth tokens
 - Keep app-specific build, verification, and architecture notes in this repo
-- Finish in-scope edits, `./gradlew verify`, and harness proof without pausing; ask before publishing evidence, Play track changes, signing or secret changes, and anything outside the task
+- Finish in-scope edits, `./gradlew verify :buildSrc:test`, and harness proof without pausing; ask before publishing evidence, Play track changes, signing or secret changes, and anything outside the task

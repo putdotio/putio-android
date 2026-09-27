@@ -41,27 +41,26 @@ Mobile, on the emulator harness against the live API:
   chooser never sees a token. Product deep links open Files, a folder,
   Transfers, Search, History, Trash and Downloads
 
-The TV flavor signs in with a device code (put.io/link), keeps the token in
-Keystore-backed storage, restores it on relaunch, and shows the M3 navigation
-drawer with Files, Search, History and Account. Files browses folders with
-Refresh, Sort, paging, watched progress and the unsupported-type screen;
-media rows do not play yet. Long-press or the Menu key on a row offers Open
-in VLC (the original file), Mark as watched or unwatched, and Move to trash
-or Delete permanently per the account's Trash setting, each confirmed and
-reported above the list. Search types through the system IME, replays
-recent queries from chips, pages results in the standard rows, and opens a
-result in Files. History lists the account's events under relative-date
-headers, opens an event's file in Files, and clears with a confirmation.
-Account shows the identity and quota header with Sign out, then Playback
-settings (proxy, resume, playback type, autoplay, subtitles), Storage settings
-(Trash on or off, Manage your trash with its size, history) and App and
-device information with a Diagnostics dialog, each switch and choice dialog
-saving through the shared settings controllers. Manage your trash opens Trash:
-rows with deleted and expiry dates, Restore or Delete permanently per row,
-Restore all and Empty trash, each confirmed and reported with Check status or
-Check trash until put.io confirms it.
-Not started:
-Chromecast, Picture-in-Picture, and the Play release lane.
+TV:
+
+- Device-code sign-in (put.io/link) with the token in Keystore-backed storage,
+  restored on relaunch, and an M3 navigation drawer with Files, Search,
+  History and Account
+- Files: browse folders with Refresh, Sort, paging, watched progress and the
+  unsupported-type screen. Long-press or Menu on a row offers Open in VLC,
+  Mark as watched or unwatched, and Move to trash or Delete permanently per
+  the account's Trash setting. Media rows do not play yet
+- Search through the system IME, with recent-query chips and paged results
+  that open in Files
+- History grouped under relative-date headers; an event opens its file in
+  Files, and Clear confirms first
+- Account: identity and quota header, Playback and Storage settings saved
+  through the shared settings controllers, App and device information with a
+  Diagnostics dialog, and Sign out
+- Trash from Account: Restore or Delete permanently per row, Restore all and
+  Empty trash, each confirmed and checked until put.io confirms it
+
+Not started: Chromecast, Picture-in-Picture, and the Play release lane.
 
 ## Direction
 
@@ -84,14 +83,15 @@ Requires JDK 21, `python3`, and, on macOS, Homebrew. Everything else is scripted
 
 ```bash
 ./scripts/bootstrap.sh   # once per machine; installs the Android SDK, AVDs, local.properties
-./gradlew verify
+./gradlew verify :buildSrc:test
 ./gradlew :app:assembleMobileProductionDebug
 ./gradlew :app:assembleTvProductionDebug
 ./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof with evidence
 ```
 
-What `verify` covers, the AVD images, and the `putio-sdk-kotlin` sibling
-checkout `bootstrap` expects: [Agent guide](./AGENTS.md#toolchain).
+The `putio-sdk-kotlin` sibling checkout that `bootstrap` expects:
+[Toolchain](./AGENTS.md#toolchain). What the gate covers:
+[Build and verify](./AGENTS.md#build-and-verify).
 
 ## Docs
 
