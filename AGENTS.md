@@ -84,8 +84,7 @@ Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 all four debug flavor assembles on every PR and push to main. Failed runs keep
 unit-test JUnit XML, including assertion diagnostics the job log omits, as the
 `failed-unit-test-reports` artifact; manual dispatches also upload the debug
-APKs. Treat the `Verify Android app` check as the merge gate for `main`; no
-branch protection enforces it. CI checks out the public `putio-sdk-kotlin` as a
+APKs. CI checks out the public `putio-sdk-kotlin` as a
 sibling without credentials and holds no secrets.
 
 Both CI workflows record the app and SDK checkout SHAs and the app commit's
