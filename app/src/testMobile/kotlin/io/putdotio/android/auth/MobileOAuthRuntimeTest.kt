@@ -11,6 +11,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MobileOAuthRuntimeTest {
@@ -37,6 +38,29 @@ class MobileOAuthRuntimeTest {
     }
 
     @Test
+    fun `a session rejected without any UI still runs the session-exit cleanup`() = runBlocking {
+        var sessionsLeft = 0
+        val controller = MobileAuthController(
+            oauthConfiguration = MobileOAuthConfiguration.Configured("9677"),
+            tokenStore = StoredAuthTokenStore(checkNotNull(AccessToken.parse("token"))),
+            pendingOAuthAttemptStore = FailingPendingOAuthAttemptStore(IllegalStateException("Not used")),
+            sessionGateway = ValidAuthSessionGateway,
+        )
+        MobileOAuthRuntime(
+            putioClient = PutioClient(PutioConfig(clientId = "9677", clientName = "test")),
+            authController = controller,
+            applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+            onSessionLeft = { sessionsLeft += 1 },
+        )
+
+        controller.restoreSession()
+        assertEquals(0, sessionsLeft)
+        assertTrue(controller.rejectAuthoritativeSession())
+
+        assertEquals(1, sessionsLeft)
+    }
+
+    @Test
     fun `runtime failure log excludes error messages and callback payloads`() {
         val log = oauthRuntimeFailureLog(IllegalStateException("access_token=secret"))
 
@@ -54,6 +78,31 @@ class MobileOAuthRuntimeTest {
         override suspend fun write(accessToken: AccessToken) = Unit
 
         override suspend fun clear() = Unit
+    }
+
+    private class StoredAuthTokenStore(private var token: AccessToken?) : AuthTokenStore {
+        override suspend fun read(): AccessToken? = token
+
+        override suspend fun write(accessToken: AccessToken) {
+            token = accessToken
+        }
+
+        override suspend fun clear() {
+            token = null
+        }
+    }
+
+    private object ValidAuthSessionGateway : AuthSessionGateway {
+        override fun buildLoginUrl(redirectUri: String, state: String): String = error("Not used")
+
+        override fun setAccessToken(accessToken: AccessToken) = Unit
+
+        override fun clearAccessToken() = Unit
+
+        override suspend fun validateSession(): SessionValidationResult =
+            SessionValidationResult.Valid(MobileAccount(userId = 1L, username = "user", email = "user@example.com"))
+
+        override suspend fun logout(): RemoteLogoutResult = error("Not used")
     }
 
     private class FailingPendingOAuthAttemptStore(

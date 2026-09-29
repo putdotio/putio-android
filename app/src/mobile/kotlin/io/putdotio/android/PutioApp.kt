@@ -226,11 +226,7 @@ private fun MobileAuthRoot(
     }
     PlaybackSessionBoundaryEffect(
         sessionId = (authState as? MobileAuthState.SignedIn)?.sessionId,
-        onSessionLeft = {
-            MobilePlaybackService.stop(context.applicationContext)
-            // A running export watches the session itself; this drops the copies it already handed out.
-            MobileFileShareService.endSession(context.applicationContext)
-        },
+        onSessionLeft = { MobilePlaybackService.stop(context.applicationContext) },
     )
     when (val state = authState) {
         MobileAuthState.Initializing,
