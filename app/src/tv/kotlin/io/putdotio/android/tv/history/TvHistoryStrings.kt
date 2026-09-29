@@ -7,11 +7,9 @@ import io.putdotio.android.R
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
+import io.putdotio.android.parsePutioTimestamp
 import java.time.Instant
-import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.ZoneOffset
-import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
 /** The oracle's date groups (08): a header per bucket, newest first. */
@@ -23,17 +21,7 @@ internal enum class TvHistoryBucket(@StringRes val label: Int) {
     Earlier(R.string.tv_history_earlier),
 }
 
-/** put.io stamps events in UTC without an offset; an offset is accepted when present. */
-internal fun HistoryItem.createdInstant(): Instant? =
-    try {
-        Instant.parse(createdAt)
-    } catch (_: DateTimeParseException) {
-        try {
-            LocalDateTime.parse(createdAt).toInstant(ZoneOffset.UTC)
-        } catch (_: DateTimeParseException) {
-            null
-        }
-    }
+internal fun HistoryItem.createdInstant(): Instant? = parsePutioTimestamp(createdAt)
 
 internal fun HistoryItem.bucket(now: Instant, zone: ZoneId): TvHistoryBucket {
     val created = createdInstant() ?: return TvHistoryBucket.Earlier

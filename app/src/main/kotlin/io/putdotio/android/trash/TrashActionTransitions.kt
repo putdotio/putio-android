@@ -1,6 +1,7 @@
 package io.putdotio.android.trash
 
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.parsePutioTimestamp
 
 internal fun TrashMachine.action(event: TrashEvent.ActionEvent): TrashMachine? = when (event) {
     is TrashEvent.SelectDelete -> selectDelete(event)
@@ -50,7 +51,7 @@ private fun TrashMachine.confirmAction(event: TrashEvent.ConfirmAction): TrashMa
             itemIds = it.itemIds.toSet(),
             coversUnloadedItems = it.cursor != null,
             // One unparseable row makes the bound unknown; a partial maximum would let snapshot rows pass as newer.
-            newestDeletedAt = content.items.map { item -> item.deletedAt?.let(::parseTrashTimestamp) }
+            newestDeletedAt = content.items.map { item -> item.deletedAt?.let(::parsePutioTimestamp) }
                 .takeIf { stamps -> stamps.none { it == null } }?.filterNotNull()?.maxOrNull(),
         )
     }

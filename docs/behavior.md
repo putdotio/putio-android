@@ -116,6 +116,17 @@ id resolves through the item resolver and reuses the navigation-failure dialog.
 
 Tests: `MobileDeepLinksTest`, `MainActivityDeepLinkTest`.
 
+## Timestamps and History opens
+
+The API sends UTC datetimes without an offset (`2026-09-09T15:25:32`). Mobile
+and TV read them, and offset stamps, through one parser, so History groups by
+local day and Files rows keep their date; a stamp it cannot read shows raw.
+Choosing a History row resolves its file in the signed-in session, and only the
+latest choice opens: a second tap while the first resolves opens one folder.
+
+Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
+`MobileSearchHistoryScreenTest`, `MobileFilesScreenTest`, `TvSessionViewModelTest`.
+
 ## Downloads and offline playback
 
 Downloads use Media3's `DownloadService` and `SimpleCache` under the app's

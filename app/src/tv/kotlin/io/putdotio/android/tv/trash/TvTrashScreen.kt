@@ -64,7 +64,7 @@ import io.putdotio.android.trash.TrashRestoreCheck
 import io.putdotio.android.trash.TrashRestoreOutcome
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
-import io.putdotio.android.trash.parseTrashTimestamp
+import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
@@ -571,7 +571,7 @@ private fun TvTrashRow(
 
 /** A date for the row, from a stamp or a plain date; the raw value when neither, never a fabricated deadline. */
 private fun trashDate(context: android.content.Context, value: String): String {
-    val millis = parseTrashTimestamp(value)?.toEpochMilli()
+    val millis = parsePutioTimestamp(value)?.toEpochMilli()
         ?: runCatching { LocalDate.parse(value).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }
             .getOrNull()
         ?: return value
