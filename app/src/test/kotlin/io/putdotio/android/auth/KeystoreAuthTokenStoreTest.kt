@@ -15,6 +15,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.security.ProviderException
+import javax.crypto.AEADBadTagException
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -103,8 +104,71 @@ class KeystoreAuthTokenStoreTest {
         assertSame(failure, error.cause)
     }
 
+    @Test
+    fun `undecryptable records are wiped with their key and read as absent`() = runBlocking {
+        val cases = listOf(
+            "malformed record" to null,
+            "missing key" to MissingAuthTokenKeyException(),
+            "bad GCM tag" to AEADBadTagException("tag mismatch"),
+        )
+        for ((case, decryptFailure) in cases) {
+            val preferences = freshPreferences()
+            val cipher = DeterministicTokenCipher()
+            val store = KeystoreAuthTokenStore(preferences, cipher, Dispatchers.Unconfined)
+            store.write(checkNotNull(AccessToken.parse(ACCESS_TOKEN)))
+            if (decryptFailure == null) {
+                preferences.edit().putString(ENCRYPTED_ACCESS_TOKEN_KEY, "v1:not-a-record").commit()
+            }
+            cipher.decryptFailure = decryptFailure
+
+            assertNull(case, store.read())
+            assertNull(case, preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null))
+            assertEquals(case, 1, cipher.destroyKeyCalls)
+        }
+    }
+
+    @Test
+    fun `transient read failures keep the record and stay storage errors`() {
+        val preferences = freshPreferences()
+        val cipher = DeterministicTokenCipher()
+        val store = KeystoreAuthTokenStore(preferences, cipher, Dispatchers.Unconfined)
+        runBlocking { store.write(checkNotNull(AccessToken.parse(ACCESS_TOKEN))) }
+        val failure = ProviderException("keystore busy")
+        cipher.decryptFailure = failure
+
+        val error = assertThrows(AuthTokenStorageException::class.java) {
+            runBlocking { store.read() }
+        }
+
+        assertSame(failure, error.cause)
+        assertEquals(0, cipher.destroyKeyCalls)
+        cipher.decryptFailure = null
+        assertEquals(ACCESS_TOKEN, runBlocking { store.read() }?.reveal())
+    }
+
+    @Test
+    fun `failed wipe of an undecryptable record stays a storage error`() {
+        val preferences = freshPreferences()
+        preferences.edit().putString(ENCRYPTED_ACCESS_TOKEN_KEY, "v1:not-a-record").commit()
+        val store = KeystoreAuthTokenStore(
+            preferences = CommitFailingSharedPreferences(preferences),
+            tokenCipher = DeterministicTokenCipher(),
+            ioDispatcher = Dispatchers.Unconfined,
+        )
+
+        assertThrows(AuthTokenStorageException::class.java) {
+            runBlocking { store.read() }
+        }
+    }
+
+    private fun freshPreferences(): SharedPreferences =
+        ApplicationProvider.getApplicationContext<Context>()
+            .getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE)
+            .also { it.edit().clear().commit() }
+
     private class DeterministicTokenCipher : AuthTokenCipher {
         var destroyKeyCalls = 0
+        var decryptFailure: Exception? = null
 
         override fun encrypt(plaintext: ByteArray): EncryptedAuthTokenValue =
             EncryptedAuthTokenValue(
@@ -112,8 +176,10 @@ class KeystoreAuthTokenStoreTest {
                 ciphertext = plaintext.map { (it.toInt() xor CIPHER_MASK).toByte() }.toByteArray(),
             )
 
-        override fun decrypt(value: EncryptedAuthTokenValue): ByteArray =
-            value.ciphertext.map { (it.toInt() xor CIPHER_MASK).toByte() }.toByteArray()
+        override fun decrypt(value: EncryptedAuthTokenValue): ByteArray {
+            decryptFailure?.let { throw it }
+            return value.ciphertext.map { (it.toInt() xor CIPHER_MASK).toByte() }.toByteArray()
+        }
 
         override fun destroyKey() {
             destroyKeyCalls += 1

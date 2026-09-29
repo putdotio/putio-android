@@ -218,7 +218,8 @@
     <string name="mobile_auth_not_configured_title">Mobile sign-in isn’t configured</string>
     <string name="mobile_auth_not_configured_message">This build needs its own Android sign-in registration before it can open the browser.</string>
     <string name="mobile_auth_storage_title">Secure storage is unavailable</string>
-    <string name="mobile_auth_storage_message">Your session could not be stored safely. Try again after restarting the app.</string>
+    <string name="mobile_auth_storage_message">The saved session on this device could not be read or stored safely. Reset clears it so you can sign in again.</string>
+    <string name="mobile_auth_storage_reset">Reset and sign in</string>
     <string name="mobile_auth_sign_in">Sign in</string>
     <string name="mobile_auth_browser_title">Finish signing in</string>
     <string name="mobile_auth_browser_message">Complete the sign-in flow in your browser, then return to put.io.</string>

@@ -333,11 +333,7 @@ internal fun MobileSignedOutScreen(
         }
     }
 
-    if (
-        !canSignIn ||
-        reason == MobileSignedOutReason.OAuthNotConfigured ||
-        reason == MobileSignedOutReason.SecureStorageUnavailable
-    ) {
+    if (!canSignIn || reason == MobileSignedOutReason.OAuthNotConfigured) {
         MobileEmptyState(
             title = stringResource(title),
             message = stringResource(message),
@@ -348,7 +344,13 @@ internal fun MobileSignedOutScreen(
     MobileAuthMessageScreen(
         title = stringResource(title),
         message = stringResource(message),
-        actionLabel = stringResource(R.string.mobile_auth_sign_in),
+        actionLabel = stringResource(
+            if (reason == MobileSignedOutReason.SecureStorageUnavailable) {
+                R.string.mobile_auth_storage_reset
+            } else {
+                R.string.mobile_auth_sign_in
+            },
+        ),
         onAction = onSignIn,
     )
 }
