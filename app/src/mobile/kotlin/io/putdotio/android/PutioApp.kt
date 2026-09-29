@@ -1191,6 +1191,7 @@ private fun TabletShell(
                 trashController = trashController,
                 downloadsController = downloadsController,
                 downloadsState = downloadsState,
+                onShareItem = onShareItem,
                 accountSettingsState = accountSettingsState,
                 appConfigState = appConfigState,
                 searchHistoryState = searchHistoryState,

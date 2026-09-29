@@ -116,7 +116,8 @@ first; a recipient still reading one keeps its open descriptor. Launch removes
 exports older than a day.
 
 Tests: `MobileFileShareServiceTest` (payload shape, ready notification, service
-stop rules, name sanitizer).
+stop rules, name sanitizer), `MobileOrdinaryNavigationTest` (Files action sheet
+offers Share on phone and tablet layouts).
 
 ## Deep links
 

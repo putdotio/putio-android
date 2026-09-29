@@ -20,8 +20,10 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
@@ -168,6 +170,21 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
 @Config(sdk = [35], qualifiers = "en-rUS-w360dp-h640dp-port")
 class MobileOrdinaryNavigationTest : NavigationShellFixture(1f) {
     @Test
+    fun phoneFileActionsOfferShare() = assertFileActionsOfferShare()
+
+    @Test
+    @Config(qualifiers = "en-rUS-w840dp-h900dp-land")
+    fun tabletFileActionsOfferShare() = assertFileActionsOfferShare()
+
+    private fun assertFileActionsOfferShare() {
+        val shared = mutableListOf<FilesItem>()
+        mount(onShareItem = { shared += it })
+        compose.onNodeWithText(SHAREABLE_FILE_NAME).performTouchInput { longClick() }
+        compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).performClick()
+        assertEquals(listOf(SHAREABLE_FILE_NAME), shared.map { it.name })
+    }
+
+    @Test
     fun ordinaryPhoneKeepsItsLabelledBottomNavigation() {
         mount()
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).assertDoesNotExist()
@@ -260,8 +277,12 @@ abstract class NavigationShellFixture(fontScale: Float) {
     protected fun drawerDestination(label: String) =
         compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(MOBILE_NAV_DRAWER_TAG)))
 
-    protected fun mount(nested: Boolean = false, onFilesEvent: (FilesBrowserEvent) -> Boolean = { true }) {
-        val files = navigationFiles(nested)
+    protected fun mount(
+        nested: Boolean = false,
+        onFilesEvent: (FilesBrowserEvent) -> Boolean = { true },
+        onShareItem: ((FilesItem) -> Unit)? = null,
+    ) {
+        val files = navigationFiles(nested, withFile = onShareItem != null)
         compose.setContent {
             backOwner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
             host = LocalView.current
@@ -280,18 +301,23 @@ abstract class NavigationShellFixture(fontScale: Float) {
                     onAccountSettingsEvent = {},
                     onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
+                    onShareItem = onShareItem,
                 )
             }
         }
     }
 }
 
-private fun navigationFiles(nested: Boolean): FilesBrowserState {
+private const val SHAREABLE_FILE_NAME = "Episode.mkv"
+
+private fun navigationFiles(nested: Boolean, withFile: Boolean = false): FilesBrowserState {
     val initial = FilesBrowserReducer.start()
     val request = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
     val folder = FilesItem(FilesItemId(7), FilesFolder.Root.id, "Shows", PutioFileType.FOLDER, 0, "2026-09-08")
+    val file = FilesItem(FilesItemId(8), FilesFolder.Root.id, SHAREABLE_FILE_NAME, PutioFileType.VIDEO, 1, "2026-09-08")
+    val items = if (withFile) listOf(folder, file) else listOf(folder)
     val root = FilesBrowserReducer.reduce(
-        initial.state, FilesBrowserEvent.LoadSucceeded(request, FilesPage(listOf(folder), nextCursor = null)),
+        initial.state, FilesBrowserEvent.LoadSucceeded(request, FilesPage(items, nextCursor = null)),
     ).state
     return if (nested) FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenFolder(folder.id)).state else root
 }
