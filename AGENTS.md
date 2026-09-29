@@ -54,8 +54,7 @@ SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
 ```
 
 The root [`verify` task](./build.gradle.kts) runs Android Lint with warnings
-as errors on `mobileProductionDebug` (TV lint waits on
-[#204](https://github.com/putdotio/putio-android/issues/204)), detekt, and the
+as errors on `mobileProductionDebug` and `tvProductionDebug`, detekt, and the
 production debug JVM unit tests; nightly adds resources only, so its unit-test
 variants are disabled. Unsigned minified `mobileProductionRelease`,
 `tvProductionRelease`, and `tvNightlyRelease` builds prove the composite

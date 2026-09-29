@@ -68,6 +68,7 @@ import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
+import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.files.tvMessage
 import java.time.LocalDate
 import java.time.ZoneId
@@ -146,9 +147,9 @@ internal fun TvTrashScreen(
             onRefresh = { onEvent(TrashEvent.Refresh) },
             onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
             onEmpty = { onEvent(TrashEvent.SelectEmpty) },
-            refreshModifier = owner.section(refreshFocus).focusRequester(refreshFocus),
-            restoreAllModifier = owner.section(restoreAllFocus).focusRequester(restoreAllFocus),
-            emptyModifier = owner.section(emptyFocus).focusRequester(emptyFocus),
+            refreshModifier = Modifier.paneSection(owner, refreshFocus).focusRequester(refreshFocus),
+            restoreAllModifier = Modifier.paneSection(owner, restoreAllFocus).focusRequester(restoreAllFocus),
+            emptyModifier = Modifier.paneSection(owner, emptyFocus).focusRequester(emptyFocus),
         )
         val enabled = state.authenticationFailure == null
         state.restoreOutcome?.let { TvTrashRestoreOutcome(it, enabled, onEvent, owner) }
@@ -179,7 +180,7 @@ internal fun TvTrashScreen(
                     message = stringResource(content.failure.tvMessage()),
                     action = stringResource(R.string.tv_files_retry),
                     onAction = { onEvent(TrashEvent.Retry) },
-                    modifier = owner.section(retryFocus).weight(1f),
+                    modifier = Modifier.paneSection(owner, retryFocus).weight(1f),
                     actionFocus = retryFocus,
                     claimFocus = paneHasFocus.value,
                 )
@@ -220,12 +221,13 @@ private fun TvTrashHeader(
     onRefresh: () -> Unit,
     onRestoreAll: () -> Unit,
     onEmpty: () -> Unit,
-    refreshModifier: Modifier,
-    restoreAllModifier: Modifier,
-    emptyModifier: Modifier,
+    modifier: Modifier = Modifier,
+    refreshModifier: Modifier = Modifier,
+    restoreAllModifier: Modifier = Modifier,
+    emptyModifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -322,7 +324,10 @@ private fun TvTrashNotice(
             modifier = Modifier.weight(1f),
         )
         if (action != null) {
-            TvButton(onClick = onAction, modifier = owner.section(actionFocus).focusRequester(actionFocus)) {
+            TvButton(
+                onClick = onAction,
+                modifier = Modifier.paneSection(owner, actionFocus).focusRequester(actionFocus),
+            ) {
                 Text(action)
             }
         }
@@ -499,7 +504,7 @@ private fun TvTrashList(
         state = listState,
         modifier = modifier
             .fillMaxWidth()
-            .then(owner.section(listFocus))
+            .paneSection(owner, listFocus)
             .focusRequester(listFocus)
             .focusRestorer {
                 val lastId = items.lastOrNull()?.id?.value ?: return@focusRestorer pagingFocus
@@ -541,12 +546,14 @@ private fun TvTrashRow(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val metadata = remember(context, item) {
-        val size = Formatter.formatShortFileSize(context, item.sizeBytes.coerceAtLeast(0L))
-        val deleted = item.deletedAt?.let { trashDate(context, it) } ?: "–"
-        val expires = item.expirationDate?.let { trashDate(context, it) } ?: "–"
-        context.getString(R.string.tv_trash_row_metadata, size, deleted, expires)
+    val (size, deleted, expires) = remember(context, item) {
+        Triple(
+            Formatter.formatShortFileSize(context, item.sizeBytes.coerceAtLeast(0L)),
+            item.deletedAt?.let { trashDate(context, it) } ?: "–",
+            item.expirationDate?.let { trashDate(context, it) } ?: "–",
+        )
     }
+    val metadata = stringResource(R.string.tv_trash_row_metadata, size, deleted, expires)
     val label = stringResource(R.string.tv_trash_row_actions, item.name)
     ListItem(
         selected = false,
@@ -587,6 +594,7 @@ private fun TvTrashPaging(
     content: TrashContent.Loaded,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
     buttonModifier: Modifier = Modifier,
 ) {
     val failure = content.pageFailure
@@ -596,7 +604,7 @@ private fun TvTrashPaging(
         else -> R.string.tv_trash_load_more
     }
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
