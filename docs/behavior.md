@@ -30,7 +30,10 @@ or sign-out. Success or a 401/403 clears the record; a storage failure keeps
 retrying in memory for the life of the process. One record: a newer sign-out
 replaces an older unconfirmed token. put.io can hand the same token back on the
 next sign-in, so persisting a token equal to the pending one cancels its
-revocation. Nothing in the path logs the token.
+revocation, and app start drops a pending record that matches the stored
+session instead of revoking it. Sign-out revokes the token the live session
+holds, so an unreadable session record still gets revoked. Nothing in the path
+logs the token.
 
 Tests: `PendingTokenRevocationsTest`, `KeystoreAuthTokenStoreTest`,
 `MobileAuthControllerTest`, `TvAuthControllerTest`.

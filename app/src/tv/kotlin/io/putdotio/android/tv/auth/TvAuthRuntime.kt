@@ -39,13 +39,15 @@ class TvAuthRuntime internal constructor(
                 PutioConfig(clientId = oauthClient.clientId, clientName = oauthClient.clientName),
             )
             val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+            val tokenStore = KeystoreAuthTokenStore(context)
             return TvAuthRuntime(
                 putioClient = putioClient,
                 authController = TvAuthController(
-                    tokenStore = KeystoreAuthTokenStore(context),
+                    tokenStore = tokenStore,
                     sessionGateway = PutioTvSessionGateway(putioClient),
                     tokenRevocations = PendingTokenRevocations(
                         store = KeystoreAuthTokenStore.pendingRevocation(context),
+                        sessionStore = tokenStore,
                         revoker = PutioAuthTokenRevoker(putioClient.config),
                         scope = applicationScope,
                     ),

@@ -15,6 +15,7 @@ internal class InMemoryAuthTokenStore(
     var token: AccessToken? = null,
 ) : AuthTokenStore {
     var failWrite = false
+    var failClear = false
 
     override suspend fun read(): AccessToken? = token
 
@@ -24,6 +25,7 @@ internal class InMemoryAuthTokenStore(
     }
 
     override suspend fun clear() {
+        if (failClear) throw AuthTokenStorageException("clear")
         token = null
     }
 }

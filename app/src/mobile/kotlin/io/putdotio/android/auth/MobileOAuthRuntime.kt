@@ -96,9 +96,10 @@ class MobileOAuthRuntime internal constructor(
                 ),
             )
             val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+            val tokenStore = KeystoreAuthTokenStore(context)
             val authController = MobileAuthController(
                 oauthConfiguration = oauthConfiguration,
-                tokenStore = KeystoreAuthTokenStore(context),
+                tokenStore = tokenStore,
                 pendingOAuthAttemptStore = SharedPreferencesPendingOAuthAttemptStore(context),
                 sessionGateway = PutioAuthSessionGateway(putioClient) { token ->
                     MobileDownloadCache.get(context).let {
@@ -109,6 +110,7 @@ class MobileOAuthRuntime internal constructor(
                 },
                 tokenRevocations = PendingTokenRevocations(
                     store = KeystoreAuthTokenStore.pendingRevocation(context),
+                    sessionStore = tokenStore,
                     revoker = PutioAuthTokenRevoker(putioClient.config),
                     scope = applicationScope,
                 ),

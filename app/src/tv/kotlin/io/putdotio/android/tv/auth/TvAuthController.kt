@@ -100,6 +100,9 @@ class TvAuthController internal constructor(
     private var linkAttempt: Job? = null
     private var linkGeneration = 0L
 
+    /** The token the gateway holds; sign-out revokes it without rereading the store. */
+    private var sessionToken: AccessToken? = null
+
     val state: StateFlow<TvAuthState> = mutableState.asStateFlow()
 
     suspend fun restoreSession() = operationMutex.withLock {
@@ -121,7 +124,7 @@ class TvAuthController internal constructor(
                     return@withLock
                 }
             }
-            sessionGateway.setAccessToken(accessToken)
+            configureSession(accessToken)
             validateStoredSession(TvSessionValidationSource.RESTORE)
         } catch (error: CancellationException) {
             rollBackInterruptedValidation(TvAuthState.Initializing)
@@ -166,7 +169,7 @@ class TvAuthController internal constructor(
                     return@withLock false
                 }
             }
-            sessionGateway.setAccessToken(accessToken)
+            configureSession(accessToken)
             validateStoredSession(TvSessionValidationSource.RETRY)
             true
         } catch (error: CancellationException) {
@@ -181,7 +184,7 @@ class TvAuthController internal constructor(
     private fun rollBackInterruptedValidation(previous: TvAuthState) {
         val current = mutableState.value
         if (current is TvAuthState.ValidatingSession || current == TvAuthState.RestoringSession) {
-            sessionGateway.clearAccessToken()
+            clearConfiguredSession()
             mutableState.value = previous
         }
     }
@@ -203,7 +206,7 @@ class TvAuthController internal constructor(
         }
         mutableState.value = TvAuthState.SigningOut
         withContext(NonCancellable) {
-            (readStoredToken() as? StoredToken.Present)?.let { tokenRevocations.revoke(it.accessToken) }
+            sessionToken?.let { tokenRevocations.revoke(it) }
             val cleared = clearLocalSession()
             startLinkAttempt(sessionExpired = false, storageCleared = cleared)
         }
@@ -273,7 +276,7 @@ class TvAuthController internal constructor(
             return
         }
         tokenRevocations.keep(accessToken)
-        sessionGateway.setAccessToken(accessToken)
+        configureSession(accessToken)
         signIn(linked.account.toTvAccount())
     }
 
@@ -331,8 +334,18 @@ class TvAuthController internal constructor(
         data object Unreadable : StoredToken
     }
 
-    private suspend fun clearLocalSession(): Boolean {
+    private fun configureSession(accessToken: AccessToken) {
+        sessionToken = accessToken
+        sessionGateway.setAccessToken(accessToken)
+    }
+
+    private fun clearConfiguredSession() {
+        sessionToken = null
         sessionGateway.clearAccessToken()
+    }
+
+    private suspend fun clearLocalSession(): Boolean {
+        clearConfiguredSession()
         return try {
             tokenStore.clear()
             true

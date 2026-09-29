@@ -62,7 +62,10 @@ internal interface TokenRevocations {
     /** Drops a pending revocation of [accessToken]: put.io handed the same token back on a new sign-in. */
     suspend fun keep(accessToken: AccessToken)
 
-    /** Retries a revocation left unconfirmed by an earlier attempt or process. */
+    /**
+     * Retries a revocation left unconfirmed by an earlier attempt or process, unless the
+     * signed-in session holds that token again (a [keep] that crashed or failed to clear).
+     */
     fun resume()
 }
 
@@ -78,6 +81,7 @@ internal interface TokenRevocations {
  */
 internal class PendingTokenRevocations(
     private val store: AuthTokenStore,
+    private val sessionStore: AuthTokenStore,
     private val revoker: AuthTokenRevoker,
     private val scope: CoroutineScope,
     private val retryDelays: List<Duration> = DEFAULT_REVOCATION_RETRY_DELAYS,
@@ -112,8 +116,24 @@ internal class PendingTokenRevocations(
     override fun resume() {
         synchronized(jobLock) {
             if (retryJob?.isActive != true) {
-                retryJob = scope.launch { retry() }
+                retryJob = scope.launch {
+                    dropIfSessionToken()
+                    retry()
+                }
             }
+        }
+    }
+
+    private suspend fun dropIfSessionToken() {
+        slotMutex.withLock {
+            val accessToken = loadPending() ?: return
+            val sessionToken = try {
+                sessionStore.read()
+            } catch (_: AuthTokenStorageException) {
+                // An unreadable session cannot be restored, so its token is not in use.
+                null
+            }
+            if (sessionToken?.reveal() == accessToken.reveal()) clearSlot()
         }
     }
 
@@ -155,13 +175,14 @@ internal class PendingTokenRevocations(
         return pending
     }
 
-    // Call with slotMutex held. A failed clear leaves a record whose next revocation answers 401.
+    // Call with slotMutex held. A record left by a failed clear is either revoked (401 if put.io
+    // already dropped it) or, if the session still holds that token, dropped by [resume].
     private suspend fun clearSlot() {
         pending = null
         try {
             store.clear()
         } catch (_: AuthTokenStorageException) {
-            // Harmless: see above.
+            // See above.
         }
     }
 }

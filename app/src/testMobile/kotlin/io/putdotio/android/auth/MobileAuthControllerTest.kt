@@ -735,6 +735,29 @@ class MobileAuthControllerTest {
     }
 
     @Test
+    fun `logout revokes the session token even when the store cannot be read`() = runBlocking {
+        val fixture = Fixture(storedToken = TOKEN)
+        fixture.controller.restoreSession()
+        fixture.tokenStore.failRead = true
+
+        fixture.controller.logout()
+
+        assertEquals(listOf(TOKEN), fixture.revoker.attempts)
+        assertNull(fixture.revocationStore.token)
+    }
+
+    @Test
+    fun `app start keeps a restored session whose token is still recorded for revocation`() = runBlocking {
+        val fixture = Fixture(storedToken = TOKEN, pendingRevocation = TOKEN)
+
+        fixture.controller.restoreSession()
+
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
+        assertTrue(fixture.revoker.attempts.isEmpty())
+        assertNull(fixture.revocationStore.token)
+    }
+
+    @Test
     fun `signing in with the token awaiting revocation cancels the revocation`() = runBlocking {
         val fixture = Fixture(
             pendingRevocation = TOKEN,
@@ -814,7 +837,7 @@ class MobileAuthControllerTest {
             tokenStore = tokenStore,
             pendingOAuthAttemptStore = pendingAttemptStore,
             sessionGateway = gateway,
-            tokenRevocations = PendingTokenRevocations(revocationStore, revoker, revocationScope),
+            tokenRevocations = PendingTokenRevocations(revocationStore, tokenStore, revoker, revocationScope),
             stateGenerator = stateGenerator,
             clock = clock,
         )

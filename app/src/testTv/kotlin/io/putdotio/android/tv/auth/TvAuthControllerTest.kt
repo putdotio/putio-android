@@ -220,6 +220,18 @@ class TvAuthControllerTest {
     }
 
     @Test
+    fun `logout revokes the session token even when the store cannot be read`() = runTest {
+        val harness = Harness(storedToken = "stored-token")
+        harness.controller.restoreSession()
+        harness.tokenStore.readFails = true
+
+        harness.controller.logout()
+
+        assertEquals(listOf("stored-token"), harness.revoker.attempts)
+        assertNull(harness.revocationStore.token)
+    }
+
+    @Test
     fun `failed revocation is retried with backoff until put io confirms it`() = runTest {
         val harness = Harness(
             storedToken = "stored-token",
@@ -328,7 +340,7 @@ class TvAuthControllerTest {
             controller = TvAuthController(
                 tokenStore,
                 gateway,
-                PendingTokenRevocations(revocationStore, revoker, scope),
+                PendingTokenRevocations(revocationStore, tokenStore, revoker, scope),
                 scope,
             )
         }
@@ -336,7 +348,7 @@ class TvAuthControllerTest {
 
     private class FakeTokenStore(
         private val writeFails: Boolean = false,
-        private val readFails: Boolean = false,
+        var readFails: Boolean = false,
     ) : AuthTokenStore {
         var stored: AccessToken? = null
 
