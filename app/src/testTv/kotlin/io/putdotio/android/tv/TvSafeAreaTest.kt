@@ -62,7 +62,7 @@ class TvSafeAreaTest {
     }
 
     @Test
-    @Config(qualifiers = "w960dp-h540dp-xxxhdpi-television")
+    @Config(qualifiers = "w960dp-h540dp-television-xxxhdpi")
     fun aFourKPanelKeepsTheSameProportionClear() {
         showShell()
         assertContentInsideSafeArea()
