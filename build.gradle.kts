@@ -41,6 +41,8 @@ tasks.register("verify") {
     dependsOn(
         ":app:check",
         ":app:assembleMobileProductionRelease",
+        ":app:assembleTvProductionRelease",
+        ":app:assembleTvNightlyRelease",
         ":app:assembleMobileProductionDebugAndroidTest",
         checkIcons,
         testEmulatorHarness,

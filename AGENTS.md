@@ -53,15 +53,19 @@ SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
 ./gradlew :app:assembleTvProductionDebug      # Android TV debug APK
 ```
 
-The root [`verify` task](./build.gradle.kts) runs `:app:check` (Android Lint
-with warnings as errors, detekt, JVM unit tests), an unsigned minified
-`mobileProductionRelease` build that proves the composite Kotlin SDK against
-R8, the instrumentation APK compile, the Phosphor icon lock check, and the
-shell and Python contract tests; those need `python3`, `bash`, and `ffprobe`
-on PATH. It also runs the tests of the [`build-logic`](./build-logic) included
-build, which owns the design-token codegen and host proof task classes. Fix
-findings at the source; suppress only with a comment stating the platform
-constraint.
+The root [`verify` task](./build.gradle.kts) runs Android Lint with warnings
+as errors on `mobileProductionDebug` (TV lint waits on
+[#204](https://github.com/putdotio/putio-android/issues/204)), detekt, and the
+production debug JVM unit tests; nightly adds resources only, so its unit-test
+variants are disabled. Unsigned minified `mobileProductionRelease`,
+`tvProductionRelease`, and `tvNightlyRelease` builds prove the composite
+Kotlin SDK, resource shrinking, and `lintVital` against R8 for each surface and
+channel. It also compiles the instrumentation APK, checks the Phosphor icon
+lock, and runs the shell and Python contract tests, which need `python3`,
+`bash`, and `ffprobe` on PATH, plus the tests of the
+[`build-logic`](./build-logic) included build, which owns the design-token
+codegen and host proof task classes. Fix findings at the source; suppress only
+with a comment stating the platform constraint.
 
 Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
 `nightly`); [app/build.gradle.kts](./app/build.gradle.kts) owns the application
@@ -85,7 +89,9 @@ Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 all four debug flavor assembles on every PR and push to main. Failed runs keep
 unit-test JUnit XML, including assertion diagnostics the job log omits, as the
 `failed-unit-test-reports` artifact; manual dispatches also upload the debug
-APKs. CI checks out the public `putio-sdk-kotlin` as a
+APKs. A new push to a pull request cancels its running check; `main` pushes
+and manual dispatches never cancel or replace one another, so every `main`
+commit gets a verdict. CI checks out the public `putio-sdk-kotlin` as a
 sibling without credentials and holds no secrets.
 
 Both CI workflows record the app and SDK checkout SHAs and the app commit's
