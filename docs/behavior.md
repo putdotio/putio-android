@@ -19,6 +19,27 @@ lands there too, so no storage state blocks sign-in.
 Tests: `KeystoreAuthTokenStoreTest`, `MobileAuthStorageRecoveryTest`,
 `MobileAuthControllerTest`, `MobileShellTest`.
 
+## Sign-out revocation
+
+Sign out is local and immediate on both surfaces; put.io revokes the token in
+the background. Before the session is cleared, the token is written to its own
+Keystore-encrypted record, separate from the session record, and revoked with a
+dedicated client that never touches the live session. A failed revocation
+retries after 15 s, 1 min, 5 min and 15 min, then waits for the next app start
+or sign-out. Success or a 401/403 clears the record; a storage failure keeps
+retrying in memory for the life of the process. One record: a newer sign-out
+replaces an older unconfirmed token. put.io can hand the same token back on the
+next sign-in, so persisting a token equal to the pending one cancels its
+revocation. That sign-in waits for a revocation request already in flight; if
+put.io revoked the token, mobile signs out as expired and TV starts a new link.
+A record loaded at app start that matches the stored session is dropped instead
+of revoked, and an unreadable record or session defers the attempt. Sign-out
+revokes the token the live session holds, so an unreadable session record still
+gets revoked. Nothing in the path logs the token.
+
+Tests: `PendingTokenRevocationsTest`, `KeystoreAuthTokenStoreTest`,
+`MobileAuthControllerTest`, `TvAuthControllerTest`.
+
 ## Trash
 
 Every Trash action confirms, submits exactly once, then verifies with one fresh
@@ -119,6 +140,9 @@ An export belongs to the session that started it. Leaving that session, by
 sign-out or an authoritative rejection, cancels a running export, deletes the
 share folder and removes the notification; delivery checks the session again
 before opening the chooser, so a resume that races a sign-out shares nothing.
+The process-wide auth runtime owns this cleanup, so it also runs with no UI,
+and a launch whose restore ends signed out deletes exports an earlier process
+left. Cancelling an export cancels its download at once, even mid-read.
 The stored name keeps the original readable but drops path separators, control
 and bidi formatting characters (which could disguise the extension), and is cut
 to 200 UTF-8 bytes on a code-point boundary, keeping a short extension.
@@ -172,7 +196,15 @@ sign-out parks that user's transfers with a stop reason until the owner signs in
 again. Playback reads through the same cache with a null write sink, so
 streaming never fills the download directory. On start the engine reconciles
 Media3's own index into the app's rows, so a transfer that completed while the
-UI was dead reads On this device after relaunch.
+UI was dead reads On this device after relaunch. Closing the engine cancels that
+reconcile, so a sign-out right after sign-in cannot un-park the transfers.
+Media3 reports only state transitions to the app; while the Downloads screen is
+started, the controller reads live bytes once a second into memory. Only
+transitions reach the index.
 
-Tests: `DownloadsControllerTest`, `MobileDownloadStoreTest`,
+Tests: `DownloadsControllerTest` (intents, progress polling while shown),
+`MobileDownloadsScreenTest` (shown and hidden events), `MobileDownloadStoreTest`,
+`MobileDownloadEngineTest` (reconcile, sign-out parking, account isolation,
+close before reconcile, in-memory progress against a real Media3 manager),
+`UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`.

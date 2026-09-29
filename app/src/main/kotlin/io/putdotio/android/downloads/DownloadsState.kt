@@ -33,6 +33,11 @@ sealed interface DownloadsEvent {
     data object CancelRemoval : DownloadsEvent
 
     data object ConfirmRemoval : DownloadsEvent
+
+    /** The Downloads screen started; live progress refreshes until [Hidden]. */
+    data object Shown : DownloadsEvent
+
+    data object Hidden : DownloadsEvent
 }
 
 internal fun DownloadsState.withEntries(entries: List<DownloadEntry>): DownloadsState =

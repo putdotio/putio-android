@@ -161,6 +161,27 @@ class KeystoreAuthTokenStoreTest {
         }
     }
 
+    @Test
+    fun `clearing the session keeps a token awaiting revocation`() = runBlocking {
+        val preferences = freshPreferences()
+        val session = KeystoreAuthTokenStore(preferences, DeterministicTokenCipher(), Dispatchers.Unconfined)
+        val pendingRevocation = KeystoreAuthTokenStore(
+            preferences = preferences,
+            tokenCipher = DeterministicTokenCipher(),
+            ioDispatcher = Dispatchers.Unconfined,
+            recordKey = PENDING_REVOCATION_TOKEN_KEY,
+        )
+        val accessToken = checkNotNull(AccessToken.parse(ACCESS_TOKEN))
+        session.write(accessToken)
+        pendingRevocation.write(accessToken)
+
+        session.clear()
+
+        assertNull(session.read())
+        assertEquals(ACCESS_TOKEN, pendingRevocation.read()?.reveal())
+        assertFalse(preferences.getString(PENDING_REVOCATION_TOKEN_KEY, null).orEmpty().contains(ACCESS_TOKEN))
+    }
+
     private fun freshPreferences(): SharedPreferences =
         ApplicationProvider.getApplicationContext<Context>()
             .getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE)

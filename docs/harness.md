@@ -525,7 +525,8 @@ PUTIO_CLI_PROFILE=devs-auto putio auth approve "$code"
 
 The shell appears within one poll interval (3 s). `Get new code` on the
 sign-in screen cancels the current attempt and requests another; `Sign out`
-under Account revokes the grant and returns to a fresh code. A force-stop and
+under Account returns to a fresh code at once and revokes the token in the
+background. A force-stop and
 relaunch must land in the shell without a code: that is the Keystore restore.
 `pm clear io.put.putio.debug` drops the stored token. The emulator has no
 Fire TV feature flag, so it always links as the Android TV client (6221);
@@ -829,11 +830,13 @@ synthetic session proof, not a live sign-out.
 ## Downloads and offline playback proof
 
 Behaviour: [Downloads and offline playback](./behavior.md#downloads-and-offline-playback);
-`DownloadsControllerTest`, `MobileDownloadStoreTest` and
-`OfflinePlaybackRepositoryTest` pin the engine and index rules on the JVM.
+`DownloadsControllerTest`, `MobileDownloadStoreTest`, `MobileDownloadEngineTest`,
+`UserScopedCacheKeysTest` and `OfflinePlaybackRepositoryTest` pin the engine,
+cache-key and index rules on the JVM.
 
 Prove on the API 37 emulator with the shared `devs-auto` account: download a
-small root video from its Files actions sheet, wait for `On this device` in the
+small root video from its Files actions sheet, keep the Downloads screen open
+and confirm its row advances about once a second, wait for `On this device` in the
 Files row and the Downloads screen, then enable airplane mode with
 `adb shell cmd connectivity airplane-mode enable` and play it from Downloads.
 Cut the network during a larger download and confirm the row reads
@@ -845,3 +848,13 @@ expected to contain the token. Delete the local copy from the Downloads sheet
 and confirm the cache directory shrinks. Clear only `databases/exoplayer_internal.db*`,
 `shared_prefs/io.putdotio.android.downloads.xml` and the internal
 `files/downloads/` between runs; never wipe app data or the session.
+
+Without a live account, `MobileDownloadsProgressProofTest` mounts the production
+Downloads screen, controller and engine over a real Media3 manager and
+progressive downloader reading a generated 12 MB local file at about 1 MB/s. It
+uses its own index database, cache directory and preferences, makes no API
+calls and leaves the session alone; report it as synthetic proof. Opt in with
+`putio.downloads.progress.enabled=true` and `putio.downloads.progress.runId=<UUID>`,
+record the screen while it runs, and require `OK (1 test)`: it fails unless the
+row shows at least five distinct byte counts before `On this device`.
+Screenshots land in the `downloads-progress-proof-<UUID>/` run directory.

@@ -17,9 +17,9 @@ import org.json.JSONObject
 /**
  * One JSON document per user in private SharedPreferences. Rows hold only
  * identity, name, type, rendition and status; Media3 owns bytes and URIs.
- * User and terminal writes commit before the in-memory rows advance; progress
- * writes apply asynchronously. Media3's own index remains the source of truth
- * for progress and is reconciled on start.
+ * User and terminal writes commit before the in-memory rows advance; other
+ * transitions apply asynchronously and byte progress is never written. Media3's
+ * own index remains the source of truth for progress and is reconciled on start.
  */
 internal class MobileDownloadStore internal constructor(
     private val preferences: SharedPreferences,
@@ -45,10 +45,9 @@ internal class MobileDownloadStore internal constructor(
     }
 
     /**
-     * Engine callbacks arrive on the main thread. Progress updates are frequent
-     * and expendable, so they persist asynchronously; terminal states commit so a
-     * completed download survives an immediate process death. Media3's own index
-     * is reconciled on start either way.
+     * Engine transitions arrive on the main thread. Non-terminal ones persist
+     * asynchronously; terminal states commit so a completed download survives an
+     * immediate process death. Media3's own index is reconciled on start either way.
      */
     fun updateStatusBlocking(fileId: FilesItemId, transform: (DownloadEntry) -> DownloadEntry) {
         synchronized(lock) {
@@ -60,6 +59,18 @@ internal class MobileDownloadStore internal constructor(
             val terminal = updated.status is DownloadStatus.Completed || updated.status is DownloadStatus.Failed
             preferences.edit(commit = terminal) { putString(key, next.toJson()) }
             mutableEntries.value = next
+        }
+    }
+
+    /** Advances a running row's bytes without a write; a stale report never overrides a transition. */
+    fun updateProgressInMemory(fileId: FilesItemId, bytesDownloaded: Long, totalBytes: Long?) {
+        synchronized(lock) {
+            val current = mutableEntries.value
+            val entry = current.firstOrNull { it.fileId == fileId } ?: return
+            if (entry.status !is DownloadStatus.Downloading) return
+            val status = DownloadStatus.Downloading(bytesDownloaded, totalBytes)
+            if (entry.status == status) return
+            mutableEntries.value = current.map { if (it.fileId == fileId) it.copy(status = status) else it }
         }
     }
 

@@ -24,6 +24,7 @@ class MobileOAuthRuntimeTest {
             tokenStore = EmptyAuthTokenStore,
             pendingOAuthAttemptStore = FailingPendingOAuthAttemptStore(failure),
             sessionGateway = UnusedAuthSessionGateway,
+            tokenRevocations = NoTokenRevocations,
         )
         val runtime = MobileOAuthRuntime(
             putioClient = PutioClient(PutioConfig(clientId = "9677", clientName = "test")),
@@ -66,6 +67,7 @@ class MobileOAuthRuntimeTest {
             tokenStore = StoredAuthTokenStore(checkNotNull(AccessToken.parse("token"))),
             pendingOAuthAttemptStore = InMemoryPendingOAuthAttemptStore(),
             sessionGateway = FixedAuthSessionGateway(validation),
+            tokenRevocations = NoTokenRevocations,
         )
 
         init {
@@ -132,8 +134,6 @@ class MobileOAuthRuntimeTest {
         override fun clearAccessToken() = Unit
 
         override suspend fun validateSession(): SessionValidationResult = validation
-
-        override suspend fun logout(): RemoteLogoutResult = error("Not used")
     }
 
     private companion object {
@@ -158,7 +158,5 @@ class MobileOAuthRuntimeTest {
         override fun clearAccessToken() = Unit
 
         override suspend fun validateSession(): SessionValidationResult = error("Not used")
-
-        override suspend fun logout(): RemoteLogoutResult = error("Not used")
     }
 }

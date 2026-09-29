@@ -3,10 +3,13 @@ package io.putdotio.android.downloads
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
 import java.io.Closeable
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +26,7 @@ class DownloadsController(
     private val store: DownloadStore,
     private val engine: DownloadEngine,
     parentScope: CoroutineScope,
+    private val progressInterval: Duration = 1.seconds,
     private val clock: () -> Long = System::currentTimeMillis,
 ) : Closeable {
     private val lock = Any()
@@ -31,6 +35,7 @@ class DownloadsController(
     private val mutableState = MutableStateFlow(DownloadsState().withEntries(store.entries.value))
     private val mutations = Mutex()
     private var closed = false
+    private val progress = ProgressWatch(scope, engine, progressInterval)
 
     val state: StateFlow<DownloadsState> = mutableState.asStateFlow()
 
@@ -52,6 +57,8 @@ class DownloadsController(
             is DownloadsEvent.RequestRemoval -> requestRemoval(event)
             DownloadsEvent.CancelRemoval -> updateRemoval(null)
             DownloadsEvent.ConfirmRemoval -> confirmRemoval()
+            DownloadsEvent.Shown -> progress.watch(true)
+            DownloadsEvent.Hidden -> progress.watch(false)
         }
     }
 
@@ -130,6 +137,32 @@ class DownloadsController(
             closed = true
         }
         scope.cancel()
+    }
+}
+
+/** Progress is display-only, so it polls outside the mutation queue and dies with the controller scope. */
+private class ProgressWatch(
+    private val scope: CoroutineScope,
+    private val engine: DownloadEngine,
+    private val interval: Duration,
+) {
+    private var job: Job? = null
+
+    @Synchronized
+    fun watch(visible: Boolean): Boolean {
+        if (visible == (job != null)) return false
+        job = if (visible) {
+            scope.launch {
+                while (true) {
+                    engine.refreshProgress()
+                    delay(interval)
+                }
+            }
+        } else {
+            job?.cancel()
+            null
+        }
+        return true
     }
 }
 

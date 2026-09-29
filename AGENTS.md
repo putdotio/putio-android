@@ -48,7 +48,7 @@ SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
 ## Build and Verify
 
 ```bash
-./gradlew verify :buildSrc:test               # canonical local gate + codegen tests
+./gradlew verify                              # canonical local gate
 ./gradlew :app:assembleMobileProductionDebug  # phone/tablet debug APK
 ./gradlew :app:assembleTvProductionDebug      # Android TV debug APK
 ```
@@ -58,9 +58,10 @@ with warnings as errors, detekt, JVM unit tests), an unsigned minified
 `mobileProductionRelease` build that proves the composite Kotlin SDK against
 R8, the instrumentation APK compile, the Phosphor icon lock check, and the
 shell and Python contract tests; those need `python3`, `bash`, and `ffprobe`
-on PATH. `verify` does not include `:buildSrc:test` (design-token codegen and
-host proof tooling), so always run both, as CI does. Fix findings at the
-source; suppress only with a comment stating the platform constraint.
+on PATH. It also runs the tests of the [`build-logic`](./build-logic) included
+build, which owns the design-token codegen and host proof task classes. Fix
+findings at the source; suppress only with a comment stating the platform
+constraint.
 
 Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
 `nightly`); [app/build.gradle.kts](./app/build.gradle.kts) owns the application
@@ -74,13 +75,13 @@ the harness needs release credentials.
 
 The theme is a tier-2 binding of putio-design (Material 3 + tokens, dark
 only). `design/tokens.dtcg.json` is vendored from `@putdotio/design`;
-`:app:generateDesignTokens` (buildSrc) generates `PutioDesignTokens.kt` with
+`:app:generateDesignTokens` (`build-logic`) generates `PutioDesignTokens.kt` with
 the color schemes; never hand-write colors. See `design/README.md`.
 Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 
 ## CI
 
-[CI](./.github/workflows/ci.yml) runs `./gradlew verify :buildSrc:test` plus
+[CI](./.github/workflows/ci.yml) runs `./gradlew verify` plus
 all four debug flavor assembles on every PR and push to main. Failed runs keep
 unit-test JUnit XML, including assertion diagnostics the job log omits, as the
 `failed-unit-test-reports` artifact; manual dispatches also upload the debug
@@ -138,7 +139,7 @@ with the `putio` CLI, and headless notes: [Harness](./docs/harness.md).
 
 Every change ships with:
 
-1. `./gradlew verify :buildSrc:test` plus both flavor assembles green
+1. `./gradlew verify` plus both flavor assembles green
 2. The behavior exercised on the local harness (`scripts/prove.sh` or a
    feature-specific flow on the emulator)
 3. Visual proof captured from the harness and uploaded to the PR with
@@ -148,7 +149,7 @@ Every change ships with:
 
 `.worktreeinclude` carries `local.properties` into Codex and Claude worktrees.
 Set `sdk.dir` and an absolute `putioSdkKotlinPath` there, then run
-`./gradlew verify :buildSrc:test`. The optional `putioMobileOAuthClientIdDebugOverride` key
+`./gradlew verify`. The optional `putioMobileOAuthClientIdDebugOverride` key
 is validated on every build; see [Harness](./docs/harness.md#borrowing-another-oauth-client-for-local-proof).
 
 ## Rules
@@ -159,4 +160,4 @@ is validated on every build; see [Harness](./docs/harness.md#borrowing-another-o
 - Preserve the current Android TV package/release identity unless product/release owners decide to create a new listing
 - Store tokens in Android platform secure storage; never commit sample secrets or OAuth tokens
 - Keep app-specific build, verification, and architecture notes in this repo
-- Finish in-scope edits, `./gradlew verify :buildSrc:test`, and harness proof without pausing; ask before publishing evidence, Play track changes, signing or secret changes, and anything outside the task
+- Finish in-scope edits, `./gradlew verify`, and harness proof without pausing; ask before publishing evidence, Play track changes, signing or secret changes, and anything outside the task

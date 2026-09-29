@@ -47,5 +47,6 @@ tasks.register("verify") {
         testEvidence,
         testIconPipeline,
         testTalkBackInput,
+        gradle.includedBuild("build-logic").task(":test"),
     )
 }
