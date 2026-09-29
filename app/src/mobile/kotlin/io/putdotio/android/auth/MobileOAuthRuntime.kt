@@ -95,6 +95,7 @@ class MobileOAuthRuntime internal constructor(
                     clientName = MOBILE_OAUTH_CLIENT_NAME,
                 ),
             )
+            val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             val authController = MobileAuthController(
                 oauthConfiguration = oauthConfiguration,
                 tokenStore = KeystoreAuthTokenStore(context),
@@ -106,11 +107,16 @@ class MobileOAuthRuntime internal constructor(
                         it.markSessionSettled()
                     }
                 },
+                tokenRevocations = PendingTokenRevocations(
+                    store = KeystoreAuthTokenStore.pendingRevocation(context),
+                    revoker = PutioAuthTokenRevoker(putioClient.config),
+                    scope = applicationScope,
+                ),
             )
             return MobileOAuthRuntime(
                 putioClient = putioClient,
                 authController = authController,
-                applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+                applicationScope = applicationScope,
             )
         }
     }

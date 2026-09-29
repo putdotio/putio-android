@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
@@ -70,16 +69,9 @@ class PutioTvSessionGatewayTest {
         }
     }
 
-    @Test
-    fun `logout reports whether the grant was revoked`() = runBlocking {
-        assertTrue(PutioTvSessionGateway(FakeBoundary()).logout())
-        assertFalse(PutioTvSessionGateway(FakeBoundary(logoutFailure = transportFailure())).logout())
-    }
-
     private class FakeBoundary(
         private val validateResult: Boolean = true,
         private val validationFailure: PutioException? = null,
-        private val logoutFailure: PutioException? = null,
     ) : TvSdkBoundary {
         val calls = mutableListOf<String>()
 
@@ -106,10 +98,6 @@ class PutioTvSessionGatewayTest {
                 settings = AccountSettings(sortBy = "NAME_ASC"),
                 accountStatus = "active",
             )
-        }
-
-        override suspend fun logout() {
-            logoutFailure?.let { throw it }
         }
     }
 

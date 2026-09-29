@@ -82,6 +82,7 @@ class MobileAuthController internal constructor(
     private val tokenStore: AuthTokenStore,
     private val pendingOAuthAttemptStore: PendingOAuthAttemptStore,
     private val sessionGateway: AuthSessionGateway,
+    private val tokenRevocations: TokenRevocations,
     private val stateGenerator: OAuthStateGenerator = SecureOAuthStateGenerator(),
     private val clock: OAuthAttemptClock = SystemOAuthAttemptClock,
 ) {
@@ -98,6 +99,7 @@ class MobileAuthController internal constructor(
         }
 
         mutableState.value = MobileAuthState.RestoringSession
+        tokenRevocations.resume()
         try {
             val accessToken = readStoredToken() ?: return@withLock
             sessionGateway.setAccessToken(accessToken)
@@ -232,12 +234,12 @@ class MobileAuthController internal constructor(
         true
     }
 
+    /** Signs out locally without waiting for put.io; the token is revoked in the background. */
     suspend fun logout(): Unit = operationMutex.withLock {
         mutableState.value = MobileAuthState.SigningOut
-        try {
-            sessionGateway.logout()
-        } finally {
-            val cleared = withContext(NonCancellable) { clearLocalSession() }
+        withContext(NonCancellable) {
+            storedTokenOrNull()?.let { tokenRevocations.revoke(it) }
+            val cleared = clearLocalSession()
             mutableState.value = if (cleared) {
                 MobileAuthState.SignedOut()
             } else {
@@ -255,6 +257,7 @@ class MobileAuthController internal constructor(
             return
         }
 
+        tokenRevocations.keep(accessToken)
         sessionGateway.setAccessToken(accessToken)
         validateConfiguredSession(SessionValidationSource.OAUTH_CALLBACK)
     }
@@ -303,6 +306,13 @@ class MobileAuthController internal constructor(
         } catch (_: AuthTokenStorageException) {
             sessionGateway.clearAccessToken()
             mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
+            null
+        }
+
+    private suspend fun storedTokenOrNull(): AccessToken? =
+        try {
+            tokenStore.read()
+        } catch (_: AuthTokenStorageException) {
             null
         }
 

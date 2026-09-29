@@ -3,6 +3,7 @@ package io.putdotio.android.tv.auth
 import io.putdotio.android.auth.AccessToken
 import io.putdotio.android.auth.AuthTokenStorageException
 import io.putdotio.android.auth.AuthTokenStore
+import io.putdotio.android.auth.TokenRevocations
 import io.putdotio.sdk.auth.DeviceCodeAuthState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -90,6 +91,7 @@ enum class TvSessionValidationSource {
 class TvAuthController internal constructor(
     private val tokenStore: AuthTokenStore,
     private val sessionGateway: TvSessionGateway,
+    private val tokenRevocations: TokenRevocations,
     private val scope: CoroutineScope,
 ) {
     private val operationMutex = Mutex()
@@ -106,6 +108,7 @@ class TvAuthController internal constructor(
         }
 
         mutableState.value = TvAuthState.RestoringSession
+        tokenRevocations.resume()
         try {
             val accessToken = when (val stored = readStoredToken()) {
                 is StoredToken.Present -> stored.accessToken
@@ -193,18 +196,16 @@ class TvAuthController internal constructor(
             true
         }
 
+    /** Signs out locally without waiting for put.io; the token is revoked in the background. */
     suspend fun logout(): Unit = operationMutex.withLock {
         if (mutableState.value !is TvAuthState.SignedIn) {
             return@withLock
         }
         mutableState.value = TvAuthState.SigningOut
-        try {
-            sessionGateway.logout()
-        } finally {
-            withContext(NonCancellable) {
-                val cleared = clearLocalSession()
-                startLinkAttempt(sessionExpired = false, storageCleared = cleared)
-            }
+        withContext(NonCancellable) {
+            (readStoredToken() as? StoredToken.Present)?.let { tokenRevocations.revoke(it.accessToken) }
+            val cleared = clearLocalSession()
+            startLinkAttempt(sessionExpired = false, storageCleared = cleared)
         }
     }
 
@@ -271,6 +272,7 @@ class TvAuthController internal constructor(
             stopLinking(TvLinkStop.StorageUnavailable, sessionExpired)
             return
         }
+        tokenRevocations.keep(accessToken)
         sessionGateway.setAccessToken(accessToken)
         signIn(linked.account.toTvAccount())
     }

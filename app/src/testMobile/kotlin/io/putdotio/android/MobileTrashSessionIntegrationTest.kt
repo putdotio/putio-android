@@ -25,6 +25,7 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthConfiguration
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.MobileSignedOutReason
+import io.putdotio.android.auth.NoTokenRevocations
 import io.putdotio.android.auth.PendingOAuthAttempt
 import io.putdotio.android.auth.PendingOAuthAttemptStore
 import io.putdotio.android.auth.PutioAuthSessionGateway
@@ -173,6 +174,7 @@ private class TrashSessionRootFixture(client: PutioClient) : Closeable {
             override suspend fun clear() = Unit
         },
         sessionGateway = PutioAuthSessionGateway(client),
+        tokenRevocations = NoTokenRevocations,
     )
     private val viewModels = ViewModelStore()
     private val job = SupervisorJob()
