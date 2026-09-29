@@ -16,4 +16,7 @@ interface DownloadEngine {
 
     /** True while a removal is still in progress for this file. */
     fun isRemoving(fileId: FilesItemId): Boolean = false
+
+    /** Mirrors live byte progress into the store; the controller calls it while the Downloads screen is visible. */
+    fun refreshProgress() = Unit
 }

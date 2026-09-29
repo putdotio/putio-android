@@ -37,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleStartEffect
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.downloads.DownloadEntry
 import io.putdotio.android.downloads.DownloadFailureReason
@@ -62,6 +63,10 @@ internal fun MobileDownloadsScreen(
     var sheetFileId by rememberSaveable { mutableStateOf<Long?>(null) }
     val sheetEntry = state.entries.firstOrNull { it.fileId.value == sheetFileId }
     val context = LocalContext.current
+    LifecycleStartEffect(onEvent) {
+        onEvent(DownloadsEvent.Shown)
+        onStopOrDispose { onEvent(DownloadsEvent.Hidden) }
+    }
     LazyColumn(modifier.fillMaxSize().testTag(MOBILE_DOWNLOADS_LIST_TAG)) {
         item(key = "summary") {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

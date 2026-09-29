@@ -17,6 +17,7 @@ import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -40,12 +41,17 @@ internal class MobileDownloadEngine(
     private val removing = mutableSetOf<FilesItemId>()
     private val parkOnTokenClearing: () -> Unit = { park() }
 
+    // A sign-out closes this engine; nothing it scheduled may un-park that user's transfers afterwards.
+    @Volatile
+    private var closed = false
+    private val reconcileJob: Job
+
     init {
         downloads.activeUserId = userId
         downloads.onTokenClearing = parkOnTokenClearing
         downloadManager.addListener(this)
         // The index read is SQLite; only the manager calls must run on its looper.
-        scope.launch {
+        reconcileJob = scope.launch {
             val snapshot = withContext(ioDispatcher) {
                 downloadManager.downloadIndex.getDownloads().use { cursor ->
                     buildList { while (cursor.moveToNext()) add(cursor.download) }
@@ -57,6 +63,7 @@ internal class MobileDownloadEngine(
 
     /** Media3's index is the source of truth for terminal states reached while no UI listened. */
     private fun reconcile(indexed: List<Download>) {
+        if (closed) return
         val known = mutableSetOf<FilesItemId>()
         for (download in indexed) {
             val owner = download.request.ownerUserId()
@@ -112,6 +119,8 @@ internal class MobileDownloadEngine(
      * through that user's reconcile, and a sign-out parks them through [park].
      */
     fun close() {
+        closed = true
+        reconcileJob.cancel()
         downloadManager.removeListener(this)
         if (downloads.activeUserId == userId) downloads.activeUserId = null
         if (downloads.onTokenClearing === parkOnTokenClearing) downloads.onTokenClearing = null
@@ -126,11 +135,26 @@ internal class MobileDownloadEngine(
         }
     }
 
+    /**
+     * Media3 reports state transitions but not byte progress, so the Downloads
+     * screen asks here while visible. Progress stays in memory: Media3's index
+     * holds the bytes, and reconcile restores them after a restart.
+     */
+    override fun refreshProgress() {
+        if (closed) return
+        for (download in downloadManager.currentDownloads) {
+            if (download.state != Download.STATE_DOWNLOADING) continue
+            val fileId = fileIdOf(download.request.id) ?: continue
+            store.updateProgressInMemory(fileId, download.bytesDownloaded, download.contentLength.takeIf { it > 0L })
+        }
+    }
+
     override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
         reflect(download, finalException)
     }
 
     override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+        if (closed) return
         val fileId = fileIdOf(download.request.id) ?: return
         synchronized(removing) { removing -= fileId }
         store.removeBlocking(fileId)
@@ -142,6 +166,7 @@ internal class MobileDownloadEngine(
     }
 
     private fun reflect(download: Download, error: Exception?) {
+        if (closed) return
         val fileId = fileIdOf(download.request.id) ?: return
         if (download.state == Download.STATE_REMOVING) return
         val status = download.toStatus(error, downloadManager.isWaitingForRequirements) ?: return
@@ -161,7 +186,7 @@ internal class MobileDownloadEngine(
         return file.toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
     }
 
-    private companion object {
+    internal companion object {
         /** Media3 stop reason for requests whose owner is not the signed-in user. */
         const val STOP_REASON_OTHER_USER = 1
     }
