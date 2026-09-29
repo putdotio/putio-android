@@ -185,7 +185,13 @@ class TvTrashScreenTest {
 
     @Test
     fun dateOnlyStampsFormatLikeTimestamps() {
-        show { TrashState(content = loaded.copy(items = listOf(item.copy(deletedAt = "2026-09-06", expirationDate = "2026-09-20")))) }
+        show {
+            TrashState(
+                content = loaded.copy(
+                    items = listOf(item.copy(deletedAt = "2026-09-06", expirationDate = "2026-09-20")),
+                ),
+            )
+        }
 
         compose.onNodeWithText("10 B · Deleted Sep 6, 2026 · Expires Sep 20, 2026").assertIsDisplayed()
     }
@@ -195,7 +201,11 @@ class TvTrashScreenTest {
         var state by mutableStateOf(
             TrashState(
                 content = loaded,
-                restoreOutcome = TrashRestoreOutcome(item, TrashRestoreSubmission.ACKNOWLEDGED, TrashRestoreCheck.UNAVAILABLE),
+                restoreOutcome = TrashRestoreOutcome(
+                    item,
+                    TrashRestoreSubmission.ACKNOWLEDGED,
+                    TrashRestoreCheck.UNAVAILABLE,
+                ),
             ),
         )
         show { state }
@@ -213,7 +223,11 @@ class TvTrashScreenTest {
         compose.runOnIdle {
             state = state.copy(
                 restoreOutcome = null,
-                actionOutcome = TrashActionOutcome(TrashAction.Empty, TrashActionSubmission.ACKNOWLEDGED, TrashActionCheck.VERIFIED),
+                actionOutcome = TrashActionOutcome(
+                    TrashAction.Empty,
+                    TrashActionSubmission.ACKNOWLEDGED,
+                    TrashActionCheck.VERIFIED,
+                ),
                 content = loaded.copy(items = emptyList()),
             )
         }

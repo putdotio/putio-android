@@ -139,7 +139,9 @@ class TvHistoryScreenTest {
     @Test
     fun aFailedListFocusesTryAgainAndRowsTakeOverWhenItLoads() {
         var state by mutableStateOf(
-            HistoryState(HistoryContent.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("offline")))),
+            HistoryState(
+                HistoryContent.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
+            ),
         )
         show { state }
 
@@ -203,7 +205,10 @@ class TvHistoryScreenTest {
             state = HistoryState(
                 HistoryContent.Ready(
                     items(),
-                    HistoryPaging.Failed(HistoryEventId(3), FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))),
+                    HistoryPaging.Failed(
+                        HistoryEventId(3),
+                        FilesFailure.NetworkUnavailable(PutioConfigurationException("x")),
+                    ),
                 ),
             )
         }
@@ -232,7 +237,10 @@ class TvHistoryScreenTest {
 
     @Test
     fun aBlockedOpenIsExplainedAboveTheList() {
-        show(HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)), notice = FilesFailure.NavigationBlocked)
+        show(
+            HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)),
+            notice = FilesFailure.NavigationBlocked,
+        )
 
         compose.onNodeWithText("This item can’t be opened right now. Check Files, then try again.").assertIsDisplayed()
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()

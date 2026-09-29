@@ -60,7 +60,7 @@ internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
 
 private fun String.hasAmbiguousProseEnding(): Boolean {
     val ending = codePointBefore(length)
-    if (ending <= 127) return ending.toChar() in ".,;:!?')]}"
+    if (ending <= MAX_ASCII_CODE_POINT) return ending.toChar() in ".,;:!?')]}"
     return when (Character.getType(ending)) {
         Character.CONNECTOR_PUNCTUATION.toInt(),
         Character.DASH_PUNCTUATION.toInt(),
@@ -79,3 +79,4 @@ internal fun CharSequence.fitsMobileTransferInputLimit(): Boolean =
 
 internal const val MOBILE_TRANSFER_INPUT_LIMIT = 16 * 1024
 private val SharedWhitespace = Regex("[\\s\\p{Z}\\u0085]+")
+private const val MAX_ASCII_CODE_POINT = 0x7F

@@ -42,7 +42,8 @@ internal fun MobileFilesRoute(
             onEvent = { onEvent(it) },
             onPlayMedia = onPlayMedia,
             confirmedTrashEnabled = confirmedTrashEnabled,
-            onMoveItem = if (repository == null || !state.canStartMove) null else { item -> movingItemId = item.id.value },
+            onMoveItem =
+                if (repository == null || !state.canStartMove) null else { item -> movingItemId = item.id.value },
             downloads = downloads,
             onDownloadItem = onDownloadItem,
             onShareItem = onShareItem,

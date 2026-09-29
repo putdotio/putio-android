@@ -167,7 +167,8 @@ class MobileFilesMoveTest {
         val errors = listOf(FileMoveError("NAME_ALREADY_EXIST", source.id.value, source.name, 400))
         val checking = finishedPost(errors)
         val reloading = FilesBrowserReducer.reduce(checking.state, FilesBrowserEvent.MoveChecked(
-            checkNotNull(checking.effect).requestId, FilesRepositoryResult.Success(source.copy(parentId = destination.id)),
+            checkNotNull(checking.effect).requestId,
+            FilesRepositoryResult.Success(source.copy(parentId = destination.id)),
         ))
         var state by mutableStateOf(reload(
             reloading.state, checkNotNull(reloading.effect).requestId, FilesPage(listOf(source), null),
@@ -181,11 +182,13 @@ class MobileFilesMoveTest {
             val unknown = listOf(FileMoveError("FUTURE_ERROR", 999L, null, 409))
             val next = finishedPost(unknown)
             val read = FilesBrowserReducer.reduce(next.state, FilesBrowserEvent.MoveChecked(
-                checkNotNull(next.effect).requestId, FilesRepositoryResult.Success(source.copy(parentId = destination.id)),
+                checkNotNull(next.effect).requestId,
+                FilesRepositoryResult.Success(source.copy(parentId = destination.id)),
             ))
             state = reload(read.state, checkNotNull(read.effect).requestId, FilesPage(emptyList(), null))
         }
-        compose.onNodeWithText("Couldn’t move “${source.name}”. Choose another folder and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t move “${source.name}”. Choose another folder and try again.")
+            .assertIsDisplayed()
         compose.onNodeWithText("“${source.name}” is in the selected folder.").assertDoesNotExist()
     }
 

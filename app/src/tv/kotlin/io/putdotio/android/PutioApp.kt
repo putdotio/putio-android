@@ -218,7 +218,11 @@ private fun TvSignedInApp(
                 current.operation,
                 current.content is FilesContent.Loading,
             ) {
-                if (current.needsReload && current.operation.canStartOperation && current.content !is FilesContent.Loading) {
+                if (
+                    current.needsReload &&
+                    current.operation.canStartOperation &&
+                    current.content !is FilesContent.Loading
+                ) {
                     session.files.dispatch(FilesBrowserEvent.ReloadIfStale)
                 }
             }

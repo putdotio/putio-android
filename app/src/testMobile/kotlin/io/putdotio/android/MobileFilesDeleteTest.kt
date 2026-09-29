@@ -149,7 +149,10 @@ class MobileFilesDeleteTest {
         compose.onNodeWithText("Permanently delete “été 東京.mkv”? This cannot be undone.").assertIsDisplayed()
         compose.onNodeWithText("Confirm").performClick()
         compose.runOnIdle {
-            assertEquals(listOf(FilesDeleteMode.PERMANENT), events.filterIsInstance<FilesBrowserEvent.Delete>().map { it.mode })
+            assertEquals(
+                listOf(FilesDeleteMode.PERMANENT),
+                events.filterIsInstance<FilesBrowserEvent.Delete>().map { it.mode },
+            )
         }
     }
 

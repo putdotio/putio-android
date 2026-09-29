@@ -91,13 +91,19 @@ class AuthenticatedFilesMoveTest {
         exactParent(runtime, fixture.collisionPeerId, fixture.collisionName, fixture.destinationId)
         requireSession(runtime, session)
         moveProofApiCheck("final identity") {
-            assertTrue("final account identity", runtime.putioClient.account.getInfo().userId == fixture.expectedAccountId)
+            assertTrue(
+                "final account identity",
+                runtime.putioClient.account.getInfo().userId == fixture.expectedAccountId,
+            )
         }
     }
 
     private fun preflight(f: MoveProofFixture, runtime: MobileOAuthRuntime) {
         moveProofApiCheck("fixture preflight") {
-            assertTrue("preflight account identity", runtime.putioClient.account.getInfo().userId == f.expectedAccountId)
+            assertTrue(
+                "preflight account identity",
+                runtime.putioClient.account.getInfo().userId == f.expectedAccountId,
+            )
             val expected = listOf(
                 Triple(f.containerId, f.containerName, 0L), Triple(f.sourceId, f.sourceName, f.containerId),
                 Triple(f.destinationId, f.destinationName, f.containerId),

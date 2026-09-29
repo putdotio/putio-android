@@ -40,7 +40,8 @@ class MobileFileShareServiceTest {
         assertNull(send.getStringExtra(Intent.EXTRA_SUBJECT))
         assertTrue(send.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
         assertTrue(send.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION == 0)
-        val everything = listOf(chooser, send).joinToString { it.toUri(0) + it.extras?.keySet()?.joinToString().orEmpty() }
+        val everything = listOf(chooser, send)
+            .joinToString { it.toUri(0) + it.extras?.keySet()?.joinToString().orEmpty() }
         assertFalse(everything.contains("oauth_token"))
         assertFalse(everything.contains("http"))
         assertEquals(stream, send.clipData?.getItemAt(0)?.uri)

@@ -25,7 +25,10 @@ class TrashRestoreFixtureTest {
         assertEquals(40L, parsed.fileSize)
         assertEquals(13L, parsed.cancel.id)
         assertEquals(14L, parsed.sentinel.id)
-        assertEquals("TEXT", parse(valid.replace("\"fileFileType\":\"FILE\"", "\"fileFileType\":\"TEXT\"")).file.fileType)
+        assertEquals(
+            "TEXT",
+            parse(valid.replace("\"fileFileType\":\"FILE\"", "\"fileFileType\":\"TEXT\"")).file.fileType,
+        )
         assertEquals(1L, parse(valid.replace("\"fileSize\":40", "\"fileSize\":1")).fileSize)
         assertEquals(128L, parse(valid.replace("\"fileSize\":40", "\"fileSize\":128")).fileSize)
         val invalid = listOf(

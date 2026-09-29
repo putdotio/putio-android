@@ -26,16 +26,16 @@ class MainActivityShareTest {
             lateinit var retained: MobileTransferDraft
             scenario.onActivity {
                 retained = it.transferDraft
-                assertEquals(Link, retained.state.value.input)
+                assertEquals(LINK, retained.state.value.input)
                 assertNull(it.intent.getCharSequenceExtra(Intent.EXTRA_TEXT))
                 assertNull(it.intent.clipData)
-                retained.edit(Edited)
+                retained.edit(EDITED)
                 retained.acknowledgeNavigation(requireNotNull(retained.state.value.incomingRequestId))
             }
             scenario.recreate()
             scenario.onActivity {
                 assertSame(retained, it.transferDraft)
-                assertEquals(Edited, it.transferDraft.state.value.input)
+                assertEquals(EDITED, it.transferDraft.state.value.input)
                 assertFalse(it.transferDraft.state.value.pendingReplacement)
                 assertNull(it.transferDraft.state.value.incomingRequestId)
                 assertFalse(it.nowPlayingRequests.pending.value)
@@ -54,12 +54,12 @@ class MainActivityShareTest {
                 assertEquals("", transferDraft.state.value.input)
                 assertNull(history.getCharSequenceExtra(Intent.EXTRA_TEXT))
                 deliverIntentForTest(share())
-                assertEquals(Link, transferDraft.state.value.input)
+                assertEquals(LINK, transferDraft.state.value.input)
                 deliverIntentForTest(
                     Intent(this, MainActivity::class.java).setAction(MobilePlaybackService.ACTION_OPEN_NOW_PLAYING),
                 )
                 assertTrue(nowPlayingRequests.pending.value)
-                assertEquals(Link, transferDraft.state.value.input)
+                assertEquals(LINK, transferDraft.state.value.input)
             }
         }
     }
@@ -69,7 +69,7 @@ class MainActivityShareTest {
         val controller = Robolectric.buildActivity(MainActivity::class.java, share()).setup()
         val saved = Bundle()
         try {
-            controller.get().transferDraft.edit(Edited)
+            controller.get().transferDraft.edit(EDITED)
             controller.saveInstanceState(saved)
             val parcel = Parcel.obtain()
             try {
@@ -95,9 +95,9 @@ class MainActivityShareTest {
     }
 
     private fun share(): Intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java)
-        .setAction(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, Link)
-        .apply { clipData = ClipData.newPlainText("shared", Link) }
+        .setAction(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, LINK)
+        .apply { clipData = ClipData.newPlainText("shared", LINK) }
 }
 
-private const val Link = "https://example.invalid/file?token=private-share-marker"
-private const val Edited = "https://example.invalid/edited?token=private-share-marker"
+private const val LINK = "https://example.invalid/file?token=private-share-marker"
+private const val EDITED = "https://example.invalid/edited?token=private-share-marker"

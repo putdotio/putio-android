@@ -73,12 +73,16 @@ class AuthenticatedFilesRenameTest {
             check(container.id == fixture.containerId && container.name == fixture.containerName &&
                 container.fileType == PutioFileType.FOLDER)
             val results = runtime.putioClient.files.search(FilesSearchQuery(fixture.containerName, perPage = 50))
-            check(results.cursor.isNullOrBlank() && results.files.size <= 50) { "Container search exceeds bounded proof scope" }
+            check(results.cursor.isNullOrBlank() && results.files.size <= 50) {
+                "Container search exceeds bounded proof scope"
+            }
             check(results.files.filter { it.name == fixture.containerName }.singleOrNull()?.id == fixture.containerId) {
                 "Container search is ambiguous"
             }
             val children = runtime.putioClient.files.list(fixture.containerId, FilesListQuery(perPage = 50))
-            check(children.cursor.isNullOrBlank() && children.files.size <= 50) { "Fixture folder exceeds bounded proof scope" }
+            check(children.cursor.isNullOrBlank() && children.files.size <= 50) {
+                "Fixture folder exceeds bounded proof scope"
+            }
             for ((id, name) in listOf(
                 fixture.renameItemId to fixture.renameOriginalName,
                 fixture.cancelItemId to fixture.cancelOriginalName,
@@ -189,7 +193,11 @@ class AuthenticatedFilesRenameTest {
 
     private fun requireSession(runtime: MobileOAuthRuntime, session: MobileAuthState.SignedIn) {
         val current = runtime.authController.state.value as? MobileAuthState.SignedIn
-        check(current != null && current.sessionId == session.sessionId && current.account.userId == session.account.userId) {
+        check(
+            current != null &&
+                current.sessionId == session.sessionId &&
+                current.account.userId == session.account.userId,
+        ) {
             "Authenticated session changed during proof"
         }
     }

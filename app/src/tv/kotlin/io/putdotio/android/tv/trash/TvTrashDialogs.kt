@@ -122,7 +122,11 @@ private fun TvConfirmDialog(
 ) {
     TvDialog(title = title, message = message, onDismiss = onCancel) { focus ->
         // Disabled, not a silent no-op, while a 401 or another mutation makes confirming pointless.
-        TvButton(onClick = onConfirm, enabled = confirmEnabled, modifier = Modifier.fillMaxWidth()) { Text(confirmLabel) }
+        TvButton(
+            onClick = onConfirm,
+            enabled = confirmEnabled,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(confirmLabel) }
         TvButton(
             onClick = onCancel,
             modifier = Modifier

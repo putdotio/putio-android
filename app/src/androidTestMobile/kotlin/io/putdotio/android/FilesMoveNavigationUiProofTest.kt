@@ -166,7 +166,11 @@ class FilesMoveNavigationUiProofTest {
         compose.onNodeWithText("Nothing here yet").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).assertDoesNotExist()
         compose.runOnIdle {
-            assertEquals("Completed Files host must be resumed", Lifecycle.State.RESUMED, backOwner.lifecycle.currentState)
+            assertEquals(
+                "Completed Files host must be resumed",
+                Lifecycle.State.RESUMED,
+                backOwner.lifecycle.currentState,
+            )
             assertEquals(FilesFolderOperation.Idle, preview.files.current.operation)
             assertEquals(1, preview.effects.count { it is FilesBrowserEffect.Move })
             assertEquals(2, preview.effects.count { it is FilesBrowserEffect.CheckMove })
@@ -191,7 +195,11 @@ class FilesMoveNavigationUiProofTest {
 
     private fun assertBackRetains(preview: RootMoveBackPreview, tab: String) {
         compose.runOnIdle {
-            assertEquals("$tab host before Back must be resumed", Lifecycle.State.RESUMED, backOwner.lifecycle.currentState)
+            assertEquals(
+                "$tab host before Back must be resumed",
+                Lifecycle.State.RESUMED,
+                backOwner.lifecycle.currentState,
+            )
             dispatchTrace += "$tab Back before: ${backDispatchDiagnostics(preview)}"
             val retained = preview.files
             val backEvents = preview.events.count { it == FilesBrowserEvent.NavigateBack }

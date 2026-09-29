@@ -85,7 +85,8 @@ internal class TvSession internal constructor(
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + sessionJob)
     private val historyOpenChannel = Channel<FilesItem>(Channel.BUFFERED)
-    private val historyOpener = HistoryFileOpener(history.navigation, filesItemResolver, historyOpenChannel::send, scope)
+    private val historyOpener =
+        HistoryFileOpener(history.navigation, filesItemResolver, historyOpenChannel::send, scope)
     private val mutableFileActionFailure = MutableStateFlow<FilesFailure?>(null)
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
 
