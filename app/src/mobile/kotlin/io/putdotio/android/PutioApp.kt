@@ -1004,9 +1004,9 @@ private fun PhoneShell(
     filesState: FilesBrowserState,
     filesRepository: FilesRepository?,
     trashController: TrashController?,
-    downloadsController: DownloadsController? = null,
-    downloadsState: DownloadsState = DownloadsState(),
-    onShareItem: ((FilesItem) -> Unit)? = null,
+    downloadsController: DownloadsController?,
+    downloadsState: DownloadsState,
+    onShareItem: ((FilesItem) -> Unit)?,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -1018,11 +1018,7 @@ private fun PhoneShell(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
-    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
-        AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
-        )
-    },
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     onFilesAuthenticationRequired: suspend () -> Unit,
@@ -1109,9 +1105,9 @@ private fun TabletShell(
     filesState: FilesBrowserState,
     filesRepository: FilesRepository?,
     trashController: TrashController?,
-    downloadsController: DownloadsController? = null,
-    downloadsState: DownloadsState = DownloadsState(),
-    onShareItem: ((FilesItem) -> Unit)? = null,
+    downloadsController: DownloadsController?,
+    downloadsState: DownloadsState,
+    onShareItem: ((FilesItem) -> Unit)?,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -1123,11 +1119,7 @@ private fun TabletShell(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
-    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
-        AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
-        )
-    },
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     onFilesAuthenticationRequired: suspend () -> Unit,
@@ -1178,6 +1170,7 @@ private fun TabletShell(
                 trashController = trashController,
                 downloadsController = downloadsController,
                 downloadsState = downloadsState,
+                onShareItem = onShareItem,
                 accountSettingsState = accountSettingsState,
                 appConfigState = appConfigState,
                 searchHistoryState = searchHistoryState,
@@ -1317,15 +1310,11 @@ private fun MobileNavHost(
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
+    downloadsController: DownloadsController?,
+    downloadsState: DownloadsState,
+    onShareItem: ((FilesItem) -> Unit)?,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
     modifier: Modifier = Modifier,
-    downloadsController: DownloadsController? = null,
-    downloadsState: DownloadsState = DownloadsState(),
-    onShareItem: ((FilesItem) -> Unit)? = null,
-    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
-        AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
-        )
-    },
     deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)

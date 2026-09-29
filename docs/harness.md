@@ -812,6 +812,9 @@ adb shell am start -a android.intent.action.VIEW -d https://app.put.io/files/<id
 Then open a small image's action sheet, choose Share file, and confirm the
 chooser shows the content preview. Inspect `dumpsys activity activities` for the
 chooser: `clip=` must reference only a `content://` URI and no `oauth_token`.
+For the tablet rail layout, run the same flow after `adb shell wm size 1600x2560`
+and `adb shell wm density 320`, then restore with `wm size reset` and
+`wm density reset`.
 
 ## Downloads and offline playback proof
 

@@ -85,7 +85,8 @@ Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest`,
 
 ## Share-out
 
-Share file (Files and Downloads action sheets, non-folder items only) starts a
+Share file (Files and Downloads action sheets, non-folder items only, in both
+the phone and the tablet rail layout) starts a
 foreground `dataSync` service that fetches the original file through the API
 download endpoint with the session header, stores it under private
 `files/shares/<fileId>/<name>`, and opens the system chooser with a
@@ -101,7 +102,8 @@ first; a recipient still reading one keeps its open descriptor. Launch removes
 exports older than a day.
 
 Tests: `MobileFileShareServiceTest` (payload shape, ready notification, service
-stop rules, name sanitizer).
+stop rules, name sanitizer), `MobileShellTest` (Share on file rows in the phone
+and rail layouts).
 
 ## Deep links
 
