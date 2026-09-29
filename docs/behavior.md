@@ -148,7 +148,15 @@ sign-out parks that user's transfers with a stop reason until the owner signs in
 again. Playback reads through the same cache with a null write sink, so
 streaming never fills the download directory. On start the engine reconciles
 Media3's own index into the app's rows, so a transfer that completed while the
-UI was dead reads On this device after relaunch.
+UI was dead reads On this device after relaunch. Closing the engine cancels that
+reconcile, so a sign-out right after sign-in cannot un-park the transfers.
+Media3 reports only state transitions to the app; while the Downloads screen is
+started, the controller reads live bytes once a second into memory. Only
+transitions reach the index.
 
-Tests: `DownloadsControllerTest`, `MobileDownloadStoreTest`,
+Tests: `DownloadsControllerTest` (intents, progress polling while shown),
+`MobileDownloadsScreenTest` (shown and hidden events), `MobileDownloadStoreTest`,
+`MobileDownloadEngineTest` (reconcile, sign-out parking, account isolation,
+close before reconcile, in-memory progress against a real Media3 manager),
+`UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`.
