@@ -5,7 +5,7 @@
 (`dist/tokens.dtcg.json`), vendored verbatim.
 
 The Compose color schemes are generated from this file at build time by
-`:app:generateDesignTokens` (task class in `buildSrc/`). Never hand-edit the
+`:app:generateDesignTokens` (task class in `build-logic/`). Never hand-edit the
 generated Kotlin or this JSON; to take a new design release:
 
 ```bash
@@ -15,7 +15,7 @@ cp ../putio-design/dist/tokens.dtcg.json design/tokens.dtcg.json
 
 The M3-role → token map is the binding contract in
 [`platforms/android/DESIGN.md`](https://github.com/putdotio/putio-design/blob/main/platforms/android/DESIGN.md);
-it lives as data in `buildSrc/src/main/kotlin/DesignTokenCodegen.kt`.
+it lives as data in `build-logic/src/main/kotlin/DesignTokenCodegen.kt`.
 
 # Icons
 
