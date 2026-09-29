@@ -4,9 +4,10 @@
 [`@putdotio/design` 3.3.0](https://github.com/putdotio/putio-design)
 (`dist/tokens.dtcg.json`), vendored verbatim.
 
-The Compose color schemes are generated from this file at build time by
-`:app:generateDesignTokens` (task class in `build-logic/`). Never hand-edit the
-generated Kotlin or this JSON; to take a new design release:
+The Compose color schemes and the TV overscan ratios (`tv.overscan.x/y`) are
+generated from this file at build time by `:app:generateDesignTokens` (task
+class in `build-logic/`). Never hand-edit the generated Kotlin or this JSON; to
+take a new design release:
 
 ```bash
 cp ../putio-design/dist/tokens.dtcg.json design/tokens.dtcg.json

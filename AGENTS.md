@@ -76,7 +76,8 @@ the harness needs release credentials.
 The theme is a tier-2 binding of putio-design (Material 3 + tokens, dark
 only). `design/tokens.dtcg.json` is vendored from `@putdotio/design`;
 `:app:generateDesignTokens` (`build-logic`) generates `PutioDesignTokens.kt` with
-the color schemes; never hand-write colors. See `design/README.md`.
+the color schemes and TV overscan ratios; never hand-write design values. See
+`design/README.md`.
 Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 
 ## CI

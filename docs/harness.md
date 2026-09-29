@@ -531,6 +531,30 @@ relaunch must land in the shell without a code: that is the Keystore restore.
 Fire TV feature flag, so it always links as the Android TV client (6221);
 Fire TV (6233) needs the physical device set from #51.
 
+## TV safe-area proof
+
+`TvSafeAreaProofTest` (TV instrumentation, synthetic account, no API calls)
+mounts the signed-in shell with placeholder panes at the emulator's current
+display, outlines the safe edge in red, screenshots the collapsed and expanded
+drawer, and fails if any label or focus target leaves the safe area. It needs
+no sign-in, so the existing `putio-tv` session survives:
+
+```bash
+./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
+adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
+adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+run=$(uuidgen | tr 'A-Z' 'a-z')
+adb -s emulator-5554 shell wm size 1280x720 && adb -s emulator-5554 shell wm density 213   # optional 720p
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvSafeAreaProofTest \
+  -e putio.tv.safearea.enabled true -e putio.tv.safearea.runId "$run" \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
+adb -s emulator-5554 pull "/sdcard/Android/data/io.put.putio.debug/files/tv-safearea-proof-$run" .evidence/
+adb -s emulator-5554 shell wm size reset && adb -s emulator-5554 shell wm density reset
+```
+
+`wm size` rejects overrides larger than the AVD's 1920x1080 panel, so 4K is
+covered by the JVM test at xxxhdpi, not on the emulator.
+
 ## TV Files browse proof
 
 After the device-code sign-in above, the shell lands in Files with focus on

@@ -175,3 +175,17 @@ Tests: `DownloadsControllerTest` (intents, progress polling while shown),
 close before reconcile, in-memory progress against a real Media3 manager),
 `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`.
+
+## TV overscan safe area
+
+The signed-in TV shell paints its background to the screen edges and keeps
+the drawer and pane inside the overscan safe area: `tv.overscan.x` of the
+viewport width on the left and right, `tv.overscan.y` of its height on the top
+and bottom (4% and 2% in `@putdotio/design` 3.3.0). The fractions are generated
+from the token graph and applied to whatever viewport the shell fills, so 720p,
+1080p and 4K panels keep the same proportion clear. The pane adds 16dp from the
+drawer and the safe edges.
+
+Tests: `TvSafeAreaTest` (collapsed and expanded drawer; 960x540dp and
+1280x720dp viewports; a 4K xxxhdpi panel), `DesignTokenCodegenTest` (overscan
+ratios, axis and presence checks).
