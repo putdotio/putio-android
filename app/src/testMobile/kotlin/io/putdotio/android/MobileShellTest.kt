@@ -1516,6 +1516,51 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun phoneDestinationStateSurvivesPlayback() =
+        assertDestinationStateSurvivesPlayback(width = 360.dp, navigationTag = MOBILE_NAV_BAR_TAG)
+
+    @Test
+    fun tabletDestinationStateSurvivesPlayback() =
+        assertDestinationStateSurvivesPlayback(width = 700.dp, navigationTag = MOBILE_NAV_RAIL_TAG)
+
+    private fun assertDestinationStateSurvivesPlayback(width: Dp, navigationTag: String) {
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val requests = NowPlayingRequests(pending) { pending.value = false }
+        val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
+            override suspend fun activeAudio(context: android.content.Context) = ActiveAudio(FilesItemId(9L), "song.mp3")
+        }
+        compose.setContent {
+            PutioTheme {
+                Box(modifier = Modifier.requiredSize(width = width, height = 460.dp)) {
+                    MobileShell(
+                        nowPlayingRequests = requests,
+                        playbackPlayerFactory = factory,
+                        filesState = mediaFilesState(),
+                        accountSettingsState = readyAccountSettingsState(),
+                        appConfigState = readyAndroidAppConfigState(),
+                        account = Account,
+                        playbackRepository = ConversionRepository,
+                        sessionId = Session,
+                        onFilesEvent = { true },
+                        onAccountSettingsEvent = {},
+                        onPlaybackAuthenticationRequired = {},
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(navigationTag))).performClick()
+        compose.onNodeWithText("History").performClick()
+        compose.onNodeWithText("History").assertIsSelected()
+
+        compose.runOnIdle { pending.value = true }
+        compose.onAllNodesWithTag(navigationTag).assertCountEquals(0)
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag(navigationTag).assertExists()
+        compose.onNodeWithText("History").assertIsSelected()
+    }
+
+    @Test
     fun audioRowsOpenThePlayerInAudioMode() {
         val requestedTypes = mutableListOf<PlaybackMediaType>()
         compose.setPlaybackShell(

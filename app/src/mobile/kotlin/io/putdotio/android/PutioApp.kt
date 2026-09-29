@@ -817,39 +817,7 @@ internal fun MobileShell(
         }
     }
 
-    if (isPlayback) {
-        MobileNavHost(
-            transferDraft = transferDraft,
-            navController = navController,
-            filesState = filesState,
-            filesRepository = filesRepository,
-            trashController = trashController,
-            downloadsController = downloadsController,
-            downloadsState = downloadsState,
-            onShareItem = onShareItem,
-            accountSettingsState = accountSettingsState,
-            appConfigState = appConfigState,
-            searchHistoryState = searchHistoryState,
-            transfersState = transfersState,
-            transfersSessionId = transfersSessionId,
-            account = account,
-            sessionId = sessionId,
-            playbackRepository = playbackRepository,
-            playbackPlayerFactory = playbackPlayerFactory,
-            onFilesEvent = { onFilesEvent(it) },
-            onAccountSettingsEvent = onAccountSettingsEvent,
-            loadTunnelRoutes = loadTunnelRoutes,
-            onAppConfigEvent = onAppConfigEvent,
-            searchHistoryActions = searchHistoryActions,
-            onTransfersEvent = onTransfersEvent,
-            onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
-            onFilesAuthenticationRequired = onFilesAuthenticationRequired,
-            onSignOut = onSignOut,
-            modifier = Modifier.fillMaxSize(),
-        )
-        return
-    }
-
+    // One NavHost call site in one slot: playback only hides the chrome, so destinations keep saved state.
     key(transfersSessionId) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight)
@@ -858,11 +826,19 @@ internal fun MobileShell(
                 selectedDestination = selectedDestination,
                 onDestination = { navController.navigateTo(it) },
             ) { openNavigation ->
-                if (navigationLayout == MobileNavigationLayout.Rail) {
-                    TabletShell(
+                MobileChrome(
+                    visible = !isPlayback,
+                    layout = navigationLayout,
+                    openNavigation = openNavigation,
+                    navController = navController,
+                    selectedDestination = selectedDestination,
+                    filesState = filesState,
+                    playbackPlayerFactory = playbackPlayerFactory,
+                    onFilesEvent = { onFilesEvent(it) },
+                ) { contentModifier ->
+                    MobileNavHost(
                         transferDraft = transferDraft,
                         navController = navController,
-                        selectedDestination = selectedDestination,
                         filesState = filesState,
                         filesRepository = filesRepository,
                         trashController = trashController,
@@ -875,64 +851,36 @@ internal fun MobileShell(
                         transfersState = transfersState,
                         transfersSessionId = transfersSessionId,
                         account = account,
-                        sessionId = sessionId,
                         playbackRepository = playbackRepository,
                         playbackPlayerFactory = playbackPlayerFactory,
+                        sessionId = sessionId,
                         onFilesEvent = { onFilesEvent(it) },
                         onAccountSettingsEvent = onAccountSettingsEvent,
                         loadTunnelRoutes = loadTunnelRoutes,
-                        onAppConfigEvent = onAppConfigEvent,
-                        searchHistoryActions = searchHistoryActions,
-                        onTransfersEvent = onTransfersEvent,
-                        onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
-                        onFilesAuthenticationRequired = onFilesAuthenticationRequired,
-                        onSignOut = onSignOut,
-                    )
-                } else {
-                    PhoneShell(
-                        transferDraft = transferDraft,
-                        openNavigation = openNavigation,
                         deviceClass = if (maxWidth >= 600.dp) AppDiagnostics.DeviceClass.Tablet
                             else AppDiagnostics.DeviceClass.Phone,
-                        navController = navController,
-                        selectedDestination = selectedDestination,
-                        filesState = filesState,
-                        filesRepository = filesRepository,
-                        trashController = trashController,
-                        downloadsController = downloadsController,
-                        downloadsState = downloadsState,
-                        onShareItem = onShareItem,
-                        accountSettingsState = accountSettingsState,
-                        appConfigState = appConfigState,
-                        searchHistoryState = searchHistoryState,
-                        transfersState = transfersState,
-                        transfersSessionId = transfersSessionId,
-                        account = account,
-                        sessionId = sessionId,
-                        playbackRepository = playbackRepository,
-                        playbackPlayerFactory = playbackPlayerFactory,
-                        onFilesEvent = { onFilesEvent(it) },
-                        onAccountSettingsEvent = onAccountSettingsEvent,
-                        loadTunnelRoutes = loadTunnelRoutes,
                         onAppConfigEvent = onAppConfigEvent,
-                        searchHistoryActions = searchHistoryActions,
-                        onTransfersEvent = onTransfersEvent,
                         onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                         onFilesAuthenticationRequired = onFilesAuthenticationRequired,
+                        searchHistoryActions = searchHistoryActions,
+                        onTransfersEvent = onTransfersEvent,
                         onSignOut = onSignOut,
+                        modifier = contentModifier,
                     )
                 }
             }
         }
     }
-    MobileNavigationAlerts(
-        navigationFailure = rejectedNavigation ?: navigationFailure,
-        transfersState = transfersState,
-        onDismissNavigationFailure = {
-            if (rejectedNavigation != null) rejectedNavigation = null else onDismissNavigationFailure()
-        },
-        onTransfersEvent = onTransfersEvent,
-    )
+    if (!isPlayback) {
+        MobileNavigationAlerts(
+            navigationFailure = rejectedNavigation ?: navigationFailure,
+            transfersState = transfersState,
+            onDismissNavigationFailure = {
+                if (rejectedNavigation != null) rejectedNavigation = null else onDismissNavigationFailure()
+            },
+            onTransfersEvent = onTransfersEvent,
+        )
+    }
 }
 
 @Composable
@@ -993,205 +941,78 @@ private fun MobileNavigationAlerts(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Top bar, navigation bar or rail, and now-playing bar around one content slot; hiding them never moves it. */
 @Composable
-private fun PhoneShell(
-    transferDraft: MobileTransferDraft,
+private fun MobileChrome(
+    visible: Boolean,
+    layout: MobileNavigationLayout,
     openNavigation: (() -> Unit)?,
-    deviceClass: AppDiagnostics.DeviceClass,
     navController: NavHostController,
     selectedDestination: MobileDestination,
     filesState: FilesBrowserState,
-    filesRepository: FilesRepository?,
-    trashController: TrashController?,
-    downloadsController: DownloadsController?,
-    downloadsState: DownloadsState,
-    onShareItem: ((FilesItem) -> Unit)?,
-    accountSettingsState: AccountSettingsState,
-    appConfigState: AndroidAppConfigState,
-    searchHistoryState: MobileSearchHistoryState,
-    transfersState: TransfersState,
-    transfersSessionId: MobileAuthSessionId?,
-    account: MobileAccount,
-    playbackRepository: PlaybackRepository,
     playbackPlayerFactory: MobilePlayerFactory,
-    sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
-    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
-    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
-    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
-    onPlaybackAuthenticationRequired: suspend () -> Unit,
-    onFilesAuthenticationRequired: suspend () -> Unit,
-    searchHistoryActions: MobileSearchHistoryActions,
-    onTransfersEvent: (TransfersEvent) -> Unit,
-    onSignOut: () -> Unit,
-) {
-    Scaffold(
-        topBar = {
-            MobileTopBar(
-                openNavigation = openNavigation,
-                destination = selectedDestination,
-                isTrash = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_TRASH_ROUTE,
-                isDownloads = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_DOWNLOADS_ROUTE,
-                onTrashBack = { navController.popBackStack() },
-                filesState = filesState,
-                onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
-                onFilesEvent = { onFilesEvent(it) },
-            )
-        },
-        bottomBar = {
-            Column {
-                // NavigationBar pads its own content; the bar above it needs the side insets only.
-                MobileNowPlayingSlot(
-                    navController,
-                    playbackPlayerFactory,
-                    modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(
-                        if (openNavigation == null) WindowInsetsSides.Horizontal
-                        else WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
-                    )),
-                )
-                if (openNavigation == null) NavigationBar(modifier = Modifier.testTag(MOBILE_NAV_BAR_TAG)) {
-                    MobileDestination.entries.forEach { destination ->
-                        NavigationBarItem(
-                            selected = destination == selectedDestination,
-                            onClick = { navController.navigateTo(destination) },
-                            icon = { MobileDestinationIcon(destination, destination == selectedDestination) },
-                            label = { Text(stringResource(destination.labelRes)) },
-                        )
-                    }
-                }
-            }
-        },
-    ) { padding ->
-        MobileNavHost(
-            transferDraft = transferDraft,
-            navController = navController,
-            filesState = filesState,
-            filesRepository = filesRepository,
-            trashController = trashController,
-            downloadsController = downloadsController,
-            downloadsState = downloadsState,
-            onShareItem = onShareItem,
-            accountSettingsState = accountSettingsState,
-            appConfigState = appConfigState,
-            searchHistoryState = searchHistoryState,
-            transfersState = transfersState,
-            transfersSessionId = transfersSessionId,
-            account = account,
-            playbackRepository = playbackRepository,
-            playbackPlayerFactory = playbackPlayerFactory,
-            sessionId = sessionId,
-            onFilesEvent = onFilesEvent,
-            onAccountSettingsEvent = onAccountSettingsEvent,
-            loadTunnelRoutes = loadTunnelRoutes,
-            deviceClass = deviceClass,
-            onAppConfigEvent = onAppConfigEvent,
-            onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
-            onFilesAuthenticationRequired = onFilesAuthenticationRequired,
-            searchHistoryActions = searchHistoryActions,
-            onTransfersEvent = onTransfersEvent,
-            onSignOut = onSignOut,
-            modifier = Modifier.padding(padding),
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TabletShell(
-    transferDraft: MobileTransferDraft,
-    navController: NavHostController,
-    selectedDestination: MobileDestination,
-    filesState: FilesBrowserState,
-    filesRepository: FilesRepository?,
-    trashController: TrashController?,
-    downloadsController: DownloadsController?,
-    downloadsState: DownloadsState,
-    onShareItem: ((FilesItem) -> Unit)?,
-    accountSettingsState: AccountSettingsState,
-    appConfigState: AndroidAppConfigState,
-    searchHistoryState: MobileSearchHistoryState,
-    transfersState: TransfersState,
-    transfersSessionId: MobileAuthSessionId?,
-    account: MobileAccount,
-    playbackRepository: PlaybackRepository,
-    playbackPlayerFactory: MobilePlayerFactory,
-    sessionId: MobileAuthSessionId,
-    onFilesEvent: (FilesBrowserEvent) -> Boolean,
-    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
-    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
-    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
-    onPlaybackAuthenticationRequired: suspend () -> Unit,
-    onFilesAuthenticationRequired: suspend () -> Unit,
-    searchHistoryActions: MobileSearchHistoryActions,
-    onTransfersEvent: (TransfersEvent) -> Unit,
-    onSignOut: () -> Unit,
+    content: @Composable (Modifier) -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
-        NavigationRail(modifier = Modifier.testTag(MOBILE_NAV_RAIL_TAG)) {
-            MobileDestination.entries.forEach { destination ->
-                NavigationRailItem(
-                    selected = destination == selectedDestination,
-                    onClick = { navController.navigateTo(destination) },
-                    icon = { MobileDestinationIcon(destination, destination == selectedDestination) },
-                    label = { Text(stringResource(destination.labelRes)) },
-                )
+        if (visible && layout == MobileNavigationLayout.Rail) {
+            NavigationRail(modifier = Modifier.testTag(MOBILE_NAV_RAIL_TAG)) {
+                MobileDestination.entries.forEach { destination ->
+                    NavigationRailItem(
+                        selected = destination == selectedDestination,
+                        onClick = { navController.navigateTo(destination) },
+                        icon = { MobileDestinationIcon(destination, destination == selectedDestination) },
+                        label = { Text(stringResource(destination.labelRes)) },
+                    )
+                }
             }
         }
         Scaffold(
             modifier = Modifier.weight(1f),
             topBar = {
-                MobileTopBar(
-                    destination = selectedDestination,
-                    isTrash = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_TRASH_ROUTE,
-                    isDownloads = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_DOWNLOADS_ROUTE,
-                    onTrashBack = { navController.popBackStack() },
-                    filesState = filesState,
-                    onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
-                    onFilesEvent = onFilesEvent,
-                )
+                if (visible) {
+                    val route = navController.currentBackStackEntryAsState().value?.destination?.route
+                    MobileTopBar(
+                        openNavigation = openNavigation,
+                        destination = selectedDestination,
+                        isTrash = route == MOBILE_TRASH_ROUTE,
+                        isDownloads = route == MOBILE_DOWNLOADS_ROUTE,
+                        onTrashBack = { navController.popBackStack() },
+                        filesState = filesState,
+                        onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
+                        onFilesEvent = onFilesEvent,
+                    )
+                }
             },
             bottomBar = {
-                // The phone's NavigationBar pads for the system bar itself; here the bar is alone.
-                MobileNowPlayingSlot(
-                    navController,
-                    playbackPlayerFactory,
-                    modifier = Modifier.windowInsetsPadding(
-                        WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
-                    ),
-                )
+                if (visible) {
+                    val showBar = layout == MobileNavigationLayout.Bar
+                    Column {
+                        // NavigationBar pads its own content; the bar above it needs the side insets only.
+                        MobileNowPlayingSlot(
+                            navController,
+                            playbackPlayerFactory,
+                            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(
+                                if (showBar) WindowInsetsSides.Horizontal
+                                else WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom,
+                            )),
+                        )
+                        if (showBar) NavigationBar(modifier = Modifier.testTag(MOBILE_NAV_BAR_TAG)) {
+                            MobileDestination.entries.forEach { destination ->
+                                NavigationBarItem(
+                                    selected = destination == selectedDestination,
+                                    onClick = { navController.navigateTo(destination) },
+                                    icon = { MobileDestinationIcon(destination, destination == selectedDestination) },
+                                    label = { Text(stringResource(destination.labelRes)) },
+                                )
+                            }
+                        }
+                    }
+                }
             },
         ) { padding ->
-            MobileNavHost(
-                transferDraft = transferDraft,
-                navController = navController,
-                filesState = filesState,
-                filesRepository = filesRepository,
-                trashController = trashController,
-                downloadsController = downloadsController,
-                downloadsState = downloadsState,
-                onShareItem = onShareItem,
-                accountSettingsState = accountSettingsState,
-                appConfigState = appConfigState,
-                searchHistoryState = searchHistoryState,
-                transfersState = transfersState,
-                transfersSessionId = transfersSessionId,
-                account = account,
-                playbackRepository = playbackRepository,
-                playbackPlayerFactory = playbackPlayerFactory,
-                sessionId = sessionId,
-                onFilesEvent = onFilesEvent,
-                onAccountSettingsEvent = onAccountSettingsEvent,
-                loadTunnelRoutes = loadTunnelRoutes,
-                deviceClass = AppDiagnostics.DeviceClass.Tablet,
-                onAppConfigEvent = onAppConfigEvent,
-                onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
-                onFilesAuthenticationRequired = onFilesAuthenticationRequired,
-                searchHistoryActions = searchHistoryActions,
-                onTransfersEvent = onTransfersEvent,
-                onSignOut = onSignOut,
-                modifier = Modifier.padding(padding),
-            )
+            // Playback draws edge to edge and handles its own insets.
+            content(if (visible) Modifier.padding(padding) else Modifier.fillMaxSize())
         }
     }
 }
