@@ -275,7 +275,10 @@ class TvAuthController internal constructor(
             stopLinking(TvLinkStop.StorageUnavailable, sessionExpired)
             return
         }
-        tokenRevocations.keep(accessToken)
+        if (!tokenRevocations.keep(accessToken)) {
+            expireSession()
+            return
+        }
         configureSession(accessToken)
         signIn(linked.account.toTvAccount())
     }

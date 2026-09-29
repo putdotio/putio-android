@@ -104,7 +104,7 @@ class StaleOAuthCallbackTest {
 private object UnusedTokenRevocations : TokenRevocations {
     override suspend fun revoke(accessToken: AccessToken) = Unit
 
-    override suspend fun keep(accessToken: AccessToken) = Unit
+    override suspend fun keep(accessToken: AccessToken) = true
 
     override fun resume() = Unit
 }

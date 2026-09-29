@@ -232,6 +232,24 @@ class TvAuthControllerTest {
     }
 
     @Test
+    fun `a link whose token put io revokes in flight starts a new link`() = runTest {
+        val harness = Harness(pendingRevocation = "fresh-token")
+        val inFlight = CompletableDeferred<Unit>()
+        harness.revoker.gate = inFlight
+        harness.controller.restoreSession()
+
+        harness.gateway.emit(DeviceCodeAuthState.Linked("fresh-token", accountInfo()))
+        harness.scope.testScheduler.runCurrent()
+        assertTrue(harness.controller.state.value is TvAuthState.Linking)
+        inFlight.complete(Unit)
+        harness.scope.advanceUntilIdle()
+
+        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true), harness.controller.state.value)
+        assertNull(harness.tokenStore.stored)
+        assertEquals(listOf("fresh-token"), harness.revoker.attempts)
+    }
+
+    @Test
     fun `failed revocation is retried with backoff until put io confirms it`() = runTest {
         val harness = Harness(
             storedToken = "stored-token",

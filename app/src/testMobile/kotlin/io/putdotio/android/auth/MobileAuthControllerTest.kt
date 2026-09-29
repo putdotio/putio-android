@@ -758,6 +758,26 @@ class MobileAuthControllerTest {
     }
 
     @Test
+    fun `a sign-in whose token put io revokes in flight ends signed out`() = runBlocking {
+        val fixture = Fixture(pendingRevocation = TOKEN)
+        val inFlight = CompletableDeferred<Unit>()
+        fixture.revoker.gate = inFlight
+        fixture.controller.restoreSession()
+        fixture.controller.beginSignIn()
+
+        val callback = async(start = CoroutineStart.UNDISPATCHED) {
+            fixture.controller.handleOAuthCallback(VALID_CALLBACK)
+        }
+        assertFalse(callback.isCompleted)
+        inFlight.complete(Unit)
+
+        assertEquals(OAuthCallbackHandlingResult.ACCEPTED, callback.await())
+        assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.SessionExpired), fixture.controller.state.value)
+        assertNull(fixture.tokenStore.token)
+        assertEquals(listOf(TOKEN), fixture.revoker.attempts)
+    }
+
+    @Test
     fun `signing in with the token awaiting revocation cancels the revocation`() = runBlocking {
         val fixture = Fixture(
             pendingRevocation = TOKEN,

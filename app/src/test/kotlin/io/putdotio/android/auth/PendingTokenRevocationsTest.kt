@@ -56,6 +56,31 @@ class PendingTokenRevocationsTest {
         assertEquals(TOKEN.reveal(), session.token?.reveal())
     }
 
+    @Test
+    fun `an unreadable session defers revocation instead of treating the token as unused`() = runTest {
+        val store = InMemoryAuthTokenStore(TOKEN)
+        val session = InMemoryAuthTokenStore(TOKEN).apply { failedReads = 1 }
+        val revoker = ScriptedTokenRevoker()
+
+        PendingTokenRevocations(store, session, revoker, this).resume()
+        testScheduler.advanceUntilIdle()
+
+        assertTrue(revoker.attempts.isEmpty())
+        assertNull(store.token)
+    }
+
+    @Test
+    fun `an unreadable record is read again on the next attempt`() = runTest {
+        val store = InMemoryAuthTokenStore(TOKEN).apply { failedReads = 1 }
+        val revoker = ScriptedTokenRevoker()
+
+        PendingTokenRevocations(store, InMemoryAuthTokenStore(), revoker, this).resume()
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(listOf(TOKEN.reveal()), revoker.attempts)
+        assertNull(store.token)
+    }
+
     private companion object {
         val TOKEN = checkNotNull(AccessToken.parse("signed-out-token"))
     }

@@ -59,13 +59,13 @@ internal interface TokenRevocations {
     /** Remembers [accessToken] until put.io confirms it is gone, and starts revoking it in the background. */
     suspend fun revoke(accessToken: AccessToken)
 
-    /** Drops a pending revocation of [accessToken]: put.io handed the same token back on a new sign-in. */
-    suspend fun keep(accessToken: AccessToken)
-
     /**
-     * Retries a revocation left unconfirmed by an earlier attempt or process, unless the
-     * signed-in session holds that token again (a [keep] that crashed or failed to clear).
+     * Drops a pending revocation of [accessToken]: put.io handed the same token back on a new
+     * sign-in. Waits for an attempt already in flight; false when put.io revoked the token anyway.
      */
+    suspend fun keep(accessToken: AccessToken): Boolean
+
+    /** Retries a revocation left unconfirmed by an earlier attempt or process. */
     fun resume()
 }
 
@@ -78,6 +78,11 @@ internal interface TokenRevocations {
  * next trigger (app start or sign-out). One slot: a newer sign-out replaces an
  * older unconfirmed token. Revocation is idempotent: a token put.io already
  * dropped answers 401, which also clears the slot.
+ *
+ * A record loaded from [store] is first compared with [sessionStore] and dropped
+ * on a match: a [keep] that crashed or failed to clear left it behind for a
+ * session that is still in use. An unreadable record or session defers the
+ * attempt instead.
  */
 internal class PendingTokenRevocations(
     private val store: AuthTokenStore,
@@ -87,8 +92,15 @@ internal class PendingTokenRevocations(
     private val retryDelays: List<Duration> = DEFAULT_REVOCATION_RETRY_DELAYS,
 ) : TokenRevocations {
     private val slotMutex = Mutex()
+
+    // Held for a whole attempt, so keep() learns the outcome of a request already sent.
+    private val attemptMutex = Mutex()
     private var pending: AccessToken? = null
     private var storeLoaded = false
+
+    // False while the pending token came from [store] and has not been compared with the session.
+    private var sessionChecked = false
+    private var lastRevoked: AccessToken? = null
     private val jobLock = Any()
     private var retryJob: Job? = null
 
@@ -96,6 +108,7 @@ internal class PendingTokenRevocations(
         slotMutex.withLock {
             pending = accessToken
             storeLoaded = true
+            sessionChecked = true
             try {
                 store.write(accessToken)
             } catch (_: AuthTokenStorageException) {
@@ -105,35 +118,25 @@ internal class PendingTokenRevocations(
         restartRetries()
     }
 
-    override suspend fun keep(accessToken: AccessToken) {
-        slotMutex.withLock {
-            if (loadPending()?.reveal() == accessToken.reveal()) {
-                clearSlot()
+    override suspend fun keep(accessToken: AccessToken): Boolean =
+        attemptMutex.withLock {
+            slotMutex.withLock {
+                val recorded = try {
+                    loadPending()
+                } catch (_: AuthTokenStorageException) {
+                    // The session store now holds the token, so the next attempt drops the record.
+                    null
+                }
+                if (recorded?.reveal() == accessToken.reveal()) clearSlot()
+                lastRevoked?.reveal() != accessToken.reveal()
             }
         }
-    }
 
     override fun resume() {
         synchronized(jobLock) {
             if (retryJob?.isActive != true) {
-                retryJob = scope.launch {
-                    dropIfSessionToken()
-                    retry()
-                }
+                retryJob = scope.launch { retry() }
             }
-        }
-    }
-
-    private suspend fun dropIfSessionToken() {
-        slotMutex.withLock {
-            val accessToken = loadPending() ?: return
-            val sessionToken = try {
-                sessionStore.read()
-            } catch (_: AuthTokenStorageException) {
-                // An unreadable session cannot be restored, so its token is not in use.
-                null
-            }
-            if (sessionToken?.reveal() == accessToken.reveal()) clearSlot()
         }
     }
 
@@ -147,36 +150,58 @@ internal class PendingTokenRevocations(
     private suspend fun retry() {
         for (retryDelay in retryDelays) {
             delay(retryDelay)
-            val accessToken = slotMutex.withLock { loadPending() } ?: return
-            when (revoker.revoke(accessToken)) {
-                TokenRevocationResult.REVOKED,
-                TokenRevocationResult.REJECTED,
-                -> {
-                    slotMutex.withLock {
-                        if (pending === accessToken) clearSlot()
-                    }
-                    return
-                }
-                TokenRevocationResult.UNAVAILABLE -> Unit
-            }
+            if (attemptMutex.withLock { attempt() }) return
         }
     }
 
+    /** True once nothing is left to revoke. */
+    private suspend fun attempt(): Boolean {
+        val accessToken = try {
+            slotMutex.withLock { tokenToRevoke() }
+        } catch (_: AuthTokenStorageException) {
+            return false
+        }
+        return accessToken == null || revokeNow(accessToken)
+    }
+
+    private suspend fun revokeNow(accessToken: AccessToken): Boolean =
+        when (revoker.revoke(accessToken)) {
+            TokenRevocationResult.REVOKED,
+            TokenRevocationResult.REJECTED,
+            -> {
+                slotMutex.withLock {
+                    lastRevoked = accessToken
+                    if (pending === accessToken) clearSlot()
+                }
+                true
+            }
+            TokenRevocationResult.UNAVAILABLE -> false
+        }
+
     // Call with slotMutex held.
+    private suspend fun tokenToRevoke(): AccessToken? {
+        val accessToken = loadPending()
+        if (accessToken != null && !sessionChecked) {
+            if (sessionStore.read()?.reveal() == accessToken.reveal()) {
+                clearSlot()
+                return null
+            }
+            sessionChecked = true
+        }
+        return accessToken
+    }
+
+    // Call with slotMutex held. A failed read stays unloaded so the next attempt reads again.
     private suspend fun loadPending(): AccessToken? {
         if (!storeLoaded) {
-            pending = try {
-                store.read()
-            } catch (_: AuthTokenStorageException) {
-                null
-            }
+            pending = store.read()
             storeLoaded = true
         }
         return pending
     }
 
-    // Call with slotMutex held. A record left by a failed clear is either revoked (401 if put.io
-    // already dropped it) or, if the session still holds that token, dropped by [resume].
+    // Call with slotMutex held. A record left by a failed clear is revoked (401 if put.io already
+    // dropped it) or, if the session still holds that token, dropped by the next process to load it.
     private suspend fun clearSlot() {
         pending = null
         try {

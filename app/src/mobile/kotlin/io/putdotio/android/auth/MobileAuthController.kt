@@ -260,7 +260,10 @@ class MobileAuthController internal constructor(
             return
         }
 
-        tokenRevocations.keep(accessToken)
+        if (!tokenRevocations.keep(accessToken)) {
+            handleRejectedSession()
+            return
+        }
         configureSession(accessToken)
         validateConfiguredSession(SessionValidationSource.OAUTH_CALLBACK)
     }
