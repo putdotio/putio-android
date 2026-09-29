@@ -83,7 +83,7 @@ Requires JDK 21, `python3`, and, on macOS, Homebrew. Everything else is scripted
 
 ```bash
 ./scripts/bootstrap.sh   # once per machine; installs the Android SDK, AVDs, local.properties
-./gradlew verify :buildSrc:test
+./gradlew verify
 ./gradlew :app:assembleMobileProductionDebug
 ./gradlew :app:assembleTvProductionDebug
 ./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof with evidence

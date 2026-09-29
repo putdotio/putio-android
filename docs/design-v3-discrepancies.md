@@ -26,7 +26,7 @@ The design contract records these Android adapter behaviors:
   Android XML outputs.
 
 The role projections live in
-`buildSrc/src/main/kotlin/DesignTokenCodegen.kt`. Generated Kotlin remains an
+`build-logic/src/main/kotlin/DesignTokenCodegen.kt`. Generated Kotlin remains an
 output and must not be edited by hand.
 
 ## Remaining gaps
