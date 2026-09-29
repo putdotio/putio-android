@@ -48,7 +48,7 @@ import io.putdotio.android.trash.TrashRestoreOutcome
 import io.putdotio.android.trash.TrashRestoreCheck
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
-import io.putdotio.android.trash.parseTrashTimestamp
+import io.putdotio.android.parsePutioTimestamp
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeParseException
@@ -266,7 +266,7 @@ private fun FilesFailure.trashMessageResource(): Int =
 
 // Unknown formats omit the date instead of fabricating a retention deadline.
 internal fun String.trashDisplayDate(context: Context): String? {
-    val timestamp = parseTrashTimestamp(this)?.toEpochMilli() ?: run {
+    val timestamp = parsePutioTimestamp(this)?.toEpochMilli() ?: run {
         try {
             LocalDate.parse(this).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         } catch (_: DateTimeParseException) {

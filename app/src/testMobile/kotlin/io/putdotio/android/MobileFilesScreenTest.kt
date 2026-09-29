@@ -697,6 +697,16 @@ class MobileFilesScreenTest {
         )
 
     @Test
+    fun zoneLessCreatedAtStillShowsTheDate() {
+        val file = filesItem(1L, "movie.mkv").copy(createdAt = "2026-04-20T10:00:00")
+        val folder = filesItem(2L, "Shows", PutioFileType.FOLDER).copy(createdAt = "2026-04-21T10:00:00")
+        val state = browserState(FilesContent.Ready(listOf(file, folder), FilesPaging.Complete))
+        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = { true }, onPlayMedia = {}) } }
+        compose.onNode(hasText("movie.mkv") and hasText("Apr 20, 2026", substring = true)).assertIsDisplayed()
+        compose.onNode(hasText("Shows") and hasText("Apr 21, 2026", substring = true)).assertIsDisplayed()
+    }
+
+    @Test
     fun watchedMediaMergesTheLabelIntoTheRowAndKeepsTheBarDecorative() {
         val partly = filesItem(1L, "partly.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(90.0, 360.0))
         val unknown = filesItem(2L, "unknown.mp3", PutioFileType.AUDIO).copy(playback = FilesPlaybackProgress(5.0, null))

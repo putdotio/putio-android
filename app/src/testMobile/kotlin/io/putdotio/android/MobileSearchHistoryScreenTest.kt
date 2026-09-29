@@ -26,6 +26,7 @@ import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.sdk.files.PutioFileType
+import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -128,6 +129,41 @@ class MobileSearchHistoryScreenTest {
         compose.onNodeWithText("Clear").performClick()
 
         assertEquals(listOf(HistoryEvent.ConfirmClear), events)
+    }
+
+    @Test
+    fun zoneLessStampsFromOneDayShareADateHeaderAndShowTimes() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val history =
+                HistoryState(
+                    content =
+                        HistoryContent.Ready(
+                            listOf(
+                                HistoryItem(
+                                    HistoryEventId(1L),
+                                    "2026-09-09T15:25:32",
+                                    HistoryEventKind.File(HistoryFileId(7L), "movie.mkv"),
+                                ),
+                                HistoryItem(
+                                    HistoryEventId(2L),
+                                    "2026-09-09T09:05:00",
+                                    HistoryEventKind.File(HistoryFileId(8L), "show.mkv"),
+                                ),
+                            ),
+                            HistoryPaging.Complete,
+                        ),
+                )
+            setScreen(history = history)
+
+            compose.onNodeWithText("History").performClick()
+            compose.onAllNodesWithText("2026-09-09").assertCountEquals(1)
+            compose.onAllNodesWithText("2026-09-09T", substring = true).assertCountEquals(0)
+            compose.onNodeWithText("3:25", substring = true).assertIsDisplayed()
+        } finally {
+            TimeZone.setDefault(previous)
+        }
     }
 
     @Test

@@ -77,7 +77,6 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
-import java.time.Instant
 
 internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
 internal const val MOBILE_FILES_OPERATION_RETRY_TAG = "mobile-files-operation-retry"
@@ -727,8 +726,7 @@ private fun formatFilesItemMetadata(
 }
 
 private fun String.toDisplayDate(context: Context): String? =
-    runCatching(Instant::parse)
-        .getOrNull()
+    parsePutioTimestamp(this)
         ?.toEpochMilli()
         ?.let { timestamp ->
             DateUtils.formatDateTime(
