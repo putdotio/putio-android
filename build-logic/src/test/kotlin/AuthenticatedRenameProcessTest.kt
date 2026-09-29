@@ -1,4 +1,6 @@
 import java.io.File
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
@@ -21,6 +23,27 @@ class AuthenticatedRenameProcessTest {
             val output = runFailure(fixture)
             assertTrue(output, output.contains("Authenticated instrumentation proof failed"))
             assertOwnedCleanup(fixture)
+        }
+    }
+
+    @Test
+    fun serialLockIsScopedToTheInjectedDirectory() {
+        val hostLock = File(System.getProperty("java.io.tmpdir"), "putio-rename-proof-emulator-5584.lock")
+        withLock(hostLock) {
+            val fixture = fixture("assertion")
+            val output = runFailure(fixture)
+            assertFalse(output, output.contains("Another rename proof owns this serial"))
+            assertTrue(output, output.contains("Authenticated instrumentation proof failed"))
+        }
+    }
+
+    @Test
+    fun heldSerialLockRejectsAConcurrentProof() {
+        val fixture = fixture("assertion")
+        withLock(File(fixture, "locks/putio-rename-proof-emulator-5584.lock")) {
+            val output = runFailure(fixture)
+            assertTrue(output, output.contains("Another rename proof owns this serial"))
+            assertFalse(File(fixture, "state/commands").exists())
         }
     }
 
@@ -384,6 +407,14 @@ class AuthenticatedRenameProcessTest {
         assertFalse(commands, commands.contains("PROOF PASS"))
     }
 
+    // A null tryLock means another process already holds the file, which is still held.
+    private fun withLock(file: File, block: () -> Unit) {
+        FileChannel.open(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE).use { channel ->
+            val lock = channel.tryLock()
+            try { block() } finally { lock?.release() }
+        }
+    }
+
     private fun runFailure(fixture: File): String {
         val result = runner(fixture).buildAndFail()
         assertFalse(result.output, result.output.contains("PROOF PASS"))
@@ -403,6 +434,7 @@ class AuthenticatedRenameProcessTest {
     private fun fixture(mode: String): File {
         val root = temporaryFolder.newFolder(mode)
         File(root, "state").mkdirs()
+        File(root, "locks").mkdirs()
         File(root, "state/mode").writeText(mode)
         File(root, "settings.gradle").writeText("rootProject.name = 'rename-process-proof'\n")
         val source = requireNotNull(javaClass.getResource("/rename-proof-command.sh")).readText()
@@ -433,6 +465,7 @@ class AuthenticatedRenameProcessTest {
                 repositoryDirectory.set(layout.projectDirectory)
                 apkDirectory.set(layout.projectDirectory.dir('app'))
                 testApkDirectory.set(layout.projectDirectory.dir('test'))
+                lockDirectory.set(layout.projectDirectory.dir('locks'))
                 if ('$mode'.startsWith('interrupt') || '$mode'.startsWith('shutdown-')) {
                     doFirst {
                         def owner = Thread.currentThread()

@@ -36,6 +36,8 @@ abstract class RunAuthenticatedRenameProofTask : DefaultTask() {
     @get:Internal abstract val repositoryDirectory: DirectoryProperty
     @get:Internal abstract val apkDirectory: DirectoryProperty
     @get:Internal abstract val testApkDirectory: DirectoryProperty
+    // Unset in real runs: the host temp directory serializes proofs on one serial across checkouts.
+    @get:Internal abstract val lockDirectory: DirectoryProperty
 
     @TaskAction
     fun prove() {
@@ -43,7 +45,8 @@ abstract class RunAuthenticatedRenameProofTask : DefaultTask() {
         val device = serial.getOrElse("")
         requireProof(device.matches(Regex("emulator-[0-9]+")), "An explicit existing emulator serial is required")
         val root = repositoryDirectory.get().asFile
-        val lockFile = File(System.getProperty("java.io.tmpdir"), "putio-rename-proof-$device.lock")
+        val lockRoot = lockDirectory.orNull?.asFile ?: File(System.getProperty("java.io.tmpdir"))
+        val lockFile = File(lockRoot, "putio-rename-proof-$device.lock")
         FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE).use { channel ->
             val lock = channel.tryLock() ?: throw GradleException("Another rename proof owns this serial")
             lock.use {
