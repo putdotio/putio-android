@@ -196,3 +196,16 @@ Tests: `DownloadsControllerTest` (intents, progress polling while shown),
 close before reconcile, in-memory progress against a real Media3 manager),
 `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`.
+
+## Transfers polling
+
+While Transfers is shown, rows that are still running, or completed without a
+file yet, refresh every 5 s; polling pauses while the screen is hidden. Up to 10
+such rows are read by id, so a poll costs one small request per row however
+deep the history is. More rows are read from 1,000-row list pages until all are
+found. A row the API no longer has (404 by id, or absent from the list) leaves
+the list. Any other failure keeps the rows for the next poll; only a rejected
+session surfaces.
+
+Tests: `SdkTransfersRepositoryTest`, `TransfersRefreshCostTest` (request and row
+counts per poll against 10k and 50k histories), `TransfersControllerTest`.
