@@ -135,6 +135,24 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
     }
 
+    @Test
+    fun nowPlayingRequestClosesTheOpenDrawerOverThePlayer() {
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
+        mount(
+            nowPlayingRequests = NowPlayingRequests(pending) { pending.value = false },
+            playbackPlayerFactory = object : MobilePlayerFactory by NoAudioSessionFactory {
+                override suspend fun activeAudio(context: android.content.Context) =
+                    ActiveAudio(FilesItemId(9L), "song.mp3")
+            },
+        )
+        compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
+        drawerDestination("Files").assertIsDisplayed()
+        compose.runOnIdle { pending.value = true }
+        compose.waitForIdle()
+        compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(MOBILE_NAV_DRAWER_TAG).assertIsNotDisplayed()
+    }
+
     private fun assertModalContentSpace() {
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertDoesNotExist()
         compose.onNodeWithTag(MOBILE_NAV_RAIL_TAG).assertDoesNotExist()
@@ -260,7 +278,12 @@ abstract class NavigationShellFixture(fontScale: Float) {
     protected fun drawerDestination(label: String) =
         compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(MOBILE_NAV_DRAWER_TAG)))
 
-    protected fun mount(nested: Boolean = false, onFilesEvent: (FilesBrowserEvent) -> Boolean = { true }) {
+    internal fun mount(
+        nested: Boolean = false,
+        onFilesEvent: (FilesBrowserEvent) -> Boolean = { true },
+        nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
+        playbackPlayerFactory: MobilePlayerFactory = NoAudioSessionFactory,
+    ) {
         val files = navigationFiles(nested)
         compose.setContent {
             backOwner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
@@ -269,7 +292,8 @@ abstract class NavigationShellFixture(fontScale: Float) {
             observedKeyboardBottom = WindowInsets.ime.getBottom(LocalDensity.current)
             PutioTheme {
                 MobileShell(
-                    playbackPlayerFactory = NoAudioSessionFactory,
+                    nowPlayingRequests = nowPlayingRequests,
+                    playbackPlayerFactory = playbackPlayerFactory,
                     filesState = files,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),

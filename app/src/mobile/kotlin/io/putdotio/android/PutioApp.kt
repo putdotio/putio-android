@@ -825,6 +825,7 @@ internal fun MobileShell(
                 layout = navigationLayout,
                 selectedDestination = selectedDestination,
                 onDestination = { navController.navigateTo(it) },
+                enabled = !isPlayback,
             ) { openNavigation ->
                 MobileChrome(
                     visible = !isPlayback,
