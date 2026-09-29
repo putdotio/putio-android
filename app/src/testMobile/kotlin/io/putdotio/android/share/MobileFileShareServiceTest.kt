@@ -13,16 +13,22 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
+import okhttp3.Call
+import okhttp3.EventListener
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
@@ -243,6 +249,28 @@ class MobileFileShareServiceTest {
     }
 
     @Test
+    fun endingTheSessionCancelsADownloadBlockedOnTheNetwork() {
+        val entered = CountDownLatch(1)
+        val cancelled = CountDownLatch(1)
+        // The download blocks a real IO thread while virtual time drives the session watcher.
+        val fixture = ShareFixture(io = Dispatchers.IO, onCallCanceled = cancelled::countDown)
+        fixture.respond = {
+            entered.countDown()
+            cancelled.await(BLOCKED_CALL_SECONDS, TimeUnit.SECONDS)
+            throw IOException("Canceled")
+        }
+        fixture.start(fileId = 1L, name = "a", startId = 1)
+        fixture.scheduler.runCurrent()
+        assertTrue(entered.await(BLOCKED_CALL_SECONDS, TimeUnit.SECONDS))
+
+        fixture.auth.value = MobileAuthState.SignedOut()
+        fixture.scheduler.runCurrent()
+
+        assertTrue(cancelled.await(BLOCKED_CALL_SECONDS, TimeUnit.SECONDS))
+        fixture.destroy()
+    }
+
+    @Test
     fun endingTheSessionDeletesExportsAlreadyHandedOut() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val export = File(MobileFileShareService.shareRoot(context), "9/poster.jpg").apply {
@@ -320,7 +348,11 @@ class MobileFileShareServiceTest {
         fixture.destroy()
     }
 
-    private class ShareFixture(readyTimeout: Duration = 10.minutes) {
+    private class ShareFixture(
+        readyTimeout: Duration = 10.minutes,
+        io: CoroutineDispatcher? = null,
+        onCallCanceled: () -> Unit = {},
+    ) {
         val scheduler = TestCoroutineScheduler()
         private val dispatcher = StandardTestDispatcher(scheduler)
         val auth = MutableStateFlow<MobileAuthState>(signedIn(SESSION))
@@ -330,12 +362,19 @@ class MobileFileShareServiceTest {
 
         init {
             MobileFileShareService.dependenciesForTest = MobileShareDependencies(
-                http = OkHttpClient.Builder().addInterceptor { chain -> respond(chain.request()) }.build(),
+                http = OkHttpClient.Builder()
+                    .addInterceptor { chain -> respond(chain.request()) }
+                    .eventListener(
+                        object : EventListener() {
+                            override fun canceled(call: Call) = onCallCanceled()
+                        },
+                    )
+                    .build(),
                 authState = auth,
                 accessToken = { "token" },
                 readyTimeout = readyTimeout,
                 main = dispatcher,
-                io = dispatcher,
+                io = io ?: dispatcher,
             )
             MobileFileShareService.shareRoot(service).deleteRecursively()
         }
@@ -361,6 +400,7 @@ class MobileFileShareServiceTest {
     }
 
     private companion object {
+        const val BLOCKED_CALL_SECONDS = 5L
         const val FAILED_TEXT = "Couldn’t prepare poster.jpg. Try again."
         val SESSION = MobileAuthSessionId(1L)
 

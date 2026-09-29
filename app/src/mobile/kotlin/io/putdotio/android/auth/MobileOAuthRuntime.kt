@@ -32,9 +32,13 @@ class MobileOAuthRuntime internal constructor(
         // Sessions also end without a UI (a background rejection), so the process scope owns this boundary.
         applicationScope.launch {
             var previous: MobileAuthSessionId? = null
+            // An earlier process may have left state for its persisted session; a restore that ends signed out ends it.
+            var persistedSessionPending = true
             authController.state.collect { state ->
                 val current = (state as? MobileAuthState.SignedIn)?.sessionId
-                if (previous != null && current != previous) onSessionLeft()
+                val restoreEnded = persistedSessionPending && state is MobileAuthState.SignedOut
+                if (current != null || restoreEnded) persistedSessionPending = false
+                if (restoreEnded || previous != null && current != previous) onSessionLeft()
                 previous = current
             }
         }

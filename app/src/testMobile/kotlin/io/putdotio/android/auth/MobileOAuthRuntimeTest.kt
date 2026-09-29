@@ -39,25 +39,43 @@ class MobileOAuthRuntimeTest {
 
     @Test
     fun `a session rejected without any UI still runs the session-exit cleanup`() = runBlocking {
+        val fixture = SessionExitFixture(SessionValidationResult.Valid(ACCOUNT))
+
+        fixture.controller.restoreSession()
+        assertEquals(0, fixture.sessionsLeft)
+        assertTrue(fixture.controller.rejectAuthoritativeSession())
+
+        assertEquals(1, fixture.sessionsLeft)
+    }
+
+    @Test
+    fun `a rejected cold-start restore ends the persisted session once`() = runBlocking {
+        val fixture = SessionExitFixture(SessionValidationResult.Rejected(SessionRejectionReason.Unauthorized))
+
+        fixture.controller.restoreSession()
+        fixture.controller.beginSignIn()
+        fixture.controller.cancelSignIn()
+
+        assertEquals(1, fixture.sessionsLeft)
+    }
+
+    private class SessionExitFixture(validation: SessionValidationResult) {
         var sessionsLeft = 0
         val controller = MobileAuthController(
             oauthConfiguration = MobileOAuthConfiguration.Configured("9677"),
             tokenStore = StoredAuthTokenStore(checkNotNull(AccessToken.parse("token"))),
-            pendingOAuthAttemptStore = FailingPendingOAuthAttemptStore(IllegalStateException("Not used")),
-            sessionGateway = ValidAuthSessionGateway,
-        )
-        MobileOAuthRuntime(
-            putioClient = PutioClient(PutioConfig(clientId = "9677", clientName = "test")),
-            authController = controller,
-            applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
-            onSessionLeft = { sessionsLeft += 1 },
+            pendingOAuthAttemptStore = InMemoryPendingOAuthAttemptStore(),
+            sessionGateway = FixedAuthSessionGateway(validation),
         )
 
-        controller.restoreSession()
-        assertEquals(0, sessionsLeft)
-        assertTrue(controller.rejectAuthoritativeSession())
-
-        assertEquals(1, sessionsLeft)
+        init {
+            MobileOAuthRuntime(
+                putioClient = PutioClient(PutioConfig(clientId = "9677", clientName = "test")),
+                authController = controller,
+                applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+                onSessionLeft = { sessionsLeft += 1 },
+            )
+        }
     }
 
     @Test
@@ -92,17 +110,34 @@ class MobileOAuthRuntimeTest {
         }
     }
 
-    private object ValidAuthSessionGateway : AuthSessionGateway {
-        override fun buildLoginUrl(redirectUri: String, state: String): String = error("Not used")
+    private class InMemoryPendingOAuthAttemptStore : PendingOAuthAttemptStore {
+        private var attempt: PendingOAuthAttempt? = null
+
+        override suspend fun read(): PendingOAuthAttempt? = attempt
+
+        override suspend fun write(attempt: PendingOAuthAttempt) {
+            this.attempt = attempt
+        }
+
+        override suspend fun clear() {
+            attempt = null
+        }
+    }
+
+    private class FixedAuthSessionGateway(private val validation: SessionValidationResult) : AuthSessionGateway {
+        override fun buildLoginUrl(redirectUri: String, state: String): String = "https://app.put.io/authenticate"
 
         override fun setAccessToken(accessToken: AccessToken) = Unit
 
         override fun clearAccessToken() = Unit
 
-        override suspend fun validateSession(): SessionValidationResult =
-            SessionValidationResult.Valid(MobileAccount(userId = 1L, username = "user", email = "user@example.com"))
+        override suspend fun validateSession(): SessionValidationResult = validation
 
         override suspend fun logout(): RemoteLogoutResult = error("Not used")
+    }
+
+    private companion object {
+        val ACCOUNT = MobileAccount(userId = 1L, username = "user", email = "user@example.com")
     }
 
     private class FailingPendingOAuthAttemptStore(

@@ -26,8 +26,10 @@ import java.io.IOException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -37,7 +39,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -45,6 +46,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 
 /**
  * Exports one original file into private storage, then hands a content URI to the
@@ -140,16 +142,10 @@ class MobileFileShareService : Service() {
         try {
             val target = File(directory, name.sanitizedFileName())
             val token = dependencies.accessToken() ?: throw IOException("No session")
-            val call = dependencies.http.newCall(downloadRequest(fileId, token))
-            val cancelOnAbort = currentCoroutineContext().job.invokeOnCompletion { if (it != null) call.cancel() }
-            try {
-                call.execute().use { response ->
-                    if (!response.isSuccessful) throw IOException("Download failed with ${response.code}")
-                    val body = response.body ?: throw IOException("Empty body")
-                    copyWithProgress(body.byteStream(), target, body.contentLength(), name)
-                }
-            } finally {
-                cancelOnAbort.dispose()
+            dependencies.http.newCall(downloadRequest(fileId, token)).executeCancellable { response ->
+                if (!response.isSuccessful) throw IOException("Download failed with ${response.code}")
+                val body = response.body ?: throw IOException("Empty body")
+                copyWithProgress(body.byteStream(), target, body.contentLength(), name)
             }
             complete = true
             target
@@ -348,6 +344,28 @@ internal class MobileShareDependencies(
 }
 
 private val sharedHttp: OkHttpClient by lazy { OkHttpClient() }
+
+/**
+ * Runs the blocking [Call] and [block] on its response; cancelling the coroutine cancels the call at once,
+ * even while it blocks in `execute()` or a body read. A completion handler would wait for that block to end.
+ * The watcher resumes on another thread of the caller's dispatcher, so that dispatcher must not be single-threaded.
+ */
+private suspend fun <T> Call.executeCancellable(block: suspend (Response) -> T): T = coroutineScope {
+    val call = this@executeCancellable
+    val canceller = launch(start = CoroutineStart.UNDISPATCHED) {
+        // Cancelling a call that already finished is a no-op.
+        try {
+            awaitCancellation()
+        } finally {
+            call.cancel()
+        }
+    }
+    try {
+        call.execute().use { block(it) }
+    } finally {
+        canceller.cancel()
+    }
+}
 
 private val MobileAuthState.sessionId: MobileAuthSessionId?
     get() = (this as? MobileAuthState.SignedIn)?.sessionId
