@@ -114,8 +114,10 @@ class MobileAuthController internal constructor(
         if (signedOutState == null) {
             return@withLock OAuthLaunchResult.NotAllowed
         }
+        // Reset and sign in: the clear is best effort, since the new token overwrites
+        // the record anyway and a store that still fails surfaces again on write.
         if (signedOutState.reason == MobileSignedOutReason.SecureStorageUnavailable) {
-            return@withLock OAuthLaunchResult.StorageUnavailable
+            withContext(NonCancellable) { clearLocalSession() }
         }
 
         val configuration = oauthConfiguration as? MobileOAuthConfiguration.Configured

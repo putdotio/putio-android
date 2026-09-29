@@ -363,20 +363,17 @@ class MobileAuthControllerTest {
     }
 
     @Test
-    fun `secure storage failure cannot start a new sign in`() = runBlocking {
+    fun `secure storage failure resets storage before a new sign in`() = runBlocking {
         val fixture = Fixture(storedToken = TOKEN)
         fixture.tokenStore.failRead = true
 
         fixture.controller.restoreSession()
         val launch = fixture.controller.beginSignIn()
 
-        assertEquals(OAuthLaunchResult.StorageUnavailable, launch)
-        assertNull(fixture.pendingAttemptStore.attempt)
-        assertEquals(
-            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
-            fixture.controller.state.value,
-        )
-        assertFalse("build-url" in fixture.gateway.calls)
+        assertEquals(OAuthLaunchResult.Ready(AUTHORIZATION_URL), launch)
+        assertNull(fixture.tokenStore.token)
+        assertEquals(OAUTH_STATE, fixture.pendingAttemptStore.attempt?.state)
+        assertEquals(MobileAuthState.AwaitingOAuthCallback, fixture.controller.state.value)
     }
 
     @Test
@@ -393,7 +390,6 @@ class MobileAuthControllerTest {
         assertEquals(OAuthCallbackHandlingResult.REJECTED, callback)
         assertFalse(fixture.controller.cancelSignIn())
         assertFalse(fixture.controller.failSignIn())
-        assertEquals(OAuthLaunchResult.StorageUnavailable, fixture.controller.beginSignIn())
         assertEquals(OAUTH_STATE, pendingAttemptStore.attempt?.state)
         assertEquals(
             MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),

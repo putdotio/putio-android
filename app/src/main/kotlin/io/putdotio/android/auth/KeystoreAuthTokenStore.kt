@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +15,7 @@ import java.security.GeneralSecurityException
 import java.security.KeyStore
 import java.security.ProviderException
 import java.util.Base64
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -50,13 +52,31 @@ internal class KeystoreAuthTokenStore internal constructor(
         ioDispatcher = Dispatchers.IO,
     )
 
+    /**
+     * A record that can never decrypt (missing key, failed GCM tag, malformed
+     * ciphertext or plaintext) is wiped with its key and read as absent, so the
+     * next sign-in starts clean. Anything else may be transient and throws.
+     */
     override suspend fun read(): AccessToken? = withContext(ioDispatcher) {
-        storageOperation(AUTH_STORAGE_READ_OPERATION) {
-            val serialized = preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null) ?: return@storageOperation null
-            val encryptedValue = EncryptedAuthTokenValue.deserialize(serialized)
-            val plaintext = tokenCipher.decrypt(encryptedValue)
-            AccessToken.parse(String(plaintext, StandardCharsets.UTF_8))
-                ?: throw IllegalArgumentException("Decrypted access token has an invalid shape")
+        try {
+            storageOperation(AUTH_STORAGE_READ_OPERATION) {
+                val serialized = preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null) ?: return@storageOperation null
+                val encryptedValue = EncryptedAuthTokenValue.deserialize(serialized)
+                val plaintext = tokenCipher.decrypt(encryptedValue)
+                AccessToken.parse(String(plaintext, StandardCharsets.UTF_8))
+                    ?: throw IllegalArgumentException("Decrypted access token has an invalid shape")
+            }
+        } catch (error: AuthTokenStorageException) {
+            if (error.cause?.isUndecryptableRecord() != true) {
+                throw error
+            }
+            try {
+                clear()
+            } catch (clearFailure: AuthTokenStorageException) {
+                clearFailure.addSuppressed(error)
+                throw clearFailure
+            }
+            null
         }
     }
 
@@ -149,7 +169,7 @@ private class AndroidKeystoreAuthTokenCipher(
 
     override fun decrypt(value: EncryptedAuthTokenValue): ByteArray {
         val key = keyStore.getKey(keyAlias, null) as? SecretKey
-            ?: throw GeneralSecurityException("Android Keystore access-token key is missing")
+            ?: throw MissingAuthTokenKeyException()
         val cipher = Cipher.getInstance(AUTH_CIPHER_TRANSFORMATION)
         cipher.init(
             Cipher.DECRYPT_MODE,
@@ -205,6 +225,15 @@ private inline fun <T> storageOperation(
     } catch (error: ClassCastException) {
         throw AuthTokenStorageException(operation, error)
     }
+
+internal class MissingAuthTokenKeyException : GeneralSecurityException("Android Keystore access-token key is missing")
+
+private fun Throwable.isUndecryptableRecord(): Boolean =
+    this is MissingAuthTokenKeyException ||
+        this is AEADBadTagException ||
+        this is KeyPermanentlyInvalidatedException ||
+        this is IllegalArgumentException ||
+        this is ClassCastException
 
 private fun ByteArray.encodeBase64Url(): String =
     Base64.getUrlEncoder().withoutPadding().encodeToString(this)

@@ -4,6 +4,21 @@ Product behaviour the Android app implements that the harness proves. Each
 section names the JVM tests that pin the rule; [Harness](./harness.md) owns the
 device lanes and live proof.
 
+## Stored session recovery
+
+The access token is AES-GCM ciphertext under a Keystore key. A record that can
+never decrypt (missing key, failed tag, malformed ciphertext or plaintext) is
+wiped with its key and read as no session: mobile lands on the normal sign-in
+screen and TV on a fresh code. Any other storage failure may be transient and
+keeps the record. Mobile then shows Secure storage is unavailable with Reset and
+sign in, which clears the token and pending attempt as far as it can and starts
+OAuth; the new token overwrites anything left, and a store that still fails
+returns to the same screen. A failed clear during logout or session expiry
+lands there too, so no storage state blocks sign-in.
+
+Tests: `KeystoreAuthTokenStoreTest`, `MobileAuthStorageRecoveryTest`,
+`MobileAuthControllerTest`, `MobileShellTest`.
+
 ## Trash
 
 Every Trash action confirms, submits exactly once, then verifies with one fresh
@@ -148,7 +163,15 @@ sign-out parks that user's transfers with a stop reason until the owner signs in
 again. Playback reads through the same cache with a null write sink, so
 streaming never fills the download directory. On start the engine reconciles
 Media3's own index into the app's rows, so a transfer that completed while the
-UI was dead reads On this device after relaunch.
+UI was dead reads On this device after relaunch. Closing the engine cancels that
+reconcile, so a sign-out right after sign-in cannot un-park the transfers.
+Media3 reports only state transitions to the app; while the Downloads screen is
+started, the controller reads live bytes once a second into memory. Only
+transitions reach the index.
 
-Tests: `DownloadsControllerTest`, `MobileDownloadStoreTest`,
+Tests: `DownloadsControllerTest` (intents, progress polling while shown),
+`MobileDownloadsScreenTest` (shown and hidden events), `MobileDownloadStoreTest`,
+`MobileDownloadEngineTest` (reconcile, sign-out parking, account isolation,
+close before reconcile, in-memory progress against a real Media3 manager),
+`UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`.
