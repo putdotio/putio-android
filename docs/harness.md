@@ -525,7 +525,8 @@ PUTIO_CLI_PROFILE=devs-auto putio auth approve "$code"
 
 The shell appears within one poll interval (3 s). `Get new code` on the
 sign-in screen cancels the current attempt and requests another; `Sign out`
-under Account revokes the grant and returns to a fresh code. A force-stop and
+under Account returns to a fresh code at once and revokes the token in the
+background. A force-stop and
 relaunch must land in the shell without a code: that is the Keystore restore.
 `pm clear io.put.putio.debug` drops the stored token. The emulator has no
 Fire TV feature flag, so it always links as the Android TV client (6221);

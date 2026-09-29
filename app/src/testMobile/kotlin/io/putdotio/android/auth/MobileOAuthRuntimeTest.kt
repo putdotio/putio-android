@@ -23,6 +23,7 @@ class MobileOAuthRuntimeTest {
             tokenStore = EmptyAuthTokenStore,
             pendingOAuthAttemptStore = FailingPendingOAuthAttemptStore(failure),
             sessionGateway = UnusedAuthSessionGateway,
+            tokenRevocations = NoTokenRevocations,
         )
         val runtime = MobileOAuthRuntime(
             putioClient = PutioClient(PutioConfig(clientId = "9677", clientName = "test")),
@@ -74,7 +75,5 @@ class MobileOAuthRuntimeTest {
         override fun clearAccessToken() = Unit
 
         override suspend fun validateSession(): SessionValidationResult = error("Not used")
-
-        override suspend fun logout(): RemoteLogoutResult = error("Not used")
     }
 }
