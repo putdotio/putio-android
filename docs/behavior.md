@@ -136,8 +136,20 @@ export and notification are dropped. Each export removes every earlier export
 first; a recipient still reading one keeps its open descriptor. Launch removes
 exports older than a day.
 
+An export belongs to the session that started it. Leaving that session, by
+sign-out or an authoritative rejection, cancels a running export, deletes the
+share folder and removes the notification; delivery checks the session again
+before opening the chooser, so a resume that races a sign-out shares nothing.
+The process-wide auth runtime owns this cleanup, so it also runs with no UI,
+and a launch whose restore ends signed out deletes exports an earlier process
+left. Cancelling an export cancels its download at once, even mid-read.
+The stored name keeps the original readable but drops path separators, control
+and bidi formatting characters (which could disguise the extension), and is cut
+to 200 UTF-8 bytes on a code-point boundary, keeping a short extension.
+
 Tests: `MobileFileShareServiceTest` (payload shape, ready notification, service
-stop rules, name sanitizer).
+stop rules, session exit, ready timeout, prior-export wipe, failure notification,
+name sanitizer, all on virtual time with a fake download source).
 
 ## Deep links
 

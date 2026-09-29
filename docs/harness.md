@@ -814,6 +814,19 @@ Then open a small image's action sheet, choose Share file, and confirm the
 chooser shows the content preview. Inspect `dumpsys activity activities` for the
 chooser: `clip=` must reference only a `content://` URI and no `oauth_token`.
 
+### Share-out session proof
+
+`MobileShareSessionProofTest` runs the real `MobileFileShareService` and
+`MainActivity` with a controlled session and an in-process download source (an
+OkHttp interceptor serving a generated JPEG); it makes no API call and needs no
+account. A control export must open the chooser; a second export is held
+mid-download while the session signs out, and must remove the share folder and
+open no chooser. Follow the [Evidence](#evidence) contract with
+`putio.share.session.enabled=true` and `putio.share.session.runId=<UUID>`.
+Screenshots `control-chooser-opens.png`, `export-running.png` and
+`signed-out-no-chooser.png` go to `share-session-proof-<UUID>/`. Describe them as
+synthetic session proof, not a live sign-out.
+
 ## Downloads and offline playback proof
 
 Behaviour: [Downloads and offline playback](./behavior.md#downloads-and-offline-playback);

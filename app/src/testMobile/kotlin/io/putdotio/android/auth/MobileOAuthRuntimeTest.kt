@@ -11,6 +11,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MobileOAuthRuntimeTest {
@@ -38,6 +39,48 @@ class MobileOAuthRuntimeTest {
     }
 
     @Test
+    fun `a session rejected without any UI still runs the session-exit cleanup`() = runBlocking {
+        val fixture = SessionExitFixture(SessionValidationResult.Valid(ACCOUNT))
+
+        fixture.controller.restoreSession()
+        assertEquals(0, fixture.sessionsLeft)
+        assertTrue(fixture.controller.rejectAuthoritativeSession())
+
+        assertEquals(1, fixture.sessionsLeft)
+    }
+
+    @Test
+    fun `a rejected cold-start restore ends the persisted session once`() = runBlocking {
+        val fixture = SessionExitFixture(SessionValidationResult.Rejected(SessionRejectionReason.Unauthorized))
+
+        fixture.controller.restoreSession()
+        fixture.controller.beginSignIn()
+        fixture.controller.cancelSignIn()
+
+        assertEquals(1, fixture.sessionsLeft)
+    }
+
+    private class SessionExitFixture(validation: SessionValidationResult) {
+        var sessionsLeft = 0
+        val controller = MobileAuthController(
+            oauthConfiguration = MobileOAuthConfiguration.Configured("9677"),
+            tokenStore = StoredAuthTokenStore(checkNotNull(AccessToken.parse("token"))),
+            pendingOAuthAttemptStore = InMemoryPendingOAuthAttemptStore(),
+            sessionGateway = FixedAuthSessionGateway(validation),
+            tokenRevocations = NoTokenRevocations,
+        )
+
+        init {
+            MobileOAuthRuntime(
+                putioClient = PutioClient(PutioConfig(clientId = "9677", clientName = "test")),
+                authController = controller,
+                applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
+                onSessionLeft = { sessionsLeft += 1 },
+            )
+        }
+    }
+
+    @Test
     fun `runtime failure log excludes error messages and callback payloads`() {
         val log = oauthRuntimeFailureLog(IllegalStateException("access_token=secret"))
 
@@ -55,6 +98,46 @@ class MobileOAuthRuntimeTest {
         override suspend fun write(accessToken: AccessToken) = Unit
 
         override suspend fun clear() = Unit
+    }
+
+    private class StoredAuthTokenStore(private var token: AccessToken?) : AuthTokenStore {
+        override suspend fun read(): AccessToken? = token
+
+        override suspend fun write(accessToken: AccessToken) {
+            token = accessToken
+        }
+
+        override suspend fun clear() {
+            token = null
+        }
+    }
+
+    private class InMemoryPendingOAuthAttemptStore : PendingOAuthAttemptStore {
+        private var attempt: PendingOAuthAttempt? = null
+
+        override suspend fun read(): PendingOAuthAttempt? = attempt
+
+        override suspend fun write(attempt: PendingOAuthAttempt) {
+            this.attempt = attempt
+        }
+
+        override suspend fun clear() {
+            attempt = null
+        }
+    }
+
+    private class FixedAuthSessionGateway(private val validation: SessionValidationResult) : AuthSessionGateway {
+        override fun buildLoginUrl(redirectUri: String, state: String): String = "https://app.put.io/authenticate"
+
+        override fun setAccessToken(accessToken: AccessToken) = Unit
+
+        override fun clearAccessToken() = Unit
+
+        override suspend fun validateSession(): SessionValidationResult = validation
+    }
+
+    private companion object {
+        val ACCOUNT = MobileAccount(userId = 1L, username = "user", email = "user@example.com")
     }
 
     private class FailingPendingOAuthAttemptStore(

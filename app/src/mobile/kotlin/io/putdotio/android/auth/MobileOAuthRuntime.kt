@@ -6,6 +6,7 @@ import io.putdotio.android.BuildConfig
 import io.putdotio.android.MobilePlaybackReporting
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.downloads.MobileDownloadCache
+import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
@@ -25,7 +26,24 @@ class MobileOAuthRuntime internal constructor(
     val authController: MobileAuthController,
     private val applicationScope: CoroutineScope,
     private val failureReporter: OAuthRuntimeFailureReporter = AndroidOAuthRuntimeFailureReporter,
+    onSessionLeft: () -> Unit = {},
 ) {
+    init {
+        // Sessions also end without a UI (a background rejection), so the process scope owns this boundary.
+        applicationScope.launch {
+            var previous: MobileAuthSessionId? = null
+            // An earlier process may have left state for its persisted session; a restore that ends signed out ends it.
+            var persistedSessionPending = true
+            authController.state.collect { state ->
+                val current = (state as? MobileAuthState.SignedIn)?.sessionId
+                val restoreEnded = persistedSessionPending && state is MobileAuthState.SignedOut
+                if (current != null || restoreEnded) persistedSessionPending = false
+                if (restoreEnded || previous != null && current != previous) onSessionLeft()
+                previous = current
+            }
+        }
+    }
+
     internal val playbackReporting = MobilePlaybackReporting(
         authController.state,
         applicationScope,
@@ -119,6 +137,7 @@ class MobileOAuthRuntime internal constructor(
                 putioClient = putioClient,
                 authController = authController,
                 applicationScope = applicationScope,
+                onSessionLeft = { MobileFileShareService.endSession(context) },
             )
         }
     }
