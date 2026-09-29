@@ -773,19 +773,21 @@ class MobileShellTest {
     }
 
     @Test
-    fun secureStorageFailureHidesSignInWhenOAuthIsConfigured() {
+    fun secureStorageFailureOffersResetAndSignIn() {
+        var signInRequests = 0
         compose.setContent {
             PutioTheme {
                 MobileSignedOutScreen(
                     reason = MobileSignedOutReason.SecureStorageUnavailable,
                     canSignIn = true,
-                    onSignIn = {},
+                    onSignIn = { signInRequests += 1 },
                 )
             }
         }
 
         compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
-        compose.onAllNodesWithText("Sign in").assertCountEquals(0)
+        compose.onNodeWithText("Reset and sign in").performClick()
+        assertEquals(1, signInRequests)
     }
 
     @Test

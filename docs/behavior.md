@@ -4,6 +4,21 @@ Product behaviour the Android app implements that the harness proves. Each
 section names the JVM tests that pin the rule; [Harness](./harness.md) owns the
 device lanes and live proof.
 
+## Stored session recovery
+
+The access token is AES-GCM ciphertext under a Keystore key. A record that can
+never decrypt (missing key, failed tag, malformed ciphertext or plaintext) is
+wiped with its key and read as no session: mobile lands on the normal sign-in
+screen and TV on a fresh code. Any other storage failure may be transient and
+keeps the record. Mobile then shows Secure storage is unavailable with Reset and
+sign in, which clears the token and pending attempt as far as it can and starts
+OAuth; the new token overwrites anything left, and a store that still fails
+returns to the same screen. A failed clear during logout or session expiry
+lands there too, so no storage state blocks sign-in.
+
+Tests: `KeystoreAuthTokenStoreTest`, `MobileAuthStorageRecoveryTest`,
+`MobileAuthControllerTest`, `MobileShellTest`.
+
 ## Trash
 
 Every Trash action confirms, submits exactly once, then verifies with one fresh
