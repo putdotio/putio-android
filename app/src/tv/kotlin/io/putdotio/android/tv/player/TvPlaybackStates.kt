@@ -100,8 +100,9 @@ internal fun TvConversionScreen(
         )
         if (action != null) {
             TvButton(
-                onClick = { if (idle) action.second() },
+                onClick = action.second,
                 modifier = Modifier.padding(top = 24.dp).focusRequester(focus),
+                enabled = idle,
             ) {
                 Text(stringResource(action.first))
             }

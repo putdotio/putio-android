@@ -9,6 +9,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -133,6 +134,11 @@ class TvPlaybackStatesTest {
         compose.runOnIdle { assertEquals(0, starts + refreshes) }
 
         compose.onNodeWithText("Convert").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, starts) }
+
+        // A slow start keeps Convert on screen, disabled until the request settles.
+        change(PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L), startRequested = true))
+        compose.onNodeWithText("Convert").assertIsNotEnabled().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, starts) }
     }
 
