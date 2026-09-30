@@ -9,6 +9,7 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.SubtitleStartupPolicy
 
 /**
  * Playback replaces the signed-in shell rather than covering it, so no shell control can
@@ -37,6 +38,7 @@ internal fun TvPlaybackRoute(
     onSessionRejected: suspend () -> Unit,
     playerFactory: TvPlayerFactory = DefaultTvPlayerFactory,
     reporter: TvPlaybackReporter = TvPlaybackReporter.None,
+    subtitleStartupPolicy: SubtitleStartupPolicy? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     val sessionRejected = (state.content as? PlaybackContent.Failed)?.failure is PlaybackFailure.AuthenticationRequired
@@ -52,6 +54,7 @@ internal fun TvPlaybackRoute(
         },
         playerFactory = playerFactory,
         reporter = reporter,
+        subtitleStartupPolicy = subtitleStartupPolicy,
     )
 }
 

@@ -246,4 +246,16 @@
     <string name="tv_player_resume_continue">Continue playing from %1$s</string>
     <string name="tv_player_resume_restart">Start from the beginning</string>
     <string name="tv_player_resume_progress">Starts at %1$s of %2$s</string>
+    <string name="tv_player_language">Language</string>
+    <string name="tv_player_subtitles">Subtitles</string>
+    <string name="tv_player_speed">Speed</string>
+    <string name="tv_player_audio_tracks">Audio tracks</string>
+    <string name="tv_player_audio_track_number">Audio track %1$d</string>
+    <string name="tv_player_subtitle_number">Subtitle %1$d</string>
+    <string name="tv_player_track_disambiguated">%1$s (track %2$d)</string>
+    <string name="tv_player_subtitles_off">Off</string>
+    <string name="tv_player_subtitles_on_state">Subtitles on</string>
+    <string name="tv_player_subtitles_off_state">Subtitles off</string>
+    <string name="tv_player_playback_speed">Playback speed</string>
+    <string name="tv_player_speed_value">%1$s×</string>
 </resources>

@@ -85,6 +85,18 @@ import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+import io.putdotio.android.playback.SubtitleSelection
+import io.putdotio.android.playback.PlaybackSubtitleTrack
+import io.putdotio.android.playback.playbackSubtitleTracks
+import io.putdotio.android.playback.withSubtitleSelection
+import io.putdotio.android.playback.restoreSubtitleSelection
+import io.putdotio.android.playback.systemCaptionsEnabled
+import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.playbackAudioTracks
+import io.putdotio.android.playback.withAudioSelection
+import io.putdotio.android.playback.withRetainedAudioSelection
+import io.putdotio.android.playback.SubtitleCueOverlay
+import io.putdotio.android.playback.displayAspectRatioOrNull
 
 internal const val MOBILE_PLAYER_TAG = "mobile-player"
 internal const val MOBILE_PLAYER_GESTURE_TAG = "mobile-player-gesture"
@@ -577,7 +589,7 @@ private fun MobileReadyPlayer(
         }
     }
     DisposableEffect(player) {
-        fun resolveRetainedSubtitleSelection(tracks: List<MobileSubtitleTrack>) {
+        fun resolveRetainedSubtitleSelection(tracks: List<PlaybackSubtitleTrack>) {
             val selection = currentRetainedSubtitleSelection.value as? SubtitleSelection.Track ?: return
             val parameters = player.trackSelectionParameters.withSubtitleSelection(selection, tracks)
             if (parameters != player.trackSelectionParameters) {
@@ -613,11 +625,11 @@ private fun MobileReadyPlayer(
                 }
 
                 override fun onTracksChanged(tracks: Tracks) {
-                    resolveRetainedSubtitleSelection(tracks.mobileSubtitleTracks())
+                    resolveRetainedSubtitleSelection(tracks.playbackSubtitleTracks())
                     if (optionsInitialized) {
                         val parameters = player.trackSelectionParameters.withRetainedAudioSelection(
                             currentPreferences.value.audioSelection,
-                            tracks.mobileAudioTracks(),
+                            tracks.playbackAudioTracks(),
                         )
                         if (parameters != player.trackSelectionParameters) player.trackSelectionParameters = parameters
                     }
@@ -678,7 +690,7 @@ private fun MobileReadyPlayer(
                 }
             }
         player.addListener(listener)
-        resolveRetainedSubtitleSelection(player.currentTracks.mobileSubtitleTracks())
+        resolveRetainedSubtitleSelection(player.currentTracks.playbackSubtitleTracks())
         onDispose {
             player.removeListener(listener)
             if (playerReleased) return@onDispose
@@ -774,7 +786,7 @@ private fun MobileReadyPlayer(
                 )
             }
         }
-        if (!isAudio) MobileSubtitleCueOverlay(
+        if (!isAudio) SubtitleCueOverlay(
             cues = cues,
             videoAspectRatio = videoSize.displayAspectRatioOrNull(),
             modifier =

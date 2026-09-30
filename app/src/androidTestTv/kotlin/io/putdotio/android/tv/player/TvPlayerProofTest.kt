@@ -11,12 +11,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -36,6 +42,10 @@ import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
+import io.putdotio.android.playback.SUBTITLE_CUES_TAG
+import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.playbackAudioTracks
+import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsReducer
@@ -289,6 +299,127 @@ class TvPlayerProofTest {
         screenshot("26-back-on-files-row")
     }
 
+    /**
+     * Needs a fixture with two audio renditions and a subtitle rendition (see the harness guide).
+     * The account's settings select subtitles automatically; the pickers then change audio,
+     * turn subtitles off (they stay off after a seek, #45) and set the speed, and Back closes an
+     * open picker before the controls (#9).
+     */
+    @Test
+    fun languageSubtitlesAndSpeedPickersJoinTheBackStack() {
+        val factory = mountFilesWithPlayer(SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true))
+        compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) {
+            it.isPlaying && factory.renderedFrame && it.currentPosition > 1_000L &&
+                it.currentTracks.playbackAudioTracks().size == 2 && selectedSubtitle(it) != null
+        }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag(SUBTITLE_CUES_TAG).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("30-subtitles-automatic")
+        pause()
+
+        // Down brings hidden controls back on the seek bar; Up reaches Language.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        compose.onNodeWithContentDescription(LANGUAGE).assertIsSelected()
+        screenshot("31-language-focused")
+        pause()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Audio tracks").fetchSemanticsNodes().isNotEmpty() }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        screenshot("32-language-picker")
+        pause()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { selectedAudioLanguage(it) == "de" }
+        compose.onNodeWithText("Audio tracks").assertDoesNotExist()
+        compose.onNodeWithContentDescription(LANGUAGE).assertIsSelected()
+        screenshot("33-second-audio-track")
+        pause()
+
+        // Subtitles: focus opens on the shown track; Up is Off.
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithContentDescription(SUBTITLES).assertIsSelected()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Off").fetchSemanticsNodes().isNotEmpty() }
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        screenshot("34-subtitles-picker")
+        pause()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { C.TRACK_TYPE_TEXT in it.trackSelectionParameters.disabledTrackTypes }
+        compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
+        compose.onNodeWithContentDescription(SUBTITLES).assert(stateIs("Subtitles off"))
+        screenshot("35-subtitles-off")
+        pause()
+
+        // Down to the seek bar, scrub and commit: subtitles stay off (#45).
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.isPlaying }
+        elapse(STEP_PAUSE_MILLIS)
+        compose.runOnIdle {
+            assertTrue(C.TRACK_TYPE_TEXT in factory.current().trackSelectionParameters.disabledTrackTypes)
+            assertNull(selectedSubtitle(factory.current()))
+            assertEquals("de", selectedAudioLanguage(factory.current()))
+        }
+        compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
+        screenshot("36-still-off-after-seek")
+
+        // Speed: Back with the picker open closes only the picker. Down first brings the
+        // controls back if they hid while playing.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithContentDescription(SPEED).assertIsSelected()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Playback speed").fetchSemanticsNodes().isNotEmpty() }
+        screenshot("37-speed-picker")
+        pause()
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithText("Playback speed").assertDoesNotExist()
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertExists()
+        compose.onNodeWithContentDescription(SPEED).assertIsSelected()
+        compose.runOnIdle {
+            assertNotNull("Still in playback", playing)
+            assertTrue(factory.current().isPlaying)
+        }
+        // Lets the dialog finish leaving before the capture.
+        elapse(DIALOG_EXIT_MILLIS)
+        screenshot("38-picker-dismissed")
+        pause()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Playback speed").fetchSemanticsNodes().isNotEmpty() }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.playbackParameters.speed == 1.5f }
+        compose.onNodeWithContentDescription(SPEED).assert(stateIs("1.5×"))
+        screenshot("39-speed-1.5")
+        pause()
+
+        // Back hides the controls, then leaves to the row.
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+        compose.runOnIdle { assertNotNull(playing) }
+        screenshot("40-controls-dismissed")
+        pause()
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(10_000) { compose.runOnIdle { playing == null } }
+        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
+        screenshot("41-back-on-files-row")
+    }
+
+    private fun selectedSubtitle(player: Player) = player.currentTracks.playbackSubtitleTracks().singleOrNull { it.selected }
+
+    private fun selectedAudioLanguage(player: Player) =
+        player.currentTracks.playbackAudioTracks().singleOrNull { it.selected }
+            ?.let { it.group.getFormat(it.trackIndex).language }
+
+    private fun stateIs(value: String) =
+        SemanticsMatcher("state $value") { it.config.getOrNull(SemanticsProperties.StateDescription) == value }
+
     private var playing by mutableStateOf<FilesItem?>(null)
     private var controller by mutableStateOf<PlaybackController?>(null)
 
@@ -394,7 +525,7 @@ class TvPlayerProofTest {
         ).state
 
     /** A fixed Files listing whose media row plays the local fixture on the production player. */
-    private fun mountFilesWithPlayer(): ProofPlayerFactory {
+    private fun mountFilesWithPlayer(subtitleStartupPolicy: SubtitleStartupPolicy? = null): ProofPlayerFactory {
         val source = localSource()
         val factory = ProofPlayerFactory()
         val video = row(FIXTURE_FILE_ID, FIXTURE_TITLE, PutioFileType.VIDEO)
@@ -429,6 +560,7 @@ class TvPlayerProofTest {
                             onRestart = { error("Unexpected restart") },
                             onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
                             playerFactory = factory,
+                            subtitleStartupPolicy = subtitleStartupPolicy,
                         )
                     },
                 ) {
@@ -547,6 +679,10 @@ class TvPlayerProofTest {
         const val CONTINUE_LABEL = "Continue playing from 00:45"
         const val RESTART_LABEL = "Start from the beginning"
         const val RESUME_PREFIX = "Continue playing from"
+        const val LANGUAGE = "Language"
+        const val SUBTITLES = "Subtitles"
+        const val SPEED = "Speed"
+        const val DIALOG_EXIT_MILLIS = 500L
     }
 }
 

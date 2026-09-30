@@ -433,6 +433,27 @@
       "asset": "assets/regular/sign-out.svg",
       "sourceSha256": "511fe7958ef31f8904185631fd7045c11f35c8034a2a64ccb3bdcc4dfa81df77",
       "outputSha256": "949961773b0904f56714dd01919baf46726dca80c6f9c8611bf67305c03bb4c3"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_headphones",
+      "asset": "assets/regular/headphones.svg",
+      "sourceSha256": "992d04ff6759f1f12d40259298a92589c18556bf5b2ea6f82bc23e74d9c48185",
+      "outputSha256": "ab3e4cd46aff1ff1779134c59be76dae4b9e5e434175dacfad25012ec3751dae"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_subtitles_slash",
+      "asset": "assets/regular/subtitles-slash.svg",
+      "sourceSha256": "21b21248cee12eedfe0ab754c0a350f8a709a0eec2087470b688ef18c0d6f5bb",
+      "outputSha256": "a396cf68e2a148ad6d60e83db814a307408c97593a5f8ddc1fac719efc551f85"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_gauge",
+      "asset": "assets/regular/gauge.svg",
+      "sourceSha256": "053e22a3b54c3baa7997bd0fddbf2cc35cbdd2662842b553d13d9f2a58c67f4a",
+      "outputSha256": "2b5c94c8369719eb5f221ad097b74c492f6620cab639100d06315e2a3c8e87fa"
     }
   ]
 }

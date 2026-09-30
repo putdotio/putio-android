@@ -32,6 +32,11 @@ import androidx.media3.common.C
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.Player as Media3Player
+import io.putdotio.android.playback.SubtitleSelection
+import io.putdotio.android.playback.PlaybackSubtitleTrack
+import io.putdotio.android.playback.playbackSubtitleTracks
+import io.putdotio.android.playback.withSubtitleSelection
+import io.putdotio.android.playback.subtitlesEnabled
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -46,7 +51,7 @@ internal fun MobileSubtitleControls(
     modifier: Modifier = Modifier,
     showLabel: Boolean = false,
 ) {
-    var tracks by remember(player) { mutableStateOf(player.currentTracks.mobileSubtitleTracks()) }
+    var tracks by remember(player) { mutableStateOf(player.currentTracks.playbackSubtitleTracks()) }
     var parameters by remember(player) { mutableStateOf(player.trackSelectionParameters) }
     var commands by remember(player) { mutableStateOf(player.availableCommands) }
     var expanded by remember(player) { mutableStateOf(false) }
@@ -54,7 +59,7 @@ internal fun MobileSubtitleControls(
     DisposableEffect(player) {
         val listener = object : Media3Player.Listener {
             override fun onEvents(player: Media3Player, events: Media3Player.Events) {
-                tracks = player.currentTracks.mobileSubtitleTracks()
+                tracks = player.currentTracks.playbackSubtitleTracks()
                 parameters = player.trackSelectionParameters
                 commands = player.availableCommands
             }
@@ -166,7 +171,7 @@ internal fun MobileSubtitleControls(
 
 @Composable
 internal fun MobileSubtitleTrackOption(
-    track: MobileSubtitleTrack,
+    track: PlaybackSubtitleTrack,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,

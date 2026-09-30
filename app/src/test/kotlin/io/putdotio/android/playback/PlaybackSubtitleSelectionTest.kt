@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import androidx.media3.common.C
 import androidx.media3.common.Format
@@ -43,7 +43,7 @@ private fun rendererCapabilities(trackType: Int): RendererCapabilities =
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 @UnstableApi
-class MobileSubtitleSelectionTest {
+class PlaybackSubtitleSelectionTest {
     @Test
     fun subtitleSelectionCanEnableDisableAndReenableUnflaggedText() {
         val defaults = TrackSelectionParameters.Builder().build()
@@ -80,7 +80,7 @@ class MobileSubtitleSelectionTest {
                 Format.Builder().setId("de").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
             )
         val track =
-            MobileSubtitleTrack(
+            PlaybackSubtitleTrack(
                 group = group,
                 trackIndex = 1,
                 label = "German",
@@ -282,7 +282,7 @@ class MobileSubtitleSelectionTest {
             TrackSelectionParameters.Builder().build().withSubtitleSelection(
                 SubtitleSelection.Track(group.getFormat(1).toSubtitleTrackIdentity()),
                 listOf(
-                    MobileSubtitleTrack(
+                    PlaybackSubtitleTrack(
                         group = group,
                         trackIndex = 1,
                         label = "German",
@@ -322,13 +322,13 @@ class MobileSubtitleSelectionTest {
         val oldParameters =
             TrackSelectionParameters.Builder().build().withSubtitleSelection(
                 selection,
-                listOf(MobileSubtitleTrack(oldGroup, 1, label = "German", selected = false)),
+                listOf(PlaybackSubtitleTrack(oldGroup, 1, label = "German", selected = false)),
             )
 
         val replacementParameters =
             oldParameters.withSubtitleSelection(
                 selection,
-                listOf(MobileSubtitleTrack(replacementGroup, 1, label = "German", selected = false)),
+                listOf(PlaybackSubtitleTrack(replacementGroup, 1, label = "German", selected = false)),
             )
 
         assertFalse(oldGroup in replacementParameters.overrides)
@@ -356,7 +356,7 @@ class MobileSubtitleSelectionTest {
         val resolved =
             pending.withSubtitleSelection(
                 selection,
-                listOf(MobileSubtitleTrack(replacementGroup, 0, label = "German", selected = false)),
+                listOf(PlaybackSubtitleTrack(replacementGroup, 0, label = "German", selected = false)),
             )
 
         assertTrue(resolved.selectTextByDefault)
@@ -384,7 +384,7 @@ class MobileSubtitleSelectionTest {
         assertTrue(forcedIdentity.exactlyMatches(forced))
         assertFalse(forcedIdentity.exactlyMatches(full))
         assertNull(
-            listOf(MobileSubtitleTrack(TrackGroup(full), 0, label = "English", selected = false))
+            listOf(PlaybackSubtitleTrack(TrackGroup(full), 0, label = "English", selected = false))
                 .resolve(forcedIdentity),
         )
     }
@@ -406,8 +406,8 @@ class MobileSubtitleSelectionTest {
 
         val resolved =
             listOf(
-                MobileSubtitleTrack(duplicateGroup, 0, label = "German", selected = false),
-                MobileSubtitleTrack(selectedGroup, 0, label = "English", selected = false),
+                PlaybackSubtitleTrack(duplicateGroup, 0, label = "German", selected = false),
+                PlaybackSubtitleTrack(selectedGroup, 0, label = "English", selected = false),
             ).resolve(selected.toSubtitleTrackIdentity())
 
         assertEquals(selectedGroup, resolved?.group)
