@@ -1,5 +1,6 @@
 package io.putdotio.android.downloads
 
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -13,14 +14,15 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Serves a completed download without the network. The source URL is the same
- * token-free API URL the download used, so the cache data source resolves every
- * playlist and segment from disk; a cache miss still reaches the network with
- * the session header.
+ * token-free API URL the download used, read back through [requestedUrl], so the
+ * cache data source resolves every playlist and segment from disk; a cache miss
+ * still reaches the network with the session header.
  */
 internal class OfflinePlaybackRepository(
     private val downloads: StateFlow<DownloadsState>,
     private val delegate: PlaybackRepository,
     private val credentialUrl: (String) -> PutioCredentialUrl,
+    private val requestedUrl: suspend (FilesItemId) -> String? = { null },
 ) : PlaybackRepository {
     override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
         val state = downloads.value
@@ -29,7 +31,7 @@ internal class OfflinePlaybackRepository(
         val source = PlaybackSource(
             fileId = entry.fileId.value,
             kind = if (entry.artifact == DownloadArtifact.HLS) PlaybackSourceKind.HLS else PlaybackSourceKind.ORIGINAL,
-            url = credentialUrl(entry.artifact.apiUrl(entry.fileId)),
+            url = credentialUrl(requestedUrl(entry.fileId) ?: entry.artifact.apiUrl(entry.fileId)),
             startFromSeconds = 0.0,
             // HLS subtitle renditions are inside the downloaded playlist set.
             subtitles = if (entry.artifact == DownloadArtifact.HLS) {

@@ -109,6 +109,7 @@ import io.putdotio.android.downloads.DownloadRequest
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
+import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.downloads.OfflinePlaybackRepository
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.sdk.files.PutioCredentialUrl
@@ -137,12 +138,14 @@ import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersRefresh
 import io.putdotio.android.transfers.TransfersState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.subtitleStartupPolicy
 
@@ -446,14 +449,17 @@ internal fun SignedInMobileRoot(
         return
     }
     val appContext = LocalContext.current.applicationContext
-    val playbackRepository = remember(runtime.putioClient, appConfigController, downloadsController) {
+    val playbackRepository = remember(runtime.putioClient, appConfigController, downloadsController, account.userId) {
         val streaming = ConvertingPlaybackRepository(runtime.putioClient) {
             appConfigController.state.value.playbackPreference()
         }
         if (downloadsController == null) {
             streaming
         } else {
-            OfflinePlaybackRepository(downloadsController.state, streaming, PutioCredentialUrl::of)
+            val downloads = MobileDownloadCache.get(appContext)
+            OfflinePlaybackRepository(downloadsController.state, streaming, PutioCredentialUrl::of) { fileId ->
+                withContext(Dispatchers.IO) { downloads.requestedUrl(account.userId, fileId) }
+            }
         }
     }
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {

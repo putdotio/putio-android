@@ -15,6 +15,7 @@ import io.putdotio.sdk.files.FileMp4ConversionStatus
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
+import io.putdotio.sdk.files.HLS_ALL_SUBTITLES
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -179,6 +180,9 @@ class SdkPlaybackRepository internal constructor(
                     mediaCredential = PlaybackMediaCredential.downloadToken(downloadToken),
                     preference = preference,
                     useStartFrom = account.settings.useStartFrom,
+                    // put.io leaves every HLS subtitle rendition out for an account with hide_subtitles
+                    // on; the player starts them off itself, so the viewer can still turn one on (#223).
+                    maxSubtitleCount = HLS_ALL_SUBTITLES,
                 ),
             )
             PlaybackRepositoryResult.Success(resolution.toAppResolution(account.settings.useStartFrom))

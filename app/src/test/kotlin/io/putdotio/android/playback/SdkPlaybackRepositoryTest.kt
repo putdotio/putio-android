@@ -13,6 +13,7 @@ import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
+import io.putdotio.sdk.files.HLS_ALL_SUBTITLES
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackPreference
@@ -52,6 +53,25 @@ class SdkPlaybackRepositoryTest {
             assertEquals(PlaybackPreference.HLS, request?.preference)
             assertTrue(request?.useStartFrom == true)
             assertEquals("<redacted media credential>", request?.mediaCredential.toString())
+        }
+
+    @Test
+    fun asksForEveryHlsSubtitleRenditionSoHiddenSubtitlesCanStillBeTurnedOn() =
+        runBlocking {
+            var request: PlaybackRequest? = null
+            val repository = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.HLS },
+                loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+                resolvePlayback = {
+                    request = it
+                    io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource())
+                },
+            )
+
+            repository.resolve(Target)
+
+            // Without it put.io drops the renditions for an account with hide_subtitles on (#223).
+            assertEquals(HLS_ALL_SUBTITLES, request?.maxSubtitleCount)
         }
 
     @Test
