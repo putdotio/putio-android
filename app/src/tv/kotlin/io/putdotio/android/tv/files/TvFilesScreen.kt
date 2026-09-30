@@ -772,6 +772,7 @@ private fun TvFilesPaging(
     paging: FilesPaging,
     enabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Boolean,
+    modifier: Modifier = Modifier,
     buttonModifier: Modifier = Modifier,
 ) {
     // One button across every paging phase, so the node that holds focus survives the
@@ -783,7 +784,7 @@ private fun TvFilesPaging(
         FilesPaging.Complete -> null
     } ?: return
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),

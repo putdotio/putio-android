@@ -1,3 +1,4 @@
+import com.android.build.api.variant.HostTestBuilder
 import java.io.File
 import java.util.Properties
 
@@ -62,6 +63,9 @@ android {
 
         create("production") {
             dimension = "channel"
+            // `lint` checks only the default variant; without this AGP picks
+            // mobileNightlyDebug.
+            isDefault = true
         }
 
         // Play internal/closed tracks ship nightly; the public listing keeps
@@ -118,7 +122,7 @@ android {
                 // proof stays on scripts/prove.sh with the reusable AVDs.
                 create("ciPhone") {
                     device = "Pixel 7"
-                    apiLevel = 36
+                    apiLevel = 37
                     systemImageSource = "google"
                     testedAbi = "x86_64"
                 }
@@ -133,22 +137,55 @@ android {
 
 val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDesignTokens") {
     tokensFile.set(rootProject.layout.projectDirectory.file("design/tokens.dtcg.json"))
-    designVersion.set("3.3.0")
+    designVersion.set(
+        providers.fileContents(rootProject.layout.projectDirectory.file("design/putio-design.lock.json"))
+            .asText
+            .map { lock ->
+                val version = ((groovy.json.JsonSlurper().parseText(lock) as? Map<*, *>)?.get("package") as? Map<*, *>)
+                    ?.get("version") as? String
+                checkNotNull(version) { "design/putio-design.lock.json has no package.version" }
+            },
+    )
     outputDir.set(layout.buildDirectory.dir("generated/designTokens/kotlin"))
 }
 
+val launchSmokeTest = "io.putdotio.android.LaunchSmokeTest#shellLaunchesStaysResumedAndRenders"
+
 for (surface in listOf("Mobile", "Tv")) {
-    tasks.register<VerifyLaunchProofTask>("verify${surface}LaunchProof") {
+    tasks.register<VerifyInstrumentationProofTask>("verify${surface}LaunchProof") {
         group = "verification"
         description = "Require a successful ${surface.lowercase()} launch smoke test result"
         dependsOn("connected${surface}ProductionDebugAndroidTest")
         resultsDirectory.set(layout.buildDirectory.dir(
             "outputs/androidTest-results/connected/debug/flavors/${surface.lowercase()}Production",
         ))
+        requiredTest.set(launchSmokeTest)
+    }
+}
+
+// Emulator smoke workflow: one invocation per suite, each gated on its own XML result.
+mapOf(
+    "Launch" to launchSmokeTest,
+    "OAuth" to "io.putdotio.android.auth.StaleOAuthCallbackTest#" +
+        "staleCallbackPreservesNewerAttemptAndMatchingMalformedCallbackConsumesIt",
+).forEach { (suite, test) ->
+    tasks.register<VerifyInstrumentationProofTask>("verifyCiPhone${suite}Proof") {
+        group = "verification"
+        description = "Require a successful $test result on the ciPhone managed device"
+        dependsOn("ciPhoneMobileProductionDebugAndroidTest")
+        resultsDirectory.set(layout.buildDirectory.dir(
+            "outputs/androidTest-results/managedDevice/debug/flavors/mobileProduction/ciPhone",
+        ))
+        requiredTest.set(test)
     }
 }
 
 androidComponents {
+    // Nightly adds resources only, so its unit tests would rerun production's.
+    beforeVariants(selector().withFlavor("channel" to "nightly")) { variant ->
+        variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+    }
+
     onVariants { variant ->
         variant.sources.kotlin?.addGeneratedSourceDirectory(
             generateDesignTokens,
@@ -176,17 +213,20 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
+    // Both surfaces stream through ExoPlayer and draw subtitles (text and bitmap) with media3-ui's
+    // SubtitleView; mobile adds downloads, the media session and its controls.
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.exoplayer.hls)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.ui.compose)
     implementation(libs.androidx.tv.material)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.putio.sdk.kotlin)
 
     add("mobileImplementation", libs.androidx.browser)
-    add("mobileImplementation", libs.androidx.media3.exoplayer)
-    add("mobileImplementation", libs.androidx.media3.exoplayer.hls)
     add("mobileImplementation", libs.androidx.media3.database)
     add("mobileImplementation", libs.androidx.media3.datasource.okhttp)
     add("mobileImplementation", libs.androidx.media3.session)
-    add("mobileImplementation", libs.androidx.media3.ui)
     add("mobileImplementation", libs.androidx.media3.ui.compose.material3)
     add("mobileImplementation", libs.androidx.navigation.compose)
     add("mobileImplementation", libs.coil.compose)

@@ -26,7 +26,7 @@ rest.
 | Machine provides | How |
 | --- | --- |
 | JDK 21 on PATH | `.java-version` pins 21; `mise install` or `brew install temurin@21` |
-| `python3` on PATH | macOS ships it with the Xcode Command Line Tools; `verify` runs the icon pipeline through it |
+| `python3` on PATH | macOS ships it with the Xcode Command Line Tools; `verify` runs the icon and design asset pipelines through it |
 | Homebrew (macOS) | only needed if Android cmdline-tools are absent |
 | Network | first bootstrap downloads several GB of SDK packages plus FFmpeg |
 
@@ -53,20 +53,27 @@ SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
 ./gradlew :app:assembleTvProductionDebug      # Android TV debug APK
 ```
 
-The root [`verify` task](./build.gradle.kts) runs `:app:check` (Android Lint
-with warnings as errors, detekt, JVM unit tests), an unsigned minified
-`mobileProductionRelease` build that proves the composite Kotlin SDK against
-R8, the instrumentation APK compile, the Phosphor icon lock check, and the
-shell and Python contract tests; those need `python3`, `bash`, and `ffprobe`
-on PATH. It also runs the tests of the [`build-logic`](./build-logic) included
-build, which owns the design-token codegen and host proof task classes. Fix
-findings at the source; suppress only with a comment stating the platform
-constraint.
+The root [`verify` task](./build.gradle.kts) runs Android Lint with warnings
+as errors on `mobileProductionDebug` and `tvProductionDebug`, detekt, and the
+production debug JVM unit tests; nightly adds resources only, so its unit-test
+variants are disabled. Unsigned minified `mobileProductionRelease`,
+`tvProductionRelease`, and `tvNightlyRelease` builds prove the composite
+Kotlin SDK, resource shrinking, and `lintVital` against R8 for each surface and
+channel. It also compiles the instrumentation APK, checks the Phosphor icon and
+design asset locks, and runs the shell and Python contract tests; those need
+`python3`, `bash` (3.2 or newer, so macOS `/bin/bash` works), and `ffprobe` on
+PATH. The contract tests fake the SDK and console-port probe and give nested
+proof builds their own temp directory for the serial lock, so they pass beside
+running emulators, real proofs, and parallel checkouts. It also runs the tests
+of the
+[`build-logic`](./build-logic) included build, which owns the design-token
+codegen and host proof task classes. Fix findings at the source; suppress only
+with a comment stating the platform constraint.
 
 Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
 `nightly`); [app/build.gradle.kts](./app/build.gradle.kts) owns the application
 ids. Nightly carries its own id, label, and the stars launcher icon
-(`scripts/generate-nightly-icon.sh`); Play internal/closed tracks ship nightly,
+(`scripts/sync-design-assets.sh`); Play internal/closed tracks ship nightly,
 the public listing keeps production. Harness launch proof uses debug builds,
 `io.put.putio.mobile.debug` and `io.put.putio.debug` for production. Nothing in
 the harness needs release credentials.
@@ -74,9 +81,12 @@ the harness needs release credentials.
 ## Design system
 
 The theme is a tier-2 binding of putio-design (Material 3 + tokens, dark
-only). `design/tokens.dtcg.json` is vendored from `@putdotio/design`;
-`:app:generateDesignTokens` (`build-logic`) generates `PutioDesignTokens.kt` with
-the color schemes; never hand-write colors. See `design/README.md`.
+only). `design/putio-design.lock.json` pins the `@putdotio/design` npm release
+by version and SHA-512 SRI; `scripts/sync-design-assets.sh` fetches it and
+writes `design/tokens.dtcg.json` and the nightly launcher icons, and `verify`
+checks both against the lock offline. `:app:generateDesignTokens`
+(`build-logic`) generates `PutioDesignTokens.kt` with the color schemes and TV
+overscan ratios; never hand-write design values. See `design/README.md`.
 Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 
 ## CI
@@ -85,7 +95,9 @@ Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 all four debug flavor assembles on every PR and push to main. Failed runs keep
 unit-test JUnit XML, including assertion diagnostics the job log omits, as the
 `failed-unit-test-reports` artifact; manual dispatches also upload the debug
-APKs. CI checks out the public `putio-sdk-kotlin` as a
+APKs. A new push to a pull request cancels its running check; `main` pushes
+and manual dispatches never cancel or replace one another, so every `main`
+commit gets a verdict. CI checks out the public `putio-sdk-kotlin` as a
 sibling without credentials and holds no secrets.
 
 Both CI workflows record the app and SDK checkout SHAs and the app commit's
@@ -124,7 +136,9 @@ modifications with a failure report; SHA pairs describe only committed source.
 
 [Emulator smoke](./.github/workflows/emulator-smoke.yml) runs weekly and on
 dispatch: `LaunchSmokeTest` and the credential-free `StaleOAuthCallbackTest` on
-the `ciPhone` Gradle Managed Device. It is deliberately not a PR gate:
+the `ciPhone` Gradle Managed Device (API 37). Each suite runs through
+`verifyCiPhoneLaunchProof` or `verifyCiPhoneOAuthProof`, which fail unless that
+test's own XML result passed. It is deliberately not a PR gate:
 shared-runner emulator boots are too slow and flaky to block merges, so
 `scripts/prove.sh` stays the local proof.
 

@@ -59,6 +59,7 @@ import io.putdotio.android.history.HistoryState
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
+import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.files.tvMessage
 import java.time.Clock
 import java.time.Instant
@@ -142,7 +143,7 @@ internal fun TvHistoryScreen(
     ) {
         TvHistoryHeader(
             onClear = { onEvent(HistoryEvent.RequestClear) },
-            modifier = owner.section(clearFocus).focusRequester(clearFocus),
+            modifier = Modifier.paneSection(owner, clearFocus).focusRequester(clearFocus),
         )
         if (notice != null) {
             Text(
@@ -177,7 +178,7 @@ internal fun TvHistoryScreen(
                     message = stringResource(content.failure.tvMessage()),
                     action = stringResource(R.string.tv_files_retry),
                     onAction = { onEvent(HistoryEvent.Retry) },
-                    modifier = owner.section(retryFocus).weight(1f),
+                    modifier = Modifier.paneSection(owner, retryFocus).weight(1f),
                     actionFocus = retryFocus,
                     claimFocus = paneHasFocus.value,
                 )
@@ -329,7 +330,7 @@ private fun TvHistoryList(
         state = listState,
         modifier = modifier
             .fillMaxWidth()
-            .then(owner.section(listFocus))
+            .paneSection(owner, listFocus)
             .focusRequester(listFocus)
             .focusRestorer {
                 val lastComposed = listState.layoutInfo.visibleItemsInfo.any { it.key == entries.last().key }
@@ -416,6 +417,7 @@ private fun TvHistoryPaging(
     paging: HistoryPaging,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
     buttonModifier: Modifier = Modifier,
 ) {
     // One button across every paging phase, so the node that holds focus survives the
@@ -427,7 +429,7 @@ private fun TvHistoryPaging(
         HistoryPaging.Complete -> null
     } ?: return
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),

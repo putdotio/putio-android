@@ -76,7 +76,7 @@ and retained player-error recovery bypass the prompt. Start over starts locally
 at zero; it does not immediately reset the server position.
 
 One observer belongs to each actual player: the private video owner or the audio
-service. Screens and notification controllers do not duplicate audio reporting.
+service on mobile, the player screen on TV. Screens and notification controllers do not duplicate audio reporting.
 The observer samples advancing playback every 15 seconds and captures positive
 positions on pause, stop, end, error, item replacement and owner exit. Buffering
 and same-item seek events do not send immediate writes. The application writer
@@ -96,8 +96,85 @@ An authoritative authentication failure from a position write expires only the
 session that issued it. Rejection runs outside the cancellable reporting job,
 and checks the session identity again under the authentication controller's lock.
 
-Tests: `PlaybackPositionWriterTest`, `MobilePlayerPositionObserverTest`,
+Tests: `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
 `MobilePlaybackReportingTest`, `MobileResumePlaybackDialogTest`.
+
+## TV playback
+
+Center on a Files media row resolves it through the shared
+`PlaybackController` and `SdkPlaybackRepository`, which asks for HLS or MP4
+per the account's confirmed video playback type (HLS until it loads), and
+plays it full-screen on a Media3 ExoPlayer the screen owns and releases. The
+player replaces the signed-in shell instead of covering it, so no shell control
+can take D-pad focus; the shell's saved state is kept, and Back returns focus to
+the row that was playing. Playback belongs to the session: sign-out ends it.
+
+The overlay shows the raw file name, the option buttons, a seek bar, position
+and duration. Any key reveals it for three seconds of playback; it stays while
+paused, scrubbing or picking. The seek bar shows where playback starts before
+the stream reports its duration, using the listing's duration until then. Center, Enter or the remote's play/pause key toggles playback, and
+leaving the app pauses it and shows the paused controls. If the activity is
+recreated (a remote or keyboard connecting, a locale change), playback
+continues paused from where it stopped.
+
+Left, Right, rewind and fast-forward scrub, as the RN player did: the first
+press pauses and the seek bar shows a pending target. Each press moves it
+15 s times the press count, which grows while presses come within 500 ms
+and restarts at one after a gap. A held key counts one press every 300 ms.
+The target stays within the media. Center, Enter or play/pause seeks there and
+plays; the dedicated play or pause key drops the target instead.
+
+Above the seek bar sit the RN player's option buttons (putio-web `apps/tv-native`
+`VideoPlayer.android.tsx`): Language only with more than one audio track,
+Subtitles only with a subtitle track, and Speed always. Up from the seek bar
+reaches the first button, Left and Right walk them, Down returns, and a
+button's name shows above it while focused. Left and Right scrub only on the
+seek bar; rewind and fast-forward scrub from anywhere and pull focus back to it.
+Center opens the button's centred picker with focus on the current choice:
+Audio tracks, Subtitles (Off, then the tracks) or Playback speed (0.25× to 2×
+in quarter steps). A track shows its name, else its language; MP4 subtitles read
+`LANGUAGE - name`, as the RN player relabelled its sidecar tracks. Speed and
+audio start over with each file. Choices survive a rebuilt player.
+
+Subtitles start from the account's settings, as on mobile: hidden with
+`hide_subtitles`, forced tracks only with `dont_autoselect_subtitles`, otherwise
+selected automatically. Once the viewer picks, the pick decides (#45): a picked
+track is found again after track changes, and Off keeps the text type disabled
+and draws nothing, whatever cues the renderer last delivered, across seeks and
+track changes. Cues, bitmap (PGS) ones included, draw with the system caption
+style through the same overlay as mobile.
+
+Back dismisses the topmost layer (#9): an open picker first (no change; focus
+back on its button), then seek mode (no seek; playback resumes only if the
+scrub paused it), then the controls (pause state untouched; they come back on
+the seek bar), and only then leaves playback, once. A held Back is one press.
+
+Resume follows the shared rule above (`use_start_from` on, a positive saved
+position, a fresh resolution) and asks before the player exists, as the RN
+player did: a centred dialog with the raw file name, a progress bar and
+stacked Continue playing from `mm:ss` and Start from the beginning buttons.
+Continue takes focus; the bar previews where the focused choice starts. Back
+continues from the saved position and stays in playback (the RN prompt had
+no Back of its own and left). The dialog needs the listing's duration; without
+one the saved position is continued without asking, as the RN player did.
+
+TV writes positions back through the same writer and observer as mobile,
+owned by the signed-in session: a 15 s sample while playing plus pause, stop,
+end, error and leaving playback, never a write per progress tick. Writes need
+the session to still be the signed-in one and the confirmed resume setting on;
+a source resolved with it off gets no lease. A player rebuilt for the same
+playback (activity recreation) keeps its lease, so the old player's exit write
+still lands. A saved position updates the Files row. A 401 from a write rejects
+the session that issued it; sign-out discards pending writes.
+
+Conversion and failed resolutions show a status screen with Check again or Try
+again, unsupported files a plain status screen as on mobile, and a player error
+keeps its position for the retry. The media session is a later #34 layer.
+
+Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlayerOptionsTest`,
+`TvPlayerTracksTest`, `TvPlaybackReportingTest`, `TvSessionViewModelTest`,
+`PlaybackPositionObserverTest`, `PlaybackExoPlayerTest`,
+`PlaybackSubtitleSelectionTest`, `PlaybackAudioSelectionTest`.
 
 ## Share-in
 
@@ -121,10 +198,11 @@ Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest`,
 
 ## Share-out
 
-Share file (Files and Downloads action sheets, non-folder items only) starts a
+Share file (Files and Downloads action sheets, non-folder items only, in both
+the phone and the tablet rail layout) starts a
 foreground `dataSync` service that fetches the original file through the API
 download endpoint with the session header, stores it under private
-`files/shares/<fileId>/<name>`, and opens the system chooser with a
+`files/shares/<process>/<session>/<fileId>/<name>`, and opens the system chooser with a
 `FileProvider` content URI (`${applicationId}.share`) carrying a read grant.
 The payload is the stream only: no text, subject or URL, so no token reaches the
 chooser. Progress and failure use the foreground notification, which the drawer
@@ -136,8 +214,29 @@ export and notification are dropped. Each export removes every earlier export
 first; a recipient still reading one keeps its open descriptor. Launch removes
 exports older than a day.
 
+An export belongs to the session that started it. Leaving that session, by
+sign-out or an authoritative rejection, cancels a running export, deletes the
+share folder and removes the notification; delivery checks the session again
+before opening the chooser, so a resume that races a sign-out shares nothing.
+The process-wide auth runtime owns this cleanup, so it also runs with no UI,
+and a launch whose restore ends signed out deletes exports an earlier process
+left. Session ids restart in every process, so exports sit under a per-process
+folder, and every session exit also deletes the folders earlier processes left:
+signing out of a restored session removes the previous process's exports too.
+That cleanup can run after the next session has already started and exported,
+so within this process it deletes only the departed session's folder. Cancelling an
+export cancels its download at once, even mid-read.
+The stored name keeps the original readable but drops path separators, control
+and bidi formatting characters (which could disguise the extension), and is cut
+to 200 UTF-8 bytes on a code-point boundary, keeping a short extension.
+
 Tests: `MobileFileShareServiceTest` (payload shape, ready notification, service
-stop rules, name sanitizer).
+stop rules, session exit, ready timeout, prior-export wipe, failure notification,
+name sanitizer, all on virtual time with a fake download source),
+`MobileOAuthRuntimeTest` (session-exit cleanup that lags the next sign-in keeps
+the next session's export; signing out of a restored session deletes an earlier
+process's export), `MobileShellTest` (Share on file rows in the phone and rail
+layouts).
 
 ## Deep links
 
@@ -196,6 +295,21 @@ Tests: `DownloadsControllerTest` (intents, progress polling while shown),
 close before reconcile, in-memory progress against a real Media3 manager),
 `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`.
+
+## TV overscan safe area
+
+The signed-in TV shell paints its background to the screen edges and keeps
+the drawer and pane inside the overscan safe area: `tv.overscan.x` of the
+viewport width on the left and right, `tv.overscan.y` of its height on the top
+and bottom (4% and 2% in `@putdotio/design` 3.3.0). The fractions are generated
+from the token graph and applied to whatever viewport the shell fills, so 720p,
+1080p and 4K panels keep the same proportion clear. The pane adds 16dp from the
+drawer and the safe edges. The player's control scrim also reaches the screen
+edges, with its controls inset by the same safe area plus 16dp.
+
+Tests: `TvSafeAreaTest` (collapsed and expanded drawer; 960x540dp and
+1280x720dp viewports; a 4K xxxhdpi panel), `DesignTokenCodegenTest` (overscan
+ratios, axis and presence checks).
 
 ## Transfers polling
 

@@ -40,8 +40,9 @@ import io.putdotio.android.tv.auth.TvAccount
  * re-entry the drawer restores focus to the item that last held it, and on
  * first entry to the selected destination.
  *
- * The pane inset is the tv token group's overscan (4% x 2% of a 1920x1080
- * canvas, halved for xhdpi: 38dp x 11dp) plus one `space.sm` step (16dp).
+ * The background reaches the screen edges; the drawer and pane sit inside the
+ * overscan safe area ([tvOverscanPadding]), and the pane adds one `space.sm`
+ * step (16dp) from the drawer and the safe edges.
  */
 @Composable
 internal fun TvShell(
@@ -69,7 +70,8 @@ internal fun TvShell(
     NavigationDrawer(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+            .background(MaterialTheme.colorScheme.background)
+            .tvOverscanPadding(),
         drawerContent = {
             Column(
                 modifier = Modifier
@@ -108,7 +110,7 @@ internal fun TvShell(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = OVERSCAN_X + PANE_INSET, vertical = OVERSCAN_Y + PANE_INSET),
+                .padding(PANE_INSET),
         ) {
             when (destination) {
                 TvDestination.Files -> filesPane(paneFocus)
@@ -189,6 +191,4 @@ private fun PaneTitle(text: String) {
 
 /** Full-width rows scale less than compact surfaces so they stay inside the safe area. */
 internal const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
-private val OVERSCAN_X = 38.dp
-private val OVERSCAN_Y = 11.dp
-private val PANE_INSET = 16.dp
+internal val PANE_INSET = 16.dp

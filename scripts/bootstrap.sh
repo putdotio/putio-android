@@ -85,8 +85,8 @@ if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; 
       apt_prefix=(sudo)
     fi
     log "installing ffmpeg for evidence verification"
-    "${apt_prefix[@]}" apt-get update
-    "${apt_prefix[@]}" apt-get install -y ffmpeg
+    ${apt_prefix[@]+"${apt_prefix[@]}"} apt-get update
+    ${apt_prefix[@]+"${apt_prefix[@]}"} apt-get install -y ffmpeg
   else
     die "ffmpeg missing; install it with your system package manager and re-run"
   fi
@@ -102,8 +102,8 @@ if ! command -v lsof >/dev/null 2>&1; then
       apt_prefix=(sudo)
     fi
     log "installing lsof for emulator port discovery"
-    "${apt_prefix[@]}" apt-get update
-    "${apt_prefix[@]}" apt-get install -y lsof
+    ${apt_prefix[@]+"${apt_prefix[@]}"} apt-get update
+    ${apt_prefix[@]+"${apt_prefix[@]}"} apt-get install -y lsof
   else
     die "lsof missing; install it with your system package manager and re-run"
   fi

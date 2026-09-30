@@ -89,7 +89,6 @@ import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.pendingDelete
 import io.putdotio.android.files.pendingMove
-import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -144,6 +143,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.subtitleStartupPolicy
 
 internal const val MOBILE_NAV_BAR_TAG = "mobile-navigation-bar"
 internal const val MOBILE_NAV_RAIL_TAG = "mobile-navigation-rail"
@@ -1006,9 +1007,9 @@ private fun PhoneShell(
     filesState: FilesBrowserState,
     filesRepository: FilesRepository?,
     trashController: TrashController?,
-    downloadsController: DownloadsController? = null,
-    downloadsState: DownloadsState = DownloadsState(),
-    onShareItem: ((FilesItem) -> Unit)? = null,
+    downloadsController: DownloadsController?,
+    downloadsState: DownloadsState,
+    onShareItem: ((FilesItem) -> Unit)?,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -1020,11 +1021,7 @@ private fun PhoneShell(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
-    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
-        AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
-        )
-    },
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     onFilesAuthenticationRequired: suspend () -> Unit,
@@ -1111,9 +1108,9 @@ private fun TabletShell(
     filesState: FilesBrowserState,
     filesRepository: FilesRepository?,
     trashController: TrashController?,
-    downloadsController: DownloadsController? = null,
-    downloadsState: DownloadsState = DownloadsState(),
-    onShareItem: ((FilesItem) -> Unit)? = null,
+    downloadsController: DownloadsController?,
+    downloadsState: DownloadsState,
+    onShareItem: ((FilesItem) -> Unit)?,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -1125,11 +1122,7 @@ private fun TabletShell(
     sessionId: MobileAuthSessionId,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
-    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
-        AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
-        )
-    },
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     onPlaybackAuthenticationRequired: suspend () -> Unit,
     onFilesAuthenticationRequired: suspend () -> Unit,
@@ -1180,6 +1173,7 @@ private fun TabletShell(
                 trashController = trashController,
                 downloadsController = downloadsController,
                 downloadsState = downloadsState,
+                onShareItem = onShareItem,
                 accountSettingsState = accountSettingsState,
                 appConfigState = appConfigState,
                 searchHistoryState = searchHistoryState,
@@ -1319,15 +1313,11 @@ private fun MobileNavHost(
     searchHistoryActions: MobileSearchHistoryActions,
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: () -> Unit,
+    downloadsController: DownloadsController?,
+    downloadsState: DownloadsState,
+    onShareItem: ((FilesItem) -> Unit)?,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
     modifier: Modifier = Modifier,
-    downloadsController: DownloadsController? = null,
-    downloadsState: DownloadsState = DownloadsState(),
-    onShareItem: ((FilesItem) -> Unit)? = null,
-    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
-        AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
-        )
-    },
     deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
@@ -1433,10 +1423,7 @@ private fun MobileNavHost(
             val mediaType =
                 PlaybackMediaType.entries.firstOrNull { it.name == backStackEntry.arguments?.getString("media") }
                     ?: PlaybackMediaType.VIDEO
-            val subtitleStartupPolicy =
-                (accountSettingsState.content as? AccountSettingsContent.Ready)
-                    ?.preferences
-                    ?.let { SubtitleStartupPolicy(it.showSubtitles, it.autoSelectSubtitles) }
+            val subtitleStartupPolicy = accountSettingsState.subtitleStartupPolicy()
             val target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name, mediaType)
             val playbackViewModel: MobilePlaybackViewModel =
                 viewModel(

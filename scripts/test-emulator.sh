@@ -42,7 +42,7 @@ cleanup() {
       echo "emulator contract cleanup failed: owned fake emulator ${pid} survived" >&2
       cleanup_failed=1
     fi
-  done < "${state}/emulator-pids" 2>/dev/null || true
+  done 2>/dev/null < "${state}/emulator-pids" || true
   if [[ "${cleanup_failed}" == "1" ]]; then
     echo "preserving failed cleanup state at ${tmpdir}" >&2
     return 1
@@ -72,26 +72,48 @@ trap 'handle_signal 130' INT
 trap 'handle_signal 143' TERM
 
 mkdir -p \
+  "${tmpdir}/bin" \
   "${fake_sdk}/platform-tools" \
   "${fake_sdk}/emulator" \
   "${fake_sdk}/cmdline-tools/latest/bin" \
   "${state}/avds"
 export ANDROID_HOME="${fake_sdk}"
 export FAKE_STATE_DIR="${state}"
+# Console port probing must see only fake state, never emulators on this host.
+export PATH="${tmpdir}/bin:${PATH}"
+: > "${state}/listening-ports"
+printf '5554\n' > "${state}/port"
+
+cat > "${tmpdir}/bin/lsof" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+port=""
+for arg in "$@"; do
+  case "${arg}" in -iTCP:*) port="${arg#-iTCP:}" ;; esac
+done
+[[ -n "${port}" ]] || { echo "unexpected fake lsof call: $*" >&2; exit 2; }
+grep -Fxq "${port}" "${FAKE_STATE_DIR:?}/listening-ports"
+EOF
 
 cat > "${fake_sdk}/platform-tools/adb" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 state="${FAKE_STATE_DIR:?}"
 printf '%s\n' "$*" >> "${state}/adb-calls"
+# The one fake emulator answers only on the console port it was launched with.
+serial="emulator-$(<"${state}/port")"
 
 if [[ "$*" == "devices" ]]; then
   echo "List of devices attached"
   case "$(<"${state}/running")" in
-    1) printf 'emulator-5554\tdevice\n' ;;
-    offline) printf 'emulator-5554\toffline\n' ;;
+    1) printf '%s\tdevice\n' "${serial}" ;;
+    offline) printf '%s\toffline\n' "${serial}" ;;
   esac
   exit 0
+fi
+if [[ "${1:-}" == "-s" && "${2:-}" != "${serial}" ]]; then
+  echo "adb: device '${2:-}' not found" >&2
+  exit 1
 fi
 
 case "$*" in
@@ -188,7 +210,7 @@ if [[ "${1:-} ${2:-}" == "create avd" ]]; then
   printf '%s\n' "${name}" > "${state}/name"
   registered_image="$(cat "${state}/create-image-override" 2>/dev/null || true)"
   [[ -n "${registered_image}" ]] || registered_image="${image}"
-  printf 'image.sysdir.1=%s/\n' "${registered_image//;/\/}" > "${avds}/${name}/config.ini"
+  printf 'image.sysdir.1=%s/\n' "$(tr ';' '/' <<<"${registered_image}")" > "${avds}/${name}/config.ini"
   exit 0
 fi
 
@@ -204,6 +226,7 @@ name=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -avd) name="${2:?}"; shift ;;
+    -port) printf '%s\n' "${2:?}" > "${state}/port"; shift ;;
   esac
   shift
 done
@@ -217,6 +240,7 @@ while true; do sleep 1; done
 EOF
 
 chmod +x \
+  "${tmpdir}/bin/lsof" \
   "${fake_sdk}/platform-tools/adb" \
   "${fake_sdk}/cmdline-tools/latest/bin/avdmanager" \
   "${fake_sdk}/emulator/emulator"
@@ -239,7 +263,8 @@ reset_avd() {
   mkdir -p "${state}/avds/${name}"
   printf '%s\n' "${name}" > "${state}/name"
   printf '%s\n' "${running}" > "${state}/running"
-  printf 'image.sysdir.1=%s/\n' "${image//;/\/}" > "${state}/avds/${name}/config.ini"
+  printf '5554\n' > "${state}/port"
+  printf 'image.sysdir.1=%s/\n' "$(tr ';' '/' <<<"${image}")" > "${state}/avds/${name}/config.ini"
   : > "${state}/avd-operations"
   : > "${state}/adb-calls"
 }
@@ -311,7 +336,7 @@ grep -Fq "explicitly run scripts/emulator.sh stop phone, then scripts/emulator.s
 [[ ! -s "${state}/avd-operations" ]] || fail "unknown AVD image refusal mutated state"
 
 reset_avd "${PHONE_AVD}" "${target_image}" 0
-printf 'image.sysdir.1=%s/\n' "${non_play_image//;/\/}" >> \
+printf 'image.sysdir.1=%s/\n' "$(tr ';' '/' <<<"${non_play_image}")" >> \
   "${state}/avds/${PHONE_AVD}/config.ini"
 if "${REPO_ROOT}/scripts/emulator.sh" create phone >"${mismatch_out}" 2>&1; then
   fail "AVD with duplicate image metadata passed provisioning"
@@ -623,5 +648,19 @@ if grep -Eq 'ro\.build\.version\.sdk|com\.android\.chrome' "${state}/adb-calls";
 fi
 "${REPO_ROOT}/scripts/emulator.sh" stop google-tv >/dev/null 2>&1 || fail "could not stop the Google TV emulator"
 [[ "$(<"${state}/running")" == "0" ]] || fail "Google TV stop left its emulator running"
+
+# A console port held by another emulator is skipped.
+for attempt in {1..100}; do
+  [[ ! -f "${state}/emulator-pid" ]] && break
+  sleep 0.02
+done
+[[ ! -f "${state}/emulator-pid" ]] || fail "fake Google TV emulator did not finish stopping"
+printf '5554\n' > "${state}/listening-ports"
+google_tv_serial="$(PUTIO_EMULATOR_BOOT_TIMEOUT=10 "${REPO_ROOT}/scripts/emulator.sh" boot google-tv --headless 2>"${google_tv_out}")" || \
+  fail "Google TV AVD did not boot beside a busy console port"
+[[ "${google_tv_serial}" == "emulator-5556" && "$(<"${state}/port")" == "5556" ]] || \
+  fail "busy console port 5554 was not skipped (printed '${google_tv_serial}')"
+"${REPO_ROOT}/scripts/emulator.sh" stop google-tv >/dev/null 2>&1 || fail "could not stop the Google TV emulator"
+[[ "$(<"${state}/running")" == "0" ]] || fail "Google TV stop missed the emulator on port 5556"
 
 echo "emulator contract tests passed"

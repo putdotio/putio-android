@@ -41,26 +41,38 @@ internal class TvPaneFocusOwner(
      */
     val refocusRequests: State<Int> = mutableRefocusRequests
 
+    /** Records that the section behind [requester] holds focus, making it the entry point. */
+    fun enter(requester: FocusRequester) {
+        entryTarget.value = requester
+    }
+
     /**
-     * Tracks focus for a section; the requester itself is attached where focus should land.
-     * When the section leaves composition while it is the entry point, [fallback] (or the
-     * pane's home) becomes the entry point and a refocus is requested if the pane had focus.
+     * Hands the entry point to [fallback] (or the pane's home) when the leaving section holds
+     * it, and requests a refocus if the pane had focus.
      */
-    @Composable
-    fun section(
-        requester: FocusRequester,
-        fallback: (() -> FocusRequester)? = null,
-    ): Modifier {
-        DisposableEffect(requester) {
-            onDispose {
-                if (entryTarget.value === requester) {
-                    entryTarget.value = fallback?.invoke() ?: home()
-                    if (paneHasFocus.value) mutableRefocusRequests.intValue += 1
-                }
-            }
+    fun leave(requester: FocusRequester, fallback: (() -> FocusRequester)?) {
+        if (entryTarget.value === requester) {
+            entryTarget.value = fallback?.invoke() ?: home()
+            if (paneHasFocus.value) mutableRefocusRequests.intValue += 1
         }
-        return Modifier.onFocusChanged { if (it.hasFocus) entryTarget.value = requester }
     }
 
     fun focusEntry() = entryTarget.value.requestFocus()
+}
+
+/**
+ * Tracks focus for a section of [owner]'s pane; the requester itself is attached where focus
+ * should land. When the section leaves composition while it is the entry point, [fallback] (or
+ * the pane's home) becomes the entry point and a refocus is requested if the pane had focus.
+ */
+@Composable
+internal fun Modifier.paneSection(
+    owner: TvPaneFocusOwner,
+    requester: FocusRequester,
+    fallback: (() -> FocusRequester)? = null,
+): Modifier {
+    DisposableEffect(requester) {
+        onDispose { owner.leave(requester, fallback) }
+    }
+    return onFocusChanged { if (it.hasFocus) owner.enter(requester) }
 }

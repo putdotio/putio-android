@@ -53,6 +53,10 @@ import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
+import io.putdotio.android.playback.SubtitleTrackIdentity
+import io.putdotio.android.playback.playbackSubtitleTracks
+import io.putdotio.android.playback.AudioTrackIdentity
+import io.putdotio.android.playback.playbackAudioTracks
 
 /** Real video, tracks, cues, window rotation and insets; saved-state recreation uses the Compose test harness. */
 @RunWith(AndroidJUnit4::class)
@@ -111,12 +115,12 @@ class MobileFullscreenVideoProofTest {
             compose.onNodeWithText("Speed (1×)").performTouchInput { click() }
             screenshot("landscape-speed-sheet")
             compose.onNodeWithText("1.5×").performScrollTo().performTouchInput { click() }
-            val audio = compose.runOnIdle { factory.current().currentTracks.mobileAudioTracks()[1] }
+            val audio = compose.runOnIdle { factory.current().currentTracks.playbackAudioTracks()[1] }
             showControls()
             compose.onNodeWithText("Audio").performTouchInput { click() }
             screenshot("landscape-audio-sheet")
             compose.onNodeWithText(checkNotNull(audio.label)).performScrollTo().performTouchInput { click() }
-            val caption = compose.runOnIdle { factory.current().currentTracks.mobileSubtitleTracks().single() }
+            val caption = compose.runOnIdle { factory.current().currentTracks.playbackSubtitleTracks().single() }
             chooseCaption(checkNotNull(caption.label), captureSheet = true)
             awaitChoices(factory, audio.identity, caption.identity)
             showControls()
@@ -183,7 +187,7 @@ class MobileFullscreenVideoProofTest {
         awaitPlayer(factory) {
             it.playbackState == Player.STATE_READY && it.videoSize.width > it.videoSize.height &&
                 it.currentPosition > 500 && factory.renderedFrame &&
-                it.currentTracks.mobileAudioTracks().size == 2 && it.currentTracks.mobileSubtitleTracks().size == 1
+                it.currentTracks.playbackAudioTracks().size == 2 && it.currentTracks.playbackSubtitleTracks().size == 1
         }
     }
 
@@ -194,8 +198,8 @@ class MobileFullscreenVideoProofTest {
     ) {
         awaitPlayer(factory) { player ->
             player.playbackParameters.speed == 1.5f &&
-                player.currentTracks.mobileAudioTracks().any { it.identity == audio && it.selected } &&
-                player.currentTracks.mobileSubtitleTracks().any { it.identity == caption && it.selected } &&
+                player.currentTracks.playbackAudioTracks().any { it.identity == audio && it.selected } &&
+                player.currentTracks.playbackSubtitleTracks().any { it.identity == caption && it.selected } &&
                 player.currentCues.cues.any { it.text?.contains(CAPTION_TEXT) == true }
         }
     }

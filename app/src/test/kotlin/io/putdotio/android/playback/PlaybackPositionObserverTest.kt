@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import android.os.Bundle
 import android.os.Looper
@@ -26,14 +26,14 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 @UnstableApi
 @OptIn(ExperimentalCoroutinesApi::class)
-class MobilePlayerPositionObserverTest {
+class PlaybackPositionObserverTest {
     @Test
     fun briefBufferingDoesNotPostponePeriodicReportsIndefinitely() = runTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
         player.play()
         val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = MobilePlayerPositionObserver(player, backgroundScope) { lease, position ->
+        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
             snapshots += lease to position
         }
         runCurrent()
@@ -56,7 +56,7 @@ class MobilePlayerPositionObserverTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
         val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = MobilePlayerPositionObserver(player, backgroundScope) { lease, position ->
+        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
             snapshots += lease to position
         }
         advanceTimeBy(30_000L)
@@ -93,7 +93,7 @@ class MobilePlayerPositionObserverTest {
         player.replace("first", 12_000L)
         player.play()
         val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = MobilePlayerPositionObserver(player, backgroundScope) { lease, position ->
+        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
             snapshots += lease to position
         }
         player.position(23_000L)
@@ -121,7 +121,7 @@ class MobilePlayerPositionObserverTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
         val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = MobilePlayerPositionObserver(player, backgroundScope) { lease, position ->
+        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
             snapshots += lease to position
         }
         repeat(20) { player.seekTo((it + 1) * 1_000L) }
@@ -143,7 +143,7 @@ class MobilePlayerPositionObserverTest {
         val player = PositionPlayer()
         player.replace("first", 60_000L)
         val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = MobilePlayerPositionObserver(player, backgroundScope) { lease, position ->
+        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
             snapshots += lease to position
         }
         player.end()
@@ -163,7 +163,7 @@ class MobilePlayerPositionObserverTest {
         player.replace("first", 13_000L)
         player.play()
         val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = MobilePlayerPositionObserver(player, backgroundScope) { lease, position ->
+        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
             snapshots += lease to position
         }
         runCurrent()
