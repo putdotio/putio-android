@@ -485,25 +485,28 @@ class TvShellTest {
     }
 
     @Test
-    fun hardwareBackPopsTheFolderOnlyWhileFilesIsShowing() {
+    fun backPopsTheFolderOnlyWhileTheFilesPaneHasFocus() {
         val events = mutableListOf<FilesBrowserEvent>()
+        var exits = 0
         val nested = FilesBrowserState(
             stack = listOf(
-                FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "Movies")), FilesPaging.Complete)),
+                FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "Sample folder")), FilesPaging.Complete)),
                 FilesFolderState(
-                    FilesFolder(FilesItemId(1), "Movies"),
+                    FilesFolder(FilesItemId(1), "Sample folder"),
                     FilesContent.Ready(listOf(row(2, "inner.txt")), FilesPaging.Complete),
                 ),
             ),
             nextRequestValue = 10L,
         )
         compose.setContent {
+            // Registered first, so it stands in for the system leaving the app.
+            BackHandler { exits += 1 }
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvShell(
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
+                    onFilesBack = { events += FilesBrowserEvent.NavigateBack },
                     filesPane = { paneFocus ->
-                        BackHandler(enabled = nested.canNavigateBack) { events += FilesBrowserEvent.NavigateBack }
                         TvFilesScreen(
                             state = nested,
                             onEvent = { events += it; true },
@@ -516,29 +519,88 @@ class TvShellTest {
         }
         compose.onNodeWithContentDescription("inner.txt").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionLeft)
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
         }
-        compose.onNodeWithText("Sign out").assertIsFocused()
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
         assertEquals(emptyList<FilesBrowserEvent>(), events)
+        assertEquals(1, exits)
 
-        compose.onNodeWithText("Sign out").performKeyInput {
-            pressKey(Key.DirectionLeft)
-            pressKey(Key.DirectionUp)
-            pressKey(Key.DirectionUp)
-            pressKey(Key.DirectionUp)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithContentDescription("inner.txt").assertIsFocused()
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.NavigateBack), events)
+        assertEquals(1, exits)
+    }
+
+    @Test
+    fun backFromSearchHistoryAndAccountReturnsToTheFilesRowThatHeldFocus() {
+        val memory = mutableMapOf<Long, Long>()
+        var exits = 0
+        val files = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    folder = FilesFolder.Root,
+                    content = FilesContent.Ready(
+                        listOf(row(1, "first.txt"), row(2, "second.txt"), row(3, "third.txt")),
+                        FilesPaging.Complete,
+                    ),
+                ),
+            ),
+            nextRequestValue = 10L,
+        )
+        compose.setContent {
+            BackHandler { exits += 1 }
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                            focusMemory = memory,
+                        )
+                    },
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("first.txt").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+        }
+        // Back from the pane on Search, and from the drawer on History and Account. The drawer
+        // restores focus to its last focused item, so the next destination is one step down.
+        listOf(
+            Triple("Search", "Search your files from here.", false),
+            Triple("History", "Recent activity will show up here.", true),
+            Triple("Account", "Sign out", true),
+        ).zip(listOf("Files", "Search", "History")) { (destination, paneTarget, fromDrawer), drawerEntry ->
+            compose.onNodeWithContentDescription("third.txt").assertIsFocused().performKeyInput {
+                pressKey(Key.DirectionLeft)
+            }
+            compose.onNode(hasText(drawerEntry) and hasClickAction()).assertIsFocused().performKeyInput {
+                pressKey(Key.DirectionDown)
+                keyDown(Key.DirectionCenter)
+                keyUp(Key.DirectionCenter)
+            }
+            compose.onNodeWithText(paneTarget).assertIsFocused()
+            if (fromDrawer) {
+                compose.onNodeWithText(paneTarget).performKeyInput { pressKey(Key.DirectionLeft) }
+                compose.onNode(hasText(destination) and hasClickAction()).assertIsFocused()
+            }
+            compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+            compose.waitForIdle()
+            compose.onNodeWithContentDescription("third.txt").assertIsFocused()
+        }
+        assertEquals(0, exits)
+
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.waitForIdle()
+        assertEquals(1, exits)
     }
 
     private fun row(id: Long, name: String) = FilesItem(
@@ -784,6 +846,9 @@ class TvShellTest {
 
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.onNodeWithText("Manage your trash").assertIsFocused()
+
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused()
     }
 
     private fun readySettings() =

@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsFocused
@@ -85,8 +86,9 @@ import org.junit.runners.model.Statement
 
 /**
  * Controlled-state proof that a Search pick opens the item itself on the real signed-in TV
- * shell: fake repositories stand in for the account, the TV session and shell are the
- * production ones, and the player streams a caller-owned local fixture. No API calls.
+ * shell, and that Back returns to Files: fake repositories stand in for the account, the TV
+ * session and shell are the production ones, and the player streams a caller-owned local
+ * fixture. No API calls.
  */
 @RunWith(AndroidJUnit4::class)
 class TvExternalOpenProofTest {
@@ -168,7 +170,58 @@ class TvExternalOpenProofTest {
         screenshot("09-files-prior-location-kept")
     }
 
-    private fun mount(): TvSession {
+    @Test
+    fun backReturnsToFilesAndLeavesFromItsRootOrTheDrawer() {
+        var exits = 0
+        mount(onExit = { exits += 1 })
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithContentDescription("Open $FOLDER").assertIsFocused()
+        screenshot("10-files-row-focused")
+
+        // Back on Search and History from the drawer, and on Account from its pane.
+        listOf("Search", "History", "Account").forEachIndexed { index, destination ->
+            press(KeyEvent.KEYCODE_DPAD_LEFT)
+            repeat(index + 1) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+            press(KeyEvent.KEYCODE_DPAD_CENTER)
+            if (destination == "Account") {
+                compose.waitUntil(5_000) { compose.onAllNodesWithText("Choose your proxy").fetchSemanticsNodes().isNotEmpty() }
+                compose.onNodeWithText("Choose your proxy").assertIsFocused()
+            } else {
+                press(KeyEvent.KEYCODE_DPAD_LEFT)
+            }
+            screenshot("${11 + index * 2}-${destination.lowercase()}-before-back")
+            press(KeyEvent.KEYCODE_BACK)
+            compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+            screenshot("${12 + index * 2}-back-from-${destination.lowercase()}-on-files-row")
+            // The drawer returns to the destination it last left from; walk it back to Files.
+            press(KeyEvent.KEYCODE_DPAD_LEFT)
+            repeat(index + 1) { press(KeyEvent.KEYCODE_DPAD_UP) }
+            press(KeyEvent.KEYCODE_DPAD_RIGHT)
+            compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+        }
+        assertEquals(0, exits)
+
+        // Back on the drawer leaves the app without popping the folder behind it.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(FIRST_SCAN) }
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        press(KeyEvent.KEYCODE_BACK)
+        assertEquals(1, exits)
+        assertEquals(true, hasContentDescription(FIRST_SCAN))
+        screenshot("17-drawer-back-keeps-the-folder")
+
+        // From the pane, Back leaves the folder, then leaves the app from the Files root.
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+        assertEquals(1, exits)
+        screenshot("18-folder-popped-to-its-row")
+        press(KeyEvent.KEYCODE_BACK)
+        assertEquals(2, exits)
+    }
+
+    /** [onExit] stands in for the system leaving the app; it is registered before the shell. */
+    private fun mount(onExit: (() -> Unit)? = null): TvSession {
         val account = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true)
         val auth = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1)))
         lateinit var session: TvSession
@@ -176,6 +229,7 @@ class TvExternalOpenProofTest {
             session = checkNotNull(TvSessionViewModel(auth).sessionFor(account, TvAuthSessionId(1), dependencies()))
         }
         compose.setContent {
+            if (onExit != null) BackHandler(onBack = onExit)
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvSessionShell(
                     session = session,
@@ -207,7 +261,8 @@ class TvExternalOpenProofTest {
             // Listing a file returns it as the parent with its duration, as put.io does.
             video.id to FilesPage(emptyList(), null, parent = video.copy(playback = FilesPlaybackProgress(0.0, 90.0))),
         )
-        val source = localSource()
+        // Only the playback proof reads the fixture.
+        val source by lazy { localSource() }
         return TvSessionDependencies(
             filesRepository = ProofFilesRepository(listings),
             searchRepository = object : SearchRepository {
@@ -338,6 +393,7 @@ class TvExternalOpenProofTest {
         const val FOLDER = "Documents"
         const val VIDEO = "TV open proof.mp4"
         const val DOCUMENT = "notes.pdf"
+        const val FIRST_SCAN = "Scan 1.jpg"
         const val SAVED_SECONDS = 45.0
         const val CONTINUE_LABEL = "Continue playing from 00:45"
         const val MAX_STEPS = 8

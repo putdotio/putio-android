@@ -708,6 +708,16 @@ document in its folder, `07` back on the document result, `08` the folder,
 `09` Files still on Movies. Remove `/data/local/tmp/tv-open-proof.mp4`, the
 copied `tv-open-fixture.mp4` and the screenshot directory afterwards.
 
+`TvExternalOpenProofTest#backReturnsToFilesAndLeavesFromItsRootOrTheDrawer`
+proves [TV Back](./behavior.md#tv-back) on the same controlled shell and needs
+no fixture: Back on Search and History from the drawer and on Account from its
+pane lands on the focused Files row, Back on the drawer inside a folder leaves
+(a handler registered before the shell stands in for the system) with the
+folder still showing, and from the pane Back pops the folder, then leaves from
+the root. Run it with the same instrument command, selecting the method with
+`#` and dropping `-e putio.tv.open.fixture`. Screenshots `10`–`18` go to the
+same `tv-open-proof-<UUID>/` directory.
+
 ## TV History proof
 
 History is the third drawer destination. Focus enters on the first event row;

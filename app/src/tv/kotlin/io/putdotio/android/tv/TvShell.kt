@@ -1,5 +1,6 @@
 package io.putdotio.android.tv
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -40,6 +42,10 @@ import io.putdotio.android.tv.auth.TvAccount
  * re-entry the drawer restores focus to the item that last held it, and on
  * first entry to the selected destination.
  *
+ * Files is home. Back on another destination returns to Files, and Back on Files
+ * takes [onFilesBack] while the pane has focus; otherwise it falls through to the
+ * system and leaves the app. A pane's own Back (an overlay, a sub-screen) comes first.
+ *
  * The background reaches the screen edges; the drawer and pane sit inside the
  * overscan safe area ([tvOverscanPadding]), and the pane adds one `space.sm`
  * step (16dp) from the drawer and the safe edges.
@@ -56,8 +62,17 @@ internal fun TvShell(
     /** Set by a pane that wants another destination shown, such as Search opening a result in Files. */
     requestedDestination: TvDestination? = null,
     onDestinationRequestHandled: () -> Unit = {},
+    /** Files' own Back step, such as leaving a folder; null when Files has none. */
+    onFilesBack: (() -> Unit)? = null,
 ) {
     var destination by rememberSaveable { mutableStateOf(TvDestination.Files) }
+    var drawerHasFocus by remember { mutableStateOf(false) }
+    // Registered before any pane composes, so each pane's own Back handlers take precedence.
+    // Back with the drawer focused never pops a folder in the pane behind it.
+    BackHandler(enabled = destination != TvDestination.Files) { destination = TvDestination.Files }
+    BackHandler(enabled = destination == TvDestination.Files && onFilesBack != null && !drawerHasFocus) {
+        onFilesBack?.invoke()
+    }
     LaunchedEffect(requestedDestination) {
         if (requestedDestination != null) {
             destination = requestedDestination
@@ -80,6 +95,7 @@ internal fun TvShell(
                     // First entry lands on the selected destination; later entries return
                     // to whichever item was focused last.
                     .focusRestorer(selectedItemFocus)
+                    .onFocusChanged { drawerHasFocus = it.hasFocus }
                     .focusGroup(),
             ) {
                 Text(

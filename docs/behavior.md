@@ -432,6 +432,18 @@ a real Media3 manager),
 `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`.
 
+## TV Back
+
+Files is the TV home, as Home is in tv-native and tv-vite. Back on Search,
+History or Account returns to Files, focused on the row that last held focus
+there, once the pane's own layer (Trash under Account, the unsupported-file
+screen) has closed. Back on Files leaves a folder while the Files pane has
+focus; on the Files root, or with focus on the drawer, it falls through to the
+system and leaves the app without a confirmation, per Google's TV navigation
+guidance. Back on the drawer never pops a folder in the pane behind it.
+
+Tests: `TvShellTest`.
+
 ## TV overscan safe area
 
 The signed-in TV shell paints its background to the screen edges and keeps
