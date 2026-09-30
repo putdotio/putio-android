@@ -30,6 +30,19 @@ import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
 import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
+import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackEvent
+import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackResolution
+import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.sdk.files.PlaybackPreference
+import io.putdotio.sdk.files.PlaybackSource
+import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackSubtitles
+import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.android.trash.TrashBulkSelection
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashPage
@@ -62,6 +75,8 @@ class TvSessionViewModelTest {
     private val auth = MutableStateFlow<TvAuthState>(signedIn(1))
     private val stores = mutableListOf<FakeRecentSearchStore>()
     private val watched = FakeWatchedRepository()
+    private val playbackRepository = FakePlaybackRepository()
+    private var appConfigPreferences = AndroidAppConfigPreferences()
     private val dependencies = TvSessionDependencies(
         filesRepository = object : StubFilesRepository() {
             override suspend fun loadFolder(folderId: FilesItemId) =
@@ -81,7 +96,11 @@ class TvSessionViewModelTest {
         },
         trashRepository = StubTrashRepository,
         settingsRepository = StubAccountSettingsRepository,
-        appConfigRepository = StubAndroidAppConfigRepository,
+        appConfigRepository = object : AndroidAppConfigRepository {
+            override suspend fun load() = AndroidAppConfigRepositoryResult.Success(appConfigPreferences)
+
+            override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
+        },
         watchedRepository = watched,
         streamUrls = FilesStreamUrls { "https://api.put.io/v2/files/${it.value}/stream?oauth_token=t" },
         filesItemResolver = object : FilesItemResolver {
@@ -97,6 +116,7 @@ class TvSessionViewModelTest {
             )
         },
         recentSearchStore = { FakeRecentSearchStore().also { stores += it } },
+        playbackRepository = { preference -> playbackRepository.also { it.preference = preference } },
     )
 
     @Before
@@ -151,6 +171,7 @@ class TvSessionViewModelTest {
                 override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Failure(rejected)
             },
             recentSearchStore = dependencies.recentSearchStore,
+            playbackRepository = dependencies.playbackRepository,
         )
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), deps))
 
@@ -225,6 +246,62 @@ class TvSessionViewModelTest {
         assertNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
     }
 
+    @Test
+    fun `playing a video resolves it on the session with the account's playback type`() {
+        appConfigPreferences = AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4)
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
+
+        val playback = checkNotNull(session.playback.value)
+        assertEquals(PlaybackTarget(FilesItemId(9), "clip.mp4", PlaybackMediaType.VIDEO), playback.state.value.target)
+        assertTrue(playback.state.value.content is PlaybackContent.Ready)
+        assertEquals(listOf(PlaybackPreference.MP4), playbackRepository.preferencesSeen)
+    }
+
+    @Test
+    fun `stopping playback returns to the shell and closes the controller`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
+        val first = checkNotNull(session.playback.value)
+
+        session.play(media(10, "song.mp3", PutioFileType.AUDIO))
+        val second = checkNotNull(session.playback.value)
+        assertFalse("A replaced playback is closed", first.dispatch(PlaybackEvent.Retry))
+        assertEquals(PlaybackMediaType.AUDIO, second.state.value.target.mediaType)
+
+        session.stopPlayback()
+        assertNull(session.playback.value)
+        assertFalse(second.dispatch(PlaybackEvent.Retry))
+    }
+
+    @Test
+    fun `only media plays and signing out ends playback`() {
+        val viewModel = TvSessionViewModel(auth)
+        val session = checkNotNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
+        session.play(media(3, "notes.txt", PutioFileType.TEXT))
+        assertNull(session.playback.value)
+
+        session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
+        val playback = checkNotNull(session.playback.value)
+        auth.value = TvAuthState.Initializing
+
+        assertNull(session.playback.value)
+        assertFalse(playback.dispatch(PlaybackEvent.Retry))
+        session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
+        assertNull("A closed session starts nothing", session.playback.value)
+        assertEquals(listOf(FilesItemId(9)), playbackRepository.resolved.map { it.fileId })
+    }
+
+    private fun media(id: Long, name: String, type: PutioFileType) = FilesItem(
+        id = FilesItemId(id),
+        parentId = FilesItemId(0L),
+        name = name,
+        type = type,
+        sizeBytes = 1L,
+        createdAt = "2026-04-20T10:00:00Z",
+    )
+
     private fun account(userId: Long = 42) =
         TvAccount(userId = userId, username = "u", email = "u@example.com", historyEnabled = true)
 
@@ -270,10 +347,28 @@ class TvSessionViewModelTest {
         override suspend fun loadTunnelRoutes() = error("No route list expected")
     }
 
-    private object StubAndroidAppConfigRepository : AndroidAppConfigRepository {
-        override suspend fun load() = AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences())
+    private class FakePlaybackRepository : PlaybackRepository {
+        val resolved = mutableListOf<PlaybackTarget>()
+        var preference: () -> PlaybackPreference = { error("No preference wired") }
+        val preferencesSeen = mutableListOf<PlaybackPreference>()
 
-        override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
+        override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+            resolved += target
+            preferencesSeen += preference()
+            return PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source(target.fileId.value)))
+        }
+
+        override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV yet")
+
+        private fun source(fileId: Long) = PlaybackSource(
+            fileId = fileId,
+            kind = PlaybackSourceKind.HLS,
+            url = PutioCredentialUrl::class.java
+                .getDeclaredConstructor(String::class.java)
+                .newInstance("https://api.put.io/v2/files/$fileId/hls/media.m3u8?token=t"),
+            startFromSeconds = 0.0,
+            subtitles = PlaybackSubtitles.None,
+        )
     }
 
     private class FakeRecentSearchStore : RecentSearchStoreOwner {

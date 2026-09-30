@@ -99,6 +99,30 @@ and checks the session identity again under the authentication controller's lock
 Tests: `PlaybackPositionWriterTest`, `MobilePlayerPositionObserverTest`,
 `MobilePlaybackReportingTest`, `MobileResumePlaybackDialogTest`.
 
+## TV playback
+
+Center on a Files media row resolves it through the shared
+`PlaybackController` and `SdkPlaybackRepository`, which asks for HLS or MP4
+per the account's confirmed video playback type (HLS until it loads), and
+plays it full-screen on a Media3 ExoPlayer the screen owns and releases. The
+player replaces the signed-in shell instead of covering it, so no shell control
+can take D-pad focus; the shell's saved state is kept, and Back returns focus to
+the row that was playing. Playback belongs to the session: sign-out ends it.
+
+The overlay shows the raw file name, a progress bar, position and duration.
+Any key reveals it for three seconds of playback; it stays while paused.
+Center, Enter or the remote's play/pause key toggles playback, and leaving the
+app pauses it. If the activity is recreated (a remote or keyboard connecting, a
+locale change), playback continues paused from where it stopped. A saved
+position is continued without a prompt until the resume dialog lands;
+conversion and failed resolutions show a status screen with Check again or Try
+again, unsupported files a plain status screen as on mobile, and a player error
+keeps its position for the retry. Back always leaves playback for now: the overlay Back stack
+(#9), seeking, track pickers, position write-back and the media session are
+later #34 layers.
+
+Tests: `TvPlayerScreenTest`, `TvSessionViewModelTest`, `PlaybackExoPlayerTest`.
+
 ## Share-in
 
 The mobile launcher accepts `ACTION_SEND` with `text/plain`. A URL or magnet

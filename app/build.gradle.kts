@@ -177,13 +177,15 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
+    // Both surfaces stream through ExoPlayer; mobile adds downloads, the media session and its controls.
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.exoplayer.hls)
+    implementation(libs.androidx.media3.ui.compose)
     implementation(libs.androidx.tv.material)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.putio.sdk.kotlin)
 
     add("mobileImplementation", libs.androidx.browser)
-    add("mobileImplementation", libs.androidx.media3.exoplayer)
-    add("mobileImplementation", libs.androidx.media3.exoplayer.hls)
     add("mobileImplementation", libs.androidx.media3.database)
     add("mobileImplementation", libs.androidx.media3.datasource.okhttp)
     add("mobileImplementation", libs.androidx.media3.session)

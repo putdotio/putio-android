@@ -545,7 +545,40 @@ account like mobile, so restore the previous order after a proof:
 adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc="(Open|Play) [^"]+"' | head
 ```
 
-Media rows call the playback hook, which is a no-op until #34.
+Center on a media row opens the TV player; Back returns to that row. See
+[TV player proof](#tv-player-proof) for the recorded lane.
+
+## TV player proof
+
+Behaviour: [TV playback](./behavior.md#tv-playback). `TvPlayerProofTest`
+(`androidTestTv`) mounts a fixed Files listing, the TV shell and the real TV
+player screen with the production ExoPlayer factory, then drives it with D-pad
+key events: Down to the video row, Center to play, Center to pause and resume,
+Back to the row. It makes no API calls; the listing and the resolved source
+stand in for a signed-in session, so report it as controlled-state proof.
+
+```bash
+./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
+adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
+adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=90 -f lavfi -i sine=frequency=440:duration=90 \
+  -c:v libx264 -pix_fmt yuv420p -g 60 -c:a aac -f hls -hls_time 4 -hls_playlist_type vod \
+  -hls_segment_filename 'hls/seg%03d.ts' hls/index.m3u8
+adb -s emulator-5554 push hls/. /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.player.TvPlayerProofTest \
+  -e putio.tv.player.enabled true -e putio.tv.player.runId "$(uuidgen)" \
+  -e putio.tv.player.fixture /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/index.m3u8 \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The fixture must sit under the app's external files directory; an `.m3u8`
+plays as HLS, anything else as the original file. Start
+`scripts/evidence.sh record --allow-dark` just before the instrumentation for
+the clip. Screenshots go to `tv-player-proof-<UUID>/`: the focused row,
+playing with controls, playing clean, paused, and back on the row. The
+proof keeps the Compose test clock in step with real time so the auto-hide
+and position timers run as they do in the app. Remove the fixture and
+screenshot directories afterwards.
 
 ## TV Search proof
 
