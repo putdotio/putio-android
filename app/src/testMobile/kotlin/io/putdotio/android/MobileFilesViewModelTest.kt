@@ -31,6 +31,8 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import io.putdotio.android.files.MobileFilesViewModel
+import io.putdotio.android.files.mobileFilesViewModelFactory
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])

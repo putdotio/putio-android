@@ -41,7 +41,16 @@ import io.putdotio.android.files.FilesMoveStatus
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.MOBILE_FILES_MOVE_BACK_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_LOAD_MORE_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_RETRY_TAG
+import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
+import io.putdotio.android.files.MobileFilesMoveDestination
+import io.putdotio.android.files.MobileFilesScreen
 import io.putdotio.android.files.complete
+import io.putdotio.android.files.mobileFilesMoveFolderTag
 import io.putdotio.android.files.reduce
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals

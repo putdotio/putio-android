@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.files
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -10,14 +10,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,16 +39,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.R
+import io.putdotio.android.description
 import io.putdotio.android.downloads.DownloadStatus
-import io.putdotio.android.files.FilesBrowserEvent
-import io.putdotio.android.files.FilesFolderOperation
-import io.putdotio.android.files.FilesFolderOperationIntent
-import io.putdotio.android.files.FilesFolderOperationPhase
-import io.putdotio.android.files.FilesItem
-import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesRenameCompletion
-import io.putdotio.android.files.FilesDeleteMode
-import io.putdotio.android.files.canStartOperation
 
 internal const val MOBILE_FILES_RENAME_FIELD_TAG = "mobile-files-rename-field"
 internal const val MOBILE_FILES_DOWNLOAD_ACTION_TAG = "mobile-files-download-action"

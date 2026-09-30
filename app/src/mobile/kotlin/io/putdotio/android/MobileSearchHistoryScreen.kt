@@ -61,6 +61,8 @@ import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import java.time.ZoneId
+import io.putdotio.android.files.MobileFilesRow
+import io.putdotio.android.files.mobileMessageResource
 
 internal const val MOBILE_SEARCH_FIELD_TAG = "mobile-search-field"
 internal const val MOBILE_SEARCH_RESULTS_TAG = "mobile-search-results"

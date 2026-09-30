@@ -60,6 +60,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
+import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
+import io.putdotio.android.files.MOBILE_FILES_PAGING_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_REFRESH_TAG
+import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
+import io.putdotio.android.files.MOBILE_FILES_WATCHED_TAG
+import io.putdotio.android.files.MobileFilesActions
+import io.putdotio.android.files.MobileFilesScreen
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

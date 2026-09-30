@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.files
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -10,16 +10,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import io.putdotio.android.files.FilesBrowserEvent
-import io.putdotio.android.files.FilesBrowserState
-import io.putdotio.android.files.authoritativeSessionFailure
-import io.putdotio.android.files.FilesContent
+import io.putdotio.android.AuthoritativeSessionFailureEffect
+import io.putdotio.android.authoritativeSessionFailure
+import io.putdotio.android.dispatch
 import io.putdotio.android.downloads.DownloadsState
-import io.putdotio.android.files.FilesItem
-import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesMoveDestinationController
-import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.canStartMove
 
 @Composable
 internal fun MobileFilesRoute(

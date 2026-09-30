@@ -117,6 +117,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.files.MOBILE_FILES_SHARE_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_SORT_TAG
 
 /** JVM proof for the mobile Material 3 shell; LaunchSmokeTest owns device launch proof. */
 @RunWith(AndroidJUnit4::class)

@@ -37,6 +37,7 @@ import io.putdotio.android.trash.TrashActionSubmission
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashItem
 import io.putdotio.android.trash.TrashState
+import io.putdotio.android.files.mobileMessageResource
 
 internal const val MOBILE_TRASH_ITEM_SHEET_TAG = "mobile-trash-item-sheet"
 internal const val MOBILE_TRASH_ITEM_RESTORE_TAG = "mobile-trash-item-restore"

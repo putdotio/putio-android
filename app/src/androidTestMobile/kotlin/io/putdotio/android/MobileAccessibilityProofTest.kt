@@ -53,6 +53,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
+import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
+import io.putdotio.android.files.MobileFilesScreen
 
 /** Controlled production surfaces at 200% system font with animations disabled. */
 @RunWith(AndroidJUnit4::class)

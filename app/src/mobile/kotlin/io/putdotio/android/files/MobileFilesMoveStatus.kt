@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.files
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,8 +13,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import io.putdotio.android.files.FilesMoveOutcome
-import io.putdotio.android.files.FilesMoveStatus
+import io.putdotio.android.R
 
 internal const val MOBILE_FILES_MOVE_OUTCOME_TAG = "mobile-files-move-outcome"
 

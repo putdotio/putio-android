@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.files
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
@@ -24,9 +24,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import io.putdotio.android.files.FilesFolderState
-import io.putdotio.android.files.FilesSort
-import io.putdotio.android.files.canStartOperation
+import io.putdotio.android.R
 
 internal const val MOBILE_FILES_SORT_TAG = "mobile-files-sort"
 

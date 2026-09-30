@@ -82,6 +82,7 @@ import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.files.labelResource
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
 internal const val MOBILE_MANAGE_DOWNLOADS_TAG = "mobile-manage-downloads"

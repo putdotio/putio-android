@@ -19,6 +19,16 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_FOLDER_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_LIST_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_LOAD_MORE_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_OUTCOME_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_PICKER_TAG
+import io.putdotio.android.files.MOBILE_FILES_SORT_TAG
+import io.putdotio.android.files.mobileFilesMoveFolderTag
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesSearchQuery
 import io.putdotio.sdk.files.PutioFileType

@@ -31,6 +31,8 @@ import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
+import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
+import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
 
 @RunWith(AndroidJUnit4::class)
 class AuthenticatedFilesRenameTest {

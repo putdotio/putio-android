@@ -18,6 +18,7 @@ import io.putdotio.android.downloads.OfflinePlaybackRepository
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.history.HistoryEvent

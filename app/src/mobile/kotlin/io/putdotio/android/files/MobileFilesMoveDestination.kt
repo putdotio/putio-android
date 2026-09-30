@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.files
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,13 +32,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
-import io.putdotio.android.files.FilesContent
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesMoveDestinationEvent
-import io.putdotio.android.files.FilesMoveDestinationState
-import io.putdotio.android.files.FilesPaging
 import io.putdotio.sdk.files.PutioFileType
 
 internal const val MOBILE_FILES_MOVE_PICKER_TAG = "mobile-files-move-picker"

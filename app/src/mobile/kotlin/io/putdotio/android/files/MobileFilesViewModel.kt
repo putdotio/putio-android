@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.files
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -9,8 +9,6 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.auth.sessionKey
-import io.putdotio.android.files.FilesBrowserController
-import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.session.SessionScopedHolder
 import kotlinx.coroutines.flow.StateFlow
 

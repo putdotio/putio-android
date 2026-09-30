@@ -48,10 +48,10 @@ import io.putdotio.android.trash.TrashRestoreOutcome
 import io.putdotio.android.trash.TrashRestoreCheck
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
-import io.putdotio.android.parsePutioTimestamp
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeParseException
+import io.putdotio.android.files.mobileMessageResource
 
 internal const val MOBILE_TRASH_ROUTE = "account/trash"
 internal const val MOBILE_MANAGE_TRASH_TAG = "mobile-manage-trash"

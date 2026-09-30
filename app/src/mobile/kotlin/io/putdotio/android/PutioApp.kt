@@ -23,6 +23,8 @@ import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.auth.OAuthBrowserLaunchResult
 import io.putdotio.android.auth.OAuthLaunchResult
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.MobileFilesViewModel
+import io.putdotio.android.files.mobileFilesViewModelFactory
 import kotlinx.coroutines.launch
 
 @Composable

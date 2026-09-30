@@ -83,6 +83,7 @@ import io.putdotio.android.transfers.canOpen
 import io.putdotio.android.transfers.isPaging
 import io.putdotio.android.transfers.isRunning
 import java.text.NumberFormat
+import io.putdotio.android.files.mobileMessageResource
 
 internal const val MOBILE_TRANSFERS_LIST_TAG = "mobile-transfers-list"
 internal const val MOBILE_TRANSFER_ADD_FIELD_TAG = "mobile-transfer-add-field"

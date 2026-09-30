@@ -20,6 +20,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
+import io.putdotio.android.files.MOBILE_FILES_SORT_TAG
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.files.FilesListQuery
