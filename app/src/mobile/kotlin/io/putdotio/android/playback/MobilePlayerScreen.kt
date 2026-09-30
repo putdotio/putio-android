@@ -113,8 +113,10 @@ internal fun MobilePlayerScreen(
     onRefreshConversion: () -> Unit = {},
     onStartConversion: () -> Unit = {},
 ) {
+    // Like iOS, the window turns only for a landscape video; the last shape holds across autoplay.
+    var landscapeVideo by rememberSaveable { mutableStateOf(false) }
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
-        MobileVideoWindow(fileId = state.target.fileId.value)
+        MobileVideoWindow(fileId = state.target.fileId.value, landscape = landscapeVideo)
     }
     val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     var keyboardNavigationActive by rememberSaveable(state.target.fileId.value) { mutableStateOf(false) }
@@ -183,6 +185,7 @@ internal fun MobilePlayerScreen(
                     seekClock = seekClock,
                     onSourceRequired = onSourceRequired,
                     onBack = onBack,
+                    onVideoAspectRatio = { landscapeVideo = it > 1f },
                 )
                 }
 
@@ -267,6 +270,7 @@ private fun MobileReadyPlayer(
     seekClock: () -> Long,
     onSourceRequired: (Long?) -> Unit,
     onBack: () -> Unit,
+    onVideoAspectRatio: (Float) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -324,6 +328,8 @@ private fun MobileReadyPlayer(
     var optionsInitialized by remember(player) { mutableStateOf(false) }
     var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
+    val currentOnVideoAspectRatio by rememberUpdatedState(onVideoAspectRatio)
+    LaunchedEffect(videoSize) { videoSize.displayAspectRatioOrNull()?.let(currentOnVideoAspectRatio) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
     val isAudio = mediaType == PlaybackMediaType.AUDIO
     var keepScreenOn by remember(player) { mutableStateOf(!isAudio && player.shouldKeepScreenOn()) }

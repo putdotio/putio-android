@@ -587,13 +587,20 @@ row, Center to play, Center to pause and resume, Back to hide the controls and
 Back to the row. `dpadScrubbingAndBackWalkTheOverlayStack`: Right twice to
 scrub, Center to commit, rewind then Back to dismiss seek mode, Back to hide
 the playing controls, Center then Back to hide the paused controls, and Back
-to the row. `resumeDialogContinueStartOverAndBackWithWriteBack` runs the real
+to the row. `resumeDialogBackLeavesThenContinueAndStartOverWithWriteBack` runs the real
 session route (a `PlaybackController` per play and TV write-back) against a
 fake position server that starts at 45 s: Center shows the resume dialog with
-Continue focused, Down focuses Start from the beginning, Back continues from
-45 s, 16 s of playback write once, leaving writes once more, then Start from
-the beginning plays from zero and Continue resumes from what that playback
-saved. `languageSubtitlesAndSpeedPickersJoinTheBackStack` needs the
+Continue focused, Down focuses Start from the beginning, Back leaves playback
+without a player or a write, Center then Continue plays from 45 s, 16 s of
+playback write once, leaving writes once more, then Start from the beginning
+plays from zero and Continue resumes from what that playback saved.
+`aVideoFinishedWithinTenSecondsOfItsEndOpensAgainWithoutAsking` starts the
+server at 70 s: Continue plays to the end, playback leaves, the last write is the
+real end (at least 89 s), and Center plays again from the start without the
+dialog.
+`savedAudioContinuesWithoutAsking` runs only with `putio.tv.player.audioFixture`:
+an audio row with a 45 s saved position plays from it without the dialog.
+`languageSubtitlesAndSpeedPickersJoinTheBackStack` needs the
 multi-track fixture below and automatic subtitles: Down then Up to Language,
 Center, Down, Center switches to the second audio track; Right, Center, Up,
 Center turns subtitles off; Down, Right, Center seeks and subtitles stay off;
@@ -641,10 +648,13 @@ for f in hls/video/media*.vtt; do sed 's/TV proof subtitle/Account default subti
 sed -e 's|^#EXT-X-MEDIA:TYPE=SUBTITLES,.*|#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Deutsch",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="de",URI="subs-de/media_vtt.m3u8"\
 #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",DEFAULT=NO,AUTOSELECT=NO,LANGUAGE="en",URI="video/media_vtt.m3u8"|' \
   hls/index.m3u8 > hls/default-subtitle.m3u8
+# The audio flow: a 90 s AAC file.
+ffmpeg -f lavfi -i sine=frequency=440:duration=90 -c:a aac hls/audio.m4a
 adb -s emulator-5554 push hls/. /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/
 adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.player.TvPlayerProofTest \
   -e putio.tv.player.enabled true -e putio.tv.player.runId "$(uuidgen)" \
   -e putio.tv.player.fixture /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/index.m3u8 \
+  -e putio.tv.player.audioFixture /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/audio.m4a \
   -e putio.tv.player.defaultSubtitleFixture /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/default-subtitle.m3u8 \
   io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
@@ -658,8 +668,10 @@ playing with controls, playing clean, paused, back on the row) and `10`–`18`
 for the second (clean, seek mode, committed, rewind seek mode, seek dismissed,
 controls dismissed, paused controls, paused clean, back on the row), and
 `20`–`26` for the third (Continue focused, Start from the beginning focused,
-continued after Back, started over, the dialog after starting over, continued,
-back on the row), and `30`–`41` for the fourth (automatic subtitles, Language
+back on the row after Back, `22b` continued, started over, the dialog after
+starting over, continued, back on the row), `90`–`93` for the near-end flow
+(the prompt, playing to the end, back on the row, opened from the start), `95`
+for the audio flow, and `30`–`41` for the fourth (automatic subtitles, Language
 focused, the audio picker, the second track, the subtitle picker, subtitles
 off, still off after a seek, the speed picker, the picker dismissed, 1.5×,
 controls dismissed, back on the row), and `49`–`60` for the fifth (starting, in queue,
@@ -676,8 +688,9 @@ screenshot directories afterwards.
 Behaviour: [TV playback](./behavior.md#tv-playback). `TvAutoplayProofTest`
 (`androidTestTv`) mounts the production TV session and signed-in shell on fake
 repositories for an account with Autoplay next video and resume on, and plays a
-caller-owned 12 s local video for each Files row: Center on the first video, it
-plays to its end, its end position is written, the next video in the folder
+caller-owned 30 s local video for each Files row (long enough that 00:05 is not
+within 10 s of the end, which would count as finished): Center on the first
+video, it plays to its end, its end position is written, the next video in the folder
 asks to continue from 00:05, Center continues, Back twice returns to Files with
 the autoplayed row focused, and Center plays it again to its end, after which
 playback leaves (the folder's last video) back on that row. A second case turns
@@ -690,7 +703,7 @@ it into its own files directory.
 ./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
 adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
 adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
-ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=12 -f lavfi -i sine=frequency=440:duration=12 \
+ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=30 -f lavfi -i sine=frequency=440:duration=30 \
   -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest tv-autoplay-proof.mp4
 adb -s emulator-5554 push tv-autoplay-proof.mp4 /data/local/tmp/tv-autoplay-proof.mp4
 adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvAutoplayProofTest \
@@ -987,6 +1000,12 @@ without losing the test's injected composition. It verifies a portrait window
 with visible system bars becomes landscape with both bars hidden, and Back restores
 the original orientation and bar visibility. Saved-state recreation uses Compose's
 `StateRestorationTester`; this does not claim full Activity or process recreation.
+`portraitVideoKeepsAnUnlockedPortraitWindow` runs only with
+`putio.video.fullscreen.portraitFixture` (any portrait MP4 under the same
+directory, for example `ffmpeg -f lavfi -i testsrc2=size=720x1280:rate=30:duration=20
+-f lavfi -i sine=duration=20 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest portrait.mp4`): from an
+unlocked portrait window, the video plays full-screen in portrait with the bars
+hidden and no orientation request, and Back restores the bars.
 
 Required arguments are:
 
@@ -1005,12 +1024,15 @@ The proof opens the direct Audio, Captions and speed controls, selects the secon
 audio track, 1.5× and the caption track, then verifies selected tracks and actual
 cue text survive saved-state recreation. It checks Off clears the cues and Automatic
 restores them. It does not initialize authentication, use an API fixture, clear
-account storage, or stop a preexisting audio service; its player factory uses the
-production private video player with the service-stop hook disabled.
+account storage, or stop a preexisting audio service; its player factory builds
+an ExoPlayer with the production renderers and audio attributes, because the
+production private video player streams through the download cache's HTTP source,
+which cannot read a local file, and disables the service-stop hook.
 
 Screenshots go to `fullscreen-video-proof-<UUID>/`: initial landscape controls,
 selected captions, the speed/audio/captions sheets, restored selections,
-Automatic captions and the restored portrait window.
+Automatic captions and the restored portrait window, plus the portrait video's
+window and controls.
 
 The local Sintel fixture derives from the Blender Foundation's
 [720p trailer](https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4),

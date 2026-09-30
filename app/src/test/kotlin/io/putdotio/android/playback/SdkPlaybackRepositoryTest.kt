@@ -87,6 +87,60 @@ class SdkPlaybackRepositoryTest {
         }
 
     @Test
+    fun aSavedVideoPositionWithoutADurationListsTheFileForIt() =
+        runBlocking {
+            val listed = mutableListOf<Long>()
+            fun repository(startFrom: Double) = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.HLS },
+                loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+                resolvePlayback = {
+                    io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource().copy(startFromSeconds = startFrom))
+                },
+                listFolder = { parentId, _ ->
+                    listed += parentId
+                    FilesListResponse(
+                        parent = video(42L).copy(videoMetadata = PutioVideoMetadata(duration = 1_260.0)),
+                        status = "OK",
+                    )
+                },
+            )
+            fun duration(result: PlaybackRepositoryResult<PlaybackResolution>) =
+                ((result as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).durationSeconds
+
+            assertEquals(1_260.0, duration(repository(1_255.0).resolve(Target)))
+            assertEquals(listOf(42L), listed)
+            // Nothing to decide without a saved position, and a listing's duration is enough.
+            assertNull(duration(repository(0.0).resolve(Target)))
+            assertNull(duration(repository(1_255.0).resolve(Target.copy(durationSeconds = 1_260.0))))
+            assertNull(duration(repository(1_255.0).resolve(Target.copy(mediaType = PlaybackMediaType.AUDIO))))
+            assertEquals(listOf(42L), listed)
+        }
+
+    @Test
+    fun aFailedDurationLookupStillResolvesAndCancellationPropagates() {
+        fun repository(lookupFailure: Exception) = SdkPlaybackRepository(
+            playbackPreference = { PlaybackPreference.HLS },
+            loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+            resolvePlayback = {
+                io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource().copy(startFromSeconds = 1_255.0))
+            },
+            listFolder = { _, _ -> throw lookupFailure },
+        )
+        val failed = runBlocking { repository(IllegalStateException("listing failed")).resolve(Target) }
+        val ready = (failed as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
+        assertEquals(1_255.0, ready.source.startFromSeconds, 0.0)
+        assertNull(ready.durationSeconds)
+
+        val cancellation = CancellationException("route closed")
+        try {
+            runBlocking { repository(cancellation).resolve(Target) }
+            fail("Expected cancellation")
+        } catch (actual: CancellationException) {
+            assertSame(cancellation, actual)
+        }
+    }
+
+    @Test
     fun preservesTheResolvedReadySource() =
         runBlocking {
             val source = playbackSource()

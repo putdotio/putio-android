@@ -354,29 +354,123 @@ class PlaybackReducerTest {
     }
 
     @Test
-    fun savedPositionRequiresAChoiceForBothMediaTypes() {
+    fun savedAudioPositionContinuesWithoutAChoice() {
+        val start = PlaybackReducer.start(Target.copy(mediaType = PlaybackMediaType.AUDIO))
+        val resolved = PlaybackReducer.reduce(
+            start.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+            ),
+        )
+        assertEquals(PlaybackContent.Ready(playbackSource(), useStartFrom = true), resolved.state.content)
+        assertEquals(12_000L, resolved.state.resumePositionMillis)
+        assertNull(resolved.effect)
+    }
+
+    @Test
+    fun aPositionSavedWithinTenSecondsOfTheEndStartsOverWithoutAPrompt() {
         for (mediaType in PlaybackMediaType.entries) {
-            val start = PlaybackReducer.start(Target.copy(mediaType = mediaType))
-            val pending = PlaybackReducer.reduce(
+            val start = PlaybackReducer.start(Target.copy(mediaType = mediaType, durationSeconds = 22.0))
+            val finished = PlaybackReducer.reduce(
                 start.state,
                 PlaybackEvent.ResolveSucceeded(
                     PlaybackRequestId(1L),
                     PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
                 ),
             )
-            assertTrue(pending.state.content is PlaybackContent.AwaitingResume)
-            assertNull(pending.effect)
-            assertNull(pending.state.resumePositionMillis)
-            val resumed = PlaybackReducer.reduce(pending.state, PlaybackEvent.Resume)
-            assertEquals(12_000L, resumed.state.resumePositionMillis)
-            assertTrue((resumed.state.content as PlaybackContent.Ready).useStartFrom)
-            assertNull(resumed.effect)
-            val restarted = PlaybackReducer.reduce(pending.state, PlaybackEvent.Restart)
-            assertEquals(0L, restarted.state.resumePositionMillis)
-            assertNull(restarted.effect)
-            assertFalse(PlaybackReducer.reduce(restarted.state, PlaybackEvent.Resume).consumed)
-            assertFalse(PlaybackReducer.reduce(resumed.state, PlaybackEvent.Restart).consumed)
+            assertEquals(PlaybackContent.Ready(playbackSource(), useStartFrom = true), finished.state.content)
+            assertEquals(0L, finished.state.resumePositionMillis)
         }
+        // The resolution's duration serves a target that came without one.
+        val looked = PlaybackReducer.reduce(
+            PlaybackReducer.start(Target).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true, durationSeconds = 20.0),
+            ),
+        )
+        assertEquals(0L, looked.state.resumePositionMillis)
+        // Just over 10 s from the end still asks.
+        val asks = PlaybackReducer.reduce(
+            PlaybackReducer.start(Target.copy(durationSeconds = 22.01)).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+            ),
+        )
+        assertTrue(asks.state.content is PlaybackContent.AwaitingResume)
+    }
+
+    @Test
+    fun aLookedUpDurationStaysOnTheTargetForThePromptAndRetries() {
+        val pending = PlaybackReducer.reduce(
+            PlaybackReducer.start(Target).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true, durationSeconds = 1_200.0),
+            ),
+        )
+        assertTrue(pending.state.content is PlaybackContent.AwaitingResume)
+        assertEquals(Target.copy(durationSeconds = 1_200.0), pending.state.target)
+        val resumed = PlaybackReducer.reduce(pending.state, PlaybackEvent.Resume)
+        val failure = PlaybackFailure.Unexpected(IllegalStateException("decoder"))
+        val failed = PlaybackReducer.reduce(resumed.state, PlaybackEvent.PlayerFailed(failure, 12_000L))
+        val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
+        assertEquals(
+            PlaybackEffect.Resolve(Target.copy(durationSeconds = 1_200.0), PlaybackRequestId(2L)),
+            retry.effect,
+        )
+
+        // A listing's duration is not replaced.
+        val listed = PlaybackReducer.reduce(
+            PlaybackReducer.start(Target.copy(durationSeconds = 900.0)).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true, durationSeconds = 1_200.0),
+            ),
+        )
+        assertEquals(900.0, listed.state.target.durationSeconds)
+    }
+
+    @Test
+    fun autoplayStartsAFinishedNextVideoOverWithoutAPrompt() {
+        val finding = PlaybackReducer.reduce(readyState().copy(resumePositionMillis = 0L), PlaybackEvent.PlayerEnded)
+        val next = Target.copy(fileId = FilesItemId(43L), name = "next.mkv", durationSeconds = 15.0)
+        val loading = PlaybackReducer.reduce(finding.state, PlaybackEvent.NextFound(PlaybackRequestId(2L), next))
+        val resolved = PlaybackReducer.reduce(
+            loading.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(3L),
+                PlaybackResolution.Ready(playbackSource().copy(fileId = 43L), useStartFrom = true),
+            ),
+        )
+        assertTrue(resolved.state.content is PlaybackContent.Ready)
+        assertEquals(0L, resolved.state.resumePositionMillis)
+    }
+
+    @Test
+    fun savedVideoPositionRequiresAChoice() {
+        val start = PlaybackReducer.start(Target)
+        val pending = PlaybackReducer.reduce(
+            start.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+            ),
+        )
+        assertTrue(pending.state.content is PlaybackContent.AwaitingResume)
+        assertNull(pending.effect)
+        assertNull(pending.state.resumePositionMillis)
+        val resumed = PlaybackReducer.reduce(pending.state, PlaybackEvent.Resume)
+        assertEquals(12_000L, resumed.state.resumePositionMillis)
+        assertTrue((resumed.state.content as PlaybackContent.Ready).useStartFrom)
+        assertNull(resumed.effect)
+        val restarted = PlaybackReducer.reduce(pending.state, PlaybackEvent.Restart)
+        assertEquals(0L, restarted.state.resumePositionMillis)
+        assertNull(restarted.effect)
+        assertFalse(PlaybackReducer.reduce(restarted.state, PlaybackEvent.Resume).consumed)
+        assertFalse(PlaybackReducer.reduce(resumed.state, PlaybackEvent.Restart).consumed)
     }
 
     @Test

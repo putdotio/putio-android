@@ -61,6 +61,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
@@ -1653,6 +1654,28 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun aVideoRowOpensWithItsListingDuration() {
+        val targets = mutableListOf<PlaybackTarget>()
+        val repository = object : PlaybackRepository by ConversionRepository {
+            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                targets += target
+                return ConversionRepository.resolve(target)
+            }
+        }
+        compose.setPlaybackShell(
+            playbackRepository = repository,
+            filesState = videoFilesState(FilesPlaybackProgress(startFromSeconds = 30.0, durationSeconds = 1_200.5)),
+        )
+
+        compose.onNodeWithText("episode.mkv").performClick()
+
+        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(listOf(PlaybackTarget(FilesItemId(8L), "episode.mkv", durationSeconds = 1_200.5)), targets)
+        }
+    }
+
+    @Test
     fun phoneDestinationStateSurvivesPlayback() =
         assertDestinationStateSurvivesPlayback(width = 360.dp, navigationTag = MOBILE_NAV_BAR_TAG)
 
@@ -2273,7 +2296,7 @@ private fun resolvingTransfersState(): TransfersState =
         navigation = TransferNavigation.Resolving(TransferFileId(7L), TransfersRequestId(3L)),
     )
 
-private fun videoFilesState(): FilesBrowserState {
+private fun videoFilesState(playback: FilesPlaybackProgress? = null): FilesBrowserState {
     val initial = FilesBrowserReducer.start()
     val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
     val video = FilesItem(
@@ -2283,6 +2306,7 @@ private fun videoFilesState(): FilesBrowserState {
         type = PutioFileType.VIDEO,
         sizeBytes = 1L,
         createdAt = "2026-08-29T00:00:00Z",
+        playback = playback,
     )
     return FilesBrowserReducer.reduce(
         initial.state,

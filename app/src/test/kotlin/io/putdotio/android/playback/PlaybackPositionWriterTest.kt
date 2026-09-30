@@ -41,6 +41,28 @@ class PlaybackPositionWriterTest {
     }
 
     @Test
+    fun theFinalPositionLandsAfterAnInFlightSave() = runTest {
+        val calls = mutableListOf<Double>()
+        val periodic = CompletableDeferred<Unit>()
+        val writer = PlaybackPositionWriter(backgroundScope) { _, seconds ->
+            calls += seconds
+            if (calls.size == 1) periodic.await()
+            PlaybackRepositoryResult.Success(Unit)
+        }
+        val lease = writer.register(1L) { true }
+        writer.offer(lease, 88_000L)
+        runCurrent()
+        // Playback ends while the periodic save is still in flight (#263).
+        writer.offer(lease, 96_000L)
+        runCurrent()
+        assertEquals(listOf(88.0), calls)
+        periodic.complete(Unit)
+        runCurrent()
+        assertEquals(listOf(88.0, 96.0), calls)
+        writer.close()
+    }
+
+    @Test
     fun rechecksAuthorizationBeforeTheRequestAndDiscardsRevokedSnapshots() = runTest {
         var allowed = true
         var calls = 0

@@ -93,7 +93,7 @@ class MobileVideoWindowTest {
             if (savedInstanceState == null) requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             originalBarsBehavior = WindowCompat.getInsetsController(window, window.decorView).systemBarsBehavior
             setContent {
-                if (showVideo) MobileVideoWindow(fileId = 42L)
+                if (showVideo) MobileVideoWindow(fileId = 42L, landscape = true)
             }
         }
     }
