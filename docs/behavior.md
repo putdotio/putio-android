@@ -111,13 +111,14 @@ foreground, keeping the interstitial up, and plays on its own once it resolves.
 Completed is read once more at once; if it stays completed, Check again waits for
 the viewer, as does an unknown status. The viewer starts a conversion through
 the SDK's `startMp4Conversion`, which is then read like any other: Convert on one
-never requested, Convert again after a failed one. If the status still reads not
-available after the viewer's Convert, the video cannot be converted and offers
-only Back. The app never starts a conversion on its own; putio-web, tv-native
+never requested, Convert again after a failed one. A start the server accepted
+reads as queued once, so a status read that has not caught up polls again; if the
+status still reads not available after that, the video cannot be converted and
+offers only Back. The app never starts a conversion on its own; putio-web, tv-native
 and tv-vite do on opening, and doing so here is an owner decision.
 
-Tests: `PlaybackReducerTest`, `MobilePlayerScreenTest`, `TvPlaybackStatesTest`,
-`OfflinePlaybackRepositoryTest`.
+Tests: `PlaybackReducerTest`, `SdkPlaybackRepositoryTest`, `MobilePlayerScreenTest`,
+`TvPlaybackStatesTest`, `OfflinePlaybackRepositoryTest`.
 
 ## TV playback
 
@@ -191,7 +192,8 @@ The player is published as a Media3 media session while it shows, so the
 system's media controls, Now Playing and remote media keys the screen does not
 take itself reach it; the session is released before the player. A pause from
 the session shows the paused controls; during a scrub it keeps the target but
-Back no longer resumes, and a play drops a pending scrub. The
+Back no longer resumes. A play or a seek from the session drops a pending scrub,
+and a play while the screen is stopped is ignored rather than run hidden. The
 player buffers as the RN player's default `medium` size did: 8 s to 30 s
 ahead, starting after 1.5 s, or 3 s after a stall.
 
