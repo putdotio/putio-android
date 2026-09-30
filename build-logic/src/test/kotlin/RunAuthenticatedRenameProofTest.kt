@@ -180,7 +180,7 @@ class RunAuthenticatedRenameProofTest {
 
     @Test
     fun shellQuotePreservesOneLiteralArgumentWithoutExpandingShellSyntax() {
-        for (value in listOf("", "plain", "Bodrum été 東京", "a'b\"c", "line one\nline two",
+        for (value in listOf("", "plain", "Harbor été 東京", "a'b\"c", "line one\nline two",
             "\$(printf expanded); `printf expanded` \$HOME * ? [abc] \\ --")) {
             val command = "set -- ${proofShellQuote(value)}; [ \"\$#\" -eq 1 ] && printf '%s' \"\$1\""
             val process = ProcessBuilder("sh", "-c", command).redirectErrorStream(true).start()
@@ -206,8 +206,8 @@ class RunAuthenticatedRenameProofTest {
         "renameItemId" to JsonPrimitive(13),
         "cancelItemId" to JsonPrimitive(14),
         "containerName" to JsonPrimitive("Owned proof container"),
-        "renameOriginalName" to JsonPrimitive("  Bodrum été 東京 e\u0301.txt  "),
-        "renameNewName" to JsonPrimitive("  Bodrum été 東京 é.txt  "),
+        "renameOriginalName" to JsonPrimitive("  Harbor été 東京 e\u0301.txt  "),
+        "renameNewName" to JsonPrimitive("  Harbor été 東京 é.txt  "),
         "cancelOriginalName" to JsonPrimitive("Keep 'quoted' filename.txt"),
     ))
 

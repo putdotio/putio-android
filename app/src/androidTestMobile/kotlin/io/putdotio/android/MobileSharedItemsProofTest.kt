@@ -112,10 +112,10 @@ class MobileSharedItemsProofTest {
 }
 
 private const val SHARED_ROOT = "Items shared with you"
-private const val FRIEND = "deniz"
-private const val SHARED_FOLDER = "Bodrum footage"
-private const val SHARED_VIDEO = "Gümbet sunset.mp4"
-private const val OWNED_VIDEO = "My rehearsal.mp4"
+private const val FRIEND = "friend"
+private const val SHARED_FOLDER = "Shared footage"
+private const val SHARED_VIDEO = "Shared clip été.mp4"
+private const val OWNED_VIDEO = "My clip.mp4"
 
 private fun sharedFiles(): FilesBrowserState {
     fun item(id: Long, name: String, type: PutioFileType) =
