@@ -2,7 +2,9 @@ name: Emulator smoke
 
 # Opt-in / scheduled lane: boots the app on a Gradle Managed Device and runs
 # LaunchSmokeTest (RESUMED + stability + composited pixels) and the credential-free
-# stale OAuth callback regression. Other device suites require explicit opt-in.
+# stale OAuth callback regression. Each suite passes only when its own named
+# XML result passed (verifyCiPhone*Proof); an empty or skipped run fails.
+# Other device suites require explicit opt-in.
 # Not a PR gate — emulator boots on shared runners are too slow and flaky to
 # block merges; the PR gate is the CI workflow. Local day-to-day proof stays
 # on scripts/prove.sh.
@@ -80,14 +82,15 @@ jobs:
       # the smoke test's pixel assertion. AGP 9.3 reads the new property name;
       # the old experimental property silently fell back to auto-no-window.
       - name: Run instrumented launch smoke
+        id: launch-smoke
         working-directory: putio-android
         run: >-
-          ./gradlew :app:ciPhoneMobileProductionDebugAndroidTest
+          ./gradlew :app:verifyCiPhoneLaunchProof
           -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest
           -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader
 
       - name: Upload launch test results
-        if: always()
+        if: ${{ !cancelled() && steps.launch-smoke.outcome != 'skipped' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: launch-smoke-results
@@ -98,9 +101,10 @@ jobs:
       # Keep the OAuth regression explicit and retain each run's result files.
       - name: Run stale OAuth callback regression
         id: oauth-smoke
+        if: ${{ !cancelled() }}
         working-directory: putio-android
         run: >-
-          ./gradlew :app:ciPhoneMobileProductionDebugAndroidTest
+          ./gradlew :app:verifyCiPhoneOAuthProof
           -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.auth.StaleOAuthCallbackTest
           -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader
 

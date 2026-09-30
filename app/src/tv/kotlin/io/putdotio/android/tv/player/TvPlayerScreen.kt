@@ -72,10 +72,9 @@ import io.putdotio.android.playback.playbackSurfaceType
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.android.playback.withReportingLease
-import io.putdotio.android.tv.OVERSCAN_X
-import io.putdotio.android.tv.OVERSCAN_Y
 import io.putdotio.android.tv.PANE_INSET
 import io.putdotio.android.tv.TvStatusScreen
+import io.putdotio.android.tv.tvOverscanPadding
 import io.putdotio.sdk.files.PlaybackSource
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.draw.alpha
@@ -636,7 +635,8 @@ private fun TvPlayerControls(
         modifier = modifier
             .fillMaxWidth()
             .background(Color.Black.copy(alpha = TV_PLAYER_SCRIM_ALPHA))
-            .padding(horizontal = OVERSCAN_X + PANE_INSET, vertical = OVERSCAN_Y + PANE_INSET)
+            .tvOverscanPadding()
+            .padding(PANE_INSET)
             .testTag(TV_PLAYER_CONTROLS_TAG),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {

@@ -60,8 +60,12 @@ variants are disabled. Unsigned minified `mobileProductionRelease`,
 `tvProductionRelease`, and `tvNightlyRelease` builds prove the composite
 Kotlin SDK, resource shrinking, and `lintVital` against R8 for each surface and
 channel. It also compiles the instrumentation APK, checks the Phosphor icon and
-design asset locks, and runs the shell and Python contract tests, which need
-`python3`, `bash`, and `ffprobe` on PATH, plus the tests of the
+design asset locks, and runs the shell and Python contract tests; those need
+`python3`, `bash` (3.2 or newer, so macOS `/bin/bash` works), and `ffprobe` on
+PATH. The contract tests fake the SDK and console-port probe and give nested
+proof builds their own temp directory for the serial lock, so they pass beside
+running emulators, real proofs, and parallel checkouts. It also runs the tests
+of the
 [`build-logic`](./build-logic) included build, which owns the design-token
 codegen and host proof task classes. Fix findings at the source; suppress only
 with a comment stating the platform constraint.
@@ -81,8 +85,8 @@ only). `design/putio-design.lock.json` pins the `@putdotio/design` npm release
 by version and SHA-512 SRI; `scripts/sync-design-assets.sh` fetches it and
 writes `design/tokens.dtcg.json` and the nightly launcher icons, and `verify`
 checks both against the lock offline. `:app:generateDesignTokens`
-(`build-logic`) generates `PutioDesignTokens.kt` with the color schemes; never
-hand-write colors. See `design/README.md`.
+(`build-logic`) generates `PutioDesignTokens.kt` with the color schemes and TV
+overscan ratios; never hand-write design values. See `design/README.md`.
 Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 
 ## CI
@@ -132,7 +136,9 @@ modifications with a failure report; SHA pairs describe only committed source.
 
 [Emulator smoke](./.github/workflows/emulator-smoke.yml) runs weekly and on
 dispatch: `LaunchSmokeTest` and the credential-free `StaleOAuthCallbackTest` on
-the `ciPhone` Gradle Managed Device. It is deliberately not a PR gate:
+the `ciPhone` Gradle Managed Device (API 37). Each suite runs through
+`verifyCiPhoneLaunchProof` or `verifyCiPhoneOAuthProof`, which fail unless that
+test's own XML result passed. It is deliberately not a PR gate:
 shared-runner emulator boots are too slow and flaky to block merges, so
 `scripts/prove.sh` stays the local proof.
 

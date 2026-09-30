@@ -8,10 +8,10 @@ release's `system/assets/app-icon-nightly-stars.png`.
 
 `putio-design.lock.json` pins the npm release by version and tarball SHA-512
 SRI, and pins the SHA-256 of both source assets and of every written file.
-The Compose color schemes are generated from the JSON at build time by
-`:app:generateDesignTokens` (task class in `build-logic/`), which records the
-locked version in the generated header. Never hand-edit the generated Kotlin,
-the JSON, or the icons.
+The Compose color schemes and the TV overscan ratios (`tv.overscan.x/y`) are
+generated from the JSON at build time by `:app:generateDesignTokens` (task
+class in `build-logic/`), which records the locked version in the generated
+header. Never hand-edit the generated Kotlin, the JSON, or the icons.
 
 Syncing downloads that one tarball, verifies it and each source asset before
 use, and writes the files only when every output matches the lock. Icon
