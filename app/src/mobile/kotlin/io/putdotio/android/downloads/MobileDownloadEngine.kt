@@ -193,7 +193,11 @@ internal class MobileDownloadEngine(
     }
 }
 
-// Every subtitle rendition, as for streaming: put.io omits them for hide_subtitles otherwise (#223).
+/**
+ * Built here, not by the SDK: its URL builders embed `oauth_token`, and Media3 persists
+ * this URL, so it must stay token-free. HLS asks for every subtitle rendition, as
+ * streaming does; put.io omits them for `hide_subtitles` otherwise (#223).
+ */
 internal fun DownloadArtifact.apiUrl(fileId: FilesItemId): String =
     when (this) {
         DownloadArtifact.HLS ->

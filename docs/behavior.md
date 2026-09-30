@@ -319,7 +319,9 @@ SharedPreferences holds file id, name, type, rendition and status per user; it
 never holds a URL.
 
 Requests carry the token-free API URL, and a resolving data source adds the
-session header for `api.put.io` hosts. Playlist bodies from the server embed
+session header for `api.put.io` hosts. The app builds that URL itself: the
+SDK's URL builders always embed `oauth_token`, which Media3 would persist; it
+takes the subtitle count from the SDK's `HLS_ALL_SUBTITLES`. Playlist bodies from the server embed
 `oauth_token` in their child URLs; the cache key factory strips that query and
 prefixes the owning user id, so the Media3 index stays token-free and two
 accounts never share cached bytes. There is one `DownloadManager`; request ids
