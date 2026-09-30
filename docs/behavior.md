@@ -159,8 +159,9 @@ audio start over with each file. Choices survive a rebuilt player.
 
 Subtitles start from the account's settings, as on mobile: hidden with
 `hide_subtitles`, forced tracks only with `dont_autoselect_subtitles`, otherwise
-selected automatically. Hidden means off at the start, not gone: an HLS source
-asks put.io for every subtitle rendition (`max_subtitle_count=-1`; the server
+selected automatically. Hidden means off at the start, not gone: HLS playback
+and HLS downloads ask put.io for every subtitle rendition through the SDK's
+`maxSubtitleCount = HLS_ALL_SUBTITLES` (`max_subtitle_count=-1`; the server
 omits them for `hide_subtitles` otherwise), so Subtitles still offers the file's
 tracks (#223). Once the viewer picks, the pick decides (#45): a picked
 track is found again after track changes, and Off keeps the text type disabled
@@ -310,7 +311,8 @@ Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
 Downloads use Media3's `DownloadService` and `SimpleCache` under the app's
 internal files directory (`files/downloads/`), never external storage: cached
 playlist bodies carry the server's token. A video download stores the HLS
-rendition the player streams, subtitle renditions included; an audio download
+rendition the player streams, every subtitle rendition included whatever the
+account hides (#223); an audio download
 stores the original file. Media3 owns bytes, resume and the foreground
 notification, which shows a count and progress only. The app's index in private
 SharedPreferences holds file id, name, type, rendition and status per user; it
@@ -324,7 +326,9 @@ accounts never share cached bytes. There is one `DownloadManager`; request ids
 are `userId:fileId`, each request downloads under its owner's keys, and a
 sign-out parks that user's transfers with a stop reason until the owner signs in
 again. Playback reads through the same cache with a null write sink, so
-streaming never fills the download directory. On start the engine reconciles
+streaming never fills the download directory. Offline playback replays the URL
+Media3 recorded for the request, so a download keeps playing after the app
+changes the URL it builds for new ones. On start the engine reconciles
 Media3's own index into the app's rows, so a transfer that completed while the
 UI was dead reads On this device after relaunch. Closing the engine cancels that
 reconcile, so a sign-out right after sign-in cannot un-park the transfers.
@@ -335,7 +339,8 @@ transitions reach the index.
 Tests: `DownloadsControllerTest` (intents, progress polling while shown),
 `MobileDownloadsScreenTest` (shown and hidden events), `MobileDownloadStoreTest`,
 `MobileDownloadEngineTest` (reconcile, sign-out parking, account isolation,
-close before reconcile, in-memory progress against a real Media3 manager),
+close before reconcile, in-memory progress, the recorded request URL against
+a real Media3 manager),
 `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`.
 

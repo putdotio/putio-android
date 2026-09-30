@@ -89,12 +89,11 @@ class MobileDownloadEngineTest {
         assertNull(store.find(FilesItemId(12L)))
         val reissued = shadowOf(context).nextStartedService
         assertEquals(MobileDownloadService::class.java.name, reissued.component?.className)
-        assertEquals(
-            "$ALICE:13",
-            IntentCompat
-                .getParcelableExtra(reissued, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)
-                ?.id,
-        )
+        val request = IntentCompat
+            .getParcelableExtra(reissued, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)
+        assertEquals("$ALICE:13", request?.id)
+        // Offline copies keep every subtitle rendition, whatever the account hides (#223).
+        assertEquals("-1", request?.uri?.getQueryParameter("max_subtitle_count"))
         assertTrue(store.entries.value.none { it.fileId.value == 20L })
         assertEquals(PARKED, index.getDownload("$BOB:20")?.stopReason)
     }
@@ -172,6 +171,16 @@ class MobileDownloadEngineTest {
         assertFalse(preferences.getString(storeKey(ALICE), null) == persisted)
     }
 
+    @Test
+    fun offlinePlaybackReadsBackTheUrlEachDownloadWasRequestedWith() {
+        val earlier = "https://api.put.io/v2/files/10/hls/media.m3u8?subtitle_key=all"
+        index.putDownload(download("$ALICE:10", Download.STATE_COMPLETED, bytes = TOTAL, uri = earlier))
+
+        assertEquals(earlier, index.requestedUrl(ALICE, FilesItemId(10L)))
+        assertNull(index.requestedUrl(BOB, FilesItemId(10L)))
+        assertNull(index.requestedUrl(ALICE, FilesItemId(11L)))
+    }
+
     private fun manager(): DownloadManager =
         DownloadManager(context, index, downloaders).apply {
             requirements = Requirements(0)
@@ -214,8 +223,14 @@ class MobileDownloadEngineTest {
         DownloadStatus.Queued, createdAt = fileId, accepted = accepted,
     )
 
-    private fun download(id: String, state: Int, stopReason: Int = 0, bytes: Long = 0L) = Download(
-        DownloadRequest.Builder(id, Uri.parse("https://api.put.io/v2/files/$id/stream")).build(),
+    private fun download(
+        id: String,
+        state: Int,
+        stopReason: Int = 0,
+        bytes: Long = 0L,
+        uri: String = "https://api.put.io/v2/files/$id/stream",
+    ) = Download(
+        DownloadRequest.Builder(id, Uri.parse(uri)).build(),
         state,
         0L,
         0L,

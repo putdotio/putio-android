@@ -56,6 +56,26 @@ class OfflinePlaybackRepositoryTest {
     }
 
     @Test
+    fun completedDownloadReplaysTheUrlItWasRequestedWith() = runBlocking {
+        val downloads = MutableStateFlow(DownloadsState().withEntries(listOf(
+            DownloadEntry(
+                target.fileId, target.name, PutioFileType.VIDEO, DownloadArtifact.HLS, DownloadStatus.Completed(1L), 0L,
+            ),
+        )))
+        // A download from before the URL gained max_subtitle_count is cached under its own URL.
+        val earlier = "https://api.put.io/v2/files/7/hls/media.m3u8?subtitle_key=all"
+        val replayed = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of) { earlier }
+        val unknown = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of) { null }
+
+        val ready = (replayed.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
+        val fallback = (unknown.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
+
+        assertEquals(earlier, ready.source.url.value)
+        assertEquals(DownloadArtifact.HLS.apiUrl(target.fileId), fallback.source.url.value)
+        assertTrue(delegateCalls.isEmpty())
+    }
+
+    @Test
     fun anythingElseStreamsThroughTheDelegate() = runBlocking {
         val downloads = MutableStateFlow(DownloadsState().withEntries(listOf(
             DownloadEntry(

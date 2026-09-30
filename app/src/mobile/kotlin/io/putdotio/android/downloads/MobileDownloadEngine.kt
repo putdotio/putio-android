@@ -10,6 +10,7 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.files.HLS_ALL_SUBTITLES
 import java.io.IOException
 import java.net.SocketException
 import java.net.UnknownHostException
@@ -178,7 +179,7 @@ internal class MobileDownloadEngine(
         }
     }
 
-    private fun contentId(fileId: FilesItemId): String = "$userId:${fileId.value}"
+    private fun contentId(fileId: FilesItemId): String = downloadContentId(userId, fileId)
 
     private fun fileIdOf(contentId: String): FilesItemId? {
         val (owner, file) = contentId.split(':', limit = 2).takeIf { it.size == 2 } ?: return null
@@ -192,9 +193,12 @@ internal class MobileDownloadEngine(
     }
 }
 
+// Every subtitle rendition, as for streaming: put.io omits them for hide_subtitles otherwise (#223).
 internal fun DownloadArtifact.apiUrl(fileId: FilesItemId): String =
     when (this) {
-        DownloadArtifact.HLS -> "https://api.put.io/v2/files/${fileId.value}/hls/media.m3u8?subtitle_key=all"
+        DownloadArtifact.HLS ->
+            "https://api.put.io/v2/files/${fileId.value}/hls/media.m3u8" +
+                "?subtitle_key=all&max_subtitle_count=$HLS_ALL_SUBTITLES"
         DownloadArtifact.ORIGINAL -> "https://api.put.io/v2/files/${fileId.value}/stream"
     }
 

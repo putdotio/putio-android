@@ -15,10 +15,12 @@ import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import androidx.media3.exoplayer.offline.DefaultDownloaderFactory
+import androidx.media3.exoplayer.offline.DownloadIndex
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.Downloader
 import androidx.media3.exoplayer.offline.DownloaderFactory
+import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executor
@@ -104,6 +106,10 @@ internal class MobileDownloadCache private constructor(context: Context) {
         minRetryCount = MIN_RETRIES
     }
 
+    /** Blocking index read; see [DownloadIndex.requestedUrl]. */
+    fun requestedUrl(userId: Long, fileId: FilesItemId): String? =
+        downloadManager.downloadIndex.requestedUrl(userId, fileId)
+
     private fun authorize(spec: DataSpec): DataSpec {
         if (spec.uri.host != API_HOST) return spec
         // Data sources open on Media3's loader threads; the wait is bounded by the restore itself.
@@ -131,8 +137,18 @@ internal class MobileDownloadCache private constructor(context: Context) {
 }
 
 /** Request ids are `userId:fileId`; the user prefix scopes every cached byte the request produces. */
+internal fun downloadContentId(userId: Long, fileId: FilesItemId): String = "$userId:${fileId.value}"
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun DownloadRequest.ownerUserId(): Long? = id.substringBefore(':', missingDelimiterValue = "").toLongOrNull()
+
+/**
+ * The URL this user's download was requested with. The cache is keyed by it, so offline
+ * playback replays it verbatim, including downloads made before [apiUrl] last changed.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun DownloadIndex.requestedUrl(userId: Long, fileId: FilesItemId): String? =
+    getDownload(downloadContentId(userId, fileId))?.request?.uri?.toString()
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private class UserScopedDownloaderFactory(
