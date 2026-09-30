@@ -97,17 +97,18 @@ internal fun MobileTransfersScreen(
     val addedMessage = stringResource(R.string.mobile_transfers_added)
     // The successful add id changes once per accepted submission; the first value is history, not news.
     var announcedAdd by remember(sessionId) { mutableStateOf(state.lastSuccessfulAddRequestId) }
+    // Newest news replaces a visible snackbar instead of queueing behind it, where leaving the screen would drop it.
     LaunchedEffect(state.lastSuccessfulAddRequestId) {
         val added = state.lastSuccessfulAddRequestId
         if (added != null && added != announcedAdd) {
             announcedAdd = added
+            snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(addedMessage)
         }
     }
     val retryMessage = state.retryOutcome?.let { retryOutcomeMessage(it) }
     LaunchedEffect(state.retryOutcome) {
         val outcome = state.retryOutcome ?: return@LaunchedEffect
-        // The outcome replaces a visible snackbar instead of queueing, so leaving cannot acknowledge an unseen one.
         snackbarHostState.currentSnackbarData?.dismiss()
         try {
             snackbarHostState.showSnackbar(requireNotNull(retryMessage))

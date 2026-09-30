@@ -314,10 +314,22 @@ class MobileTransfersScreenTest {
         compose.runOnIdle {
             assertEquals(TransfersEvent.DismissRetryOutcome(TransfersRequestId(3L)), events.single())
         }
+
+        compose.mainClock.advanceTimeBy(SNACKBAR_TIMEOUT_MS)
+        compose.onAllNodesWithText("Couldn’t retry transfer. It has no error to retry.").assertCountEquals(0)
+        compose.runOnIdle {
+            assertEquals(
+                listOf<TransfersEvent>(
+                    TransfersEvent.DismissRetryOutcome(TransfersRequestId(3L)),
+                    TransfersEvent.DismissRetryOutcome(TransfersRequestId(4L)),
+                ),
+                events,
+            )
+        }
     }
 
     @Test
-    fun aRetryOutcomeReplacesAVisibleAddedSnackbarInsteadOfQueueing() {
+    fun newTransferNewsReplacesAVisibleSnackbarInsteadOfQueueing() {
         val content = TransfersContent.Ready(listOf(transfer(2L, AppTransferStatus.Queued)), TransfersPaging.Complete)
         var current by mutableStateOf(state(content))
         setMutableScreen({ current }, onEvent = {})
@@ -330,6 +342,10 @@ class MobileTransfersScreenTest {
         }
         compose.onNodeWithText("Retrying transfer").assertIsDisplayed()
         compose.onAllNodesWithText("Transfer added").assertCountEquals(0)
+
+        compose.runOnIdle { current = current.copy(lastSuccessfulAddRequestId = TransfersRequestId(5L)) }
+        compose.onNodeWithText("Transfer added").assertIsDisplayed()
+        compose.onAllNodesWithText("Retrying transfer").assertCountEquals(0)
     }
 
     @Test
@@ -863,3 +879,6 @@ class MobileTransfersScreenTest {
             userFileExists = userFileExists,
         )
 }
+
+// Longer than SnackbarDuration.Short.
+private const val SNACKBAR_TIMEOUT_MS = 10_000L
