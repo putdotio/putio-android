@@ -74,7 +74,11 @@ internal class PutioTvSessionGateway(
                 TvSessionValidation.Valid(boundary.getAccountInfo().toTvAccount())
             }
         } catch (error: PutioException) {
-            if (error.isAuthoritativeAuthRejection()) TvSessionValidation.Rejected else TvSessionValidation.Unavailable(error)
+            if (error.isAuthoritativeAuthRejection()) {
+                TvSessionValidation.Rejected
+            } else {
+                TvSessionValidation.Unavailable(error)
+            }
         }
 }
 

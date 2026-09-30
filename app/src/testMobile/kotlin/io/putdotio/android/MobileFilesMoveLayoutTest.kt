@@ -81,7 +81,11 @@ class MobileFilesMoveLayoutTest {
         compose.onNodeWithText(state.sourceItem.name).performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
             it(layouts)
         }
-        assertEquals("The dialog must actually render at 200% font scale", 2f, layouts.single().layoutInput.density.fontScale)
+        assertEquals(
+            "The dialog must actually render at 200% font scale",
+            2f,
+            layouts.single().layoutInput.density.fontScale,
+        )
         assertActionFitsPicker(MOBILE_FILES_MOVE_CANCEL_TAG)
         assertActionFitsPicker(MOBILE_FILES_MOVE_HERE_TAG)
         val list = compose.onNodeWithTag(MOBILE_FILES_MOVE_LIST_TAG)

@@ -1191,7 +1191,8 @@ class MobilePlayerScreenTest {
     }
 
     @Test
-    fun accumulationWindowIsMeasuredFromTheRequestNotTheFeedbackTimer() = withAccessibleSeekPlayer { player, starts, seek ->
+    fun accumulationWindowIsMeasuredFromTheRequestNotTheFeedbackTimer() =
+        withAccessibleSeekPlayer { player, starts, seek ->
         compose.mainClock.autoAdvance = true
         compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).performClick()
         compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertIsDisplayed()
@@ -2086,7 +2087,11 @@ class MobilePlayerScreenTest {
                         ): java.io.Closeable {
                             attempts += 1
                             onResult(
-                                if (attempts == 1) Result.failure(IllegalStateException("bind")) else Result.success(session),
+                                if (attempts == 1) {
+                                    Result.failure(IllegalStateException("bind"))
+                                } else {
+                                    Result.success(session)
+                                },
                             )
                             return java.io.Closeable {}
                         }
@@ -2107,7 +2112,14 @@ class MobilePlayerScreenTest {
         val unauthorized =
             PlaybackException(
                 "source",
-                HttpDataSource.InvalidResponseCodeException(401, "Unauthorized", null, emptyMap(), dataSpec, ByteArray(0)),
+                HttpDataSource.InvalidResponseCodeException(
+                    401,
+                    "Unauthorized",
+                    null,
+                    emptyMap(),
+                    dataSpec,
+                    ByteArray(0),
+                ),
                 PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
             )
         val offline =
@@ -2127,7 +2139,11 @@ class MobilePlayerScreenTest {
                 HttpDataSource.InvalidResponseCodeException(404, "Not Found", null, emptyMap(), dataSpec, ByteArray(0)),
                 PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
             )
-        val decoder = PlaybackException("decoder", IllegalStateException("codec"), PlaybackException.ERROR_CODE_DECODING_FAILED)
+        val decoder = PlaybackException(
+            "decoder",
+            IllegalStateException("codec"),
+            PlaybackException.ERROR_CODE_DECODING_FAILED,
+        )
 
         // The controller receives the bundle form, which drops the typed cause chain.
         fun relay(error: PlaybackException) = PlaybackException.fromBundle(error.toBundle())

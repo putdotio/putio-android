@@ -87,6 +87,7 @@ import io.putdotio.android.tv.TvChoice
 import io.putdotio.android.tv.TvChoiceDialog
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.auth.TvAccount
+import io.putdotio.android.tv.paneSection
 import io.putdotio.sdk.files.PlaybackPreference
 
 internal const val TV_ACCOUNT_STORAGE_TAG = "tv-account-storage"
@@ -275,7 +276,7 @@ private fun TvAccountBody(
         TvAccountHeader(
             account = account,
             onSignOut = onSignOut,
-            signOutModifier = owner.section(signOutFocus).focusRequester(signOutFocus),
+            signOutModifier = Modifier.paneSection(owner, signOutFocus).focusRequester(signOutFocus),
         )
         Column(
             modifier = Modifier
@@ -345,7 +346,9 @@ private fun TvAccountBody(
                             openDialog = TvAccountDialog.TrashOff
                         } else {
                             onSettingsEvent(
-                                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.Trash, true)),
+                                AccountSettingsEvent.ChangeRequested(
+                                    AccountSettingsChange(AccountSettingsKey.Trash, true),
+                                ),
                             )
                         }
                     },
@@ -376,7 +379,9 @@ private fun TvAccountBody(
                     onToggle = {
                         if (controls) {
                             onSettingsEvent(
-                                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.History, it)),
+                                AccountSettingsEvent.ChangeRequested(
+                                    AccountSettingsChange(AccountSettingsKey.History, it),
+                                ),
                             )
                         }
                     },
@@ -426,7 +431,9 @@ private fun TvAccountBody(
             onConfirm = {
                 openDialog = null
                 onSettingsEvent(
-                    AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)),
+                    AccountSettingsEvent.ChangeRequested(
+                        AccountSettingsChange(AccountSettingsKey.Trash, enabled = false),
+                    ),
                 )
             },
             onDismiss = { openDialog = null },
@@ -444,7 +451,8 @@ private fun TvAccountBody(
 private fun TvAccountHeader(
     account: TvAccount,
     onSignOut: () -> Unit,
-    signOutModifier: Modifier,
+    modifier: Modifier = Modifier,
+    signOutModifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val storage = account.storage
@@ -456,7 +464,7 @@ private fun TvAccountHeader(
     val usedPercent = (usedFraction * PERCENT).toInt()
     val storageDescription = stringResource(R.string.tv_account_storage_description, available, size, usedPercent)
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -667,7 +675,9 @@ private fun TvAppConfigSection(
                 owner = owner,
                 focus = playbackTypeFocus,
             )
-            TvAppConfigFailureNotice(state, onEvent, owner, playbackTypeFocus) { it is AndroidAppConfigChange.VideoPlayback }
+            TvAppConfigFailureNotice(state, onEvent, owner, playbackTypeFocus) {
+                it is AndroidAppConfigChange.VideoPlayback
+            }
             val autoplayFocus = remember { FocusRequester() }
             TvSwitchRow(
                 title = stringResource(R.string.tv_account_autoplay_next),
@@ -681,7 +691,9 @@ private fun TvAppConfigSection(
                 owner = owner,
                 focus = autoplayFocus,
             )
-            TvAppConfigFailureNotice(state, onEvent, owner, autoplayFocus) { it is AndroidAppConfigChange.AutoplayNextVideo }
+            TvAppConfigFailureNotice(state, onEvent, owner, autoplayFocus) {
+                it is AndroidAppConfigChange.AutoplayNextVideo
+            }
         }
     }
 }
@@ -790,7 +802,9 @@ private fun TvChoiceDialogForPlayback(
     TvChoiceDialog(
         title = stringResource(R.string.tv_account_video_playback_type),
         // MP4 above the default, as the oracle lists them.
-        choices = listOf(VideoPlaybackType.Mp4, VideoPlaybackType.Hls).map { TvChoice(it, stringResource(it.tvLabel())) },
+        choices = listOf(VideoPlaybackType.Mp4, VideoPlaybackType.Hls).map {
+            TvChoice(it, stringResource(it.tvLabel()))
+        },
         selected = selected,
         onSelect = onSelect,
         onDismiss = onDismiss,
@@ -847,7 +861,9 @@ private fun TvAccountNotice(
         if (action != null) {
             TvButton(
                 onClick = onAction,
-                modifier = owner.section(actionFocus, fallback = returnTo?.let { { it } }).focusRequester(actionFocus),
+                modifier = Modifier
+                    .paneSection(owner, actionFocus, fallback = returnTo?.let { { it } })
+                    .focusRequester(actionFocus),
             ) {
                 Text(action)
             }
@@ -871,7 +887,7 @@ private fun TvSwitchRow(
         leadingContent = { TvRowIcon(icon) },
         trailingContent = { Switch(checked = checked, onCheckedChange = null) },
         scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
-        modifier = owner.section(focus)
+        modifier = Modifier.paneSection(owner, focus)
             .focusRequester(focus)
             .fillMaxWidth()
             .semantics {
@@ -894,7 +910,9 @@ private fun TvChoiceRow(
         selected = false,
         onClick = onClick,
         headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = if (value == null) null else ({ Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
+        supportingContent = if (value == null) null else ({
+            Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }),
         leadingContent = { TvRowIcon(icon) },
         trailingContent = {
             Icon(
@@ -904,7 +922,7 @@ private fun TvChoiceRow(
             )
         },
         scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
-        modifier = owner.section(focus)
+        modifier = Modifier.paneSection(owner, focus)
             .focusRequester(focus)
             .fillMaxWidth(),
     )
@@ -924,11 +942,13 @@ private fun TvAccountRow(
         selected = false,
         onClick = onClick,
         headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = if (value == null) null else ({ Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
+        supportingContent = if (value == null) null else ({
+            Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }),
         leadingContent = { TvRowIcon(icon) },
         scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
         modifier = modifier
-            .then(owner.section(focus))
+            .paneSection(owner, focus)
             .focusRequester(focus)
             .fillMaxWidth(),
     )

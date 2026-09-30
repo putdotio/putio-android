@@ -522,7 +522,8 @@ class MobileAccountScreenTest {
                     nextRequestValue = 2L,
                 )
         }
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("This app doesn’t have access to playback settings."))
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG)
+            .performScrollToNode(hasText("This app doesn’t have access to playback settings."))
         compose.onNode(
             SemanticsMatcher.expectValue(
                 SemanticsProperties.LiveRegion,

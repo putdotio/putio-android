@@ -66,7 +66,11 @@ class TvAccountScreenTest {
         userId = 1,
         username = "devs-auto",
         email = "devs@example.com",
-        storage = TvAccountStorage(availableBytes = 750_000_000_000, sizeBytes = 1_000_000_000_000, usedBytes = 250_000_000_000),
+        storage = TvAccountStorage(
+            availableBytes = 750_000_000_000,
+            sizeBytes = 1_000_000_000_000,
+            usedBytes = 250_000_000_000,
+        ),
     )
     private val preferences = AccountSettingsPreferences(
         historyEnabled = true,
@@ -113,7 +117,9 @@ class TvAccountScreenTest {
         assertEquals(
             listOf<AccountSettingsEvent>(
                 AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.ResumePlayback, false)),
-                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, true)),
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, true),
+                ),
             ),
             settingsEvents,
         )
@@ -305,7 +311,10 @@ class TvAccountScreenTest {
     private fun readyConfig(type: VideoPlaybackType): AndroidAppConfigState =
         AndroidAppConfigReducer.reduce(
             AndroidAppConfigReducer.start().state,
-            AndroidAppConfigEvent.LoadSucceeded(AndroidAppConfigRequestId(1), AndroidAppConfigPreferences(videoPlaybackType = type)),
+            AndroidAppConfigEvent.LoadSucceeded(
+                AndroidAppConfigRequestId(1),
+                AndroidAppConfigPreferences(videoPlaybackType = type),
+            ),
         ).state
 
     private fun show(

@@ -463,7 +463,7 @@ private fun twoText(period: Int = 1) =
 
 /** Selects tracks from the parameters roughly as ExoPlayer's default selector would. */
 @UnstableApi
-private class TrackPlayer(
+internal class TrackPlayer(
     private var audio: TrackGroup? = twoAudio(),
     private var text: TrackGroup? = twoText(),
     durationKnown: Boolean = true,

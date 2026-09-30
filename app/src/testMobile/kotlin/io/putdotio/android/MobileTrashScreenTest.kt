@@ -61,7 +61,9 @@ class MobileTrashScreenTest {
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
         compose.onNodeWithContentDescription("Actions for ${item.name}").assertIsNotEnabled()
         compose.runOnIdle {
-            state = state.copy(restoreOutcome = state.restoreOutcome?.copy(submission = TrashRestoreSubmission.UNCERTAIN))
+            state = state.copy(
+                restoreOutcome = state.restoreOutcome?.copy(submission = TrashRestoreSubmission.UNCERTAIN),
+            )
         }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("Check status"))
         compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick()
@@ -70,7 +72,9 @@ class MobileTrashScreenTest {
 
     @Test
     fun newRestoreOutcomeScrollsIntoViewWhenTheListIsScrolledDown() {
-        val items = (1..12).map { TrashItem(FilesItemId(it.toLong()), FilesItemId(0), "item-$it.txt", PutioFileType.TEXT, 12) }
+        val items = (1..12).map {
+            TrashItem(FilesItemId(it.toLong()), FilesItemId(0), "item-$it.txt", PutioFileType.TEXT, 12)
+        }
         var state by mutableStateOf(TrashState(content = TrashContent.Loaded(items, null, items.size, 144)))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("item-12.txt"))
@@ -84,8 +88,17 @@ class MobileTrashScreenTest {
 
     @Test
     fun newActionOutcomeScrollsIntoViewBelowACompletedRestoreOutcome() {
-        val items = (1..12).map { TrashItem(FilesItemId(it.toLong()), FilesItemId(0), "item-$it.txt", PutioFileType.TEXT, 12) }
-        val restored = FilesItem(items[0].id, FilesItemId(0), "restored ".repeat(40), PutioFileType.TEXT, 12, "2026-09-06")
+        val items = (1..12).map {
+            TrashItem(FilesItemId(it.toLong()), FilesItemId(0), "item-$it.txt", PutioFileType.TEXT, 12)
+        }
+        val restored = FilesItem(
+            items[0].id,
+            FilesItemId(0),
+            "restored ".repeat(40),
+            PutioFileType.TEXT,
+            12,
+            "2026-09-06",
+        )
         var state by mutableStateOf(TrashState(content = TrashContent.Loaded(items, null, items.size, 144),
             restoreOutcome = TrashRestoreOutcome(items[0], TrashRestoreSubmission.ACKNOWLEDGED,
                 TrashRestoreCheck.AVAILABLE, resolvedItem = restored), restoredItemIds = setOf(items[0].id)))
@@ -128,7 +141,9 @@ class MobileTrashScreenTest {
         val context = RuntimeEnvironment.getApplication()
         assertNull("not-a-date".trashDisplayDate(context))
         assertNull("2026-99-99".trashDisplayDate(context))
-        val state = TrashState(content = loaded.copy(items = listOf(item.copy(expirationDate = "invalid", deletedAt = null))))
+        val state = TrashState(
+            content = loaded.copy(items = listOf(item.copy(expirationDate = "invalid", deletedAt = null))),
+        )
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
         compose.onNodeWithText("Expires", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Deleted", substring = true).assertDoesNotExist()

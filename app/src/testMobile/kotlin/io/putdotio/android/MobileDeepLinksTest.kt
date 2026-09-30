@@ -17,7 +17,10 @@ class MobileDeepLinksTest {
     fun webAndSchemeLinksResolveToTheSameDestinations() {
         assertEquals(MobileDeepLink.Files, parseMobileDeepLink("https://app.put.io/files".toUri()))
         assertEquals(MobileDeepLink.Files, parseMobileDeepLink("https://app.put.io/".toUri()))
-        assertEquals(MobileDeepLink.File(FilesItemId(42L)), parseMobileDeepLink("https://app.put.io/files/42?x=1#f".toUri()))
+        assertEquals(
+            MobileDeepLink.File(FilesItemId(42L)),
+            parseMobileDeepLink("https://app.put.io/files/42?x=1#f".toUri()),
+        )
         assertEquals(MobileDeepLink.File(FilesItemId(42L)), parseMobileDeepLink("putio://files/42".toUri()))
         assertEquals(MobileDeepLink.Transfers, parseMobileDeepLink("https://put.io/transfers".toUri()))
         assertEquals(MobileDeepLink.Search, parseMobileDeepLink("putio://search".toUri()))

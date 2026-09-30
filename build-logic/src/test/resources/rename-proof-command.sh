@@ -39,7 +39,7 @@ case "${0##*/}" in
     esac
     ;;
   adb)
-    test "$1" = -s && test "$2" = emulator-5584
+    test "$1" = -s && test "$2" = "$(cat "$state/serial")"
     shift 2
     case "$1" in
       get-state)

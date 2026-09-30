@@ -246,7 +246,13 @@ internal fun MobileFilesActions(
                 ListItem(
                     headlineContent = {
                         Text(
-                            stringResource(if (confirmedTrashEnabled == true) R.string.mobile_files_trash else R.string.mobile_files_delete),
+                            stringResource(
+                                if (confirmedTrashEnabled == true) {
+                                    R.string.mobile_files_trash
+                                } else {
+                                    R.string.mobile_files_delete
+                                },
+                            ),
                             color = MaterialTheme.colorScheme.error,
                         )
                     },
@@ -257,7 +263,9 @@ internal fun MobileFilesActions(
                     },
                     modifier = Modifier
                         .clickable(
-                            enabled = confirmedTrashEnabled != null && item.id.value > 0L && operation.canStartOperation,
+                            enabled = confirmedTrashEnabled != null &&
+                                item.id.value > 0L &&
+                                operation.canStartOperation,
                             role = Role.Button,
                         ) {
                             confirmedDeleteTrash = currentTrashEnabled

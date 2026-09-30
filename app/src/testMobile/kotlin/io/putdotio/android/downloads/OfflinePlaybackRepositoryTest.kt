@@ -59,7 +59,12 @@ class OfflinePlaybackRepositoryTest {
     fun anythingElseStreamsThroughTheDelegate() = runBlocking {
         val downloads = MutableStateFlow(DownloadsState().withEntries(listOf(
             DownloadEntry(
-                target.fileId, target.name, PutioFileType.VIDEO, DownloadArtifact.HLS, DownloadStatus.Downloading(1L, 2L), 0L,
+                target.fileId,
+                target.name,
+                PutioFileType.VIDEO,
+                DownloadArtifact.HLS,
+                DownloadStatus.Downloading(1L, 2L),
+                0L,
             ),
         )))
         val repository = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of)

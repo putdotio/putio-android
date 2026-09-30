@@ -214,7 +214,12 @@ class TvShellTest {
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
                     filesPane = { paneFocus ->
-                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
                     },
                 )
             }
@@ -244,7 +249,12 @@ class TvShellTest {
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
                     filesPane = { paneFocus ->
-                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
                     },
                 )
             }
@@ -273,12 +283,19 @@ class TvShellTest {
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
                     filesPane = { paneFocus ->
-                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
                     },
                 )
             }
         }
-        compose.onNodeWithContentDescription("first.txt").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("first.txt")
+            .assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionRight)
@@ -305,7 +322,12 @@ class TvShellTest {
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
                     filesPane = { paneFocus ->
-                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
                     },
                 )
             }
@@ -324,7 +346,9 @@ class TvShellTest {
             nextRequestValue = 11L,
         )
         compose.waitForIdle()
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Files") and hasClickAction())
+            .assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithContentDescription("file-30.txt").assertIsFocused()
     }
 
@@ -342,22 +366,34 @@ class TvShellTest {
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
                     filesPane = { paneFocus ->
-                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
                     },
                 )
             }
         }
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Refresh") and hasClickAction())
+            .assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
 
         files = FilesBrowserState(
             stack = listOf(
-                FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Complete)),
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Complete),
+                ),
             ),
             nextRequestValue = 11L,
         )
         compose.waitForIdle()
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Files") and hasClickAction())
+            .assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithContentDescription("first.txt").assertIsFocused()
     }
 
@@ -375,12 +411,19 @@ class TvShellTest {
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
                     filesPane = { paneFocus ->
-                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
                     },
                 )
             }
         }
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Refresh") and hasClickAction())
+            .assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
 
         files = FilesBrowserState(
@@ -393,7 +436,9 @@ class TvShellTest {
             nextRequestValue = 11L,
         )
         compose.waitForIdle()
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Files") and hasClickAction())
+            .assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Try again").assertIsFocused()
     }
 
@@ -401,7 +446,10 @@ class TvShellTest {
     fun dismissingTheUnsupportedScreenFromTheRailKeepsFocusOnTheRail() {
         val files = FilesBrowserState(
             stack = listOf(
-                FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "notes.txt")), FilesPaging.Complete)),
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(listOf(row(1, "notes.txt")), FilesPaging.Complete),
+                ),
             ),
             nextRequestValue = 10L,
         )
@@ -411,7 +459,12 @@ class TvShellTest {
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
                     filesPane = { paneFocus ->
-                        TvFilesScreen(state = files, onEvent = { true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
                     },
                 )
             }
@@ -425,7 +478,9 @@ class TvShellTest {
 
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
-        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Files") and hasClickAction())
+            .assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused()
     }
 
@@ -435,7 +490,10 @@ class TvShellTest {
         val nested = FilesBrowserState(
             stack = listOf(
                 FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "Movies")), FilesPaging.Complete)),
-                FilesFolderState(FilesFolder(FilesItemId(1), "Movies"), FilesContent.Ready(listOf(row(2, "inner.txt")), FilesPaging.Complete)),
+                FilesFolderState(
+                    FilesFolder(FilesItemId(1), "Movies"),
+                    FilesContent.Ready(listOf(row(2, "inner.txt")), FilesPaging.Complete),
+                ),
             ),
             nextRequestValue = 10L,
         )
@@ -446,7 +504,12 @@ class TvShellTest {
                     onSignOut = {},
                     filesPane = { paneFocus ->
                         BackHandler(enabled = nested.canNavigateBack) { events += FilesBrowserEvent.NavigateBack }
-                        TvFilesScreen(state = nested, onEvent = { events += it; true }, onPlayMedia = {}, modifier = Modifier.focusRequester(paneFocus))
+                        TvFilesScreen(
+                            state = nested,
+                            onEvent = { events += it; true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
                     },
                 )
             }
@@ -571,7 +634,11 @@ class TvShellTest {
         val history = HistoryState(
             HistoryContent.Ready(
                 listOf(
-                    HistoryItem(HistoryEventId(1), "2026-09-10T10:00:00", HistoryEventKind.File(HistoryFileId(5), "Sintel.mp4")),
+                    HistoryItem(
+                        HistoryEventId(1),
+                        "2026-09-10T10:00:00",
+                        HistoryEventKind.File(HistoryFileId(5), "Sintel.mp4"),
+                    ),
                 ),
                 HistoryPaging.Complete,
             ),
@@ -624,7 +691,11 @@ class TvShellTest {
             HistoryState(
                 HistoryContent.Ready(
                     listOf(
-                        HistoryItem(HistoryEventId(1), "2026-09-10T10:00:00", HistoryEventKind.File(HistoryFileId(5), "Sintel.mp4")),
+                        HistoryItem(
+                            HistoryEventId(1),
+                            "2026-09-10T10:00:00",
+                            HistoryEventKind.File(HistoryFileId(5), "Sintel.mp4"),
+                        ),
                     ),
                     HistoryPaging.Complete,
                 ),
@@ -636,7 +707,11 @@ class TvShellTest {
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
                     historyPane = { paneFocus ->
-                        TvHistoryScreen(state = history, onEvent = { true }, modifier = Modifier.focusRequester(paneFocus))
+                        TvHistoryScreen(
+                            state = history,
+                            onEvent = { true },
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
                     },
                 )
             }

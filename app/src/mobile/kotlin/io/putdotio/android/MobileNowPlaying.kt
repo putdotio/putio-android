@@ -189,7 +189,11 @@ internal fun MobileNowPlayingBar(
                             if (nowPlaying.isPlaying) R.drawable.ic_ph_pause_fill else R.drawable.ic_ph_play_fill,
                         ),
                         contentDescription = stringResource(
-                            if (nowPlaying.isPlaying) R.string.mobile_now_playing_pause else R.string.mobile_now_playing_play,
+                            if (nowPlaying.isPlaying) {
+                                R.string.mobile_now_playing_pause
+                            } else {
+                                R.string.mobile_now_playing_play
+                            },
                         ),
                     )
                 }
