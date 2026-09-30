@@ -64,7 +64,7 @@ import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.PlaybackSubtitleTrack
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.android.playback.restoreSubtitleSelection
-import io.putdotio.android.playback.systemCaptionsEnabled
+import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.toSubtitleTrackIdentity
 import io.putdotio.android.playback.SubtitleCueOverlay
 import io.putdotio.android.playback.SUBTITLE_CUES_TAG
@@ -218,7 +218,7 @@ class MobileSubtitleControlsTest {
             player.trackSelectionParameters = restoreSubtitleSelection(
                 defaults = defaults,
                 retained = null,
-                systemCaptionsEnabled = false,
+                startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
             )
         }
         compose.setContent {

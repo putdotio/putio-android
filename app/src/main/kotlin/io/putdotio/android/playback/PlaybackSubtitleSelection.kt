@@ -1,7 +1,6 @@
 package io.putdotio.android.playback
 
 import android.os.Bundle
-import android.view.accessibility.CaptioningManager
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
@@ -152,25 +151,18 @@ internal fun TrackSelectionParameters.subtitlesEnabled(tracks: List<PlaybackSubt
 internal fun restoreSubtitleSelection(
     defaults: TrackSelectionParameters,
     retained: SubtitleSelection?,
-    systemCaptionsEnabled: Boolean,
-    startupPolicy: SubtitleStartupPolicy? = null,
+    startupPolicy: SubtitleStartupPolicy?,
 ): TrackSelectionParameters =
-    retained?.let { defaults.withSubtitleSelection(it, emptyList(), defaults) }
-        ?: startupPolicy?.let { policy ->
-            when {
-                !policy.showSubtitles ->
-                    defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
-                policy.autoSelectSubtitles ->
-                    defaults.withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaults)
-                else ->
-                    defaults.withForcedSubtitlesOnly()
-            }
-        }
-        ?: if (systemCaptionsEnabled) {
+    when {
+        retained != null -> defaults.withSubtitleSelection(retained, emptyList(), defaults)
+        // No policy means account settings are loading or failed to load; until they say
+        // otherwise a `hide_subtitles` account must not see subtitles (#229).
+        startupPolicy == null || !startupPolicy.showSubtitles ->
+            defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
+        startupPolicy.autoSelectSubtitles ->
             defaults.withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaults)
-        } else {
-            defaults.withForcedSubtitlesOnly()
-        }
+        else -> defaults.withForcedSubtitlesOnly()
+    }
 
 private fun TrackSelectionParameters.withForcedSubtitlesOnly(): TrackSelectionParameters =
     buildUpon()
@@ -220,6 +212,3 @@ internal fun Bundle.toSubtitleSelection(): SubtitleSelection? =
             )
         else -> null
     }
-
-internal fun android.content.Context.systemCaptionsEnabled(): Boolean =
-    (getSystemService(android.content.Context.CAPTIONING_SERVICE) as? CaptioningManager)?.isEnabled == true

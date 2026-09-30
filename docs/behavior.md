@@ -160,7 +160,10 @@ each file. Choices survive a rebuilt player.
 
 Subtitles start from the account's settings, as on mobile: hidden with
 `hide_subtitles`, forced tracks only with `dont_autoselect_subtitles`, otherwise
-selected automatically. Hidden means off at the start, not gone: HLS playback
+selected automatically. Until those settings load, and after a failed load,
+subtitles start off whatever the system caption setting, so a `hide_subtitles`
+account never sees them early; settings that arrive later still decide until
+the viewer picks (#229). Hidden means off at the start, not gone: HLS playback
 and HLS downloads ask put.io for every subtitle rendition through the SDK's
 `maxSubtitleCount = HLS_ALL_SUBTITLES` (`max_subtitle_count=-1`; the server
 omits them for `hide_subtitles` otherwise), so Subtitles still offers the file's

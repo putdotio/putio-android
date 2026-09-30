@@ -95,7 +95,6 @@ import io.putdotio.android.playback.PlaybackSubtitleTrack
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.android.playback.restoreSubtitleSelection
-import io.putdotio.android.playback.systemCaptionsEnabled
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.withAudioSelection
@@ -434,7 +433,6 @@ private fun MobileReadyPlayer(
                     defaults = defaultTrackSelection,
                     retained = retainedSubtitleSelection,
                     startupPolicy = subtitleStartupPolicy,
-                    systemCaptionsEnabled = context.systemCaptionsEnabled(),
                 )
         }
         activeFileId = fileId
@@ -464,7 +462,6 @@ private fun MobileReadyPlayer(
                         defaults = current,
                         retained = null,
                         startupPolicy = policy,
-                        systemCaptionsEnabled = context.systemCaptionsEnabled(),
                     )
                 }
             if (parameters != player.trackSelectionParameters) {
