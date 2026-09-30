@@ -525,7 +525,8 @@ PUTIO_CLI_PROFILE=devs-auto putio auth approve "$code"
 
 The shell appears within one poll interval (3 s). `Get new code` on the
 sign-in screen cancels the current attempt and requests another; `Sign out`
-under Account revokes the grant and returns to a fresh code. A force-stop and
+under Account returns to a fresh code at once and revokes the token in the
+background. A force-stop and
 relaunch must land in the shell without a code: that is the Keystore restore.
 `pm clear io.put.putio.debug` drops the stored token. The emulator has no
 Fire TV feature flag, so it always links as the Android TV client (6221);
@@ -544,7 +545,74 @@ account like mobile, so restore the previous order after a proof:
 adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc="(Open|Play) [^"]+"' | head
 ```
 
-Media rows call the playback hook, which is a no-op until #34.
+Center on a media row opens the TV player; Back returns to that row. See
+[TV player proof](#tv-player-proof) for the recorded lane.
+
+## TV player proof
+
+Behaviour: [TV playback](./behavior.md#tv-playback). `TvPlayerProofTest`
+(`androidTestTv`) mounts a fixed Files listing, the TV shell and the real TV
+player screen with the production ExoPlayer factory, then drives it with D-pad
+key events. `selectPlaysTheFixtureAndBackReturnsToItsRow`: Down to the video
+row, Center to play, Center to pause and resume, Back to hide the controls and
+Back to the row. `dpadScrubbingAndBackWalkTheOverlayStack`: Right twice to
+scrub, Center to commit, rewind then Back to dismiss seek mode, Back to hide
+the playing controls, Center then Back to hide the paused controls, and Back
+to the row. `resumeDialogContinueStartOverAndBackWithWriteBack` runs the real
+session route (a `PlaybackController` per play and TV write-back) against a
+fake position server that starts at 45 s: Center shows the resume dialog with
+Continue focused, Down focuses Start from the beginning, Back continues from
+45 s, 16 s of playback write once, leaving writes once more, then Start from
+the beginning plays from zero and Continue resumes from what that playback
+saved. `languageSubtitlesAndSpeedPickersJoinTheBackStack` needs the
+multi-track fixture below and automatic subtitles: Down then Up to Language,
+Center, Down, Center switches to the second audio track; Right, Center, Up,
+Center turns subtitles off; Down, Right, Center seeks and subtitles stay off;
+Down, Up, Right, Right, Center opens Speed, Back closes only the picker, then
+Down twice picks 1.5×; Back hides the controls and Back returns to the row.
+It makes no API calls; the listing, the resolved source and the position
+server stand in for a signed-in session, so report it as controlled-state
+proof.
+
+```bash
+./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
+adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
+adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+# Two audio renditions and a WebVTT subtitle rendition; the picker flow needs them, the others play it too.
+python3 -c 'for i in range(30): t = lambda v: f"00:{v // 60:02d}:{v % 60:02d},000"; print(f"{i + 1}\n{t(i * 3)} --> {t(i * 3 + 3)}\nTV proof subtitle {i + 1}\n")' > captions.srt
+rm -rf hls && ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=90 -f lavfi -i sine=frequency=440:duration=90 \
+  -f lavfi -i sine=frequency=880:duration=90 -i captions.srt -map 0:v -map 1:a -map 2:a -map 3:s \
+  -c:v libx264 -pix_fmt yuv420p -g 60 -c:a aac -c:s webvtt -f hls -hls_time 4 -hls_playlist_type vod \
+  -master_pl_name index.m3u8 -var_stream_map "v:0,s:0,agroup:aud,sgroup:subs,name:video \
+  a:0,agroup:aud,language:en,name:English,default:yes a:1,agroup:aud,language:de,name:Deutsch" \
+  -hls_segment_filename 'hls/%v/seg%03d.ts' hls/%v/media.m3u8
+sed -i.bak -e 's/NAME="audio_1"/NAME="English"/' -e 's/NAME="audio_2"/NAME="Deutsch"/' \
+  -e 's/NAME="subtitle_0",DEFAULT=NO/NAME="English",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="en"/' hls/index.m3u8
+rm hls/index.m3u8.bak
+adb -s emulator-5554 push hls/. /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.player.TvPlayerProofTest \
+  -e putio.tv.player.enabled true -e putio.tv.player.runId "$(uuidgen)" \
+  -e putio.tv.player.fixture /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/index.m3u8 \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The fixture must sit under the app's external files directory; an `.m3u8`
+plays as HLS, anything else as the original file. Start
+`scripts/evidence.sh record --allow-dark` just before the instrumentation for
+the clip; append `#<method>` to the class to record one flow. Screenshots go
+to `tv-player-proof-<UUID>/`: `01`–`05` for the first flow (focused row,
+playing with controls, playing clean, paused, back on the row) and `10`–`18`
+for the second (clean, seek mode, committed, rewind seek mode, seek dismissed,
+controls dismissed, paused controls, paused clean, back on the row), and
+`20`–`26` for the third (Continue focused, Start from the beginning focused,
+continued after Back, started over, the dialog after starting over, continued,
+back on the row), and `30`–`41` for the fourth (automatic subtitles, Language
+focused, the audio picker, the second track, the subtitle picker, subtitles
+off, still off after a seek, the speed picker, the picker dismissed, 1.5×,
+controls dismissed, back on the row). The
+proof keeps the Compose test clock in step with real time so the auto-hide
+and position timers run as they do in the app. Remove the fixture and
+screenshot directories afterwards.
 
 ## TV Search proof
 
@@ -728,7 +796,7 @@ live-API evidence.
 ## Resume and position reporting proof
 
 Behaviour: [Resume and position reporting](./behavior.md#resume-and-position-reporting);
-`PlaybackPositionWriterTest`, `MobilePlayerPositionObserverTest` and
+`PlaybackPositionWriterTest`, `PlaybackPositionObserverTest` and
 `MobilePlaybackReportingTest` pin the reporting rules on the JVM.
 
 For live proof, use the CLI's explicit `devs-auto` profile to upload a short audio
@@ -812,6 +880,19 @@ adb shell am start -a android.intent.action.VIEW -d https://app.put.io/files/<id
 Then open a small image's action sheet, choose Share file, and confirm the
 chooser shows the content preview. Inspect `dumpsys activity activities` for the
 chooser: `clip=` must reference only a `content://` URI and no `oauth_token`.
+
+### Share-out session proof
+
+`MobileShareSessionProofTest` runs the real `MobileFileShareService` and
+`MainActivity` with a controlled session and an in-process download source (an
+OkHttp interceptor serving a generated JPEG); it makes no API call and needs no
+account. A control export must open the chooser; a second export is held
+mid-download while the session signs out, and must remove the share folder and
+open no chooser. Follow the [Evidence](#evidence) contract with
+`putio.share.session.enabled=true` and `putio.share.session.runId=<UUID>`.
+Screenshots `control-chooser-opens.png`, `export-running.png` and
+`signed-out-no-chooser.png` go to `share-session-proof-<UUID>/`. Describe them as
+synthetic session proof, not a live sign-out.
 
 ## Downloads and offline playback proof
 
