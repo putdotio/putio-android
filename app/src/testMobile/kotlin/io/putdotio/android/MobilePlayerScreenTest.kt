@@ -112,6 +112,7 @@ import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.toMediaItem
 import io.putdotio.android.playback.toMediaRequestFailureOrNull
 import io.putdotio.android.playback.toPlaybackFailure
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -456,6 +457,25 @@ class MobilePlayerScreenTest {
         compose.onNodeWithText("Couldn’t find the next video").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
         assertEquals(1, retries)
+    }
+
+    @Test
+    fun aRefusedNextVideoLookupOffersBackButNotTryAgain() {
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(
+                        PlaybackContent.NextFailed(PlaybackFailure.AccessDenied(PutioConfigurationException("403"))),
+                    ),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Couldn’t find the next video").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertDoesNotExist()
     }
 
     @Test

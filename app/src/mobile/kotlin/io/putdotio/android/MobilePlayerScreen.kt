@@ -207,10 +207,9 @@ internal fun MobilePlayerScreen(
                 MobileLoadingState(stringResource(R.string.mobile_playback_finding_next))
 
             is PlaybackContent.NextFailed ->
-                MobileErrorState(
+                MobilePlaybackFailureState(
                     title = stringResource(R.string.mobile_playback_next_error_title),
-                    message = stringResource(content.failure.messageResource()),
-                    retryLabel = stringResource(R.string.mobile_action_retry),
+                    failure = content.failure,
                     onRetry = onRetry,
                 )
 
@@ -225,27 +224,18 @@ internal fun MobilePlayerScreen(
                     message = stringResource(R.string.mobile_playback_unsupported_message),
                 )
 
-            is PlaybackContent.Failed -> {
-                val title = stringResource(
-                    if (state.target.mediaType == PlaybackMediaType.AUDIO) {
-                        R.string.mobile_playback_error_title_audio
-                    } else {
-                        R.string.mobile_playback_error_title
-                    },
+            is PlaybackContent.Failed ->
+                MobilePlaybackFailureState(
+                    title = stringResource(
+                        if (state.target.mediaType == PlaybackMediaType.AUDIO) {
+                            R.string.mobile_playback_error_title_audio
+                        } else {
+                            R.string.mobile_playback_error_title
+                        },
+                    ),
+                    failure = content.failure,
+                    onRetry = onRetry,
                 )
-                val message = stringResource(content.failure.messageResource())
-                // Try again resolves the same source; it shows only where that can succeed.
-                if (content.failure.retryable) {
-                    MobileErrorState(
-                        title = title,
-                        message = message,
-                        retryLabel = stringResource(R.string.mobile_action_retry),
-                        onRetry = onRetry,
-                    )
-                } else {
-                    MobileEmptyState(title = title, message = message)
-                }
-            }
         }
 
         val showSeparateBack =
@@ -1177,6 +1167,26 @@ private fun rememberTouchExplorationEnabled(): Boolean {
 }
 
 /** Queued and running conversions poll; the viewer starts one, or checks again where it waits. */
+/** Try again repeats the same request; it shows only where that can succeed. */
+@Composable
+private fun MobilePlaybackFailureState(
+    title: String,
+    failure: PlaybackFailure,
+    onRetry: () -> Unit,
+) {
+    val message = stringResource(failure.messageResource())
+    if (failure.retryable) {
+        MobileErrorState(
+            title = title,
+            message = message,
+            retryLabel = stringResource(R.string.mobile_action_retry),
+            onRetry = onRetry,
+        )
+    } else {
+        MobileEmptyState(title = title, message = message)
+    }
+}
+
 @Composable
 private fun MobileConversionState(
     conversion: PlaybackContent.Conversion,
