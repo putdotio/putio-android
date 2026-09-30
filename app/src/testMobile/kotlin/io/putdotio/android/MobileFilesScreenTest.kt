@@ -54,6 +54,7 @@ import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -61,11 +62,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
 import io.putdotio.android.files.MOBILE_FILES_PAGING_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_REFRESH_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
+import io.putdotio.android.files.MOBILE_FILES_SHARE_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_WATCHED_TAG
 import io.putdotio.android.files.MobileFilesActions
 import io.putdotio.android.files.MobileFilesScreen
@@ -98,6 +101,40 @@ class MobileFilesScreenTest {
         compose.onNodeWithText("Move").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Delete").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithText("Cancel").assertIsDisplayed()
+    }
+
+    @Test
+    fun sharedItemsKeepDownloadAndShareButOfferNoOwnerActions() {
+        val sharedRoot = filesItem(10L, "Items shared with you", PutioFileType.FOLDER)
+            .copy(folderType = PutioFolderType.SHARED_ROOT)
+        val friend = filesItem(11L, "friend", PutioFileType.FOLDER).copy(folderType = PutioFolderType.SHARED_FRIEND)
+        val sharedFolder = filesItem(12L, "Season 1", PutioFileType.FOLDER).copy(isShared = true)
+        val sharedVideo = filesItem(13L, "clip.mkv", PutioFileType.VIDEO).copy(isShared = true)
+        val owned = filesItem(14L, "mine.mkv", PutioFileType.VIDEO)
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(
+                    browserState(
+                        FilesContent.Ready(listOf(sharedRoot, friend, sharedFolder, sharedVideo, owned), FilesPaging.Complete),
+                    ),
+                    onEvent = {},
+                    onPlayMedia = {},
+                    confirmedTrashEnabled = true,
+                    onMoveItem = {},
+                    onDownloadItem = {},
+                    onShareItem = {},
+                )
+            }
+        }
+
+        for (folder in listOf(sharedRoot, friend, sharedFolder)) {
+            compose.onNodeWithText(folder.name).assertIsDisplayed()
+            compose.onNodeWithContentDescription("Actions for ${folder.name}").assertDoesNotExist()
+        }
+        compose.onNodeWithContentDescription("Actions for clip.mkv").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_DOWNLOAD_ACTION_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertIsDisplayed()
+        for (owner in listOf("Rename", "Move", "Move to trash")) compose.onAllNodesWithText(owner).assertCountEquals(0)
     }
 
     @Test

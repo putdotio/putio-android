@@ -1004,6 +1004,17 @@ record the screen while it runs, and require `OK (1 test)`: it fails unless the
 row shows at least five distinct byte counts before `On this device`.
 Screenshots land in the `downloads-progress-proof-<UUID>/` run directory.
 
+## Shared-with-me items proof
+
+Behaviour: [Shared-with-me items](./behavior.md#shared-with-me-items).
+`MobileSharedItemsProofTest` mounts the production Files screen on a synthetic
+root listing the shared root, a friend folder, a shared folder, a shared video
+and an owned video. It makes no API calls; report it as synthetic proof. Opt in
+with `putio.shared.enabled=true` and `putio.shared.runId=<UUID>` and require
+`OK (1 test)`. Screenshots land in `shared-proof-<UUID>/`: `01-list` (no
+actions button on the three folders), `02-shared-file-actions` (Download and
+Share file only), `03-owned-file-actions` (Rename, Move, Move to trash).
+
 ## Transfers polling CPU benchmark
 
 `TransfersPollingCpuBenchmark` replays the deterministic Transfers histories

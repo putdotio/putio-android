@@ -47,6 +47,13 @@ internal const val MOBILE_FILES_RENAME_FIELD_TAG = "mobile-files-rename-field"
 internal const val MOBILE_FILES_DOWNLOAD_ACTION_TAG = "mobile-files-download-action"
 internal const val MOBILE_FILES_SHARE_ACTION_TAG = "mobile-files-share-action"
 
+/**
+ * Whether the row's sheet offers anything. Download and Share read the original, so a friend's
+ * shared file keeps them; a shared folder, including the shared root, offers nothing.
+ */
+internal fun FilesItem.hasMobileActions(canDownload: Boolean, canShare: Boolean): Boolean =
+    id.value > 0L && (acceptsOwnerActions || (canDownload && isPlayable) || (canShare && !isFolder))
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileFilesActions(
@@ -174,7 +181,12 @@ internal fun MobileFilesActions(
             onDismissRequest = dismiss,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            // Delete carries the sheet's bottom inset; without it the last row keeps the same gap.
+            Column(
+                Modifier
+                    .verticalScroll(rememberScrollState())
+                    .then(if (item.acceptsOwnerActions) Modifier else Modifier.padding(bottom = 24.dp)),
+            ) {
                 Text(
                     text = item.name,
                     style = MaterialTheme.typography.titleLarge,
@@ -182,11 +194,13 @@ internal fun MobileFilesActions(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
                 )
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.mobile_files_rename)) },
-                    modifier = Modifier
-                        .clickable(enabled = operation.canStartOperation, role = Role.Button) { editing = true },
-                )
+                if (item.acceptsOwnerActions) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.mobile_files_rename)) },
+                        modifier = Modifier
+                            .clickable(enabled = operation.canStartOperation, role = Role.Button) { editing = true },
+                    )
+                }
                 if (onDownloadItem != null && item.isPlayable) {
                     // A completed or running download shows its state; the row stays informational.
                     val downloadable = downloadStatus == null || downloadStatus is DownloadStatus.Failed
@@ -223,7 +237,7 @@ internal fun MobileFilesActions(
                             },
                     )
                 }
-                if (onMoveItem != null) {
+                if (onMoveItem != null && item.acceptsOwnerActions) {
                     ListItem(
                         headlineContent = { Text(stringResource(R.string.mobile_files_move)) },
                         modifier = Modifier.clickable(
@@ -235,36 +249,38 @@ internal fun MobileFilesActions(
                         },
                     )
                 }
-                HorizontalDivider()
-                ListItem(
-                    headlineContent = {
-                        Text(
-                            stringResource(
-                                if (confirmedTrashEnabled == true) {
-                                    R.string.mobile_files_trash
-                                } else {
-                                    R.string.mobile_files_delete
-                                },
-                            ),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    },
-                    supportingContent = if (confirmedTrashEnabled == null) {
-                        { Text(stringResource(R.string.mobile_files_delete_settings_unknown)) }
-                    } else {
-                        null
-                    },
-                    modifier = Modifier
-                        .clickable(
-                            enabled = confirmedTrashEnabled != null &&
-                                item.id.value > 0L &&
-                                operation.canStartOperation,
-                            role = Role.Button,
-                        ) {
-                            confirmedDeleteTrash = currentTrashEnabled
-                        }
-                        .padding(bottom = 24.dp),
-                )
+                if (item.acceptsOwnerActions) {
+                    HorizontalDivider()
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                stringResource(
+                                    if (confirmedTrashEnabled == true) {
+                                        R.string.mobile_files_trash
+                                    } else {
+                                        R.string.mobile_files_delete
+                                    },
+                                ),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                        supportingContent = if (confirmedTrashEnabled == null) {
+                            { Text(stringResource(R.string.mobile_files_delete_settings_unknown)) }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier
+                            .clickable(
+                                enabled = confirmedTrashEnabled != null &&
+                                    item.id.value > 0L &&
+                                    operation.canStartOperation,
+                                role = Role.Button,
+                            ) {
+                                confirmedDeleteTrash = currentTrashEnabled
+                            }
+                            .padding(bottom = 24.dp),
+                    )
+                }
             }
         }
     }

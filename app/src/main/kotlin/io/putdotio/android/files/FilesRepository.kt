@@ -225,6 +225,8 @@ internal fun PutioFile.toFilesItem(): FilesItem =
         sizeBytes = size,
         createdAt = createdAt,
         playback = toPlaybackProgress(),
+        isShared = isShared,
+        folderType = folderType,
     )
 
 // Only media rows carry a position. Malformed server values drop the indicator instead of

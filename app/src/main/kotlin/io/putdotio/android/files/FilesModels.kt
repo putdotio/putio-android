@@ -1,6 +1,7 @@
 package io.putdotio.android.files
 
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
 
 @JvmInline
 value class FilesItemId(
@@ -57,9 +58,20 @@ data class FilesItem(
     val sizeBytes: Long,
     val createdAt: String,
     val playback: FilesPlaybackProgress? = null,
+    /** A friend's file shown under Items shared with you; the viewer can read it but not change it. */
+    val isShared: Boolean = false,
+    val folderType: PutioFolderType = PutioFolderType.REGULAR,
 ) {
     val isFolder: Boolean
         get() = type == PutioFileType.FOLDER
+
+    /**
+     * Rename, Move, Delete and the watched toggle need the viewer to own the item. The server
+     * rejects them for friends' files and for the virtual shared folders, so neither surface
+     * offers them there; reading actions such as Download stay.
+     */
+    val acceptsOwnerActions: Boolean
+        get() = !isShared && folderType != PutioFolderType.SHARED_ROOT && folderType != PutioFolderType.SHARED_FRIEND
 
     val isPlayable: Boolean
         get() = type == PutioFileType.VIDEO || type == PutioFileType.AUDIO
