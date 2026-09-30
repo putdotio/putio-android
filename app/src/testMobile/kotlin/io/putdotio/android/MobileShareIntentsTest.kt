@@ -4,6 +4,11 @@ import android.content.ClipData
 import android.content.Intent
 import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.transfers.MOBILE_TRANSFER_INPUT_LIMIT
+import io.putdotio.android.transfers.MobileShareValidation
+import io.putdotio.android.transfers.consumeMobileSharedTransfer
+import io.putdotio.android.transfers.fitsMobileTransferInputLimit
+import io.putdotio.android.transfers.parseMobileSharedTransfer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

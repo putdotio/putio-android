@@ -61,6 +61,7 @@ import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.playback.ActiveAudio
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
+import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

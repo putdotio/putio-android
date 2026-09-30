@@ -52,6 +52,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.search.MobileSearchHistoryViewModel
+import io.putdotio.android.transfers.MobileTransfersViewModel
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

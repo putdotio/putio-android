@@ -1,12 +1,7 @@
-package io.putdotio.android
+package io.putdotio.android.transfers
 
 import androidx.lifecycle.ViewModel
 import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.transfers.TransferAction
-import io.putdotio.android.transfers.TransferMutation
-import io.putdotio.android.transfers.TransfersRequestId
-import io.putdotio.android.transfers.TransfersState
-import io.putdotio.android.transfers.TransferSubmission
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 

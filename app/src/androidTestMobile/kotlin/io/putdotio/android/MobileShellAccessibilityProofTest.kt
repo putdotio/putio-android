@@ -57,12 +57,16 @@ import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 import io.putdotio.android.transfers.AppTransferStatus
+import io.putdotio.android.transfers.MOBILE_TRANSFERS_LIST_TAG
+import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
+import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersState
+import io.putdotio.android.transfers.parseMobileSharedTransfer
 import java.io.Closeable
 import java.io.File
 import org.junit.Assert.assertEquals

@@ -4,6 +4,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAuthSessionId
+import io.putdotio.android.transfers.MOBILE_TRANSFER_INPUT_LIMIT
+import io.putdotio.android.transfers.MobileShareValidation
+import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.MobileTransferDraftState
+import io.putdotio.android.transfers.parseMobileSharedTransfer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame

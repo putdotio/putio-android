@@ -8,6 +8,7 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.playback.dispatch
+import io.putdotio.android.transfers.MobileTransfersViewModel
 import io.putdotio.android.transfers.TransferCursor
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem
@@ -16,6 +17,7 @@ import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersPage
 import io.putdotio.android.transfers.TransfersRepository
 import io.putdotio.android.transfers.TransfersRowRefresh
+import io.putdotio.android.transfers.mobileTransfersViewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame

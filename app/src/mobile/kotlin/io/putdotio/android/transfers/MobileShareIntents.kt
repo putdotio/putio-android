@@ -1,7 +1,6 @@
-package io.putdotio.android
+package io.putdotio.android.transfers
 
 import android.content.Intent
-import io.putdotio.android.transfers.TransferSubmission
 
 internal enum class MobileShareValidation {
     InvalidLink,

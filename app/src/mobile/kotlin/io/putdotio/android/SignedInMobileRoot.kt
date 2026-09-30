@@ -41,6 +41,8 @@ import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.share.MobileFileShareService
+import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.MobileTransfersViewModel
 import io.putdotio.android.transfers.SdkTransfersRepository
 import io.putdotio.android.transfers.TransferMutation
 import io.putdotio.android.transfers.TransfersContent

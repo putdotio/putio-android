@@ -7,6 +7,8 @@ import android.os.Parcel
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.MobileTransferDraftState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

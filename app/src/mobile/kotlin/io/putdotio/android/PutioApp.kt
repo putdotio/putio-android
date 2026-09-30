@@ -27,6 +27,9 @@ import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.files.mobileFilesViewModelFactory
 import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.search.mobileSearchHistoryViewModelFactory
+import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.MobileTransfersViewModel
+import io.putdotio.android.transfers.mobileTransfersViewModelFactory
 import kotlinx.coroutines.launch
 
 @Composable

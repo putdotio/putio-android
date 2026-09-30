@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.transfers
 
 import android.content.Context
 import android.content.res.Configuration
@@ -18,30 +18,29 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,8 +49,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -66,24 +65,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.putdotio.android.MobileEmptyState
+import io.putdotio.android.MobileErrorState
+import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.transfers.AppTransferStatus
-import io.putdotio.android.transfers.TransferAction
-import io.putdotio.android.transfers.TransferId
-import io.putdotio.android.transfers.TransferItem
-import io.putdotio.android.transfers.TransferMutation
-import io.putdotio.android.transfers.TransferNavigation
-import io.putdotio.android.transfers.TransfersContent
-import io.putdotio.android.transfers.TransfersEvent
-import io.putdotio.android.transfers.TransfersPaging
-import io.putdotio.android.transfers.TransfersRefresh
-import io.putdotio.android.transfers.TransfersState
-import io.putdotio.android.transfers.canCancel
-import io.putdotio.android.transfers.canOpen
-import io.putdotio.android.transfers.isPaging
-import io.putdotio.android.transfers.isRunning
-import java.text.NumberFormat
 import io.putdotio.android.files.mobileMessageResource
+import java.text.NumberFormat
 
 internal const val MOBILE_TRANSFERS_LIST_TAG = "mobile-transfers-list"
 internal const val MOBILE_TRANSFER_ADD_FIELD_TAG = "mobile-transfer-add-field"
@@ -760,15 +749,6 @@ private fun TransferAction.targets(id: TransferId): Boolean =
         is TransferAction.Retry -> this.id == id
         TransferAction.Clean -> false
         is TransferAction.Add -> false
-    }
-
-private fun TransfersContent.items(): List<TransferItem> =
-    when (this) {
-        is TransfersContent.Ready -> items
-        TransfersContent.Empty,
-        is TransfersContent.Failed,
-        is TransfersContent.InitialLoading,
-        -> emptyList()
     }
 
 private sealed interface TransferConfirmation {

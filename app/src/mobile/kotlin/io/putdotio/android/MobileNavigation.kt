@@ -51,6 +51,8 @@ import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedTrashEnabled
+import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.TrashController

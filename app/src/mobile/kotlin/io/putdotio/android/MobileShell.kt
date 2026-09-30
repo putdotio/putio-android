@@ -79,6 +79,7 @@ import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.ConfirmedDefaultSort
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedDefaultSort
+import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferMutation
 import io.putdotio.android.transfers.TransferNavigation

@@ -128,6 +128,9 @@ import io.putdotio.android.playback.MOBILE_NOW_PLAYING_TOGGLE_TAG
 import io.putdotio.android.playback.MOBILE_PLAYER_TAG
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
+import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
+import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.parseMobileSharedTransfer
 
 /** JVM proof for the mobile Material 3 shell; LaunchSmokeTest owns device launch proof. */
 @RunWith(AndroidJUnit4::class)
