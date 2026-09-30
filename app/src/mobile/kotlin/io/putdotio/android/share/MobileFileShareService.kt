@@ -23,6 +23,7 @@ import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.io.IOException
+import java.util.UUID
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CancellationException
@@ -61,7 +62,8 @@ import okhttp3.Response
  * lives under that session's directory: leaving that session cancels the export, deletes
  * it and never opens the chooser. The service runs one export at a time, so its own
  * cleanup clears the whole root; the auth runtime's session-exit cleanup can run after
- * the next session started, so it clears only the departed session's directory.
+ * the next session started, so it clears only the departed session's directory and
+ * whatever earlier processes left.
  */
 class MobileFileShareService : Service() {
     private val dependencies by lazy { dependenciesForTest ?: MobileShareDependencies.from(this) }
@@ -305,16 +307,25 @@ class MobileFileShareService : Service() {
 
         internal fun shareRoot(context: Context): File = File(context.filesDir, "shares")
 
+        /**
+         * Session ids restart in every process, so each process keeps its exports under its own
+         * directory; a restored session cannot otherwise tell an earlier process's exports from its own.
+         */
+        private val processShares: String = UUID.randomUUID().toString()
+
         internal fun sessionShares(context: Context, session: MobileAuthSessionId): File =
-            File(shareRoot(context), session.value.toString())
+            File(File(shareRoot(context), processShares), session.value.toString())
 
         /**
-         * Leaving [session] drops every export it made and nothing another session made; a recipient
-         * already reading keeps its descriptor. A null session is one an earlier process left behind,
-         * which ends before this process has any session of its own, so the whole root goes.
+         * Leaving [session] drops every export it made and every export an earlier process left, but
+         * nothing another session of this process made; a recipient already reading keeps its descriptor.
+         * A null session is one an earlier process left behind, whose id this process never knew.
          */
         fun endSession(context: Context, session: MobileAuthSessionId?) {
-            (session?.let { sessionShares(context, it) } ?: shareRoot(context)).deleteRecursively()
+            shareRoot(context).listFiles()
+                ?.filter { it.name != processShares }
+                ?.forEach { it.deleteRecursively() }
+            session?.let { sessionShares(context, it).deleteRecursively() }
         }
 
         /** The session travels in the header only; the URL is the token-free API endpoint. */

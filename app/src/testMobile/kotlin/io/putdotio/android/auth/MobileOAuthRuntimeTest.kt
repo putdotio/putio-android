@@ -101,6 +101,27 @@ class MobileOAuthRuntimeTest {
         assertTrue(nextExport.exists())
     }
 
+    @Test
+    fun `signing out of a restored session deletes exports an earlier process left`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        // Session ids restart per process, so an earlier process's export can sit under the id this one assigns.
+        val earlier = File(MobileFileShareService.shareRoot(context), "earlier-process/1/9/poster.jpg").apply {
+            parentFile?.mkdirs()
+            writeText("bytes")
+        }
+        val fixture = SessionExitFixture(
+            SessionValidationResult.Valid(ACCOUNT),
+            onSessionLeft = { session -> MobileFileShareService.endSession(context, session) },
+        )
+        fixture.controller.restoreSession()
+        val restored = writeExport(context, fixture.signedInSession())
+
+        fixture.controller.logout()
+
+        assertFalse(earlier.exists())
+        assertFalse(restored.exists())
+    }
+
     private fun writeExport(context: Context, session: MobileAuthSessionId): File =
         File(MobileFileShareService.sessionShares(context, session), "9/poster.jpg").apply {
             parentFile?.mkdirs()
