@@ -171,53 +171,79 @@ class TvExternalOpenProofTest {
     }
 
     @Test
-    fun backReturnsToFilesAndLeavesFromItsRootOrTheDrawer() {
+    fun backOnTheDrawerReturnsToThePaneThenThePaneRulesApply() {
         var exits = 0
         mount(onExit = { exits += 1 })
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithContentDescription("Open $FOLDER").assertIsFocused()
         screenshot("10-files-row-focused")
 
-        // Back on Search and History from the drawer, and on Account from its pane.
-        listOf("Search", "History", "Account").forEachIndexed { index, destination ->
-            press(KeyEvent.KEYCODE_DPAD_LEFT)
-            repeat(index + 1) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
-            press(KeyEvent.KEYCODE_DPAD_CENTER)
-            if (destination == "Account") {
-                compose.waitUntil(5_000) { compose.onAllNodesWithText("Choose your proxy").fetchSemanticsNodes().isNotEmpty() }
-                compose.onNodeWithText("Choose your proxy").assertIsFocused()
-            } else {
-                press(KeyEvent.KEYCODE_DPAD_LEFT)
-            }
-            screenshot("${11 + index * 2}-${destination.lowercase()}-before-back")
-            press(KeyEvent.KEYCODE_BACK)
-            compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-            screenshot("${12 + index * 2}-back-from-${destination.lowercase()}-on-files-row")
-            // The drawer returns to the destination it last left from; walk it back to Files.
-            press(KeyEvent.KEYCODE_DPAD_LEFT)
-            repeat(index + 1) { press(KeyEvent.KEYCODE_DPAD_UP) }
-            press(KeyEvent.KEYCODE_DPAD_RIGHT)
-            compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-        }
+        // Search: Back on the drawer returns to the field, then Back returns to Files.
+        openFromDrawer(steps = 1)
+        compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        screenshot("11-search-drawer-focused")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused()
+        screenshot("12-drawer-back-returns-to-the-search-field")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+        screenshot("13-back-from-search-on-the-files-row")
+        returnToFilesPane(steps = 1)
+
+        // An empty History has nothing to focus, so Back on the drawer returns to Files at once.
+        openFromDrawer(steps = 2)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(NO_HISTORY).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("14-empty-history-drawer-focused")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+        screenshot("15-back-from-history-on-the-files-row")
+        returnToFilesPane(steps = 2)
+
+        // Account: Back on the drawer returns to its row, then Back returns to Files.
+        openFromDrawer(steps = 3)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(PROXY_ROW).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(PROXY_ROW).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithText(PROXY_ROW).assertIsFocused()
+        screenshot("16-drawer-back-returns-to-the-account-row")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+        screenshot("17-back-from-account-on-the-files-row")
+        returnToFilesPane(steps = 3)
         assertEquals(0, exits)
 
-        // Back on the drawer leaves the app without popping the folder behind it.
+        // In a folder, Back on the drawer returns to its row; then Back pops it, then leaves.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { isFocused(FIRST_SCAN) }
         press(KeyEvent.KEYCODE_DPAD_LEFT)
+        screenshot("18-folder-drawer-focused")
         press(KeyEvent.KEYCODE_BACK)
-        assertEquals(1, exits)
-        assertEquals(true, hasContentDescription(FIRST_SCAN))
-        screenshot("17-drawer-back-keeps-the-folder")
-
-        // From the pane, Back leaves the folder, then leaves the app from the Files root.
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithContentDescription(FIRST_SCAN).assertIsFocused()
+        assertEquals(0, exits)
+        screenshot("19-drawer-back-returns-to-the-folder-row")
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-        assertEquals(1, exits)
-        screenshot("18-folder-popped-to-its-row")
+        assertEquals(0, exits)
+        screenshot("20-folder-popped-to-its-row")
         press(KeyEvent.KEYCODE_BACK)
-        assertEquals(2, exits)
+        assertEquals(1, exits)
+    }
+
+    /** From the Files pane, opens the destination [steps] below Files in the drawer. */
+    private fun openFromDrawer(steps: Int) {
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        repeat(steps) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+    }
+
+    /** The drawer re-enters on the destination it was left from, [steps] below Files. */
+    private fun returnToFilesPane(steps: Int) {
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        repeat(steps) { press(KeyEvent.KEYCODE_DPAD_UP) }
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
     }
 
     /** [onExit] stands in for the system leaving the app; it is registered before the shell. */
@@ -394,6 +420,9 @@ class TvExternalOpenProofTest {
         const val VIDEO = "TV open proof.mp4"
         const val DOCUMENT = "notes.pdf"
         const val FIRST_SCAN = "Scan 1.jpg"
+        const val SEARCH_FIELD = "Search files"
+        const val NO_HISTORY = "No activity yet."
+        const val PROXY_ROW = "Choose your proxy"
         const val SAVED_SECONDS = 45.0
         const val CONTINUE_LABEL = "Continue playing from 00:45"
         const val MAX_STEPS = 8

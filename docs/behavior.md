@@ -434,13 +434,15 @@ a real Media3 manager),
 
 ## TV Back
 
-Files is the TV home, as Home is in tv-native and tv-vite. Back on Search,
+Files is the TV home, as Home is in tv-native and tv-vite. Back with focus on
+the drawer closes it and returns focus to the pane's last-focused row, on every
+destination, without applying any pane rule; a pane with nothing to focus (an
+empty History) takes its own step at once. In the pane, its own layer closes
+first (Trash under Account, the unsupported-file screen). Then Back on Search,
 History or Account returns to Files, focused on the row that last held focus
-there, once the pane's own layer (Trash under Account, the unsupported-file
-screen) has closed. Back on Files leaves a folder while the Files pane has
-focus; on the Files root, or with focus on the drawer, it falls through to the
-system and leaves the app without a confirmation, per Google's TV navigation
-guidance. Back on the drawer never pops a folder in the pane behind it.
+there; Back on Files leaves a folder, and on the Files root it falls through to
+the system and leaves the app without a confirmation, per Google's TV
+navigation guidance.
 
 Tests: `TvShellTest`.
 

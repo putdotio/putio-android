@@ -13,6 +13,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
+import androidx.tv.material3.Text
 import io.putdotio.android.design.putioTvDarkColorScheme
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
@@ -443,7 +444,7 @@ class TvShellTest {
     }
 
     @Test
-    fun dismissingTheUnsupportedScreenFromTheRailKeepsFocusOnTheRail() {
+    fun backOnTheRailReturnsToTheUnsupportedScreenBeforeDismissingIt() {
         val files = FilesBrowserState(
             stack = listOf(
                 FilesFolderState(
@@ -478,14 +479,15 @@ class TvShellTest {
 
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
-        compose.onNode(hasText("Files") and hasClickAction())
-            .assertIsFocused()
-            .performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Go back").assertIsFocused()
+
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.waitForIdle()
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused()
     }
 
     @Test
-    fun backPopsTheFolderOnlyWhileTheFilesPaneHasFocus() {
+    fun backOnTheDrawerReturnsToTheFolderRowBeforePoppingIt() {
         val events = mutableListOf<FilesBrowserEvent>()
         var exits = 0
         val nested = FilesBrowserState(
@@ -523,15 +525,40 @@ class TvShellTest {
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
-        assertEquals(emptyList<FilesBrowserEvent>(), events)
-        assertEquals(1, exits)
-
-        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithContentDescription("inner.txt").assertIsFocused()
+        assertEquals(emptyList<FilesBrowserEvent>(), events)
+        assertEquals(0, exits)
+
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.NavigateBack), events)
-        assertEquals(1, exits)
+        assertEquals(0, exits)
+    }
+
+    @Test
+    fun backOnTheDrawerOverAPaneWithNothingToFocusReturnsToFiles() {
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    historyPane = { paneFocus -> Text("No activity yet.", Modifier.focusRequester(paneFocus)) },
+                )
+            }
+        }
+        compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("No activity yet.").assertIsDisplayed()
+        compose.onNode(hasText("History") and hasClickAction()).assertIsFocused()
+
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.waitForIdle()
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused()
     }
 
     @Test
@@ -591,6 +618,12 @@ class TvShellTest {
             if (fromDrawer) {
                 compose.onNodeWithText(paneTarget).performKeyInput { pressKey(Key.DirectionLeft) }
                 compose.onNode(hasText(destination) and hasClickAction()).assertIsFocused()
+            }
+            if (fromDrawer) {
+                // The drawer closes first, back on the pane's row.
+                compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+                compose.waitForIdle()
+                compose.onNodeWithText(paneTarget).assertIsFocused()
             }
             compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
             compose.waitForIdle()
@@ -842,6 +875,12 @@ class TvShellTest {
             keyUp(Key.DirectionCenter)
         }
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNode(hasText("Account") and hasClickAction()).assertIsFocused()
+        // Back on the drawer returns to Trash; it does not close it behind the drawer.
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
 
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
