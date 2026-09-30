@@ -1,3 +1,4 @@
+import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.HostTestBuilder
 import java.io.File
 import java.util.Properties
@@ -191,6 +192,21 @@ androidComponents {
             generateDesignTokens,
             GenerateDesignTokensTask::outputDir,
         )
+
+        // Launchers find the app with an ACTION_MAIN query; a category without MAIN matches nothing.
+        val launcherManifest = tasks.register<VerifyLauncherManifestTask>(
+            "verify${variant.name.replaceFirstChar(Char::titlecase)}LauncherManifest",
+        ) {
+            group = "verification"
+            description = "Require launcher entries for MainActivity in the ${variant.name} merged manifest"
+            mergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+            activity.set("io.putdotio.android.MainActivity")
+            launcherCategories.add("android.intent.category.LAUNCHER")
+            if ("surface" to "tv" in variant.productFlavors) {
+                launcherCategories.add("android.intent.category.LEANBACK_LAUNCHER")
+            }
+        }
+        tasks.named("check") { dependsOn(launcherManifest) }
     }
 }
 

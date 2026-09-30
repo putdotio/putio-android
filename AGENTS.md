@@ -57,7 +57,10 @@ SDK root resolution in the harness scripts: `ANDROID_HOME` →
 The root [`verify` task](./build.gradle.kts) runs Android Lint with warnings
 as errors on `mobileProductionDebug` and `tvProductionDebug`, detekt, and the
 production debug JVM unit tests; nightly adds resources only, so its unit-test
-variants are disabled. Unsigned minified `mobileProductionRelease`,
+variants are disabled. `check` also runs `verify<Variant>LauncherManifest`
+for every variant: the merged manifest must give `MainActivity` an
+`ACTION_MAIN` filter with `LAUNCHER`, and on TV another with
+`LEANBACK_LAUNCHER`. Unsigned minified `mobileProductionRelease`,
 `tvProductionRelease`, and `tvNightlyRelease` builds prove the composite
 Kotlin SDK, resource shrinking, and `lintVital` against R8 for each surface and
 channel. It also compiles the instrumentation APK, checks the Phosphor icon and
@@ -68,7 +71,7 @@ contract tests fake the SDK and console-port probe and give nested proof builds
 their own temp directory for the serial lock, so they pass beside running
 emulators, real proofs, and parallel checkouts. It also runs the tests of the
 [`build-logic`](./build-logic) included build, which owns the design-token
-codegen and host proof task classes. Fix findings at the source; suppress only
+codegen, launcher-manifest check, and host proof task classes. Fix findings at the source; suppress only
 with a comment stating the platform constraint.
 
 Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
