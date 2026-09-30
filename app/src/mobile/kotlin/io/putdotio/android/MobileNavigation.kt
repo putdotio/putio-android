@@ -55,6 +55,8 @@ import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersState
+import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
+import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
 

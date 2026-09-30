@@ -19,6 +19,10 @@ import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.trash.MOBILE_TRASH_ACTION_CHECK_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_CHECK_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
+import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.trash.TrashAction
 import io.putdotio.android.trash.TrashActionCheck
 import io.putdotio.android.trash.TrashActionOutcome
@@ -30,6 +34,7 @@ import io.putdotio.android.trash.TrashRestoreCheck
 import io.putdotio.android.trash.TrashRestoreOutcome
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
+import io.putdotio.android.trash.trashDisplayDate
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals

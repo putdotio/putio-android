@@ -87,6 +87,7 @@ import io.putdotio.android.transfers.TransferNotice
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersState
+import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 import io.putdotio.android.trash.TrashController
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive

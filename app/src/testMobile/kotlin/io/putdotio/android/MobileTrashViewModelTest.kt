@@ -12,12 +12,14 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.trash.FakeTrashRepository
+import io.putdotio.android.trash.MobileTrashViewModel
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashRestoreCheck
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.confirm
 import io.putdotio.android.trash.liveItem
+import io.putdotio.android.trash.mobileTrashViewModelFactory
 import io.putdotio.android.trash.trashItem
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume

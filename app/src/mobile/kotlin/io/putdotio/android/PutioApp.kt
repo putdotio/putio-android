@@ -30,6 +30,8 @@ import io.putdotio.android.search.mobileSearchHistoryViewModelFactory
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersViewModel
 import io.putdotio.android.transfers.mobileTransfersViewModelFactory
+import io.putdotio.android.trash.MobileTrashViewModel
+import io.putdotio.android.trash.mobileTrashViewModelFactory
 import kotlinx.coroutines.launch
 
 @Composable

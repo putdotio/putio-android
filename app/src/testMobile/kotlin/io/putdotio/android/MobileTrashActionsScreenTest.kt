@@ -17,6 +17,14 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.trash.MOBILE_TRASH_ACTION_CHECK_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_ACTION_CONFIRM_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_ACTION_OUTCOME_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_EMPTY_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_ITEM_DELETE_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_RESTORE_ALL_TAG
+import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.trash.TrashAction
 import io.putdotio.android.trash.TrashActionCheck
 import io.putdotio.android.trash.TrashActionOutcome

@@ -56,6 +56,12 @@ import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.playback.dispatch
+import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_CHECK_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_CONFIRM_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_ITEM_RESTORE_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_OUTCOME_TAG
 
 @RunWith(AndroidJUnit4::class)
 class AuthenticatedTrashRestoreTest {

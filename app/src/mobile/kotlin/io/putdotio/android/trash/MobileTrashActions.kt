@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.trash
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,10 +15,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -29,14 +29,8 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.R
 import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.trash.TrashAction
-import io.putdotio.android.trash.TrashActionCheck
-import io.putdotio.android.trash.TrashActionOutcome
-import io.putdotio.android.trash.TrashActionSubmission
-import io.putdotio.android.trash.TrashEvent
-import io.putdotio.android.trash.TrashItem
-import io.putdotio.android.trash.TrashState
 import io.putdotio.android.files.mobileMessageResource
 
 internal const val MOBILE_TRASH_ITEM_SHEET_TAG = "mobile-trash-item-sheet"

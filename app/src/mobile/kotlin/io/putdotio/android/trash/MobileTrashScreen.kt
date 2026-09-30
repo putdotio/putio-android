@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.trash
 
 import android.content.Context
 import android.text.format.DateUtils
@@ -39,19 +39,16 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.MobileEmptyState
+import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.trash.TrashContent
-import io.putdotio.android.trash.TrashEvent
-import io.putdotio.android.trash.TrashItem
-import io.putdotio.android.trash.TrashRestoreOutcome
-import io.putdotio.android.trash.TrashRestoreCheck
-import io.putdotio.android.trash.TrashRestoreSubmission
-import io.putdotio.android.trash.TrashState
+import io.putdotio.android.files.mobileMessageResource
+import io.putdotio.android.parsePutioTimestamp
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeParseException
-import io.putdotio.android.files.mobileMessageResource
 
 internal const val MOBILE_TRASH_ROUTE = "account/trash"
 internal const val MOBILE_MANAGE_TRASH_TAG = "mobile-manage-trash"

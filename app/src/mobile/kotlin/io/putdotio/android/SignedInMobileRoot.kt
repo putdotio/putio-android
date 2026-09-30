@@ -49,6 +49,7 @@ import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersRefresh
 import io.putdotio.android.transfers.TransfersState
+import io.putdotio.android.trash.MobileTrashViewModel
 import io.putdotio.android.trash.SdkTrashRepository
 import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.CoroutineScope

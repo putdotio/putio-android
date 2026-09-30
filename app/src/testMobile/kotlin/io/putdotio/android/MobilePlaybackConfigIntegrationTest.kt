@@ -56,6 +56,7 @@ import io.putdotio.android.playback.MOBILE_PLAYER_TAG
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.transfers.MobileTransfersViewModel
+import io.putdotio.android.trash.MobileTrashViewModel
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

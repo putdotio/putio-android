@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.trash
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -10,8 +10,6 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.auth.sessionKey
 import io.putdotio.android.session.SessionScopedHolder
-import io.putdotio.android.trash.TrashController
-import io.putdotio.android.trash.TrashRepository
 import kotlinx.coroutines.flow.StateFlow
 
 internal class MobileTrashViewModel(
