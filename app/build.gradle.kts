@@ -154,7 +154,9 @@ mapOf(
         group = "verification"
         description = "Require a successful $test result on the ciPhone managed device"
         dependsOn("ciPhoneMobileProductionDebugAndroidTest")
-        resultsDirectory.set(layout.buildDirectory.dir("outputs/androidTest-results/managedDevice"))
+        resultsDirectory.set(layout.buildDirectory.dir(
+            "outputs/androidTest-results/managedDevice/debug/flavors/mobileProduction/ciPhone",
+        ))
         requiredTest.set(test)
     }
 }
