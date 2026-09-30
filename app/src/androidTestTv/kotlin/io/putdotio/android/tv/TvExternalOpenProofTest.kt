@@ -3,6 +3,7 @@ package io.putdotio.android.tv
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -95,8 +96,6 @@ class TvExternalOpenProofTest {
             override fun evaluate() {
                 assumeTrue("TV open proof requires opt-in", arguments.getString("putio.tv.open.enabled") == "true")
                 runId()
-                // The app must create its external files directory; one adb creates is not readable to it.
-                requireNotNull(context.getExternalFilesDir(null))
                 base.evaluate()
             }
         }
@@ -137,8 +136,8 @@ class TvExternalOpenProofTest {
         press(KeyEvent.KEYCODE_BACK)
         if (compose.runOnIdle { session.playback.value != null }) press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { compose.runOnIdle { session.playback.value == null } }
-        compose.waitUntil(10_000) { hasContentDescription("Open $DOCUMENT") }
-        screenshot("05-back-on-search")
+        compose.waitUntil(10_000) { isFocused("Play $VIDEO") }
+        screenshot("05-back-on-the-played-result")
 
         // Any other file opens its folder, titled and focused on it; Back returns to the results.
         focus("Open $DOCUMENT")
@@ -148,8 +147,8 @@ class TvExternalOpenProofTest {
         assertEquals(1, compose.onAllNodesWithText(FOLDER).fetchSemanticsNodes().size)
         screenshot("06-document-in-its-folder")
         press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(5_000) { hasContentDescription("Open $DOCUMENT") }
-        screenshot("07-back-on-search")
+        compose.waitUntil(5_000) { isFocused("Open $DOCUMENT") }
+        screenshot("07-back-on-the-document-result")
 
         // A folder opens under its name; Back returns to the results.
         focus("Open $FOLDER")
@@ -158,10 +157,10 @@ class TvExternalOpenProofTest {
         assertEquals(1, compose.onAllNodesWithText(FOLDER).fetchSemanticsNodes().size)
         screenshot("08-folder")
         press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(5_000) { hasContentDescription("Open $FOLDER") }
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
 
-        // Files still holds the location the viewer left. Left first walks the field's cursor home.
-        repeat(MAX_STEPS) { press(KeyEvent.KEYCODE_DPAD_LEFT) }
+        // Files still holds the location the viewer left.
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
         press(KeyEvent.KEYCODE_DPAD_UP)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { hasContentDescription("Play Old clip.mp4") }
@@ -272,12 +271,13 @@ class TvExternalOpenProofTest {
     private fun hasContentDescription(label: String) =
         compose.onAllNodesWithContentDescription(label).fetchSemanticsNodes().isNotEmpty()
 
+    private fun isFocused(label: String) = compose.onAllNodesWithContentDescription(label).fetchSemanticsNodes()
+        .any { it.config.getOrNull(SemanticsProperties.Focused) == true }
+
     /** Walks the D-pad down, then up, until [label] holds focus. */
     private fun focus(label: String) {
-        fun focused() = compose.onAllNodesWithContentDescription(label).fetchSemanticsNodes()
-            .any { it.config.getOrNull(SemanticsProperties.Focused) == true }
-        repeat(MAX_STEPS) { if (!focused()) press(KeyEvent.KEYCODE_DPAD_DOWN) }
-        repeat(MAX_STEPS) { if (!focused()) press(KeyEvent.KEYCODE_DPAD_UP) }
+        repeat(MAX_STEPS) { if (!isFocused(label)) press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        repeat(MAX_STEPS) { if (!isFocused(label)) press(KeyEvent.KEYCODE_DPAD_UP) }
         compose.onNodeWithContentDescription(label).assertIsFocused()
     }
 
@@ -287,10 +287,17 @@ class TvExternalOpenProofTest {
         Thread.sleep(STEP_MILLIS)
     }
 
+    /**
+     * Copies the fixture adb pushed into the app's own files directory: a directory adb creates
+     * under `Android/data` is not readable to the app, and the app cannot read `/data/local/tmp`.
+     */
     private fun localSource(): PlaybackSource {
-        val file = File(requireNotNull(arguments.getString("putio.tv.open.fixture"))).canonicalFile
-        require(file.isFile && file.canRead()) { "Fixture is not readable: $file" }
-        require(file.toPath().startsWith(requireNotNull(context.getExternalFilesDir(null)).canonicalFile.toPath()))
+        val pushed = requireNotNull(arguments.getString("putio.tv.open.fixture"))
+        val file = File(requireNotNull(context.getExternalFilesDir(null)), "tv-open-fixture.mp4")
+        val copy = InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand("cp $pushed ${file.absolutePath}")
+        ParcelFileDescriptor.AutoCloseInputStream(copy).use { it.readBytes() }
+        require(file.isFile && file.canRead()) { "Fixture is not readable: $file (pushed as $pushed)" }
         // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())

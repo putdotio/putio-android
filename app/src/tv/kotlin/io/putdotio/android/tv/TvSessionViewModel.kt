@@ -143,6 +143,10 @@ internal class TvSession internal constructor(
      */
     val filesFocusMemory: MutableMap<Long, Long> = mutableMapOf()
 
+    /** The Search result and the History event last opened, focused again when their pane returns. */
+    val searchPickedRow = TvPickedRow()
+    val historyPickedRow = TvPickedRow()
+
     val recentSearchFailure = recentSearches.failure
 
     /** A history event's file, resolved and ready for Files to open. */

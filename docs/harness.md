@@ -663,7 +663,7 @@ submits, and the field also searches 300 ms after typing stops. Down from
 the field reaches the recent-query chips, then the result rows and the
 Load more control; Left from any of them returns to the drawer. Center on a
 row plays a video or audio result, opens a folder in Files, or opens another
-file's folder with focus on it; Back returns to the results. Long-press on a
+file's folder with focus on it; Back returns to that row. Long-press on a
 chip removes that term. The recent terms are the account's `searchHistory`
 app-config entry, shared with mobile, so remove any proof terms afterwards:
 
@@ -682,12 +682,12 @@ Behaviour: [History opens](./behavior.md#timestamps-and-history-opens).
 signed-in shell (`TvSessionShell`) on fake repositories and a caller-owned
 local video, then drives them with D-pad keys: open Movies in Files, type a
 query in Search, Center on the video result (resume prompt from 00:45,
-Continue, playing), Back twice to the results, Center on `notes.pdf` (its
-folder, Documents, with the row focused), Back to the results, Center on the
-Documents folder, Back, and Files still shows Movies. It makes no API calls,
-so report it as controlled-state proof. The first run only creates the app's
-external files directory and fails on the missing fixture; a directory adb
-creates is not readable to the app.
+Continue, playing), Back twice to that result, focused, Center on `notes.pdf`
+(its folder, Documents, with the row focused), Back to that result, Center on
+the Documents folder, Back to it, and Files still shows Movies. It makes no API
+calls, so report it as controlled-state proof. The app cannot read a directory
+adb creates under `Android/data`, so push the fixture to `/data/local/tmp`; the
+test copies it into its own files directory.
 
 ```bash
 ./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
@@ -695,21 +695,18 @@ adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-
 adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
 ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=90 -f lavfi -i sine=frequency=440:duration=90 \
   -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest tv-open-proof.mp4
-FIXTURE=/sdcard/Android/data/io.put.putio.debug/files/tv-open-fixture/tv-open-proof.mp4
-open_proof() {
-  adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvExternalOpenProofTest \
-    -e putio.tv.open.enabled true -e putio.tv.open.runId "$(uuidgen)" -e putio.tv.open.fixture "$FIXTURE" \
-    io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
-}
-open_proof   # first run on a fresh install: creates the directory, then fails
-adb -s emulator-5554 push tv-open-proof.mp4 "$FIXTURE"
-open_proof
+adb -s emulator-5554 push tv-open-proof.mp4 /data/local/tmp/tv-open-proof.mp4
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvExternalOpenProofTest \
+  -e putio.tv.open.enabled true -e putio.tv.open.runId "$(uuidgen)" \
+  -e putio.tv.open.fixture /data/local/tmp/tv-open-proof.mp4 \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
 Screenshots go to `tv-open-proof-<UUID>/`: `01` Movies, `02` the results,
-`03` the resume prompt, `04` playing, `05` back on the results, `06` the
-document in its folder, `07` back on the results, `08` the folder, `09` Files
-still on Movies. Remove the fixture and screenshot directories afterwards.
+`03` the resume prompt, `04` playing, `05` back on the played result, `06` the
+document in its folder, `07` back on the document result, `08` the folder,
+`09` Files still on Movies. Remove `/data/local/tmp/tv-open-proof.mp4`, the
+copied `tv-open-fixture.mp4` and the screenshot directory afterwards.
 
 ## TV History proof
 

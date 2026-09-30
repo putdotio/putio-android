@@ -58,6 +58,7 @@ import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
+import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.files.tvMessage
@@ -86,7 +87,10 @@ internal fun TvHistoryScreen(
     /** Changes with the signed-in session so one account's list position never greets the next. */
     sessionKey: Any? = null,
     clock: Clock = Clock.systemDefaultZone(),
+    /** The event the viewer last opened; it takes focus again when the pane comes back. */
+    pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
 ) = key(sessionKey) {
+    val restoreRowId = remember { pickedRow.take() }
     val content = state.content
     // Clear stays composed and enabled in every state, like Refresh in Files: a disabled
     // TV button drops focus, and it is the one node that outlives every content change.
@@ -195,7 +199,11 @@ internal fun TvHistoryScreen(
                 val now = remember(content.items) { clock.instant() }
                 TvHistoryList(
                     content = content,
-                    onOpen = { onEvent(HistoryEvent.OpenFile(it)) },
+                    restoreRowId = restoreRowId,
+                    onOpen = { item, fileId ->
+                        pickedRow.pick(item.id.value)
+                        onEvent(HistoryEvent.OpenFile(fileId))
+                    },
                     onNextPage = { onEvent(HistoryEvent.LoadNextPage) },
                     onRetry = { onEvent(HistoryEvent.Retry) },
                     owner = owner,
@@ -271,7 +279,8 @@ private fun List<HistoryItem>.toEntries(now: Instant, zone: ZoneId): List<TvHist
 @Composable
 private fun TvHistoryList(
     content: HistoryContent.Ready,
-    onOpen: (HistoryFileId) -> Unit,
+    restoreRowId: Long?,
+    onOpen: (HistoryItem, HistoryFileId) -> Unit,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
     owner: TvPaneFocusOwner,
@@ -310,11 +319,20 @@ private fun TvHistoryList(
     // it later. The shell's own pane request lands one frame earlier on first entry; this
     // one settles on the row. The anchor is read once, at mount: this list is the one that
     // mounted, whatever paging appends to it later.
+    // Coming back from what a row opened, that row takes focus instead.
+    val restoreRow = remember { FocusRequester() }
+    val restoreIndex = remember(entries) {
+        entries.indexOfFirst { it is TvHistoryEntry.Event && it.item.id.value == restoreRowId }
+    }
     LaunchedEffect(listState) {
-        val anchorKey = entries.getOrNull(anchorIndex)?.key ?: return@LaunchedEffect
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == anchorKey } }.first { it }
+        val restoreKey = entries.getOrNull(restoreIndex)?.key
+        if (restoreKey != null && listState.layoutInfo.visibleItemsInfo.none { it.key == restoreKey }) {
+            listState.scrollToItem(restoreIndex)
+        }
+        val targetKey = restoreKey ?: entries.getOrNull(anchorIndex)?.key ?: return@LaunchedEffect
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == targetKey } }.first { it }
         withFrameNanos {}
-        if (paneHasFocus.value) listFocus.requestFocus()
+        if (paneHasFocus.value) (if (restoreKey != null) restoreRow else listFocus).requestFocus()
     }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
@@ -333,8 +351,14 @@ private fun TvHistoryList(
             .paneSection(owner, listFocus)
             .focusRequester(listFocus)
             .focusRestorer {
-                val lastComposed = listState.layoutInfo.visibleItemsInfo.any { it.key == entries.last().key }
-                if (handOffToLastRow.value && lastComposed) lastRow else anchorRow
+                val visible = listState.layoutInfo.visibleItemsInfo
+                val lastComposed = visible.any { it.key == entries.last().key }
+                val restoreComposed = restoreIndex >= 0 && visible.any { it.key == entries[restoreIndex].key }
+                when {
+                    handOffToLastRow.value && lastComposed -> lastRow
+                    restoreComposed -> restoreRow
+                    else -> anchorRow
+                }
             }
             .focusGroup()
             .testTag(TV_HISTORY_LIST_TAG),
@@ -353,10 +377,11 @@ private fun TvHistoryList(
                     TvHistoryRow(
                         item = entry.item,
                         now = now,
-                        onOpen = onOpen,
+                        onOpen = { onOpen(entry.item, it) },
                         modifier = Modifier
                             .then(if (index == anchorIndex) Modifier.focusRequester(anchorRow) else Modifier)
-                            .then(if (index == lastIndex) Modifier.focusRequester(lastRow) else Modifier),
+                            .then(if (index == lastIndex) Modifier.focusRequester(lastRow) else Modifier)
+                            .then(if (index == restoreIndex) Modifier.focusRequester(restoreRow) else Modifier),
                     )
             }
         }

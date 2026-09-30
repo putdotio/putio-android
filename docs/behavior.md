@@ -323,7 +323,8 @@ latest choice opens: a second tap while the first resolves opens one item.
 
 A Search result, a History row or a product link opens the item itself, as
 putio-web, tv-native and iOS do. Video and audio play at once over the screen
-they were chosen on, with the resume prompt above; Back returns there. TV's
+they were chosen on, with the resume prompt above; Back returns there, and on
+TV to the row that was chosen. TV's
 prompt needs a duration, which search results and single-file reads lack, so
 the session first lists the file itself, which put.io answers with the file as
 the parent and its `video_metadata`; if that read fails, playback continues
@@ -333,14 +334,14 @@ selected on mobile and focused on TV, scrolled to when it is on the first page.
 
 That folder sits on top of the viewer's Files location instead of replacing it.
 Back from it returns to Search (mobile shows History there too), History on TV,
-or Transfers, whose file opens the same way without playing; after a product
-link it returns to the Files location. A later outside open replaces the earlier
+or Transfers, whose file opens the same way without playing, with TV focus back
+on the chosen row; after a product link it returns to the Files location. A later outside open replaces the earlier
 one rather than stacking, and Files refuses it while a move or deletion settles.
 
 Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
 `MobileSearchHistoryScreenTest`, `MobileFilesScreenTest`, `TvSessionViewModelTest`,
 `FilesBrowserReducerTest`, `FilesBrowserControllerTest`, `MobileShellTest`
-(`MobileShellExternalOpenTest`).
+(`MobileShellExternalOpenTest`), `TvPickReturnFocusTest`.
 
 ## Downloads and offline playback
 

@@ -330,6 +330,7 @@ internal fun TvSessionShell(
                     },
                     modifier = Modifier.focusRequester(paneFocus),
                     sessionKey = sessionKey,
+                    pickedRow = session.searchPickedRow,
                 )
             },
             historyPane = { paneFocus ->
@@ -355,6 +356,7 @@ internal fun TvSessionShell(
                     },
                     modifier = Modifier.focusRequester(paneFocus),
                     sessionKey = sessionKey,
+                    pickedRow = session.historyPickedRow,
                 )
             },
             accountPane = { paneFocus ->

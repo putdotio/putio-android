@@ -58,6 +58,25 @@ internal class TvPaneFocusOwner(
     }
 
     fun focusEntry() = entryTarget.value.requestFocus()
+
+    /** Whether D-pad focus belongs to the pane. */
+    val hasFocus: Boolean get() = paneHasFocus.value
+}
+
+/**
+ * The row a pane last opened something from: playback or Files replaces the pane, and the
+ * row takes focus again when the pane next mounts, as Files does for its rows. Owned by the
+ * session so it survives the pane being disposed. Plain, not snapshot state.
+ */
+internal class TvPickedRow {
+    private var id: Long? = null
+
+    fun pick(rowId: Long) {
+        id = rowId
+    }
+
+    /** The row to focus on this mount; read once, so a later visit starts as usual. */
+    fun take(): Long? = id.also { id = null }
 }
 
 /**
