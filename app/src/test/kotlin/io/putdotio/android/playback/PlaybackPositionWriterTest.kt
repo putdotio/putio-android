@@ -33,7 +33,7 @@ class PlaybackPositionWriterTest {
         assertEquals(listOf(1L to 15.0, 1L to 115.0), calls)
         writer.offer(lease, 115_000L)
         writer.offer(lease, 115_999L)
-        writer.offer(lease, -1L)
+        writer.offer(lease, 0L)
         writer.offer("unknown", 25_000L)
         runCurrent()
         assertEquals(2, calls.size)
@@ -41,7 +41,7 @@ class PlaybackPositionWriterTest {
     }
 
     @Test
-    fun theFinalClearingPositionLandsAfterAnInFlightSave() = runTest {
+    fun theFinalPositionLandsAfterAnInFlightSave() = runTest {
         val calls = mutableListOf<Double>()
         val periodic = CompletableDeferred<Unit>()
         val writer = PlaybackPositionWriter(backgroundScope) { _, seconds ->
@@ -52,12 +52,13 @@ class PlaybackPositionWriterTest {
         val lease = writer.register(1L) { true }
         writer.offer(lease, 88_000L)
         runCurrent()
-        writer.offer(lease, 0L)
+        // Playback ends while the periodic save is still in flight (#263).
+        writer.offer(lease, 96_000L)
         runCurrent()
         assertEquals(listOf(88.0), calls)
         periodic.complete(Unit)
         runCurrent()
-        assertEquals(listOf(88.0, 0.0), calls)
+        assertEquals(listOf(88.0, 96.0), calls)
         writer.close()
     }
 

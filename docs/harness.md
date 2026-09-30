@@ -595,8 +595,9 @@ without a player or a write, Center then Continue plays from 45 s, 16 s of
 playback write once, leaving writes once more, then Start from the beginning
 plays from zero and Continue resumes from what that playback saved.
 `aVideoFinishedWithinTenSecondsOfItsEndOpensAgainWithoutAsking` starts the
-server at 70 s: Continue plays to the end, playback leaves, the last write is 0,
-and Center plays again from the start without the dialog.
+server at 70 s: Continue plays to the end, playback leaves, the last write is the
+real end (at least 89 s), and Center plays again from the start without the
+dialog.
 `savedAudioContinuesWithoutAsking` runs only with `putio.tv.player.audioFixture`:
 an audio row with a 45 s saved position plays from it without the dialog.
 `languageSubtitlesAndSpeedPickersJoinTheBackStack` needs the
@@ -687,12 +688,12 @@ screenshot directories afterwards.
 Behaviour: [TV playback](./behavior.md#tv-playback). `TvAutoplayProofTest`
 (`androidTestTv`) mounts the production TV session and signed-in shell on fake
 repositories for an account with Autoplay next video and resume on, and plays a
-caller-owned 12 s local video for each Files row: Center on the first video, it
-plays to its end, its saved position is cleared (0, within 10 s of the end),
-the next video in the folder asks to continue from 00:05, Center continues,
-Back twice returns to Files with the autoplayed row focused, which clears that
-video's position too, and Center plays it again without asking to its end,
-after which playback leaves (the folder's last video) back on that row. A second case turns
+caller-owned 30 s local video for each Files row (long enough that 00:05 is not
+within 10 s of the end, which would count as finished): Center on the first
+video, it plays to its end, its end position is written, the next video in the folder
+asks to continue from 00:05, Center continues, Back twice returns to Files with
+the autoplayed row focused, and Center plays it again to its end, after which
+playback leaves (the folder's last video) back on that row. A second case turns
 the setting off: the first video plays to its end and playback leaves without
 looking up the next, back on its row. It makes no API calls, so report it as
 controlled-state proof. Push the fixture to `/data/local/tmp`; the test copies
@@ -702,7 +703,7 @@ it into its own files directory.
 ./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
 adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
 adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
-ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=12 -f lavfi -i sine=frequency=440:duration=12 \
+ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=30 -f lavfi -i sine=frequency=440:duration=30 \
   -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest tv-autoplay-proof.mp4
 adb -s emulator-5554 push tv-autoplay-proof.mp4 /data/local/tmp/tv-autoplay-proof.mp4
 adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvAutoplayProofTest \

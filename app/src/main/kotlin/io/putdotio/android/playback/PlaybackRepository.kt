@@ -185,13 +185,41 @@ class SdkPlaybackRepository internal constructor(
                     maxSubtitleCount = if (hideSubtitles) 0 else null,
                 ),
             )
-            PlaybackRepositoryResult.Success(resolution.toAppResolution(account.settings.useStartFrom, hideSubtitles))
+            val ready = resolution.toAppResolution(account.settings.useStartFrom, hideSubtitles)
+            PlaybackRepositoryResult.Success(
+                if (ready is PlaybackResolution.Ready && ready.needsDuration(target)) {
+                    ready.copy(durationSeconds = videoDuration(target.fileId.value))
+                } else {
+                    ready
+                },
+            )
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
             PlaybackRepositoryResult.Failure(error.toPlaybackFailure())
         } catch (unexpected: Exception) {
             PlaybackRepositoryResult.Failure(PlaybackFailure.Unexpected(unexpected))
+        }
+
+    private fun PlaybackResolution.Ready.needsDuration(target: PlaybackTarget): Boolean =
+        useStartFrom && source.startFromSeconds > 0.0 && target.durationSeconds == null &&
+            target.mediaType == PlaybackMediaType.VIDEO
+
+    /**
+     * Single-file reads omit `video_metadata`; listing the file returns it as the parent. A
+     * failed lookup leaves the duration unknown, so the saved position is offered as before;
+     * an optional read must not fail the playback it only refines.
+     */
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    private suspend fun videoDuration(fileId: Long): Double? =
+        try {
+            listFolder(fileId, FilesListQuery(perPage = 1)).parent
+                ?.takeIf { it.id == fileId }
+                ?.videoMetadata?.duration?.takeIf { it.isFinite() && it > 0.0 }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            null
         }
 
     @Suppress("TooGenericExceptionCaught")
@@ -325,6 +353,8 @@ sealed interface PlaybackResolution {
         val useStartFrom: Boolean = false,
         /** Resolved for a `hide_subtitles` account, whose settings the player may not have yet. */
         val subtitlesHidden: Boolean = false,
+        /** The media's duration when the target did not carry one; see [PlaybackTarget.durationSeconds]. */
+        val durationSeconds: Double? = null,
     ) : PlaybackResolution
 
     data class Conversion(

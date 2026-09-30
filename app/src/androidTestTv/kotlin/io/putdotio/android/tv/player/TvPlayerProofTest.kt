@@ -329,13 +329,16 @@ class TvPlayerProofTest {
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
         screenshot("91-playing-to-the-end")
 
-        // Without autoplay the finished video leaves playback; its saved position is cleared.
+        // Without autoplay the finished video leaves playback; its real end position is written.
         compose.waitUntil(FIXTURE_SECONDS.toLong() * 1_000L) { compose.runOnIdle { controller == null } }
-        compose.waitUntil(10_000) { compose.runOnIdle { server.writes.lastOrNull() == 0.0 } }
+        compose.waitUntil(10_000) {
+            compose.runOnIdle { (server.writes.lastOrNull() ?: 0.0) >= FIXTURE_SECONDS - 1.0 }
+        }
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
         screenshot("92-finished-back-on-the-row")
         pause()
 
+        // Saved within 10 s of the end, it counts as finished: it starts over without asking.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
         compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)

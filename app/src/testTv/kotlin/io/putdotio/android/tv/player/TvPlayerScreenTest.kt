@@ -919,7 +919,7 @@ class TvPlayerScreenTest {
     }
 
     @Test
-    fun withAutoplayAFinishedVideoClearsItsPositionAndTheNextInTheFolderPlays() {
+    fun withAutoplayAFinishedVideoWritesItsEndAndTheNextInTheFolderPlays() {
         val players = mutableListOf<FakePlayer>()
         val writes = mutableListOf<Pair<Long, Double>>()
         val reporting = reporting(writes)
@@ -939,8 +939,8 @@ class TvPlayerScreenTest {
             assertEquals(0, exits)
             assertTrue(players.first().released)
             val (fileId, seconds) = writes.single()
-            assertEquals("The finished video's position is cleared under its own lease", 9L, fileId)
-            assertEquals(0.0, seconds, 0.0)
+            assertEquals("The finished video's end is written under its own lease", 9L, fileId)
+            assertEquals(DURATION_SECONDS.toDouble(), seconds, 0.001)
             val next = players.last()
             assertEquals(2, players.size)
             assertEquals("10", next.mediaItems.single().mediaId)

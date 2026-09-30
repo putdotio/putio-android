@@ -35,20 +35,6 @@ import java.util.concurrent.CancellationException
 
 class SdkPlaybackRepositoryTest {
     @Test
-    fun aZeroPositionClearsTheSavedPositionInsteadOfSettingIt() =
-        runBlocking {
-            val requests = mutableListOf<String>()
-            val repository = SdkPlaybackPositionRepository(
-                setPosition = { fileId, seconds -> requests += "set $fileId $seconds" },
-                resetPosition = { fileId -> requests += "reset $fileId" },
-            )
-            assertTrue(repository.write(7L, 88.5) is PlaybackRepositoryResult.Success)
-            assertTrue(repository.write(7L, 0.0) is PlaybackRepositoryResult.Success)
-            assertTrue(repository.write(7L, -1.0) is PlaybackRepositoryResult.Failure)
-            assertEquals(listOf("set 7 88.5", "reset 7"), requests)
-        }
-
-    @Test
     fun resolvesHlsWithAccountCredentialAndResumePreference() =
         runBlocking {
             var request: PlaybackRequest? = null
@@ -98,6 +84,36 @@ class SdkPlaybackRepositoryTest {
             // The player hides the picker from this before the account settings load.
             assertTrue(((hidden as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).subtitlesHidden)
             assertFalse(((shown as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).subtitlesHidden)
+        }
+
+    @Test
+    fun aSavedVideoPositionWithoutADurationListsTheFileForIt() =
+        runBlocking {
+            val listed = mutableListOf<Long>()
+            fun repository(startFrom: Double) = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.HLS },
+                loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+                resolvePlayback = {
+                    io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource().copy(startFromSeconds = startFrom))
+                },
+                listFolder = { parentId, _ ->
+                    listed += parentId
+                    FilesListResponse(
+                        parent = video(42L).copy(videoMetadata = PutioVideoMetadata(duration = 1_260.0)),
+                        status = "OK",
+                    )
+                },
+            )
+            fun duration(result: PlaybackRepositoryResult<PlaybackResolution>) =
+                ((result as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).durationSeconds
+
+            assertEquals(1_260.0, duration(repository(1_255.0).resolve(Target)))
+            assertEquals(listOf(42L), listed)
+            // Nothing to decide without a saved position, and a listing's duration is enough.
+            assertNull(duration(repository(0.0).resolve(Target)))
+            assertNull(duration(repository(1_255.0).resolve(Target.copy(durationSeconds = 1_260.0))))
+            assertNull(duration(repository(1_255.0).resolve(Target.copy(mediaType = PlaybackMediaType.AUDIO))))
+            assertEquals(listOf(42L), listed)
         }
 
     @Test

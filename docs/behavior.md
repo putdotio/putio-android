@@ -119,7 +119,14 @@ Tests: `TrashActionTest`, `TrashRestoreTest`, `TrashRepeatedRestoreTest`,
 Fresh video resolution with `use_start_from` enabled and a positive saved
 position offers Resume or Start over before preparing the player; Back or
 dismissing it leaves playback on both surfaces, as tv-native's prompt did. Audio
-continues from its saved position without asking, as iOS does. The retained
+continues from its saved position without asking, as iOS does. A saved position
+within 10 seconds of the known duration counts as finished (iOS main's
+threshold): the video or audio starts from the beginning without asking, on
+both surfaces and for autoplay. The server keeps that position, so the file
+still reads as watched with its progress bar. The duration comes from the
+listing; when the opened target has none (mobile opens, search, History, deep
+links), resolution lists the file once to read it, and without one the saved
+position is offered as before. The retained
 controller keeps that decision across Activity recreation. Live audio attachment
 and retained player-error recovery bypass the prompt. Start over starts locally
 at zero; it does not immediately reset the server position.
@@ -128,17 +135,15 @@ One observer belongs to each actual player: the private video owner or the audio
 service on mobile, the player screen on TV. Screens and notification controllers do not duplicate audio reporting.
 The observer samples advancing playback every 15 seconds and captures positive
 positions on pause, stop, end, error, item replacement and owner exit. Buffering
-and same-item seek events do not send immediate writes. A position within 10
-seconds of the item's known duration is reported as 0, which clears the saved
-position (`start-from/delete`), as iOS does, so a finished video opens from the
-start without a prompt; the file then reads as unwatched, also as on iOS. The
+and same-item seek events do not send immediate writes. The
 application writer deduplicates positions within the same second, permits one
 request in flight and one latest pending snapshot, and times out a request after
 15 seconds. A position offered while a request is in flight is written after it,
 so the final one wins. Under slow requests or rapid file switches, newer
 snapshots can replace intermediate queued exit positions, and reopening a file
 drops its previous opening's queued snapshot. Failed writes keep their typed
-cause and wait for a new position; there is no immediate retry loop.
+cause and wait for a new position; there is no immediate retry loop or
+completion reset: a finished item's real final position is written.
 
 Reporting requires an app-issued item lease, the same signed-in session, and a
 confirmed enabled resume setting. Pending/failed resume-setting writes suspend

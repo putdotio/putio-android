@@ -8,7 +8,6 @@ import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -126,7 +125,7 @@ class TvAutoplayProofTest {
         compose.onNodeWithText(SECOND_CONTINUE_LABEL).assertIsFocused()
         assertEquals(listOf(FIRST_ID), lookups.toList())
         val firstEnd = writes.toList().last { it.first == FIRST_ID }.second
-        assertEquals("The finished video's saved position is cleared", 0.0, firstEnd, 0.0)
+        assertTrue("The finished video's end is written: $firstEnd s", firstEnd >= FIXTURE_SECONDS - 1.0)
         screenshot("03-next-resume-prompt")
 
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -141,12 +140,13 @@ class TvAutoplayProofTest {
         compose.waitUntil(10_000) { isFocused("Play $SECOND") }
         screenshot("05-back-on-the-autoplayed-row")
 
-        // Leaving within 10 s of its end cleared its position, so it plays again without asking; as
-        // the folder's last video, it leaves playback when it ends, back on its row.
-        compose.waitUntil(5_000) { writes.toList().lastOrNull { it.first == SECOND_ID }?.second == 0.0 }
+        // The folder's last video leaves playback when it ends, back on its row.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag(TV_PLAYER_TAG).fetchSemanticsNodes().isNotEmpty() }
-        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
         Thread.sleep(PLAY_MILLIS)
         screenshot("06-last-playing")
         compose.waitUntil(FIXTURE_MILLIS * 3) { compose.runOnIdle { session.playback.value == null } }
@@ -354,8 +354,8 @@ class TvAutoplayProofTest {
         const val SECOND_ID = 9_360_002L
         const val FIRST = "Harbor film 1.mp4"
         const val SECOND = "Harbor film 2.mp4"
-        const val FIXTURE_SECONDS = 12.0
-        const val FIXTURE_MILLIS = 12_000L
+        const val FIXTURE_SECONDS = 30.0
+        const val FIXTURE_MILLIS = 30_000L
         const val SECOND_SAVED_SECONDS = 5.0
         const val SECOND_CONTINUE_LABEL = "Continue playing from 00:05"
         const val RESUME_PREFIX = "Continue playing from"

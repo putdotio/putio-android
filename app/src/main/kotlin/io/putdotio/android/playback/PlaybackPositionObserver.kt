@@ -2,10 +2,8 @@ package io.putdotio.android.playback
 
 import android.os.Bundle
 import android.os.Looper
-import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
-import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.Player as Media3Player
 import java.io.Closeable
@@ -19,8 +17,6 @@ import kotlinx.coroutines.launch
 
 internal const val PLAYBACK_REPORTING_LEASE_KEY = "io.putdotio.android.playback.reportingLease"
 private const val POSITION_REPORT_INTERVAL_MILLIS = 15_000L
-private const val NEAR_END_RESET_MILLIS = 10_000L
-private const val MAX_KNOWN_DURATIONS = 8
 
 /** Tags [this] item with a [PlaybackPositionWriter] lease, so an observer reports its positions under it. */
 internal fun MediaItem.withReportingLease(token: String): MediaItem {
@@ -31,8 +27,7 @@ internal fun MediaItem.withReportingLease(token: String): MediaItem {
 
 /**
  * One per actual player, on mobile and TV. The owner calls this on the player's application
- * looper and supplies a scope on that looper. A position within 10 s of the item's end is
- * reported as 0, as iOS saves it, so a finished item starts over instead of offering to resume.
+ * looper and supplies a scope on that looper.
  */
 internal class PlaybackPositionObserver(
     private val player: Media3Player,
@@ -42,14 +37,7 @@ internal class PlaybackPositionObserver(
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
     private var ticker: Job? = null
     private var closed = false
-
-    /** Known durations by lease; a replaced item's discontinuity arrives after its timeline is gone. */
-    private val durations = linkedMapOf<String, Long>()
     private val listener = object : Media3Player.Listener {
-        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-            if (!closed) rememberDurations(timeline)
-        }
-
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (closed) return
             updateTicker()
@@ -80,23 +68,20 @@ internal class PlaybackPositionObserver(
                 reason == Media3Player.DISCONTINUITY_REASON_REMOVE ||
                 reason == Media3Player.DISCONTINUITY_REASON_AUTO_TRANSITION
             // A seek within the same item waits for the next periodic or lifecycle snapshot.
-            if (itemChanged) submitPosition(oldLease, oldPosition.positionMs, durationOf(oldLease))
+            if (itemChanged) submitPosition(oldLease, oldPosition.positionMs)
         }
     }
 
     init {
         checkApplicationLooper()
         player.addListener(listener)
-        rememberDurations(player.currentTimeline)
         updateTicker()
     }
 
     fun flush() {
         if (closed) return
         checkApplicationLooper()
-        rememberDurations(player.currentTimeline)
-        val lease = player.currentMediaItem.reportingLease()
-        submitPosition(lease, player.currentPosition, durationOf(lease))
+        submitPosition(player.currentMediaItem.reportingLease(), player.currentPosition)
     }
 
     override fun close() {
@@ -129,25 +114,9 @@ internal class PlaybackPositionObserver(
         }
     }
 
-    private fun submitPosition(lease: String?, positionMillis: Long, durationMillis: Long) {
-        if (lease.isNullOrBlank() || positionMillis <= 0) return
-        val nearEnd = durationMillis != C.TIME_UNSET && positionMillis >= durationMillis - NEAR_END_RESET_MILLIS
-        submit(lease, if (nearEnd) 0L else positionMillis)
+    private fun submitPosition(lease: String?, positionMillis: Long) {
+        if (!lease.isNullOrBlank() && positionMillis > 0) submit(lease, positionMillis)
     }
-
-    private fun rememberDurations(timeline: Timeline) {
-        val window = Timeline.Window()
-        for (index in 0 until timeline.windowCount) {
-            timeline.getWindow(index, window)
-            val lease = window.mediaItem.reportingLease()
-            if (lease.isNullOrBlank() || window.durationMs == C.TIME_UNSET || window.durationMs <= 0) continue
-            durations.remove(lease)
-            durations[lease] = window.durationMs
-        }
-        while (durations.size > MAX_KNOWN_DURATIONS) durations.remove(durations.keys.first())
-    }
-
-    private fun durationOf(lease: String?): Long = lease?.let(durations::get) ?: C.TIME_UNSET
 
     private fun checkApplicationLooper() {
         check(Looper.myLooper() == player.applicationLooper) { "Position reporting must use the player looper" }

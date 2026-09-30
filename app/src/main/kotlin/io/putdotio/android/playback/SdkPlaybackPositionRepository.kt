@@ -6,19 +6,17 @@ import kotlinx.coroutines.CancellationException
 
 internal class SdkPlaybackPositionRepository internal constructor(
     private val setPosition: suspend (Long, Double) -> Unit,
-    private val resetPosition: suspend (Long) -> Unit,
 ) {
-    constructor(client: PutioClient) : this(
-        setPosition = { fileId, seconds -> client.files.setStartFrom(fileId, seconds) },
-        resetPosition = { fileId -> client.files.resetStartFrom(fileId) },
-    )
+    constructor(client: PutioClient) : this({ fileId, seconds ->
+        client.files.setStartFrom(fileId, seconds)
+        Unit
+    })
 
-    /** Zero seconds clears the saved position, as iOS does for a finished video. */
     @Suppress("TooGenericExceptionCaught")
     suspend fun write(fileId: Long, seconds: Double): PlaybackRepositoryResult<Unit> =
         try {
-            require(fileId > 0L && seconds.isFinite() && seconds >= 0.0)
-            if (seconds == 0.0) resetPosition(fileId) else setPosition(fileId, seconds)
+            require(fileId > 0L && seconds.isFinite() && seconds > 0.0)
+            setPosition(fileId, seconds)
             PlaybackRepositoryResult.Success(Unit)
         } catch (error: CancellationException) {
             throw error

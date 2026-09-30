@@ -369,6 +369,56 @@ class PlaybackReducerTest {
     }
 
     @Test
+    fun aPositionSavedWithinTenSecondsOfTheEndStartsOverWithoutAPrompt() {
+        for (mediaType in PlaybackMediaType.entries) {
+            val start = PlaybackReducer.start(Target.copy(mediaType = mediaType, durationSeconds = 22.0))
+            val finished = PlaybackReducer.reduce(
+                start.state,
+                PlaybackEvent.ResolveSucceeded(
+                    PlaybackRequestId(1L),
+                    PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+                ),
+            )
+            assertEquals(PlaybackContent.Ready(playbackSource(), useStartFrom = true), finished.state.content)
+            assertEquals(0L, finished.state.resumePositionMillis)
+        }
+        // The resolution's duration serves a target that came without one.
+        val looked = PlaybackReducer.reduce(
+            PlaybackReducer.start(Target).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true, durationSeconds = 20.0),
+            ),
+        )
+        assertEquals(0L, looked.state.resumePositionMillis)
+        // Just over 10 s from the end still asks.
+        val asks = PlaybackReducer.reduce(
+            PlaybackReducer.start(Target.copy(durationSeconds = 22.01)).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+            ),
+        )
+        assertTrue(asks.state.content is PlaybackContent.AwaitingResume)
+    }
+
+    @Test
+    fun autoplayStartsAFinishedNextVideoOverWithoutAPrompt() {
+        val finding = PlaybackReducer.reduce(readyState().copy(resumePositionMillis = 0L), PlaybackEvent.PlayerEnded)
+        val next = Target.copy(fileId = FilesItemId(43L), name = "next.mkv", durationSeconds = 15.0)
+        val loading = PlaybackReducer.reduce(finding.state, PlaybackEvent.NextFound(PlaybackRequestId(2L), next))
+        val resolved = PlaybackReducer.reduce(
+            loading.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(3L),
+                PlaybackResolution.Ready(playbackSource().copy(fileId = 43L), useStartFrom = true),
+            ),
+        )
+        assertTrue(resolved.state.content is PlaybackContent.Ready)
+        assertEquals(0L, resolved.state.resumePositionMillis)
+    }
+
+    @Test
     fun savedVideoPositionRequiresAChoice() {
         val start = PlaybackReducer.start(Target)
         val pending = PlaybackReducer.reduce(

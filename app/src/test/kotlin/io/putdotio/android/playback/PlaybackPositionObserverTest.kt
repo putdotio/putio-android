@@ -158,32 +158,6 @@ class PlaybackPositionObserverTest {
     }
 
     @Test
-    fun positionsWithinTenSecondsOfTheEndReportZero() = runTest {
-        val player = PositionPlayer()
-        player.replace("first", 89_999L, durationMillis = 100_000L)
-        player.play()
-        val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
-            snapshots += lease to position
-        }
-        player.pause()
-        player.position(90_000L)
-        observer.flush()
-        player.position(100_000L)
-        player.end()
-        assertEquals(listOf("first" to 89_999L, "first" to 0L, "first" to 0L), snapshots)
-
-        snapshots.clear()
-        player.replace("second", 95_000L, durationMillis = 100_000L)
-        assertEquals(listOf("first" to 0L), snapshots)
-        snapshots.clear()
-        player.replace("third", 0L)
-        assertEquals(listOf("second" to 0L), snapshots)
-        observer.close()
-        player.release()
-    }
-
-    @Test
     fun closeCancelsSamplingAndDetachesBeforeFurtherPlayerEvents() = runTest {
         val player = PositionPlayer()
         player.replace("first", 13_000L)
@@ -219,20 +193,13 @@ private class PositionPlayer : SimpleBasePlayer(Looper.getMainLooper()) {
 
     override fun handleRelease(): ListenableFuture<*> = Futures.immediateVoidFuture()
 
-    fun replace(lease: String?, positionMillis: Long, durationMillis: Long = C.TIME_UNSET) {
+    fun replace(lease: String?, positionMillis: Long) {
         val metadata = MediaMetadata.Builder()
             .setExtras(Bundle().apply { putString(PLAYBACK_REPORTING_LEASE_KEY, lease) })
             .build()
         val item = MediaItem.Builder().setMediaId(lease.orEmpty()).setMediaMetadata(metadata).build()
         state = state.buildUpon()
-            .setPlaylist(
-                listOf(
-                    MediaItemData.Builder(lease ?: "unleased")
-                        .setMediaItem(item)
-                        .setDurationUs(if (durationMillis == C.TIME_UNSET) C.TIME_UNSET else durationMillis * 1_000L)
-                        .build(),
-                ),
-            )
+            .setPlaylist(listOf(MediaItemData.Builder(lease ?: "unleased").setMediaItem(item).build()))
             .setCurrentMediaItemIndex(0)
             .setPlaybackState(Media3Player.STATE_READY)
             .setContentPositionMs(positionMillis)
