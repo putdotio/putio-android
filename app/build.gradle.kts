@@ -1,3 +1,4 @@
+import com.android.build.api.variant.HostTestBuilder
 import java.io.File
 import java.util.Properties
 
@@ -62,6 +63,9 @@ android {
 
         create("production") {
             dimension = "channel"
+            // `lint` checks only the default variant; without this AGP picks
+            // mobileNightlyDebug.
+            isDefault = true
         }
 
         // Play internal/closed tracks ship nightly; the public listing keeps
@@ -170,6 +174,11 @@ mapOf(
 }
 
 androidComponents {
+    // Nightly adds resources only, so its unit tests would rerun production's.
+    beforeVariants(selector().withFlavor("channel" to "nightly")) { variant ->
+        variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+    }
+
     onVariants { variant ->
         variant.sources.kotlin?.addGeneratedSourceDirectory(
             generateDesignTokens,
