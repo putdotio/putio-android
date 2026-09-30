@@ -9,6 +9,8 @@ data class PlaybackTarget(
     val fileId: FilesItemId,
     val name: String,
     val mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
+    /** The listing's media duration, when known; TV offers resume only with one. */
+    val durationSeconds: Double? = null,
 )
 
 enum class PlaybackMediaType {

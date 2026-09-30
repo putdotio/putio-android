@@ -21,6 +21,7 @@ import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.search.RecentSearchStoreOwner
@@ -35,6 +36,7 @@ import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.android.tv.player.TvPlaybackReporting
 import io.putdotio.sdk.files.PlaybackPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -69,6 +71,8 @@ internal class TvSessionDependencies(
     val recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
     /** Resolves playable sources; reads the account's HLS/MP4 choice at each resolution. */
     val playbackRepository: (preference: () -> PlaybackPreference) -> PlaybackRepository,
+    /** Saves a media file's playback position (`start_from`), as mobile's reporting does. */
+    val writePlaybackPosition: suspend (fileId: Long, seconds: Double) -> PlaybackRepositoryResult<Unit>,
 )
 
 /**
@@ -90,6 +94,8 @@ internal class TvSession internal constructor(
     private val watchedRepository: FilesWatchedRepository,
     private val streamUrls: FilesStreamUrls,
     playbackRepositoryFor: (preference: () -> PlaybackPreference) -> PlaybackRepository,
+    writePlaybackPosition: suspend (fileId: Long, seconds: Double) -> PlaybackRepositoryResult<Unit>,
+    sessionCurrent: () -> Boolean,
     parentScope: CoroutineScope,
 ) {
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
@@ -100,6 +106,18 @@ internal class TvSession internal constructor(
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
     private val playbackRepository = playbackRepositoryFor { appConfig.state.value.playbackPreference() }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
+
+    /** Start-from write-back for this session's playback; see [TvPlaybackReporting]. */
+    val playbackReporting = TvPlaybackReporting(
+        scope = scope,
+        settings = settings.state,
+        sessionCurrent = sessionCurrent,
+        write = writePlaybackPosition,
+        // The Files row shows the saved position once the server has it.
+        onSaved = { fileId, seconds ->
+            files.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(fileId), seconds))
+        },
+    )
 
     /**
      * Which Files row last held D-pad focus in each folder. It lives here, not in the pane,
@@ -131,7 +149,9 @@ internal class TvSession internal constructor(
     fun play(item: FilesItem) {
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
-        val controller = PlaybackController(PlaybackTarget(item.id, item.name, mediaType), playbackRepository, scope)
+        val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds)
+        val controller = PlaybackController(target, playbackRepository, scope)
+        playbackReporting.startPlayback()
         mutablePlayback.getAndUpdate { controller }?.close()
     }
 
@@ -189,6 +209,7 @@ internal class TvSession internal constructor(
 
     internal fun close() {
         stopPlayback()
+        playbackReporting.close()
         scope.cancel()
         historyOpener.close()
         historyOpenChannel.close()
@@ -243,6 +264,8 @@ internal class TvSessionViewModel(
                 watchedRepository = dependencies.watchedRepository,
                 streamUrls = dependencies.streamUrls,
                 playbackRepositoryFor = dependencies.playbackRepository,
+                writePlaybackPosition = dependencies.writePlaybackPosition,
+                sessionCurrent = { authState.value.sessionKey() == key },
                 parentScope = viewModelScope,
             )
             if (authState.value.sessionKey() != key) {

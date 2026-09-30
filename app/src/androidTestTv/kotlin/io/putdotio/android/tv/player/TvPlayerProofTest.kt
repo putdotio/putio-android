@@ -14,7 +14,9 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -30,6 +32,19 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackResolution
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsPreferences
+import io.putdotio.android.settings.AccountSettingsReducer
+import io.putdotio.android.settings.AccountSettingsRequestId
+import io.putdotio.android.settings.AccountSettingsState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
@@ -43,6 +58,7 @@ import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.util.UUID
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -208,7 +224,174 @@ class TvPlayerProofTest {
         pause()
     }
 
+    @Test
+    fun resumeDialogContinueStartOverAndBackWithWriteBack() {
+        val server = ProofPositionServer(startFromSeconds = SAVED_SECONDS)
+        val factory = mountFilesWithResume(server)
+        compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+
+        // A saved position asks first; Continue is preferred and the bar shows where it starts.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(CONTINUE_LABEL).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(CONTINUE_LABEL).assertIsFocused()
+        assertNull("No player before the choice", factory.player)
+        screenshot("20-resume-continue-focused")
+        pause()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithText(RESTART_LABEL).assertIsFocused()
+        screenshot("21-resume-restart-focused")
+        pause()
+
+        // Back dismisses the dialog and continues from the saved position.
+        press(KeyEvent.KEYCODE_BACK)
+        awaitPlayer(factory) { it.isPlaying && factory.renderedFrame && it.currentPosition >= SAVED_SECONDS * 1_000L }
+        assertNotNull("Back stays in playback", controller)
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        screenshot("22-back-continued")
+
+        // Sixteen seconds of playback write once, not once per tick; leaving writes once more.
+        elapse(POSITION_INTERVAL_MILLIS + 1_000L)
+        compose.runOnIdle { assertEquals(1, server.writes.size) }
+        leavePlayback()
+        compose.waitUntil(10_000) { compose.runOnIdle { server.writes.size == 2 } }
+        val (periodic, exit) = server.writes
+        assertTrue("Periodic write $periodic s", periodic >= SAVED_SECONDS + 14.0)
+        assertTrue("Exit write $exit s after $periodic s", exit >= periodic)
+        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
+        pause()
+
+        // Again: the server now holds the exit position. Start from the beginning plays from zero.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(RESTART_LABEL).fetchSemanticsNodes().isNotEmpty() }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
+        compose.runOnIdle { assertTrue(factory.current().currentPosition < 10_000L) }
+        screenshot("23-started-over")
+        pause()
+        leavePlayback()
+        compose.waitUntil(10_000) { compose.runOnIdle { server.writes.size == 3 } }
+        assertTrue("Starting over writes its own position", server.writes.last() < 10.0)
+
+        // Continue plays from what the last playback saved.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        screenshot("24-resume-after-start-over")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.isPlaying && it.currentPosition >= (server.writes.last() * 1_000L).toLong() - 1_000L }
+        screenshot("25-continued")
+        pause()
+        leavePlayback()
+        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
+        screenshot("26-back-on-files-row")
+    }
+
     private var playing by mutableStateOf<FilesItem?>(null)
+    private var controller by mutableStateOf<PlaybackController?>(null)
+
+    /** Back hides the controls if they are up, then leaves; never a Back past the player. */
+    private fun leavePlayback() {
+        press(KeyEvent.KEYCODE_BACK)
+        if (compose.runOnIdle { controller != null }) press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(10_000) { compose.runOnIdle { controller == null } }
+    }
+
+    /**
+     * The Files listing on the real session route: a [PlaybackController] per play, resolving
+     * the local fixture with [server]'s saved position, and TV write-back into [server].
+     */
+    private fun mountFilesWithResume(server: ProofPositionServer): ProofPlayerFactory {
+        val source = localSource()
+        val factory = ProofPlayerFactory()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(target: PlaybackTarget) = PlaybackRepositoryResult.Success(
+                PlaybackResolution.Ready(source.copy(startFromSeconds = server.startFromSeconds), useStartFrom = true),
+            )
+
+            override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+        }
+        val reporting = TvPlaybackReporting(
+            scope = scope,
+            settings = MutableStateFlow(resumeOnSettings()),
+            sessionCurrent = { true },
+            write = server::write,
+            onSaved = { _, _ -> },
+        )
+        val video = row(FIXTURE_FILE_ID, FIXTURE_TITLE, PutioFileType.VIDEO)
+        val files = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(
+                        listOf(row(1, "Documents", PutioFileType.FOLDER), video, row(3, "notes.txt", PutioFileType.TEXT)),
+                        FilesPaging.Complete,
+                    ),
+                ),
+            ),
+            nextRequestValue = 1L,
+        )
+        val focusMemory = mutableMapOf<Long, Long>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlaybackLayer(
+                    playing = controller != null,
+                    player = {
+                        TvPlaybackRoute(
+                            controller = checkNotNull(controller),
+                            onExit = {
+                                controller?.close()
+                                controller = null
+                            },
+                            onSessionRejected = { error("Unexpected rejection") },
+                            playerFactory = factory,
+                            reporter = reporting,
+                        )
+                    },
+                ) {
+                    TvShell(
+                        account = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid"),
+                        onSignOut = {},
+                        filesPane = { paneFocus ->
+                            TvFilesScreen(
+                                state = files,
+                                onEvent = { true },
+                                onPlayMedia = { item ->
+                                    reporting.startPlayback()
+                                    controller = PlaybackController(
+                                        PlaybackTarget(item.id, item.name, PlaybackMediaType.VIDEO, FIXTURE_SECONDS),
+                                        repository,
+                                        scope,
+                                    )
+                                },
+                                modifier = Modifier.focusRequester(paneFocus),
+                                focusMemory = focusMemory,
+                            )
+                        },
+                    )
+                }
+            }
+        }
+        return factory
+    }
+
+    private fun resumeOnSettings(): AccountSettingsState =
+        AccountSettingsReducer.reduce(
+            AccountSettingsReducer.start().state,
+            AccountSettingsEvent.LoadSucceeded(
+                AccountSettingsRequestId(1),
+                AccountSettingsPreferences(
+                    historyEnabled = true,
+                    trashEnabled = true,
+                    showSubtitles = true,
+                    autoSelectSubtitles = true,
+                    resumePlayback = true,
+                ),
+            ),
+        ).state
 
     /** A fixed Files listing whose media row plays the local fixture on the production player. */
     private fun mountFilesWithPlayer(): ProofPlayerFactory {
@@ -243,6 +426,7 @@ class TvPlayerProofTest {
                             onBack = { playing = null },
                             onRetry = { error("Unexpected retry") },
                             onResume = { error("Unexpected resume") },
+                            onRestart = { error("Unexpected restart") },
                             onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
                             playerFactory = factory,
                         )
@@ -357,6 +541,24 @@ class TvPlayerProofTest {
         const val FIXTURE_TITLE = "TV player proof.mp4"
         const val STEP_PAUSE_MILLIS = 1_500L
         const val ELAPSE_STEP_MILLIS = 100L
+        const val FIXTURE_SECONDS = 90.0
+        const val SAVED_SECONDS = 45.0
+        const val POSITION_INTERVAL_MILLIS = 15_000L
+        const val CONTINUE_LABEL = "Continue playing from 00:45"
+        const val RESTART_LABEL = "Start from the beginning"
+        const val RESUME_PREFIX = "Continue playing from"
+    }
+}
+
+/** Stands in for the account's `start_from`: resolutions read it and write-back updates it. */
+private class ProofPositionServer(var startFromSeconds: Double) {
+    val writes = mutableListOf<Double>()
+
+    @Suppress("UNUSED_PARAMETER")
+    suspend fun write(fileId: Long, seconds: Double): PlaybackRepositoryResult<Unit> {
+        writes += seconds
+        startFromSeconds = seconds
+        return PlaybackRepositoryResult.Success(Unit)
     }
 }
 

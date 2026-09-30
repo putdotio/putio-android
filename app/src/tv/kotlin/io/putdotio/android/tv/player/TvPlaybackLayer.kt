@@ -36,6 +36,7 @@ internal fun TvPlaybackRoute(
     onExit: () -> Unit,
     onSessionRejected: suspend () -> Unit,
     playerFactory: TvPlayerFactory = DefaultTvPlayerFactory,
+    reporter: TvPlaybackReporter = TvPlaybackReporter.None,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     val sessionRejected = (state.content as? PlaybackContent.Failed)?.failure is PlaybackFailure.AuthenticationRequired
@@ -45,10 +46,12 @@ internal fun TvPlaybackRoute(
         onBack = onExit,
         onRetry = { controller.dispatch(PlaybackEvent.Retry) },
         onResume = { controller.dispatch(PlaybackEvent.Resume) },
+        onRestart = { controller.dispatch(PlaybackEvent.Restart) },
         onPlayerFailure = { failure, positionMillis ->
             controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))
         },
         playerFactory = playerFactory,
+        reporter = reporter,
     )
 }
 

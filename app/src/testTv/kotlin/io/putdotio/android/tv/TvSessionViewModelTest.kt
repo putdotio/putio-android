@@ -63,6 +63,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -117,6 +118,7 @@ class TvSessionViewModelTest {
         },
         recentSearchStore = { FakeRecentSearchStore().also { stores += it } },
         playbackRepository = { preference -> playbackRepository.also { it.preference = preference } },
+        writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
     )
 
     @Before
@@ -172,6 +174,7 @@ class TvSessionViewModelTest {
             },
             recentSearchStore = dependencies.recentSearchStore,
             playbackRepository = dependencies.playbackRepository,
+            writePlaybackPosition = dependencies.writePlaybackPosition,
         )
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), deps))
 
@@ -260,6 +263,15 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `a row's listing duration reaches the resume choice`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        session.play(media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(30.0, 840.0)))
+
+        assertEquals(840.0, checkNotNull(session.playback.value).state.value.target.durationSeconds)
+    }
+
+    @Test
     fun `stopping playback returns to the shell and closes the controller`() {
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
         session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
@@ -284,9 +296,11 @@ class TvSessionViewModelTest {
 
         session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
         val playback = checkNotNull(session.playback.value)
+        assertNotNull(session.playbackReporting.lease(9))
         auth.value = TvAuthState.Initializing
 
         assertNull(session.playback.value)
+        assertNull("Signing out ends position write-back", session.playbackReporting.lease(9))
         assertFalse(playback.dispatch(PlaybackEvent.Retry))
         session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
         assertNull("A closed session starts nothing", session.playback.value)

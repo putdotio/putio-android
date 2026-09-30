@@ -25,8 +25,8 @@ internal data class TvScrub(
 
 /**
  * The player's dismissible layers, topmost first: seek mode, then the controls. Back
- * dismisses the topmost one and only exits once nothing is left; later layers (track
- * pickers, the resume dialog) stack above seek mode.
+ * dismisses the topmost one and only exits once nothing is left; track pickers will stack
+ * above seek mode. The resume dialog comes before the player, so it is not a layer here.
  */
 internal data class TvPlayerOverlay(
     val controlsVisible: Boolean = true,

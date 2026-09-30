@@ -45,6 +45,7 @@ import io.putdotio.android.tv.files.launchVlc
 import io.putdotio.android.tv.files.tvMessage
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.trash.TrashContent
+import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.playback.SdkPlaybackRepository
 import io.putdotio.android.tv.player.TvPlaybackLayer
 import io.putdotio.android.tv.player.TvPlaybackRoute
@@ -131,6 +132,7 @@ private fun TvSignedInApp(
             filesItemResolver = filesRepository,
             recentSearchStore = { scope -> AppConfigRecentSearchStore(runtime.putioClient, scope) },
             playbackRepository = { preference -> SdkPlaybackRepository(runtime.putioClient, preference) },
+            writePlaybackPosition = SdkPlaybackPositionRepository(runtime.putioClient)::write,
         )
     }
     // Looked up every composition, not remembered: the view model closes the session on its
@@ -149,6 +151,7 @@ private fun TvSignedInApp(
     val trashState by session.trash.state.collectAsStateWithLifecycle()
     val settingsState by session.settings.state.collectAsStateWithLifecycle()
     val appConfigState by session.appConfig.state.collectAsStateWithLifecycle()
+    val positionWriteRejected by session.playbackReporting.authenticationRejected.collectAsStateWithLifecycle()
     // A 401 from the proxy list is as authoritative as one from any controller.
     var tunnelRoutesRejected by remember(session) { mutableStateOf(false) }
     val sessionRejected = filesState.authoritativeSessionFailure() != null ||
@@ -156,6 +159,7 @@ private fun TvSignedInApp(
         settingsState.authoritativeSessionFailure() != null ||
         appConfigState.authoritativeSessionFailure() != null ||
         tunnelRoutesRejected ||
+        positionWriteRejected ||
         searchState.authoritativeSessionFailure() != null ||
         historyState.authoritativeSessionFailure() != null ||
         recentSearchFailure is FilesFailure.AuthenticationRequired ||
@@ -208,6 +212,7 @@ private fun TvSignedInApp(
                     controller = controller,
                     onExit = session::stopPlayback,
                     onSessionRejected = onSessionRejected,
+                    reporter = session.playbackReporting,
                 )
             }
         },
