@@ -83,8 +83,8 @@ steps. The device auth tests use separate preferences and Keystore aliases so
 their own setup and cleanup do not touch an existing session.
 
 Flags: `--keep` (leave emulator running), `--ephemeral` (throwaway AVD,
-deleted on exit), `--window` (headed), `--skip-build`, `--record`,
-`--seconds N` (recording length, 3 to 180).
+deleted on exit; conflicts with `--keep`), `--window` (headed), `--skip-build`,
+`--record`, `--seconds N` (recording length, 3 to 180).
 
 `--record` runs after verification: the app is force-stopped and relaunched
 under active capture, so the clip always has frames (`screenrecord` drops
@@ -327,7 +327,7 @@ after changing it. Say which client a proof ran on when you attach evidence.
 
 ## Headless / Devbox Notes
 
-- `--headless` boots with `-no-window -gpu swiftshader_indirect -no-audio -no-boot-anim`. Software rendering is slower than `auto-no-window` but deterministic; host-GPU headless mode intermittently composites app windows black, which fails the pixel assertion. `screencap`/`screenrecord` capture fine without a window
+- `--headless` adds `-no-window -gpu swiftshader_indirect` to the `-no-snapshot -no-boot-anim -no-audio` every harness boot uses. Software rendering is slower than `auto-no-window` but deterministic; host-GPU headless mode intermittently composites app windows black, which fails the pixel assertion. `screencap`/`screenrecord` capture fine without a window
 - Cold headless boots regularly ANR the emulator's own `com.android.systemui`; harness boots set `hide_error_dialogs 1` so the dialog cannot sit over captures. App crashes and ANRs still fail the instrumented proof
 - macOS needs Hypervisor.framework (default on Apple Silicon); Linux devboxes need KVM (`emulator -accel-check`). Without acceleration arm64 images are unusably slow
 - First boot of a fresh AVD is the slow path (~1 min on an M-series Mac); subsequent boots are faster with `-no-snapshot` still enforced for reproducibility
