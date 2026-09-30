@@ -198,7 +198,8 @@ Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest`,
 
 ## Share-out
 
-Share file (Files and Downloads action sheets, non-folder items only) starts a
+Share file (Files and Downloads action sheets, non-folder items only, in both
+the phone and the tablet rail layout) starts a
 foreground `dataSync` service that fetches the original file through the API
 download endpoint with the session header, stores it under private
 `files/shares/<process>/<session>/<fileId>/<name>`, and opens the system chooser with a
@@ -234,7 +235,8 @@ stop rules, session exit, ready timeout, prior-export wipe, failure notification
 name sanitizer, all on virtual time with a fake download source),
 `MobileOAuthRuntimeTest` (session-exit cleanup that lags the next sign-in keeps
 the next session's export; signing out of a restored session deletes an earlier
-process's export).
+process's export), `MobileShellTest` (Share on file rows in the phone and rail
+layouts).
 
 ## Deep links
 
