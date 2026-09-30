@@ -56,6 +56,24 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.SemanticsMatcher
+import io.putdotio.android.playback.PLAYBACK_REPORTING_LEASE_KEY
+import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackResolution
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsPreferences
+import io.putdotio.android.settings.AccountSettingsReducer
+import io.putdotio.android.settings.AccountSettingsRequestId
+import kotlin.math.abs
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -65,6 +83,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowDialog
 
 /** The TV player on a fake Media3 player; the emulator lane plays real media through ExoPlayer. */
 @OptIn(ExperimentalTestApi::class)
@@ -87,6 +106,7 @@ class TvPlayerScreenTest {
                     onBack = {},
                     onRetry = {},
                     onResume = {},
+                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = { _, _ -> player },
                 )
@@ -141,6 +161,7 @@ class TvPlayerScreenTest {
                         },
                         onRetry = {},
                         onResume = {},
+                        onRestart = {},
                         onPlayerFailure = { _, _ -> },
                         playerFactory = { _, _ -> player },
                     )
@@ -171,6 +192,7 @@ class TvPlayerScreenTest {
                     onBack = {},
                     onRetry = {},
                     onResume = {},
+                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = { _, _ -> FakePlayer().also { players += it } },
                 )
@@ -205,6 +227,7 @@ class TvPlayerScreenTest {
                     onBack = {},
                     onRetry = { retries += 1 },
                     onResume = {},
+                    onRestart = {},
                     onPlayerFailure = { failure, position -> reported = failure to position },
                     playerFactory = { _, _ -> player },
                 )
@@ -222,7 +245,7 @@ class TvPlayerScreenTest {
     }
 
     @Test
-    fun aSavedPositionContinuesUntilTheResumePromptExists() {
+    fun aSavedPositionWithoutADurationContinuesWithoutAsking() {
         var resumes = 0
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
@@ -231,12 +254,152 @@ class TvPlayerScreenTest {
                     onBack = {},
                     onRetry = {},
                     onResume = { resumes += 1 },
+                    onRestart = { error("Nothing was offered") },
                     onPlayerFailure = { _, _ -> },
                     playerFactory = { _, _ -> error("No player before the choice") },
                 )
             }
         }
         compose.runOnIdle { assertEquals(1, resumes) }
+        compose.onNodeWithText(CONTINUE_LABEL).assertDoesNotExist()
+    }
+
+    @Test
+    fun theResumeDialogPrefersContinueAndItsBarPreviewsTheFocusedChoice() {
+        val player = FakePlayer()
+        showResumeRoute(player)
+        compose.onNodeWithText("Sintel.mp4").assertIsDisplayed()
+        compose.onNodeWithText(CONTINUE_LABEL).assertIsFocused()
+        assertResumeProgress(SAVED_SECONDS / DURATION_SECONDS)
+        compose.runOnIdle { assertTrue("No player before the choice", player.mediaItems.isEmpty()) }
+
+        compose.onNodeWithText(CONTINUE_LABEL).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText(RESTART_LABEL).assertIsFocused()
+        assertResumeProgress(0f)
+        compose.onNodeWithText(RESTART_LABEL).performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText(CONTINUE_LABEL).assertIsFocused()
+        assertResumeProgress(SAVED_SECONDS / DURATION_SECONDS)
+
+        compose.onNodeWithText(CONTINUE_LABEL).performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.waitForIdle()
+        compose.onNodeWithText(CONTINUE_LABEL).assertDoesNotExist()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        compose.runOnIdle {
+            assertEquals(SAVED_SECONDS.toLong() * 1_000L, player.startPositionMillis)
+            assertTrue(player.playWhenReady)
+        }
+    }
+
+    @Test
+    fun startFromTheBeginningPlaysFromZero() {
+        val player = FakePlayer()
+        showResumeRoute(player)
+        compose.onNodeWithText(CONTINUE_LABEL).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText(RESTART_LABEL).assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.waitForIdle()
+        compose.onNodeWithText(RESTART_LABEL).assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(0L, player.startPositionMillis)
+            assertTrue(player.playWhenReady)
+        }
+    }
+
+    @Test
+    fun backFromTheResumeDialogContinuesFromTheSavedPositionAndStaysInPlayback() {
+        val player = FakePlayer()
+        var exits = 0
+        showResumeRoute(player, onExit = { exits += 1 })
+        compose.onNodeWithText(CONTINUE_LABEL).assertIsFocused()
+
+        // Back reaches the dialog's own window, as the remote's does.
+        compose.runOnUiThread {
+            val dialog = ShadowDialog.getLatestDialog()
+            val down = AndroidKeyEvent(AndroidKeyEvent.ACTION_DOWN, AndroidKeyEvent.KEYCODE_BACK)
+            dialog.dispatchKeyEvent(down)
+            dialog.dispatchKeyEvent(AndroidKeyEvent.changeAction(down, AndroidKeyEvent.ACTION_UP))
+        }
+        compose.waitForIdle()
+
+        compose.onNodeWithText(CONTINUE_LABEL).assertDoesNotExist()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(0, exits)
+            assertEquals(SAVED_SECONDS.toLong() * 1_000L, player.startPositionMillis)
+            assertTrue(player.playWhenReady)
+        }
+    }
+
+    @Test
+    fun leavingPlaybackWritesTheExitPositionUnderTheItemsLease() {
+        val player = FakePlayer()
+        val writes = mutableListOf<Pair<Long, Double>>()
+        val reporting = reporting(writes)
+        var showing by mutableStateOf(true)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                if (showing) {
+                    TvPlayerScreen(
+                        state = readyState(useStartFrom = true),
+                        onBack = { showing = false },
+                        onRetry = {},
+                        onResume = {},
+                        onRestart = {},
+                        onPlayerFailure = { _, _ -> },
+                        playerFactory = { _, _ -> player },
+                        reporter = reporting,
+                    )
+                }
+            }
+        }
+        compose.runOnIdle {
+            val lease = player.mediaItems.single().mediaMetadata.extras?.getString(PLAYBACK_REPORTING_LEASE_KEY)
+            assertEquals(reporting.lease(9L), lease)
+            player.advanceTo(61_000L)
+        }
+        back()
+        back()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            // The playing fake's clock moves on a few frames past the jump.
+            val (fileId, seconds) = writes.single()
+            assertEquals(9L, fileId)
+            assertTrue("Exit position $seconds s", seconds in 61.0..62.0)
+        }
+        reporting.close()
+    }
+
+    @Test
+    fun aSourceResolvedWithResumeOffWritesNothing() {
+        val player = FakePlayer()
+        val writes = mutableListOf<Pair<Long, Double>>()
+        val reporting = reporting(writes)
+        var showing by mutableStateOf(true)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                if (showing) {
+                    TvPlayerScreen(
+                        state = readyState(useStartFrom = false),
+                        onBack = { showing = false },
+                        onRetry = {},
+                        onResume = {},
+                        onRestart = {},
+                        onPlayerFailure = { _, _ -> },
+                        playerFactory = { _, _ -> player },
+                        reporter = reporting,
+                    )
+                }
+            }
+        }
+        compose.runOnIdle {
+            assertNull(player.mediaItems.single().mediaMetadata.extras?.getString(PLAYBACK_REPORTING_LEASE_KEY))
+            player.advanceTo(61_000L)
+        }
+        back()
+        back()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertDoesNotExist()
+        compose.runOnIdle { assertTrue(writes.isEmpty()) }
+        reporting.close()
     }
 
     @Test
@@ -268,6 +431,7 @@ class TvPlayerScreenTest {
                             onBack = { playing = null },
                             onRetry = {},
                             onResume = {},
+                            onRestart = {},
                             onPlayerFailure = { _, _ -> },
                             playerFactory = { _, _ -> player },
                         )
@@ -326,6 +490,7 @@ class TvPlayerScreenTest {
                             onBack = { playing = false },
                             onRetry = {},
                             onResume = {},
+                            onRestart = {},
                             onPlayerFailure = { _, _ -> },
                             playerFactory = { _, _ -> FakePlayer() },
                         )
@@ -502,6 +667,7 @@ class TvPlayerScreenTest {
                     onBack = onBack,
                     onRetry = {},
                     onResume = {},
+                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = { _, _ -> player },
                 )
@@ -510,6 +676,66 @@ class TvPlayerScreenTest {
         settle()
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
     }
+
+    /** The session route on a real controller whose resolution carries a saved position. */
+    private fun showResumeRoute(player: FakePlayer, onExit: () -> Unit = {}) {
+        val controller = PlaybackController(
+            PlaybackTarget(FilesItemId(9), "Sintel.mp4", PlaybackMediaType.VIDEO, DURATION_SECONDS.toDouble()),
+            object : PlaybackRepository {
+                override suspend fun resolve(target: PlaybackTarget) = PlaybackRepositoryResult.Success(
+                    PlaybackResolution.Ready(source(startFromSeconds = SAVED_SECONDS.toDouble()), useStartFrom = true),
+                )
+
+                override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+            },
+            CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlaybackRoute(
+                    controller = controller,
+                    onExit = onExit,
+                    onSessionRejected = {},
+                    playerFactory = { _, _ -> player },
+                )
+            }
+        }
+        compose.waitForIdle()
+    }
+
+    private fun assertResumeProgress(fraction: Float) {
+        compose.onNodeWithTag(TV_PLAYER_RESUME_PROGRESS_TAG, useUnmergedTree = true).assert(
+            SemanticsMatcher("progress $fraction") {
+                val info = it.config.getOrNull(SemanticsProperties.ProgressBarRangeInfo)
+                info != null && abs(info.current - fraction) < 0.001f
+            },
+        )
+    }
+
+    private fun reporting(writes: MutableList<Pair<Long, Double>>) = TvPlaybackReporting(
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        settings = MutableStateFlow(
+            AccountSettingsReducer.reduce(
+                AccountSettingsReducer.start().state,
+                AccountSettingsEvent.LoadSucceeded(
+                    AccountSettingsRequestId(1),
+                    AccountSettingsPreferences(
+                        historyEnabled = true,
+                        trashEnabled = true,
+                        showSubtitles = true,
+                        autoSelectSubtitles = true,
+                        resumePlayback = true,
+                    ),
+                ),
+            ).state,
+        ),
+        sessionCurrent = { true },
+        write = { fileId, seconds ->
+            writes += fileId to seconds
+            PlaybackRepositoryResult.Success(Unit)
+        },
+        onSaved = { _, _ -> },
+    )
 
     private fun back() {
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
@@ -533,9 +759,13 @@ class TvPlayerScreenTest {
         createdAt = "2026-04-20T10:00:00Z",
     )
 
-    private fun readyState(name: String = "Sintel.mp4", resumePositionMillis: Long? = null) = PlaybackState(
+    private fun readyState(
+        name: String = "Sintel.mp4",
+        resumePositionMillis: Long? = null,
+        useStartFrom: Boolean = false,
+    ) = PlaybackState(
         target = PlaybackTarget(FilesItemId(9), name, PlaybackMediaType.VIDEO),
-        content = PlaybackContent.Ready(source()),
+        content = PlaybackContent.Ready(source(), useStartFrom),
         nextRequestValue = 2L,
         resumePositionMillis = resumePositionMillis,
     )
@@ -554,6 +784,10 @@ class TvPlayerScreenTest {
         const val SETTLE_MILLIS = 50L
         const val HELD_REPEATS = 10
         const val SOURCE_URL = "https://api.put.io/v2/files/9/hls/media.m3u8?token=t"
+        const val SAVED_SECONDS = 210f
+        const val DURATION_SECONDS = 840f
+        const val CONTINUE_LABEL = "Continue playing from 03:30"
+        const val RESTART_LABEL = "Start from the beginning"
     }
 }
 

@@ -558,8 +558,15 @@ row, Center to play, Center to pause and resume, Back to hide the controls and
 Back to the row. `dpadScrubbingAndBackWalkTheOverlayStack`: Right twice to
 scrub, Center to commit, rewind then Back to dismiss seek mode, Back to hide
 the playing controls, Center then Back to hide the paused controls, and Back
-to the row. It makes no API calls; the listing and the resolved source
-stand in for a signed-in session, so report it as controlled-state proof.
+to the row. `resumeDialogContinueStartOverAndBackWithWriteBack` runs the real
+session route (a `PlaybackController` per play and TV write-back) against a
+fake position server that starts at 45 s: Center shows the resume dialog with
+Continue focused, Down focuses Start from the beginning, Back continues from
+45 s, 16 s of playback write once, leaving writes once more, then Start from
+the beginning plays from zero and Continue resumes from what that playback
+saved. It makes no API calls; the listing, the resolved source and the
+position server stand in for a signed-in session, so report it as
+controlled-state proof.
 
 ```bash
 ./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
@@ -582,7 +589,10 @@ the clip; append `#<method>` to the class to record one flow. Screenshots go
 to `tv-player-proof-<UUID>/`: `01`–`05` for the first flow (focused row,
 playing with controls, playing clean, paused, back on the row) and `10`–`18`
 for the second (clean, seek mode, committed, rewind seek mode, seek dismissed,
-controls dismissed, paused controls, paused clean, back on the row). The
+controls dismissed, paused controls, paused clean, back on the row), and
+`20`–`26` for the third (Continue focused, Start from the beginning focused,
+continued after Back, started over, the dialog after starting over, continued,
+back on the row). The
 proof keeps the Compose test clock in step with real time so the auto-hide
 and position timers run as they do in the app. Remove the fixture and
 screenshot directories afterwards.
@@ -769,7 +779,7 @@ live-API evidence.
 ## Resume and position reporting proof
 
 Behaviour: [Resume and position reporting](./behavior.md#resume-and-position-reporting);
-`PlaybackPositionWriterTest`, `MobilePlayerPositionObserverTest` and
+`PlaybackPositionWriterTest`, `PlaybackPositionObserverTest` and
 `MobilePlaybackReportingTest` pin the reporting rules on the JVM.
 
 For live proof, use the CLI's explicit `devs-auto` profile to upload a short audio

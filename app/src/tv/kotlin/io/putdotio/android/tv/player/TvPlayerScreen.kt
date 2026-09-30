@@ -71,6 +71,7 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.playbackSurfaceType
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.toPlaybackFailure
+import io.putdotio.android.playback.withReportingLease
 import io.putdotio.android.tv.OVERSCAN_X
 import io.putdotio.android.tv.OVERSCAN_Y
 import io.putdotio.android.tv.PANE_INSET
@@ -89,10 +90,11 @@ private const val TV_PLAYER_SCRIM_ALPHA = 0.75f
 private val PROCESS_KEY = UUID.randomUUID().toString()
 
 /**
- * Full-screen TV playback of one Files item: the resolved source plays at once, Center or
- * the remote's play/pause key toggles playback, any key reveals the title and seek bar for
- * three seconds (they stay while paused), Left, Right, rewind and fast-forward scrub, and
- * Back dismisses seek mode, then the controls, before it leaves playback.
+ * Full-screen TV playback of one Files item: a saved position first offers Continue or Start
+ * from the beginning, then the source plays, Center or the remote's play/pause key toggles
+ * playback, any key reveals the title and seek bar for three seconds (they stay while paused),
+ * Left, Right, rewind and fast-forward scrub, and Back dismisses seek mode, then the controls,
+ * before it leaves playback. Positions are written back through [reporter].
  */
 @Composable
 internal fun TvPlayerScreen(
@@ -100,9 +102,11 @@ internal fun TvPlayerScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onResume: () -> Unit,
+    onRestart: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     modifier: Modifier = Modifier,
     playerFactory: TvPlayerFactory = DefaultTvPlayerFactory,
+    reporter: TvPlaybackReporter = TvPlaybackReporter.None,
 ) {
     // Ready playback registers its own Back for the overlay stack.
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
@@ -111,17 +115,30 @@ internal fun TvPlayerScreen(
             is PlaybackContent.Ready ->
                 TvReadyPlayer(
                     source = content.source,
+                    useStartFrom = content.useStartFrom,
                     target = state.target,
                     resumePositionMillis = state.resumePositionMillis,
                     playerFactory = playerFactory,
+                    reporter = reporter,
                     onPlayerFailure = onPlayerFailure,
                     onExit = onBack,
                 )
 
             is PlaybackContent.AwaitingResume -> {
-                // No resume prompt yet: continue from the saved position, the prompt's preferred choice.
-                LaunchedEffect(content) { onResume() }
-                TvStatusScreen(stringResource(R.string.tv_player_loading))
+                val durationSeconds = state.target.durationSeconds
+                if (durationSeconds != null && durationSeconds > 0.0 && content.source.startFromSeconds > 0.0) {
+                    TvResumePlaybackDialog(
+                        title = state.target.name,
+                        startFromSeconds = content.source.startFromSeconds,
+                        durationSeconds = durationSeconds,
+                        onResume = onResume,
+                        onRestart = onRestart,
+                    )
+                } else {
+                    // Without a duration there is nothing to preview; like the RN player, continue.
+                    LaunchedEffect(content) { onResume() }
+                    TvStatusScreen(stringResource(R.string.tv_player_loading))
+                }
             }
 
             is PlaybackContent.Loading,
@@ -158,9 +175,11 @@ internal fun TvPlayerScreen(
 @Composable
 private fun TvReadyPlayer(
     source: PlaybackSource,
+    useStartFrom: Boolean,
     target: PlaybackTarget,
     resumePositionMillis: Long?,
     playerFactory: TvPlayerFactory,
+    reporter: TvPlaybackReporter,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onExit: () -> Unit,
 ) {
@@ -207,10 +226,16 @@ private fun TvReadyPlayer(
         }
         player.addListener(listener)
         val prepared = source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
-        player.setMediaItem(prepared.mediaItem, prepared.startPositionMillis)
+        // A source resolved with the resume setting off carries no lease and writes nothing.
+        val lease = if (useStartFrom) reporter.lease(target.fileId.value) else null
+        val item = lease?.let(prepared.mediaItem::withReportingLease) ?: prepared.mediaItem
+        player.setMediaItem(item, prepared.startPositionMillis)
         player.playWhenReady = stoppedAtMillis == null
         player.prepare()
+        val positions = reporter.observe(player)
         onDispose {
+            // Captures the exit position while the player still has it.
+            positions.close()
             player.removeListener(listener)
             player.release()
         }

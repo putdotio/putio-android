@@ -76,7 +76,7 @@ and retained player-error recovery bypass the prompt. Start over starts locally
 at zero; it does not immediately reset the server position.
 
 One observer belongs to each actual player: the private video owner or the audio
-service. Screens and notification controllers do not duplicate audio reporting.
+service on mobile, the player screen on TV. Screens and notification controllers do not duplicate audio reporting.
 The observer samples advancing playback every 15 seconds and captures positive
 positions on pause, stop, end, error, item replacement and owner exit. Buffering
 and same-item seek events do not send immediate writes. The application writer
@@ -96,7 +96,7 @@ An authoritative authentication failure from a position write expires only the
 session that issued it. Rejection runs outside the cancellable reporting job,
 and checks the session identity again under the authentication controller's lock.
 
-Tests: `PlaybackPositionWriterTest`, `MobilePlayerPositionObserverTest`,
+Tests: `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
 `MobilePlaybackReportingTest`, `MobileResumePlaybackDialogTest`.
 
 ## TV playback
@@ -128,16 +128,33 @@ so rewind and fast-forward scrub directly.
 Back dismisses the topmost layer (#9): seek mode first (no seek; playback
 resumes only if the scrub paused it), then the controls (pause state and
 focus untouched), and only then leaves playback, once. A held Back is one
-press. Track pickers and the resume dialog will stack above seek mode.
+press. Track pickers will stack above seek mode.
 
-A saved position is continued without a prompt until the resume dialog lands;
-conversion and failed resolutions show a status screen with Check again or Try
+Resume follows the shared rule above (`use_start_from` on, a positive saved
+position, a fresh resolution) and asks before the player exists, as the RN
+player did: a centred dialog with the raw file name, a progress bar and
+stacked Continue playing from `mm:ss` and Start from the beginning buttons.
+Continue takes focus; the bar previews where the focused choice starts. Back
+continues from the saved position and stays in playback (the RN prompt had
+no Back of its own and left). The dialog needs the listing's duration; without
+one the saved position is continued without asking, as the RN player did.
+
+TV writes positions back through the same writer and observer as mobile,
+owned by the signed-in session: a 15 s sample while playing plus pause, stop,
+end, error and leaving playback, never a write per progress tick. Writes need
+the session to still be the signed-in one and the confirmed resume setting on;
+a source resolved with it off gets no lease. A player rebuilt for the same
+playback (activity recreation) keeps its lease, so the old player's exit write
+still lands. A saved position updates the Files row. A 401 from a write rejects
+the session that issued it; sign-out discards pending writes.
+
+Conversion and failed resolutions show a status screen with Check again or Try
 again, unsupported files a plain status screen as on mobile, and a player error
-keeps its position for the retry. Resume, track pickers, position write-back
-and the media session are later #34 layers.
+keeps its position for the retry. Track pickers and the media session are later
+#34 layers.
 
-Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvSessionViewModelTest`,
-`PlaybackExoPlayerTest`.
+Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlaybackReportingTest`,
+`TvSessionViewModelTest`, `PlaybackPositionObserverTest`, `PlaybackExoPlayerTest`.
 
 ## Share-in
 
