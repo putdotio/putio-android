@@ -394,7 +394,10 @@ private fun TvHistoryRow(
         onClick = { if (fileId != null) onOpen(fileId) },
         headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
-            Text(stringResource(R.string.tv_history_metadata, relative, stringResource(item.kind.tvLabel())), maxLines = 1)
+            Text(
+                stringResource(R.string.tv_history_metadata, relative, stringResource(item.kind.tvLabel())),
+                maxLines = 1,
+            )
         },
         leadingContent = {
             Icon(

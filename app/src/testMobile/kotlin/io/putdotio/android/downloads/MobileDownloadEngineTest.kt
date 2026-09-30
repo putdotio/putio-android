@@ -89,7 +89,12 @@ class MobileDownloadEngineTest {
         assertNull(store.find(FilesItemId(12L)))
         val reissued = shadowOf(context).nextStartedService
         assertEquals(MobileDownloadService::class.java.name, reissued.component?.className)
-        assertEquals("$ALICE:13", IntentCompat.getParcelableExtra(reissued, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)?.id)
+        assertEquals(
+            "$ALICE:13",
+            IntentCompat
+                .getParcelableExtra(reissued, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)
+                ?.id,
+        )
         assertTrue(store.entries.value.none { it.fileId.value == 20L })
         assertEquals(PARKED, index.getDownload("$BOB:20")?.stopReason)
     }

@@ -201,7 +201,9 @@ internal fun TvTrashScreen(
                     TvTrashList(
                         content = content,
                         // A row with nothing the controller allows right now has no dialog to offer.
-                        onChoose = { if (state.canRestore(it.id) || state.canDelete(it.id)) chosenItemId = it.id.value },
+                        onChoose = {
+                            if (state.canRestore(it.id) || state.canDelete(it.id)) chosenItemId = it.id.value
+                        },
                         onNextPage = { onEvent(TrashEvent.LoadNextPage) },
                         onRetry = { onEvent(TrashEvent.Retry) },
                         owner = owner,

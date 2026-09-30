@@ -50,7 +50,9 @@ internal fun TvFilesAction.label(): String =
     when (this) {
         TvFilesAction.OpenInVlc -> stringResource(R.string.tv_files_action_vlc)
         is TvFilesAction.SetWatched ->
-            stringResource(if (watched) R.string.tv_files_action_mark_watched else R.string.tv_files_action_mark_unwatched)
+            stringResource(
+                if (watched) R.string.tv_files_action_mark_watched else R.string.tv_files_action_mark_unwatched,
+            )
         is TvFilesAction.Delete ->
             stringResource(if (trash) R.string.tv_files_action_trash else R.string.tv_files_action_delete)
     }
@@ -76,7 +78,9 @@ internal fun TvFilesActionsDialog(
         }
         TvButton(
             onClick = onDismiss,
-            modifier = Modifier.fillMaxWidth().then(if (actions.isEmpty()) Modifier.focusRequester(focus) else Modifier),
+            modifier = Modifier.fillMaxWidth().then(
+                if (actions.isEmpty()) Modifier.focusRequester(focus) else Modifier,
+            ),
         ) { Text(stringResource(R.string.tv_files_cancel)) }
     }
 }
@@ -91,7 +95,10 @@ internal fun TvFilesDeleteDialog(
 ) {
     TvDialog(
         title = stringResource(if (trash) R.string.tv_files_trash_title else R.string.tv_files_delete_title),
-        message = stringResource(if (trash) R.string.tv_files_trash_message else R.string.tv_files_delete_message, item.name),
+        message = stringResource(
+            if (trash) R.string.tv_files_trash_message else R.string.tv_files_delete_message,
+            item.name,
+        ),
         onDismiss = onDismiss,
     ) { focus ->
         TvButton(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) {

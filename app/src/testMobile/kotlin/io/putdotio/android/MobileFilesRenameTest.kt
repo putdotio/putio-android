@@ -86,7 +86,10 @@ class MobileFilesRenameTest {
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("saved.mkv")
         compose.onNodeWithText("Save").performClick()
         compose.runOnIdle {
-            val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.MutationSucceeded(effects.single().requestId))
+            val reload = FilesBrowserReducer.reduce(
+                state,
+                FilesBrowserEvent.MutationSucceeded(effects.single().requestId),
+            )
             state = reload.state
             effects += checkNotNull(reload.effect)
         }
@@ -116,7 +119,11 @@ class MobileFilesRenameTest {
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).performClick()
         compose.runOnIdle {
             state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadSucceeded(
-                effects.last().requestId, FilesPage(items.map { if (it.id == target.id) it.copy(name = "saved.mkv") else it }, null),
+                effects.last().requestId,
+                FilesPage(
+                    items.map { if (it.id == target.id) it.copy(name = "saved.mkv") else it },
+                    null,
+                ),
             )).state
         }
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsEnabled()
@@ -213,7 +220,11 @@ class MobileFilesRenameTest {
         var state by mutableStateOf(failedRename())
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state, onEvent = { state = FilesBrowserReducer.reduce(state, it).state }, onPlayMedia = {})
+                MobileFilesScreen(
+                    state,
+                    onEvent = { state = FilesBrowserReducer.reduce(state, it).state },
+                    onPlayMedia = {},
+                )
             }
         }
         compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
@@ -231,7 +242,11 @@ class MobileFilesRenameTest {
         var state by mutableStateOf(failedRename())
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state, onEvent = { state = FilesBrowserReducer.reduce(state, it).state }, onPlayMedia = {})
+                MobileFilesScreen(
+                    state,
+                    onEvent = { state = FilesBrowserReducer.reduce(state, it).state },
+                    onPlayMedia = {},
+                )
             }
         }
         compose.onNodeWithContentDescription("Actions for old.mkv").performClick()

@@ -132,7 +132,8 @@ internal fun MobileTrashScreen(
                 item(key = "paging") {
                     when {
                         content.isLoadingMore -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
-                        content.pageFailure != null -> TrashReadFailure(content.pageFailure) { onEvent(TrashEvent.Retry) }
+                        content.pageFailure != null ->
+                            TrashReadFailure(content.pageFailure) { onEvent(TrashEvent.Retry) }
                         content.nextCursor != null -> TextButton(
                             onClick = { onEvent(TrashEvent.LoadNextPage) },
                             enabled = !content.isRefreshing,
@@ -155,14 +156,18 @@ internal fun MobileTrashScreen(
             onDismissRequest = { onEvent(TrashEvent.CancelRestore) },
             title = { Text(stringResource(R.string.mobile_trash_restore_title)) },
             text = {
-                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     Text(item.name)
                     Text(stringResource(if (item.isFolder) R.string.mobile_trash_restore_folder_message
                         else R.string.mobile_trash_restore_message))
                 }
             },
             confirmButton = {
-                val canConfirm = confirmationId != null && state.authenticationFailure == null && !state.hasPendingMutation
+                val canConfirm =
+                    confirmationId != null && state.authenticationFailure == null && !state.hasPendingMutation
                 TextButton(onClick = { confirmationId?.let { onEvent(TrashEvent.ConfirmRestore(it)) } },
                     enabled = canConfirm,
                     modifier = Modifier.testTag(MOBILE_TRASH_CONFIRM_TAG)) {
@@ -186,8 +191,12 @@ private fun MobileTrashRow(item: TrashItem, enabled: Boolean, onActions: () -> U
         supportingContent = {
             Column {
                 Text(Formatter.formatShortFileSize(context, item.sizeBytes))
-                item.deletedAt?.trashDisplayDate(context)?.let { Text(stringResource(R.string.mobile_trash_deleted, it)) }
-                item.expirationDate?.trashDisplayDate(context)?.let { Text(stringResource(R.string.mobile_trash_expires, it)) }
+                item.deletedAt?.trashDisplayDate(context)?.let {
+                    Text(stringResource(R.string.mobile_trash_deleted, it))
+                }
+                item.expirationDate?.trashDisplayDate(context)?.let {
+                    Text(stringResource(R.string.mobile_trash_expires, it))
+                }
             }
         },
         leadingContent = { FileTypeIcon(item.type, Modifier.size(24.dp)) },
@@ -232,8 +241,13 @@ private fun MobileTrashOutcome(
             }))
             outcome.submissionFailure?.let { failure ->
                 val incomplete = failure is FilesFailure.ApiRejected &&
-                    failure.statusCode == 400 && failure.httpStatusCode == 400 && failure.errorType == "TRASH_INCOMPLETE_TRASH"
-                Text(stringResource(if (incomplete) R.string.mobile_trash_incomplete else failure.trashMessageResource()))
+                    failure.statusCode == 400 && failure.httpStatusCode == 400 &&
+                        failure.errorType == "TRASH_INCOMPLETE_TRASH"
+                Text(
+                    stringResource(
+                        if (incomplete) R.string.mobile_trash_incomplete else failure.trashMessageResource(),
+                    ),
+                )
             }
         }
         when (outcome.check) {

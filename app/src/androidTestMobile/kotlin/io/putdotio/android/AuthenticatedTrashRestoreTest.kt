@@ -112,7 +112,8 @@ class AuthenticatedTrashRestoreTest {
             openConfirmation(fixture.file)
             compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).performClick()
             compose.waitUntil(TIMEOUT) {
-                controller.state.value.restoreOutcome?.submission?.let { it != TrashRestoreSubmission.SUBMITTING } == true
+                controller.state.value.restoreOutcome?.submission
+                    ?.let { it != TrashRestoreSubmission.SUBMITTING } == true
             }
             assertEquals(1, repository.restores)
             val submitted = checkNotNull(controller.state.value.restoreOutcome)
@@ -136,13 +137,19 @@ class AuthenticatedTrashRestoreTest {
             trashRestoreScreenshot("restore-result")
             trashRestoreApiCheck("final Trash and sentinel readback") {
                 val trash = boundedTrash(repository)
-                assertTrue("restored target absent after complete bounded traversal", trash.none { it.id.value == fixture.file.id })
+                assertTrue(
+                    "restored target absent after complete bounded traversal",
+                    trash.none { it.id.value == fixture.file.id },
+                )
                 assertTrue("Cancel remains in Trash", trash.any { it.id.value == fixture.cancel.id })
                 requireUnavailable(repository.resolveItem(FilesItemId(fixture.cancel.id)))
                 requireItem(success(repository.resolveItem(FilesItemId(fixture.sentinel.id))), fixture.sentinel)
                 val sentinel = runtime.putioClient.files.list(fixture.sentinel.id, FilesListQuery(perPage = 50))
                 assertTrue("sentinel remains empty", sentinel.cursor.isNullOrBlank() && sentinel.files.isEmpty())
-                assertTrue("final account identity", runtime.putioClient.account.getInfo().userId == fixture.expectedAccountId)
+                assertTrue(
+                    "final account identity",
+                    runtime.putioClient.account.getInfo().userId == fixture.expectedAccountId,
+                )
             }
             compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
             filesRow(fixture.container.name).performClick()
@@ -193,7 +200,9 @@ class AuthenticatedTrashRestoreTest {
             compose.onNodeWithText(label).performClick()
         }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
-        compose.onNodeWithContentDescription(context.getString(R.string.mobile_trash_actions_named, item.name)).performClick()
+        compose.onNodeWithContentDescription(
+            context.getString(R.string.mobile_trash_actions_named, item.name),
+        ).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).assertIsDisplayed()
         assertEquals(item.id, controller.state.value.confirmation?.id?.value)
@@ -209,14 +218,19 @@ class AuthenticatedTrashRestoreTest {
         return compose.onNode(matcher)
     }
 
-    private fun settings(runtime: MobileOAuthRuntime): AccountSettingsPreferences = trashRestoreApiCheck("read account settings") {
+    private fun settings(
+        runtime: MobileOAuthRuntime,
+    ): AccountSettingsPreferences = trashRestoreApiCheck("read account settings") {
         (SdkAccountSettingsRepository(runtime.putioClient).load() as? AccountSettingsRepositoryResult.Success)?.value
             ?: throw AssertionError("Account settings read failed")
     }
 
     private fun preflight(f: TrashRestoreFixture, runtime: MobileOAuthRuntime, repository: TrashRepository) {
         trashRestoreApiCheck("owned Trash fixture preflight") {
-            assertTrue("preflight account identity", runtime.putioClient.account.getInfo().userId == f.expectedAccountId)
+            assertTrue(
+                "preflight account identity",
+                runtime.putioClient.account.getInfo().userId == f.expectedAccountId,
+            )
             requireItem(success(repository.resolveItem(FilesItemId(f.container.id))), f.container)
             requireItem(success(repository.resolveItem(FilesItemId(f.sentinel.id))), f.sentinel)
             requireUnavailable(repository.resolveItem(FilesItemId(f.file.id)))
@@ -267,7 +281,10 @@ class AuthenticatedTrashRestoreTest {
 
     private fun requireUnavailable(result: FilesRepositoryResult<FilesItem>) {
         val failure = (result as? FilesRepositoryResult.Failure)?.failure as? FilesFailure.ApiRejected
-        assertTrue("exact Files GET must be HTTP 404", failure != null && failure.httpStatusCode == 404 && failure.statusCode == 404)
+        assertTrue(
+            "exact Files GET must be HTTP 404",
+            failure != null && failure.httpStatusCode == 404 && failure.statusCode == 404,
+        )
     }
 
     private fun <T> success(result: FilesRepositoryResult<T>): T = when (result) {
@@ -295,7 +312,10 @@ private class TrashRestoreCountingRepository(
         restores += 1
         check(itemId.value == ownedRestoreId && restores == 1) { "Unowned or duplicate Restore refused" }
         startedAt = SystemClock.elapsedRealtime()
-        Log.i("TrashRestoreProof", "restore id=${itemId.value} count=$restores state=pending startedElapsedMs=$startedAt")
+        Log.i(
+            "TrashRestoreProof",
+            "restore id=${itemId.value} count=$restores state=pending startedElapsedMs=$startedAt",
+        )
         val result = delegate.restore(itemId)
         Log.i("TrashRestoreProof", "restore id=${itemId.value} count=$restores state=" +
             if (result is FilesRepositoryResult.Success) "acknowledged" else "unknown")
