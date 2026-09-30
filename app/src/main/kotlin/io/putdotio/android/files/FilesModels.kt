@@ -93,4 +93,22 @@ data class FilesPage(
     val items: List<FilesItem>,
     val nextCursor: FilesCursor?,
     val sort: FilesSort? = null,
+    /** The listed item itself; for a media file, the only read that carries its duration. */
+    val parent: FilesItem? = null,
+)
+
+/** Where an item opened from outside the Files browser came from; Back from its folder returns there. */
+enum class FilesOpenOrigin {
+    SEARCH,
+    HISTORY,
+    TRANSFERS,
+
+    /** A product link; its folder sits on top of the prior Files location and Back stays in Files. */
+    LINK,
+}
+
+/** An item to open from outside the Files browser, with where the viewer chose it. */
+data class FilesExternalOpen(
+    val item: FilesItem,
+    val origin: FilesOpenOrigin,
 )

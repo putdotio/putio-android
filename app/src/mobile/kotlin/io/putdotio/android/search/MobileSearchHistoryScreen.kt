@@ -341,7 +341,10 @@ private fun MobileSearchResults(
             MobileFilesRow(
                 item = item,
                 onClick = { onResult(item) },
-                onClickLabel = stringResource(R.string.mobile_search_open_result, item.name),
+                onClickLabel = stringResource(
+                    if (item.isPlayable) R.string.mobile_files_play_media else R.string.mobile_search_open_result,
+                    item.name,
+                ),
             )
             HorizontalDivider(modifier = Modifier.padding(start = 72.dp))
         }

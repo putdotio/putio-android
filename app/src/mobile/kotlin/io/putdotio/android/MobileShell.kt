@@ -48,9 +48,11 @@ import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
+import io.putdotio.android.files.FilesExternalOpen
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MobileFilesSortMenu
@@ -131,7 +133,7 @@ internal fun MobileShell(
         FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("No transfer file resolver")))
     },
     onTransferAuthenticationRequired: suspend () -> Unit = {},
-    contentNavigation: Flow<FilesItem> = emptyFlow(),
+    contentNavigation: Flow<FilesExternalOpen> = emptyFlow(),
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
     onOpenFile: suspend (FilesItemId) -> Unit = {},
@@ -258,12 +260,16 @@ internal fun MobileShell(
             )
         }
     }
+    // Media plays above the screen it was chosen on; anything else opens in Files above its prior location.
     LaunchedEffect(contentNavigation, transferDraft) {
-        contentNavigation.collect { item ->
-            if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item))) {
-                val draft = transferDraft.state.value
-                val editingTransfer = navController.currentDestination?.route == MobileDestination.Transfers.route &&
-                    (draft.open || draft.pendingReplacement)
+        contentNavigation.collect { (item, origin) ->
+            val draft = transferDraft.state.value
+            val editingTransfer = navController.currentDestination?.route == MobileDestination.Transfers.route &&
+                (draft.open || draft.pendingReplacement)
+            if (item.isPlayable) {
+                // A delayed history result must not displace a newer transfer draft.
+                if (!editingTransfer) navController.navigateToPlayback(item)
+            } else if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item, origin))) {
                 // A delayed history result may update Files without displacing a newer transfer draft.
                 if (!editingTransfer) navController.navigateTo(MobileDestination.Files)
             } else {
@@ -283,7 +289,8 @@ internal fun MobileShell(
             is FilesRepositoryResult.Success -> {
                 navController.currentBackStackEntryFlow.first()
                 currentCoroutineContext().ensureActive()
-                if (sessionOnFilesEvent(FilesBrowserEvent.OpenExternalItem(resolved.value))) {
+                val open = FilesBrowserEvent.OpenExternalItem(resolved.value, FilesOpenOrigin.TRANSFERS)
+                if (sessionOnFilesEvent(open)) {
                     navController.navigateTo(MobileDestination.Files)
                     sessionOnTransfersEvent(TransfersEvent.OpenSucceeded(resolving.requestId))
                 } else {
@@ -303,9 +310,12 @@ internal fun MobileShell(
 
     val filesOwnsBack = filesState.stack.any { it.operation.pendingMove != null } ||
         selectedDestination == MobileDestination.Files && filesState.canNavigateBack
-    BackHandler(enabled = !isPlayback && filesOwnsBack) {
-        onFilesEvent(FilesBrowserEvent.NavigateBack)
+    // Back from a folder opened from Search, History or Transfers returns to that screen.
+    val onFilesBack = {
+        val origin = filesState.current.openedFrom
+        if (onFilesEvent(FilesBrowserEvent.NavigateBack)) origin?.returnDestination()?.let(navController::navigateTo)
     }
+    BackHandler(enabled = !isPlayback && filesOwnsBack, onBack = onFilesBack)
 
     val protectTrashRecovery = trashState?.hasPendingMutation == true && !filesOwnsBack
     BackHandler(enabled = !isPlayback && (isTrash || isDownloads || protectTrashRecovery)) {
@@ -336,6 +346,7 @@ internal fun MobileShell(
                     filesState = filesState,
                     playbackPlayerFactory = playbackPlayerFactory,
                     onFilesEvent = { onFilesEvent(it) },
+                    onFilesBack = onFilesBack,
                 ) { contentModifier ->
                     MobileNavHost(
                         transferDraft = transferDraft,
@@ -453,6 +464,7 @@ private fun MobileChrome(
     filesState: FilesBrowserState,
     playbackPlayerFactory: MobilePlayerFactory,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
+    onFilesBack: () -> Unit,
     content: @Composable (Modifier) -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
@@ -480,7 +492,7 @@ private fun MobileChrome(
                         isDownloads = route == MOBILE_DOWNLOADS_ROUTE,
                         onTrashBack = { navController.popBackStack() },
                         filesState = filesState,
-                        onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
+                        onFilesBack = onFilesBack,
                         onFilesEvent = onFilesEvent,
                     )
                 }
@@ -625,6 +637,13 @@ internal data class MobileSearchHistoryActions(
     val onRecentRetry: () -> Unit = {},
     val onHistoryEvent: (HistoryEvent) -> Unit = {},
 )
+
+private fun FilesOpenOrigin.returnDestination(): MobileDestination? =
+    when (this) {
+        FilesOpenOrigin.SEARCH, FilesOpenOrigin.HISTORY -> MobileDestination.Search
+        FilesOpenOrigin.TRANSFERS -> MobileDestination.Transfers
+        FilesOpenOrigin.LINK -> null
+    }
 
 private fun emptySearchHistoryState(): MobileSearchHistoryState =
     MobileSearchHistoryState(

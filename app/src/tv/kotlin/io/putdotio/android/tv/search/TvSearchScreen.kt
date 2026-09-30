@@ -529,7 +529,10 @@ private fun TvSearchResults(
             TvFilesRow(
                 item = item,
                 onClick = { onResult(item) },
-                label = stringResource(R.string.tv_search_open_result, item.name),
+                label = stringResource(
+                    if (item.isPlayable) R.string.tv_files_play_media else R.string.tv_search_open_result,
+                    item.name,
+                ),
                 modifier = Modifier
                     .then(if (index == anchorIndex) Modifier.focusRequester(anchorRow) else Modifier)
                     .then(if (index == items.lastIndex) Modifier.focusRequester(lastRow) else Modifier),

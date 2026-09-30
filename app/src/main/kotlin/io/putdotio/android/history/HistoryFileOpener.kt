@@ -4,6 +4,7 @@ import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesRepositoryResult
 import java.io.Closeable
 import kotlinx.coroutines.CoroutineScope
@@ -27,7 +28,7 @@ import kotlinx.coroutines.launch
 class HistoryFileOpener(
     requests: Flow<HistoryEffect.NavigateToFile>,
     private val resolver: FilesItemResolver,
-    private val deliver: suspend (FilesItem) -> Unit,
+    private val deliver: suspend (FilesItem, FilesOpenOrigin) -> Unit,
     parentScope: CoroutineScope,
 ) : Closeable {
     private val openerJob = SupervisorJob(parentScope.coroutineContext[Job])
@@ -39,16 +40,16 @@ class HistoryFileOpener(
 
     init {
         scope.launch {
-            requests.collectLatest { request -> open(FilesItemId(request.fileId.value)) }
+            requests.collectLatest { request -> open(FilesItemId(request.fileId.value), FilesOpenOrigin.HISTORY) }
         }
     }
 
-    /** Resolves and delivers one file outside the history list, such as a product link. */
-    suspend fun open(fileId: FilesItemId) {
+    /** Resolves and delivers one file; [origin] says whether a history row or a product link named it. */
+    suspend fun open(fileId: FilesItemId, origin: FilesOpenOrigin) {
         when (val result = resolver.resolveItem(fileId)) {
             is FilesRepositoryResult.Success -> {
                 mutableFailure.value = null
-                deliver(result.value)
+                deliver(result.value, origin)
             }
             is FilesRepositoryResult.Failure -> mutableFailure.value = result.failure
         }

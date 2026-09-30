@@ -19,6 +19,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
@@ -114,8 +115,8 @@ class FilesDeleteRecoveryUiProofTest {
         compose.runOnIdle {
             val retained = preview.state
             val external = preview.item.copy(id = FilesItemId(99), parentId = FilesItemId(0))
-            for (event in listOf(FilesBrowserEvent.NavigateBack, FilesBrowserEvent.OpenExternalItem(external),
-                FilesBrowserEvent.OpenExternalItem(external.copy(type = PutioFileType.VIDEO)))) {
+            for (event in listOf(FilesBrowserEvent.NavigateBack, FilesBrowserEvent.OpenExternalItem(external, FilesOpenOrigin.SEARCH),
+                FilesBrowserEvent.OpenExternalItem(external.copy(type = PutioFileType.VIDEO), FilesOpenOrigin.LINK))) {
                 val rejected = preview.dispatch(event)
                 assertFalse(rejected.consumed)
                 assertSame(retained, rejected.state)

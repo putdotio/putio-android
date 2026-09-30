@@ -135,7 +135,7 @@ class TvSearchScreenTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithContentDescription("Open Tears of Steel.webm").assertIsFocused().performKeyInput {
+        compose.onNodeWithContentDescription("Play Tears of Steel.webm").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
@@ -267,7 +267,7 @@ class TvSearchScreenTest {
             ),
             query = "t",
         )
-        compose.onNodeWithContentDescription("Open two.mkv").assertIsFocused()
+        compose.onNodeWithContentDescription("Play two.mkv").assertIsFocused()
         assertEquals(listOf("next", "retry"), log)
     }
 
@@ -492,7 +492,7 @@ class TvSearchScreenTest {
         }
         val more = (13..30).map { item(it.toLong(), "row-$it.mkv", PutioFileType.VIDEO) }
         state = searchState(SearchContent.Ready(SearchTerm("r"), page + more, SearchPaging.Complete), query = "r")
-        compose.onNodeWithContentDescription("Open row-30.mkv").assertIsFocused()
+        compose.onNodeWithContentDescription("Play row-30.mkv").assertIsFocused()
         assertEquals(listOf("next"), log)
     }
 

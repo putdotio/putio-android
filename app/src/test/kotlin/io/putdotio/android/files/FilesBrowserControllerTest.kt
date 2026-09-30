@@ -213,7 +213,7 @@ class FilesBrowserControllerTest {
         }
 
     @Test
-    fun externalNavigationCancelsRequestsRemovedWithThePreviousStack() =
+    fun anotherExternalOpenCancelsTheLoadOfTheOneItReplaces() =
         runBlocking {
             val childStarted = CompletableDeferred<Unit>()
             val childCancelled = CompletableDeferred<Unit>()
@@ -243,11 +243,12 @@ class FilesBrowserControllerTest {
 
             try {
                 controller.awaitState { it.current.content is FilesContent.Ready }
-                assertTrue(controller.dispatch(FilesBrowserEvent.OpenFolder(folder.id)))
+                assertTrue(controller.dispatch(FilesBrowserEvent.OpenExternalItem(folder, FilesOpenOrigin.SEARCH)))
                 withTimeout(TEST_TIMEOUT_MILLIS) { childStarted.await() }
 
-                val externalFile = item(99L, "movie.mkv", PutioFileType.VIDEO).copy(parentId = FilesItemId(44L))
-                assertTrue(controller.dispatch(FilesBrowserEvent.OpenExternalItem(externalFile)))
+                val externalFile = item(99L, "notes.pdf", PutioFileType.PDF).copy(parentId = FilesItemId(44L))
+                val open = FilesBrowserEvent.OpenExternalItem(externalFile, FilesOpenOrigin.HISTORY)
+                assertTrue(controller.dispatch(open))
 
                 withTimeout(TEST_TIMEOUT_MILLIS) { childCancelled.await() }
                 controller.awaitState {

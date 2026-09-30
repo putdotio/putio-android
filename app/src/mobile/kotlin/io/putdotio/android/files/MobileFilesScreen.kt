@@ -27,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,6 +54,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -192,9 +194,11 @@ private fun MobileRefreshableFilesContent(
                     onEvent = onEvent,
                 )
                 is FilesContent.Ready ->
-                    key(state.current.folder.id.value, state.current.viewportGeneration) {
+                    // The depth tells a folder opened from Search apart from the same folder under it.
+                    key(state.stack.size, state.current.folder.id.value, state.current.viewportGeneration) {
                         MobileFilesList(
                             content = content,
+                            revealItemId = state.current.revealItemId,
                             pagingEnabled = operation == FilesFolderOperation.Idle,
                             onEvent = onEvent,
                             onPlayMedia = onPlayMedia,
@@ -391,6 +395,7 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
 @Composable
 private fun MobileFilesList(
     content: FilesContent.Ready,
+    revealItemId: FilesItemId?,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
     onPlayMedia: (FilesItem) -> Unit,
@@ -455,6 +460,7 @@ private fun MobileFilesList(
         ) { item ->
             MobileFilesRow(
                 item = item,
+                highlighted = item.id == revealItemId,
                 downloadStatus = downloads.entry(item.id)?.status,
                 onActions = if (item.id.value > 0L) { { onActions(item) } } else null,
                 actionsEnabled = actionsEnabled,
@@ -500,6 +506,8 @@ internal fun MobileFilesRow(
     onActions: (() -> Unit)? = null,
     actionsEnabled: Boolean = true,
     downloadStatus: DownloadStatus? = null,
+    /** The file an outside open came for; it has no screen of its own, so its row stands out. */
+    highlighted: Boolean = false,
 ) {
     val metadata = formatFilesItemMetadata(LocalContext.current, item)
     val actionsLabel = stringResource(R.string.mobile_files_actions, item.name)
@@ -531,7 +539,13 @@ internal fun MobileFilesRow(
         },
         modifier = modifier
             .fillMaxWidth()
-            .then(interaction),
+            .then(interaction)
+            .semantics { if (highlighted) selected = true },
+        colors = if (highlighted) {
+            ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        } else {
+            ListItemDefaults.colors()
+        },
         supportingContent = if (metadata == null && item.playback?.isWatched != true && downloadStatus == null) {
             null
         } else {

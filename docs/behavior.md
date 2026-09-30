@@ -307,7 +307,9 @@ and `putio://{files,transfers,search,history,trash,downloads}`. `putio://auth`
 stays with the OAuth receiver. A link is consumed once per Activity intent, any
 put.io URI is removed from the retained intent, and routing waits for sign-in;
 an unrouted link survives process death as its token-free `putio://` form. A file
-id resolves through the item resolver and reuses the navigation-failure dialog.
+id resolves through the item resolver, opens as under
+[History opens](#timestamps-and-history-opens) with Back staying in Files, and
+reuses the navigation-failure dialog.
 
 Tests: `MobileDeepLinksTest`, `MainActivityDeepLinkTest`.
 
@@ -317,10 +319,28 @@ The API sends UTC datetimes without an offset (`2026-09-09T15:25:32`). Mobile
 and TV read them, and offset stamps, through one parser, so History groups by
 local day and Files rows keep their date; a stamp it cannot read shows raw.
 Choosing a History row resolves its file in the signed-in session, and only the
-latest choice opens: a second tap while the first resolves opens one folder.
+latest choice opens: a second tap while the first resolves opens one item.
+
+A Search result, a History row or a product link opens the item itself, as
+putio-web, tv-native and iOS do. Video and audio play at once over the screen
+they were chosen on, with the resume prompt above; Back returns there. TV's
+prompt needs a duration, which search results and single-file reads lack, so
+the session first lists the file itself, which put.io answers with the file as
+the parent and its `video_metadata`; if that read fails, playback continues
+without asking. A folder opens in Files under its name. Any other file opens
+its parent folder, titled from that folder's listing, with the file's row
+selected on mobile and focused on TV, scrolled to when it is on the first page.
+
+That folder sits on top of the viewer's Files location instead of replacing it.
+Back from it returns to Search (mobile shows History there too), History on TV,
+or Transfers, whose file opens the same way without playing; after a product
+link it returns to the Files location. A later outside open replaces the earlier
+one rather than stacking, and Files refuses it while a move or deletion settles.
 
 Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
-`MobileSearchHistoryScreenTest`, `MobileFilesScreenTest`, `TvSessionViewModelTest`.
+`MobileSearchHistoryScreenTest`, `MobileFilesScreenTest`, `TvSessionViewModelTest`,
+`FilesBrowserReducerTest`, `FilesBrowserControllerTest`, `MobileShellTest`
+(`MobileShellExternalOpenTest`).
 
 ## Downloads and offline playback
 
