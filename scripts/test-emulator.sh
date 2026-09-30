@@ -129,7 +129,12 @@ case "$*" in
     ;;
   *" install -r "*) echo "Success" ;;
   *" settings put global hide_error_dialogs 1") ;;
-  *" getprop sys.boot_completed") echo 1 ;;
+  *" getprop sys.boot_completed")
+    # The fake emulator writes its port before it marks itself running, so
+    # boot readiness must wait for the running state that stop looks up.
+    [[ "$(<"${state}/running")" == "1" ]] || exit 1
+    echo 1
+    ;;
   *" getprop ro.build.version.sdk")
     failures="$(<"${state}/api-query-failures")"
     if (( failures > 0 )); then
@@ -643,6 +648,7 @@ google_tv_serial="$(PUTIO_EMULATOR_BOOT_TIMEOUT=10 "${REPO_ROOT}/scripts/emulato
   fail "Google TV AVD did not boot"
 [[ "${google_tv_serial}" == "emulator-5554" ]] || fail "Google TV boot printed '${google_tv_serial}'"
 [[ "$(<"${state}/name")" == "${GOOGLE_TV_AVD}" ]] || fail "Google TV boot started the wrong AVD"
+[[ "$(<"${state}/running")" == "1" ]] || fail "Google TV boot returned before its emulator was running"
 if grep -Eq 'ro\.build\.version\.sdk|com\.android\.chrome' "${state}/adb-calls"; then
   fail "Google TV boot ran phone readiness checks"
 fi
@@ -660,6 +666,7 @@ google_tv_serial="$(PUTIO_EMULATOR_BOOT_TIMEOUT=10 "${REPO_ROOT}/scripts/emulato
   fail "Google TV AVD did not boot beside a busy console port"
 [[ "${google_tv_serial}" == "emulator-5556" && "$(<"${state}/port")" == "5556" ]] || \
   fail "busy console port 5554 was not skipped (printed '${google_tv_serial}')"
+[[ "$(<"${state}/running")" == "1" ]] || fail "Google TV boot returned before its emulator on port 5556 was running"
 "${REPO_ROOT}/scripts/emulator.sh" stop google-tv >/dev/null 2>&1 || fail "could not stop the Google TV emulator"
 [[ "$(<"${state}/running")" == "0" ]] || fail "Google TV stop missed the emulator on port 5556"
 
