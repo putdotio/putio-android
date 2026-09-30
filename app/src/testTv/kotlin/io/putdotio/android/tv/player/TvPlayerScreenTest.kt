@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import android.os.Looper
+import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
@@ -16,6 +17,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -124,7 +126,7 @@ class TvPlayerScreenTest {
     }
 
     @Test
-    fun backLeavesPlaybackAndThePlayerIsReleased() {
+    fun backHidesTheControlsThenLeavesAndThePlayerIsReleased() {
         val player = FakePlayer()
         var backs = 0
         var showing by mutableStateOf(true)
@@ -146,10 +148,13 @@ class TvPlayerScreenTest {
             }
         }
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
 
-        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
-        compose.waitForIdle()
+        back()
+        assertEquals(0, backs)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
 
+        back()
         assertEquals(1, backs)
         compose.onNodeWithTag(TV_PLAYER_TAG).assertDoesNotExist()
         assertTrue(player.released)
@@ -295,8 +300,10 @@ class TvPlayerScreenTest {
         compose.onNodeWithContentDescription("Play Sintel.mp4").assertDoesNotExist()
         compose.runOnIdle { assertTrue(player.playWhenReady) }
 
-        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
-        compose.waitForIdle()
+        // The first Back hides the controls; the second leaves.
+        back()
+        assertTrue(playing != null)
+        back()
 
         assertNull(playing)
         assertTrue(player.released)
@@ -306,6 +313,7 @@ class TvPlayerScreenTest {
     @Test
     fun backOnTheShellAfterPlaybackStillReachesTheShell() {
         // Playback registers its own Back; once it is gone the shell's handlers own Back again.
+        // The first Back hides the controls, the second leaves playback.
         var shellBacks = 0
         var playing by mutableStateOf(true)
         compose.setContent {
@@ -327,11 +335,10 @@ class TvPlayerScreenTest {
                 }
             }
         }
-        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
-        compose.waitForIdle()
+        back()
+        back()
         assertEquals(0, shellBacks)
-        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
-        compose.waitForIdle()
+        back()
         assertEquals(1, shellBacks)
     }
 
@@ -358,6 +365,156 @@ class TvPlayerScreenTest {
         compose.onNodeWithTag("shell").assertDoesNotExist()
         playing = false
         compose.onNodeWithText("Shell 3").assertIsDisplayed()
+    }
+
+    @Test
+    fun quickRightPressesScrubPausedAndCenterPlaysFromTheTarget() {
+        val player = FakePlayer()
+        showReady(player, resumePositionMillis = 42_000L)
+
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput {
+            pressKey(Key.DirectionRight)
+            advanceEventTime(TV_SCRUB_ACCUMULATE_MILLIS / 2)
+            pressKey(Key.DirectionRight)
+        }
+        settle()
+        // 42 s + 15 s + 30 s: the second press came inside the window, so its step doubled.
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("01:27")
+        compose.runOnIdle {
+            assertFalse("Scrubbing pauses", player.playWhenReady)
+            assertEquals("Nothing seeks before the commit", 42_000L, player.currentPosition)
+        }
+        // Seek mode keeps the controls past the auto-hide delay.
+        compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS * 2)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
+
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionCenter) }
+        settle()
+        compose.runOnIdle {
+            assertEquals(87_000L, player.currentPosition)
+            assertTrue("The commit resumes playback", player.playWhenReady)
+        }
+    }
+
+    @Test
+    fun pressesAfterAPauseRestartTheStepFromThePendingTarget() {
+        val player = FakePlayer()
+        showReady(player, resumePositionMillis = 42_000L)
+
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput {
+            pressKey(Key.MediaFastForward)
+            advanceEventTime(TV_SCRUB_ACCUMULATE_MILLIS * 2)
+            pressKey(Key.MediaFastForward)
+            advanceEventTime(TV_SCRUB_ACCUMULATE_MILLIS * 2)
+            pressKey(Key.MediaRewind)
+        }
+        settle()
+        // 42 + 15 + 15 - 15: each press after a gap moves one step.
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:57")
+    }
+
+    @Test
+    fun backDismissesSeekModeThenTheControlsKeepingTimeAndFocusThenExitsOnce() {
+        val player = FakePlayer()
+        var backs = 0
+        showReady(player, resumePositionMillis = 42_000L, onBack = { backs += 1 })
+
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
+        settle()
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:27")
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+
+        back()
+        compose.runOnIdle {
+            assertEquals(0, backs)
+            assertEquals("Dismissing seek mode never seeks", 42_000L, player.currentPosition)
+            assertTrue("It resumes the playback the scrub paused", player.playWhenReady)
+        }
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:42")
+
+        back()
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        compose.runOnIdle {
+            assertEquals(0, backs)
+            assertTrue(player.playWhenReady)
+        }
+
+        back()
+        back()
+        compose.runOnIdle { assertEquals("Exit dispatches once", 1, backs) }
+    }
+
+    @Test
+    fun pausedControlsDismissWithoutResumingOrLeaving() {
+        val player = FakePlayer()
+        var backs = 0
+        showReady(player, onBack = { backs += 1 })
+
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionCenter) }
+        settle()
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+
+        back()
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        compose.runOnIdle {
+            assertFalse("Still paused", player.playWhenReady)
+            assertEquals(0, backs)
+        }
+
+        // Any key brings the paused controls back.
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionUp) }
+        settle()
+        compose.onNodeWithContentDescription("Paused").assertIsDisplayed()
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+    }
+
+    @Test
+    fun aHeldBackKeyDismissesOneLayer() {
+        val player = FakePlayer()
+        var backs = 0
+        showReady(player, onBack = { backs += 1 })
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
+
+        compose.runOnUiThread {
+            val down = AndroidKeyEvent(0L, 0L, AndroidKeyEvent.ACTION_DOWN, AndroidKeyEvent.KEYCODE_BACK, 0)
+            compose.activity.dispatchKeyEvent(down)
+            repeat(HELD_REPEATS) { count ->
+                val flags = if (count == 0) AndroidKeyEvent.FLAG_LONG_PRESS else 0
+                val held = AndroidKeyEvent.changeTimeRepeat(down, 50L * (count + 1), count + 1, flags)
+                compose.activity.dispatchKeyEvent(held)
+            }
+            compose.activity.dispatchKeyEvent(AndroidKeyEvent.changeAction(down, AndroidKeyEvent.ACTION_UP))
+        }
+        settle()
+
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+        compose.runOnIdle { assertEquals("The held key did not also leave", 0, backs) }
+    }
+
+    private fun showReady(player: FakePlayer, resumePositionMillis: Long? = null, onBack: () -> Unit = {}) {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlayerScreen(
+                    state = readyState(resumePositionMillis = resumePositionMillis),
+                    onBack = onBack,
+                    onRetry = {},
+                    onResume = {},
+                    onPlayerFailure = { _, _ -> },
+                    playerFactory = { _, _ -> player },
+                )
+            }
+        }
+        settle()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+    }
+
+    private fun back() {
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.waitForIdle()
+        compose.mainClock.advanceTimeBy(SETTLE_MILLIS)
     }
 
     /** A few frames: the key's state change, then the recomposition it causes. */
@@ -395,6 +552,7 @@ class TvPlayerScreenTest {
 
     private companion object {
         const val SETTLE_MILLIS = 50L
+        const val HELD_REPEATS = 10
         const val SOURCE_URL = "https://api.put.io/v2/files/9/hls/media.m3u8?token=t"
     }
 }
@@ -410,6 +568,7 @@ private class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
                     COMMAND_SET_MEDIA_ITEM,
                     COMMAND_GET_CURRENT_MEDIA_ITEM,
                     COMMAND_GET_TIMELINE,
+                    COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
                     COMMAND_RELEASE,
                 ).build(),
         ).build()
@@ -428,7 +587,15 @@ private class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
         this.mediaItems += mediaItems
         startPositionMillis = startPositionMs
         state = state.buildUpon()
-            .setPlaylist(mediaItems.map { MediaItemData.Builder(it.mediaId).setMediaItem(it).build() })
+            .setPlaylist(
+                mediaItems.map {
+                    MediaItemData.Builder(it.mediaId)
+                        .setMediaItem(it)
+                        .setDurationUs(DURATION_US)
+                        .setIsSeekable(true)
+                        .build()
+                },
+            )
             .setCurrentMediaItemIndex(0)
             .setContentPositionMs(startPositionMs)
             .build()
@@ -443,6 +610,11 @@ private class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
 
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
         state = state.buildUpon().setPlayWhenReady(playWhenReady, PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST).build()
+        return Futures.immediateVoidFuture()
+    }
+
+    override fun handleSeek(mediaItemIndex: Int, positionMs: Long, seekCommand: Int): ListenableFuture<*> {
+        state = state.buildUpon().setContentPositionMs(positionMs).build()
         return Futures.immediateVoidFuture()
     }
 
@@ -463,5 +635,9 @@ private class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
             .setPlaybackState(STATE_IDLE)
             .build()
         invalidateState()
+    }
+
+    private companion object {
+        const val DURATION_US = 14L * 60L * 1_000_000L
     }
 }

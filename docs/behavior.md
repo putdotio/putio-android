@@ -109,19 +109,35 @@ player replaces the signed-in shell instead of covering it, so no shell control
 can take D-pad focus; the shell's saved state is kept, and Back returns focus to
 the row that was playing. Playback belongs to the session: sign-out ends it.
 
-The overlay shows the raw file name, a progress bar, position and duration.
-Any key reveals it for three seconds of playback; it stays while paused.
-Center, Enter or the remote's play/pause key toggles playback, and leaving the
-app pauses it. If the activity is recreated (a remote or keyboard connecting, a
-locale change), playback continues paused from where it stopped. A saved
-position is continued without a prompt until the resume dialog lands;
+The overlay shows the raw file name, a seek bar, position and duration.
+Any key reveals it for three seconds of playback; it stays while paused or
+scrubbing. Center, Enter or the remote's play/pause key toggles playback, and
+leaving the app pauses it and shows the paused controls. If the activity is
+recreated (a remote or keyboard connecting, a locale change), playback
+continues paused from where it stopped.
+
+Left, Right, rewind and fast-forward scrub, as the RN player did: the first
+press pauses and the seek bar shows a pending target. Each press moves it
+15 s times the press count, which grows while presses come within 500 ms
+and restarts at one after a gap. A held key counts one press every 300 ms.
+The target stays within the media. Center, Enter or play/pause seeks there and
+plays; the dedicated play or pause key drops the target instead. The seek bar
+is the overlay's only focus target until the track and speed buttons arrive,
+so rewind and fast-forward scrub directly.
+
+Back dismisses the topmost layer (#9): seek mode first (no seek; playback
+resumes only if the scrub paused it), then the controls (pause state and
+focus untouched), and only then leaves playback, once. A held Back is one
+press. Track pickers and the resume dialog will stack above seek mode.
+
+A saved position is continued without a prompt until the resume dialog lands;
 conversion and failed resolutions show a status screen with Check again or Try
 again, unsupported files a plain status screen as on mobile, and a player error
-keeps its position for the retry. Back always leaves playback for now: the overlay Back stack
-(#9), seeking, track pickers, position write-back and the media session are
-later #34 layers.
+keeps its position for the retry. Resume, track pickers, position write-back
+and the media session are later #34 layers.
 
-Tests: `TvPlayerScreenTest`, `TvSessionViewModelTest`, `PlaybackExoPlayerTest`.
+Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvSessionViewModelTest`,
+`PlaybackExoPlayerTest`.
 
 ## Share-in
 

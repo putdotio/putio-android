@@ -51,8 +51,10 @@ TV:
   Mark as watched or unwatched, and Move to trash or Delete permanently per
   the account's Trash setting. Center on a media row plays it full-screen
   through Media3 (HLS or MP4 per the account's playback type) with a
-  play/pause and progress overlay; Back returns to the row. Resume, seeking,
-  track pickers and system media controls are still to come (#34)
+  play/pause overlay and a D-pad seek bar (Left, Right, rewind and
+  fast-forward scrub). Back dismisses seek mode, then the controls, then
+  returns to the row. Resume, track pickers and system media controls are
+  still to come (#34)
 - Search through the system IME, with recent-query chips and paged results
   that open in Files
 - History grouped under relative-date headers; an event opens its file in
