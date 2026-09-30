@@ -346,7 +346,9 @@ private fun TvAccountBody(
                             openDialog = TvAccountDialog.TrashOff
                         } else {
                             onSettingsEvent(
-                                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.Trash, true)),
+                                AccountSettingsEvent.ChangeRequested(
+                                    AccountSettingsChange(AccountSettingsKey.Trash, true),
+                                ),
                             )
                         }
                     },
@@ -377,7 +379,9 @@ private fun TvAccountBody(
                     onToggle = {
                         if (controls) {
                             onSettingsEvent(
-                                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.History, it)),
+                                AccountSettingsEvent.ChangeRequested(
+                                    AccountSettingsChange(AccountSettingsKey.History, it),
+                                ),
                             )
                         }
                     },
@@ -427,7 +431,9 @@ private fun TvAccountBody(
             onConfirm = {
                 openDialog = null
                 onSettingsEvent(
-                    AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)),
+                    AccountSettingsEvent.ChangeRequested(
+                        AccountSettingsChange(AccountSettingsKey.Trash, enabled = false),
+                    ),
                 )
             },
             onDismiss = { openDialog = null },
@@ -669,7 +675,9 @@ private fun TvAppConfigSection(
                 owner = owner,
                 focus = playbackTypeFocus,
             )
-            TvAppConfigFailureNotice(state, onEvent, owner, playbackTypeFocus) { it is AndroidAppConfigChange.VideoPlayback }
+            TvAppConfigFailureNotice(state, onEvent, owner, playbackTypeFocus) {
+                it is AndroidAppConfigChange.VideoPlayback
+            }
             val autoplayFocus = remember { FocusRequester() }
             TvSwitchRow(
                 title = stringResource(R.string.tv_account_autoplay_next),
@@ -683,7 +691,9 @@ private fun TvAppConfigSection(
                 owner = owner,
                 focus = autoplayFocus,
             )
-            TvAppConfigFailureNotice(state, onEvent, owner, autoplayFocus) { it is AndroidAppConfigChange.AutoplayNextVideo }
+            TvAppConfigFailureNotice(state, onEvent, owner, autoplayFocus) {
+                it is AndroidAppConfigChange.AutoplayNextVideo
+            }
         }
     }
 }
@@ -792,7 +802,9 @@ private fun TvChoiceDialogForPlayback(
     TvChoiceDialog(
         title = stringResource(R.string.tv_account_video_playback_type),
         // MP4 above the default, as the oracle lists them.
-        choices = listOf(VideoPlaybackType.Mp4, VideoPlaybackType.Hls).map { TvChoice(it, stringResource(it.tvLabel())) },
+        choices = listOf(VideoPlaybackType.Mp4, VideoPlaybackType.Hls).map {
+            TvChoice(it, stringResource(it.tvLabel()))
+        },
         selected = selected,
         onSelect = onSelect,
         onDismiss = onDismiss,
@@ -898,7 +910,9 @@ private fun TvChoiceRow(
         selected = false,
         onClick = onClick,
         headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = if (value == null) null else ({ Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
+        supportingContent = if (value == null) null else ({
+            Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }),
         leadingContent = { TvRowIcon(icon) },
         trailingContent = {
             Icon(
@@ -928,7 +942,9 @@ private fun TvAccountRow(
         selected = false,
         onClick = onClick,
         headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = if (value == null) null else ({ Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis) }),
+        supportingContent = if (value == null) null else ({
+            Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }),
         leadingContent = { TvRowIcon(icon) },
         scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
         modifier = modifier

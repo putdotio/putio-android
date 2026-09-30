@@ -87,7 +87,10 @@ class TvSearchScreenTest {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvSearchScreen(
-                    state = searchState(SearchContent.Idle, recent = listOf(SearchTerm("Tears Of Steel"), SearchTerm("sintel"))),
+                    state = searchState(
+                        SearchContent.Idle,
+                        recent = listOf(SearchTerm("Tears Of Steel"), SearchTerm("sintel")),
+                    ),
                     actions = actions,
                 )
             }
@@ -113,7 +116,10 @@ class TvSearchScreenTest {
                     state = searchState(
                         SearchContent.Ready(
                             SearchTerm("tears"),
-                            listOf(item(1, "Tears of Steel.webm", PutioFileType.VIDEO), item(2, "tears", PutioFileType.FOLDER)),
+                            listOf(
+                                item(1, "Tears of Steel.webm", PutioFileType.VIDEO),
+                                item(2, "tears", PutioFileType.FOLDER),
+                            ),
                             SearchPaging.Available(FilesCursor("c1")),
                         ),
                         recent = listOf(SearchTerm("tears")),
@@ -147,7 +153,9 @@ class TvSearchScreenTest {
 
     @Test
     fun loadingEmptyAndFailedStatesKeepTheFieldReachable() {
-        var state by mutableStateOf(searchState(SearchContent.Loading(SearchTerm("x"), SearchRequestId(1)), query = "x"))
+        var state by mutableStateOf(
+            searchState(SearchContent.Loading(SearchTerm("x"), SearchRequestId(1)), query = "x"),
+        )
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvSearchScreen(state = state, actions = actions)
@@ -199,7 +207,11 @@ class TvSearchScreenTest {
     fun loadMoreKeepsFocusThroughLoadingAndHandsOffToTheLastRowWhenComplete() {
         var state by mutableStateOf(
             searchState(
-                SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO)), SearchPaging.Available(FilesCursor("c1"))),
+                SearchContent.Ready(
+                    SearchTerm("t"),
+                    listOf(item(1, "one.mkv", PutioFileType.VIDEO)),
+                    SearchPaging.Available(FilesCursor("c1")),
+                ),
                 query = "t",
             ),
         )
@@ -218,13 +230,24 @@ class TvSearchScreenTest {
             keyUp(Key.DirectionCenter)
         }
         state = searchState(
-            SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO)), SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2))),
+            SearchContent.Ready(
+                SearchTerm("t"),
+                listOf(item(1, "one.mkv", PutioFileType.VIDEO)),
+                SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)),
+            ),
             query = "t",
         )
         compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused()
 
         state = searchState(
-            SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO)), SearchPaging.Failed(FilesCursor("c1"), FilesFailure.Misconfigured(PutioConfigurationException("boom")))),
+            SearchContent.Ready(
+                SearchTerm("t"),
+                listOf(item(1, "one.mkv", PutioFileType.VIDEO)),
+                SearchPaging.Failed(
+                    FilesCursor("c1"),
+                    FilesFailure.Misconfigured(PutioConfigurationException("boom")),
+                ),
+            ),
             query = "t",
         )
         compose.onNodeWithText("Couldn’t load more results.").assertIsDisplayed()
@@ -234,7 +257,14 @@ class TvSearchScreenTest {
         }
 
         state = searchState(
-            SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO), item(2, "two.mkv", PutioFileType.VIDEO)), SearchPaging.Complete),
+            SearchContent.Ready(
+                SearchTerm("t"),
+                listOf(
+                    item(1, "one.mkv", PutioFileType.VIDEO),
+                    item(2, "two.mkv", PutioFileType.VIDEO),
+                ),
+                SearchPaging.Complete,
+            ),
             query = "t",
         )
         compose.onNodeWithContentDescription("Open two.mkv").assertIsFocused()
@@ -245,7 +275,11 @@ class TvSearchScreenTest {
     fun aLastPageLandingAfterLeavingLoadMoreDoesNotStealFocus() {
         var state by mutableStateOf(
             searchState(
-                SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO)), SearchPaging.Available(FilesCursor("c1"))),
+                SearchContent.Ready(
+                    SearchTerm("t"),
+                    listOf(item(1, "one.mkv", PutioFileType.VIDEO)),
+                    SearchPaging.Available(FilesCursor("c1")),
+                ),
                 query = "t",
             ),
         )
@@ -264,7 +298,11 @@ class TvSearchScreenTest {
             keyUp(Key.DirectionCenter)
         }
         state = searchState(
-            SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO)), SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2))),
+            SearchContent.Ready(
+                SearchTerm("t"),
+                listOf(item(1, "one.mkv", PutioFileType.VIDEO)),
+                SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)),
+            ),
             query = "t",
         )
         compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused().performKeyInput {
@@ -274,7 +312,14 @@ class TvSearchScreenTest {
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
 
         state = searchState(
-            SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO), item(2, "two.mkv", PutioFileType.VIDEO)), SearchPaging.Complete),
+            SearchContent.Ready(
+                SearchTerm("t"),
+                listOf(
+                    item(1, "one.mkv", PutioFileType.VIDEO),
+                    item(2, "two.mkv", PutioFileType.VIDEO),
+                ),
+                SearchPaging.Complete,
+            ),
             query = "t",
         )
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
@@ -427,7 +472,10 @@ class TvSearchScreenTest {
     fun theLastPageLandingOffScreenStillHandsFocusToTheLastRow() {
         val page = (1..12).map { item(it.toLong(), "row-$it.mkv", PutioFileType.VIDEO) }
         var state by mutableStateOf(
-            searchState(SearchContent.Ready(SearchTerm("r"), page, SearchPaging.Available(FilesCursor("c1"))), query = "r"),
+            searchState(
+                SearchContent.Ready(SearchTerm("r"), page, SearchPaging.Available(FilesCursor("c1"))),
+                query = "r",
+            ),
         )
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {

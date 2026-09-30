@@ -485,10 +485,12 @@ internal fun SignedInMobileRoot(
             ?: navigationFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
 
     AuthoritativeSessionFailureEffect(
-        shouldReject = trashState.authenticationFailure != null || authoritativeFailure != null || settingsRequireSessionRejection(
-            accountSettingsState = accountSettingsState,
-            appConfigState = appConfigState,
-        ),
+        shouldReject = trashState.authenticationFailure != null ||
+            authoritativeFailure != null ||
+            settingsRequireSessionRejection(
+                accountSettingsState = accountSettingsState,
+                appConfigState = appConfigState,
+            ),
         onReject = authController::rejectAuthoritativeSession,
     )
 
@@ -656,7 +658,12 @@ internal fun MobileShell(
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
     val incomingDraft by transferDraft.state.collectAsStateWithLifecycle()
     val nowPlayingPending by nowPlayingRequests.pending.collectAsStateWithLifecycle()
-    LaunchedEffect(transferDraft, transfersSessionId, transfersState.mutation, transfersState.lastSuccessfulAddRequestId) {
+    LaunchedEffect(
+        transferDraft,
+        transfersSessionId,
+        transfersState.mutation,
+        transfersState.lastSuccessfulAddRequestId,
+    ) {
         transferDraft.reconcileSession(transfersSessionId)
         transferDraft.reconcileTransfers(transfersState)
     }
@@ -725,7 +732,8 @@ internal fun MobileShell(
         knownDefaultSort = confirmedDefaultSort
     }
     LaunchedEffect(selectedDestination, isTrash, filesState.current.folder.id,
-        filesState.current.needsReload, filesState.current.operation, filesState.current.content is FilesContent.Loading) {
+        filesState.current.needsReload, filesState.current.operation,
+        filesState.current.content is FilesContent.Loading) {
         if (selectedDestination == MobileDestination.Files && !isTrash && filesState.current.needsReload) {
             onFilesEvent(FilesBrowserEvent.ReloadIfStale)
         }
@@ -1035,7 +1043,8 @@ private fun PhoneShell(
                 openNavigation = openNavigation,
                 destination = selectedDestination,
                 isTrash = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_TRASH_ROUTE,
-                isDownloads = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_DOWNLOADS_ROUTE,
+                isDownloads = navController.currentBackStackEntryAsState().value?.destination?.route ==
+                    MOBILE_DOWNLOADS_ROUTE,
                 onTrashBack = { navController.popBackStack() },
                 filesState = filesState,
                 onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },
@@ -1146,8 +1155,10 @@ private fun TabletShell(
             topBar = {
                 MobileTopBar(
                     destination = selectedDestination,
-                    isTrash = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_TRASH_ROUTE,
-                    isDownloads = navController.currentBackStackEntryAsState().value?.destination?.route == MOBILE_DOWNLOADS_ROUTE,
+                    isTrash = navController.currentBackStackEntryAsState().value?.destination?.route ==
+                        MOBILE_TRASH_ROUTE,
+                    isDownloads = navController.currentBackStackEntryAsState().value?.destination?.route ==
+                        MOBILE_DOWNLOADS_ROUTE,
                     onTrashBack = { navController.popBackStack() },
                     filesState = filesState,
                     onFilesBack = { onFilesEvent(FilesBrowserEvent.NavigateBack) },

@@ -159,7 +159,9 @@ internal fun TvFilesScreen(
     // event use it. A setting that changes underneath, or an operation the folder starts on
     // its own (a reload after a restore), closes the confirmation rather than offering a
     // Delete the reducer would refuse.
-    var confirmingDeleteTrash by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Boolean?>(null) }
+    var confirmingDeleteTrash by rememberSaveable(sessionKey, current.folder.id.value) {
+        mutableStateOf<Boolean?>(null)
+    }
     val actionsItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == actionsFor }
     val actionsOrphaned = actionsFor != null && actionsItem == null
     val confirmationStale = confirmingDeleteTrash != null &&
@@ -288,7 +290,11 @@ internal fun TvFilesScreen(
         } else {
             TvFilesActionsDialog(
                 item = actionsItem,
-                actions = actionsItem.tvActions(watchedToggleEnabled, confirmedTrashEnabled, current.operation.canStartOperation),
+                actions = actionsItem.tvActions(
+                    watchedToggleEnabled,
+                    confirmedTrashEnabled,
+                    current.operation.canStartOperation,
+                ),
                 onAction = { action ->
                     when (action) {
                         TvFilesAction.OpenInVlc -> {
@@ -324,7 +330,11 @@ private fun TvFilesDeleteStatus(
             text = stringResource(
                 when (operation.phase) {
                     FilesFolderOperationPhase.DELETING ->
-                        if (intent.mode == FilesDeleteMode.TRASH) R.string.tv_files_deleting else R.string.tv_files_deleting_permanently
+                        if (intent.mode == FilesDeleteMode.TRASH) {
+                            R.string.tv_files_deleting
+                        } else {
+                            R.string.tv_files_deleting_permanently
+                        }
                     FilesFolderOperationPhase.CHECKING_DELETE -> R.string.tv_files_delete_checking
                     else -> R.string.tv_files_delete_reloading
                 },
@@ -339,7 +349,11 @@ private fun TvFilesDeleteStatus(
                 },
             ),
             action = stringResource(
-                if (operation.phase == FilesFolderOperationPhase.RELOADING) R.string.tv_files_retry else R.string.tv_files_check_status,
+                if (operation.phase == FilesFolderOperationPhase.RELOADING) {
+                    R.string.tv_files_retry
+                } else {
+                    R.string.tv_files_check_status
+                },
             ),
             onAction = { onEvent(FilesBrowserEvent.Retry) },
         )

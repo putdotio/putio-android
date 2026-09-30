@@ -24,7 +24,10 @@ class MobileDownloadStoreTest {
         val store = MobileDownloadStore(preferences, "user-1", Dispatchers.Unconfined)
         val completed = entry(1L, DownloadStatus.Completed(4_096L)).copy(accepted = true)
         val failed = entry(
-            2L, DownloadStatus.Failed(DownloadFailureReason.STORAGE, 12L), PutioFileType.AUDIO, DownloadArtifact.ORIGINAL,
+            2L,
+            DownloadStatus.Failed(DownloadFailureReason.STORAGE, 12L),
+            PutioFileType.AUDIO,
+            DownloadArtifact.ORIGINAL,
         )
         val running = entry(3L, DownloadStatus.Downloading(50L, 100L))
         store.upsert(completed)

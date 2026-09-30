@@ -118,7 +118,8 @@ internal fun MobileFilesScreen(
         is FilesContent.Ready,
         -> key(current.folder.id.value) {
             MobileRefreshableFilesContent(
-                state, content, onEvent, onPlayMedia, modifier, confirmedTrashEnabled, onMoveItem, downloads, onDownloadItem,
+                state, content, onEvent, onPlayMedia, modifier, confirmedTrashEnabled, onMoveItem, downloads,
+                onDownloadItem,
                 onShareItem,
             )
         }
@@ -601,7 +602,11 @@ private fun MobileFilesDownloadIndicator(status: DownloadStatus) {
             ),
             contentDescription = null,
             modifier = Modifier.size(FILES_BADGE_ICON_SIZE),
-            tint = if (status is DownloadStatus.Failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            tint = if (status is DownloadStatus.Failed) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
         )
         Text(label, style = MaterialTheme.typography.labelMedium)
     }

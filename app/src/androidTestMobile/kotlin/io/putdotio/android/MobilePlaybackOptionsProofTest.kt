@@ -194,7 +194,7 @@ class MobilePlaybackOptionsProofTest {
         openSpeedOptions()
         val choice = compose.onNodeWithText("1.25×")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        for (step in 0 until 8) {
+        for (ignored in 0 until 8) {
             if (choice.fetchSemanticsNode().config.getOrElse(SemanticsProperties.Focused) { false }) break
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_DPAD_DOWN)
             compose.waitForIdle()

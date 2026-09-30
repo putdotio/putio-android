@@ -58,7 +58,10 @@ class AuthenticatedFilesDeleteTest {
         val runtime = MobileOAuthRuntime.get(InstrumentationRegistry.getInstrumentation().targetContext)
         compose.waitUntil(TIMEOUT) {
             when (runtime.authController.state.value) {
-                MobileAuthState.Initializing, MobileAuthState.RestoringSession, is MobileAuthState.ValidatingSession -> false
+                MobileAuthState.Initializing,
+                MobileAuthState.RestoringSession,
+                is MobileAuthState.ValidatingSession,
+                -> false
                 else -> true
             }
         }
@@ -76,7 +79,10 @@ class AuthenticatedFilesDeleteTest {
                 .singleOrNull()?.id == fixture.containerId)
             val children = runtime.putioClient.files.list(fixture.containerId, FilesListQuery(perPage = 50))
             check(children.cursor.isNullOrBlank() && children.files.size == 2)
-            for ((id, name) in listOf(fixture.actionItemId to fixture.actionName, fixture.cancelItemId to fixture.cancelName)) {
+            for ((id, name) in listOf(
+                fixture.actionItemId to fixture.actionName,
+                fixture.cancelItemId to fixture.cancelName,
+            )) {
                 val item = runtime.putioClient.files.get(id)
                 check(item.id == id && item.name == name && item.parentId == fixture.containerId &&
                     item.fileType == PutioFileType.FOLDER)
@@ -97,7 +103,11 @@ class AuthenticatedFilesDeleteTest {
         confirmOrCancel(fixture, fixture.cancelName, cancel = true)
         apiCheck("cancel readback") {
             val item = runtime.putioClient.files.get(fixture.cancelItemId)
-            check(item.id == fixture.cancelItemId && item.name == fixture.cancelName && item.parentId == fixture.containerId)
+            check(
+                item.id == fixture.cancelItemId &&
+                    item.name == fixture.cancelName &&
+                    item.parentId == fixture.containerId,
+            )
             check(!inTrash(runtime, fixture.cancelItemId))
             check(runtime.putioClient.account.getSettings().trashEnabled == fixture.expectedTrashEnabled)
         }
@@ -153,12 +163,20 @@ class AuthenticatedFilesDeleteTest {
 
     private fun confirmOrCancel(fixture: DeleteProofFixture, name: String, cancel: Boolean) {
         if (cancel) compose.onNode(row(MOBILE_FILES_LIST_TAG, name)).performTouchInput { longClick() }
-        else compose.onNodeWithContentDescription(compose.activity.getString(R.string.mobile_files_actions, name)).performClick()
+        else compose.onNodeWithContentDescription(
+            compose.activity.getString(R.string.mobile_files_actions, name),
+        ).performClick()
         val action = if (fixture.expectedTrashEnabled) R.string.mobile_files_trash else R.string.mobile_files_delete
         waitFor(hasText(compose.activity.getString(action)))
         compose.onNodeWithText(compose.activity.getString(action)).performClick()
         val message = compose.activity.getString(
-            if (fixture.expectedTrashEnabled) R.string.mobile_files_trash_confirmation else R.string.mobile_files_delete_confirmation, name)
+            if (fixture.expectedTrashEnabled) {
+                R.string.mobile_files_trash_confirmation
+            } else {
+                R.string.mobile_files_delete_confirmation
+            },
+            name,
+        )
         waitFor(hasText(message))
         deleteProofScreenshot(if (cancel) "cancel-confirmation" else "action-confirmation")
         compose.onNodeWithText(compose.activity.getString(
@@ -196,7 +214,11 @@ class AuthenticatedFilesDeleteTest {
 
     private fun requireSession(runtime: MobileOAuthRuntime, session: MobileAuthState.SignedIn) {
         val current = runtime.authController.state.value as? MobileAuthState.SignedIn
-        check(current != null && current.sessionId == session.sessionId && current.account.userId == session.account.userId)
+        check(
+            current != null &&
+                current.sessionId == session.sessionId &&
+                current.account.userId == session.account.userId,
+        )
     }
 
     private fun apiCheck(stage: String, block: suspend () -> Unit) {
@@ -215,6 +237,8 @@ internal fun deleteProofScreenshot(label: String) {
     check(directory.mkdirs() || directory.isDirectory)
     instrumentation.uiAutomation.waitForIdle(100, 3_000)
     val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-    try { File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
+    try {
+        File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+    }
     finally { bitmap.recycle() }
 }

@@ -99,7 +99,11 @@ class MobileFilesScreenTest {
         val restoration = StateRestorationTester(compose)
         restoration.setContent {
             PutioTheme {
-                MobileFilesScreen(state, onEvent = { state = FilesBrowserReducer.reduce(state, it).state }, onPlayMedia = {})
+                MobileFilesScreen(
+                    state,
+                    onEvent = { state = FilesBrowserReducer.reduce(state, it).state },
+                    onPlayMedia = {},
+                )
             }
         }
         compose.onNodeWithContentDescription("Actions for root").assertDoesNotExist()
@@ -186,7 +190,10 @@ class MobileFilesScreenTest {
                     val effect = transition.effect
                     if (effect is FilesBrowserEffect.Rename) {
                         renamed += effect
-                        val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.MutationSucceeded(effect.requestId))
+                        val reload = FilesBrowserReducer.reduce(
+                            state,
+                            FilesBrowserEvent.MutationSucceeded(effect.requestId),
+                        )
                         state = FilesBrowserReducer.reduce(reload.state, FilesBrowserEvent.LoadSucceeded(
                             checkNotNull(reload.effect).requestId,
                             FilesPage(listOf(original.copy(name = effect.name)), null),
@@ -202,7 +209,9 @@ class MobileFilesScreenTest {
         compose.runOnIdle { assertTrue(renamed.isEmpty()) }
         compose.onNodeWithText("folder").assertIsDisplayed().performTouchInput { longClick() }
         compose.onNodeWithText("Rename").performClick()
-        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).assertTextContains("folder").performTextReplacement("renamed folder")
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG)
+            .assertTextContains("folder")
+            .performTextReplacement("renamed folder")
         compose.onNodeWithText("Save").performClick()
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).assertDoesNotExist()
         compose.onNodeWithText("renamed folder").assertIsDisplayed()
@@ -708,8 +717,10 @@ class MobileFilesScreenTest {
 
     @Test
     fun watchedMediaMergesTheLabelIntoTheRowAndKeepsTheBarDecorative() {
-        val partly = filesItem(1L, "partly.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(90.0, 360.0))
-        val unknown = filesItem(2L, "unknown.mp3", PutioFileType.AUDIO).copy(playback = FilesPlaybackProgress(5.0, null))
+        val partly = filesItem(1L, "partly.mkv", PutioFileType.VIDEO)
+            .copy(playback = FilesPlaybackProgress(90.0, 360.0))
+        val unknown = filesItem(2L, "unknown.mp3", PutioFileType.AUDIO)
+            .copy(playback = FilesPlaybackProgress(5.0, null))
         val fresh = filesItem(3L, "fresh.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 100.0))
         val plain = filesItem(4L, "plain.txt")
         val state = browserState(FilesContent.Ready(listOf(partly, unknown, fresh, plain), FilesPaging.Complete))

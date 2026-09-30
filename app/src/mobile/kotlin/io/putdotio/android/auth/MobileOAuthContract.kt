@@ -39,7 +39,8 @@ internal sealed interface MobileOAuthConfiguration {
                     Unavailable(OAuthConfigurationProblem.InvalidClientId)
                 override == null && numericClientId in FORBIDDEN_TV_CLIENT_IDS ->
                     Unavailable(OAuthConfigurationProblem.ForbiddenTvClientId)
-                effectiveClientId != numericClientId.toString() -> Unavailable(OAuthConfigurationProblem.InvalidClientId)
+                effectiveClientId != numericClientId.toString() ->
+                    Unavailable(OAuthConfigurationProblem.InvalidClientId)
                 else -> Configured(effectiveClientId)
             }
         }

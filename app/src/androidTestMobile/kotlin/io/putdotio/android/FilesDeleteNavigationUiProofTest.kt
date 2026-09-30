@@ -182,9 +182,16 @@ private class DeleteNavigationPreview {
     val session = MobileAuthSessionId(42)
     val item = FilesItem(FilesItemId(13), FilesItemId(12), "A Action été", PutioFileType.FOLDER, 0, "2026-09-06")
     val resolved = item.copy(id = FilesItemId(19), parentId = FilesFolder.Root.id, name = "Resolved folder")
-    private val source = item.copy(id = FilesItemId(12), parentId = FilesFolder.Root.id, name = "Delete recovery preview")
-    val settings = AccountSettingsState(AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
-        AccountSettingsMutation.Idle, 1)
+    private val source = item.copy(
+        id = FilesItemId(12),
+        parentId = FilesFolder.Root.id,
+        name = "Delete recovery preview",
+    )
+    val settings = AccountSettingsState(
+        AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
+        AccountSettingsMutation.Idle,
+        1,
+    )
     val appConfig = AndroidAppConfigState(AndroidAppConfigContent.Ready(AndroidAppConfigPreferences()),
         AndroidAppConfigMutation.Idle, 1)
     val deliveries = Channel<FilesItem>(Channel.UNLIMITED)

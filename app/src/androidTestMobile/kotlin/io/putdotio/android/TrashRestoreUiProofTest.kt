@@ -99,7 +99,10 @@ class TrashRestoreUiProofTest {
         await { (controller.state.value.content as? TrashContent.Loaded)?.pageFailure != null }
         text(R.string.mobile_action_retry).performClick()
         // First-seen ID wins; continuation aggregates are absent. Repeated cursor must terminate.
-        repository.completeList(4, TrashPage(listOf(repository.item.copy(name = "Stale duplicate")), FilesCursor("page-a")))
+        repository.completeList(
+            4,
+            TrashPage(listOf(repository.item.copy(name = "Stale duplicate")), FilesCursor("page-a")),
+        )
         await { (controller.state.value.content as? TrashContent.Loaded)?.nextCursor == null }
         val loaded = controller.state.value.content as TrashContent.Loaded
         assertEquals(listOf(repository.item), loaded.items)
@@ -199,7 +202,9 @@ class TrashRestoreUiProofTest {
         compose.waitUntil(10_000) { compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).isDisplayed() }
         compose.onNode(hasText("Account") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
         for (tab in listOf("Account", "Files")) {
-            compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick().assertIsSelected()
+            compose.onNode(hasText(tab) and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG)))
+                .performClick()
+                .assertIsSelected()
             pressBackWithPendingRestore(controller)
             try {
                 if (tab == "Account") {
@@ -236,7 +241,9 @@ class TrashRestoreUiProofTest {
     }
     private fun select(item: TrashItem) {
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
-        compose.onNodeWithContentDescription(context.getString(R.string.mobile_trash_actions_named, item.name)).performClick()
+        compose.onNodeWithContentDescription(
+            context.getString(R.string.mobile_trash_actions_named, item.name),
+        ).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performClick()
     }
     private fun loadMore() = text(R.string.mobile_files_load_more).performClick()
@@ -298,7 +305,9 @@ private class TrashRestoreControlledRepository(private val awaitRequest: (() -> 
     }
     fun failList(index: Int) {
         awaitRequest { lists.size > index }
-        lists[index].complete(FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("Synthetic offline"))))
+        lists[index].complete(
+            FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("Synthetic offline"))),
+        )
     }
     fun completeCheck(index: Int, result: FilesRepositoryResult<FilesItem>) {
         awaitRequest { checks.size > index }

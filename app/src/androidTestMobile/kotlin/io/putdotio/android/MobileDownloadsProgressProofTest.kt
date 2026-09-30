@@ -103,7 +103,10 @@ class MobileDownloadsProgressProofTest {
     fun rowAdvancesWhileTheScreenIsShown() {
         check(workDirectory.mkdirs() || workDirectory.isDirectory)
         val source = File(workDirectory, "source.mp4").apply { writeBytes(Random(SEED).nextBytes(SOURCE_BYTES)) }
-        val store = MobileDownloadStore(context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE), "user-$USER_ID")
+        val store = MobileDownloadStore(
+            context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE),
+            "user-$USER_ID",
+        )
         runBlocking {
             store.upsert(DownloadEntry(FILE_ID, FILE_NAME, PutioFileType.VIDEO, DownloadArtifact.ORIGINAL,
                 DownloadStatus.Queued, createdAt = 1L, accepted = true))
@@ -196,7 +199,8 @@ class MobileDownloadsProgressProofTest {
     private class ThrottledFileSource : DataSource {
         private val file = FileDataSource()
 
-        override fun addTransferListener(transferListener: TransferListener) = file.addTransferListener(transferListener)
+        override fun addTransferListener(transferListener: TransferListener) =
+            file.addTransferListener(transferListener)
 
         override fun open(dataSpec: DataSpec): Long = file.open(dataSpec)
 
