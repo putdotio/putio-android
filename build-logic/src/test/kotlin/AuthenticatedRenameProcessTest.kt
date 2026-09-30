@@ -20,9 +20,12 @@ class AuthenticatedRenameProcessTest {
     @get:Rule val temporaryFolder = TemporaryFolder()
 
     companion object {
+        @get:ClassRule @JvmStatic val suiteFolder = TemporaryFolder()
+
         // Nested builds share one daemon JVM whose java.io.tmpdir is this folder, so the task's
         // default lock never touches the host temp that real proofs use to serialize a serial.
-        @get:ClassRule @JvmStatic val isolatedTemp = TemporaryFolder()
+        // The space keeps the quoted jvmargs honest for temp roots that contain one.
+        private val isolatedTemp by lazy { File(suiteFolder.root, "nested proof tmp").apply { check(mkdirs()) } }
 
         // A serial no real emulator uses, so a host temp lock for it can only come from this suite.
         private val SERIAL = "emulator-9" + ProcessHandle.current().pid() + System.nanoTime() % 100_000
@@ -57,7 +60,7 @@ class AuthenticatedRenameProcessTest {
     @Test
     fun heldFallbackLockInTheIsolatedTempRejectsAConcurrentProof() {
         val fixture = fixture("assertion")
-        withLock(File(isolatedTemp.root, "putio-rename-proof-$SERIAL.lock")) {
+        withLock(File(isolatedTemp, "putio-rename-proof-$SERIAL.lock")) {
             val output = runFailure(fixture)
             assertTrue(output, output.contains("Another rename proof owns this serial"))
             assertFalse(File(fixture, "state/commands").exists())
@@ -67,7 +70,7 @@ class AuthenticatedRenameProcessTest {
     @Test
     fun fallbackLockLandsInTheIsolatedTemp() {
         runFailure(fixture("assertion"))
-        assertTrue(File(isolatedTemp.root, "putio-rename-proof-$SERIAL.lock").isFile)
+        assertTrue(File(isolatedTemp, "putio-rename-proof-$SERIAL.lock").isFile)
     }
 
     // Every test, including the nested builds it starts, must leave the real host temp untouched.
@@ -466,7 +469,7 @@ class AuthenticatedRenameProcessTest {
         File(root, "state/mode").writeText(mode)
         File(root, "state/serial").writeText(SERIAL)
         File(root, "gradle.properties").writeText(
-            "org.gradle.jvmargs=-Xmx512m -Djava.io.tmpdir=" + isolatedTemp.root.path.replace("\\", "/") + "\n")
+            "org.gradle.jvmargs=-Xmx512m \"-Djava.io.tmpdir=" + isolatedTemp.path.replace("\\", "/") + "\"\n")
         File(root, "settings.gradle").writeText("rootProject.name = 'rename-process-proof'\n")
         val source = requireNotNull(javaClass.getResource("/rename-proof-command.sh")).readText()
         for (path in listOf("bin/putio", "sdk/platform-tools/adb", "sdk/cmdline-tools/latest/bin/apkanalyzer")) {

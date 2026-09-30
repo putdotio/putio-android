@@ -82,6 +82,7 @@ export FAKE_STATE_DIR="${state}"
 # Console port probing must see only fake state, never emulators on this host.
 export PATH="${tmpdir}/bin:${PATH}"
 : > "${state}/listening-ports"
+printf '5554\n' > "${state}/port"
 
 cat > "${tmpdir}/bin/lsof" <<'EOF'
 #!/usr/bin/env bash
@@ -99,14 +100,20 @@ cat > "${fake_sdk}/platform-tools/adb" <<'EOF'
 set -euo pipefail
 state="${FAKE_STATE_DIR:?}"
 printf '%s\n' "$*" >> "${state}/adb-calls"
+# The one fake emulator answers only on the console port it was launched with.
+serial="emulator-$(<"${state}/port")"
 
 if [[ "$*" == "devices" ]]; then
   echo "List of devices attached"
   case "$(<"${state}/running")" in
-    1) printf 'emulator-5554\tdevice\n' ;;
-    offline) printf 'emulator-5554\toffline\n' ;;
+    1) printf '%s\tdevice\n' "${serial}" ;;
+    offline) printf '%s\toffline\n' "${serial}" ;;
   esac
   exit 0
+fi
+if [[ "${1:-}" == "-s" && "${2:-}" != "${serial}" ]]; then
+  echo "adb: device '${2:-}' not found" >&2
+  exit 1
 fi
 
 case "$*" in
@@ -256,6 +263,7 @@ reset_avd() {
   mkdir -p "${state}/avds/${name}"
   printf '%s\n' "${name}" > "${state}/name"
   printf '%s\n' "${running}" > "${state}/running"
+  printf '5554\n' > "${state}/port"
   printf 'image.sysdir.1=%s/\n' "$(tr ';' '/' <<<"${image}")" > "${state}/avds/${name}/config.ini"
   : > "${state}/avd-operations"
   : > "${state}/adb-calls"
@@ -653,5 +661,6 @@ google_tv_serial="$(PUTIO_EMULATOR_BOOT_TIMEOUT=10 "${REPO_ROOT}/scripts/emulato
 [[ "${google_tv_serial}" == "emulator-5556" && "$(<"${state}/port")" == "5556" ]] || \
   fail "busy console port 5554 was not skipped (printed '${google_tv_serial}')"
 "${REPO_ROOT}/scripts/emulator.sh" stop google-tv >/dev/null 2>&1 || fail "could not stop the Google TV emulator"
+[[ "$(<"${state}/running")" == "0" ]] || fail "Google TV stop missed the emulator on port 5556"
 
 echo "emulator contract tests passed"
