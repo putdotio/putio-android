@@ -120,6 +120,47 @@ class TransfersReducerTest {
     }
 
     @Test
+    fun retryReportsAcceptanceOnceUntilTheScreenDismissesIt() {
+        val loaded =
+            TransfersReducer.start().complete(TransfersPage(listOf(item(2L, AppTransferStatus.Failed)), null))
+        val retrying = TransfersReducer.reduce(loaded, TransfersEvent.RetryTransfer(TransferId(2L)))
+        val request = retrying.effect as TransfersEffect.Mutate
+        assertNull(retrying.state.retryOutcome)
+
+        val retried =
+            TransfersReducer.reduce(
+                retrying.state,
+                TransfersEvent.MutationSucceeded(request.requestId, item(2L, AppTransferStatus.Queued)),
+            ).state
+
+        assertEquals(TransferRetryOutcome.Accepted(request.requestId), retried.retryOutcome)
+        assertFalse(
+            TransfersReducer.reduce(retried, TransfersEvent.DismissRetryOutcome(TransfersRequestId(99L))).consumed,
+        )
+        assertNull(
+            TransfersReducer.reduce(retried, TransfersEvent.DismissRetryOutcome(request.requestId)).state.retryOutcome,
+        )
+    }
+
+    @Test
+    fun failedRetryIsReportedWithoutLeavingABlockingMutationFailure() {
+        val row = item(2L, AppTransferStatus.Failed)
+        val loaded = TransfersReducer.start().complete(TransfersPage(listOf(row), null))
+        val retrying = TransfersReducer.reduce(loaded, TransfersEvent.RetryTransfer(row.id))
+        val request = retrying.effect as TransfersEffect.Mutate
+        val failure = failure()
+
+        val failed =
+            TransfersReducer.reduce(retrying.state, TransfersEvent.MutationFailed(request.requestId, failure)).state
+
+        assertEquals(TransferMutation.Idle, failed.mutation)
+        assertEquals(TransferRetryOutcome.Failed(request.requestId, failure), failed.retryOutcome)
+        assertEquals(listOf(row), (failed.content as TransfersContent.Ready).items)
+        val again = TransfersReducer.reduce(failed, TransfersEvent.RetryTransfer(row.id))
+        assertTrue(again.effect is TransfersEffect.Mutate)
+    }
+
+    @Test
     fun transferSubmissionsAreValidatedAtTheDomainBoundary() {
         val loaded = TransfersReducer.start().complete(TransfersPage(emptyList(), null))
 
@@ -588,7 +629,7 @@ class TransfersReducerTest {
         uploadSpeedBytesPerSecond = 1.0,
         estimatedSecondsRemaining = 30.0,
         availability = 1.0,
-        hasError = status == AppTransferStatus.Failed,
+        errorMessage = null,
         createdAt = "2026-08-30T00:00:00Z",
         userFileExists = userFileExists,
     )

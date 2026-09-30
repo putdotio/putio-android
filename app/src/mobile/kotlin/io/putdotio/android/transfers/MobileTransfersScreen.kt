@@ -71,6 +71,7 @@ import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
+import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.mobileMessageResource
 import java.text.NumberFormat
 
@@ -96,11 +97,23 @@ internal fun MobileTransfersScreen(
     val addedMessage = stringResource(R.string.mobile_transfers_added)
     // The successful add id changes once per accepted submission; the first value is history, not news.
     var announcedAdd by remember(sessionId) { mutableStateOf(state.lastSuccessfulAddRequestId) }
+    // Newest news replaces a visible snackbar instead of queueing behind it, where leaving the screen would drop it.
     LaunchedEffect(state.lastSuccessfulAddRequestId) {
         val added = state.lastSuccessfulAddRequestId
         if (added != null && added != announcedAdd) {
             announcedAdd = added
+            snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(addedMessage)
+        }
+    }
+    val retryMessage = state.retryOutcome?.let { retryOutcomeMessage(it) }
+    LaunchedEffect(state.retryOutcome) {
+        val outcome = state.retryOutcome ?: return@LaunchedEffect
+        snackbarHostState.currentSnackbarData?.dismiss()
+        try {
+            snackbarHostState.showSnackbar(requireNotNull(retryMessage))
+        } finally {
+            onEvent(TransfersEvent.DismissRetryOutcome(outcome.requestId))
         }
     }
 
@@ -338,9 +351,12 @@ private fun MobileTransferDetails(item: TransferItem, context: Context) {
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        if (item.hasError) {
+        val error =
+            item.errorMessage
+                ?: stringResource(R.string.mobile_transfer_error).takeIf { item.status == AppTransferStatus.Failed }
+        if (error != null) {
             Text(
-                text = stringResource(R.string.mobile_transfer_error),
+                text = error,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -377,7 +393,7 @@ private fun MobileTransferRowActions(
         AppTransferStatus.Failed -> {
             val retryLabel = stringResource(R.string.mobile_transfers_retry_named, item.name)
             TextButton(
-                onClick = { onConfirmation(TransferConfirmation.Retry(item.id, item.name)) },
+                onClick = { onEvent(TransfersEvent.RetryTransfer(item.id)) },
                 enabled = actionsEnabled,
                 modifier = Modifier.semantics { contentDescription = retryLabel },
             ) {
@@ -660,20 +676,17 @@ private fun MobileTransferConfirmation(
     val title =
         when (confirmation) {
             is TransferConfirmation.Cancel -> stringResource(R.string.mobile_transfers_cancel_title)
-            is TransferConfirmation.Retry -> stringResource(R.string.mobile_transfers_retry_title)
             is TransferConfirmation.Clean -> stringResource(R.string.mobile_transfers_clean_title)
         }
     val message =
         when (confirmation) {
             is TransferConfirmation.Cancel ->
                 stringResource(R.string.mobile_transfers_cancel_message, confirmation.name)
-            is TransferConfirmation.Retry -> stringResource(R.string.mobile_transfers_retry_message, confirmation.name)
             is TransferConfirmation.Clean -> stringResource(R.string.mobile_transfers_clean_message)
         }
     val action =
         when (confirmation) {
             is TransferConfirmation.Cancel -> stringResource(R.string.mobile_transfers_cancel_confirm)
-            is TransferConfirmation.Retry -> stringResource(R.string.mobile_action_retry)
             is TransferConfirmation.Clean -> stringResource(R.string.mobile_transfers_clean_confirm)
         }
     AlertDialog(
@@ -686,6 +699,24 @@ private fun MobileTransferConfirmation(
         },
     )
 }
+
+@Composable
+private fun retryOutcomeMessage(outcome: TransferRetryOutcome): String =
+    when (outcome) {
+        is TransferRetryOutcome.Accepted -> stringResource(R.string.mobile_transfers_retry_accepted)
+        is TransferRetryOutcome.Failed ->
+            stringResource(
+                R.string.mobile_transfers_retry_failed,
+                stringResource(
+                    // put.io answers 403 when the transfer has no error left to retry.
+                    if (outcome.failure is FilesFailure.AccessDenied) {
+                        R.string.mobile_transfers_retry_not_failed
+                    } else {
+                        outcome.failure.mobileMessageResource()
+                    },
+                ),
+            )
+    }
 
 @Composable
 private fun TransferItem.statusLabel(): String =
@@ -756,10 +787,6 @@ private sealed interface TransferConfirmation {
 
     data class Cancel(val id: TransferId, val name: String) : TransferConfirmation {
         override val event = TransfersEvent.Cancel(id)
-    }
-
-    data class Retry(val id: TransferId, val name: String) : TransferConfirmation {
-        override val event = TransfersEvent.RetryTransfer(id)
     }
 
     data object Clean : TransferConfirmation {

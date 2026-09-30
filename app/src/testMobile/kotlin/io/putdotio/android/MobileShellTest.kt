@@ -2347,7 +2347,7 @@ private fun shellOpenableTransferState(): TransfersState = TransfersState(
         id = TransferId(7L), name = "Completed transfer", status = AppTransferStatus.Completed,
         fileId = TransferFileId(7L), sizeBytes = 1.0, percentDone = 100.0,
         downloadSpeedBytesPerSecond = null, uploadSpeedBytesPerSecond = null,
-        estimatedSecondsRemaining = null, availability = null, hasError = false,
+        estimatedSecondsRemaining = null, availability = null, errorMessage = null,
         createdAt = "2026-09-06", userFileExists = true,
     )), TransfersPaging.Complete),
 )

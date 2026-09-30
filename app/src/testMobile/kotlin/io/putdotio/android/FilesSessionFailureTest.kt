@@ -22,12 +22,28 @@ import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.authoritativeSessionFailure
+import io.putdotio.android.transfers.TransferRetryOutcome
+import io.putdotio.android.transfers.TransfersContent
+import io.putdotio.android.transfers.TransfersRequestId
+import io.putdotio.android.transfers.TransfersState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 
 class FilesSessionFailureTest {
+    @Test
+    fun `a retry rejected for the session expires it`() {
+        val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val state =
+            TransfersState(
+                content = TransfersContent.Empty,
+                retryOutcome = TransferRetryOutcome.Failed(TransfersRequestId(2L), failure),
+            )
+
+        assertSame(failure, state.authoritativeSessionFailure())
+    }
+
     @Test
     fun `authoritative failure in a hidden parent still expires the session`() {
         val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))

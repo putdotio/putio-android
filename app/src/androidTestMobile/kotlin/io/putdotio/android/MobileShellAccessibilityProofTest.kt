@@ -413,7 +413,7 @@ class MobileShellAccessibilityProofTest {
         id = TransferId(147), name = TRANSFER_NAME, status = AppTransferStatus.Downloading,
         fileId = null, sizeBytes = 128_000_000.0, percentDone = 42.0,
         downloadSpeedBytesPerSecond = 1_000_000.0, uploadSpeedBytesPerSecond = null,
-        estimatedSecondsRemaining = 74.0, availability = null, hasError = false,
+        estimatedSecondsRemaining = 74.0, availability = null, errorMessage = null,
         createdAt = "2026-09-08T12:00:00Z", userFileExists = null,
     )), TransfersPaging.Complete))
 }

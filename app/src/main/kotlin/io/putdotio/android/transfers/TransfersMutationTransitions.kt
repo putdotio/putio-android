@@ -77,6 +77,12 @@ internal fun TransfersState.mutationSucceeded(
                 lastSuccessfulAddRequestId =
                     if (running.action is TransferAction.Add) event.requestId else lastSuccessfulAddRequestId,
                 firstPageIds = updatedFirstPageIds,
+                retryOutcome =
+                    if (running.action is TransferAction.Retry) {
+                        TransferRetryOutcome.Accepted(event.requestId)
+                    } else {
+                        retryOutcome
+                    },
             )
         if (content is TransfersContent.Failed && running.action is TransferAction.Add) {
             val reloadRequestId = TransfersRequestId(nextRequestValue)
@@ -141,10 +147,17 @@ private fun TransfersState.withoutActiveRead(): TransfersState {
 }
 
 internal fun TransfersState.mutationFailed(event: TransfersEvent.MutationFailed): TransfersTransition {
-    val running = mutation as? TransferMutation.Running
-    return if (running?.requestId == event.requestId) {
-        TransfersTransition(copy(mutation = TransferMutation.Failed(running.action, event.failure)))
-    } else {
-        TransfersTransition(this, consumed = false)
-    }
+    val running =
+        (mutation as? TransferMutation.Running)?.takeIf { it.requestId == event.requestId }
+            ?: return TransfersTransition(this, consumed = false)
+    val next =
+        if (running.action is TransferAction.Retry) {
+            copy(
+                mutation = TransferMutation.Idle,
+                retryOutcome = TransferRetryOutcome.Failed(event.requestId, event.failure),
+            )
+        } else {
+            copy(mutation = TransferMutation.Failed(running.action, event.failure))
+        }
+    return TransfersTransition(next)
 }

@@ -77,7 +77,8 @@ data class TransferItem(
     val uploadSpeedBytesPerSecond: Double?,
     val estimatedSecondsRemaining: Double?,
     val availability: Double?,
-    val hasError: Boolean,
+    /** put.io's own failure reason, trimmed; null when the API sends none. */
+    val errorMessage: String?,
     val createdAt: String,
     val userFileExists: Boolean?,
 )

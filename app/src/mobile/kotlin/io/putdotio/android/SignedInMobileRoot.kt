@@ -48,6 +48,7 @@ import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersViewModel
 import io.putdotio.android.transfers.SdkTransfersRepository
 import io.putdotio.android.transfers.TransferMutation
+import io.putdotio.android.transfers.TransferRetryOutcome
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersRefresh
@@ -329,4 +330,5 @@ internal fun TransfersState.authoritativeSessionFailure(): FilesFailure? =
         },
         (refresh as? TransfersRefresh.Failed)?.failure,
         (mutation as? TransferMutation.Failed)?.failure,
+        (retryOutcome as? TransferRetryOutcome.Failed)?.failure,
     ).firstOrNull { it is FilesFailure.AuthenticationRequired }

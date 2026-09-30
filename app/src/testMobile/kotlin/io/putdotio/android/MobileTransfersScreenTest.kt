@@ -35,6 +35,7 @@ import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem
 import io.putdotio.android.transfers.TransferMutation
 import io.putdotio.android.transfers.TransferNavigation
+import io.putdotio.android.transfers.TransferRetryOutcome
 import io.putdotio.android.transfers.TransferSubmission
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
@@ -43,6 +44,7 @@ import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersRefresh
 import io.putdotio.android.transfers.TransfersRequestId
 import io.putdotio.android.transfers.TransfersState
+import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -255,6 +257,95 @@ class MobileTransfersScreenTest {
         compose.onNodeWithText("Stop transfer").performClick()
 
         assertEquals(TransfersEvent.Cancel(item.id), events.last())
+    }
+
+    @Test
+    fun rowsShowTheServerFailureReasonAndFailedRowsFallBackToGenericCopy() {
+        val rows =
+            listOf(
+                transfer(1L, AppTransferStatus.Failed).copy(errorMessage = "Downloading text/html is not allowed."),
+                transfer(2L, AppTransferStatus.Failed),
+                transfer(3L, AppTransferStatus.Waiting).copy(errorMessage = "Tracker did not respond."),
+                transfer(4L, AppTransferStatus.Downloading),
+            )
+        setScreen(state(TransfersContent.Ready(rows, TransfersPaging.Complete)), onEvent = {})
+
+        compose.onNodeWithText("Downloading text/html is not allowed.").assertIsDisplayed()
+        compose.onNodeWithText("Tracker did not respond.").assertIsDisplayed()
+        compose.onAllNodesWithText("This transfer needs attention.").assertCountEquals(1)
+    }
+
+    @Test
+    fun retryRunsAtOnceWithoutAConfirmation() {
+        val events = mutableListOf<TransfersEvent>()
+        val failed = transfer(2L, AppTransferStatus.Failed)
+        setScreen(state(TransfersContent.Ready(listOf(failed), TransfersPaging.Complete)), events::add)
+
+        compose.onNodeWithContentDescription("Retry transfer transfer-2").performClick()
+
+        assertEquals(listOf<TransfersEvent>(TransfersEvent.RetryTransfer(failed.id)), events)
+        compose.onAllNodesWithText("Retry transfer?").assertCountEquals(0)
+    }
+
+    @Test
+    fun retryOutcomesAreReportedInASnackbarAndDismissed() {
+        val events = mutableListOf<TransfersEvent>()
+        val content = TransfersContent.Ready(listOf(transfer(2L, AppTransferStatus.Queued)), TransfersPaging.Complete)
+        var current by mutableStateOf(state(content))
+        setMutableScreen({ current }, events::add)
+
+        compose.runOnIdle {
+            current = current.copy(retryOutcome = TransferRetryOutcome.Accepted(TransfersRequestId(3L)))
+        }
+        compose.onNodeWithText("Retrying transfer").assertIsDisplayed()
+
+        compose.runOnIdle {
+            current =
+                current.copy(
+                    retryOutcome =
+                        TransferRetryOutcome.Failed(
+                            TransfersRequestId(4L),
+                            FilesFailure.AccessDenied(PutioConfigurationException("forbidden")),
+                        ),
+                )
+        }
+        compose.onNodeWithText("Couldn’t retry transfer. It has no error to retry.").assertIsDisplayed()
+        compose.onAllNodesWithText("Couldn’t update transfer").assertCountEquals(0)
+        compose.runOnIdle {
+            assertEquals(TransfersEvent.DismissRetryOutcome(TransfersRequestId(3L)), events.single())
+        }
+
+        compose.mainClock.advanceTimeBy(SNACKBAR_TIMEOUT_MS)
+        compose.onAllNodesWithText("Couldn’t retry transfer. It has no error to retry.").assertCountEquals(0)
+        compose.runOnIdle {
+            assertEquals(
+                listOf<TransfersEvent>(
+                    TransfersEvent.DismissRetryOutcome(TransfersRequestId(3L)),
+                    TransfersEvent.DismissRetryOutcome(TransfersRequestId(4L)),
+                ),
+                events,
+            )
+        }
+    }
+
+    @Test
+    fun newTransferNewsReplacesAVisibleSnackbarInsteadOfQueueing() {
+        val content = TransfersContent.Ready(listOf(transfer(2L, AppTransferStatus.Queued)), TransfersPaging.Complete)
+        var current by mutableStateOf(state(content))
+        setMutableScreen({ current }, onEvent = {})
+
+        compose.runOnIdle { current = current.copy(lastSuccessfulAddRequestId = TransfersRequestId(1L)) }
+        compose.onNodeWithText("Transfer added").assertIsDisplayed()
+
+        compose.runOnIdle {
+            current = current.copy(retryOutcome = TransferRetryOutcome.Accepted(TransfersRequestId(3L)))
+        }
+        compose.onNodeWithText("Retrying transfer").assertIsDisplayed()
+        compose.onAllNodesWithText("Transfer added").assertCountEquals(0)
+
+        compose.runOnIdle { current = current.copy(lastSuccessfulAddRequestId = TransfersRequestId(5L)) }
+        compose.onNodeWithText("Transfer added").assertIsDisplayed()
+        compose.onAllNodesWithText("Retrying transfer").assertCountEquals(0)
     }
 
     @Test
@@ -783,8 +874,11 @@ class MobileTransfersScreenTest {
             uploadSpeedBytesPerSecond = null,
             estimatedSecondsRemaining = null,
             availability = null,
-            hasError = status == AppTransferStatus.Failed,
+            errorMessage = null,
             createdAt = "2026-08-30T00:00:00Z",
             userFileExists = userFileExists,
         )
 }
+
+// Longer than SnackbarDuration.Short.
+private const val SNACKBAR_TIMEOUT_MS = 10_000L

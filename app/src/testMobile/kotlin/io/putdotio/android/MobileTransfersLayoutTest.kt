@@ -142,7 +142,7 @@ class MobileTransfersLayoutTest {
                                     id = TransferId(1), name = TRANSFER_NAME, status = AppTransferStatus.Seeding,
                                     fileId = TransferFileId(2), sizeBytes = null, percentDone = null,
                                     downloadSpeedBytesPerSecond = null, uploadSpeedBytesPerSecond = null,
-                                    estimatedSecondsRemaining = null, availability = null, hasError = false,
+                                    estimatedSecondsRemaining = null, availability = null, errorMessage = null,
                                     createdAt = "2026-09-08T12:00:00Z", userFileExists = true,
                                 )), TransfersPaging.Complete),
                                 mutation = mutation,

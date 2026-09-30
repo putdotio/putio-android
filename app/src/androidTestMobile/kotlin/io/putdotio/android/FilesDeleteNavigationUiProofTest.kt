@@ -210,7 +210,7 @@ private class DeleteNavigationPreview {
         private set
     var transfers by mutableStateOf(TransfersState(TransfersContent.Ready(listOf(TransferItem(
         TransferId(7), "Completed transfer", AppTransferStatus.Completed, TransferFileId(resolved.id.value),
-        1.0, 100.0, null, null, null, null, false, "2026-09-06", true,
+        1.0, 100.0, null, null, null, null, null, "2026-09-06", true,
     )), TransfersPaging.Complete)))
         private set
 

@@ -162,7 +162,7 @@ internal fun Transfer.toTransferItem(): TransferItem =
         uploadSpeedBytesPerSecond = upSpeed,
         estimatedSecondsRemaining = estimatedTime,
         availability = availability,
-        hasError = !errorMessage.isNullOrBlank(),
+        errorMessage = errorMessage?.trim()?.takeIf(String::isNotEmpty),
         createdAt = createdAt,
         userFileExists = userFileExists,
     )
