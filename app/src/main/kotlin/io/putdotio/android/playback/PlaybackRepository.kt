@@ -221,7 +221,13 @@ class SdkPlaybackRepository internal constructor(
         // Walk the server's explicit name ordering instead, stopping at this folder's end.
         var page = listFolder(
             parentId,
-            FilesListQuery(perPage = AUTOPLAY_PAGE_SIZE, fileType = PutioFileType.VIDEO, sortBy = "NAME_ASC"),
+            // Video metadata carries the duration TV needs to offer resume for the next video.
+            FilesListQuery(
+                perPage = AUTOPLAY_PAGE_SIZE,
+                fileType = PutioFileType.VIDEO,
+                sortBy = "NAME_ASC",
+                videoMetadata = true,
+            ),
         )
         var foundCurrent = false
         val cursors = mutableSetOf<String>()
@@ -239,7 +245,11 @@ class SdkPlaybackRepository internal constructor(
                     foundCurrent = true
                 } else if (foundCurrent) {
                     return PlaybackNextResult.Found(
-                        PlaybackTarget(io.putdotio.android.files.FilesItemId(file.id), file.name),
+                        PlaybackTarget(
+                            fileId = io.putdotio.android.files.FilesItemId(file.id),
+                            name = file.name,
+                            durationSeconds = file.videoMetadata?.duration?.takeIf { it.isFinite() && it > 0.0 },
+                        ),
                     )
                 }
             }

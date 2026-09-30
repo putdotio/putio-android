@@ -655,6 +655,41 @@ proof keeps the Compose test clock in step with real time so the auto-hide
 and position timers run as they do in the app. Remove the fixture and
 screenshot directories afterwards.
 
+## TV autoplay proof
+
+Behaviour: [TV playback](./behavior.md#tv-playback). `TvAutoplayProofTest`
+(`androidTestTv`) mounts the production TV session and signed-in shell on fake
+repositories for an account with Autoplay next video and resume on, and plays a
+caller-owned 12 s local video for each Files row: Center on the first video, it
+plays to its end, its end position is written, the next video in the folder
+asks to continue from 00:05, Center continues, Back twice returns to Files with
+the autoplayed row focused, and Center plays it again to its end, after which
+playback leaves (the folder's last video) back on that row. A second case turns
+the setting off: the first video plays to its end and playback leaves without
+looking up the next, back on its row. It makes no API calls, so report it as
+controlled-state proof. Push the fixture to `/data/local/tmp`; the test copies
+it into its own files directory.
+
+```bash
+./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
+adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
+adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=12 -f lavfi -i sine=frequency=440:duration=12 \
+  -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest tv-autoplay-proof.mp4
+adb -s emulator-5554 push tv-autoplay-proof.mp4 /data/local/tmp/tv-autoplay-proof.mp4
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvAutoplayProofTest \
+  -e putio.tv.autoplay.enabled true -e putio.tv.autoplay.runId "$(uuidgen)" \
+  -e putio.tv.autoplay.fixture /data/local/tmp/tv-autoplay-proof.mp4 \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Screenshots go to `tv-autoplay-proof-<UUID>/`: `01` the first row focused, `02`
+it playing, `03` the next video's resume prompt, `04` the next playing, `05`
+back on the autoplayed row, `06` the last video playing, `07` back on its row
+after the folder's end; `off-01` the setting-off video playing, `off-02` back on
+its row. Remove `/data/local/tmp/tv-autoplay-proof.mp4`, the
+copied `tv-autoplay-fixture.mp4` and the screenshot directory afterwards.
+
 ## TV Search proof
 
 Search is the second drawer destination. Focus enters on the pill field;

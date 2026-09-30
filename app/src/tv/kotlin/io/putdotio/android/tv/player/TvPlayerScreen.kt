@@ -125,7 +125,8 @@ private val PROCESS_KEY = UUID.randomUUID().toString()
  * stay while paused), Left, Right, rewind and fast-forward scrub, Up reaches the Language,
  * Subtitles and Speed pickers, and Back dismisses a picker, seek mode, then the controls,
  * before it leaves playback. Subtitles start per [subtitleStartupPolicy] until the viewer
- * picks. Positions are written back through [reporter].
+ * picks. Positions are written back through [reporter]. A finished video leaves playback, or
+ * with [autoplayNextVideo] asks [onPlaybackEnded] for the next one, leaving when it declines.
  */
 @Composable
 internal fun TvPlayerScreen(
@@ -141,6 +142,8 @@ internal fun TvPlayerScreen(
     playerFactory: TvPlayerFactory = DefaultTvPlayerFactory,
     reporter: TvPlaybackReporter = TvPlaybackReporter.None,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
+    autoplayNextVideo: Boolean = false,
+    onPlaybackEnded: () -> Boolean = { false },
 ) {
     // Ready playback registers its own Back for the overlay stack.
     BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
@@ -157,6 +160,8 @@ internal fun TvPlayerScreen(
                     reporter = reporter,
                     onPlayerFailure = onPlayerFailure,
                     onExit = onBack,
+                    autoplayNextVideo = autoplayNextVideo,
+                    onPlaybackEnded = onPlaybackEnded,
                 )
 
             is PlaybackContent.AwaitingResume -> {
@@ -212,6 +217,8 @@ private fun TvReadyPlayer(
     reporter: TvPlaybackReporter,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onExit: () -> Unit,
+    autoplayNextVideo: Boolean,
+    onPlaybackEnded: () -> Boolean,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -234,6 +241,8 @@ private fun TvReadyPlayer(
     }
     val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
     val currentOnExit by rememberUpdatedState(onExit)
+    val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
+    val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
     var overlay by remember(player) { mutableStateOf(TvPlayerOverlay()) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
         { transition ->
@@ -244,6 +253,7 @@ private fun TvReadyPlayer(
                     TvPlayerCommand.Pause -> player.pause()
                     is TvPlayerCommand.SeekTo -> player.seekTo(command.positionMillis)
                     TvPlayerCommand.Exit -> currentOnExit()
+                    TvPlayerCommand.PlayNext -> if (!currentOnPlaybackEnded()) currentOnExit()
                 }
             }
         }
@@ -283,7 +293,7 @@ private fun TvReadyPlayer(
 
             override fun onPlaybackStateChanged(value: Int) {
                 playbackState = value
-                if (value == Player.STATE_ENDED) apply(overlay.ended())
+                if (value == Player.STATE_ENDED) apply(overlay.ended(autoplayNext = currentAutoplayNextVideo))
             }
 
             override fun onPlayerError(error: PlaybackException) {

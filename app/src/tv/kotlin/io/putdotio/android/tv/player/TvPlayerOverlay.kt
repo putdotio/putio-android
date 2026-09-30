@@ -56,6 +56,9 @@ internal sealed interface TvPlayerCommand {
     data class SeekTo(val positionMillis: Long) : TvPlayerCommand
 
     data object Exit : TvPlayerCommand
+
+    /** Hand over to the next video in the folder; the screen exits when there is none to find. */
+    data object PlayNext : TvPlayerCommand
 }
 
 internal data class TvPlayerTransition(
@@ -231,8 +234,19 @@ internal fun TvPlayerOverlay.back(): TvPlayerTransition {
     }
 }
 
-/** Playback reached the end: leave once, however many signals arrive. */
-internal fun TvPlayerOverlay.ended(): TvPlayerTransition = if (exited) TvPlayerTransition(this) else exit()
+/**
+ * Playback reached the end: leave once, however many signals arrive, or with [autoplayNext]
+ * move on to the next video instead.
+ */
+internal fun TvPlayerOverlay.ended(autoplayNext: Boolean = false): TvPlayerTransition =
+    when {
+        exited -> TvPlayerTransition(this)
+        autoplayNext -> TvPlayerTransition(
+            copy(exited = true, scrub = null, picker = null),
+            listOf(TvPlayerCommand.PlayNext),
+        )
+        else -> exit()
+    }
 
 private fun TvPlayerOverlay.hidden() = copy(controlsVisible = false, focus = TvPlayerControl.SeekBar)
 
