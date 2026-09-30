@@ -1,7 +1,6 @@
-package io.putdotio.android
+package io.putdotio.android.auth
 
 import android.content.Context
-import io.putdotio.android.auth.MobileOAuthRuntime
 
 internal fun handleAuthTabActivityResult(
     context: Context,
