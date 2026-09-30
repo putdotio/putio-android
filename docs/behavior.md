@@ -124,7 +124,7 @@ Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest`,
 Share file (Files and Downloads action sheets, non-folder items only) starts a
 foreground `dataSync` service that fetches the original file through the API
 download endpoint with the session header, stores it under private
-`files/shares/<fileId>/<name>`, and opens the system chooser with a
+`files/shares/<session>/<fileId>/<name>`, and opens the system chooser with a
 `FileProvider` content URI (`${applicationId}.share`) carrying a read grant.
 The payload is the stream only: no text, subject or URL, so no token reaches the
 chooser. Progress and failure use the foreground notification, which the drawer
@@ -142,14 +142,18 @@ share folder and removes the notification; delivery checks the session again
 before opening the chooser, so a resume that races a sign-out shares nothing.
 The process-wide auth runtime owns this cleanup, so it also runs with no UI,
 and a launch whose restore ends signed out deletes exports an earlier process
-left. Cancelling an export cancels its download at once, even mid-read.
+left. That cleanup can run after the next session has already started and
+exported, so it deletes only the departed session's folder. Cancelling an
+export cancels its download at once, even mid-read.
 The stored name keeps the original readable but drops path separators, control
 and bidi formatting characters (which could disguise the extension), and is cut
 to 200 UTF-8 bytes on a code-point boundary, keeping a short extension.
 
 Tests: `MobileFileShareServiceTest` (payload shape, ready notification, service
 stop rules, session exit, ready timeout, prior-export wipe, failure notification,
-name sanitizer, all on virtual time with a fake download source).
+name sanitizer, all on virtual time with a fake download source),
+`MobileOAuthRuntimeTest` (session-exit cleanup that lags the next sign-in keeps
+the next session's export).
 
 ## Deep links
 

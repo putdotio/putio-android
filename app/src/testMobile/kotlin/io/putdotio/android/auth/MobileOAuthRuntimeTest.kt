@@ -1,19 +1,33 @@
 package io.putdotio.android.auth
 
+import android.content.Context
 import androidx.browser.auth.AuthTabIntent
+import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
+import java.io.File
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 
+// Robolectric supplies the app files directory the share-out cleanup works on.
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [35])
 class MobileOAuthRuntimeTest {
     @Test
     fun `dispatch reports unexpected callback failures without crashing its scope`() = runBlocking {
@@ -60,7 +74,44 @@ class MobileOAuthRuntimeTest {
         assertEquals(1, fixture.sessionsLeft)
     }
 
-    private class SessionExitFixture(validation: SessionValidationResult) {
+    @Test
+    fun `a session-exit cleanup that lags the next sign-in keeps the next session's export`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val scheduler = TestCoroutineScheduler()
+        val fixture = SessionExitFixture(
+            SessionValidationResult.Valid(ACCOUNT),
+            dispatcher = StandardTestDispatcher(scheduler),
+            onSessionLeft = { session -> MobileFileShareService.endSession(context, session) },
+        )
+        fixture.controller.restoreSession()
+        scheduler.runCurrent()
+        val first = fixture.signedInSession()
+        val firstExport = writeExport(context, first)
+
+        // Sign out and back in, then export, all before the cleanup collector runs again.
+        fixture.controller.logout()
+        fixture.controller.beginSignIn()
+        assertEquals(OAuthCallbackHandlingResult.ACCEPTED, fixture.controller.handleOAuthCallback(CALLBACK))
+        val next = fixture.signedInSession()
+        assertNotEquals(first, next)
+        val nextExport = writeExport(context, next)
+        scheduler.runCurrent()
+
+        assertFalse(firstExport.exists())
+        assertTrue(nextExport.exists())
+    }
+
+    private fun writeExport(context: Context, session: MobileAuthSessionId): File =
+        File(MobileFileShareService.sessionShares(context, session), "9/poster.jpg").apply {
+            parentFile?.mkdirs()
+            writeText("bytes")
+        }
+
+    private class SessionExitFixture(
+        validation: SessionValidationResult,
+        dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
+        onSessionLeft: ((MobileAuthSessionId?) -> Unit)? = null,
+    ) {
         var sessionsLeft = 0
         val controller = MobileAuthController(
             oauthConfiguration = MobileOAuthConfiguration.Configured("9677"),
@@ -68,16 +119,20 @@ class MobileOAuthRuntimeTest {
             pendingOAuthAttemptStore = InMemoryPendingOAuthAttemptStore(),
             sessionGateway = FixedAuthSessionGateway(validation),
             tokenRevocations = NoTokenRevocations,
+            stateGenerator = OAuthStateGenerator { OAUTH_STATE },
         )
 
         init {
             MobileOAuthRuntime(
                 putioClient = PutioClient(PutioConfig(clientId = "9677", clientName = "test")),
                 authController = controller,
-                applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined),
-                onSessionLeft = { sessionsLeft += 1 },
+                applicationScope = CoroutineScope(SupervisorJob() + dispatcher),
+                onSessionLeft = onSessionLeft ?: { sessionsLeft += 1 },
             )
         }
+
+        fun signedInSession(): MobileAuthSessionId =
+            checkNotNull((controller.state.value as? MobileAuthState.SignedIn)?.sessionId) { "Not signed in" }
     }
 
     @Test
@@ -137,6 +192,8 @@ class MobileOAuthRuntimeTest {
     }
 
     private companion object {
+        const val OAUTH_STATE = "fixed-oauth-state"
+        const val CALLBACK = "putio://auth?state=$OAUTH_STATE#access_token=token&state=$OAUTH_STATE"
         val ACCOUNT = MobileAccount(userId = 1L, username = "user", email = "user@example.com")
     }
 
