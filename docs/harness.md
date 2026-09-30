@@ -553,8 +553,12 @@ adb -s emulator-5554 pull "/sdcard/Android/data/io.put.putio.debug/files/tv-safe
 adb -s emulator-5554 shell wm size reset && adb -s emulator-5554 shell wm density reset
 ```
 
-`wm size` rejects overrides larger than the AVD's 1920x1080 panel, so 4K is
-covered by the JVM test at xxxhdpi, not on the emulator.
+Android accepts `wm size` overrides up to three times the display's largest
+initial dimension, but a device can clamp them further (for example with a
+configured maximum UI width). The `putio-tv` AVD did not apply a 3840x2160
+override on its 1920x1080 panel when this proof was written, so 4K is covered
+by the JVM test at xxxhdpi. On another device, check that `wm size` reports the
+requested `Override size` before calling a run 4K.
 
 ## TV Files browse proof
 

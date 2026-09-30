@@ -3,10 +3,12 @@ package io.putdotio.android.tv
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -78,32 +80,12 @@ class TvSafeAreaTest {
     }
 
     private fun assertContentInsideSafeArea() {
-        val viewport = compose.onRoot().fetchSemanticsNode().boundsInRoot
-        val safe = Rect(
-            left = viewport.width * PutioDesignTokens.tvOverscanX,
-            top = viewport.height * PutioDesignTokens.tvOverscanY,
-            right = viewport.width * (1 - PutioDesignTokens.tvOverscanX),
-            bottom = viewport.height * (1 - PutioDesignTokens.tvOverscanY),
-        )
         val placed = compose.onAllNodes(visibleContent, useUnmergedTree = true).fetchSemanticsNodes()
         assertTrue("expected the wordmark, drawer items and pane, found ${placed.size} nodes", placed.size >= 6)
-        placed.forEach { node ->
-            val bounds = node.boundsInRoot
-            val label = node.config.getOrNull(SemanticsProperties.Text)?.joinToString()
-                ?: node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
-                ?: "node ${node.id}"
-            assertTrue(
-                "$label at $bounds leaves the safe area $safe of $viewport",
-                bounds.left >= safe.left - EPSILON && bounds.top >= safe.top - EPSILON &&
-                    bounds.right <= safe.right + EPSILON && bounds.bottom <= safe.bottom + EPSILON,
-            )
-        }
+        compose.assertInsideTvSafeArea(placed)
     }
 
     private companion object {
-        /** Sub-pixel float noise from scaled focus targets, not a layout tolerance. */
-        const val EPSILON = 0.5f
-
         val visibleContent = SemanticsMatcher("text, description or click target") {
             it.config.contains(SemanticsProperties.Text) ||
                 it.config.contains(SemanticsProperties.ContentDescription) ||
@@ -111,3 +93,28 @@ class TvSafeAreaTest {
         }
     }
 }
+
+/** Fails unless every one of [nodes] lies inside the `tv.overscan` fractions of the root viewport. */
+internal fun SemanticsNodeInteractionsProvider.assertInsideTvSafeArea(nodes: List<SemanticsNode>) {
+    val viewport = onRoot().fetchSemanticsNode().boundsInRoot
+    val safe = Rect(
+        left = viewport.width * PutioDesignTokens.tvOverscanX,
+        top = viewport.height * PutioDesignTokens.tvOverscanY,
+        right = viewport.width * (1 - PutioDesignTokens.tvOverscanX),
+        bottom = viewport.height * (1 - PutioDesignTokens.tvOverscanY),
+    )
+    nodes.forEach { node ->
+        val bounds = node.boundsInRoot
+        val label = node.config.getOrNull(SemanticsProperties.Text)?.joinToString()
+            ?: node.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
+            ?: "node ${node.id}"
+        assertTrue(
+            "$label at $bounds leaves the safe area $safe of $viewport",
+            bounds.left >= safe.left - SAFE_AREA_EPSILON && bounds.top >= safe.top - SAFE_AREA_EPSILON &&
+                bounds.right <= safe.right + SAFE_AREA_EPSILON && bounds.bottom <= safe.bottom + SAFE_AREA_EPSILON,
+        )
+    }
+}
+
+/** Sub-pixel float noise from scaled focus targets, not a layout tolerance. */
+private const val SAFE_AREA_EPSILON = 0.5f
