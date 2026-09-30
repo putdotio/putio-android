@@ -181,6 +181,48 @@ class PlaybackControllerTest {
         }
 
     @Test
+    fun openingAVideoWithNoConversionRequestedStartsItOnceThroughTheRepository() =
+        runBlocking {
+            val calls = mutableListOf<String>()
+            val repository = object : PlaybackRepository {
+                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                    val started = "start" in calls
+                    val state = if (started) PlaybackConversionState.Queued else PlaybackConversionState.NotAvailable
+                    calls += "resolve"
+                    return PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(state))
+                }
+
+                override suspend fun startConversion(
+                    target: PlaybackTarget,
+                ): PlaybackRepositoryResult<PlaybackResolution> {
+                    calls += "start"
+                    return PlaybackRepositoryResult.Success(
+                        PlaybackResolution.Conversion(PlaybackConversionState.Queued),
+                    )
+                }
+
+                override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
+                    PlaybackNextResult.Ended
+            }
+            val controller = PlaybackController(Target, repository, this)
+
+            try {
+                controller.awaitContent<PlaybackContent.Conversion> {
+                    it.state == PlaybackConversionState.Queued && it.refreshRequestId == null
+                }
+                assertTrue(controller.dispatch(PlaybackEvent.RefreshConversion))
+                controller.awaitContent<PlaybackContent.Conversion> {
+                    it.state == PlaybackConversionState.Queued && it.refreshRequestId == null
+                }
+                assertFalse(controller.dispatch(PlaybackEvent.StartConversion))
+
+                assertEquals(listOf("resolve", "start", "resolve"), calls)
+            } finally {
+                controller.close()
+            }
+        }
+
+    @Test
     fun closeCancelsResolutionWithoutCancellingTheParentScope() =
         runBlocking {
             val started = CompletableDeferred<Unit>()
