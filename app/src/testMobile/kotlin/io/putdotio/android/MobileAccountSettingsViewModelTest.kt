@@ -4,6 +4,8 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.account.MobileAccountSettingsViewModel
+import io.putdotio.android.account.mobileAccountSettingsViewModelFactory
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState

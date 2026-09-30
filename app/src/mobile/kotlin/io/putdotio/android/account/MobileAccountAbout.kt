@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.account
 
 import android.content.ClipData
 import android.os.Build
@@ -32,6 +32,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.BuildConfig
+import io.putdotio.android.R
+import io.putdotio.android.description
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.sdk.files.PlaybackPreference
 import kotlinx.coroutines.launch

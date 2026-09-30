@@ -16,6 +16,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.putdotio.android.account.MobileAccountSettingsViewModel
+import io.putdotio.android.account.MobileAndroidAppConfigViewModel
+import io.putdotio.android.account.mobileAccountSettingsViewModelFactory
+import io.putdotio.android.account.mobileAndroidAppConfigViewModelFactory
 import io.putdotio.android.auth.AuthTabOAuthBrowser
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime

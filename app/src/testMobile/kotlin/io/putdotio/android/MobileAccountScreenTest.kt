@@ -64,6 +64,19 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.account.MOBILE_ABOUT_COPIED_TAG
+import io.putdotio.android.account.MOBILE_ABOUT_COPY_TAG
+import io.putdotio.android.account.MOBILE_ABOUT_DIALOG_TAG
+import io.putdotio.android.account.MOBILE_ABOUT_ROW_TAG
+import io.putdotio.android.account.MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG
+import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
+import io.putdotio.android.account.MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG
+import io.putdotio.android.account.MOBILE_DEFAULT_SORT_DIALOG_TAG
+import io.putdotio.android.account.MOBILE_DEFAULT_SORT_ROW_TAG
+import io.putdotio.android.account.MOBILE_STRICTLY_NECESSARY_TAG
+import io.putdotio.android.account.MOBILE_TUNNEL_ROUTE_RETRY_TAG
+import io.putdotio.android.account.MOBILE_TUNNEL_ROUTE_ROW_TAG
+import io.putdotio.android.account.MobileAccountScreen
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

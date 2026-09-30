@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.account
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +27,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.R
+import io.putdotio.android.description
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.labelResource
 import io.putdotio.android.settings.AccountSettingsChange

@@ -71,6 +71,7 @@ import io.putdotio.android.trash.MOBILE_TRASH_CHECK_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_CONFIRM_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_ITEM_RESTORE_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
+import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 
 @RunWith(AndroidJUnit4::class)
 class TrashRestoreUiProofTest {

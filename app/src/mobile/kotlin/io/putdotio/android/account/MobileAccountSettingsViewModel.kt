@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.account
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider

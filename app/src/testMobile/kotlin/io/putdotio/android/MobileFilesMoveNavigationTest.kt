@@ -79,6 +79,7 @@ import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
+import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

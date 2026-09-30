@@ -61,6 +61,8 @@ import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
 import io.putdotio.android.trash.MobileTrashScreen
+import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
+import io.putdotio.android.account.MobileAccountScreen
 
 /** Controlled production surfaces at 200% system font with animations disabled. */
 @RunWith(AndroidJUnit4::class)
