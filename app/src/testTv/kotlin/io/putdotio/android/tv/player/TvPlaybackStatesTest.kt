@@ -124,14 +124,14 @@ class TvPlaybackStatesTest {
 
     @Test
     fun aStartingConversionSaysItHasStartedAndOffersNothingToPress() {
-        content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L), startRequested = true)
+        content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L))
         show()
         compose.onNodeWithText(STARTED_MESSAGE).assertIsDisplayed()
         compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("Starting…")
         compose.onNodeWithText("Convert again").assertDoesNotExist()
         compose.onNodeWithText("Check again").assertDoesNotExist()
 
-        change(PlaybackContent.Conversion(PlaybackConversionState.Queued, startRequested = true))
+        change(PlaybackContent.Conversion(PlaybackConversionState.Queued))
         compose.onNodeWithText(STARTED_MESSAGE).assertIsDisplayed()
         compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
     }
@@ -139,7 +139,7 @@ class TvPlaybackStatesTest {
     @Test
     fun aVideoThatCannotBeConvertedOffersNothingButBack() {
         // The app's own start still found no conversion.
-        content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, startRequested = true)
+        content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable)
         show()
         compose.onNodeWithText("This video isn’t in a format this app can play, and it can’t be converted.")
             .assertIsDisplayed()

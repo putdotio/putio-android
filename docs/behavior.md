@@ -156,11 +156,13 @@ requested ([live check](https://github.com/putdotio/putio-android/pull/222#issue
 a not-available video converted and played).
 Opening such a video starts its conversion through the SDK's
 `startMp4Conversion` without a tap, as putio-web, tv-native, tv-vite and iOS do,
-and the interstitial says the conversion has started. It starts once per opening:
-a status that reads queued, running, completed or failed is only read, so
-opening the file again while it converts requests nothing. The SDK's consumer
-guide asks for an explicit convert action instead; auto-start is this app's
-decision ([#236](https://github.com/putdotio/putio-android/issues/236)).
+and the interstitial says the conversion has started. Only the first status read
+of an opening can start one: a first read of queued, running, completed or failed
+is only read, so opening the file again while it converts requests nothing, and
+later polls, Check again and retries never start one, even across a failed read.
+The SDK's consumer guide asks for the same
+([putio-sdk-kotlin#59](https://github.com/putdotio/putio-sdk-kotlin/pull/59),
+[#236](https://github.com/putdotio/putio-android/issues/236)).
 A queued or running conversion is read again every 3 s while the app is in the
 foreground, keeping the interstitial up, and plays on its own once it resolves.
 Completed is read once more at once; if it stays completed, Check again waits for
@@ -169,8 +171,9 @@ again. A start the server accepted reads as queued once, so a status read that
 has not caught up polls again; if the status still reads not available after
 that, the video cannot be converted and offers only Back.
 
-Tests: `PlaybackReducerTest`, `PlaybackControllerTest`, `SdkPlaybackRepositoryTest`,
-`MobilePlayerScreenTest`, `TvPlaybackStatesTest`, `OfflinePlaybackRepositoryTest`.
+Tests: `PlaybackConversionReducerTest`, `PlaybackReducerTest`, `PlaybackControllerTest`,
+`SdkPlaybackRepositoryTest`, `MobilePlayerScreenTest`, `TvPlaybackStatesTest`,
+`OfflinePlaybackRepositoryTest`.
 
 ## TV playback
 

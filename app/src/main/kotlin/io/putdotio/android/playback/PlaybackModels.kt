@@ -67,13 +67,10 @@ sealed interface PlaybackContent {
     /**
      * The file needs MP4 conversion first. A [refreshRequestId] is a resolution or conversion
      * start in flight; the interstitial stays up meanwhile instead of flashing a loading screen.
-     * [startRequested] records that a conversion was started here, after which a status that
-     * still reads not available once that start has returned is final.
      */
     data class Conversion(
         val state: PlaybackConversionState,
         val refreshRequestId: PlaybackRequestId? = null,
-        val startRequested: Boolean = false,
     ) : PlaybackContent
 
     data class Unsupported(
@@ -91,6 +88,11 @@ data class PlaybackState(
     internal val nextRequestValue: Long,
     val resumePositionMillis: Long? = null,
     val visitedFileIds: Set<FilesItemId> = setOf(target.fileId),
+    /**
+     * Whether this opening of [target] has read its conversion status. Only the first read may
+     * start a conversion, so later polls, checks and retries never start one.
+     */
+    internal val conversionStatusRead: Boolean = false,
 )
 
 sealed interface PlaybackEvent {
@@ -298,25 +300,28 @@ private fun PlaybackState.resolveSucceeded(
 }
 
 /**
- * A video that reads not available has never had a conversion requested, so it starts one without
- * a tap, once: after that start, not available is final (putio-web `useConversionStatus`, iOS
- * `VideoConversionViewController`). A queued or running conversion is never started again, so
- * opening the file again only reads it. A finished conversion gets one immediate refresh so the
- * file details can resolve a source; if it still reads completed, the viewer checks again.
+ * A video whose first status read on opening is not available has never had a conversion
+ * requested, so it starts one without a tap (putio-web `useConversionStatus`, iOS
+ * `VideoConversionViewController`). Any later read of the same opening only reads: not available
+ * then is final, and a queued or running conversion is never started again. A finished
+ * conversion gets one immediate refresh so the file details can resolve a source; if it still
+ * reads completed, the viewer checks again.
  */
 private fun PlaybackState.conversionResolved(state: PlaybackConversionState): PlaybackTransition {
     val previous = content as? PlaybackContent.Conversion
-    val startRequested = previous?.startRequested == true
-    val start = state == PlaybackConversionState.NotAvailable && !startRequested
+    val start = state == PlaybackConversionState.NotAvailable && !conversionStatusRead
     val refresh = state == PlaybackConversionState.Completed && previous?.state != PlaybackConversionState.Completed
     if (!start && !refresh) {
-        return PlaybackTransition(copy(content = PlaybackContent.Conversion(state, startRequested = startRequested)))
+        return PlaybackTransition(
+            copy(content = PlaybackContent.Conversion(state), conversionStatusRead = true),
+        )
     }
     val requestId = PlaybackRequestId(nextRequestValue)
     return PlaybackTransition(
         copy(
-            content = PlaybackContent.Conversion(state, requestId, startRequested || start),
+            content = PlaybackContent.Conversion(state, requestId),
             nextRequestValue = nextRequestValue + 1,
+            conversionStatusRead = true,
         ),
         if (start) PlaybackEffect.StartConversion(target, requestId) else PlaybackEffect.Resolve(target, requestId),
     )
@@ -333,10 +338,7 @@ private fun PlaybackState.refreshConversion(start: Boolean): PlaybackTransition 
     val requestId = PlaybackRequestId(nextRequestValue)
     return PlaybackTransition(
         copy(
-            content = conversion.copy(
-                refreshRequestId = requestId,
-                startRequested = conversion.startRequested || start,
-            ),
+            content = conversion.copy(refreshRequestId = requestId),
             nextRequestValue = nextRequestValue + 1,
         ),
         if (start) PlaybackEffect.StartConversion(target, requestId) else PlaybackEffect.Resolve(target, requestId),
@@ -373,11 +375,11 @@ val PlaybackContent.Conversion.startable: Boolean
 /**
  * Whether the conversion is being started. The SDK resolves a conversion only for a video the
  * server marks `need_convert`, and its MP4 status reads not available until one is requested, so
- * not available is the status read before the app's own start, not a verdict, until that start
- * returns and still reads it; then the file cannot be converted.
+ * not available is the status read before the app's own start, not a verdict, while that start
+ * is in flight. Read without a request in flight, it is final: the file cannot be converted.
  */
 val PlaybackContent.Conversion.starting: Boolean
-    get() = state == PlaybackConversionState.NotAvailable && (!startRequested || refreshRequestId != null)
+    get() = state == PlaybackConversionState.NotAvailable && refreshRequestId != null
 
 /** What the conversion interstitial offers besides Back. */
 enum class PlaybackConversionAction {
