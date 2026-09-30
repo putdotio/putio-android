@@ -309,9 +309,10 @@ class TvAuthController internal constructor(
 
     /**
      * Carries a tv-native session over: the token is stored only after put.io
-     * accepts it, and the legacy copy is deleted once put.io accepts or rejects
-     * it. Without a verdict (offline, put.io down) the copy stays and the viewer
-     * gets Retry, which comes back here, as does the next launch. True when a
+     * accepts it, and the legacy copy is deleted once the token is stored or
+     * put.io rejects it. Without a verdict (offline, put.io down) the copy stays
+     * and the viewer gets Retry, which comes back here, as does the next launch;
+     * a Keystore write failure also keeps it for the next launch. True when a
      * legacy token was validated.
      */
     // Gateway implementations are process boundaries; cancellation remains control flow.
@@ -344,9 +345,8 @@ class TvAuthController internal constructor(
                     startLinkAttempt(sessionExpired = false)
                 }
                 is TvSessionValidation.Valid -> {
-                    val stored = storeImportedToken(legacyToken)
-                    legacySession.delete()
-                    if (stored) {
+                    if (storeImportedToken(legacyToken)) {
+                        legacySession.delete()
                         signIn(result.account)
                     } else {
                         clearConfiguredSession()

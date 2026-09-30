@@ -49,9 +49,10 @@ the token as a raw string under `@putio:auth_token` in React Native AsyncStorage
 `catalystLocalStorage`. On a start with no Keystore session, TV reads that token
 and validates it with put.io before anything is stored. Accepted, it goes into
 the Keystore record and the shell opens without a code; a Keystore that cannot
-hold it shows storage unavailable. Rejected (a false verdict or a 401/403), it
-is dropped and TV offers a fresh code. Both delete the whole `RKStorage`
-database, journals included; its only other key is tv-native's update notice.
+hold it shows storage unavailable and keeps the database for the next launch.
+Rejected (a false verdict or a 401/403), it is dropped and TV offers a fresh
+code. A stored or rejected token deletes the whole `RKStorage` database,
+journals included; its only other key is tv-native's update notice.
 Without a verdict (network error, timeout, 5xx) the database stays, nothing is
 stored, and TV shows Can't reach put.io with Retry; Retry and the next launch
 try the import again. A start cancelled mid-validation also keeps it, and a

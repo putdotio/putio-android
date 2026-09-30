@@ -10,8 +10,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * The session the React Native TV app (putio-web `apps/tv-native`) left behind
- * under the same application id. Read once when there is no Keystore session,
- * then deleted whatever the outcome.
+ * under the same application id. Read when there is no Keystore session, and
+ * deleted once its token is stored or put.io rejects it.
  */
 internal interface LegacyTvSession {
     /** The legacy token, or null when there is none or it cannot be read. */

@@ -104,7 +104,7 @@ class TvAuthControllerTest {
     }
 
     @Test
-    fun `a tv-native token the keystore cannot hold is deleted and storage reported unavailable`() = runTest {
+    fun `a tv-native token the keystore cannot hold is kept and storage reported unavailable`() = runTest {
         val harness = Harness(legacyToken = "fake-legacy-token", tokenStore = FakeTokenStore(writeFails = true))
 
         harness.controller.restoreSession()
@@ -113,7 +113,7 @@ class TvAuthControllerTest {
             TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
             harness.controller.state.value,
         )
-        assertEquals(1, harness.legacySession.deletes)
+        assertEquals(0, harness.legacySession.deletes)
         assertEquals(listOf("set", "validate", "clear"), harness.gateway.calls)
     }
 
