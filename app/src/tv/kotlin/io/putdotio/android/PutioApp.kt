@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -253,11 +252,9 @@ internal fun TvSessionShell(
             onSignOut = onSignOut,
             requestedDestination = requestedDestination,
             onDestinationRequestHandled = { requestedDestination = null },
-            filesPane = { paneFocus ->
-                // Composed only while Files is the destination, so Back on another pane
-                // cannot pop the folder stack behind it.
-                // Back from a folder opened from Search or History returns to that pane.
-                BackHandler(enabled = filesState.canNavigateBack) {
+            // Back from a folder opened from Search or History returns to that pane.
+            onFilesBack = if (filesState.canNavigateBack) {
+                {
                     val returnTo = when (filesState.current.openedFrom) {
                         FilesOpenOrigin.SEARCH -> TvDestination.Search
                         FilesOpenOrigin.HISTORY -> TvDestination.History
@@ -267,6 +264,10 @@ internal fun TvSessionShell(
                         requestedDestination = returnTo
                     }
                 }
+            } else {
+                null
+            },
+            filesPane = { paneFocus ->
                 // A restore from Trash marks its folder stale; the listing reloads when Files shows
                 // again, or once a refresh that was running at that moment has settled.
                 // Keyed like mobile: the folder, the operation, and whether the content is still
