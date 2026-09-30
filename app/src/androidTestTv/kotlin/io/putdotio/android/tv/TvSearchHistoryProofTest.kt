@@ -64,6 +64,9 @@ class TvSearchHistoryProofTest {
 
     private val writes: MutableList<String> = Collections.synchronizedList(mutableListOf())
 
+    // The account's `/config` as the store rereads it: each save lands here.
+    @Volatile private var serverConfig = RecentSearchConfig(enabled = true, terms = listOf("earlier"))
+
     @Test
     fun onlySubmittedAndOpenedSearchesAreKeptAndSettingsToggleAndClearThem() {
         compose.mountTvProofSession(dependencies())
@@ -156,9 +159,15 @@ class TvSearchHistoryProofTest {
             searchResults = listOf(folder),
             recentSearchStore = { scope ->
                 AppConfigRecentSearchStore(
-                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("earlier")) },
-                    saveTerms = { writes += "$SEARCH_HISTORY_KEY=$it" },
-                    saveEnabled = { writes += "$SEARCH_HISTORY_ENABLED_KEY=$it" },
+                    loadConfig = { serverConfig },
+                    saveTerms = {
+                        serverConfig = serverConfig.copy(terms = it)
+                        writes += "$SEARCH_HISTORY_KEY=$it"
+                    },
+                    saveEnabled = {
+                        serverConfig = serverConfig.copy(enabled = it)
+                        writes += "$SEARCH_HISTORY_ENABLED_KEY=$it"
+                    },
                     parentScope = scope,
                 )
             },
