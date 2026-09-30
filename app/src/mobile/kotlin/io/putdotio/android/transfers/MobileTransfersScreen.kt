@@ -107,6 +107,8 @@ internal fun MobileTransfersScreen(
     val retryMessage = state.retryOutcome?.let { retryOutcomeMessage(it) }
     LaunchedEffect(state.retryOutcome) {
         val outcome = state.retryOutcome ?: return@LaunchedEffect
+        // The outcome replaces a visible snackbar instead of queueing, so leaving cannot acknowledge an unseen one.
+        snackbarHostState.currentSnackbarData?.dismiss()
         try {
             snackbarHostState.showSnackbar(requireNotNull(retryMessage))
         } finally {

@@ -125,6 +125,7 @@ class TransfersReducerTest {
             TransfersReducer.start().complete(TransfersPage(listOf(item(2L, AppTransferStatus.Failed)), null))
         val retrying = TransfersReducer.reduce(loaded, TransfersEvent.RetryTransfer(TransferId(2L)))
         val request = retrying.effect as TransfersEffect.Mutate
+        assertNull(retrying.state.retryOutcome)
 
         val retried =
             TransfersReducer.reduce(

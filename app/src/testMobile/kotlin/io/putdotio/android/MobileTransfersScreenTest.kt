@@ -317,6 +317,22 @@ class MobileTransfersScreenTest {
     }
 
     @Test
+    fun aRetryOutcomeReplacesAVisibleAddedSnackbarInsteadOfQueueing() {
+        val content = TransfersContent.Ready(listOf(transfer(2L, AppTransferStatus.Queued)), TransfersPaging.Complete)
+        var current by mutableStateOf(state(content))
+        setMutableScreen({ current }, onEvent = {})
+
+        compose.runOnIdle { current = current.copy(lastSuccessfulAddRequestId = TransfersRequestId(1L)) }
+        compose.onNodeWithText("Transfer added").assertIsDisplayed()
+
+        compose.runOnIdle {
+            current = current.copy(retryOutcome = TransferRetryOutcome.Accepted(TransfersRequestId(3L)))
+        }
+        compose.onNodeWithText("Retrying transfer").assertIsDisplayed()
+        compose.onAllNodesWithText("Transfer added").assertCountEquals(0)
+    }
+
+    @Test
     fun completedRowsExposeOnlyUsableFilesAndUnknownStatusesStaySafe() {
         val events = mutableListOf<TransfersEvent>()
         val available = transfer(1L, AppTransferStatus.Completed, fileId = 11L)

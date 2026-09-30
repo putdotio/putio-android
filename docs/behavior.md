@@ -501,9 +501,9 @@ Mobile only; TV has no Transfers screen. A transfer row shows put.io's
 `error_message` as the API sends it, trimmed; a failed row without one shows
 "This transfer needs attention." Retry runs at once without a confirmation.
 The result arrives as a snackbar, "Retrying transfer" or "Couldn’t retry
-transfer." with the reason, once per request; a 403 reads as nothing to retry.
-A failed retry leaves no blocking error dialog, and a session rejection still
-signs out.
+transfer." with the reason, once per request, replacing any visible snackbar;
+a 403 reads as nothing to retry. A failed retry leaves no blocking error
+dialog, and a session rejection still signs out.
 
 Tests: `SdkTransfersRepositoryTest`, `TransfersReducerTest`,
 `MobileTransfersScreenTest`, `FilesSessionFailureTest`,
