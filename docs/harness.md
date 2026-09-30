@@ -608,6 +608,13 @@ list then shows the player with its title as playing, and its transport
 controls pause (the paused controls come up) and play it. Leaving removes the
 session. The second video's first resolution fails with a network error, and
 Try again plays it.
+`hideSubtitlesLeavesNoSubtitlesButton` plays the same fixture for a
+`hide_subtitles` account: Down, Up reaches Language, Right goes straight to
+Speed, and no subtitle is on. `automaticSubtitlesStartOnTheAccountsDefaultOverTheCaptionLanguage`
+turns the system's captions on in English, plays a second master whose first
+subtitle rendition is German and marked `DEFAULT=YES` as put.io marks the
+account's default, expects the German track, and restores the caption
+settings; it runs only with `putio.tv.player.defaultSubtitleFixture`.
 It makes no API calls; the listing, the resolved source and the position
 server stand in for a signed-in session, so report it as controlled-state
 proof.
@@ -627,10 +634,17 @@ rm -rf hls && ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=90 -f l
 sed -i.bak -e 's/NAME="audio_1"/NAME="English"/' -e 's/NAME="audio_2"/NAME="Deutsch"/' \
   -e 's/NAME="subtitle_0",DEFAULT=NO/NAME="English",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="en"/' hls/index.m3u8
 rm hls/index.m3u8.bak
+# The account-default flow: a German rendition put.io would mark default, ahead of the English one.
+mkdir hls/subs-de && cp hls/video/media_vtt.m3u8 hls/subs-de/
+for f in hls/video/media*.vtt; do sed 's/TV proof subtitle/Account default subtitle/' "$f" > "hls/subs-de/${f##*/}"; done
+sed -e 's|^#EXT-X-MEDIA:TYPE=SUBTITLES,.*|#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Deutsch",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="de",URI="subs-de/media_vtt.m3u8"\
+#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",DEFAULT=NO,AUTOSELECT=NO,LANGUAGE="en",URI="video/media_vtt.m3u8"|' \
+  hls/index.m3u8 > hls/default-subtitle.m3u8
 adb -s emulator-5554 push hls/. /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/
 adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.player.TvPlayerProofTest \
   -e putio.tv.player.enabled true -e putio.tv.player.runId "$(uuidgen)" \
   -e putio.tv.player.fixture /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/index.m3u8 \
+  -e putio.tv.player.defaultSubtitleFixture /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/default-subtitle.m3u8 \
   io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
@@ -650,7 +664,8 @@ off, still off after a seek, the speed picker, the picker dismissed, 1.5×,
 controls dismissed, back on the row), and `50`–`60` for the fifth (in queue,
 35 %, 80 %, converted and playing, paused and resumed by the remote key,
 paused and resumed by the system's controls, the network error, playing after
-Try again, back on the row). The
+Try again, back on the row), `70` for the account's default subtitle and `80`
+for the hidden Subtitles button. The
 proof keeps the Compose test clock in step with real time so the auto-hide
 and position timers run as they do in the app. Remove the fixture and
 screenshot directories afterwards.

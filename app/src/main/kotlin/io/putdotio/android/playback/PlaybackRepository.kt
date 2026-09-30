@@ -15,7 +15,6 @@ import io.putdotio.sdk.files.FileMp4ConversionStatus
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
-import io.putdotio.sdk.files.HLS_ALL_SUBTITLES
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -174,15 +173,16 @@ class SdkPlaybackRepository internal constructor(
                 ?: return PlaybackRepositoryResult.Failure(
                     PlaybackFailure.MediaCredentialUnavailable(MissingPlaybackCredentialException()),
                 )
+            val hideSubtitles = account.settings.hideSubtitles
             val resolution = resolvePlayback(
                 PlaybackRequest(
                     fileId = target.fileId.value,
                     mediaCredential = PlaybackMediaCredential.downloadToken(downloadToken),
                     preference = preference,
                     useStartFrom = account.settings.useStartFrom,
-                    // put.io leaves every HLS subtitle rendition out for an account with hide_subtitles
-                    // on; the player starts them off itself, so the viewer can still turn one on (#223).
-                    maxSubtitleCount = HLS_ALL_SUBTITLES,
+                    // hide_subtitles asks for no subtitles at all, as every reference player does (#237).
+                    includeSidecarSubtitles = !hideSubtitles,
+                    maxSubtitleCount = if (hideSubtitles) 0 else null,
                 ),
             )
             PlaybackRepositoryResult.Success(resolution.toAppResolution(account.settings.useStartFrom))

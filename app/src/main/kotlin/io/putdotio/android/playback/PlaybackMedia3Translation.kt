@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import androidx.core.net.toUri
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
@@ -35,10 +36,12 @@ internal fun PlaybackSource.toMediaItem(
     title: String,
     mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
 ): MediaItem {
+    val sidecarTracks = (subtitles as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty()
+    // put.io's subtitle list names its first entry as `default`, the one the account's subtitle
+    // languages rank first; it carries Media3's default flag like the HLS master's DEFAULT=YES (#237).
+    val defaultKey = sidecarTracks.firstOrNull()?.key
     val subtitleConfigurations =
-        (subtitles as? PlaybackSubtitles.Sidecar)
-            ?.tracks
-            .orEmpty()
+        sidecarTracks
             .mapNotNull { subtitle ->
                 val mimeType = subtitle.toSubtitleMimeType() ?: return@mapNotNull null
                 subtitle to mimeType
@@ -48,7 +51,7 @@ internal fun PlaybackSource.toMediaItem(
                     .setLabel(subtitle.name)
                     .setLanguage(subtitle.languageCode)
                     .setMimeType(mimeType)
-                    .setSelectionFlags(0)
+                    .setSelectionFlags(if (subtitle.key == defaultKey) C.SELECTION_FLAG_DEFAULT else 0)
                     .build()
             }
 

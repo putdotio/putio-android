@@ -92,7 +92,7 @@ class MobileDownloadEngineTest {
         val request = IntentCompat
             .getParcelableExtra(reissued, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)
         assertEquals("$ALICE:13", request?.id)
-        // Offline copies keep every subtitle rendition, whatever the account hides (#223).
+        // Offline copies keep every subtitle rendition, whatever the account hides (#237).
         assertEquals("-1", request?.uri?.getQueryParameter("max_subtitle_count"))
         assertTrue(store.entries.value.none { it.fileId.value == 20L })
         assertEquals(PARKED, index.getDownload("$BOB:20")?.stopReason)

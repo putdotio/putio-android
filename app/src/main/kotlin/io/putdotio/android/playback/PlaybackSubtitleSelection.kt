@@ -105,7 +105,15 @@ internal fun TrackSelectionParameters.withSubtitleSelection(
                 .build()
 
         SubtitleSelection.Automatic -> {
-            if (textDefaults != null) {
+            if (tracks.any(PlaybackSubtitleTrack::isServerDefault)) {
+                // Media3 ranks the device's caption language above a track's default flag; with no
+                // preference left, the account's default subtitle wins (#237).
+                builder
+                    .setPreferredTextLanguages()
+                    .setPreferredTextRoleFlags(0)
+                    .setPreferredTextLabels()
+                    .setSelectUndeterminedTextLanguage(false)
+            } else if (textDefaults != null) {
                 if (textDefaults.usePreferredTextLanguagesAndRoleFlagsFromCaptioningManager) {
                     builder.setPreferredTextLanguageAndRoleFlagsToCaptioningManagerSettings()
                 } else {
@@ -141,6 +149,32 @@ internal fun TrackSelectionParameters.withSubtitleSelection(
                     .build()
             }
         }
+    }
+}
+
+/**
+ * A track the media marks default. put.io marks the account's default subtitle this way: the
+ * HLS master with `DEFAULT=YES`, and [toMediaItem] for the sidecar list's `default`.
+ */
+internal val PlaybackSubtitleTrack.isServerDefault: Boolean
+    get() = (identity.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0
+
+/**
+ * Reapplies the subtitle choice in effect to [tracks] as they arrive: the viewer's pick, else
+ * automatic selection when the account auto-selects. Off and forced-only need no tracks.
+ */
+internal fun TrackSelectionParameters.withSubtitleTracks(
+    retained: SubtitleSelection?,
+    startupPolicy: SubtitleStartupPolicy?,
+    tracks: List<PlaybackSubtitleTrack>,
+    textDefaults: TrackSelectionParameters,
+): TrackSelectionParameters {
+    val autoSelects = startupPolicy?.showSubtitles == true && startupPolicy.autoSelectSubtitles
+    val selection = retained ?: SubtitleSelection.Automatic.takeIf { autoSelects }
+    return when (selection) {
+        is SubtitleSelection.Track, SubtitleSelection.Automatic ->
+            withSubtitleSelection(selection, tracks, textDefaults)
+        SubtitleSelection.Off, null -> this
     }
 }
 

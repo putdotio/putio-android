@@ -273,6 +273,39 @@ class TvPlayerOptionsTest {
     }
 
     @Test
+    fun automaticSubtitlesFollowTheAccountsDefaultTrackOverTheDeviceLanguage() {
+        val player = TrackPlayer()
+        compose.runOnUiThread {
+            player.trackSelectionParameters =
+                player.trackSelectionParameters.buildUpon().setPreferredTextLanguages("de").build()
+        }
+        show(player, policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true))
+        // Without a default the device's caption language decides.
+        compose.runOnIdle { assertEquals(1, player.selectedTextIndex()) }
+
+        // The next tracks mark the account's first subtitle language as the default (#237).
+        val serverDefault = TrackGroup(
+            "text-default",
+            textFormat("t-en", "en", "English", C.SELECTION_FLAG_DEFAULT),
+            textFormat("t-de", "de", "German"),
+        )
+        compose.runOnIdle { player.replaceTracks(audio = twoAudio(period = 2), text = serverDefault) }
+        settle()
+        compose.runOnIdle { assertEquals(0, player.selectedTextIndex()) }
+    }
+
+    @Test
+    fun hideSubtitlesLeavesTheSubtitlesButtonOutWhateverTheTracks() {
+        val player = TrackPlayer()
+        show(player, policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true))
+
+        compose.onNodeWithContentDescription(LANGUAGE).assertIsDisplayed()
+        compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
+        compose.onNodeWithContentDescription(SPEED).assertIsDisplayed()
+        compose.runOnIdle { assertNull(player.selectedTextIndex()) }
+    }
+
+    @Test
     fun choicesSurviveARebuiltPlayerButSpeedStartsOverForTheNextFile() {
         val players = mutableListOf<TrackPlayer>()
         var state by mutableStateOf(readyState())
@@ -455,8 +488,14 @@ class TvPlayerOptionsTest {
 private fun audioFormat(id: String, language: String) =
     Format.Builder().setId(id).setLanguage(language).setSampleMimeType(MimeTypes.AUDIO_AAC).build()
 
-private fun textFormat(id: String, language: String, label: String?) =
-    Format.Builder().setId(id).setLanguage(language).setLabel(label).setSampleMimeType(MimeTypes.TEXT_VTT).build()
+private fun textFormat(id: String, language: String, label: String?, selectionFlags: Int = 0) =
+    Format.Builder()
+        .setId(id)
+        .setLanguage(language)
+        .setLabel(label)
+        .setSampleMimeType(MimeTypes.TEXT_VTT)
+        .setSelectionFlags(selectionFlags)
+        .build()
 
 private fun oneAudio() = TrackGroup(audioFormat("a-it", "it"))
 
@@ -574,13 +613,21 @@ internal class TrackPlayer(
                 val chosen = when {
                     C.TRACK_TYPE_TEXT in parameters.disabledTrackTypes -> null
                     parameters.overrides[group] != null -> parameters.overrides[group]?.trackIndices?.singleOrNull()
-                    parameters.selectTextByDefault -> 0
+                    parameters.selectTextByDefault -> group.automaticIndex(parameters)
                     else -> null
                 }
                 add(group(group, chosen))
             }
         }
         return Tracks(groups)
+    }
+
+    /** Media3's order: a preferred language, then the media's default flag, then the first track. */
+    private fun TrackGroup.automaticIndex(parameters: TrackSelectionParameters): Int {
+        val indices = 0 until length
+        return parameters.preferredTextLanguages.firstNotNullOfOrNull { language ->
+            indices.firstOrNull { getFormat(it).language == language }
+        } ?: indices.firstOrNull { (getFormat(it).selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0 } ?: 0
     }
 
     private fun group(group: TrackGroup, chosen: Int?) =

@@ -206,16 +206,19 @@ A track shows its name, else its language; MP4 subtitles read `LANGUAGE - name`,
 as the RN player relabelled its sidecar tracks. Speed and audio start over with
 each file. Choices survive a rebuilt player.
 
-Subtitles start from the account's settings, as on mobile: hidden with
+Subtitles start from the account's settings, as on mobile: gone with
 `hide_subtitles`, forced tracks only with `dont_autoselect_subtitles`, otherwise
-selected automatically. Until those settings load, and after a failed load,
+selected automatically. Hidden means gone, as in every reference player (#237):
+playback asks put.io for no subtitles (`max_subtitle_count=0` for HLS, no
+subtitle list for MP4 and original sources), and neither surface shows its
+subtitle picker. Automatic selection starts on put.io's default subtitle, the
+first one the account's subtitle languages rank: the HLS master marks it
+`DEFAULT=YES`, and the MP4 subtitle list names it `default`. It outranks the
+system caption language; without a default, Media3 picks by the system caption
+setting as before. Until the settings load, and after a failed load,
 subtitles start off whatever the system caption setting, so a `hide_subtitles`
 account never sees them early; settings that arrive later still decide until
-the viewer picks (#229). Hidden means off at the start, not gone: HLS playback
-and HLS downloads ask put.io for every subtitle rendition through the SDK's
-`maxSubtitleCount = HLS_ALL_SUBTITLES` (`max_subtitle_count=-1`; the server
-omits them for `hide_subtitles` otherwise), so Subtitles still offers the file's
-tracks (#223). Once the viewer picks, the pick decides (#45): a picked
+the viewer picks (#229). Once the viewer picks, the pick decides (#45): a picked
 track is found again after track changes, and Off keeps the text type disabled
 and draws nothing, whatever cues the renderer last delivered, across seeks and
 track changes. Cues, bitmap (PGS) ones included, draw with the system caption
@@ -417,8 +420,9 @@ Tests: `SearchControllerTest`, `AppConfigRecentSearchStoreTest`,
 Downloads use Media3's `DownloadService` and `SimpleCache` under the app's
 internal files directory (`files/downloads/`), never external storage: cached
 playlist bodies carry the server's token. A video download stores the HLS
-rendition the player streams, every subtitle rendition included whatever the
-account hides (#223); an audio download
+rendition the player streams with every subtitle rendition, whatever the
+account hides, so turning subtitles back on finds them offline; the player
+still hides them for `hide_subtitles` (#237). An audio download
 stores the original file. Media3 owns bytes, resume and the foreground
 notification, which shows a count and progress only. The app's index in private
 SharedPreferences holds file id, name, type, rendition and status per user; it
