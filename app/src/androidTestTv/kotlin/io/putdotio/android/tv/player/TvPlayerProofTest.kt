@@ -55,6 +55,7 @@ import io.putdotio.android.settings.AccountSettingsState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackState
@@ -71,6 +72,7 @@ import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -421,19 +423,26 @@ class TvPlayerProofTest {
             ?.let { it.group.getFormat(it.trackIndex).language }
 
     /**
-     * The conversion interstitial on a fake conversion source, then the remote's play/pause key
+     * The conversion interstitial on a fake conversion source, started once on opening without a
+     * press, then the remote's play/pause key
      * and the system's media controls through the published session, then a failed resolution
      * that Try again recovers from.
      */
     @Test
     fun conversionThenSessionControlsAndARecoverableError() {
-        val factory = mountFilesWithSessionRoute()
+        val conversionStarts = AtomicInteger()
+        val factory = mountFilesWithSessionRoute(conversionStarts)
         compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         compose.onNodeWithContentDescription("Play $CONVERTING_TITLE").assertIsFocused()
 
-        // Queued, then running; the interstitial reads the conversion again every 3 s.
+        // Opening it starts the conversion without a press; then queued and running, read again every 3 s.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitConversionStatus("Starting…")
+        compose.onNodeWithText(
+            "This video isn’t in a format this app can play yet, so its conversion has started. It plays here once it finishes.",
+        ).assertExists()
+        screenshot("49-conversion-starting")
         awaitConversionStatus("In queue…")
         compose.onNodeWithText("CONVERSION STATUS").assertExists()
         screenshot("50-conversion-queued")
@@ -443,6 +452,7 @@ class TvPlayerProofTest {
         screenshot("52-conversion-80")
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame && it.currentPosition > 1_000L }
         screenshot("53-converted-playing")
+        assertEquals("One conversion start per opening", 1, conversionStarts.get())
         elapse(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 1_000L)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
 
@@ -527,16 +537,18 @@ class TvPlayerProofTest {
     }
 
     /**
-     * Two rows on the real session route, without write-back: one whose conversion runs
-     * (queued, 35 %, 80 %, then the local fixture) and one whose first resolution fails
-     * with a network error before the fixture resolves.
+     * Two rows on the real session route, without write-back: one with no conversion requested
+     * whose start, counted in [conversionStarts], takes two seconds before it runs (queued,
+     * 35 %, 80 %, then the local fixture), and one whose first resolution fails with a network
+     * error before the fixture resolves.
      */
-    private fun mountFilesWithSessionRoute(): ProofPlayerFactory {
+    private fun mountFilesWithSessionRoute(conversionStarts: AtomicInteger): ProofPlayerFactory {
         val source = localSource()
         val factory = ProofPlayerFactory()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val conversion = ArrayDeque(
             listOf(
+                PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable),
                 PlaybackResolution.Conversion(PlaybackConversionState.Queued),
                 PlaybackResolution.Conversion(PlaybackConversionState.Converting(35.0)),
                 PlaybackResolution.Conversion(PlaybackConversionState.Converting(80.0)),
@@ -554,6 +566,15 @@ class TvPlayerProofTest {
                     }
                     else -> PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source))
                 }
+
+            override suspend fun startConversion(
+                target: PlaybackTarget,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
+                check(target.fileId.value == FIXTURE_FILE_ID)
+                conversionStarts.incrementAndGet()
+                delay(2_000L)
+                return resolve(target)
+            }
 
             override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
         }

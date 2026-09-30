@@ -9,7 +9,6 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -124,27 +123,22 @@ class TvPlaybackStatesTest {
     }
 
     @Test
-    fun aConversionNeverRequestedOffersConvertAndNeverStartsOnItsOwn() {
-        content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable)
+    fun aStartingConversionSaysItHasStartedAndOffersNothingToPress() {
+        content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L), startRequested = true)
         show()
-        compose.onNodeWithText("This video isn’t in a format this app can play yet. Convert it to play it here.")
-            .assertIsDisplayed()
-        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("Not available")
-        compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
-        compose.runOnIdle { assertEquals(0, starts + refreshes) }
+        compose.onNodeWithText(STARTED_MESSAGE).assertIsDisplayed()
+        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("Starting…")
+        compose.onNodeWithText("Convert again").assertDoesNotExist()
+        compose.onNodeWithText("Check again").assertDoesNotExist()
 
-        compose.onNodeWithText("Convert").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
-        compose.runOnIdle { assertEquals(1, starts) }
-
-        // A slow start keeps Convert on screen, disabled until the request settles.
-        change(PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L), startRequested = true))
-        compose.onNodeWithText("Convert").assertIsNotEnabled().performKeyInput { pressKey(Key.DirectionCenter) }
-        compose.runOnIdle { assertEquals(1, starts) }
+        change(PlaybackContent.Conversion(PlaybackConversionState.Queued, startRequested = true))
+        compose.onNodeWithText(STARTED_MESSAGE).assertIsDisplayed()
+        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
     }
 
     @Test
     fun aVideoThatCannotBeConvertedOffersNothingButBack() {
-        // The viewer's own Convert still found no conversion.
+        // The app's own start still found no conversion.
         content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, startRequested = true)
         show()
         compose.onNodeWithText("This video isn’t in a format this app can play, and it can’t be converted.")
@@ -229,5 +223,7 @@ class TvPlaybackStatesTest {
 
     private companion object {
         const val TITLE = "Big Buck Bunny.avi"
+        const val STARTED_MESSAGE =
+            "This video isn’t in a format this app can play yet, so its conversion has started. It plays here once it finishes."
     }
 }

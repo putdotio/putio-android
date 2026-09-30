@@ -186,16 +186,31 @@ class PlaybackReducerTest {
     }
 
     @Test
-    fun aConversionNeverRequestedCanBeStartedOnceThenNotAvailableIsFinal() {
-        val notRequested = conversion(PlaybackConversionState.NotAvailable)
-        assertTrue((notRequested.content as PlaybackContent.Conversion).startable)
+    fun openingAVideoWithNoConversionRequestedStartsOneOnceWithoutATap() {
+        val opened = PlaybackReducer.reduce(
+            PlaybackReducer.start(Target).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable),
+            ),
+        )
+        assertEquals(PlaybackEffect.StartConversion(Target, PlaybackRequestId(2L)), opened.effect)
+        val starting = opened.state.content as PlaybackContent.Conversion
+        assertEquals(
+            PlaybackContent.Conversion(
+                PlaybackConversionState.NotAvailable,
+                PlaybackRequestId(2L),
+                startRequested = true,
+            ),
+            starting,
+        )
+        // The status read before the start is not a verdict: nothing to tap while it starts.
+        assertTrue(starting.starting)
+        assertNull(starting.action)
+        assertFalse(PlaybackReducer.reduce(opened.state, PlaybackEvent.StartConversion).consumed)
 
-        val started = PlaybackReducer.reduce(notRequested, PlaybackEvent.StartConversion)
-        assertEquals(PlaybackEffect.StartConversion(Target, PlaybackRequestId(2L)), started.effect)
-        // A slow start is not a verdict yet: Convert stays offered, disabled by the request in flight.
-        assertEquals(PlaybackConversionAction.Convert, (started.state.content as PlaybackContent.Conversion).action)
         val queued = PlaybackReducer.reduce(
-            started.state,
+            opened.state,
             PlaybackEvent.ResolveSucceeded(
                 PlaybackRequestId(2L),
                 PlaybackResolution.Conversion(PlaybackConversionState.Queued),
@@ -205,18 +220,60 @@ class PlaybackReducerTest {
             PlaybackContent.Conversion(PlaybackConversionState.Queued, startRequested = true),
             queued.state.content,
         )
+        assertNull(queued.effect)
 
-        // The server still has no conversion after the viewer asked for one: it cannot be converted.
+        // A poll that still reads not available after the start does not start another one.
+        val polled = PlaybackReducer.reduce(
+            PlaybackReducer.reduce(queued.state, PlaybackEvent.RefreshConversion).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(3L),
+                PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable),
+            ),
+        )
+        assertNull("One start per opening", polled.effect)
+
+        // The server still has no conversion after the app asked for one: it cannot be converted.
         val refused = PlaybackReducer.reduce(
-            started.state,
+            opened.state,
             PlaybackEvent.ResolveSucceeded(
                 PlaybackRequestId(2L),
                 PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable),
             ),
         )
-        assertFalse((refused.state.content as PlaybackContent.Conversion).startable)
-        assertNull((refused.state.content as PlaybackContent.Conversion).action)
+        assertNull(refused.effect)
+        val final = refused.state.content as PlaybackContent.Conversion
+        assertFalse(final.starting)
+        assertFalse(final.startable)
+        assertNull(final.action)
         assertFalse(PlaybackReducer.reduce(refused.state, PlaybackEvent.StartConversion).consumed)
+    }
+
+    @Test
+    fun reopeningAQueuedRunningOrFailedConversionOnlyReadsIt() {
+        listOf(
+            PlaybackConversionState.Queued,
+            PlaybackConversionState.Converting(35.0),
+            PlaybackConversionState.Completed,
+            PlaybackConversionState.Failed,
+            PlaybackConversionState.Unknown("PAUSED", null),
+        ).forEach { state ->
+            val reopened = PlaybackReducer.reduce(
+                PlaybackReducer.start(Target).state,
+                PlaybackEvent.ResolveSucceeded(PlaybackRequestId(1L), PlaybackResolution.Conversion(state)),
+            )
+            assertFalse("$state starts no conversion", reopened.effect is PlaybackEffect.StartConversion)
+            assertFalse((reopened.state.content as PlaybackContent.Conversion).startRequested)
+        }
+        assertEquals(
+            PlaybackConversionAction.ConvertAgain,
+            (conversion(PlaybackConversionState.Failed).content as PlaybackContent.Conversion).action,
+        )
+        assertEquals(
+            PlaybackConversionAction.CheckAgain,
+            (
+                conversion(PlaybackConversionState.Unknown("PAUSED", null)).content as PlaybackContent.Conversion
+                ).action,
+        )
     }
 
     @Test
