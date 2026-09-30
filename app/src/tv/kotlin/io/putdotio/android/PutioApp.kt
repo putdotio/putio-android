@@ -33,6 +33,7 @@ import io.putdotio.android.search.AppConfigRecentSearchStore
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.SearchOutput
 import io.putdotio.android.search.authoritativeSessionFailure
+import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.SdkAccountSettingsRepository
@@ -213,6 +214,7 @@ private fun TvSignedInApp(
                     onExit = session::stopPlayback,
                     onSessionRejected = onSessionRejected,
                     reporter = session.playbackReporting,
+                    subtitleStartupPolicy = settingsState.subtitleStartupPolicy(),
                 )
             }
         },

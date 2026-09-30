@@ -858,7 +858,8 @@ private class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
     }
 
     fun advanceTo(positionMillis: Long) {
-        state = state.buildUpon().setContentPositionMs(positionMillis).build()
+        // Pinned: a playing position would otherwise drift with however many frames the test runs.
+        state = state.buildUpon().setContentPositionMs(PositionSupplier.getConstant(positionMillis)).build()
         invalidateState()
     }
 

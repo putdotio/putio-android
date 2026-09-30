@@ -109,9 +109,10 @@ player replaces the signed-in shell instead of covering it, so no shell control
 can take D-pad focus; the shell's saved state is kept, and Back returns focus to
 the row that was playing. Playback belongs to the session: sign-out ends it.
 
-The overlay shows the raw file name, a seek bar, position and duration.
-Any key reveals it for three seconds of playback; it stays while paused or
-scrubbing. Center, Enter or the remote's play/pause key toggles playback, and
+The overlay shows the raw file name, the option buttons, a seek bar, position
+and duration. Any key reveals it for three seconds of playback; it stays while
+paused, scrubbing or picking. The seek bar shows where playback starts before
+the stream reports its duration, using the listing's duration until then. Center, Enter or the remote's play/pause key toggles playback, and
 leaving the app pauses it and shows the paused controls. If the activity is
 recreated (a remote or keyboard connecting, a locale change), playback
 continues paused from where it stopped.
@@ -121,14 +122,32 @@ press pauses and the seek bar shows a pending target. Each press moves it
 15 s times the press count, which grows while presses come within 500 ms
 and restarts at one after a gap. A held key counts one press every 300 ms.
 The target stays within the media. Center, Enter or play/pause seeks there and
-plays; the dedicated play or pause key drops the target instead. The seek bar
-is the overlay's only focus target until the track and speed buttons arrive,
-so rewind and fast-forward scrub directly.
+plays; the dedicated play or pause key drops the target instead.
 
-Back dismisses the topmost layer (#9): seek mode first (no seek; playback
-resumes only if the scrub paused it), then the controls (pause state and
-focus untouched), and only then leaves playback, once. A held Back is one
-press. Track pickers will stack above seek mode.
+Above the seek bar sit the RN player's option buttons (putio-web `apps/tv-native`
+`VideoPlayer.android.tsx`): Language only with more than one audio track,
+Subtitles only with a subtitle track, and Speed always. Up from the seek bar
+reaches the first button, Left and Right walk them, Down returns, and a
+button's name shows above it while focused. Left and Right scrub only on the
+seek bar; rewind and fast-forward scrub from anywhere and pull focus back to it.
+Center opens the button's centred picker with focus on the current choice:
+Audio tracks, Subtitles (Off, then the tracks) or Playback speed (0.25× to 2×
+in quarter steps). A track shows its name, else its language; MP4 subtitles read
+`LANGUAGE - name`, as the RN player relabelled its sidecar tracks. Speed and
+audio start over with each file. Choices survive a rebuilt player.
+
+Subtitles start from the account's settings, as on mobile: hidden with
+`hide_subtitles`, forced tracks only with `dont_autoselect_subtitles`, otherwise
+selected automatically. Once the viewer picks, the pick decides (#45): a picked
+track is found again after track changes, and Off keeps the text type disabled
+and draws nothing, whatever cues the renderer last delivered, across seeks and
+track changes. Cues, bitmap (PGS) ones included, draw with the system caption
+style through the same overlay as mobile.
+
+Back dismisses the topmost layer (#9): an open picker first (no change; focus
+back on its button), then seek mode (no seek; playback resumes only if the
+scrub paused it), then the controls (pause state untouched; they come back on
+the seek bar), and only then leaves playback, once. A held Back is one press.
 
 Resume follows the shared rule above (`use_start_from` on, a positive saved
 position, a fresh resolution) and asks before the player exists, as the RN
@@ -150,11 +169,12 @@ the session that issued it; sign-out discards pending writes.
 
 Conversion and failed resolutions show a status screen with Check again or Try
 again, unsupported files a plain status screen as on mobile, and a player error
-keeps its position for the retry. Track pickers and the media session are later
-#34 layers.
+keeps its position for the retry. The media session is a later #34 layer.
 
-Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlaybackReportingTest`,
-`TvSessionViewModelTest`, `PlaybackPositionObserverTest`, `PlaybackExoPlayerTest`.
+Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlayerOptionsTest`,
+`TvPlayerTracksTest`, `TvPlaybackReportingTest`, `TvSessionViewModelTest`,
+`PlaybackPositionObserverTest`, `PlaybackExoPlayerTest`,
+`PlaybackSubtitleSelectionTest`, `PlaybackAudioSelectionTest`.
 
 ## Share-in
 

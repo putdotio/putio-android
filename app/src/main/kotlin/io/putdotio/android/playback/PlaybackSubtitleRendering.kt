@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -18,11 +18,11 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.SubtitleView
 import kotlin.math.roundToInt
 
-internal const val MOBILE_SUBTITLE_CUES_TAG = "mobile-subtitle-cues"
+internal const val SUBTITLE_CUES_TAG = "subtitle-cues"
 
 @Composable
 @UnstableApi
-internal fun MobileSubtitleCueOverlay(
+internal fun SubtitleCueOverlay(
     cues: List<Cue>,
     videoAspectRatio: Float?,
     modifier: Modifier = Modifier,
@@ -41,7 +41,7 @@ internal fun MobileSubtitleCueOverlay(
             modifier =
                 Modifier
                     .fitInsideAspectRatio(videoAspectRatio)
-                    .testTag(MOBILE_SUBTITLE_CUES_TAG),
+                    .testTag(SUBTITLE_CUES_TAG),
         ) {
             drawIntoCanvas { canvas ->
                 renderer.draw(

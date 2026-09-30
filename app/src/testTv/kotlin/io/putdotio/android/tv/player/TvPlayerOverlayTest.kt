@@ -131,6 +131,54 @@ class TvPlayerOverlayTest {
         assertTrue(scrubbing.hideTimedOut().overlay.controlsVisible)
     }
 
+    @Test
+    fun anOpenPickerIsTheTopmostLayerAndClosingItKeepsFocusOnItsButton() {
+        val speed = TvPlayerOverlay().moveFocus(TvFocusMove.Up, listOf(TvPlayerControl.Speed)).overlay
+        val picking = speed.openPicker(TvPlayerControl.Speed).overlay
+        assertEquals(TvPlayerControl.Speed, picking.picker)
+        assertTrue("An open picker holds the controls", picking.hideTimedOut().overlay.controlsVisible)
+
+        val closed = picking.back()
+        assertNull(closed.overlay.picker)
+        assertTrue("Only the picker is dismissed", closed.overlay.controlsVisible)
+        assertEquals(TvPlayerControl.Speed, closed.overlay.focus)
+        assertEquals(emptyList<TvPlayerCommand>(), closed.commands)
+
+        val hidden = closed.overlay.back()
+        assertFalse(hidden.overlay.controlsVisible)
+        assertEquals("Hidden controls come back on the seek bar", TvPlayerControl.SeekBar, hidden.overlay.focus)
+        assertEquals(listOf(Exit), hidden.overlay.back().commands)
+    }
+
+    @Test
+    fun theDpadWalksTheButtonsAndReturnsToTheSeekBar() {
+        val buttons = listOf(TvPlayerControl.Language, TvPlayerControl.Subtitles, TvPlayerControl.Speed)
+        val up = TvPlayerOverlay().moveFocus(TvFocusMove.Up, buttons).overlay
+        assertEquals(TvPlayerControl.Language, up.focus)
+        assertEquals("Left stops at the first button", up, up.moveFocus(TvFocusMove.Left, buttons).overlay.copy(activity = up.activity))
+        val right = up.moveFocus(TvFocusMove.Right, buttons).overlay.moveFocus(TvFocusMove.Right, buttons).overlay
+        assertEquals(TvPlayerControl.Speed, right.focus)
+        assertEquals(TvPlayerControl.Speed, right.moveFocus(TvFocusMove.Right, buttons).overlay.focus)
+        assertEquals(TvPlayerControl.Speed, right.moveFocus(TvFocusMove.Up, buttons).overlay.focus)
+        assertEquals(TvPlayerControl.SeekBar, right.moveFocus(TvFocusMove.Down, buttons).overlay.focus)
+
+        // A button whose tracks went away counts as the seek bar.
+        assertEquals(TvPlayerControl.SeekBar, up.focusIn(listOf(TvPlayerControl.Speed)))
+        // Hidden controls only come back; seek mode keeps the seek bar.
+        val hidden = TvPlayerOverlay(controlsVisible = false).moveFocus(TvFocusMove.Up, buttons).overlay
+        assertTrue(hidden.controlsVisible)
+        assertEquals(TvPlayerControl.SeekBar, hidden.focus)
+        val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L).overlay
+        assertEquals(TvPlayerControl.SeekBar, scrubbing.moveFocus(TvFocusMove.Up, buttons).overlay.focus)
+    }
+
+    @Test
+    fun rewindAndFastForwardPullFocusBackToTheSeekBar() {
+        val onButton = TvPlayerOverlay().moveFocus(TvFocusMove.Up, listOf(TvPlayerControl.Speed)).overlay
+        assertEquals(TvPlayerControl.Speed, onButton.focus)
+        assertEquals(TvPlayerControl.SeekBar, onButton.scrubForward(nowMillis = 0L).overlay.focus)
+    }
+
     private fun TvPlayerOverlay.scrubForward(nowMillis: Long, playing: Boolean = true, repeat: Boolean = false) =
         scrub(TvScrubDirection.Forward, POSITION, DURATION, playing, nowMillis, repeat)
 

@@ -131,6 +131,13 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.IOException
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import io.putdotio.android.playback.SubtitleSelection
+import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.PlaybackAudioTrack
+import io.putdotio.android.playback.withAudioTrack
+import io.putdotio.android.playback.displayAspectRatioOrNull
+import io.putdotio.android.playback.fitInside
+import io.putdotio.android.playback.FittedVideoSize
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -1617,7 +1624,7 @@ class MobilePlayerScreenTest {
         session.setPlaybackSpeed(1.5f)
         val group = TrackGroup(Format.Builder().setId("audio-en").setSampleMimeType(MimeTypes.AUDIO_AAC).build())
         val selected = session.trackSelectionParameters.withAudioTrack(
-            MobileAudioTrack(group, 0, label = "English", selected = false),
+            PlaybackAudioTrack(group, 0, label = "English", selected = false),
         )
         session.trackSelectionParameters = selected
         var sourceRequests = 0
