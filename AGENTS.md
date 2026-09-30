@@ -78,8 +78,8 @@ only). `design/putio-design.lock.json` pins the `@putdotio/design` npm release
 by version and SHA-512 SRI; `scripts/sync-design-assets.sh` fetches it and
 writes `design/tokens.dtcg.json` and the nightly launcher icons, and `verify`
 checks both against the lock offline. `:app:generateDesignTokens`
-(`build-logic`) generates `PutioDesignTokens.kt` with the color schemes; never
-hand-write colors. See `design/README.md`.
+(`build-logic`) generates `PutioDesignTokens.kt` with the color schemes and TV
+overscan ratios; never hand-write design values. See `design/README.md`.
 Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 
 ## CI
