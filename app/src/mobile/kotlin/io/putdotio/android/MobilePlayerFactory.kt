@@ -1,28 +1,21 @@
 package io.putdotio.android
 
-import android.os.Build
 import androidx.core.content.ContextCompat
-import androidx.media3.common.AudioAttributes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player as Media3Player
-import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import io.putdotio.android.downloads.MobileDownloadCache
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
-import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.session.MediaController
-import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.audioAttributes
+import io.putdotio.android.playback.playbackRenderersFactory
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.auth.MobileOAuthRuntime
 import java.io.Closeable
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
-
-private const val EMULATOR_CODEC_WORKAROUND_API = 37
 
 internal fun interface MobilePlayerFactory {
     fun create(
@@ -123,14 +116,7 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
         context: android.content.Context,
         mediaType: PlaybackMediaType,
     ): Media3Player {
-        val renderersFactory = DefaultRenderersFactory(context)
-        if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
-            // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
-            renderersFactory
-                .setMediaCodecSelector(EmulatorMediaCodecSelector)
-                .setEnableDecoderFallback(true)
-        }
-        return ExoPlayer.Builder(context, renderersFactory)
+        return ExoPlayer.Builder(context, playbackRenderersFactory(context))
             // Completed downloads play from the cache; everything else streams through the same source.
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(
@@ -142,44 +128,6 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
             .build()
     }
 }
-
-internal fun PlaybackMediaType.audioAttributes(): AudioAttributes =
-    AudioAttributes.Builder()
-        .setContentType(
-            when (this) {
-                PlaybackMediaType.VIDEO -> C.AUDIO_CONTENT_TYPE_MOVIE
-                PlaybackMediaType.AUDIO -> C.AUDIO_CONTENT_TYPE_MUSIC
-            },
-        )
-        .setUsage(C.USAGE_MEDIA)
-        .build()
-
-internal fun requiresEmulatorCodecWorkaround(
-    sdkInt: Int,
-    hardware: String,
-): Boolean = sdkInt == EMULATOR_CODEC_WORKAROUND_API && (hardware == "ranchu" || hardware == "goldfish")
-
-internal fun emulatorCodecPriority(codecName: String): Int =
-    if (codecName.startsWith("c2.goldfish.")) 1 else 0
-
-@UnstableApi
-internal fun playbackSurfaceType(
-    sdkInt: Int,
-    hardware: String,
-): Int =
-    if (requiresEmulatorCodecWorkaround(sdkInt, hardware)) {
-        SURFACE_TYPE_TEXTURE_VIEW
-    } else {
-        SURFACE_TYPE_SURFACE_VIEW
-    }
-
-@UnstableApi
-private val EmulatorMediaCodecSelector =
-    MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-        MediaCodecSelector.DEFAULT
-            .getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
-            .sortedBy { emulatorCodecPriority(it.name) }
-    }
 
 /** Players created before sign-in hold no user; the cache then never matches and everything streams. */
 private const val NO_DOWNLOAD_USER = -1L

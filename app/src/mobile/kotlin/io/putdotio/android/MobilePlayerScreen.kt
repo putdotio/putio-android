@@ -78,6 +78,7 @@ import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackState
+import io.putdotio.android.playback.playbackSurfaceType
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.sdk.files.PlaybackConversionState

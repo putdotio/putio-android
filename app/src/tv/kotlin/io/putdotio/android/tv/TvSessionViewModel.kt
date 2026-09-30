@@ -18,6 +18,11 @@ import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryFileOpener
 import io.putdotio.android.history.HistoryRepository
+import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackRepository
+import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchRepository
@@ -30,6 +35,7 @@ import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.sdk.files.PlaybackPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -40,6 +46,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -60,6 +67,8 @@ internal class TvSessionDependencies(
     /** Turns the file id a history event names into the item Files can open. */
     val filesItemResolver: FilesItemResolver,
     val recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
+    /** Resolves playable sources; reads the account's HLS/MP4 choice at each resolution. */
+    val playbackRepository: (preference: () -> PlaybackPreference) -> PlaybackRepository,
 )
 
 /**
@@ -80,6 +89,7 @@ internal class TvSession internal constructor(
     filesItemResolver: FilesItemResolver,
     private val watchedRepository: FilesWatchedRepository,
     private val streamUrls: FilesStreamUrls,
+    playbackRepositoryFor: (preference: () -> PlaybackPreference) -> PlaybackRepository,
     parentScope: CoroutineScope,
 ) {
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
@@ -88,6 +98,8 @@ internal class TvSession internal constructor(
     private val historyOpener = HistoryFileOpener(history.navigation, filesItemResolver, historyOpenChannel::send, scope)
     private val mutableFileActionFailure = MutableStateFlow<FilesFailure?>(null)
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
+    private val playbackRepository = playbackRepositoryFor { appConfig.state.value.playbackPreference() }
+    private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
 
     /**
      * Which Files row last held D-pad focus in each folder. It lives here, not in the pane,
@@ -108,6 +120,25 @@ internal class TvSession internal constructor(
     val fileActionFailure: StateFlow<FilesFailure?> = mutableFileActionFailure.asStateFlow()
 
     fun retryRecentSearches() = recentSearches.retry()
+
+    /**
+     * The file playing full-screen, or null while the shell shows. It lives here so playback
+     * survives configuration changes and ends with the session.
+     */
+    val playback: StateFlow<PlaybackController?> = mutablePlayback.asStateFlow()
+
+    /** Starts resolving [item] for playback, replacing whatever was playing. */
+    fun play(item: FilesItem) {
+        val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
+        if (!scope.isActive) return
+        val controller = PlaybackController(PlaybackTarget(item.id, item.name, mediaType), playbackRepository, scope)
+        mutablePlayback.getAndUpdate { controller }?.close()
+    }
+
+    /** Leaves playback; the shell shows again. */
+    fun stopPlayback() {
+        mutablePlayback.getAndUpdate { null }?.close()
+    }
 
     /**
      * Marks a media file watched (its position becomes its duration) or unwatched (no
@@ -157,6 +188,7 @@ internal class TvSession internal constructor(
     fun dismissHistoryOpenFailure() = historyOpener.dismissFailure()
 
     internal fun close() {
+        stopPlayback()
         scope.cancel()
         historyOpener.close()
         historyOpenChannel.close()
@@ -210,6 +242,7 @@ internal class TvSessionViewModel(
                 filesItemResolver = dependencies.filesItemResolver,
                 watchedRepository = dependencies.watchedRepository,
                 streamUrls = dependencies.streamUrls,
+                playbackRepositoryFor = dependencies.playbackRepository,
                 parentScope = viewModelScope,
             )
             if (authState.value.sessionKey() != key) {

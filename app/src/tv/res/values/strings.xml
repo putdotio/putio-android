@@ -232,4 +232,14 @@
     <string name="tv_trash_restore_all_inconclusive">Items are still leaving trash. Check again in a moment.</string>
     <string name="tv_trash_delete_still_present">%1$s is still in trash.</string>
     <string name="tv_trash_empty_still_present">Trash still has items. Refresh in a moment and try again.</string>
+    <string name="tv_player_loading">Loading</string>
+    <string name="tv_player_playing">Playing</string>
+    <string name="tv_player_paused">Paused</string>
+    <string name="tv_player_error_title">Couldn’t play this file</string>
+    <string name="tv_player_error_message">Check the network and try again.</string>
+    <string name="tv_player_retry">Try again</string>
+    <string name="tv_player_conversion_title">This video is being converted</string>
+    <string name="tv_player_conversion_message">It can play once the conversion finishes.</string>
+    <string name="tv_player_check_again">Check again</string>
+    <string name="tv_player_unsupported_title">This file can’t be played</string>
 </resources>
