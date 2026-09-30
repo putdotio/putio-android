@@ -75,13 +75,46 @@ sealed interface PlaybackFailure {
         override val cause: PutioException,
     ) : PlaybackFailure
 
+    /** The device cannot decode or parse this media; resolving it again plays nothing. */
+    data class MediaUnsupported(
+        override val cause: Throwable,
+    ) : PlaybackFailure
+
     data class Unexpected(
         override val cause: Throwable,
     ) : PlaybackFailure
 }
 
+/**
+ * Whether trying again can succeed: a network, rate-limit, server or expired-link failure can,
+ * a rejected session, a refused or rejected request, or media the device cannot play cannot.
+ */
+val PlaybackFailure.retryable: Boolean
+    get() = when (this) {
+        is PlaybackFailure.NetworkUnavailable,
+        is PlaybackFailure.MediaCredentialUnavailable,
+        is PlaybackFailure.RateLimited,
+        is PlaybackFailure.ServerUnavailable,
+        is PlaybackFailure.InvalidResponse,
+        is PlaybackFailure.Unexpected,
+        -> true
+
+        is PlaybackFailure.AuthenticationRequired,
+        is PlaybackFailure.AccessDenied,
+        is PlaybackFailure.ApiRejected,
+        is PlaybackFailure.Misconfigured,
+        is PlaybackFailure.MediaUnsupported,
+        -> false
+    }
+
 interface PlaybackRepository {
     suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution>
+
+    /** Starts converting [target] to MP4, then resolves it again. */
+    suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        PlaybackRepositoryResult.Failure(
+            PlaybackFailure.Unexpected(UnsupportedOperationException("This source cannot start a conversion")),
+        )
 
     suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
 }
@@ -207,6 +240,37 @@ class SdkPlaybackRepository internal constructor(
         }
         return PlaybackNextResult.Ended
     }
+}
+
+/**
+ * [delegate] plus the SDK's MP4 conversion start. Only the viewer's explicit retry after a failed
+ * conversion may start one; the resolver itself never does (putio-sdk-kotlin
+ * `docs/ARCHITECTURE.md`, conversion handling).
+ */
+class ConvertingPlaybackRepository internal constructor(
+    private val delegate: PlaybackRepository,
+    private val startMp4Conversion: suspend (Long) -> Unit,
+) : PlaybackRepository by delegate {
+    constructor(
+        client: PutioClient,
+        playbackPreference: () -> PlaybackPreference,
+    ) : this(
+        delegate = SdkPlaybackRepository(client, playbackPreference),
+        startMp4Conversion = { fileId -> client.files.startMp4Conversion(fileId) },
+    )
+
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        try {
+            startMp4Conversion(target.fileId.value)
+            delegate.resolve(target)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: PutioException) {
+            PlaybackRepositoryResult.Failure(error.toPlaybackFailure())
+        } catch (unexpected: Exception) {
+            PlaybackRepositoryResult.Failure(PlaybackFailure.Unexpected(unexpected))
+        }
 }
 
 private const val AUTOPLAY_PAGE_SIZE = 200

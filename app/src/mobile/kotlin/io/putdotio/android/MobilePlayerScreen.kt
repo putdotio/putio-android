@@ -1189,6 +1189,7 @@ private fun PlaybackFailure.messageResource(): Int =
         is PlaybackFailure.RateLimited -> R.string.mobile_state_error_rate_limited
         is PlaybackFailure.NetworkUnavailable -> R.string.mobile_state_error_message
         is PlaybackFailure.MediaCredentialUnavailable -> R.string.mobile_playback_error_credential
+        is PlaybackFailure.MediaUnsupported -> R.string.mobile_playback_error_media_unsupported
         is PlaybackFailure.ApiRejected,
         is PlaybackFailure.InvalidResponse,
         is PlaybackFailure.Misconfigured,

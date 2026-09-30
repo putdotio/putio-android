@@ -97,6 +97,102 @@ class PlaybackReducerTest {
     }
 
     @Test
+    fun aConversionRefreshKeepsTheInterstitialAndOnlyItsOwnResultLands() {
+        val queued = conversion(PlaybackConversionState.Queued)
+        val refresh = PlaybackReducer.reduce(queued, PlaybackEvent.RefreshConversion)
+        val requestId = PlaybackRequestId(2L)
+
+        assertEquals(PlaybackContent.Conversion(PlaybackConversionState.Queued, requestId), refresh.state.content)
+        assertEquals(PlaybackEffect.Resolve(Target, requestId), refresh.effect)
+        val second = PlaybackReducer.reduce(refresh.state, PlaybackEvent.RefreshConversion)
+        assertFalse("One read at a time", second.consumed)
+        val stale = PlaybackReducer.reduce(
+            refresh.state,
+            PlaybackEvent.ResolveSucceeded(PlaybackRequestId(1L), PlaybackResolution.Ready(playbackSource())),
+        )
+        assertFalse(stale.consumed)
+
+        val converting = PlaybackReducer.reduce(
+            refresh.state,
+            PlaybackEvent.ResolveSucceeded(
+                requestId,
+                PlaybackResolution.Conversion(PlaybackConversionState.Converting(40.0)),
+            ),
+        )
+        assertEquals(PlaybackContent.Conversion(PlaybackConversionState.Converting(40.0)), converting.state.content)
+        assertNull(converting.effect)
+        val ready = PlaybackReducer.reduce(
+            PlaybackReducer.reduce(converting.state, PlaybackEvent.RefreshConversion).state,
+            PlaybackEvent.ResolveSucceeded(PlaybackRequestId(3L), PlaybackResolution.Ready(playbackSource())),
+        )
+        assertTrue(ready.state.content is PlaybackContent.Ready)
+    }
+
+    @Test
+    fun aCompletedConversionResolvesOnceMoreThenWaitsForTheViewer() {
+        val completed = PlaybackReducer.reduce(
+            conversion(PlaybackConversionState.Converting(99.0)).let {
+                PlaybackReducer.reduce(it, PlaybackEvent.RefreshConversion).state
+            },
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(2L),
+                PlaybackResolution.Conversion(PlaybackConversionState.Completed),
+            ),
+        )
+        assertEquals(
+            PlaybackContent.Conversion(PlaybackConversionState.Completed, PlaybackRequestId(3L)),
+            completed.state.content,
+        )
+        assertEquals(PlaybackEffect.Resolve(Target, PlaybackRequestId(3L)), completed.effect)
+
+        val stillCompleted = PlaybackReducer.reduce(
+            completed.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(3L),
+                PlaybackResolution.Conversion(PlaybackConversionState.Completed),
+            ),
+        )
+        assertEquals(PlaybackContent.Conversion(PlaybackConversionState.Completed), stillCompleted.state.content)
+        assertNull("No refresh loop", stillCompleted.effect)
+    }
+
+    @Test
+    fun onlyAFailedConversionCanBeStartedAgain() {
+        assertFalse(
+            PlaybackReducer.reduce(conversion(PlaybackConversionState.Queued), PlaybackEvent.StartConversion).consumed,
+        )
+        assertFalse(
+            PlaybackReducer.reduce(conversion(PlaybackConversionState.NotAvailable), PlaybackEvent.StartConversion)
+                .consumed,
+        )
+
+        val started = PlaybackReducer.reduce(conversion(PlaybackConversionState.Failed), PlaybackEvent.StartConversion)
+        assertEquals(PlaybackEffect.StartConversion(Target, PlaybackRequestId(2L)), started.effect)
+        assertEquals(
+            PlaybackContent.Conversion(PlaybackConversionState.Failed, PlaybackRequestId(2L)),
+            started.state.content,
+        )
+        val queued = PlaybackReducer.reduce(
+            started.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(2L),
+                PlaybackResolution.Conversion(PlaybackConversionState.Queued),
+            ),
+        )
+        assertEquals(PlaybackContent.Conversion(PlaybackConversionState.Queued), queued.state.content)
+    }
+
+    @Test
+    fun onlyQueuedAndRunningConversionsPollOnTheirOwn() {
+        assertTrue(PlaybackConversionState.Queued.pollsAutomatically)
+        assertTrue(PlaybackConversionState.Converting(null).pollsAutomatically)
+        assertFalse(PlaybackConversionState.Completed.pollsAutomatically)
+        assertFalse(PlaybackConversionState.Failed.pollsAutomatically)
+        assertFalse(PlaybackConversionState.NotAvailable.pollsAutomatically)
+        assertFalse(PlaybackConversionState.Unknown("PAUSED", null).pollsAutomatically)
+    }
+
+    @Test
     fun staleResultsCannotReplaceTheActiveRequest() {
         val start = PlaybackReducer.start(Target)
         val failed = PlaybackReducer.reduce(
@@ -406,6 +502,12 @@ class PlaybackReducerTest {
         assertTrue(resolved.state.content is PlaybackContent.AwaitingResume)
         assertNull(resolved.state.resumePositionMillis)
     }
+
+    private fun conversion(state: PlaybackConversionState): PlaybackState =
+        PlaybackReducer.reduce(
+            PlaybackReducer.start(Target).state,
+            PlaybackEvent.ResolveSucceeded(PlaybackRequestId(1L), PlaybackResolution.Conversion(state)),
+        ).state
 
     private fun readyState(): PlaybackState {
         val start = PlaybackReducer.start(Target)

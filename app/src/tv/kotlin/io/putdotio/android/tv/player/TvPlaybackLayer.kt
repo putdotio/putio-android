@@ -52,6 +52,8 @@ internal fun TvPlaybackRoute(
         onPlayerFailure = { failure, positionMillis ->
             controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))
         },
+        onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
+        onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },
         playerFactory = playerFactory,
         reporter = reporter,
         subtitleStartupPolicy = subtitleStartupPolicy,

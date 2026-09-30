@@ -177,10 +177,12 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
-    // Both surfaces stream through ExoPlayer and draw subtitles (text and bitmap) with media3-ui's
-    // SubtitleView; mobile adds downloads, the media session and its controls.
+    // Both surfaces stream through ExoPlayer, publish a media session for system and remote
+    // controls, and draw subtitles (text and bitmap) with media3-ui's SubtitleView; mobile adds
+    // downloads, the background audio service and its controls.
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.exoplayer.hls)
+    implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.ui.compose)
     implementation(libs.androidx.tv.material)
@@ -190,7 +192,6 @@ dependencies {
     add("mobileImplementation", libs.androidx.browser)
     add("mobileImplementation", libs.androidx.media3.database)
     add("mobileImplementation", libs.androidx.media3.datasource.okhttp)
-    add("mobileImplementation", libs.androidx.media3.session)
     add("mobileImplementation", libs.androidx.media3.ui.compose.material3)
     add("mobileImplementation", libs.androidx.navigation.compose)
     add("mobileImplementation", libs.coil.compose)

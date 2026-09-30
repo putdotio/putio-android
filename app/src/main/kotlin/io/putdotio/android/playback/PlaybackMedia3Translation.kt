@@ -118,8 +118,21 @@ private fun PlaybackException.errorCodeFailureOrNull(): PlaybackFailure? =
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
         -> PlaybackFailure.NetworkUnavailable(this)
 
+        in MEDIA_UNSUPPORTED_ERROR_CODES -> PlaybackFailure.MediaUnsupported(this)
+
         else -> null
     }
+
+/**
+ * The device has no decoder for the format, or cannot parse the container or manifest. A decoder
+ * that fails to start is left out: another app can hold the hardware decoder, so a retry may work.
+ */
+private val MEDIA_UNSUPPORTED_ERROR_CODES = setOf(
+    PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+    PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED,
+    PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+    PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
+)
 
 private val RELAYED_RESPONSE_CODE = Regex("""Response code: (\d{3})""")
 

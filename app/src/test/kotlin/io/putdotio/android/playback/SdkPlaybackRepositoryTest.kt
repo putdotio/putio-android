@@ -148,6 +148,38 @@ class SdkPlaybackRepositoryTest {
         }
 
     @Test
+    fun convertAgainStartsTheConversionThenResolvesItsState() =
+        runBlocking {
+            val calls = mutableListOf<String>()
+            val repository = ConvertingPlaybackRepository(
+                SdkPlaybackRepository(
+                    playbackPreference = { PlaybackPreference.HLS },
+                    loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+                    resolvePlayback = {
+                        calls += "resolve ${it.fileId}"
+                        io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
+                    },
+                ),
+                startMp4Conversion = { calls += "start $it" },
+            )
+
+            val result = repository.startConversion(Target) as PlaybackRepositoryResult.Success
+
+            assertEquals(PlaybackResolution.Conversion(PlaybackConversionState.Queued), result.value)
+            assertEquals(listOf("start ${Target.fileId.value}", "resolve ${Target.fileId.value}"), calls)
+
+            val rejected = ConvertingPlaybackRepository(
+                SdkPlaybackRepository(
+                    playbackPreference = { PlaybackPreference.HLS },
+                    loadAccount = { error("A refused start resolves nothing") },
+                    resolvePlayback = { error("A refused start resolves nothing") },
+                ),
+                startMp4Conversion = { throw apiFailure(401) },
+            ).startConversion(Target) as PlaybackRepositoryResult.Failure
+            assertTrue(rejected.failure is PlaybackFailure.AuthenticationRequired)
+        }
+
+    @Test
     fun neverConvertsCancellationIntoAUiFailure() {
         val cancellation = CancellationException("route closed")
         try {

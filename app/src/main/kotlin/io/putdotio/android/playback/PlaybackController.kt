@@ -66,6 +66,7 @@ class PlaybackController(
                         when (effect) {
                             is PlaybackEffect.Resolve -> effect.resolveEvent()
                             is PlaybackEffect.FindNext -> effect.findNextEvent()
+                            is PlaybackEffect.StartConversion -> effect.startConversionEvent()
                         }
                     } catch (error: CancellationException) {
                         throw error
@@ -113,6 +114,12 @@ class PlaybackController(
             is PlaybackRepositoryResult.Failure -> PlaybackEvent.ResolveFailed(requestId, result.failure)
         }
 
+    private suspend fun PlaybackEffect.StartConversion.startConversionEvent(): PlaybackEvent =
+        when (val result = repository.startConversion(target)) {
+            is PlaybackRepositoryResult.Success -> PlaybackEvent.ResolveSucceeded(requestId, result.value)
+            is PlaybackRepositoryResult.Failure -> PlaybackEvent.ResolveFailed(requestId, result.failure)
+        }
+
     private suspend fun PlaybackEffect.FindNext.findNextEvent(): PlaybackEvent =
         when (val result = repository.findNextVideo(target)) {
             is PlaybackNextResult.Found -> PlaybackEvent.NextFound(requestId, result.target)
@@ -123,12 +130,16 @@ class PlaybackController(
 
 private fun PlaybackState.isActive(effect: PlaybackEffect): Boolean =
     when (effect) {
-        is PlaybackEffect.Resolve -> (content as? PlaybackContent.Loading)?.requestId == effect.requestId
+        is PlaybackEffect.Resolve ->
+            (content as? PlaybackContent.Loading)?.requestId == effect.requestId ||
+                (content as? PlaybackContent.Conversion)?.refreshRequestId == effect.requestId
+        is PlaybackEffect.StartConversion ->
+            (content as? PlaybackContent.Conversion)?.refreshRequestId == effect.requestId
         is PlaybackEffect.FindNext -> (content as? PlaybackContent.FindingNext)?.requestId == effect.requestId
     }
 
 private fun PlaybackEffect.failureEvent(failure: PlaybackFailure): PlaybackEvent =
     when (this) {
-        is PlaybackEffect.Resolve -> PlaybackEvent.ResolveFailed(requestId, failure)
+        is PlaybackEffect.Resolve, is PlaybackEffect.StartConversion -> PlaybackEvent.ResolveFailed(requestId, failure)
         is PlaybackEffect.FindNext -> PlaybackEvent.NextFailed(requestId, failure)
     }

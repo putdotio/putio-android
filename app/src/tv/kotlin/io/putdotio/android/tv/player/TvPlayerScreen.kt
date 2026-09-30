@@ -137,6 +137,8 @@ internal fun TvPlayerScreen(
     onRestart: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     modifier: Modifier = Modifier,
+    onRefreshConversion: () -> Unit = {},
+    onStartConversion: () -> Unit = {},
     playerFactory: TvPlayerFactory = DefaultTvPlayerFactory,
     reporter: TvPlaybackReporter = TvPlaybackReporter.None,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
@@ -181,24 +183,18 @@ internal fun TvPlayerScreen(
             -> TvStatusScreen(stringResource(R.string.tv_player_loading))
 
             is PlaybackContent.Conversion ->
-                TvStatusScreen(
-                    title = stringResource(R.string.tv_player_conversion_title),
-                    message = stringResource(R.string.tv_player_conversion_message),
-                    action = stringResource(R.string.tv_player_check_again),
-                    onAction = onRetry,
+                TvConversionScreen(
+                    title = state.target.name,
+                    conversion = content,
+                    onRefresh = onRefreshConversion,
+                    onStartConversion = onStartConversion,
                 )
 
             is PlaybackContent.Unsupported -> TvStatusScreen(stringResource(R.string.tv_player_unsupported_title))
 
-            is PlaybackContent.Failed,
-            is PlaybackContent.NextFailed,
-            ->
-                TvStatusScreen(
-                    title = stringResource(R.string.tv_player_error_title),
-                    message = stringResource(R.string.tv_player_error_message),
-                    action = stringResource(R.string.tv_player_retry),
-                    onAction = onRetry,
-                )
+            is PlaybackContent.Failed -> TvPlaybackFailureScreen(content.failure, onRetry)
+
+            is PlaybackContent.NextFailed -> TvPlaybackFailureScreen(content.failure, onRetry)
 
             PlaybackContent.Ended -> LaunchedEffect(Unit) { onBack() }
         }
@@ -273,6 +269,8 @@ private fun TvReadyPlayer(
         val listener = object : Player.Listener {
             override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) {
                 playWhenReady = value
+                // The media session plays and pauses the player directly for the system's controls.
+                apply(overlay.playingChanged(value))
             }
 
             override fun onPlaybackStateChanged(value: Int) {
@@ -321,9 +319,11 @@ private fun TvReadyPlayer(
         player.playWhenReady = stoppedAtMillis == null
         player.prepare()
         val positions = reporter.observe(player)
+        val session = playerFactory.publish(context, player)
         onDispose {
             // Captures the exit position while the player still has it.
             positions.close()
+            session.close()
             player.removeListener(listener)
             player.release()
         }

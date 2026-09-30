@@ -179,6 +179,18 @@ internal fun TvPlayerOverlay.setPlaying(play: Boolean): TvPlayerTransition {
 }
 
 /**
+ * Playback started or stopped, whoever asked: the overlay's own commands, or the media session
+ * on behalf of the system's controls. A pause shows the paused controls; playing drops a pending
+ * scrub, whose target no longer means anything.
+ */
+internal fun TvPlayerOverlay.playingChanged(playing: Boolean): TvPlayerTransition =
+    when {
+        exited -> TvPlayerTransition(this)
+        playing -> TvPlayerTransition(copy(scrub = null))
+        else -> reveal()
+    }
+
+/**
  * Back dismisses the topmost layer: an open picker (no change; focus back on its button), seek
  * mode (the position never moved; playback resumes only if the scrub paused it), then the
  * controls (pause state untouched). With nothing open it exits once; Backs that arrive before

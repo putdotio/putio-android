@@ -167,12 +167,35 @@ playback (activity recreation) keeps its lease, so the old player's exit write
 still lands. A saved position updates the Files row. A 401 from a write rejects
 the session that issued it; sign-out discards pending writes.
 
-Conversion and failed resolutions show a status screen with Check again or Try
-again, unsupported files a plain status screen as on mobile, and a player error
-keeps its position for the retry. The media session is a later #34 layer.
+The player is published as a Media3 media session while it shows, so the
+system's media controls, Now Playing and remote media keys the screen does not
+take itself reach it; the session is released before the player. A pause from
+the session shows the paused controls, and a play drops a pending scrub. The
+player buffers as the RN player's default `medium` size did: 8 s to 30 s
+ahead, starting after 1.5 s, or 3 s after a stall.
 
-Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlayerOptionsTest`,
-`TvPlayerTracksTest`, `TvPlaybackReportingTest`, `TvSessionViewModelTest`,
+A file that needs MP4 conversion shows the RN player's conversion interstitial:
+the file name, why it cannot play yet, and its conversion status (in queue, a
+percentage, completed, failed, not available, or the server's own value). A
+queued or running conversion is read again every 3 s while the app is in the
+foreground, keeping the interstitial up, and plays on its own once it
+resolves. Completed is read once more at once; if it stays completed, Check
+again waits for the viewer, as does an unknown status. Only a failed
+conversion offers Convert again, which starts one through the SDK, and a video
+that cannot be converted offers only Back: per the SDK's contract the app
+never starts a conversion on its own, where the RN app did on opening.
+
+Failures say what happened: no network, an expired playback link, too many
+requests, put.io unavailable, no access, a request put.io refused, an expired
+session (the shell then signs out), or a format this device cannot play. Try
+again shows only where it can succeed; it resolves the file again, which also
+replaces an expired link, and a player error keeps its position for it.
+Unsupported file types get a plain status screen as on mobile.
+
+Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlaybackStatesTest`,
+`TvPlayerOptionsTest`, `TvPlayerTracksTest`, `TvPlaybackReportingTest`,
+`TvSessionViewModelTest`, `PlaybackReducerTest`, `PlaybackControllerTest`,
+`SdkPlaybackRepositoryTest`, `PlaybackFailureTest`,
 `PlaybackPositionObserverTest`, `PlaybackExoPlayerTest`,
 `PlaybackSubtitleSelectionTest`, `PlaybackAudioSelectionTest`.
 

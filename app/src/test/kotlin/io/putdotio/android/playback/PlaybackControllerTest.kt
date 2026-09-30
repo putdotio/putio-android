@@ -131,12 +131,50 @@ class PlaybackControllerTest {
             try {
                 controller.awaitContent<PlaybackContent.Conversion>()
                 assertTrue(controller.dispatch(PlaybackEvent.Retry))
+                // Completed reads once more before it waits for the viewer.
                 val resolved = controller.awaitContent<PlaybackContent.Conversion> {
-                    it.state == PlaybackConversionState.Completed
+                    it.state == PlaybackConversionState.Completed && it.refreshRequestId == null
                 }
 
                 assertEquals(PlaybackConversionState.Completed, resolved.state)
-                assertEquals(2, calls)
+                assertEquals(3, calls)
+            } finally {
+                controller.close()
+            }
+        }
+
+    @Test
+    fun convertAgainStartsTheConversionThroughTheRepository() =
+        runBlocking {
+            val calls = mutableListOf<String>()
+            val repository = object : PlaybackRepository {
+                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                    calls += "resolve"
+                    return PlaybackRepositoryResult.Success(
+                        PlaybackResolution.Conversion(PlaybackConversionState.Failed),
+                    )
+                }
+
+                override suspend fun startConversion(
+                    target: PlaybackTarget,
+                ): PlaybackRepositoryResult<PlaybackResolution> {
+                    calls += "start"
+                    return PlaybackRepositoryResult.Success(
+                        PlaybackResolution.Conversion(PlaybackConversionState.Queued),
+                    )
+                }
+
+                override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
+                    PlaybackNextResult.Ended
+            }
+            val controller = PlaybackController(Target, repository, this)
+
+            try {
+                controller.awaitContent<PlaybackContent.Conversion> { it.state == PlaybackConversionState.Failed }
+                assertTrue(controller.dispatch(PlaybackEvent.StartConversion))
+                controller.awaitContent<PlaybackContent.Conversion> { it.state == PlaybackConversionState.Queued }
+
+                assertEquals(listOf("resolve", "start"), calls)
             } finally {
                 controller.close()
             }
