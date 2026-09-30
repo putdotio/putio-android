@@ -125,11 +125,23 @@ case "$*" in
   *" emu kill")
     echo 0 > "${state}/running"
     pid="$(cat "${state}/emulator-pid" 2>/dev/null || true)"
-    [[ "${pid}" =~ ^[0-9]+$ ]] && kill "${pid}" 2>/dev/null || true
+    if [[ "${pid}" =~ ^[0-9]+$ ]] && kill "${pid}" 2>/dev/null; then
+      # Return only after the emulator's TERM handler has cleared its state;
+      # a late handler would clobber the next fake emulator's running state.
+      for attempt in {1..250}; do
+        [[ -f "${state}/emulator-pid" ]] && kill -0 "${pid}" 2>/dev/null || break
+        sleep 0.02
+      done
+    fi
     ;;
   *" install -r "*) echo "Success" ;;
   *" settings put global hide_error_dialogs 1") ;;
-  *" getprop sys.boot_completed") echo 1 ;;
+  *" getprop sys.boot_completed")
+    # The fake emulator writes its port before it marks itself running, so
+    # boot readiness must wait for the running state that stop looks up.
+    [[ "$(<"${state}/running")" == "1" ]] || exit 1
+    echo 1
+    ;;
   *" getprop ro.build.version.sdk")
     failures="$(<"${state}/api-query-failures")"
     if (( failures > 0 )); then
@@ -236,7 +248,7 @@ printf '%s\n' "$$" > "${state}/emulator-pid"
 echo 1 > "${state}/running"
 stop() { echo 0 > "${state}/running"; rm -f "${state}/emulator-pid"; exit 0; }
 trap stop INT TERM
-while true; do sleep 1; done
+while true; do sleep 0.2; done
 EOF
 
 chmod +x \
@@ -393,12 +405,6 @@ for running in 0 1; do
   [[ "$(<"${state}/running")" == "1" ]] || fail "API recovery stopped the emulator"
   grep -q " emu kill" "${state}/adb-calls" && fail "API recovery killed the emulator"
   "${REPO_ROOT}/scripts/emulator.sh" stop phone >/dev/null 2>&1
-  # The fake adb clears the serial before its emulator handles TERM. Wait for
-  # that owned process to finish before resetting state for the next case.
-  for attempt in {1..100}; do
-    [[ ! -f "${state}/emulator-pid" ]] && break
-    sleep 0.02
-  done
   [[ ! -f "${state}/emulator-pid" ]] || fail "fake emulator did not finish stopping"
 done
 
@@ -643,6 +649,7 @@ google_tv_serial="$(PUTIO_EMULATOR_BOOT_TIMEOUT=10 "${REPO_ROOT}/scripts/emulato
   fail "Google TV AVD did not boot"
 [[ "${google_tv_serial}" == "emulator-5554" ]] || fail "Google TV boot printed '${google_tv_serial}'"
 [[ "$(<"${state}/name")" == "${GOOGLE_TV_AVD}" ]] || fail "Google TV boot started the wrong AVD"
+[[ "$(<"${state}/running")" == "1" ]] || fail "Google TV boot returned before its emulator was running"
 if grep -Eq 'ro\.build\.version\.sdk|com\.android\.chrome' "${state}/adb-calls"; then
   fail "Google TV boot ran phone readiness checks"
 fi
@@ -650,16 +657,13 @@ fi
 [[ "$(<"${state}/running")" == "0" ]] || fail "Google TV stop left its emulator running"
 
 # A console port held by another emulator is skipped.
-for attempt in {1..100}; do
-  [[ ! -f "${state}/emulator-pid" ]] && break
-  sleep 0.02
-done
 [[ ! -f "${state}/emulator-pid" ]] || fail "fake Google TV emulator did not finish stopping"
 printf '5554\n' > "${state}/listening-ports"
 google_tv_serial="$(PUTIO_EMULATOR_BOOT_TIMEOUT=10 "${REPO_ROOT}/scripts/emulator.sh" boot google-tv --headless 2>"${google_tv_out}")" || \
   fail "Google TV AVD did not boot beside a busy console port"
 [[ "${google_tv_serial}" == "emulator-5556" && "$(<"${state}/port")" == "5556" ]] || \
   fail "busy console port 5554 was not skipped (printed '${google_tv_serial}')"
+[[ "$(<"${state}/running")" == "1" ]] || fail "Google TV boot returned before its emulator on port 5556 was running"
 "${REPO_ROOT}/scripts/emulator.sh" stop google-tv >/dev/null 2>&1 || fail "could not stop the Google TV emulator"
 [[ "$(<"${state}/running")" == "0" ]] || fail "Google TV stop missed the emulator on port 5556"
 
