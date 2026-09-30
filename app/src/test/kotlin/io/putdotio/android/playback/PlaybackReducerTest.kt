@@ -449,6 +449,20 @@ class PlaybackReducerTest {
         assertNull(resolved.state.resumePositionMillis)
     }
 
+    @Test
+    fun hiddenSubtitlesCarryThroughTheResumePromptToPlayback() {
+        val start = PlaybackReducer.start(Target)
+        val resolved = PlaybackReducer.reduce(
+            start.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true, subtitlesHidden = true),
+            ),
+        )
+        val resumed = PlaybackReducer.reduce(resolved.state, PlaybackEvent.Resume)
+        assertTrue((resumed.state.content as PlaybackContent.Ready).subtitlesHidden)
+    }
+
     private fun readyState(): PlaybackState {
         val start = PlaybackReducer.start(Target)
         return PlaybackReducer.reduce(

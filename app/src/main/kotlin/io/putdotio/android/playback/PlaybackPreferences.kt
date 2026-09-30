@@ -22,3 +22,10 @@ internal fun AccountSettingsState.subtitleStartupPolicy(): SubtitleStartupPolicy
     (content as? AccountSettingsContent.Ready)
         ?.preferences
         ?.let { SubtitleStartupPolicy(it.showSubtitles, it.autoSelectSubtitles) }
+
+/**
+ * The account's policy, else hidden when playback resolved under `hide_subtitles` before the
+ * account settings loaded, so the picker never shows for such an account (#237).
+ */
+internal fun SubtitleStartupPolicy?.orHiddenWhen(resolvedHidden: Boolean): SubtitleStartupPolicy? =
+    this ?: SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false).takeIf { resolvedHidden }

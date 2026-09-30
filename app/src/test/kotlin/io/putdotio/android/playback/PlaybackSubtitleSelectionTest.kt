@@ -158,8 +158,9 @@ class PlaybackSubtitleSelectionTest {
         assertFalse(C.TRACK_TYPE_TEXT in forcedOnly.disabledTrackTypes)
         assertTrue(automatic.selectTextByDefault)
         assertFalse(C.TRACK_TYPE_TEXT in automatic.disabledTrackTypes)
-        assertTrue(retained.selectTextByDefault)
-        assertFalse(C.TRACK_TYPE_TEXT in retained.disabledTrackTypes)
+        // hide_subtitles outranks a retained pick; its picker is gone (#237).
+        assertFalse(retained.selectTextByDefault)
+        assertTrue(C.TRACK_TYPE_TEXT in retained.disabledTrackTypes)
     }
 
     @Test
@@ -219,6 +220,51 @@ class PlaybackSubtitleSelectionTest {
     @Test
     fun loadedShowSubtitlesSelectsTheDefaultTrack() {
         assertEquals("ordinary", startupTextTrack(loaded(showSubtitles = true)))
+    }
+
+    @Test
+    fun automaticSubtitlesPickTheServerDefaultOverTheDeviceCaptionLanguage() {
+        val deviceDefaults = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
+        val flagged = serverTracks(defaultId = "en")
+        val tracks = flagged.subtitleTracks()
+
+        val automatic = deviceDefaults.withSubtitleSelection(SubtitleSelection.Automatic, tracks, deviceDefaults)
+
+        assertEquals("en", selectedTextId(automatic, flagged))
+    }
+
+    @Test
+    fun automaticSubtitlesFollowTheDeviceWhenTheServerNamesNoDefault() {
+        val deviceDefaults = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
+        val unflagged = serverTracks(defaultId = null)
+
+        val automatic = deviceDefaults.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            unflagged.subtitleTracks(),
+            deviceDefaults,
+        )
+
+        assertEquals("tr", selectedTextId(automatic, unflagged))
+    }
+
+    @Test
+    fun arrivingTracksApplyTheServerDefaultOnlyWhileTheAccountAutoSelects() {
+        val deviceDefaults = TrackSelectionParameters.Builder().setPreferredTextLanguages("tr").build()
+        val flagged = serverTracks(defaultId = "en")
+        val tracks = flagged.subtitleTracks()
+        fun arrived(policy: SubtitleStartupPolicy, retained: SubtitleSelection? = null): TrackSelectionParameters =
+            restoreSubtitleSelection(deviceDefaults, retained, policy)
+                .withSubtitleTracks(retained, policy, tracks, deviceDefaults)
+
+        assertEquals("en", selectedTextId(arrived(SubtitleStartupPolicy(true, autoSelectSubtitles = true)), flagged))
+        // dont_autoselect_subtitles keeps forced tracks only; the default flag is ignored.
+        assertNull(selectedTextId(arrived(SubtitleStartupPolicy(true, autoSelectSubtitles = false)), flagged))
+        assertNull(selectedTextId(arrived(SubtitleStartupPolicy(false, autoSelectSubtitles = true)), flagged))
+        // The viewer's pick still decides.
+        val picked = SubtitleSelection.Track(tracks.single { it.identity.id == "tr" }.identity)
+        assertEquals("tr", selectedTextId(arrived(SubtitleStartupPolicy(true, true), picked), flagged))
+        // Except under hide_subtitles, which outranks it (#237).
+        assertNull(selectedTextId(arrived(SubtitleStartupPolicy(false, true), picked), flagged))
     }
 
     @Test
@@ -416,20 +462,37 @@ class PlaybackSubtitleSelectionTest {
 
     private fun startupTextTrack(settings: AccountSettingsState): String? = selectedTextId(startupParameters(settings))
 
-    /** The text track DefaultTrackSelector picks for [parameters], or null when none shows. */
-    private fun selectedTextId(parameters: TrackSelectionParameters): String? {
+    /** The text track DefaultTrackSelector picks from [text] for [parameters], or null when none shows. */
+    private fun selectedTextId(parameters: TrackSelectionParameters, text: TrackGroup = TextGroup): String? {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val selector = DefaultTrackSelector(context, parameters)
         selector.init({ _ -> }, DefaultBandwidthMeter.getSingletonInstance(context))
         val result =
             selector.selectTracks(
                 arrayOf(rendererCapabilities(C.TRACK_TYPE_AUDIO), rendererCapabilities(C.TRACK_TYPE_TEXT)),
-                TrackGroupArray(TrackGroup(AudioFormat), TextGroup),
+                TrackGroupArray(TrackGroup(AudioFormat), text),
                 MediaSource.MediaPeriodId(Any()),
                 Timeline.EMPTY,
             )
         return result.selections[1]?.selectedFormat?.id.also { selector.release() }
     }
+
+    /** put.io's subtitles for a Turkish-locale device: the account ranks English first. */
+    private fun serverTracks(defaultId: String?): TrackGroup =
+        TrackGroup(
+            *listOf("tr" to "Turkish", "en" to "English").map { (language, label) ->
+                Format.Builder()
+                    .setId(language)
+                    .setSampleMimeType(MimeTypes.TEXT_VTT)
+                    .setLanguage(language)
+                    .setLabel(label)
+                    .setSelectionFlags(if (language == defaultId) C.SELECTION_FLAG_DEFAULT else 0)
+                    .build()
+            }.toTypedArray(),
+        )
+
+    private fun TrackGroup.subtitleTracks(): List<PlaybackSubtitleTrack> =
+        (0 until length).map { PlaybackSubtitleTrack(this, it, label = getFormat(it).label, selected = false) }
 
     private companion object {
         // A device whose caption settings ask for English captions.

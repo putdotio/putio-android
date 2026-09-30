@@ -15,7 +15,6 @@ import io.putdotio.sdk.files.FileMp4ConversionStatus
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
-import io.putdotio.sdk.files.HLS_ALL_SUBTITLES
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -174,18 +173,19 @@ class SdkPlaybackRepository internal constructor(
                 ?: return PlaybackRepositoryResult.Failure(
                     PlaybackFailure.MediaCredentialUnavailable(MissingPlaybackCredentialException()),
                 )
+            val hideSubtitles = account.settings.hideSubtitles
             val resolution = resolvePlayback(
                 PlaybackRequest(
                     fileId = target.fileId.value,
                     mediaCredential = PlaybackMediaCredential.downloadToken(downloadToken),
                     preference = preference,
                     useStartFrom = account.settings.useStartFrom,
-                    // put.io leaves every HLS subtitle rendition out for an account with hide_subtitles
-                    // on; the player starts them off itself, so the viewer can still turn one on (#223).
-                    maxSubtitleCount = HLS_ALL_SUBTITLES,
+                    // hide_subtitles asks for no subtitles at all, as every reference player does (#237).
+                    includeSidecarSubtitles = !hideSubtitles,
+                    maxSubtitleCount = if (hideSubtitles) 0 else null,
                 ),
             )
-            PlaybackRepositoryResult.Success(resolution.toAppResolution(account.settings.useStartFrom))
+            PlaybackRepositoryResult.Success(resolution.toAppResolution(account.settings.useStartFrom, hideSubtitles))
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
@@ -308,9 +308,13 @@ private const val AUTOPLAY_PAGE_SIZE = 200
 
 internal class MissingPlaybackCredentialException : IllegalStateException("Playback credential is unavailable")
 
-private fun io.putdotio.sdk.files.PlaybackResolution.toAppResolution(useStartFrom: Boolean): PlaybackResolution =
+private fun io.putdotio.sdk.files.PlaybackResolution.toAppResolution(
+    useStartFrom: Boolean,
+    subtitlesHidden: Boolean,
+): PlaybackResolution =
     when (this) {
-        is io.putdotio.sdk.files.PlaybackResolution.Ready -> PlaybackResolution.Ready(source, useStartFrom)
+        is io.putdotio.sdk.files.PlaybackResolution.Ready ->
+            PlaybackResolution.Ready(source, useStartFrom, subtitlesHidden)
         is io.putdotio.sdk.files.PlaybackResolution.Conversion -> PlaybackResolution.Conversion(state)
         is io.putdotio.sdk.files.PlaybackResolution.Unsupported -> PlaybackResolution.Unsupported(fileType)
     }
@@ -319,6 +323,8 @@ sealed interface PlaybackResolution {
     data class Ready(
         val source: io.putdotio.sdk.files.PlaybackSource,
         val useStartFrom: Boolean = false,
+        /** Resolved for a `hide_subtitles` account, whose settings the player may not have yet. */
+        val subtitlesHidden: Boolean = false,
     ) : PlaybackResolution
 
     data class Conversion(

@@ -84,6 +84,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.TrackGroup
+import androidx.media3.common.Tracks
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.VideoSize
 import androidx.media3.common.Player as Media3Player
@@ -661,6 +662,45 @@ class MobilePlayerScreenTest {
         compose.runOnIdle {
             assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
             assertTrue(player.trackSelectionParameters.selectTextByDefault)
+        }
+    }
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun automaticSubtitlesLetTheAccountsDefaultTrackOutrankTheDeviceLanguage() {
+        val player = RecordingPlayer()
+        compose.runOnUiThread {
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .setPreferredTextLanguages("de").build()
+        }
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+                )
+            }
+        }
+        compose.runOnIdle { assertEquals(listOf("de"), player.trackSelectionParameters.preferredTextLanguages) }
+
+        // Arriving tracks mark English as the account's default; no language preference may outrank it (#237).
+        val text = TrackGroup(
+            Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT)
+                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build(),
+            Format.Builder().setId("de").setLanguage("de").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+        )
+        compose.runOnIdle {
+            player.updateTracks(Tracks(listOf(Tracks.Group(text, false, IntArray(2) { C.FORMAT_HANDLED }, BooleanArray(2)))))
+        }
+        compose.runOnIdle {
+            val parameters = player.trackSelectionParameters
+            assertTrue(parameters.selectTextByDefault)
+            assertEquals(emptyList<String>(), parameters.preferredTextLanguages)
+            assertFalse(parameters.usePreferredTextLanguagesAndRoleFlagsFromCaptioningManager)
         }
     }
 
@@ -1638,7 +1678,11 @@ class MobilePlayerScreenTest {
         assertEquals("en", local.subtitleConfigurations.first().language)
         assertEquals(MimeTypes.TEXT_VTT, local.subtitleConfigurations[2].mimeType)
         assertEquals("tr", local.subtitleConfigurations[2].language)
-        assertTrue(local.subtitleConfigurations.all { it.selectionFlags == 0 })
+        // put.io's list names its first subtitle `default`; only that one carries the flag (#237).
+        assertEquals(
+            listOf(C.SELECTION_FLAG_DEFAULT, 0, 0),
+            local.subtitleConfigurations.map { it.selectionFlags },
+        )
         assertEquals(54_321L, source.preparePlayback(Target.name, resumePositionMillis = 54_321L).startPositionMillis)
         assertTrue(source.hasSelectableSubtitles())
         assertFalse(
@@ -2291,6 +2335,103 @@ class MobilePlayerScreenTest {
         compose.onNodeWithText("Captions").assertDoesNotExist()
     }
 
+    @Test
+    fun hideSubtitlesLeavesTheCaptionsPickerOut() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(0.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
+                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
+                )
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("Audio").assertIsDisplayed()
+        compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
+        compose.onNodeWithText("Captions").assertDoesNotExist()
+    }
+
+    @Test
+    fun playbackResolvedForHiddenSubtitlesLeavesTheCaptionsPickerOutBeforeTheSettingsLoad() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource(), subtitlesHidden = true)),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
+                    subtitleStartupPolicy = null,
+                )
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("Audio").assertIsDisplayed()
+        compose.onNodeWithText("Captions").assertDoesNotExist()
+    }
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun offStaysOffWhenTheTracksChangeBeforeThePickRecomposes() {
+        val player = RecordingPlayer()
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+                )
+            }
+        }
+        compose.runOnIdle { assertTrue(player.trackSelectionParameters.selectTextByDefault) }
+        val text = TrackGroup(Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT).build())
+        compose.runOnIdle {
+            player.tracksOnNextSelection =
+                Tracks(listOf(Tracks.Group(text, false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(false))))
+        }
+
+        compose.onNodeWithText("Captions").performClick()
+        compose.onNodeWithText("Off").performClick()
+        // Automatic must not come back from a track change that beat the pick's recomposition.
+        compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+    }
+
+    @Test
+    fun hidingThatArrivesAfterAPickTurnsSubtitlesOffAndRemovesTheCaptionsPicker() {
+        val player = RecordingPlayer()
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = policy,
+                )
+            }
+        }
+        // Settings still loading: the viewer turns subtitles on.
+        compose.onNodeWithText("Captions").performClick()
+        compose.onNodeWithText("Automatic").performClick()
+        compose.runOnIdle { assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+
+        compose.runOnIdle { policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true) }
+        // hide_subtitles outranks the pick: no picker is left to turn them off with (#237).
+        compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+        compose.onNodeWithText("Captions").assertDoesNotExist()
+    }
+
     private fun state(
         content: PlaybackContent,
         target: PlaybackTarget = Target,
@@ -2449,6 +2590,11 @@ internal class RecordingPlayer(
         invalidateState()
     }
 
+    fun updateTracks(tracks: Tracks) {
+        state = state.buildUpon().setPlaylist(state.playlist.map { it.buildUpon().setTracks(tracks).build() }).build()
+        invalidateState()
+    }
+
     fun updateSeekWindow(durationMillis: Long, seekable: Boolean) {
         state = state.buildUpon()
             .setPlaylist(state.playlist.map { item ->
@@ -2510,10 +2656,19 @@ internal class RecordingPlayer(
         return Futures.immediateVoidFuture()
     }
 
+    /** Tracks the next parameter change reports at once, as a reselecting player can. */
+    var tracksOnNextSelection: Tracks? = null
+
     override fun handleSetTrackSelectionParameters(
         trackSelectionParameters: TrackSelectionParameters,
     ): ListenableFuture<*> {
         state = state.buildUpon().setTrackSelectionParameters(trackSelectionParameters).build()
+        tracksOnNextSelection?.let { tracks ->
+            tracksOnNextSelection = null
+            state = state.buildUpon()
+                .setPlaylist(state.playlist.map { it.buildUpon().setTracks(tracks).build() })
+                .build()
+        }
         invalidateState()
         return Futures.immediateVoidFuture()
     }

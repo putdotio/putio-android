@@ -416,7 +416,66 @@ class TvPlayerProofTest {
         screenshot("41-back-on-files-row")
     }
 
+    /**
+     * #237: the account's default subtitle (the master's `DEFAULT=YES` rendition, German here)
+     * starts on even though the system's captions ask for English.
+     */
+    @Test
+    fun automaticSubtitlesStartOnTheAccountsDefaultOverTheCaptionLanguage() {
+        val fixture = arguments.getString("putio.tv.player.defaultSubtitleFixture")
+        assumeTrue("Needs the two-subtitle fixture", fixture != null)
+        val enabled = shellOutput("settings get secure accessibility_captioning_enabled")
+        val locale = shellOutput("settings get secure accessibility_captioning_locale")
+        shell("settings put secure accessibility_captioning_enabled 1")
+        shell("settings put secure accessibility_captioning_locale en_US")
+        try {
+            val factory = mountFilesWithPlayer(
+                SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+                localSource(requireNotNull(fixture)),
+            )
+            press(KeyEvent.KEYCODE_DPAD_DOWN)
+            press(KeyEvent.KEYCODE_DPAD_CENTER)
+            awaitPlayer(factory) {
+                it.isPlaying && factory.renderedFrame && it.currentPosition > 1_000L &&
+                    it.currentTracks.playbackSubtitleTracks().size == 2 && selectedSubtitle(it) != null
+            }
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag(SUBTITLE_CUES_TAG).fetchSemanticsNodes().isNotEmpty() }
+            compose.runOnIdle { assertEquals("de", selectedSubtitleLanguage(factory.current())) }
+            screenshot("70-account-default-subtitle")
+            pause()
+        } finally {
+            restoreSecureSetting("accessibility_captioning_enabled", enabled)
+            restoreSecureSetting("accessibility_captioning_locale", locale)
+        }
+    }
+
+    /** #237: `hide_subtitles` leaves no Subtitles button and no subtitle on, whatever the stream has. */
+    @Test
+    fun hideSubtitlesLeavesNoSubtitlesButton() {
+        val factory = mountFilesWithPlayer(SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true))
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) {
+            it.isPlaying && factory.renderedFrame && it.currentPosition > 1_000L &&
+                it.currentTracks.playbackAudioTracks().size == 2
+        }
+        // Down brings hidden controls back on the seek bar; Up reaches Language, Right goes to Speed.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        compose.onNodeWithContentDescription(LANGUAGE).assertIsSelected()
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.onNodeWithContentDescription(SPEED).assertIsSelected()
+        compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
+        compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
+        compose.runOnIdle { assertNull(selectedSubtitle(factory.current())) }
+        screenshot("80-hidden-subtitles-no-button")
+        pause()
+    }
+
     private fun selectedSubtitle(player: Player) = player.currentTracks.playbackSubtitleTracks().singleOrNull { it.selected }
+
+    private fun selectedSubtitleLanguage(player: Player) =
+        selectedSubtitle(player)?.let { it.group.getFormat(it.trackIndex).language }
 
     private fun selectedAudioLanguage(player: Player) =
         player.currentTracks.playbackAudioTracks().singleOrNull { it.selected }
@@ -513,9 +572,17 @@ class TvPlayerProofTest {
 
     /** Runs [command] as the shell user, as `adb shell` does, and waits for it to finish. */
     private fun shell(command: String) {
-        val output = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
-        android.os.ParcelFileDescriptor.AutoCloseInputStream(output).use { it.readBytes() }
+        shellOutput(command)
         compose.waitForIdle()
+    }
+
+    private fun restoreSecureSetting(key: String, value: String) =
+        shell(if (value.isEmpty()) "settings delete secure $key" else "settings put secure $key $value")
+
+    private fun shellOutput(command: String): String {
+        val output = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        return android.os.ParcelFileDescriptor.AutoCloseInputStream(output).use { it.readBytes() }
+            .decodeToString().trim().takeUnless { it == "null" }.orEmpty()
     }
 
     /** This app's sessions as the system's media controls see them. */
@@ -744,8 +811,10 @@ class TvPlayerProofTest {
         ).state
 
     /** A fixed Files listing whose media row plays the local fixture on the production player. */
-    private fun mountFilesWithPlayer(subtitleStartupPolicy: SubtitleStartupPolicy? = null): ProofPlayerFactory {
-        val source = localSource()
+    private fun mountFilesWithPlayer(
+        subtitleStartupPolicy: SubtitleStartupPolicy? = null,
+        source: PlaybackSource = localSource(),
+    ): ProofPlayerFactory {
         val factory = ProofPlayerFactory()
         val video = row(FIXTURE_FILE_ID, FIXTURE_TITLE, PutioFileType.VIDEO)
         val files = FilesBrowserState(
@@ -842,8 +911,10 @@ class TvPlayerProofTest {
         }
     }
 
-    private fun localSource(): PlaybackSource {
-        val file = File(requireNotNull(arguments.getString("putio.tv.player.fixture"))).canonicalFile
+    private fun localSource(
+        fixture: String = requireNotNull(arguments.getString("putio.tv.player.fixture")),
+    ): PlaybackSource {
+        val file = File(fixture).canonicalFile
         require(file.isFile && file.canRead()) { "Fixture is not readable: $file" }
         require(file.toPath().startsWith(requireNotNull(context.getExternalFilesDir(null)).canonicalFile.toPath()))
         // The SDK owns production URLs. This proof reads only its caller-owned local fixture.

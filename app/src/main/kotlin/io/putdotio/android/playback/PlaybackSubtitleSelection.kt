@@ -105,7 +105,15 @@ internal fun TrackSelectionParameters.withSubtitleSelection(
                 .build()
 
         SubtitleSelection.Automatic -> {
-            if (textDefaults != null) {
+            if (tracks.any(PlaybackSubtitleTrack::isServerDefault)) {
+                // Media3 ranks the device's caption language above a track's default flag; with no
+                // preference left, the account's default subtitle wins (#237).
+                builder
+                    .setPreferredTextLanguages()
+                    .setPreferredTextRoleFlags(0)
+                    .setPreferredTextLabels()
+                    .setSelectUndeterminedTextLanguage(false)
+            } else if (textDefaults != null) {
                 if (textDefaults.usePreferredTextLanguagesAndRoleFlagsFromCaptioningManager) {
                     builder.setPreferredTextLanguageAndRoleFlagsToCaptioningManagerSettings()
                 } else {
@@ -144,6 +152,34 @@ internal fun TrackSelectionParameters.withSubtitleSelection(
     }
 }
 
+/**
+ * A track the media marks default. put.io marks the account's default subtitle this way: the
+ * HLS master with `DEFAULT=YES`, and [toMediaItem] for the sidecar list's `default`.
+ */
+internal val PlaybackSubtitleTrack.isServerDefault: Boolean
+    get() = (identity.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0
+
+/**
+ * Reapplies the subtitle choice in effect to [tracks] as they arrive: off while the account hides
+ * subtitles, whatever was picked (#237), else the viewer's pick, else automatic selection when the
+ * account auto-selects. Off and forced-only need no tracks.
+ */
+internal fun TrackSelectionParameters.withSubtitleTracks(
+    retained: SubtitleSelection?,
+    startupPolicy: SubtitleStartupPolicy?,
+    tracks: List<PlaybackSubtitleTrack>,
+    textDefaults: TrackSelectionParameters,
+): TrackSelectionParameters {
+    if (startupPolicy?.showSubtitles == false) return withSubtitleSelection(SubtitleSelection.Off, tracks)
+    val autoSelects = startupPolicy?.showSubtitles == true && startupPolicy.autoSelectSubtitles
+    val selection = retained ?: SubtitleSelection.Automatic.takeIf { autoSelects }
+    return when (selection) {
+        is SubtitleSelection.Track, SubtitleSelection.Automatic ->
+            withSubtitleSelection(selection, tracks, textDefaults)
+        SubtitleSelection.Off, null -> this
+    }
+}
+
 internal fun TrackSelectionParameters.subtitlesEnabled(tracks: List<PlaybackSubtitleTrack>): Boolean =
     C.TRACK_TYPE_TEXT !in disabledTrackTypes &&
         (selectTextByDefault || tracks.any(PlaybackSubtitleTrack::selected))
@@ -154,11 +190,12 @@ internal fun restoreSubtitleSelection(
     startupPolicy: SubtitleStartupPolicy?,
 ): TrackSelectionParameters =
     when {
+        // hide_subtitles outranks any pick: its picker is gone, so nothing could turn one off (#237).
+        startupPolicy?.showSubtitles == false -> defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
         retained != null -> defaults.withSubtitleSelection(retained, emptyList(), defaults)
         // No policy means account settings are loading or failed to load; until they say
         // otherwise a `hide_subtitles` account must not see subtitles (#229).
-        startupPolicy == null || !startupPolicy.showSubtitles ->
-            defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
+        startupPolicy == null -> defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
         startupPolicy.autoSelectSubtitles ->
             defaults.withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaults)
         else -> defaults.withForcedSubtitlesOnly()

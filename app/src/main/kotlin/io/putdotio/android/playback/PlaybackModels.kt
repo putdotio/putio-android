@@ -47,11 +47,14 @@ sealed interface PlaybackContent {
 
     data class AwaitingResume(
         val source: PlaybackSource,
+        val subtitlesHidden: Boolean = false,
     ) : PlaybackContent
 
     data class Ready(
         val source: PlaybackSource,
         val useStartFrom: Boolean = false,
+        /** See [PlaybackResolution.Ready.subtitlesHidden]. */
+        val subtitlesHidden: Boolean = false,
     ) : PlaybackContent
 
     data class FindingNext(
@@ -287,9 +290,13 @@ private fun PlaybackState.resolveSucceeded(
                         if (resolution.useStartFrom && resolution.source.startFromSeconds > 0 &&
                             resumePositionMillis == null
                         ) {
-                            PlaybackContent.AwaitingResume(resolution.source)
+                            PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden)
                         } else {
-                            PlaybackContent.Ready(resolution.source, resolution.useStartFrom)
+                            PlaybackContent.Ready(
+                                resolution.source,
+                                resolution.useStartFrom,
+                                resolution.subtitlesHidden,
+                            )
                         },
                 ),
             )
@@ -402,7 +409,11 @@ private fun PlaybackState.chooseResume(restart: Boolean): PlaybackTransition {
     val pending = content as? PlaybackContent.AwaitingResume ?: return PlaybackTransition(this, consumed = false)
     return PlaybackTransition(
         copy(
-            content = PlaybackContent.Ready(pending.source, useStartFrom = true),
+            content = PlaybackContent.Ready(
+                pending.source,
+                useStartFrom = true,
+                subtitlesHidden = pending.subtitlesHidden,
+            ),
             resumePositionMillis = if (restart) 0L else pending.source.startFromSeconds.toPlaybackMillis(),
         ),
     )

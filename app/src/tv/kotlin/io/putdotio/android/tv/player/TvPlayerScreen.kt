@@ -95,6 +95,7 @@ import io.putdotio.android.playback.SubtitleCueOverlay
 import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.displayAspectRatioOrNull
+import io.putdotio.android.playback.orHiddenWhen
 import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.playback.restoreSubtitleSelection
@@ -103,6 +104,7 @@ import io.putdotio.android.playback.withAudioSelection
 import io.putdotio.android.playback.withAudioTrack
 import io.putdotio.android.playback.withRetainedAudioSelection
 import io.putdotio.android.playback.withSubtitleSelection
+import io.putdotio.android.playback.withSubtitleTracks
 import io.putdotio.android.tv.TvChoice
 import io.putdotio.android.tv.TvChoiceDialog
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -155,7 +157,7 @@ internal fun TvPlayerScreen(
                     useStartFrom = content.useStartFrom,
                     target = state.target,
                     resumePositionMillis = state.resumePositionMillis,
-                    subtitleStartupPolicy = subtitleStartupPolicy,
+                    subtitleStartupPolicy = subtitleStartupPolicy.orHiddenWhen(content.subtitlesHidden),
                     playerFactory = playerFactory,
                     reporter = reporter,
                     onPlayerFailure = onPlayerFailure,
@@ -265,14 +267,18 @@ private fun TvReadyPlayer(
     var speed by remember(player) { mutableFloatStateOf(player.playbackParameters.speed) }
     var cues by remember(player) { mutableStateOf(emptyList<Cue>()) }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
+    val currentSubtitlePolicy by rememberUpdatedState(subtitleStartupPolicy)
     DisposableEffect(player) {
         fun keepChoices(current: Tracks) {
-            // A picked subtitle track is found again in each new track list; Off stays off
-            // because the text type stays disabled whatever the tracks do (#45).
-            val subtitles = options.subtitles as? SubtitleSelection.Track
-            val withSubtitles = subtitles?.let {
-                player.trackSelectionParameters.withSubtitleSelection(it, current.playbackSubtitleTracks())
-            } ?: player.trackSelectionParameters
+            // A picked subtitle track is found again in each new track list, and automatic
+            // subtitles find the account's default; Off stays off because the text type stays
+            // disabled whatever the tracks do (#45).
+            val withSubtitles = player.trackSelectionParameters.withSubtitleTracks(
+                retained = options.subtitles,
+                startupPolicy = currentSubtitlePolicy,
+                tracks = current.playbackSubtitleTracks(),
+                textDefaults = defaultTrackSelection,
+            )
             val withAudio = withSubtitles.withRetainedAudioSelection(options.audio, current.playbackAudioTracks())
             if (withAudio != player.trackSelectionParameters) player.trackSelectionParameters = withAudio
         }
@@ -357,13 +363,18 @@ private fun TvReadyPlayer(
             player.release()
         }
     }
-    // Account settings that arrive after playback started still decide until the viewer picks.
+    // Account settings that arrive after playback started still decide until the viewer picks;
+    // hiding overrides a pick too (#237).
     LaunchedEffect(player, subtitleStartupPolicy, options.subtitles == null) {
         val policy = subtitleStartupPolicy ?: return@LaunchedEffect
-        if (options.subtitles != null) return@LaunchedEffect
+        if (options.subtitles != null && policy.showSubtitles) return@LaunchedEffect
         val current = player.trackSelectionParameters
         val updated = if (policy.showSubtitles && policy.autoSelectSubtitles) {
-            current.withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaultTrackSelection)
+            current.withSubtitleSelection(
+                SubtitleSelection.Automatic,
+                player.currentTracks.playbackSubtitleTracks(),
+                defaultTrackSelection,
+            )
         } else {
             restoreSubtitleSelection(current, null, policy)
         }
@@ -387,7 +398,13 @@ private fun TvReadyPlayer(
 
     val audioTracks = tracks.playbackAudioTracks()
     val subtitleTracks = tracks.playbackSubtitleTracks()
-    val buttons = tvOptionButtons(audioTracks.size, subtitleTracks.size)
+    // hide_subtitles hides subtitles entirely, as every reference player does (#237).
+    val subtitlesHidden = subtitleStartupPolicy?.showSubtitles == false
+    val buttons = tvOptionButtons(audioTracks.size, if (subtitlesHidden) 0 else subtitleTracks.size)
+    // A Subtitles picker opened before the settings arrived closes once they hide subtitles.
+    LaunchedEffect(subtitlesHidden, overlay.picker) {
+        if (subtitlesHidden && overlay.picker == TvPlayerControl.Subtitles) apply(overlay.closePicker())
+    }
     // Off is authoritative: nothing is drawn while the text type is disabled, whatever cues the
     // renderer last delivered (#45: subtitles that stayed on screen after being turned off).
     val subtitlesOn = C.TRACK_TYPE_TEXT !in parameters.disabledTrackTypes
@@ -508,7 +525,7 @@ private fun TvReadyPlayer(
             )
         }
 
-        TvPlayerControl.Subtitles -> {
+        TvPlayerControl.Subtitles -> if (!subtitlesHidden) {
             val labels = pickerLabels(
                 tvTrackLabels(
                     tracks = subtitleTracks.map { it.group.getFormat(it.trackIndex).let { format -> TvTrackName(format.label, format.language) } },

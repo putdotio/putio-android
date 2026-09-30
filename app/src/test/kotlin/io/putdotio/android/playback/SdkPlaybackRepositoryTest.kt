@@ -13,7 +13,6 @@ import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
-import io.putdotio.sdk.files.HLS_ALL_SUBTITLES
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackPreference
@@ -27,6 +26,7 @@ import io.putdotio.sdk.files.PutioVideoMetadata
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -57,22 +57,33 @@ class SdkPlaybackRepositoryTest {
         }
 
     @Test
-    fun asksForEveryHlsSubtitleRenditionSoHiddenSubtitlesCanStillBeTurnedOn() =
+    fun hideSubtitlesRequestsNoSubtitleTracks() =
         runBlocking {
-            var request: PlaybackRequest? = null
-            val repository = SdkPlaybackRepository(
-                playbackPreference = { PlaybackPreference.HLS },
-                loadAccount = { account(downloadToken = Token, useStartFrom = true) },
-                resolvePlayback = {
-                    request = it
-                    io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource())
-                },
-            )
+            val requests = mutableListOf<PlaybackRequest>()
+            fun repository(hideSubtitles: Boolean) =
+                SdkPlaybackRepository(
+                    playbackPreference = { PlaybackPreference.HLS },
+                    loadAccount = {
+                        account(downloadToken = Token, useStartFrom = true, hideSubtitles = hideSubtitles)
+                    },
+                    resolvePlayback = {
+                        requests += it
+                        io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource())
+                    },
+                )
 
-            repository.resolve(Target)
+            val hidden = repository(hideSubtitles = true).resolve(Target)
+            val shown = repository(hideSubtitles = false).resolve(Target)
 
-            // Without it put.io drops the renditions for an account with hide_subtitles on (#223).
-            assertEquals(HLS_ALL_SUBTITLES, request?.maxSubtitleCount)
+            // Hidden: no HLS renditions and no sidecar list, as every reference player asks (#237).
+            assertEquals(0, requests[0].maxSubtitleCount)
+            assertFalse(requests[0].includeSidecarSubtitles)
+            // Shown: the server's own default, every rendition.
+            assertNull(requests[1].maxSubtitleCount)
+            assertTrue(requests[1].includeSidecarSubtitles)
+            // The player hides the picker from this before the account settings load.
+            assertTrue(((hidden as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).subtitlesHidden)
+            assertFalse(((shown as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).subtitlesHidden)
         }
 
     @Test
@@ -491,6 +502,7 @@ class SdkPlaybackRepositoryTest {
     private fun account(
         downloadToken: AccountDownloadToken?,
         useStartFrom: Boolean,
+        hideSubtitles: Boolean = false,
     ): AccountInfo =
         AccountInfo(
             userId = 1L,
@@ -498,7 +510,7 @@ class SdkPlaybackRepositoryTest {
             mail = "test@example.com",
             avatarUrl = "https://example.com/avatar.png",
             disk = AccountDisk(available = 1L, size = 2L, used = 1L),
-            settings = AccountSettings(sortBy = "NAME_ASC", useStartFrom = useStartFrom),
+            settings = AccountSettings(sortBy = "NAME_ASC", useStartFrom = useStartFrom, hideSubtitles = hideSubtitles),
             accountStatus = "active",
             downloadToken = downloadToken,
         )

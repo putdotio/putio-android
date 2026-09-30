@@ -165,7 +165,9 @@ internal fun MobilePlayerScreen(
                     startPositionMillis = preferences.positionMillis ?: state.resumePositionMillis,
                     resumeAfterLifecyclePause = preferences.resumeAfterLifecyclePause,
                     retainedSubtitleSelection = preferences.subtitleSelection,
-                    subtitleStartupPolicy = subtitleStartupPolicy,
+                    subtitleStartupPolicy = subtitleStartupPolicy.orHiddenWhen(
+                        (content as? PlaybackContent.Ready)?.subtitlesHidden == true,
+                    ),
                     onPlaybackRetained = preferences::retainPlayback,
                     onPositionChanged = preferences::retainPosition,
                     onSubtitleSelectionChanged = { preferences.subtitleSelection = it },
@@ -302,7 +304,7 @@ private fun MobileReadyPlayer(
     val currentOnPlaybackEnded = rememberUpdatedState(onPlaybackEnded)
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
-    val currentRetainedSubtitleSelection = rememberUpdatedState(retainedSubtitleSelection)
+    val currentSubtitleStartupPolicy = rememberUpdatedState(subtitleStartupPolicy)
     val currentPreferences = rememberUpdatedState(preferences)
     // A session player outlives this screen: it is never paused, released, or recreated here.
     val ownsPlayer = sessionPlayer == null
@@ -434,11 +436,16 @@ private fun MobileReadyPlayer(
     }
     LaunchedEffect(player, activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
         val policy = subtitleStartupPolicy ?: return@LaunchedEffect
-        if (activeFileId == fileId && retainedSubtitleSelection == null) {
+        // Hiding also overrides a pick made before the settings arrived (#237).
+        if (activeFileId == fileId && (retainedSubtitleSelection == null || !policy.showSubtitles)) {
             val current = player.trackSelectionParameters
             val parameters =
                 if (policy.showSubtitles && policy.autoSelectSubtitles) {
-                    current.withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaultTrackSelection)
+                    current.withSubtitleSelection(
+                        SubtitleSelection.Automatic,
+                        player.currentTracks.playbackSubtitleTracks(),
+                        defaultTrackSelection,
+                    )
                 } else {
                     restoreSubtitleSelection(
                         defaults = current,
@@ -568,9 +575,16 @@ private fun MobileReadyPlayer(
         }
     }
     DisposableEffect(player) {
+        // A picked track is found again in each new track list, and automatic subtitles find the
+        // account's default. The pick is read live: tracks can change before recomposition
+        // passes it back as retainedSubtitleSelection.
         fun resolveRetainedSubtitleSelection(tracks: List<PlaybackSubtitleTrack>) {
-            val selection = currentRetainedSubtitleSelection.value as? SubtitleSelection.Track ?: return
-            val parameters = player.trackSelectionParameters.withSubtitleSelection(selection, tracks)
+            val parameters = player.trackSelectionParameters.withSubtitleTracks(
+                retained = currentPreferences.value.subtitleSelection,
+                startupPolicy = currentSubtitleStartupPolicy.value,
+                tracks = tracks,
+                textDefaults = defaultTrackSelection,
+            )
             if (parameters != player.trackSelectionParameters) {
                 player.trackSelectionParameters = parameters
             }
@@ -792,7 +806,8 @@ private fun MobileReadyPlayer(
                     onPointerNavigation = onPointerNavigation,
                     directControls = !isAudio,
                 )
-                if (!isAudio) {
+                // hide_subtitles hides subtitles entirely, as every reference player does (#237).
+                if (!isAudio && subtitleStartupPolicy?.showSubtitles != false) {
                     MobileSubtitleControls(
                         player = player,
                         defaultTrackSelection = defaultTrackSelection,
