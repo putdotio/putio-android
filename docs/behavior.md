@@ -112,7 +112,9 @@ the row that was playing. Playback belongs to the session: sign-out ends it.
 The overlay shows the raw file name, a seek bar, position and duration.
 Any key reveals it for three seconds of playback; it stays while paused or
 scrubbing. Center, Enter or the remote's play/pause key toggles playback, and
-leaving the app pauses it and shows the paused controls.
+leaving the app pauses it and shows the paused controls. If the activity is
+recreated (a remote or keyboard connecting, a locale change), playback
+continues paused from where it stopped.
 
 Left, Right, rewind and fast-forward scrub, as the RN player did: the first
 press pauses and the seek bar shows a pending target. Each press moves it
@@ -129,10 +131,10 @@ focus untouched), and only then leaves playback, once. A held Back is one
 press. Track pickers and the resume dialog will stack above seek mode.
 
 A saved position is continued without a prompt until the resume dialog lands;
-conversion, unsupported and failed resolutions show a status screen with Check
-again or Try again, and a player error keeps its position for the retry.
-Resume, track pickers, position write-back and the media session are later
-#34 layers.
+conversion and failed resolutions show a status screen with Check again or Try
+again, unsupported files a plain status screen as on mobile, and a player error
+keeps its position for the retry. Resume, track pickers, position write-back
+and the media session are later #34 layers.
 
 Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvSessionViewModelTest`,
 `PlaybackExoPlayerTest`.
@@ -162,7 +164,7 @@ Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest`,
 Share file (Files and Downloads action sheets, non-folder items only) starts a
 foreground `dataSync` service that fetches the original file through the API
 download endpoint with the session header, stores it under private
-`files/shares/<fileId>/<name>`, and opens the system chooser with a
+`files/shares/<process>/<session>/<fileId>/<name>`, and opens the system chooser with a
 `FileProvider` content URI (`${applicationId}.share`) carrying a read grant.
 The payload is the stream only: no text, subject or URL, so no token reaches the
 chooser. Progress and failure use the foreground notification, which the drawer
@@ -180,14 +182,22 @@ share folder and removes the notification; delivery checks the session again
 before opening the chooser, so a resume that races a sign-out shares nothing.
 The process-wide auth runtime owns this cleanup, so it also runs with no UI,
 and a launch whose restore ends signed out deletes exports an earlier process
-left. Cancelling an export cancels its download at once, even mid-read.
+left. Session ids restart in every process, so exports sit under a per-process
+folder, and every session exit also deletes the folders earlier processes left:
+signing out of a restored session removes the previous process's exports too.
+That cleanup can run after the next session has already started and exported,
+so within this process it deletes only the departed session's folder. Cancelling an
+export cancels its download at once, even mid-read.
 The stored name keeps the original readable but drops path separators, control
 and bidi formatting characters (which could disguise the extension), and is cut
 to 200 UTF-8 bytes on a code-point boundary, keeping a short extension.
 
 Tests: `MobileFileShareServiceTest` (payload shape, ready notification, service
 stop rules, session exit, ready timeout, prior-export wipe, failure notification,
-name sanitizer, all on virtual time with a fake download source).
+name sanitizer, all on virtual time with a fake download source),
+`MobileOAuthRuntimeTest` (session-exit cleanup that lags the next sign-in keeps
+the next session's export; signing out of a restored session deletes an earlier
+process's export).
 
 ## Deep links
 

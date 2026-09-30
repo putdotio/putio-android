@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +76,7 @@ import io.putdotio.android.tv.OVERSCAN_Y
 import io.putdotio.android.tv.PANE_INSET
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.sdk.files.PlaybackSource
+import java.util.UUID
 import kotlinx.coroutines.delay
 
 internal const val TV_PLAYER_TAG = "tv-player"
@@ -84,6 +86,7 @@ internal const val TV_PLAYER_ELAPSED_TAG = "tv-player-elapsed"
 internal const val TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS = 3_000L
 private const val TV_PLAYER_POSITION_POLL_MILLIS = 500L
 private const val TV_PLAYER_SCRIM_ALPHA = 0.75f
+private val PROCESS_KEY = UUID.randomUUID().toString()
 
 /**
  * Full-screen TV playback of one Files item: the resolved source plays at once, Center or
@@ -162,6 +165,12 @@ private fun TvReadyPlayer(
     onExit: () -> Unit,
 ) {
     val context = LocalContext.current
+    // Recreating the activity (a remote or keyboard connecting, a locale change) rebuilds the
+    // player; the new one continues, paused, from where the old one was stopped. The key is
+    // scoped to this process and file so a position saved before process death never applies.
+    var stoppedAtMillis by rememberSaveable(source, key = "tv-player-stopped-at-$PROCESS_KEY-${target.fileId.value}") {
+        mutableStateOf<Long?>(null)
+    }
     val player = remember(source, playerFactory) { playerFactory.create(context, target.mediaType) }
     val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
     val currentOnExit by rememberUpdatedState(onExit)
@@ -179,7 +188,7 @@ private fun TvReadyPlayer(
             }
         }
     }
-    var playWhenReady by remember(player) { mutableStateOf(true) }
+    var playWhenReady by remember(player) { mutableStateOf(stoppedAtMillis == null) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
@@ -197,9 +206,9 @@ private fun TvReadyPlayer(
             }
         }
         player.addListener(listener)
-        val prepared = source.preparePlayback(target.name, target.mediaType, resumePositionMillis)
+        val prepared = source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
         player.setMediaItem(prepared.mediaItem, prepared.startPositionMillis)
-        player.playWhenReady = true
+        player.playWhenReady = stoppedAtMillis == null
         player.prepare()
         onDispose {
             player.removeListener(listener)
@@ -213,6 +222,8 @@ private fun TvReadyPlayer(
         apply(overlay.setPlaying(play = false))
         apply(overlay.reveal())
     }
+    // ON_PAUSE precedes saving instance state on every API level; ON_STOP follows it before API 28.
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { stoppedAtMillis = player.currentPosition.coerceAtLeast(0L) }
     val view = LocalView.current
     val keepScreenOn = playWhenReady && playbackState != Player.STATE_ENDED && playbackState != Player.STATE_IDLE
     DisposableEffect(view, keepScreenOn) {

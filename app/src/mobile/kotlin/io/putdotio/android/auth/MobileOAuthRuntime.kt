@@ -26,7 +26,7 @@ class MobileOAuthRuntime internal constructor(
     val authController: MobileAuthController,
     private val applicationScope: CoroutineScope,
     private val failureReporter: OAuthRuntimeFailureReporter = AndroidOAuthRuntimeFailureReporter,
-    onSessionLeft: () -> Unit = {},
+    onSessionLeft: (MobileAuthSessionId?) -> Unit = {},
 ) {
     init {
         // Sessions also end without a UI (a background rejection), so the process scope owns this boundary.
@@ -38,7 +38,12 @@ class MobileOAuthRuntime internal constructor(
                 val current = (state as? MobileAuthState.SignedIn)?.sessionId
                 val restoreEnded = persistedSessionPending && state is MobileAuthState.SignedOut
                 if (current != null || restoreEnded) persistedSessionPending = false
-                if (restoreEnded || previous != null && current != previous) onSessionLeft()
+                // The collector can lag a switch to the next session, so it names the departed one.
+                when {
+                    // The earlier process's session id is unknown, and this process has no session yet.
+                    restoreEnded -> onSessionLeft(null)
+                    previous != null && current != previous -> onSessionLeft(previous)
+                }
                 previous = current
             }
         }
@@ -137,7 +142,7 @@ class MobileOAuthRuntime internal constructor(
                 putioClient = putioClient,
                 authController = authController,
                 applicationScope = applicationScope,
-                onSessionLeft = { MobileFileShareService.endSession(context) },
+                onSessionLeft = { session -> MobileFileShareService.endSession(context, session) },
             )
         }
     }

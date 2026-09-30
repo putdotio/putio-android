@@ -13,10 +13,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.key.Key
+import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -156,6 +158,38 @@ class TvPlayerScreenTest {
         assertEquals(1, backs)
         compose.onNodeWithTag(TV_PLAYER_TAG).assertDoesNotExist()
         assertTrue(player.released)
+    }
+
+    @Test
+    fun leavingTheAppPausesAndARecreatedScreenContinuesFromThereStillPaused() {
+        val players = mutableListOf<FakePlayer>()
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlayerScreen(
+                    state = readyState(resumePositionMillis = 42_000L),
+                    onBack = {},
+                    onRetry = {},
+                    onResume = {},
+                    onPlayerFailure = { _, _ -> },
+                    playerFactory = { _, _ -> FakePlayer().also { players += it } },
+                )
+            }
+        }
+        compose.runOnIdle { players.single().advanceTo(61_000L) }
+
+        compose.activityRule.scenario.moveToState(Lifecycle.State.CREATED)
+        compose.runOnIdle { assertFalse(players.single().playWhenReady) }
+        compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+
+        restoration.emulateSavedInstanceStateRestore()
+        compose.runOnIdle {
+            val (first, recreated) = players
+            assertTrue(first.released)
+            assertEquals(61_000L, recreated.startPositionMillis)
+            assertFalse(recreated.playWhenReady)
+        }
+        compose.onNodeWithContentDescription("Paused").assertIsDisplayed()
     }
 
     @Test
@@ -587,6 +621,11 @@ private class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
     override fun handleRelease(): ListenableFuture<*> {
         released = true
         return Futures.immediateVoidFuture()
+    }
+
+    fun advanceTo(positionMillis: Long) {
+        state = state.buildUpon().setContentPositionMs(positionMillis).build()
+        invalidateState()
     }
 
     fun fail(positionMillis: Long) {

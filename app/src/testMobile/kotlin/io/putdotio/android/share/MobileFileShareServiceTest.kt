@@ -149,7 +149,7 @@ class MobileFileShareServiceTest {
         val fixture = ShareFixture()
         fixture.start(fileId = 9L, name = "poster.jpg", startId = 1)
         fixture.scheduler.runCurrent()
-        assertTrue(File(MobileFileShareService.shareRoot(fixture.service), "9/poster.jpg").exists())
+        assertTrue(fixture.export("9/poster.jpg").exists())
 
         fixture.auth.value = MobileAuthState.SignedOut()
         fixture.scheduler.runCurrent()
@@ -171,7 +171,7 @@ class MobileFileShareServiceTest {
         fixture.start(fileId = 9L, name = "poster.jpg", startId = 1)
         fixture.scheduler.advanceTimeBy(59.seconds)
         fixture.scheduler.runCurrent()
-        assertTrue(File(MobileFileShareService.shareRoot(fixture.service), "9/poster.jpg").exists())
+        assertTrue(fixture.export("9/poster.jpg").exists())
         assertFalse(shadowOf(fixture.service).isForegroundStopped)
 
         fixture.scheduler.advanceTimeBy(2.seconds)
@@ -192,8 +192,8 @@ class MobileFileShareServiceTest {
         fixture.start(fileId = 9L, name = "poster.jpg", startId = 1)
         fixture.scheduler.runCurrent()
         assertFalse(earlier.exists())
-        assertFalse(File(MobileFileShareService.shareRoot(fixture.service), "7").exists())
-        assertEquals("poster", File(MobileFileShareService.shareRoot(fixture.service), "9/poster.jpg").readText())
+        assertFalse(fixture.export("7").exists())
+        assertEquals("poster", fixture.export("9/poster.jpg").readText())
         fixture.destroy()
     }
 
@@ -208,7 +208,7 @@ class MobileFileShareServiceTest {
         // Detached, so the failure stays visible after the service stops.
         assertTrue(shadowOf(fixture.service).isForegroundStopped)
         assertFalse(shadowOf(fixture.service).notificationShouldRemoved)
-        assertFalse(File(MobileFileShareService.shareRoot(fixture.service), "9").exists())
+        assertFalse(fixture.export("9").exists())
         assertEquals(1, shadowOf(fixture.service).stopSelfId)
         fixture.destroy()
     }
@@ -244,7 +244,7 @@ class MobileFileShareServiceTest {
         fixture.scheduler.advanceUntilIdle()
         assertEquals(2, shadowOf(fixture.service).stopSelfId)
         assertTrue(shadowOf(fixture.service).isForegroundStopped)
-        assertFalse(File(MobileFileShareService.shareRoot(fixture.service), "1").exists())
+        assertFalse(fixture.export("1").exists())
         fixture.destroy()
     }
 
@@ -271,15 +271,31 @@ class MobileFileShareServiceTest {
     }
 
     @Test
-    fun endingTheSessionDeletesExportsAlreadyHandedOut() {
+    fun endingASessionDeletesOnlyTheExportsItHandedOut() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val export = File(MobileFileShareService.shareRoot(context), "9/poster.jpg").apply {
+        fun exportOf(session: MobileAuthSessionId) =
+            File(MobileFileShareService.sessionShares(context, session), "9/poster.jpg").apply {
+                parentFile?.mkdirs()
+                writeText("bytes")
+            }
+        fun earlierProcessExport() = File(MobileFileShareService.shareRoot(context), "earlier/1/9/poster.jpg").apply {
             parentFile?.mkdirs()
             writeText("bytes")
         }
-        MobileFileShareService.endSession(context)
-        assertFalse(export.exists())
-        assertFalse(MobileFileShareService.shareRoot(context).exists())
+        val ended = exportOf(SESSION)
+        val next = exportOf(MobileAuthSessionId(2L))
+        val leftover = earlierProcessExport()
+
+        MobileFileShareService.endSession(context, SESSION)
+        assertFalse(ended.exists())
+        assertFalse(leftover.exists())
+        assertTrue(next.exists())
+
+        // A session an earlier process left has no known id; ending it clears every earlier-process leftover.
+        val restoredLeftover = earlierProcessExport()
+        MobileFileShareService.endSession(context, null)
+        assertFalse(restoredLeftover.exists())
+        assertTrue(next.exists())
     }
 
     @Test
@@ -388,7 +404,9 @@ class MobileFileShareServiceTest {
 
         fun launch(block: suspend () -> Unit): Deferred<Unit> = CoroutineScope(dispatcher).async { block() }
 
-        fun writeExport(path: String): File = File(MobileFileShareService.shareRoot(service), path).apply {
+        fun export(path: String): File = File(MobileFileShareService.sessionShares(service, SESSION), path)
+
+        fun writeExport(path: String): File = export(path).apply {
             parentFile?.mkdirs()
             writeText("bytes")
         }
