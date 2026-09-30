@@ -36,6 +36,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -546,7 +547,9 @@ private fun TvTrashRow(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val (size, deleted, expires) = remember(context, item) {
+    // A handled configuration change keeps the Context but can change the formatting locale.
+    val configuration = LocalConfiguration.current
+    val (size, deleted, expires) = remember(context, configuration, item) {
         Triple(
             Formatter.formatShortFileSize(context, item.sizeBytes.coerceAtLeast(0L)),
             item.deletedAt?.let { trashDate(context, it) } ?: "–",
