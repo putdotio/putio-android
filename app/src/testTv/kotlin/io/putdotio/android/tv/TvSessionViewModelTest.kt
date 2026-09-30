@@ -493,6 +493,7 @@ class TvSessionViewModelTest {
 
     private class FakeRecentSearchStore : RecentSearchStoreOwner {
         override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
+        override val enabled = MutableStateFlow<Boolean?>(true)
         override val failure = MutableStateFlow<FilesFailure?>(null)
         var closed = false
 
@@ -506,6 +507,10 @@ class TvSessionViewModelTest {
 
         override fun clear() {
             terms.value = emptyList()
+        }
+
+        override fun setEnabled(enabled: Boolean) {
+            this.enabled.value = enabled
         }
 
         override fun retry() = Unit

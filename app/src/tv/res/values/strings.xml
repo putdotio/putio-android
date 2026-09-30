@@ -108,6 +108,11 @@
     <string name="tv_search_paging_error">Couldn’t load more results.</string>
     <string name="tv_search_open_result">Open %1$s</string>
     <string name="tv_search_recent_error">Couldn’t update recent searches.</string>
+    <string name="tv_search_settings">Settings</string>
+    <string name="tv_search_settings_title">Search settings</string>
+    <string name="tv_search_history_disable">Disable search history</string>
+    <string name="tv_search_history_enable">Show search history</string>
+    <string name="tv_search_history_clear">Clear search history</string>
     <string name="tv_history_title">History</string>
     <string name="tv_history_clear">Clear</string>
     <string name="tv_history_today">Today</string>

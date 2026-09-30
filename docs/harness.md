@@ -691,13 +691,16 @@ copied `tv-autoplay-fixture.mp4` and the screenshot directory afterwards.
 
 Search is the second drawer destination. Focus enters on the pill field;
 Center summons the system IME (Gboard TV on the emulator), Search on the IME
-submits, and the field also searches 300 ms after typing stops. Down from
-the field reaches the recent-query chips, then the result rows and the
-Load more control; Left from any of them returns to the drawer. Center on a
-row plays a video or audio result, opens a folder in Files, or opens another
-file's folder with focus on it; Back returns to that row. Long-press on a
-chip removes that term. The recent terms are the account's `searchHistory`
-app-config entry, shared with mobile, so remove any proof terms afterwards:
+submits, and the field also searches 300 ms after typing stops. Right from
+the end of the field reaches Settings (Disable, Show and Clear search
+history). Down from the field reaches the recent-query chips, then the result
+rows and the Load more control; Left from any of them returns to the drawer.
+Center on a row plays a video or audio result, opens a folder in Files, or
+opens another file's folder with focus on it; Back returns to that row.
+Long-press on a chip removes that term. Only a submit or an opened result
+keeps a term ([Recent searches](./behavior.md#recent-searches)). The recent
+terms are the account's `searchHistory` app-config entry, shared with mobile
+and tv-native, so remove any proof terms afterwards:
 
 ```bash
 adb -s emulator-5554 shell input text 'tears' && adb -s emulator-5554 shell input keyevent KEYCODE_ENTER
@@ -706,6 +709,33 @@ adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc
 
 `adb shell input text` reaches the field without the IME, which is how a
 headless proof types; the recorded proof drives Gboard with D-pad keys.
+
+## TV Search history proof
+
+Behaviour: [Recent searches](./behavior.md#recent-searches).
+`TvSearchHistoryProofTest` (`androidTestTv`) mounts the production TV session
+and signed-in shell on fake repositories, with the production recent-search
+store over an in-memory `/config` that logs every write. It types a query one
+key at a time past the debounce (nothing kept), opens a result (kept), submits
+another, clears them from Settings, disables history (a submitted term is not
+kept) and turns it back on, then asserts the exact `searchHistory` and
+`searchHistoryEnabled` writes. It makes no API calls, so report it as
+controlled-state proof.
+
+```bash
+./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
+adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
+adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvSearchHistoryProofTest \
+  -e putio.tv.searchHistory.enabled true -e putio.tv.searchHistory.runId "$(uuidgen)" \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Screenshots go to `tv-search-history-proof-<UUID>/`: `01` the stored term, `02`
+the results after slow typing with nothing kept, `03` the opened result kept,
+`04` the submitted term kept, `05` Settings, `06` cleared, `07` history off
+with nothing kept, `08` Settings while off, `09` kept again once on. Remove
+the screenshot directory afterwards.
 
 ## TV Search and History opens proof
 
