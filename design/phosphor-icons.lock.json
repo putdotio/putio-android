@@ -454,6 +454,13 @@
       "asset": "assets/regular/gauge.svg",
       "sourceSha256": "053e22a3b54c3baa7997bd0fddbf2cc35cbdd2662842b553d13d9f2a58c67f4a",
       "outputSha256": "2b5c94c8369719eb5f221ad097b74c492f6620cab639100d06315e2a3c8e87fa"
+    },
+    {
+      "sourceSet": "tv",
+      "resource": "ic_ph_gear",
+      "asset": "assets/regular/gear.svg",
+      "sourceSha256": "5c0cb3ba307c72babf78d952d9140c682ff30307fedc7fbb87c9a293c1e2fd64",
+      "outputSha256": "b617f008b15d1348296e0708c5ff3ebc9bd3e6cf75eea40d128f804f119405d6"
     }
   ]
 }

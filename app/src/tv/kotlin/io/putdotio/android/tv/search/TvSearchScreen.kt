@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.isImeVisible
@@ -156,14 +157,20 @@ internal fun TvSearchScreen(
             }
             .focusGroup(),
     ) {
-        TvSearchField(
-            state = textState,
-            rewrite = rewrite,
-            query = state.query,
-            onQueryChanged = actions.onQueryChanged,
-            onSubmit = actions.onSubmit,
-            modifier = Modifier.paneSection(owner, fieldFocus).focusRequester(fieldFocus),
-        )
+        TvSearchHeader(
+            state = state,
+            owner = owner,
+            onRecentEdit = actions.onRecentEdit,
+        ) {
+            TvSearchField(
+                state = textState,
+                rewrite = rewrite,
+                query = state.query,
+                onQueryChanged = actions.onQueryChanged,
+                onSubmit = actions.onSubmit,
+                modifier = Modifier.weight(1f).paneSection(owner, fieldFocus).focusRequester(fieldFocus),
+            )
+        }
         // Composed while there are terms; when the last one is removed the section disposes
         // and its paneSection() hands the entry target back, but focus itself must be re-placed.
         val hadRecent = remember { mutableStateOf(false) }
@@ -237,6 +244,64 @@ internal fun TvSearchScreen(
                 )
             }
         }
+    }
+}
+
+/**
+ * The field with tv-native's Settings button to its right, shown once the account's
+ * search history setting has loaded; Right from the end of the field reaches it.
+ */
+@Composable
+private fun TvSearchHeader(
+    state: SearchState,
+    owner: TvPaneFocusOwner,
+    onRecentEdit: (RecentSearchEdit) -> Unit,
+    field: @Composable RowScope.() -> Unit,
+) {
+    val settingsFocus = remember { FocusRequester() }
+    var settingsOpen by remember { mutableStateOf(false) }
+    // The dialog window takes focus while it is up; when it closes the pane is focused
+    // again but nothing in it is, so the section that had focus takes it back.
+    val settingsWereOpen = remember { mutableStateOf(false) }
+    LaunchedEffect(settingsOpen) {
+        val closing = settingsWereOpen.value && !settingsOpen
+        settingsWereOpen.value = settingsOpen
+        if (!closing || !owner.hasFocus) return@LaunchedEffect
+        withFrameNanos {}
+        if (owner.hasFocus) owner.focusEntry()
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        field()
+        if (state.recentSearchesEnabled != null) {
+            TvButton(
+                onClick = { settingsOpen = true },
+                modifier = Modifier.paneSection(owner, settingsFocus).focusRequester(settingsFocus),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_ph_gear),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.tv_search_settings))
+            }
+        }
+    }
+    val enabled = state.recentSearchesEnabled
+    if (settingsOpen && enabled != null) {
+        TvSearchSettingsDialog(
+            enabled = enabled,
+            canClear = state.recentTerms.isNotEmpty(),
+            onEdit = { edit ->
+                settingsOpen = false
+                onRecentEdit(edit)
+            },
+            onDismiss = { settingsOpen = false },
+        )
     }
 }
 

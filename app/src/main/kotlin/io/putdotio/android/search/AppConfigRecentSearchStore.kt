@@ -30,28 +30,30 @@ internal interface RecentSearchStoreOwner : RecentSearchStore, Closeable {
 
 internal class AppConfigRecentSearchStore internal constructor(
     private val loadConfig: suspend () -> RecentSearchConfig,
-    private val saveTerms: suspend (List<String>) -> Unit,
+    saveTerms: suspend (List<String>) -> Unit,
+    saveEnabled: suspend (Boolean) -> Unit,
     parentScope: CoroutineScope,
 ) : RecentSearchStoreOwner {
     constructor(client: PutioClient, parentScope: CoroutineScope) : this(
         loadConfig = { client.appConfig.get().toRecentSearchConfig() },
         saveTerms = { client.appConfig.save(recentSearchConfigUpdate(it)) },
+        saveEnabled = { client.appConfig.save(recentSearchEnabledConfigUpdate(it)) },
         parentScope = parentScope,
     )
 
     private val storeJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + storeJob)
     private val commands = Channel<RecentSearchCommand>(Channel.UNLIMITED)
-    private val mutableTerms = MutableStateFlow<List<SearchTerm>>(emptyList())
-    private val mutableFailure = MutableStateFlow<FilesFailure?>(null)
+    private val writes = RecentSearchWrites(saveTerms, saveEnabled)
 
-    override val terms: StateFlow<List<SearchTerm>> = mutableTerms.asStateFlow()
-    override val failure: StateFlow<FilesFailure?> = mutableFailure.asStateFlow()
+    override val terms: StateFlow<List<SearchTerm>> = writes.terms.asStateFlow()
+    override val enabled: StateFlow<Boolean?> = writes.enabled.asStateFlow()
+    override val failure: StateFlow<FilesFailure?> = writes.failure.asStateFlow()
 
     init {
         scope.launch {
             var config = loadConfigOrNull()
-            config?.let(::applyLoadedConfig)
+            config?.let(writes::load)
             val pendingEdits = ArrayDeque<RecentSearchMutation>()
             for (command in commands) {
                 if (command is RecentSearchCommand.Edit) {
@@ -59,15 +61,11 @@ internal class AppConfigRecentSearchStore internal constructor(
                 }
                 if (config == null) {
                     config = loadConfigOrNull()
-                    config?.let(::applyLoadedConfig)
+                    config?.let(writes::load)
                 }
-                val loadedConfig = config ?: continue
-                if (loadedConfig.enabled) {
-                    while (pendingEdits.isNotEmpty() && apply(pendingEdits.first())) {
-                        pendingEdits.removeFirst()
-                    }
-                } else {
-                    pendingEdits.clear()
+                if (config == null) continue
+                while (pendingEdits.isNotEmpty() && apply(pendingEdits.first())) {
+                    pendingEdits.removeFirst()
                 }
             }
         }
@@ -85,6 +83,10 @@ internal class AppConfigRecentSearchStore internal constructor(
         commands.trySend(RecentSearchCommand.Edit(RecentSearchMutation.Clear))
     }
 
+    override fun setEnabled(enabled: Boolean) {
+        commands.trySend(RecentSearchCommand.Edit(RecentSearchMutation.SetEnabled(enabled)))
+    }
+
     override fun retry() {
         commands.trySend(RecentSearchCommand.Retry)
     }
@@ -97,55 +99,101 @@ internal class AppConfigRecentSearchStore internal constructor(
     @Suppress("TooGenericExceptionCaught")
     private suspend fun loadConfigOrNull(): RecentSearchConfig? =
         try {
-            loadConfig().also { mutableFailure.value = null }
+            loadConfig().also { writes.failure.value = null }
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
-            mutableFailure.value = error.toFilesFailure()
+            writes.failure.value = error.toFilesFailure()
             null
         } catch (unexpected: Exception) {
-            mutableFailure.value = FilesFailure.Unexpected(unexpected)
+            writes.failure.value = FilesFailure.Unexpected(unexpected)
             null
         }
 
-    private fun applyLoadedConfig(config: RecentSearchConfig) {
-        mutableTerms.value = if (config.enabled) normalize(config.terms) else emptyList()
+    private suspend fun reload(): Boolean = loadConfigOrNull()?.also(writes::load) != null
+
+    private suspend fun apply(edit: RecentSearchMutation): Boolean {
+        val terms = writes.storedTerms
+        return when (edit) {
+            // Another client may have changed the history since it loaded; turning it off
+            // must clear what the server holds now, and turning it on must keep it.
+            is RecentSearchMutation.SetEnabled -> reload() && writes.writeEnabled(edit.enabled)
+            is RecentSearchMutation.Record ->
+                writes.editTerms((listOf(edit.term) + terms.filterNot { it == edit.term }).take(MAX_RECENT_SEARCHES))
+            is RecentSearchMutation.Remove -> writes.editTerms(terms.filterNot { it == edit.term })
+            RecentSearchMutation.Clear -> writes.editTerms(emptyList())
+        }
+    }
+}
+
+/**
+ * The account's recent searches as far as the store knows, published to its flows, and the
+ * writes that change them, each rolled back if the server refuses it. Only the store's
+ * command loop calls in.
+ */
+private class RecentSearchWrites(
+    private val saveTerms: suspend (List<String>) -> Unit,
+    private val saveEnabled: suspend (Boolean) -> Unit,
+) {
+    private var stored = StoredRecentSearches(enabled = true, terms = emptyList())
+    val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
+    val enabled = MutableStateFlow<Boolean?>(null)
+    val failure = MutableStateFlow<FilesFailure?>(null)
+    val storedTerms: List<SearchTerm> get() = stored.terms
+
+    fun load(config: RecentSearchConfig) {
+        val loaded =
+            config.terms
+                .mapNotNull { value -> value.trim().takeIf(String::isNotBlank)?.let(::SearchTerm) }
+                .distinct()
+                .take(MAX_RECENT_SEARCHES)
+        publish(StoredRecentSearches(config.enabled, loaded))
     }
 
+    /** Nothing is recorded or edited while the account has history turned off. */
+    suspend fun editTerms(terms: List<SearchTerm>): Boolean = !stored.enabled || writeTerms(terms)
+
+    suspend fun writeEnabled(enabled: Boolean): Boolean =
+        when {
+            enabled == stored.enabled -> true
+            // Turning history off clears the stored terms first, as tv-native does.
+            !enabled && !writeTerms(emptyList()) -> false
+            else -> write(stored.copy(enabled = enabled)) { saveEnabled(enabled) }
+        }
+
+    private suspend fun writeTerms(terms: List<SearchTerm>): Boolean =
+        terms == stored.terms || write(stored.copy(terms = terms)) { saveTerms(terms.map(SearchTerm::value)) }
+
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun apply(edit: RecentSearchMutation): Boolean {
-        val previous = mutableTerms.value
-        val next =
-            when (edit) {
-                is RecentSearchMutation.Record ->
-                    (listOf(edit.term) + previous.filterNot { it == edit.term }).take(MAX_RECENT_SEARCHES)
-                is RecentSearchMutation.Remove -> previous.filterNot { it == edit.term }
-                RecentSearchMutation.Clear -> emptyList()
-            }
-        if (next == previous) return true
-        mutableTerms.value = next
+    private suspend fun write(
+        next: StoredRecentSearches,
+        save: suspend () -> Unit,
+    ): Boolean {
+        val previous = stored
+        publish(next)
         return try {
-            saveTerms(next.map(SearchTerm::value))
-            mutableFailure.value = null
+            save()
+            failure.value = null
             true
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
-            mutableTerms.value = previous
-            mutableFailure.value = error.toFilesFailure()
+            publish(previous)
+            failure.value = error.toFilesFailure()
             false
         } catch (unexpected: Exception) {
-            mutableTerms.value = previous
-            mutableFailure.value = FilesFailure.Unexpected(unexpected)
+            publish(previous)
+            failure.value = FilesFailure.Unexpected(unexpected)
             false
         }
     }
 
-    private fun normalize(values: List<String>): List<SearchTerm> =
-        values
-            .mapNotNull { value -> value.trim().takeIf(String::isNotBlank)?.let(::SearchTerm) }
-            .distinct()
-            .take(MAX_RECENT_SEARCHES)
+    private fun publish(next: StoredRecentSearches) {
+        stored = next
+        // A disabled history keeps whatever the server holds out of sight.
+        terms.value = if (next.enabled) next.terms else emptyList()
+        enabled.value = next.enabled
+    }
 }
 
 internal data class RecentSearchConfig(
@@ -176,10 +224,19 @@ internal fun recentSearchConfigUpdate(terms: List<String>): AppConfigUpdate =
         value = JsonArray(terms.map(::JsonPrimitive)),
     )
 
+internal fun recentSearchEnabledConfigUpdate(enabled: Boolean): AppConfigUpdate =
+    AppConfigUpdate(key = SEARCH_HISTORY_ENABLED_KEY, value = JsonPrimitive(enabled))
+
+private data class StoredRecentSearches(
+    val enabled: Boolean,
+    val terms: List<SearchTerm>,
+)
+
 private sealed interface RecentSearchMutation {
     data class Record(val term: SearchTerm) : RecentSearchMutation
     data class Remove(val term: SearchTerm) : RecentSearchMutation
     data object Clear : RecentSearchMutation
+    data class SetEnabled(val enabled: Boolean) : RecentSearchMutation
 }
 
 private sealed interface RecentSearchCommand {
