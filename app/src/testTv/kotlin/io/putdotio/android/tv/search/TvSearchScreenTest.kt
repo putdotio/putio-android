@@ -518,16 +518,70 @@ class TvSearchScreenTest {
         assertEquals(listOf("recent:ab", "query:abc", "query:ab"), log)
     }
 
+    @Test
+    fun settingsOfferTvNativeHistoryToggleAndClearOnceTheSettingHasLoaded() {
+        var state by mutableStateOf(searchState(SearchContent.Idle, recent = listOf(SearchTerm("tears"))))
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvSearchScreen(state = state, actions = actions)
+            }
+        }
+        compose.onAllNodesWithText("Settings").assertCountEquals(0)
+
+        state = searchState(SearchContent.Idle, recent = listOf(SearchTerm("tears")), historyEnabled = true)
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Search settings").assertIsDisplayed()
+        compose.onNode(hasText("Disable search history") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+        }
+        compose.onNode(hasText("Clear search history") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onAllNodesWithText("Search settings").assertCountEquals(0)
+        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNode(hasText("Disable search history") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+
+        // Off: nothing to clear, and the toggle turns it back on.
+        state = searchState(SearchContent.Idle, historyEnabled = false)
+        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onAllNodesWithText("Clear search history").assertCountEquals(0)
+        compose.onNode(hasText("Show search history") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        assertEquals(
+            listOf("edit:Clear", "edit:SetEnabled(enabled=false)", "edit:SetEnabled(enabled=true)"),
+            log,
+        )
+    }
+
     private fun searchState(
         content: SearchContent,
         recent: List<SearchTerm> = emptyList(),
         query: String = "",
+        historyEnabled: Boolean? = null,
     ) = SearchState(
         query = query,
         content = content,
         recentTerms = recent,
         consumedCursors = emptySet(),
         nextRequestValue = 5L,
+        recentSearchesEnabled = historyEnabled,
     )
 
     private fun item(id: Long, name: String, type: PutioFileType) = FilesItem(

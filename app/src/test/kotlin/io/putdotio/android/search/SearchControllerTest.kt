@@ -96,18 +96,7 @@ class SearchControllerTest {
     fun submitTrimsAndRecordsHistoryBeforeSearching() =
         runBlocking {
             val effects = mutableListOf<String>()
-            val store =
-                object : RecentSearchStore {
-                    override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
-
-                    override fun record(term: SearchTerm) {
-                        effects += "record:${term.value}"
-                    }
-
-                    override fun remove(term: SearchTerm) = Unit
-
-                    override fun clear() = Unit
-                }
+            val store = FakeRecentSearchStore(onRecord = { effects += "record:${it.value}" })
             val controller =
                 controller(
                     repository = repository { term ->
@@ -131,35 +120,49 @@ class SearchControllerTest {
         }
 
     @Test
-    fun committedDebouncedSearchRecordsHistoryBeforeSearching() =
+    fun searchesSettledWhileTypingSlowlyAreNotRecorded() =
         runBlocking {
-            val effects = mutableListOf<String>()
-            val store =
-                object : RecentSearchStore {
-                    override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
-
-                    override fun record(term: SearchTerm) {
-                        effects += "record:${term.value}"
-                    }
-
-                    override fun remove(term: SearchTerm) = Unit
-
-                    override fun clear() = Unit
-                }
+            val store = FakeRecentSearchStore()
+            val searched = mutableListOf<String>()
             val controller =
                 controller(
                     repository = repository { term ->
-                        effects += "search:${term.value}"
-                        success()
+                        searched += term.value
+                        success(item(1L, "${term.value}.mkv"))
                     },
                     store = store,
                 )
 
             try {
-                controller.updateQuery("documentary")
-                controller.awaitContent<SearchContent.Empty>()
+                // Each keystroke lands after the debounce has settled, as D-pad typing on TV does.
+                listOf("m", "ma", "map").forEach { query ->
+                    controller.updateQuery(query)
+                    controller.awaitContent<SearchContent.Ready> { it.term == SearchTerm(query) }
+                }
 
-                assertEquals(listOf("record:documentary", "search:documentary"), effects)
+                assertEquals(listOf("m", "ma", "map"), searched)
+                assertEquals(emptyList<SearchTerm>(), store.recorded)
+            } finally {
+                controller.close()
+            }
+        }
+
+    @Test
+    fun openingAResultRecordsTheSearchItCameFrom() =
+        runBlocking {
+            val store = FakeRecentSearchStore()
+            val controller = controller(repository { success(item(9L, "sample.mkv")) }, store = store)
+
+            try {
+                controller.updateQuery("  sample ")
+                controller.awaitContent<SearchContent.Ready>()
+                assertEquals(emptyList<SearchTerm>(), store.recorded)
+
+                assertFalse(controller.openResult(FilesItemId(8L)))
+                assertEquals(emptyList<SearchTerm>(), store.recorded)
+                assertTrue(controller.openResult(FilesItemId(9L)))
+
+                assertEquals(listOf(SearchTerm("sample")), store.recorded)
             } finally {
                 controller.close()
             }
@@ -244,6 +247,28 @@ class SearchControllerTest {
             }
         }
 
+    @Test
+    fun mirrorsTheHistorySettingAndChangesItOnlyOnceLoaded() =
+        runBlocking {
+            val store = FakeRecentSearchStore(listOf(SearchTerm("movie")), enabled = null)
+            val controller = controller(repository { success() }, store = store)
+
+            try {
+                assertEquals(null, controller.state.value.recentSearchesEnabled)
+                assertFalse(controller.editRecentSearches(RecentSearchEdit.SetEnabled(false)))
+
+                store.enabled.value = true
+                withTimeout(TIMEOUT) { controller.state.first { it.recentSearchesEnabled == true } }
+                assertFalse(controller.editRecentSearches(RecentSearchEdit.SetEnabled(true)))
+                assertTrue(controller.editRecentSearches(RecentSearchEdit.SetEnabled(false)))
+                withTimeout(TIMEOUT) { controller.state.first { it.recentSearchesEnabled == false } }
+
+                assertEquals(listOf(false), store.enabledChanges)
+            } finally {
+                controller.close()
+            }
+        }
+
     private fun CoroutineScope.controller(
         repository: SearchRepository,
         store: RecentSearchStore = FakeRecentSearchStore(),
@@ -312,12 +337,19 @@ class SearchControllerTest {
 
     private class FakeRecentSearchStore(
         initial: List<SearchTerm> = emptyList(),
+        enabled: Boolean? = true,
+        private val onRecord: (SearchTerm) -> Unit = {},
     ) : RecentSearchStore {
         override val terms = MutableStateFlow(initial)
+        override val enabled = MutableStateFlow(enabled)
+        val recorded = mutableListOf<SearchTerm>()
         val removed = mutableListOf<SearchTerm>()
+        val enabledChanges = mutableListOf<Boolean>()
         var clearCount = 0
 
         override fun record(term: SearchTerm) {
+            recorded += term
+            onRecord(term)
             terms.value = listOf(term) + terms.value.filterNot { it == term }
         }
 
@@ -329,6 +361,11 @@ class SearchControllerTest {
         override fun clear() {
             clearCount += 1
             terms.value = emptyList()
+        }
+
+        override fun setEnabled(enabled: Boolean) {
+            enabledChanges += enabled
+            this.enabled.value = enabled
         }
     }
 

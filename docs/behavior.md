@@ -392,6 +392,26 @@ Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
 `FilesBrowserReducerTest`, `FilesBrowserControllerTest`, `MobileShellTest`
 (`MobileShellExternalOpenTest`), `TvPickReturnFocusTest`.
 
+## Recent searches
+
+Recent searches are the account's `/config` `searchHistory` list, newest first
+and capped at five, with `searchHistoryEnabled` turning them off; tv-native
+reads and writes the same keys in the same format. Mobile and TV keep a term
+when it is submitted (Search on the keyboard, or a chip replayed) and when a
+result is opened, the term that result came from, as tv-native does. A search
+that runs because typing paused is not kept, so D-pad typing on TV does not
+fill the list with prefixes.
+
+On TV, Settings to the right of the search field offers tv-native's search
+settings: Disable search history clears the list and then turns the setting
+off, Show search history turns it back on, and Clear search history empties
+the list while it has terms. Each setting change rereads `/config` first, so
+it clears or keeps what other clients stored since the screen loaded. While the
+setting is off nothing is kept and no chips show.
+
+Tests: `SearchControllerTest`, `AppConfigRecentSearchStoreTest`,
+`TvSearchScreenTest`.
+
 ## Downloads and offline playback
 
 Downloads use Media3's `DownloadService` and `SimpleCache` under the app's

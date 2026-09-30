@@ -45,6 +45,7 @@ class SearchController internal constructor(
                 recentTerms = recentSearchStore.terms.value,
                 consumedCursors = emptySet(),
                 nextRequestValue = INITIAL_REQUEST_VALUE,
+                recentSearchesEnabled = recentSearchStore.enabled.value,
             ),
         )
     private val outputChannel = Channel<SearchOutput>(Channel.BUFFERED)
@@ -60,6 +61,13 @@ class SearchController internal constructor(
             recentSearchStore.terms.collectLatest { terms ->
                 synchronized(lock) {
                     if (!closed) mutableState.value = mutableState.value.copy(recentTerms = terms)
+                }
+            }
+        }
+        controllerScope.launch {
+            recentSearchStore.enabled.collectLatest { enabled ->
+                synchronized(lock) {
+                    if (!closed) mutableState.value = mutableState.value.copy(recentSearchesEnabled = enabled)
                 }
             }
         }
@@ -156,12 +164,20 @@ class SearchController internal constructor(
         }
     }
 
+    /** Opening a result is what makes its search worth remembering, as in tv-native. */
     fun openResult(itemId: FilesItemId): Boolean {
-        val item =
+        val (term, item) =
             synchronized(lock) {
-                if (closed) null else mutableState.value.content.items().firstOrNull { it.id == itemId }
-            }
-        return item?.let { outputChannel.trySend(SearchOutput.OpenResult(it)).isSuccess } ?: false
+                val content = mutableState.value.content as? SearchContent.Ready
+                if (closed || content == null) {
+                    null
+                } else {
+                    content.items.firstOrNull { it.id == itemId }?.let { content.term to it }
+                }
+            } ?: return false
+        val sent = outputChannel.trySend(SearchOutput.OpenResult(item)).isSuccess
+        if (sent) recentSearchStore.record(term)
+        return sent
     }
 
     fun editRecentSearches(edit: RecentSearchEdit): Boolean {
@@ -170,12 +186,16 @@ class SearchController internal constructor(
                 when (edit) {
                     is RecentSearchEdit.Remove -> !closed && edit.term in mutableState.value.recentTerms
                     RecentSearchEdit.Clear -> !closed && mutableState.value.recentTerms.isNotEmpty()
+                    // Only once the setting has loaded, and only to change it.
+                    is RecentSearchEdit.SetEnabled ->
+                        !closed && mutableState.value.recentSearchesEnabled == !edit.enabled
                 }
             }
         if (!canEdit) return false
         when (edit) {
             is RecentSearchEdit.Remove -> recentSearchStore.remove(edit.term)
             RecentSearchEdit.Clear -> recentSearchStore.clear()
+            is RecentSearchEdit.SetEnabled -> recentSearchStore.setEnabled(edit.enabled)
         }
         return true
     }
@@ -223,8 +243,8 @@ class SearchController internal constructor(
                         true
                     }
                 }
+                // A pause while typing is not a search anyone chose; only submit and open record.
                 if (!committed) return@launch
-                recentSearchStore.record(term)
             }
             val result =
                 try {

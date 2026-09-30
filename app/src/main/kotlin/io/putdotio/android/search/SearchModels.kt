@@ -86,6 +86,8 @@ data class SearchState internal constructor(
     val recentTerms: List<SearchTerm>,
     internal val consumedCursors: Set<FilesCursor>,
     internal val nextRequestValue: Long,
+    /** Whether the account keeps recent searches; null until the shared config has loaded. */
+    val recentSearchesEnabled: Boolean? = null,
 )
 
 sealed interface SearchOutput {
@@ -100,14 +102,24 @@ sealed interface RecentSearchEdit {
     ) : RecentSearchEdit
 
     data object Clear : RecentSearchEdit
+
+    /** Turning history off also clears it, as tv-native's search settings do. */
+    data class SetEnabled(
+        val enabled: Boolean,
+    ) : RecentSearchEdit
 }
 
 interface RecentSearchStore {
     val terms: StateFlow<List<SearchTerm>>
+
+    /** The account's `searchHistoryEnabled`; null until it has loaded. */
+    val enabled: StateFlow<Boolean?>
 
     fun record(term: SearchTerm)
 
     fun remove(term: SearchTerm)
 
     fun clear()
+
+    fun setEnabled(enabled: Boolean)
 }
