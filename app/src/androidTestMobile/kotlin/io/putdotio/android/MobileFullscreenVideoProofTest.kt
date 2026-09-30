@@ -57,7 +57,9 @@ import io.putdotio.android.playback.SubtitleTrackIdentity
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.playback.AudioTrackIdentity
 import io.putdotio.android.playback.playbackAudioTracks
-import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import androidx.media3.exoplayer.ExoPlayer
+import io.putdotio.android.playback.audioAttributes
+import io.putdotio.android.playback.playbackRenderersFactory
 import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
@@ -347,8 +349,12 @@ private class FullscreenProofPlayerFactory : MobilePlayerFactory {
     var renderedFrame = false
         private set
     fun current(): Player = checkNotNull(player)
+    // The production player streams through the download cache's HTTP source, which cannot read
+    // the caller's local file; this one keeps its renderers and audio attributes.
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
-        DefaultMobilePlayerFactory.create(context, mediaType).also {
+        ExoPlayer.Builder(context, playbackRenderersFactory(context))
+            .setAudioAttributes(mediaType.audioAttributes(), true)
+            .build().also {
             player = it
             renderedFrame = false
             it.addListener(object : Player.Listener {

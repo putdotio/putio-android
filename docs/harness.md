@@ -1023,8 +1023,10 @@ The proof opens the direct Audio, Captions and speed controls, selects the secon
 audio track, 1.5× and the caption track, then verifies selected tracks and actual
 cue text survive saved-state recreation. It checks Off clears the cues and Automatic
 restores them. It does not initialize authentication, use an API fixture, clear
-account storage, or stop a preexisting audio service; its player factory uses the
-production private video player with the service-stop hook disabled.
+account storage, or stop a preexisting audio service; its player factory builds
+an ExoPlayer with the production renderers and audio attributes, because the
+production private video player streams through the download cache's HTTP source,
+which cannot read a local file, and disables the service-stop hook.
 
 Screenshots go to `fullscreen-video-proof-<UUID>/`: initial landscape controls,
 selected captions, the speed/audio/captions sheets, restored selections,

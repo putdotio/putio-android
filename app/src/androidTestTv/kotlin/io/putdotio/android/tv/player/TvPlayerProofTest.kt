@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -264,6 +265,7 @@ class TvPlayerProofTest {
         assertNull("No player after Back", factory.player)
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
         compose.runOnIdle { assertTrue("Back writes nothing", server.writes.isEmpty()) }
+        elapse(DIALOG_EXIT_MILLIS)
         screenshot("22-back-left-playback")
         pause()
 
@@ -336,13 +338,8 @@ class TvPlayerProofTest {
 
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
-        compose.runOnIdle {
-            assertTrue(
-                "No prompt",
-                compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().isEmpty(),
-            )
-            assertTrue("Plays from the start", factory.current().currentPosition < 10_000L)
-        }
+        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
+        compose.runOnIdle { assertTrue("Plays from the start", factory.current().currentPosition < 10_000L) }
         screenshot("93-opened-from-the-start")
         pause()
         leavePlayback()
@@ -358,11 +355,8 @@ class TvPlayerProofTest {
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying && it.currentPosition >= SAVED_SECONDS * 1_000L }
+        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
         compose.runOnIdle {
-            assertTrue(
-                "No prompt",
-                compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().isEmpty(),
-            )
             assertTrue(
                 "Continued from the saved position",
                 factory.current().currentPosition < (SAVED_SECONDS + 10) * 1_000L,
