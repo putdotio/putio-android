@@ -57,11 +57,14 @@ The root [`verify` task](./build.gradle.kts) runs `:app:check` (Android Lint
 with warnings as errors, detekt, JVM unit tests), an unsigned minified
 `mobileProductionRelease` build that proves the composite Kotlin SDK against
 R8, the instrumentation APK compile, the Phosphor icon and design asset lock
-checks, and the shell and Python contract tests; those need `python3`, `bash`,
-and `ffprobe` on PATH. It also runs the tests of the [`build-logic`](./build-logic) included
-build, which owns the design-token codegen and host proof task classes. Fix
-findings at the source; suppress only with a comment stating the platform
-constraint.
+checks, and the shell and Python contract tests; those need `python3`, `bash`
+(3.2 or newer, so macOS `/bin/bash` works), and `ffprobe` on PATH. The contract
+tests fake the SDK and console-port probe and give nested proof builds their
+own temp directory for the serial lock, so they pass beside running emulators,
+real proofs, and parallel checkouts. It also runs the tests of the
+[`build-logic`](./build-logic) included build, which owns the design-token
+codegen and host proof task classes. Fix findings at the source; suppress only
+with a comment stating the platform constraint.
 
 Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
 `nightly`); [app/build.gradle.kts](./app/build.gradle.kts) owns the application
