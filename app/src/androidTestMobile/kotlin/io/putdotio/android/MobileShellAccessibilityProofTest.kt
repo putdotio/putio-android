@@ -46,6 +46,9 @@ import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
+import io.putdotio.android.playback.MOBILE_NOW_PLAYING_TAG
+import io.putdotio.android.playback.MOBILE_NOW_PLAYING_TOGGLE_TAG
+import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository

@@ -42,6 +42,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import java.util.UUID
+import io.putdotio.android.playback.MobilePlaybackReporting
+import io.putdotio.android.playback.MobilePlayerFactory
+import io.putdotio.android.playback.SavedPlaybackPosition
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])

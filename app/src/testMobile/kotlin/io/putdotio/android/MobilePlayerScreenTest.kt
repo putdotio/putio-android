@@ -140,6 +140,32 @@ import io.putdotio.android.playback.withAudioTrack
 import io.putdotio.android.playback.displayAspectRatioOrNull
 import io.putdotio.android.playback.fitInside
 import io.putdotio.android.playback.FittedVideoSize
+import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import io.putdotio.android.playback.MOBILE_AUDIO_COVER_TAG
+import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
+import io.putdotio.android.playback.MOBILE_PLAYER_TAG
+import io.putdotio.android.playback.MOBILE_SEEK_BACK_TAG
+import io.putdotio.android.playback.MOBILE_SEEK_FEEDBACK_TAG
+import io.putdotio.android.playback.MOBILE_SEEK_FORWARD_TAG
+import io.putdotio.android.playback.MobilePlayerFactory
+import io.putdotio.android.playback.MobilePlayerScreen
+import io.putdotio.android.playback.MobileSeekFeedback
+import io.putdotio.android.playback.PendingSeek
+import io.putdotio.android.playback.PlayerSeekWindow
+import io.putdotio.android.playback.RetainedPlayerPreferences
+import io.putdotio.android.playback.SeekDirection
+import io.putdotio.android.playback.activeSessionFileId
+import io.putdotio.android.playback.controlsShouldAutoHide
+import io.putdotio.android.playback.controlsVisibleAfterTap
+import io.putdotio.android.playback.controlsVisibleForPlaybackState
+import io.putdotio.android.playback.controlsVisibleForTouchExploration
+import io.putdotio.android.playback.currentSeekWindow
+import io.putdotio.android.playback.nextPendingSeek
+import io.putdotio.android.playback.pendingSeekAfterWindowUpdate
+import io.putdotio.android.playback.playerSeekWindow
+import io.putdotio.android.playback.rememberRetainedPlayerPreferences
+import io.putdotio.android.playback.retainPlaybackOnPause
+import io.putdotio.android.playback.toRetainedPlayerPreferences
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

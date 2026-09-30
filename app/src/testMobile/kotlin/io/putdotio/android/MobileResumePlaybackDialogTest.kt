@@ -10,6 +10,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.playback.MobileResumePlaybackDialog
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test

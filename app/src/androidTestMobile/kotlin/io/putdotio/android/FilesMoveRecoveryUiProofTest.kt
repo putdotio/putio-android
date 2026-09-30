@@ -52,6 +52,7 @@ import io.putdotio.android.files.MobileFilesScreen
 import io.putdotio.android.files.complete
 import io.putdotio.android.files.mobileFilesMoveFolderTag
 import io.putdotio.android.files.reduce
+import io.putdotio.android.playback.dispatch
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

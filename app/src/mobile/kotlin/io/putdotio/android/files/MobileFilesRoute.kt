@@ -12,8 +12,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import io.putdotio.android.AuthoritativeSessionFailureEffect
 import io.putdotio.android.authoritativeSessionFailure
-import io.putdotio.android.dispatch
 import io.putdotio.android.downloads.DownloadsState
+import io.putdotio.android.playback.dispatch
 
 @Composable
 internal fun MobileFilesRoute(

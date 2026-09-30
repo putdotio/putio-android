@@ -7,6 +7,7 @@ import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.playback.dispatch
 import io.putdotio.android.transfers.TransferCursor
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem

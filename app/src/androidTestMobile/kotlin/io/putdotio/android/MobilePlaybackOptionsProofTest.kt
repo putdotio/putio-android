@@ -55,6 +55,10 @@ import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 import io.putdotio.android.playback.AudioTrackIdentity
 import io.putdotio.android.playback.playbackAudioTracks
+import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
+import io.putdotio.android.playback.MobilePlayerFactory
+import io.putdotio.android.playback.MobilePlayerScreen
 
 /** Real local media and production players; lifecycle and saved-state transitions use a controlled host. */
 @RunWith(AndroidJUnit4::class)

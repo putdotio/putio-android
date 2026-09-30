@@ -1,7 +1,7 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
@@ -29,14 +29,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
+import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.common.Player as Media3Player
-import io.putdotio.android.playback.SubtitleSelection
-import io.putdotio.android.playback.PlaybackSubtitleTrack
-import io.putdotio.android.playback.playbackSubtitleTracks
-import io.putdotio.android.playback.withSubtitleSelection
-import io.putdotio.android.playback.subtitlesEnabled
+import io.putdotio.android.R
+import io.putdotio.android.description
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

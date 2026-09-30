@@ -1,15 +1,10 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import io.putdotio.android.playback.PlaybackController
-import io.putdotio.android.playback.PlaybackMediaType
-import io.putdotio.android.playback.PlaybackStartup
-import io.putdotio.android.playback.PlaybackRepository
-import io.putdotio.android.playback.PlaybackTarget
 
 internal class MobilePlaybackViewModel(
     target: PlaybackTarget,

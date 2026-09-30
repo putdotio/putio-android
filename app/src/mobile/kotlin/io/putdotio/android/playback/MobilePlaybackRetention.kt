@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import android.os.Bundle
 import androidx.compose.runtime.Composable
@@ -10,11 +10,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.Lifecycle
 import androidx.media3.common.Player as Media3Player
-import io.putdotio.android.playback.SubtitleSelection
-import io.putdotio.android.playback.toSubtitleSelection
-import io.putdotio.android.playback.AudioSelection
-import io.putdotio.android.playback.toAudioSelection
-import io.putdotio.android.playback.toBundle
 
 @Stable
 internal class RetainedPlayerPreferences(

@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.PaddingValues

@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import android.os.Build
 import android.os.SystemClock
@@ -10,15 +10,15 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeGestures
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,8 +37,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.AbsoluteAlignment
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -46,61 +46,43 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalAccessibilityManager
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.core.view.ViewCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.core.view.ViewCompat
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
-import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.ContentFrame
-import io.putdotio.android.playback.PlaybackContent
-import io.putdotio.android.playback.PlaybackConversionAction
-import io.putdotio.android.playback.PlaybackConversionPolling
+import io.putdotio.android.MobileEmptyState
+import io.putdotio.android.MobileErrorState
+import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.R
+import io.putdotio.android.description
 import io.putdotio.android.design.PutioDesignTokens
-import io.putdotio.android.playback.PlaybackFailure
-import io.putdotio.android.playback.PlaybackMediaType
-import io.putdotio.android.playback.action
-import io.putdotio.android.playback.retryable
-import io.putdotio.android.playback.startable
-import io.putdotio.android.playback.PlaybackState
-import io.putdotio.android.playback.playbackSurfaceType
-import io.putdotio.android.playback.preparePlayback
-import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
-import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
-import io.putdotio.android.playback.SubtitleSelection
-import io.putdotio.android.playback.PlaybackSubtitleTrack
-import io.putdotio.android.playback.playbackSubtitleTracks
-import io.putdotio.android.playback.withSubtitleSelection
-import io.putdotio.android.playback.restoreSubtitleSelection
-import io.putdotio.android.playback.SubtitleStartupPolicy
-import io.putdotio.android.playback.playbackAudioTracks
-import io.putdotio.android.playback.withAudioSelection
-import io.putdotio.android.playback.withRetainedAudioSelection
-import io.putdotio.android.playback.SubtitleCueOverlay
-import io.putdotio.android.playback.displayAspectRatioOrNull
+import kotlinx.coroutines.delay
 
 internal const val MOBILE_PLAYER_TAG = "mobile-player"
 internal const val MOBILE_PLAYER_GESTURE_TAG = "mobile-player-gesture"

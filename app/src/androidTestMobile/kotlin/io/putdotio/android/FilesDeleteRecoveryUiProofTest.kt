@@ -38,6 +38,7 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
 import io.putdotio.android.files.MobileFilesScreen
+import io.putdotio.android.playback.dispatch
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

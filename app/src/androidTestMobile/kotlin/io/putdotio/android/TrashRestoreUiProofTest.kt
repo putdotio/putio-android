@@ -65,6 +65,7 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 import io.putdotio.android.files.MOBILE_FILES_REFRESH_TAG
+import io.putdotio.android.playback.dispatch
 
 @RunWith(AndroidJUnit4::class)
 class TrashRestoreUiProofTest {

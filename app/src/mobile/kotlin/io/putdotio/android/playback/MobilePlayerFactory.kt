@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
@@ -6,13 +6,11 @@ import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import io.putdotio.android.downloads.MobileDownloadCache
 import androidx.media3.session.MediaController
-import io.putdotio.android.playback.PlaybackMediaType
-import io.putdotio.android.playback.audioAttributes
-import io.putdotio.android.playback.playbackRenderersFactory
-import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.MobilePlaybackService
 import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.android.downloads.MobileDownloadCache
+import io.putdotio.android.files.FilesItemId
 import java.io.Closeable
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine

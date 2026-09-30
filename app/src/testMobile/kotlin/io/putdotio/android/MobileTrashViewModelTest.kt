@@ -10,6 +10,7 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.playback.dispatch
 import io.putdotio.android.trash.FakeTrashRepository
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashEvent

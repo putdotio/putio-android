@@ -45,6 +45,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.playback.MobilePlaybackOptions
+import io.putdotio.android.playback.MobilePlayerChrome
+import io.putdotio.android.playback.MobileProgressSlider
+import io.putdotio.android.playback.MobileSubtitleControls
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

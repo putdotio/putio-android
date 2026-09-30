@@ -1,19 +1,14 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
-import io.putdotio.android.playback.PlaybackPositionObserver
-import io.putdotio.android.playback.PlaybackPositionWriter
-import io.putdotio.android.playback.PlaybackFailure
-import io.putdotio.android.playback.PlaybackRepositoryResult
-import io.putdotio.android.playback.withReportingLease
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.confirmedResumePlayback
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow

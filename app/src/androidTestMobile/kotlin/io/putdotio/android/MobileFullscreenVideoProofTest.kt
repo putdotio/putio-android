@@ -57,6 +57,10 @@ import io.putdotio.android.playback.SubtitleTrackIdentity
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.playback.AudioTrackIdentity
 import io.putdotio.android.playback.playbackAudioTracks
+import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
+import io.putdotio.android.playback.MobilePlayerFactory
+import io.putdotio.android.playback.MobilePlayerScreen
 
 /** Real video, tracks, cues, window rotation and insets; saved-state recreation uses the Compose test harness. */
 @RunWith(AndroidJUnit4::class)

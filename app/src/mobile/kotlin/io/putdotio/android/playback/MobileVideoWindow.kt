@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import android.app.Activity
 import android.content.pm.ActivityInfo

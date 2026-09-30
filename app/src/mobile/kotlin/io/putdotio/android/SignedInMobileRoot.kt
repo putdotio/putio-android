@@ -25,6 +25,9 @@ import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.SdkHistoryRepository
 import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.playback.ConvertingPlaybackRepository
+import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import io.putdotio.android.playback.MobilePlayerFactory
+import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.authoritativeSessionFailure

@@ -45,6 +45,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import io.putdotio.android.playback.dispatch
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])

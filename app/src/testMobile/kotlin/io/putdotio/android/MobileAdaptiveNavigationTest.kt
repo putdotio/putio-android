@@ -58,6 +58,8 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
+import io.putdotio.android.playback.ActiveAudio
+import io.putdotio.android.playback.MobilePlayerFactory
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
