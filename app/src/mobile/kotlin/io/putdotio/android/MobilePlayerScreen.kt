@@ -80,6 +80,7 @@ import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.action
+import io.putdotio.android.playback.retryable
 import io.putdotio.android.playback.startable
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.playbackSurfaceType
@@ -224,19 +225,27 @@ internal fun MobilePlayerScreen(
                     message = stringResource(R.string.mobile_playback_unsupported_message),
                 )
 
-            is PlaybackContent.Failed ->
-                MobileErrorState(
-                    title = stringResource(
-                        if (state.target.mediaType == PlaybackMediaType.AUDIO) {
-                            R.string.mobile_playback_error_title_audio
-                        } else {
-                            R.string.mobile_playback_error_title
-                        },
-                    ),
-                    message = stringResource(content.failure.messageResource()),
-                    retryLabel = stringResource(R.string.mobile_action_retry),
-                    onRetry = onRetry,
+            is PlaybackContent.Failed -> {
+                val title = stringResource(
+                    if (state.target.mediaType == PlaybackMediaType.AUDIO) {
+                        R.string.mobile_playback_error_title_audio
+                    } else {
+                        R.string.mobile_playback_error_title
+                    },
                 )
+                val message = stringResource(content.failure.messageResource())
+                // Try again resolves the same source; it shows only where that can succeed.
+                if (content.failure.retryable) {
+                    MobileErrorState(
+                        title = title,
+                        message = message,
+                        retryLabel = stringResource(R.string.mobile_action_retry),
+                        onRetry = onRetry,
+                    )
+                } else {
+                    MobileEmptyState(title = title, message = message)
+                }
+            }
         }
 
         val showSeparateBack =

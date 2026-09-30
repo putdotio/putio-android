@@ -415,6 +415,26 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    fun mediaTheDeviceCannotPlayOffersBackButNotTryAgain() {
+        var backs = 0
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec")))),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = { backs += 1 },
+                )
+            }
+        }
+
+        compose.onNodeWithText("This device can’t play this file’s format.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Back").performClick()
+        assertEquals(1, backs)
+    }
+
+    @Test
     fun nextVideoLookupFailureOffersRetry() {
         var retries = 0
         compose.setContent {
