@@ -155,12 +155,30 @@ class TvAutoplayProofTest {
         screenshot("07-folder-end-back-on-its-row")
     }
 
-    private fun mount(): TvSession {
+    @Test
+    fun withTheSettingOffAFinishedVideoLeavesPlayback() {
+        val session = mount(autoplay = false)
+        compose.waitUntil(5_000) { isFocused("Play $FIRST") }
+
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag(TV_PLAYER_TAG).fetchSemanticsNodes().isNotEmpty() }
+        Thread.sleep(PLAY_MILLIS)
+        screenshot("off-01-first-playing")
+
+        compose.waitUntil(FIXTURE_MILLIS * 3) { compose.runOnIdle { session.playback.value == null } }
+        assertEquals("No next video is looked up", emptyList<Long>(), lookups.toList())
+        compose.waitUntil(10_000) { isFocused("Play $FIRST") }
+        screenshot("off-02-back-on-its-row")
+    }
+
+    private fun mount(autoplay: Boolean = true): TvSession {
         val account = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true)
         val auth = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1)))
         lateinit var session: TvSession
         compose.runOnUiThread {
-            session = checkNotNull(TvSessionViewModel(auth).sessionFor(account, TvAuthSessionId(1), dependencies()))
+            session = checkNotNull(
+                TvSessionViewModel(auth).sessionFor(account, TvAuthSessionId(1), dependencies(autoplay)),
+            )
         }
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
@@ -176,14 +194,15 @@ class TvAutoplayProofTest {
         }
         compose.waitUntil(5_000) {
             compose.runOnIdle {
-                session.appConfig.state.value.confirmedAutoplayNextVideo() &&
+                session.appConfig.state.value.confirmedPreferences != null &&
+                    session.appConfig.state.value.confirmedAutoplayNextVideo() == autoplay &&
                     session.settings.state.value.confirmedResumePlayback() == true
             }
         }
         return session
     }
 
-    private fun dependencies(): TvSessionDependencies {
+    private fun dependencies(autoplay: Boolean): TvSessionDependencies {
         val first = row(FIRST_ID, FIRST)
         val second = row(SECOND_ID, SECOND)
         val listings = mapOf(
@@ -222,7 +241,7 @@ class TvAutoplayProofTest {
             },
             appConfigRepository = object : AndroidAppConfigRepository {
                 override suspend fun load() =
-                    AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences(autoplayNextVideo = true))
+                    AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences(autoplayNextVideo = autoplay))
 
                 override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
             },

@@ -664,9 +664,11 @@ caller-owned 12 s local video for each Files row: Center on the first video, it
 plays to its end, its end position is written, the next video in the folder
 asks to continue from 00:05, Center continues, Back twice returns to Files with
 the autoplayed row focused, and Center plays it again to its end, after which
-playback leaves (the folder's last video) back on that row. It makes no API
-calls, so report it as controlled-state proof. Push the fixture to
-`/data/local/tmp`; the test copies it into its own files directory.
+playback leaves (the folder's last video) back on that row. A second case turns
+the setting off: the first video plays to its end and playback leaves without
+looking up the next, back on its row. It makes no API calls, so report it as
+controlled-state proof. Push the fixture to `/data/local/tmp`; the test copies
+it into its own files directory.
 
 ```bash
 ./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
@@ -684,7 +686,8 @@ adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.T
 Screenshots go to `tv-autoplay-proof-<UUID>/`: `01` the first row focused, `02`
 it playing, `03` the next video's resume prompt, `04` the next playing, `05`
 back on the autoplayed row, `06` the last video playing, `07` back on its row
-after the folder's end. Remove `/data/local/tmp/tv-autoplay-proof.mp4`, the
+after the folder's end; `off-01` the setting-off video playing, `off-02` back on
+its row. Remove `/data/local/tmp/tv-autoplay-proof.mp4`, the
 copied `tv-autoplay-fixture.mp4` and the screenshot directory afterwards.
 
 ## TV Search proof
