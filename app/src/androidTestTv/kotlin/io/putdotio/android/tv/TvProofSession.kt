@@ -115,7 +115,7 @@ internal fun tvProofDependencies(
             override suspend fun resolve(target: PlaybackTarget) =
                 PlaybackRepositoryResult.Success(playback())
 
-            override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+            override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")
         }
     },
     writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
@@ -160,7 +160,7 @@ internal fun proofItem(id: Long, name: String, type: PutioFileType, parentId: Fi
     createdAt = "2026-09-30T10:00:00Z",
 )
 
-private class ProofFilesRepository(private val listings: Map<FilesItemId, FilesPage>) : FilesRepository {
+internal class ProofFilesRepository(private val listings: Map<FilesItemId, FilesPage>) : FilesRepository {
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
         listings[folderId]?.let { FilesRepositoryResult.Success(it) }
             ?: FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("No listing $folderId")))
@@ -182,7 +182,7 @@ private class ProofFilesRepository(private val listings: Map<FilesItemId, FilesP
     override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")
 }
 
-private object ProofTrashRepository : TrashRepository {
+internal object ProofTrashRepository : TrashRepository {
     override suspend fun load() = FilesRepositoryResult.Success(TrashPage(emptyList(), nextCursor = null))
 
     override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")

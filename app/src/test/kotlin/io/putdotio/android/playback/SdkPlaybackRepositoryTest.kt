@@ -22,6 +22,7 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioVideoMetadata
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -287,6 +288,7 @@ class SdkPlaybackRepositoryTest {
                     assertEquals(PutioFileType.VIDEO, query.fileType)
                     assertEquals("NAME_ASC", query.sortBy)
                     assertEquals(200, query.perPage)
+                    assertTrue("TV's resume choice needs each video's duration", query.videoMetadata)
                     filePage(video(40L), cursor = "page-two")
                 },
                 continueListing = { cursor, query ->
@@ -297,7 +299,7 @@ class SdkPlaybackRepositoryTest {
                         "page-three" -> filePage(
                             video(99L, parentId = 8L),
                             video(100L).copy(fileType = PutioFileType.FOLDER),
-                            video(43L),
+                            video(43L).copy(videoMetadata = PutioVideoMetadata(duration = 1_260.0)),
                             cursor = "unused-page",
                         )
                         else -> error("Must stop after finding the next video")
@@ -306,7 +308,7 @@ class SdkPlaybackRepositoryTest {
             )
 
             assertEquals(
-                PlaybackNextResult.Found(PlaybackTarget(FilesItemId(43L), "video-43.mp4")),
+                PlaybackNextResult.Found(PlaybackTarget(FilesItemId(43L), "video-43.mp4", durationSeconds = 1_260.0)),
                 repository.findNextVideo(Target),
             )
             assertEquals(listOf("page-two", "page-three"), pages)

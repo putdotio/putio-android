@@ -622,7 +622,7 @@ class TvPlayerProofTest {
                     else -> PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source))
                 }
 
-            override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+            override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")
         }
         val files = FilesBrowserState(
             stack = listOf(
@@ -708,7 +708,7 @@ class TvPlayerProofTest {
                 PlaybackResolution.Ready(source.copy(startFromSeconds = server.startFromSeconds), useStartFrom = true),
             )
 
-            override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+            override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")
         }
         val reporting = TvPlaybackReporting(
             scope = scope,

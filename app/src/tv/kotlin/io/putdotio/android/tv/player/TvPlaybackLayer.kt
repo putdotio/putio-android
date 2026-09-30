@@ -30,7 +30,11 @@ internal fun TvPlaybackLayer(
     }
 }
 
-/** One session playback: the shared controller's state on the TV player screen. */
+/**
+ * One session playback: the shared controller's state on the TV player screen. With
+ * [autoplayNextVideo] a finished video moves on to the next one in its folder, by the rules
+ * mobile uses, and playback leaves after the folder's last.
+ */
 @Composable
 internal fun TvPlaybackRoute(
     controller: PlaybackController,
@@ -39,9 +43,15 @@ internal fun TvPlaybackRoute(
     playerFactory: TvPlayerFactory = DefaultTvPlayerFactory,
     reporter: TvPlaybackReporter = TvPlaybackReporter.None,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
+    autoplayNextVideo: Boolean = false,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
-    val sessionRejected = (state.content as? PlaybackContent.Failed)?.failure is PlaybackFailure.AuthenticationRequired
+    val failure = when (val content = state.content) {
+        is PlaybackContent.Failed -> content.failure
+        is PlaybackContent.NextFailed -> content.failure
+        else -> null
+    }
+    val sessionRejected = failure is PlaybackFailure.AuthenticationRequired
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
     TvPlayerScreen(
         state = state,
@@ -57,6 +67,8 @@ internal fun TvPlaybackRoute(
         playerFactory = playerFactory,
         reporter = reporter,
         subtitleStartupPolicy = subtitleStartupPolicy,
+        autoplayNextVideo = autoplayNextVideo,
+        onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
     )
 }
 

@@ -335,7 +335,7 @@ class TvExternalOpenProofTest {
     }
 }
 
-private class ProofRecentSearchStore : RecentSearchStoreOwner {
+internal class ProofRecentSearchStore : RecentSearchStoreOwner {
     override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
     override val enabled = MutableStateFlow<Boolean?>(true)
     override val failure = MutableStateFlow<FilesFailure?>(null)

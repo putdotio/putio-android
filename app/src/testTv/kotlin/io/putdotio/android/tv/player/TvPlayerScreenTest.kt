@@ -68,6 +68,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.SemanticsMatcher
 import io.putdotio.android.playback.PLAYBACK_REPORTING_LEASE_KEY
 import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
@@ -427,7 +428,7 @@ class TvPlayerScreenTest {
                     return PlaybackRepositoryResult.Success(answers.removeFirst())
                 }
 
-                override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+                override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")
             },
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
@@ -474,7 +475,7 @@ class TvPlayerScreenTest {
                     return PlaybackRepositoryResult.Success(answers.removeFirst())
                 }
 
-                override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+                override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")
             },
             // Each read settles before the next frame, so the screen never sees it in flight.
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
@@ -921,6 +922,133 @@ class TvPlayerScreenTest {
         compose.runOnIdle { assertEquals("The held key did not also leave", 0, backs) }
     }
 
+    @Test
+    fun withAutoplayAFinishedVideoWritesItsEndAndTheNextInTheFolderPlays() {
+        val players = mutableListOf<FakePlayer>()
+        val writes = mutableListOf<Pair<Long, Double>>()
+        val reporting = reporting(writes)
+        var exits = 0
+        val lookups = showAutoplayRoute(
+            autoplay = true,
+            players = players,
+            reporting = reporting,
+            next = mapOf(9L to PlaybackTarget(FilesItemId(10), "Harbor film 2.mp4")),
+            onExit = { exits += 1 },
+        )
+
+        compose.runOnIdle { players.single().end() }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(listOf(9L), lookups)
+            assertEquals(0, exits)
+            assertTrue(players.first().released)
+            val (fileId, seconds) = writes.single()
+            assertEquals("The finished video's end is written under its own lease", 9L, fileId)
+            assertEquals(DURATION_SECONDS.toDouble(), seconds, 0.001)
+            val next = players.last()
+            assertEquals(2, players.size)
+            assertEquals("10", next.mediaItems.single().mediaId)
+            assertTrue(next.playWhenReady)
+            assertEquals(reporting.lease(10L), next.mediaItems.single().mediaMetadata.extras?.getString(PLAYBACK_REPORTING_LEASE_KEY))
+        }
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+
+        // The folder's last video leaves playback, once.
+        compose.runOnIdle { players.last().end() }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(listOf(9L, 10L), lookups)
+            assertEquals(1, exits)
+        }
+        reporting.close()
+    }
+
+    @Test
+    fun withoutAutoplayAFinishedVideoLeavesAsBefore() {
+        val players = mutableListOf<FakePlayer>()
+        var exits = 0
+        val lookups = showAutoplayRoute(
+            autoplay = false,
+            players = players,
+            next = mapOf(9L to PlaybackTarget(FilesItemId(10), "Harbor film 2.mp4")),
+            onExit = { exits += 1 },
+        )
+
+        compose.runOnIdle { players.single().end() }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(1, exits)
+            assertTrue(lookups.isEmpty())
+            assertEquals(1, players.size)
+        }
+    }
+
+    @Test
+    fun anAutoplayedVideoWithASavedPositionAsksWhereToStart() {
+        val players = mutableListOf<FakePlayer>()
+        showAutoplayRoute(
+            autoplay = true,
+            players = players,
+            next = mapOf(
+                9L to PlaybackTarget(FilesItemId(10), "Harbor film 2.mp4", durationSeconds = DURATION_SECONDS.toDouble()),
+            ),
+            savedSeconds = mapOf(10L to SAVED_SECONDS.toDouble()),
+        )
+
+        compose.runOnIdle { players.single().end() }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Harbor film 2.mp4").assertIsDisplayed()
+        compose.onNodeWithText(CONTINUE_LABEL).assertIsFocused()
+        compose.runOnIdle { assertEquals("No player before the choice", 1, players.size) }
+    }
+
+    /**
+     * The session route on a real controller over one folder: [next] maps a video to the one
+     * after it, and anything else is the folder's last. Returns the videos next was asked for.
+     */
+    private fun showAutoplayRoute(
+        autoplay: Boolean,
+        players: MutableList<FakePlayer>,
+        next: Map<Long, PlaybackTarget>,
+        reporting: TvPlaybackReporter = TvPlaybackReporter.None,
+        savedSeconds: Map<Long, Double> = emptyMap(),
+        onExit: () -> Unit = {},
+    ): List<Long> {
+        val lookups = mutableListOf<Long>()
+        val controller = PlaybackController(
+            PlaybackTarget(FilesItemId(9), "Harbor film.mp4", PlaybackMediaType.VIDEO),
+            object : PlaybackRepository {
+                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                    val id = target.fileId.value
+                    return PlaybackRepositoryResult.Success(
+                        PlaybackResolution.Ready(source(savedSeconds[id] ?: 0.0, fileId = id), useStartFrom = true),
+                    )
+                }
+
+                override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult {
+                    lookups += target.fileId.value
+                    return next[target.fileId.value]?.let(PlaybackNextResult::Found) ?: PlaybackNextResult.Ended
+                }
+            },
+            CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlaybackRoute(
+                    controller = controller,
+                    onExit = onExit,
+                    onSessionRejected = {},
+                    playerFactory = { _, _ -> FakePlayer().also { players += it } },
+                    reporter = reporting,
+                    autoplayNextVideo = autoplay,
+                )
+            }
+        }
+        compose.waitForIdle()
+        return lookups
+    }
+
     private fun showReady(
         player: FakePlayer,
         resumePositionMillis: Long? = null,
@@ -957,7 +1085,7 @@ class TvPlayerScreenTest {
                     PlaybackResolution.Ready(source(startFromSeconds = SAVED_SECONDS.toDouble()), useStartFrom = true),
                 )
 
-                override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+                override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")
             },
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
@@ -1064,12 +1192,12 @@ class TvPlayerScreenTest {
         resumePositionMillis = resumePositionMillis,
     )
 
-    private fun source(startFromSeconds: Double = 0.0) = PlaybackSource(
-        fileId = 9,
+    private fun source(startFromSeconds: Double = 0.0, fileId: Long = 9L) = PlaybackSource(
+        fileId = fileId,
         kind = PlaybackSourceKind.HLS,
         url = PutioCredentialUrl::class.java
             .getDeclaredConstructor(String::class.java)
-            .newInstance(SOURCE_URL),
+            .newInstance(SOURCE_URL.replace("/9/", "/$fileId/")),
         startFromSeconds = startFromSeconds,
         subtitles = PlaybackSubtitles.None,
     )
@@ -1154,6 +1282,14 @@ private class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
     fun advanceTo(positionMillis: Long) {
         // Pinned: a playing position would otherwise drift with however many frames the test runs.
         state = state.buildUpon().setContentPositionMs(PositionSupplier.getConstant(positionMillis)).build()
+        invalidateState()
+    }
+
+    fun end() {
+        state = state.buildUpon()
+            .setContentPositionMs(PositionSupplier.getConstant(DURATION_US / 1_000L))
+            .setPlaybackState(STATE_ENDED)
+            .build()
         invalidateState()
     }
 
