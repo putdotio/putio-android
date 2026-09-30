@@ -9,6 +9,8 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -46,8 +48,9 @@ import org.junit.runners.model.Statement
 
 /**
  * Controlled-state proof that a Search pick opens the item itself on the real signed-in TV
- * shell: fake repositories stand in for the account, the TV session and shell are the
- * production ones, and the player streams a caller-owned local fixture. No API calls.
+ * shell, and that Back returns to Files: fake repositories stand in for the account, the TV
+ * session and shell are the production ones, and the player streams a caller-owned local
+ * fixture. No API calls.
  */
 @RunWith(AndroidJUnit4::class)
 class TvExternalOpenProofTest {
@@ -129,8 +132,92 @@ class TvExternalOpenProofTest {
         screenshot("09-files-prior-location-kept")
     }
 
-    private fun mount(): TvSession {
-        val session = compose.mountTvProofSession(dependencies())
+    @Test
+    fun backOnTheDrawerReturnsToThePaneThenThePaneRulesApply() {
+        var exits = 0
+        mount(onExit = { exits += 1 })
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithContentDescription("Open $FOLDER").assertIsFocused()
+        screenshot("10-files-row-focused")
+
+        // Search: Back on the drawer returns to the field, then Back returns to Files.
+        openFromDrawer(steps = 1)
+        compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        screenshot("11-search-drawer-focused")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused()
+        screenshot("12-drawer-back-returns-to-the-search-field")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+        screenshot("13-back-from-search-on-the-files-row")
+        returnToFilesPane(steps = 1)
+
+        // An empty History keeps Clear focusable: Back on the drawer returns to it, then Back
+        // returns to Files.
+        openFromDrawer(steps = 2)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(NO_HISTORY).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasText(CLEAR) and hasClickAction()).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        compose.onNode(hasText(HISTORY) and hasClickAction()).assertIsFocused()
+        screenshot("14-empty-history-drawer-focused")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNode(hasText(CLEAR) and hasClickAction()).assertIsFocused()
+        screenshot("15-drawer-back-returns-to-clear")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+        screenshot("16-back-from-history-on-the-files-row")
+        returnToFilesPane(steps = 2)
+
+        // Account: Back on the drawer returns to its row, then Back returns to Files.
+        openFromDrawer(steps = 3)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(PROXY_ROW).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(PROXY_ROW).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithText(PROXY_ROW).assertIsFocused()
+        screenshot("17-drawer-back-returns-to-the-account-row")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+        screenshot("18-back-from-account-on-the-files-row")
+        returnToFilesPane(steps = 3)
+        assertEquals(0, exits)
+
+        // In a folder, Back on the drawer returns to its row; then Back pops it, then leaves.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(FIRST_SCAN) }
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        screenshot("19-folder-drawer-focused")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithContentDescription(FIRST_SCAN).assertIsFocused()
+        assertEquals(0, exits)
+        screenshot("20-drawer-back-returns-to-the-folder-row")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+        assertEquals(0, exits)
+        screenshot("21-folder-popped-to-its-row")
+        press(KeyEvent.KEYCODE_BACK)
+        assertEquals(1, exits)
+    }
+
+    /** From the Files pane, opens the destination [steps] below Files in the drawer. */
+    private fun openFromDrawer(steps: Int) {
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        repeat(steps) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+    }
+
+    /** The drawer re-enters on the destination it was left from, [steps] below Files. */
+    private fun returnToFilesPane(steps: Int) {
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        repeat(steps) { press(KeyEvent.KEYCODE_DPAD_UP) }
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
+    }
+
+    /** [onExit] stands in for the system leaving the app; it is registered before the shell. */
+    private fun mount(onExit: (() -> Unit)? = null): TvSession {
+        val session = compose.mountTvProofSession(dependencies(), onExit)
         compose.waitUntil(5_000) { hasContentDescription("Open Movies") }
         return session
     }
@@ -155,11 +242,12 @@ class TvExternalOpenProofTest {
             // Listing a file returns it as the parent with its duration, as put.io does.
             video.id to FilesPage(emptyList(), null, parent = video.copy(playback = FilesPlaybackProgress(0.0, 90.0))),
         )
+        // Only the playback proof reads the fixture.
         return tvProofDependencies(
             listings = listings,
             searchResults = listOf(video, folder, document),
             recentSearchStore = { ProofRecentSearchStore() },
-            playback = PlaybackResolution.Ready(localSource().copy(startFromSeconds = SAVED_SECONDS), useStartFrom = true),
+            playback = { PlaybackResolution.Ready(localSource().copy(startFromSeconds = SAVED_SECONDS), useStartFrom = true) },
         )
     }
 
@@ -233,6 +321,12 @@ class TvExternalOpenProofTest {
         const val FOLDER = "Documents"
         const val VIDEO = "TV open proof.mp4"
         const val DOCUMENT = "notes.pdf"
+        const val FIRST_SCAN = "Scan 1.jpg"
+        const val SEARCH_FIELD = "Search files"
+        const val NO_HISTORY = "No activity yet."
+        const val HISTORY = "History"
+        const val CLEAR = "Clear"
+        const val PROXY_ROW = "Choose your proxy"
         const val SAVED_SECONDS = 45.0
         const val CONTINUE_LABEL = "Continue playing from 00:45"
         const val MAX_STEPS = 8
