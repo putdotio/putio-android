@@ -35,6 +35,20 @@ import java.util.concurrent.CancellationException
 
 class SdkPlaybackRepositoryTest {
     @Test
+    fun aZeroPositionClearsTheSavedPositionInsteadOfSettingIt() =
+        runBlocking {
+            val requests = mutableListOf<String>()
+            val repository = SdkPlaybackPositionRepository(
+                setPosition = { fileId, seconds -> requests += "set $fileId $seconds" },
+                resetPosition = { fileId -> requests += "reset $fileId" },
+            )
+            assertTrue(repository.write(7L, 88.5) is PlaybackRepositoryResult.Success)
+            assertTrue(repository.write(7L, 0.0) is PlaybackRepositoryResult.Success)
+            assertTrue(repository.write(7L, -1.0) is PlaybackRepositoryResult.Failure)
+            assertEquals(listOf("set 7 88.5", "reset 7"), requests)
+        }
+
+    @Test
     fun resolvesHlsWithAccountCredentialAndResumePreference() =
         runBlocking {
             var request: PlaybackRequest? = null

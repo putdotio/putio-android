@@ -116,8 +116,10 @@ Tests: `TrashActionTest`, `TrashRestoreTest`, `TrashRepeatedRestoreTest`,
 
 ## Resume and position reporting
 
-Fresh audio/video resolution with `use_start_from` enabled and a positive saved
-position offers Resume or Start over before preparing the player. The retained
+Fresh video resolution with `use_start_from` enabled and a positive saved
+position offers Resume or Start over before preparing the player; Back or
+dismissing it leaves playback on both surfaces, as tv-native's prompt did. Audio
+continues from its saved position without asking, as iOS does. The retained
 controller keeps that decision across Activity recreation. Live audio attachment
 and retained player-error recovery bypass the prompt. Start over starts locally
 at zero; it does not immediately reset the server position.
@@ -126,12 +128,17 @@ One observer belongs to each actual player: the private video owner or the audio
 service on mobile, the player screen on TV. Screens and notification controllers do not duplicate audio reporting.
 The observer samples advancing playback every 15 seconds and captures positive
 positions on pause, stop, end, error, item replacement and owner exit. Buffering
-and same-item seek events do not send immediate writes. The application writer
-deduplicates positions within the same second, permits one request in flight and
-one latest pending snapshot, and times out a request after 15 seconds. Under slow
-requests or rapid file switches, newer snapshots can replace intermediate queued
-exit positions. Failed writes keep their typed cause and wait for a new position;
-there is no immediate retry loop or completion-percentage reset rule.
+and same-item seek events do not send immediate writes. A position within 10
+seconds of the item's known duration is reported as 0, which clears the saved
+position (`start-from/delete`), as iOS does, so a finished video opens from the
+start without a prompt; the file then reads as unwatched, also as on iOS. The
+application writer deduplicates positions within the same second, permits one
+request in flight and one latest pending snapshot, and times out a request after
+15 seconds. A position offered while a request is in flight is written after it,
+so the final one wins. Under slow requests or rapid file switches, newer
+snapshots can replace intermediate queued exit positions, and reopening a file
+drops its previous opening's queued snapshot. Failed writes keep their typed
+cause and wait for a new position; there is no immediate retry loop.
 
 Reporting requires an app-issued item lease, the same signed-in session, and a
 confirmed enabled resume setting. Pending/failed resume-setting writes suspend
@@ -144,8 +151,9 @@ session that issued it. Rejection runs outside the cancellable reporting job,
 and checks the session identity again under the authentication controller's lock.
 
 Tests: `PlaybackReducerTest`, `PlaybackControllerTest`, `MobilePlayerScreenTest`
-(the prompt, recreation and Start over), `PlaybackPositionWriterTest`,
-`PlaybackPositionObserverTest`, `MobilePlaybackReportingTest`.
+(the prompt, recreation and Start over), `TvPlayerScreenTest` (Back on the
+prompt), `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
+`SdkPlaybackRepositoryTest`, `MobilePlaybackReportingTest`.
 
 ## MP4 conversion
 
@@ -246,9 +254,9 @@ position, a fresh resolution) and asks before the player exists, as the RN
 player did: a centred dialog with the raw file name, a progress bar and
 stacked Continue playing from `mm:ss` and Start from the beginning buttons.
 Continue takes focus; the bar previews where the focused choice starts. Back
-continues from the saved position and stays in playback (the RN prompt had
-no Back of its own and left). The dialog needs the listing's duration; without
-one the saved position is continued without asking, as the RN player did.
+leaves playback, as the RN prompt and mobile's do. The dialog needs the
+listing's duration; without one the saved position is continued without asking,
+as the RN player did.
 
 With Account's Autoplay next video on (the confirmed `autoplay_next_video`), a
 finished video plays the next one in its folder by the shared rules mobile

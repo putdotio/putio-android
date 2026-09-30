@@ -569,7 +569,7 @@ class TvPlayerScreenTest {
     }
 
     @Test
-    fun backFromTheResumeDialogContinuesFromTheSavedPositionAndStaysInPlayback() {
+    fun backFromTheResumeDialogLeavesPlaybackWithoutAPlayer() {
         val player = FakePlayer()
         var exits = 0
         showResumeRoute(player, onExit = { exits += 1 })
@@ -584,13 +584,9 @@ class TvPlayerScreenTest {
         }
         compose.waitForIdle()
 
-        compose.onNodeWithText(CONTINUE_LABEL).assertDoesNotExist()
-        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
-        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
         compose.runOnIdle {
-            assertEquals(0, exits)
-            assertEquals(SAVED_SECONDS.toLong() * 1_000L, player.startPositionMillis)
-            assertTrue(player.playWhenReady)
+            assertEquals(1, exits)
+            assertTrue("No player after leaving", player.mediaItems.isEmpty())
         }
     }
 
@@ -923,7 +919,7 @@ class TvPlayerScreenTest {
     }
 
     @Test
-    fun withAutoplayAFinishedVideoWritesItsEndAndTheNextInTheFolderPlays() {
+    fun withAutoplayAFinishedVideoClearsItsPositionAndTheNextInTheFolderPlays() {
         val players = mutableListOf<FakePlayer>()
         val writes = mutableListOf<Pair<Long, Double>>()
         val reporting = reporting(writes)
@@ -943,8 +939,8 @@ class TvPlayerScreenTest {
             assertEquals(0, exits)
             assertTrue(players.first().released)
             val (fileId, seconds) = writes.single()
-            assertEquals("The finished video's end is written under its own lease", 9L, fileId)
-            assertEquals(DURATION_SECONDS.toDouble(), seconds, 0.001)
+            assertEquals("The finished video's position is cleared under its own lease", 9L, fileId)
+            assertEquals(0.0, seconds, 0.0)
             val next = players.last()
             assertEquals(2, players.size)
             assertEquals("10", next.mediaItems.single().mediaId)

@@ -13,7 +13,10 @@ import kotlinx.coroutines.withTimeout
 import java.io.Closeable
 import java.util.UUID
 
-/** All access belongs to the application's main thread, including the final authorization check. */
+/**
+ * All access belongs to the application's main thread, including the final authorization check.
+ * A position of 0 clears the saved position.
+ */
 @MainThread
 internal class PlaybackPositionWriter(
     private val scope: CoroutineScope,
@@ -40,7 +43,7 @@ internal class PlaybackPositionWriter(
     }
 
     fun offer(token: String, positionMillis: Long) {
-        val lease = leases[token]?.takeIf { !closed && positionMillis > 0L && it.authorized() } ?: return
+        val lease = leases[token]?.takeIf { !closed && positionMillis >= 0L && it.authorized() } ?: return
         if (lease.lastOffered?.div(POSITION_DEDUP_MILLIS) == positionMillis / POSITION_DEDUP_MILLIS) return
         lease.lastOffered = positionMillis
         // One in-flight request and one latest snapshot bound memory during slow requests

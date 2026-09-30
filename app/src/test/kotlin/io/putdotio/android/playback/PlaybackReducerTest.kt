@@ -354,29 +354,42 @@ class PlaybackReducerTest {
     }
 
     @Test
-    fun savedPositionRequiresAChoiceForBothMediaTypes() {
-        for (mediaType in PlaybackMediaType.entries) {
-            val start = PlaybackReducer.start(Target.copy(mediaType = mediaType))
-            val pending = PlaybackReducer.reduce(
-                start.state,
-                PlaybackEvent.ResolveSucceeded(
-                    PlaybackRequestId(1L),
-                    PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
-                ),
-            )
-            assertTrue(pending.state.content is PlaybackContent.AwaitingResume)
-            assertNull(pending.effect)
-            assertNull(pending.state.resumePositionMillis)
-            val resumed = PlaybackReducer.reduce(pending.state, PlaybackEvent.Resume)
-            assertEquals(12_000L, resumed.state.resumePositionMillis)
-            assertTrue((resumed.state.content as PlaybackContent.Ready).useStartFrom)
-            assertNull(resumed.effect)
-            val restarted = PlaybackReducer.reduce(pending.state, PlaybackEvent.Restart)
-            assertEquals(0L, restarted.state.resumePositionMillis)
-            assertNull(restarted.effect)
-            assertFalse(PlaybackReducer.reduce(restarted.state, PlaybackEvent.Resume).consumed)
-            assertFalse(PlaybackReducer.reduce(resumed.state, PlaybackEvent.Restart).consumed)
-        }
+    fun savedAudioPositionContinuesWithoutAChoice() {
+        val start = PlaybackReducer.start(Target.copy(mediaType = PlaybackMediaType.AUDIO))
+        val resolved = PlaybackReducer.reduce(
+            start.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+            ),
+        )
+        assertEquals(PlaybackContent.Ready(playbackSource(), useStartFrom = true), resolved.state.content)
+        assertEquals(12_000L, resolved.state.resumePositionMillis)
+        assertNull(resolved.effect)
+    }
+
+    @Test
+    fun savedVideoPositionRequiresAChoice() {
+        val start = PlaybackReducer.start(Target)
+        val pending = PlaybackReducer.reduce(
+            start.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+            ),
+        )
+        assertTrue(pending.state.content is PlaybackContent.AwaitingResume)
+        assertNull(pending.effect)
+        assertNull(pending.state.resumePositionMillis)
+        val resumed = PlaybackReducer.reduce(pending.state, PlaybackEvent.Resume)
+        assertEquals(12_000L, resumed.state.resumePositionMillis)
+        assertTrue((resumed.state.content as PlaybackContent.Ready).useStartFrom)
+        assertNull(resumed.effect)
+        val restarted = PlaybackReducer.reduce(pending.state, PlaybackEvent.Restart)
+        assertEquals(0L, restarted.state.resumePositionMillis)
+        assertNull(restarted.effect)
+        assertFalse(PlaybackReducer.reduce(restarted.state, PlaybackEvent.Resume).consumed)
+        assertFalse(PlaybackReducer.reduce(resumed.state, PlaybackEvent.Restart).consumed)
     }
 
     @Test

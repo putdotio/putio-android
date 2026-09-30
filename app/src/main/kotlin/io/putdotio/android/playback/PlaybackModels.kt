@@ -284,22 +284,27 @@ private fun PlaybackState.resolveSucceeded(
     }
     return when (val resolution = event.resolution) {
         is PlaybackResolution.Ready ->
-            PlaybackTransition(
-                copy(
-                    content =
-                        if (resolution.useStartFrom && resolution.source.startFromSeconds > 0 &&
-                            resumePositionMillis == null
-                        ) {
-                            PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden)
-                        } else {
-                            PlaybackContent.Ready(
-                                resolution.source,
-                                resolution.useStartFrom,
-                                resolution.subtitlesHidden,
-                            )
-                        },
-                ),
-            )
+            if (resolution.useStartFrom && resolution.source.startFromSeconds > 0 && resumePositionMillis == null) {
+                val awaiting = copy(
+                    content = PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden),
+                )
+                // Audio continues from its saved position without asking, as iOS does.
+                if (target.mediaType == PlaybackMediaType.AUDIO) {
+                    awaiting.chooseResume(restart = false)
+                } else {
+                    PlaybackTransition(awaiting)
+                }
+            } else {
+                PlaybackTransition(
+                    copy(
+                        content = PlaybackContent.Ready(
+                            resolution.source,
+                            resolution.useStartFrom,
+                            resolution.subtitlesHidden,
+                        ),
+                    ),
+                )
+            }
         is PlaybackResolution.Conversion -> conversionResolved(resolution.state)
         is PlaybackResolution.Unsupported ->
             PlaybackTransition(copy(content = PlaybackContent.Unsupported(resolution.fileType)))

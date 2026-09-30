@@ -175,6 +175,7 @@ internal fun TvPlayerScreen(
                         durationSeconds = durationSeconds,
                         onResume = onResume,
                         onRestart = onRestart,
+                        onDismiss = onBack,
                     )
                 } else {
                     // Without a duration there is nothing to preview; like the RN player, continue.
