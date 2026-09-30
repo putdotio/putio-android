@@ -3,7 +3,9 @@ package io.putdotio.android.files
 internal fun FilesBrowserState.openFolder(itemId: FilesItemId): FilesBrowserTransition {
     if (stack.any { it.operation.pendingMove != null }) return FilesBrowserTransition(this, consumed = false)
     val item = current.content.items().firstOrNull { it.id == itemId && it.isFolder }
-    return if (item == null || stack.any { it.folder.id == item.id } || isDeleteTargetBlocked(itemId)) {
+    // Only the path since the last outside open counts: the location under it is another path.
+    val repeated = item != null && stack.drop(outsideOpenIndex() ?: 0).any { it.folder.id == item.id }
+    return if (item == null || repeated || isDeleteTargetBlocked(itemId)) {
         FilesBrowserTransition(this, consumed = false)
     } else {
         val requestId = FilesRequestId(nextRequestValue)
@@ -19,40 +21,49 @@ internal fun FilesBrowserState.openFolder(itemId: FilesItemId): FilesBrowserTran
     }
 }
 
-internal fun FilesBrowserState.openExternalItem(item: FilesItem): FilesBrowserTransition {
+/**
+ * Pushes the item's folder above the current location, so Back returns to it. An earlier outside
+ * open is replaced rather than stacked, which keeps one location to come back to.
+ */
+internal fun FilesBrowserState.openExternalItem(
+    item: FilesItem,
+    origin: FilesOpenOrigin,
+): FilesBrowserTransition {
     // Replacing the stack would cancel reconciliation after a POST may have reached the server.
     if (stack.any { it.operation.pendingDelete != null || it.operation.pendingMove != null }) {
         return FilesBrowserTransition(this, consumed = false)
     }
+    // A parent the stack does not already name takes its name from its listing.
     val destination =
         if (item.isFolder) {
             FilesFolder(id = item.id, name = item.name)
         } else {
-            item.parentId?.let { FilesFolder(id = it, name = null) }
+            item.parentId?.let { parentId ->
+                FilesFolder(id = parentId, name = stack.lastOrNull { it.folder.id == parentId }?.folder?.name)
+            }
         }
     return if (destination == null) {
         FilesBrowserTransition(this, consumed = false)
     } else {
         val requestId = FilesRequestId(nextRequestValue)
-        val resolvedDestination =
-            if (destination.id == current.folder.id && destination.name == null) current.folder else destination
-        val folder = FilesFolderState(resolvedDestination, FilesContent.Loading(requestId))
-        val nextStack =
-            when {
-                destination.id == current.folder.id -> stack.replaceLast(folder)
-                destination.id == FilesFolder.Root.id -> listOf(folder)
-                else -> listOf(rootFolderState(), folder)
-            }
+        val folder =
+            FilesFolderState(
+                folder = destination,
+                content = FilesContent.Loading(requestId),
+                openedFrom = origin,
+                revealItemId = item.id.takeUnless { item.isFolder },
+            )
+        // Changes made above can reach the listings kept below it, so each reloads on the way back.
+        val location = stack.take(outsideOpenIndex() ?: stack.size).map { it.copy(needsReload = true) }
         FilesBrowserTransition(
-            state = copy(stack = nextStack, nextRequestValue = nextRequestValue + 1),
+            state = copy(stack = location + folder, nextRequestValue = nextRequestValue + 1),
             effect = FilesBrowserEffect.LoadFolder(destination.id, requestId),
         )
     }
 }
 
-private fun FilesBrowserState.rootFolderState(): FilesFolderState =
-    stack.firstOrNull { it.folder.id == FilesFolder.Root.id }
-        ?: FilesFolderState(FilesFolder.Root, FilesContent.Empty(FilesPaging.Complete))
+private fun FilesBrowserState.outsideOpenIndex(): Int? =
+    stack.indexOfFirst { it.openedFrom != null }.takeIf { it >= 0 }
 
 internal fun FilesBrowserState.navigateBack(): FilesBrowserTransition =
     if (canNavigateBack && current.operation.pendingDelete == null && stack.none { it.operation.pendingMove != null }) {

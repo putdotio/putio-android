@@ -117,7 +117,7 @@ class FilesMoveReducerTest {
         for (state in listOf(moving.state, checking.state, failed)) {
             val navigation = listOf(
                 FilesBrowserEvent.NavigateBack, FilesBrowserEvent.OpenFolder(FilesItemId(8L)),
-                FilesBrowserEvent.OpenExternalItem(file(99L)),
+                FilesBrowserEvent.OpenExternalItem(file(99L), FilesOpenOrigin.SEARCH),
             )
             navigation.forEach {
                 val rejected = FilesBrowserReducer.reduce(state, it)

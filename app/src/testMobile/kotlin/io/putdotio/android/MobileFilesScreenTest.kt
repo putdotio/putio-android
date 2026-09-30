@@ -31,6 +31,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
@@ -122,7 +123,7 @@ class MobileFilesScreenTest {
         compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).assertTextContains("  unsaved.txt  ")
         compose.runOnIdle {
             val navigation = FilesBrowserReducer.reduce(state, FilesBrowserEvent.OpenExternalItem(
-                filesItem(44L, "Other folder", PutioFileType.FOLDER),
+                filesItem(44L, "Other folder", PutioFileType.FOLDER), FilesOpenOrigin.SEARCH,
             ))
             state = FilesBrowserReducer.reduce(navigation.state, FilesBrowserEvent.LoadSucceeded(
                 checkNotNull(navigation.effect).requestId,

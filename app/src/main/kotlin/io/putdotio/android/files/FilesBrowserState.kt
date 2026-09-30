@@ -115,6 +115,10 @@ data class FilesFolderState(
     val renameCompletion: FilesRenameCompletion? = null,
     val deleteOutcome: FilesDeleteOutcome? = null,
     val moveOutcome: FilesMoveOutcome? = null,
+    /** Set on the folder an outside open pushed; Back from it returns to that origin. */
+    val openedFrom: FilesOpenOrigin? = null,
+    /** The file an outside open came for, shown in its parent folder. */
+    val revealItemId: FilesItemId? = null,
     // Cleared when a full read starts so later invalidations survive that read's result.
     internal val needsReload: Boolean = false,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
@@ -144,8 +148,10 @@ sealed interface FilesBrowserEvent {
         val itemId: FilesItemId,
     ) : FilesBrowserEvent
 
+    /** A folder opens itself and any other item its parent, on top of the current location. */
     data class OpenExternalItem(
         val item: FilesItem,
+        val origin: FilesOpenOrigin,
     ) : FilesBrowserEvent
 
     data object NavigateBack : FilesBrowserEvent
@@ -328,7 +334,7 @@ object FilesBrowserReducer {
     ): FilesBrowserTransition =
         when (event) {
             is FilesBrowserEvent.OpenFolder -> state.openFolder(event.itemId)
-            is FilesBrowserEvent.OpenExternalItem -> state.openExternalItem(event.item)
+            is FilesBrowserEvent.OpenExternalItem -> state.openExternalItem(event.item, event.origin)
             FilesBrowserEvent.NavigateBack -> state.navigateBack()
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
             FilesBrowserEvent.Refresh -> state.refresh()

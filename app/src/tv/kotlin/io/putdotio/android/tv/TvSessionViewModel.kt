@@ -11,6 +11,8 @@ import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
+import io.putdotio.android.files.FilesOpenOrigin
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesStreamUrls
@@ -76,12 +78,25 @@ internal class TvSessionDependencies(
     val writePlaybackPosition: suspend (fileId: Long, seconds: Double) -> PlaybackRepositoryResult<Unit>,
 )
 
+/** What choosing a Search or History row did. */
+internal enum class TvExternalOpen {
+    /** Media plays over the pane it was chosen on. */
+    PLAYING,
+
+    /** Files shows the folder, or the file's folder with focus on it. */
+    IN_FILES,
+
+    /** Files refused while a move or deletion settles. */
+    REFUSED,
+}
+
 /**
  * The controllers of one signed-in session. They survive navigation and configuration
  * changes together and are closed together when the session ends.
  */
 internal class TvSession internal constructor(
     val files: FilesBrowserController,
+    private val filesRepository: FilesRepository,
     val search: SearchController,
     val history: HistoryController,
     val trash: TrashController,
@@ -102,11 +117,12 @@ internal class TvSession internal constructor(
     private val scope = CoroutineScope(parentScope.coroutineContext + sessionJob)
     private val historyOpenChannel = Channel<FilesItem>(Channel.BUFFERED)
     private val historyOpener =
-        HistoryFileOpener(history.navigation, filesItemResolver, historyOpenChannel::send, scope)
+        HistoryFileOpener(history.navigation, filesItemResolver, { item, _ -> historyOpenChannel.send(item) }, scope)
     private val mutableFileActionFailure = MutableStateFlow<FilesFailure?>(null)
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
     private val playbackRepository = playbackRepositoryFor { appConfig.state.value.playbackPreference() }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
+    private var durationLookup: Job? = null
 
     /** Start-from write-back for this session's playback; see [TvPlaybackReporting]. */
     val playbackReporting = TvPlaybackReporting(
@@ -126,6 +142,10 @@ internal class TvSession internal constructor(
      * back to the same row. Plain, not snapshot state: a focus move must not recompose.
      */
     val filesFocusMemory: MutableMap<Long, Long> = mutableMapOf()
+
+    /** The Search result and the History event last opened, focused again when their pane returns. */
+    val searchPickedRow = TvPickedRow()
+    val historyPickedRow = TvPickedRow()
 
     val recentSearchFailure = recentSearches.failure
 
@@ -148,6 +168,43 @@ internal class TvSession internal constructor(
 
     /** Starts resolving [item] for playback, replacing whatever was playing. */
     fun play(item: FilesItem) {
+        durationLookup?.cancel()
+        startPlayback(item)
+    }
+
+    /**
+     * Opens a Search or History pick: media plays, a folder opens in Files, and any other file
+     * opens its folder with focus on it. Back returns to [origin] either way.
+     */
+    fun openExternal(item: FilesItem, origin: FilesOpenOrigin): TvExternalOpen {
+        // A newer pick wins over media still waiting for its duration.
+        durationLookup?.cancel()
+        if (item.isPlayable) {
+            playWithDuration(item)
+            return TvExternalOpen.PLAYING
+        }
+        if (!files.dispatch(FilesBrowserEvent.OpenExternalItem(item, origin))) return TvExternalOpen.REFUSED
+        if (!item.isFolder) item.parentId?.let { filesFocusMemory[it.value] = item.id.value }
+        return TvExternalOpen.IN_FILES
+    }
+
+    // The resume dialog needs the duration, which search results and single-file reads omit;
+    // listing the file itself returns it as the parent. Without one, playback continues from
+    // the saved position without asking, as for any row without a duration.
+    private fun playWithDuration(item: FilesItem) {
+        if (item.playback?.durationSeconds != null) {
+            startPlayback(item)
+            return
+        }
+        durationLookup = scope.launch {
+            val listed = (filesRepository.loadFolder(item.id) as? FilesRepositoryResult.Success)?.value?.parent
+            val duration = listed?.takeIf { it.id == item.id }?.playback?.durationSeconds
+            val progress = duration?.let { FilesPlaybackProgress(item.playback?.startFromSeconds ?: 0.0, it) }
+            startPlayback(if (progress == null) item else item.copy(playback = progress))
+        }
+    }
+
+    private fun startPlayback(item: FilesItem) {
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
         val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds)
@@ -158,6 +215,7 @@ internal class TvSession internal constructor(
 
     /** Leaves playback; the shell shows again. */
     fun stopPlayback() {
+        durationLookup?.cancel()
         mutablePlayback.getAndUpdate { null }?.close()
     }
 
@@ -250,6 +308,7 @@ internal class TvSessionViewModel(
             val recentSearches = dependencies.recentSearchStore(viewModelScope)
             TvSession(
                 files = FilesBrowserController(dependencies.filesRepository, viewModelScope),
+                filesRepository = dependencies.filesRepository,
                 search = SearchController(dependencies.searchRepository, recentSearches, viewModelScope),
                 history = HistoryController(dependencies.historyRepository, account.historyEnabled, viewModelScope),
                 trash = TrashController(dependencies.trashRepository, viewModelScope),

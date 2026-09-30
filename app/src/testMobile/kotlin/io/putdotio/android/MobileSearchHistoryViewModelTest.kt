@@ -9,9 +9,11 @@ import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.files.FilesCursor
+import io.putdotio.android.files.FilesExternalOpen
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.history.HistoryController
@@ -95,7 +97,10 @@ class MobileSearchHistoryViewModelTest {
                 assertTrue(search.openResult(item.id))
                 yield()
 
-                assertEquals(item, withTimeout(TIMEOUT) { session.navigation.first() })
+                assertEquals(
+                    FilesExternalOpen(item, FilesOpenOrigin.SEARCH),
+                    withTimeout(TIMEOUT) { session.navigation.first() },
+                )
             } finally {
                 session.close()
             }
@@ -138,12 +143,20 @@ class MobileSearchHistoryViewModelTest {
                 withTimeout(TIMEOUT) { resolved.await() }
                 yield()
 
-                assertEquals(item, withTimeout(TIMEOUT) { session.navigation.first() })
+                assertEquals(
+                    FilesExternalOpen(item, FilesOpenOrigin.HISTORY),
+                    withTimeout(TIMEOUT) { session.navigation.first() },
+                )
+                session.openFile(item.id)
+                assertEquals(
+                    FilesExternalOpen(item, FilesOpenOrigin.LINK),
+                    withTimeout(TIMEOUT) { session.navigation.first() },
+                )
                 assertEquals(
                     null,
                     withTimeoutOrNull(NO_SECOND_EVENT_TIMEOUT) { session.navigation.first() },
                 )
-                assertEquals(1, resolverCalls)
+                assertEquals(2, resolverCalls)
             } finally {
                 session.close()
             }
@@ -185,7 +198,7 @@ class MobileSearchHistoryViewModelTest {
                 withTimeoutOrNull(NO_SECOND_EVENT_TIMEOUT) { secondStarted.await() }
                 releaseFirst.complete(Unit)
 
-                assertEquals(FilesItemId(2L), withTimeout(TIMEOUT) { session.navigation.first() }.id)
+                assertEquals(FilesItemId(2L), withTimeout(TIMEOUT) { session.navigation.first() }.item.id)
                 assertEquals(
                     null,
                     withTimeoutOrNull(NO_SECOND_EVENT_TIMEOUT) { session.navigation.first() },

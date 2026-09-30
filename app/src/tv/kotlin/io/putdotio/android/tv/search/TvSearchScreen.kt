@@ -83,6 +83,7 @@ import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
+import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.files.TvFilesRow
@@ -119,7 +120,13 @@ internal fun TvSearchScreen(
     notice: FilesFailure? = null,
     /** Changes with the signed-in session so one account's typed text never reaches the next. */
     sessionKey: Any? = null,
+    /** The result the viewer last opened; it takes focus again when the pane comes back. */
+    pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
 ) = key(sessionKey) {
+    // Only the results the viewer came back to restore the pick; a new search starts as usual.
+    var restoreRowId by remember { mutableStateOf(pickedRow.take()) }
+    val resultsShown = state.content is SearchContent.Ready
+    LaunchedEffect(resultsShown) { if (!resultsShown) restoreRowId = null }
     // The shell asks the pane for focus on entry, and Right from the drawer enters it by
     // direction. Both land on the section that held focus last, the field the first time.
     val fieldFocus = remember { FocusRequester() }
@@ -202,7 +209,11 @@ internal fun TvSearchScreen(
                 TvSearchResults(
                     items = content.items,
                     paging = content.paging,
-                    onResult = actions.onResult,
+                    restoreRowId = restoreRowId,
+                    onResult = { item ->
+                        pickedRow.pick(item.id.value)
+                        actions.onResult(item)
+                    },
                     onNextPage = actions.onNextPage,
                     onRetry = actions.onRetry,
                     owner = owner,
@@ -473,6 +484,7 @@ private fun TvSearchNotice(
 private fun TvSearchResults(
     items: List<FilesItem>,
     paging: SearchPaging,
+    restoreRowId: Long?,
     onResult: (FilesItem) -> Unit,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
@@ -497,6 +509,21 @@ private fun TvSearchResults(
     }
     val listState = rememberLazyListState()
     val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
+    // Coming back from what a result opened, that result takes focus: here, and through the
+    // restorer's fallback when the shell's own entry request reaches the list afterwards.
+    val restoreRow = remember { FocusRequester() }
+    val restoreComposed by remember(listState) {
+        derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == restoreRowId } }
+    }
+    LaunchedEffect(listState) {
+        val index = items.indexOfFirst { it.id.value == restoreRowId }
+        if (index < 0) return@LaunchedEffect
+        if (!restoreComposed) listState.scrollToItem(index)
+        snapshotFlow { restoreComposed }.first { it }
+        owner.enter(listFocus)
+        withFrameNanos {}
+        if (owner.hasFocus) restoreRow.requestFocus()
+    }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
         val lastId = items.last().id.value
@@ -519,7 +546,11 @@ private fun TvSearchResults(
             .focusRestorer {
                 val lastId = items.last().id.value
                 val lastComposed = listState.layoutInfo.visibleItemsInfo.any { it.key == lastId }
-                if (handOffToLastRow.value && lastComposed) lastRow else anchorRow
+                when {
+                    handOffToLastRow.value && lastComposed -> lastRow
+                    restoreComposed -> restoreRow
+                    else -> anchorRow
+                }
             }
             .focusGroup()
             .testTag(TV_SEARCH_RESULTS_TAG),
@@ -529,10 +560,14 @@ private fun TvSearchResults(
             TvFilesRow(
                 item = item,
                 onClick = { onResult(item) },
-                label = stringResource(R.string.tv_search_open_result, item.name),
+                label = stringResource(
+                    if (item.isPlayable) R.string.tv_files_play_media else R.string.tv_search_open_result,
+                    item.name,
+                ),
                 modifier = Modifier
                     .then(if (index == anchorIndex) Modifier.focusRequester(anchorRow) else Modifier)
-                    .then(if (index == items.lastIndex) Modifier.focusRequester(lastRow) else Modifier),
+                    .then(if (index == items.lastIndex) Modifier.focusRequester(lastRow) else Modifier)
+                    .then(if (item.id.value == restoreRowId) Modifier.focusRequester(restoreRow) else Modifier),
             )
         }
         if (paging != SearchPaging.Complete) {

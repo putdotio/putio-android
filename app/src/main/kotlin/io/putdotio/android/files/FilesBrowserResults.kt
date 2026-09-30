@@ -56,9 +56,15 @@ private fun FilesFolderState.loadSucceeded(
         when (val state = content) {
             is FilesContent.Loading ->
                 if (state.requestId == requestId) {
+                    // A folder an outside open pushed takes its name from the listing (the root keeps
+                    // its localized title) and opens at the file it came for, when that is on this page.
+                    val loaded = contentFor(page.items, page.nextCursor.toPaging(consumedCursors))
+                    val revealIndex = loaded.items().indexOfFirst { it.id == revealItemId }
+                    val name = folder.name ?: page.parent?.takeIf { it.id != FilesFolder.Root.id }?.name
                     copy(
-                        folder = folder.copy(sort = page.sort ?: folder.sort),
-                        content = contentFor(page.items, page.nextCursor.toPaging(consumedCursors)),
+                        folder = folder.copy(sort = page.sort ?: folder.sort, name = name),
+                        content = loaded.takeIf { revealIndex < 0 }
+                            ?: loaded.withViewport(FilesViewportPosition(revealIndex)) ?: loaded,
                         consumedCursors = emptySet(),
                     )
                 } else {

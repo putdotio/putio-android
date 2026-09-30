@@ -35,9 +35,11 @@ class FilesDeleteReducerTest {
             )
             conflicts.forEach { assertFalse(FilesBrowserReducer.reduce(deleting.state, it).consumed) }
             assertFalse(FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.OpenFolder(item.id)).consumed)
-            assertFalse(FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.OpenExternalItem(item)).consumed)
+            assertFalse(FilesBrowserReducer.reduce(
+                deleting.state, FilesBrowserEvent.OpenExternalItem(item, FilesOpenOrigin.SEARCH),
+            ).consumed)
             assertFalse(FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.OpenExternalItem(
-                file(8L).copy(parentId = item.id, type = PutioFileType.VIDEO),
+                file(8L).copy(parentId = item.id, type = PutioFileType.VIDEO), FilesOpenOrigin.SEARCH,
             )).consumed)
             assertFalse(FilesBrowserReducer.reduce(
                 deleting.state, FilesBrowserEvent.MutationSucceeded(effect.requestId),
@@ -229,8 +231,8 @@ class FilesDeleteReducerTest {
         ))
         val navigation = listOf(
             FilesBrowserEvent.NavigateBack,
-            FilesBrowserEvent.OpenExternalItem(file(99L)),
-            FilesBrowserEvent.OpenExternalItem(file(99L).copy(type = PutioFileType.VIDEO)),
+            FilesBrowserEvent.OpenExternalItem(file(99L), FilesOpenOrigin.SEARCH),
+            FilesBrowserEvent.OpenExternalItem(file(99L).copy(type = PutioFileType.VIDEO), FilesOpenOrigin.HISTORY),
         )
         for (pending in listOf(childDelete, checking, checkFailed, reloading, reloadFailed)) {
             navigation.forEach { navigationEvent ->

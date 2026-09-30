@@ -21,6 +21,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.SdkFilesStreamUrls
 import io.putdotio.android.files.SdkFilesWatchedRepository
@@ -37,6 +38,7 @@ import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
@@ -51,6 +53,7 @@ import io.putdotio.android.tv.player.TvPlaybackLayer
 import io.putdotio.android.tv.player.TvPlaybackRoute
 import io.putdotio.android.tv.account.TvAccountScreen
 import io.putdotio.android.tv.TvDestination
+import io.putdotio.android.tv.TvExternalOpen
 import io.putdotio.android.tv.TvLinkScreen
 import io.putdotio.android.tv.TvSession
 import io.putdotio.android.tv.TvSessionDependencies
@@ -58,6 +61,7 @@ import io.putdotio.android.tv.tvAppConfigRepository
 import io.putdotio.android.tv.TvSessionViewModel
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.TvStatusScreen
+import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.files.TvFilesScreen
@@ -143,6 +147,27 @@ private fun TvSignedInApp(
         TvStatusScreen(stringResource(R.string.tv_session_restoring))
         return
     }
+    TvSessionShell(
+        session = session,
+        account = signedIn.account,
+        sessionKey = signedIn.account.userId to signedIn.sessionId.value,
+        onSignOut = onSignOut,
+        onSessionRejected = onSessionRejected,
+        loadTunnelRoutes = dependencies.settingsRepository::loadTunnelRoutes,
+    )
+}
+
+/** One signed-in session's shell and player; the controllers all come from [session]. */
+@Composable
+internal fun TvSessionShell(
+    session: TvSession,
+    account: TvAccount,
+    /** Changes with the signed-in session so one account's saved UI state never greets the next. */
+    sessionKey: Any,
+    onSignOut: () -> Unit,
+    onSessionRejected: suspend () -> Unit,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
+) {
     val filesState by session.files.state.collectAsStateWithLifecycle()
     val searchState by session.search.state.collectAsStateWithLifecycle()
     val historyState by session.history.state.collectAsStateWithLifecycle()
@@ -175,25 +200,30 @@ private fun TvSignedInApp(
         confirmedHistoryEnabled?.let { session.history.dispatch(HistoryEvent.SetEnabled(it)) }
     }
 
-    // A search result or a history event opens in Files: the browser jumps to the item's
-    // folder and the shell switches destinations. A refused jump stays put with an explanation.
+    // A search result or a history event plays when it is media; anything else opens in Files
+    // and the shell switches destinations. A refused jump stays put with an explanation.
     var requestedDestination by remember(session) { mutableStateOf<TvDestination?>(null) }
     var openRejected by remember(session) { mutableStateOf(false) }
     var historyOpenRejected by remember(session) { mutableStateOf(false) }
-    val openInFiles: (FilesItem) -> Boolean = { item ->
-        session.files.dispatch(FilesBrowserEvent.OpenExternalItem(item)).also { accepted ->
-            if (accepted) requestedDestination = TvDestination.Files
+    val openExternal: (FilesItem, FilesOpenOrigin) -> Boolean = { item, origin ->
+        when (session.openExternal(item, origin)) {
+            TvExternalOpen.PLAYING -> true
+            TvExternalOpen.IN_FILES -> {
+                requestedDestination = TvDestination.Files
+                true
+            }
+            TvExternalOpen.REFUSED -> false
         }
     }
     LaunchedEffect(session) {
         session.search.outputs.collect { output ->
             when (output) {
-                is SearchOutput.OpenResult -> openRejected = !openInFiles(output.item)
+                is SearchOutput.OpenResult -> openRejected = !openExternal(output.item, FilesOpenOrigin.SEARCH)
             }
         }
     }
     LaunchedEffect(session) {
-        session.historyOpens.collect { item -> historyOpenRejected = !openInFiles(item) }
+        session.historyOpens.collect { item -> historyOpenRejected = !openExternal(item, FilesOpenOrigin.HISTORY) }
     }
     // A restore changes Files behind the browser's cache: one item's folder, or every folder.
     LaunchedEffect(session, trashState.restoredVersion) {
@@ -202,7 +232,6 @@ private fun TvSignedInApp(
     LaunchedEffect(session, trashState.bulkRestoreVersion) {
         if (trashState.bulkRestoreVersion > 0L) session.files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
     }
-    val sessionKey = signedIn.account.userId to signedIn.sessionId.value
     val playback by session.playback.collectAsStateWithLifecycle()
 
     TvPlaybackLayer(
@@ -220,15 +249,23 @@ private fun TvSignedInApp(
         },
     ) {
         TvShell(
-            account = signedIn.account,
+            account = account,
             onSignOut = onSignOut,
             requestedDestination = requestedDestination,
             onDestinationRequestHandled = { requestedDestination = null },
             filesPane = { paneFocus ->
                 // Composed only while Files is the destination, so Back on another pane
                 // cannot pop the folder stack behind it.
+                // Back from a folder opened from Search or History returns to that pane.
                 BackHandler(enabled = filesState.canNavigateBack) {
-                    session.files.dispatch(FilesBrowserEvent.NavigateBack)
+                    val returnTo = when (filesState.current.openedFrom) {
+                        FilesOpenOrigin.SEARCH -> TvDestination.Search
+                        FilesOpenOrigin.HISTORY -> TvDestination.History
+                        FilesOpenOrigin.TRANSFERS, FilesOpenOrigin.LINK, null -> null
+                    }
+                    if (session.files.dispatch(FilesBrowserEvent.NavigateBack) && returnTo != null) {
+                        requestedDestination = returnTo
+                    }
                 }
                 // A restore from Trash marks its folder stale; the listing reloads when Files shows
                 // again, or once a refresh that was running at that moment has settled.
@@ -293,6 +330,7 @@ private fun TvSignedInApp(
                     },
                     modifier = Modifier.focusRequester(paneFocus),
                     sessionKey = sessionKey,
+                    pickedRow = session.searchPickedRow,
                 )
             },
             historyPane = { paneFocus ->
@@ -318,6 +356,7 @@ private fun TvSignedInApp(
                     },
                     modifier = Modifier.focusRequester(paneFocus),
                     sessionKey = sessionKey,
+                    pickedRow = session.historyPickedRow,
                 )
             },
             accountPane = { paneFocus ->
@@ -326,7 +365,7 @@ private fun TvSignedInApp(
                 // because the controller outlives the pane.
                 LaunchedEffect(session) { session.trash.dispatch(TrashEvent.Open) }
                 TvAccountScreen(
-                    account = signedIn.account,
+                    account = account,
                     settingsState = settingsState,
                     appConfigState = appConfigState,
                     onSettingsEvent = session.settings::dispatch,
@@ -343,7 +382,7 @@ private fun TvSignedInApp(
                         )
                     },
                     loadTunnelRoutes = {
-                        dependencies.settingsRepository.loadTunnelRoutes().also { result ->
+                        loadTunnelRoutes().also { result ->
                             if (result is AccountSettingsRepositoryResult.Failure &&
                                 result.failure is AccountSettingsFailure.AuthenticationRequired
                             ) {

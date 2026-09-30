@@ -213,6 +213,7 @@ private fun FilesListResponse.toFilesPage(): FilesPage =
         items = files.map(PutioFile::toFilesItem),
         nextCursor = cursor?.takeIf(String::isNotBlank)?.let(::FilesCursor),
         sort = FilesSort.fromApiValue(parent?.sortBy),
+        parent = parent?.toFilesItem(),
     )
 
 internal fun PutioFile.toFilesItem(): FilesItem =

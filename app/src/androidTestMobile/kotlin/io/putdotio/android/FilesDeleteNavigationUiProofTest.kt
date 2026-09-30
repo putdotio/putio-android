@@ -32,12 +32,14 @@ import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesDeleteMode
+import io.putdotio.android.files.FilesExternalOpen
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRepositoryResult
@@ -144,7 +146,8 @@ class FilesDeleteNavigationUiProofTest {
         navigate("Search")
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
         val retained = preview.files
-        compose.runOnIdle { assertTrue(preview.deliveries.trySend(preview.resolved).isSuccess) }
+        val open = FilesExternalOpen(preview.resolved, FilesOpenOrigin.SEARCH)
+        compose.runOnIdle { assertTrue(preview.deliveries.trySend(open).isSuccess) }
         compose.waitForIdle()
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         compose.onNodeWithText(context.getString(R.string.mobile_navigation_blocked)).assertIsDisplayed()
@@ -196,7 +199,7 @@ private class DeleteNavigationPreview {
     )
     val appConfig = AndroidAppConfigState(AndroidAppConfigContent.Ready(AndroidAppConfigPreferences()),
         AndroidAppConfigMutation.Idle, 1)
-    val deliveries = Channel<FilesItem>(Channel.UNLIMITED)
+    val deliveries = Channel<FilesExternalOpen>(Channel.UNLIMITED)
     val searchResults = deliveries.receiveAsFlow()
     val effects = mutableListOf<FilesBrowserEffect>()
     val transferEvents = mutableListOf<TransfersEvent>()

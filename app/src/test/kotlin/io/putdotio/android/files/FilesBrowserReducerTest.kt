@@ -495,58 +495,119 @@ class FilesBrowserReducerTest {
     }
 
     @Test
-    fun externalFolderResultOpensDirectlyFromRoot() {
+    fun externalFolderOpensWithItsNameAboveThePriorLocationAndBackReturnsThere() {
+        val shows = item(7L, "Shows", PutioFileType.FOLDER)
+        val prior = opened(loadedRoot(items = listOf(shows), nextCursor = null), FilesBrowserEvent.OpenFolder(shows.id))
+            .withItems()
+        val folder = item(70L, "Search result", PutioFileType.FOLDER).copy(parentId = FilesItemId(44L))
+
+        val opened = FilesBrowserReducer.reduce(
+            prior, FilesBrowserEvent.OpenExternalItem(folder, FilesOpenOrigin.SEARCH),
+        )
+
+        assertEquals(listOf(FilesFolder.Root, FilesFolder(shows.id, "Shows"), FilesFolder(folder.id, "Search result")),
+            opened.state.path)
+        assertEquals(FilesOpenOrigin.SEARCH, opened.state.current.openedFrom)
+        assertNull(opened.state.current.revealItemId)
+        assertEquals(folder.id, (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
+        val back = FilesBrowserReducer.reduce(opened.state, FilesBrowserEvent.NavigateBack)
+        assertEquals(prior.path, back.state.path)
+        assertEquals("changes made above reach the kept location", shows.id,
+            (back.effect as FilesBrowserEffect.LoadFolder).folderId)
+    }
+
+    @Test
+    fun externalFileOpensItsParentNamedByTheListingAndScrolledToTheFile() {
         val root = loadedRoot(items = emptyList(), nextCursor = null)
-        val folder = item(70L, "Search result", PutioFileType.FOLDER)
-
-        val opened = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenExternalItem(folder))
-
-        assertEquals(FilesItemId(70L), opened.state.current.folder.id)
-        assertEquals(FilesItemId(70L), (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
-        assertTrue(opened.state.canNavigateBack)
-    }
-
-    @Test
-    fun externalFileResultOpensItsContainingFolder() {
-        val root = loadedRoot(items = emptyList(), nextCursor = null)
-        val file = item(71L, "movie.mkv", PutioFileType.VIDEO).copy(parentId = FilesItemId(44L))
-
-        val opened = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenExternalItem(file))
-
-        assertEquals(FilesItemId(44L), opened.state.current.folder.id)
-        assertEquals(FilesItemId(44L), (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
-    }
-
-    @Test
-    fun externalFileInCurrentFolderReloadsThatFolder() {
-        val root = loadedRoot(items = listOf(item(1L, "older.mkv", PutioFileType.VIDEO)), nextCursor = null)
-        val newFile = item(71L, "new.mkv", PutioFileType.VIDEO)
-
-        val opened = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenExternalItem(newFile))
-
-        assertTrue(opened.consumed)
-        assertEquals(listOf(FilesFolder.Root), opened.state.path)
-        assertTrue(opened.state.current.content is FilesContent.Loading)
-        assertEquals(FilesFolder.Root.id, (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
-    }
-
-    @Test
-    fun externalFileReloadPreservesTheCurrentFolderName() {
-        val folder = item(44L, "Movies", PutioFileType.FOLDER)
-        val root = loadedRoot(items = listOf(folder), nextCursor = null)
-        val opening = FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenFolder(folder.id))
+        val file = item(71L, "notes.pdf", PutioFileType.PDF).copy(parentId = FilesItemId(44L))
+        val opening = FilesBrowserReducer.reduce(
+            root, FilesBrowserEvent.OpenExternalItem(file, FilesOpenOrigin.HISTORY),
+        )
         val request = opening.effect as FilesBrowserEffect.LoadFolder
-        val nested =
-            FilesBrowserReducer.reduce(
-                opening.state,
-                FilesBrowserEvent.LoadSucceeded(request.requestId, FilesPage(emptyList(), null)),
-            ).state
-        val externalFile = item(71L, "new.mkv", PutioFileType.VIDEO).copy(parentId = folder.id)
+        assertEquals(FilesItemId(44L), request.folderId)
+        assertEquals(FilesFolder(FilesItemId(44L), name = null), opening.state.current.folder)
 
-        val reloading = FilesBrowserReducer.reduce(nested, FilesBrowserEvent.OpenExternalItem(externalFile))
+        val rows = (1L..5L).map { item(it, "row $it", PutioFileType.VIDEO) } + file
+        val parent = item(44L, "Documents", PutioFileType.FOLDER)
+        val loaded = FilesBrowserReducer.reduce(opening.state,
+            FilesBrowserEvent.LoadSucceeded(request.requestId, FilesPage(rows, null, parent = parent))).state
 
-        assertEquals(FilesFolder(folder.id, folder.name), reloading.state.current.folder)
-        assertTrue(reloading.state.current.content is FilesContent.Loading)
+        assertEquals("Documents", loaded.current.folder.name)
+        assertEquals(file.id, loaded.current.revealItemId)
+        assertEquals(FilesOpenOrigin.HISTORY, loaded.current.openedFrom)
+        assertEquals(5, (loaded.current.content as FilesContent.Ready).viewport.firstVisibleItemIndex)
+    }
+
+    @Test
+    fun externalFileInAFolderTheStackNamesKeepsThatTitleWhileItLoads() {
+        val movies = item(44L, "Movies", PutioFileType.FOLDER)
+        val root = loadedRoot(items = listOf(movies), nextCursor = null)
+        val inMovies = opened(root, FilesBrowserEvent.OpenFolder(movies.id))
+        val file = item(71L, "notes.pdf", PutioFileType.PDF).copy(parentId = movies.id)
+
+        val opening = opened(inMovies, FilesBrowserEvent.OpenExternalItem(file, FilesOpenOrigin.SEARCH))
+
+        assertEquals(FilesFolder(movies.id, "Movies"), opening.current.folder)
+    }
+
+    @Test
+    fun externalFileInTheRootKeepsTheRootTitleAndThePriorRoot() {
+        val root = loadedRoot(items = listOf(item(1L, "older.mkv", PutioFileType.VIDEO)), nextCursor = null)
+        val newFile = item(71L, "new.txt", PutioFileType.TEXT)
+
+        val opening = FilesBrowserReducer.reduce(
+            root, FilesBrowserEvent.OpenExternalItem(newFile, FilesOpenOrigin.LINK),
+        )
+        val loaded = FilesBrowserReducer.reduce(opening.state, FilesBrowserEvent.LoadSucceeded(
+            (opening.effect as FilesBrowserEffect.LoadFolder).requestId,
+            FilesPage(listOf(newFile), null, parent = item(0L, "Your Files", PutioFileType.FOLDER)),
+        )).state
+
+        assertEquals(listOf(FilesFolder.Root, FilesFolder.Root), loaded.path)
+        assertEquals(root.current.content, loaded.stack.first().content)
+        assertEquals(FilesOpenOrigin.LINK, loaded.current.openedFrom)
+    }
+
+    @Test
+    fun anotherExternalOpenReplacesTheEarlierOneAndKeepsThePriorLocation() {
+        val root = loadedRoot(items = emptyList(), nextCursor = null)
+        val first = opened(root, FilesBrowserEvent.OpenExternalItem(
+            item(70L, "First", PutioFileType.FOLDER), FilesOpenOrigin.SEARCH))
+        val nested = opened(first.withItems(item(72L, "Inside", PutioFileType.FOLDER)),
+            FilesBrowserEvent.OpenFolder(FilesItemId(72L)))
+
+        val second = FilesBrowserReducer.reduce(nested, FilesBrowserEvent.OpenExternalItem(
+            item(80L, "Second", PutioFileType.FOLDER), FilesOpenOrigin.HISTORY)).state
+
+        assertEquals(listOf(FilesFolder.Root, FilesFolder(FilesItemId(80L), "Second")), second.path)
+        assertEquals(FilesOpenOrigin.HISTORY, second.current.openedFrom)
+    }
+
+    @Test
+    fun aFolderUnderAnExternalOpenCanBeOpenedAgainAboveIt() {
+        val shows = item(7L, "Shows", PutioFileType.FOLDER)
+        val season = item(8L, "Season 1", PutioFileType.FOLDER).copy(parentId = shows.id)
+        val root = loadedRoot(items = listOf(shows), nextCursor = null)
+        val inShows = opened(root, FilesBrowserEvent.OpenFolder(shows.id))
+        val prior = opened(inShows.withItems(season), FilesBrowserEvent.OpenFolder(season.id))
+        val result = opened(prior, FilesBrowserEvent.OpenExternalItem(shows, FilesOpenOrigin.SEARCH)).withItems(season)
+
+        val reopened = FilesBrowserReducer.reduce(result, FilesBrowserEvent.OpenFolder(season.id))
+
+        assertTrue(reopened.consumed)
+        assertEquals(listOf(0L, 7L, 8L, 7L, 8L), reopened.state.path.map { it.id.value })
+    }
+
+    private fun opened(state: FilesBrowserState, event: FilesBrowserEvent): FilesBrowserState {
+        val transition = FilesBrowserReducer.reduce(state, event)
+        assertTrue(transition.consumed)
+        return transition.state
+    }
+
+    private fun FilesBrowserState.withItems(vararg items: FilesItem): FilesBrowserState {
+        val request = (current.content as FilesContent.Loading).requestId
+        val page = FilesPage(items.toList(), null)
+        return FilesBrowserReducer.reduce(this, FilesBrowserEvent.LoadSucceeded(request, page)).state
     }
 
     private fun loadedRoot(

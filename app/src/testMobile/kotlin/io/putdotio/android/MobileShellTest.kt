@@ -21,6 +21,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -49,6 +50,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
+import io.putdotio.android.files.FilesExternalOpen
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
@@ -57,6 +59,7 @@ import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
@@ -113,6 +116,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -364,7 +368,7 @@ class MobileShellTest {
     @Test
     fun aDelayedHistoryResultDoesNotHideTheSharedDraft() {
         val draft = MobileTransferDraft()
-        val results = Channel<FilesItem>(Channel.BUFFERED)
+        val results = Channel<FilesExternalOpen>(Channel.BUFFERED)
         val filesEvents = mutableListOf<FilesBrowserEvent>()
         compose.setShell(
             transferDraft = draft,
@@ -373,10 +377,10 @@ class MobileShellTest {
         )
         compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle { results.trySend(shellResolvedFolder()) }
+        compose.runOnIdle { results.trySend(FilesExternalOpen(shellResolvedFolder(), FilesOpenOrigin.HISTORY)) }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
         compose.runOnIdle {
-            assertTrue(filesEvents.contains(FilesBrowserEvent.OpenExternalItem(shellResolvedFolder())))
+            assertTrue(filesEvents.contains(historyOpen()))
             assertEquals("https://example.invalid/shared", draft.state.value.input)
         }
     }
@@ -384,12 +388,12 @@ class MobileShellTest {
     @Test
     fun aDelayedHistoryResultOpensFilesAfterTheSharedDraftIsDismissed() {
         val draft = MobileTransferDraft()
-        val results = Channel<FilesItem>(Channel.BUFFERED)
+        val results = Channel<FilesExternalOpen>(Channel.BUFFERED)
         compose.setShell(transferDraft = draft, contentNavigation = results.receiveAsFlow())
         compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
-        compose.runOnIdle { results.trySend(shellResolvedFolder()) }
+        compose.runOnIdle { results.trySend(FilesExternalOpen(shellResolvedFolder(), FilesOpenOrigin.HISTORY)) }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
         compose.onNodeWithText("Add transfer").assertDoesNotExist()
     }
@@ -397,7 +401,7 @@ class MobileShellTest {
     @Test
     fun aRejectedHistoryResultKeepsTheSharedDraftAndReportsNavigationRecovery() {
         val draft = MobileTransferDraft()
-        val results = Channel<FilesItem>(Channel.BUFFERED)
+        val results = Channel<FilesExternalOpen>(Channel.BUFFERED)
         val filesEvents = mutableListOf<FilesBrowserEvent>()
         compose.setShell(
             transferDraft = draft,
@@ -406,12 +410,12 @@ class MobileShellTest {
         )
         compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle { results.trySend(shellResolvedFolder()) }
+        compose.runOnIdle { results.trySend(FilesExternalOpen(shellResolvedFolder(), FilesOpenOrigin.HISTORY)) }
         compose.onNodeWithText("Couldn’t open this file").assertIsDisplayed()
         compose.onNodeWithText("OK").performClick()
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
         compose.runOnIdle {
-            assertTrue(filesEvents.contains(FilesBrowserEvent.OpenExternalItem(shellResolvedFolder())))
+            assertTrue(filesEvents.contains(historyOpen()))
             assertEquals("https://example.invalid/shared", draft.state.value.input)
         }
     }
@@ -976,7 +980,7 @@ class MobileShellTest {
 
     @Test
     fun contentNavigationCollectsOnceAndUsesTheCurrentFilesCallback() {
-        val deliveries = Channel<FilesItem>(Channel.UNLIMITED)
+        val deliveries = Channel<FilesExternalOpen>(Channel.UNLIMITED)
         var subscriptions = 0
         val navigation = flow {
             subscriptions += 1
@@ -985,7 +989,7 @@ class MobileShellTest {
         val oldEvents = mutableListOf<FilesBrowserEvent>()
         val currentEvents = mutableListOf<FilesBrowserEvent>()
         var useCurrentCallback by mutableStateOf(false)
-        val item = (videoFilesState().current.content as FilesContent.Ready).items.single()
+        val item = shellResolvedFolder()
         compose.setContent {
             PutioTheme {
                 MobileShell(
@@ -1014,12 +1018,12 @@ class MobileShellTest {
         }
         compose.runOnIdle {
             assertEquals(1, subscriptions)
-            assertTrue(deliveries.trySend(item).isSuccess)
+            assertTrue(deliveries.trySend(FilesExternalOpen(item, FilesOpenOrigin.SEARCH)).isSuccess)
         }
         compose.waitForIdle()
         compose.runOnIdle {
             assertTrue(oldEvents.isEmpty())
-            assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(item)), currentEvents)
+            assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(item, FilesOpenOrigin.SEARCH)), currentEvents)
             assertEquals(1, subscriptions)
             deliveries.close()
         }
@@ -1027,7 +1031,7 @@ class MobileShellTest {
 
     @Test
     fun rejectedSearchNavigationKeepsSearchVisibleAndPendingDeleteIntact() {
-        val deliveries = Channel<FilesItem>(Channel.UNLIMITED)
+        val deliveries = Channel<FilesExternalOpen>(Channel.UNLIMITED)
         val navigation = deliveries.receiveAsFlow()
         val retained = pendingShellDeleteState()
         val events = mutableListOf<FilesBrowserEvent>()
@@ -1057,7 +1061,8 @@ class MobileShellTest {
         }
         compose.onNodeWithText("Search").performClick()
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle { assertTrue(deliveries.trySend(resolved).isSuccess) }
+        val open = FilesExternalOpen(resolved, FilesOpenOrigin.SEARCH)
+        compose.runOnIdle { assertTrue(deliveries.trySend(open).isSuccess) }
         compose.waitUntil { events.any { it is FilesBrowserEvent.OpenExternalItem } }
         compose.onNodeWithText("This item cannot be opened right now. Check Files, then try again.").assertIsDisplayed()
         compose.onNodeWithText("OK").performClick()
@@ -1065,7 +1070,7 @@ class MobileShellTest {
         compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
         compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsNotSelected()
         compose.runOnIdle {
-            assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(resolved)),
+            assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(resolved, FilesOpenOrigin.SEARCH)),
                 events.filterIsInstance<FilesBrowserEvent.OpenExternalItem>())
             deliveries.close()
         }
@@ -1161,7 +1166,7 @@ class MobileShellTest {
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
         transferDraft: MobileTransferDraft = MobileTransferDraft(),
-        contentNavigation: kotlinx.coroutines.flow.Flow<FilesItem> = kotlinx.coroutines.flow.emptyFlow(),
+        contentNavigation: kotlinx.coroutines.flow.Flow<FilesExternalOpen> = kotlinx.coroutines.flow.emptyFlow(),
         filesState: FilesBrowserState = emptyFilesState(),
         onFilesEvent: (FilesBrowserEvent) -> Boolean = { true },
         onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
@@ -1372,7 +1377,7 @@ class MobileShellTransfersTest {
         compose.waitUntil(timeoutMillis = 5_000L) {
             events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L)))
         }
-        assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(resolvedItem)), filesEvents)
+        assertEquals(listOf(FilesBrowserEvent.OpenExternalItem(resolvedItem, FilesOpenOrigin.TRANSFERS)), filesEvents)
     }
 
     @Test
@@ -1516,6 +1521,116 @@ class MobileShellTransfersTest {
                 )
         }
     }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35])
+class MobileShellExternalOpenTest {
+    @get:Rule
+    val compose = createComposeRule()
+    private val opens = Channel<FilesExternalOpen>(Channel.UNLIMITED)
+    private val prior = nestedFilesState()
+    private var files by mutableStateOf(prior)
+    private val loads = mutableListOf<FilesBrowserEffect.LoadFolder>()
+
+    @Test
+    fun aVideoResultPlaysAboveSearchAndBackReturnsThere() {
+        showSearch()
+        open(externalItem(8L, "episode.mkv", PutioFileType.VIDEO), FilesOpenOrigin.SEARCH)
+
+        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+        compose.onNodeWithContentDescription("Back").performClick()
+        assertSearchShown()
+        compose.runOnIdle { assertSame(prior, files) }
+    }
+
+    @Test
+    fun aSecondMediaPickReplacesThePlayerAndBackReturnsToSearch() {
+        showSearch()
+        open(externalItem(8L, "episode.mkv", PutioFileType.VIDEO), FilesOpenOrigin.SEARCH)
+        open(externalItem(9L, "next.mkv", PutioFileType.VIDEO), FilesOpenOrigin.SEARCH)
+
+        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick()
+        assertSearchShown()
+    }
+
+    @Test
+    fun aFolderResultOpensWithItsNameAndBackReturnsToSearchOverThePriorLocation() {
+        showSearch()
+        open(externalItem(44L, "Documents", PutioFileType.FOLDER), FilesOpenOrigin.SEARCH)
+
+        compose.onNodeWithText("Documents").assertIsDisplayed()
+        compose.onNode(hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
+        compose.onNodeWithContentDescription("Back").performClick()
+        assertSearchShown()
+        compose.runOnIdle { assertEquals(prior.path, files.path) }
+    }
+
+    @Test
+    fun aDocumentFromHistoryOpensItsNamedFolderWithTheFileSelected() {
+        showSearch()
+        val notes = externalItem(11L, "notes.pdf", PutioFileType.PDF).copy(parentId = FilesItemId(44L))
+        open(notes, FilesOpenOrigin.HISTORY)
+        compose.runOnIdle {
+            val load = loads.single { it.folderId == FilesItemId(44L) }
+            val page = FilesPage(
+                listOf(externalItem(12L, "cover.jpg", PutioFileType.IMAGE), notes),
+                nextCursor = null,
+                parent = externalItem(44L, "Documents", PutioFileType.FOLDER),
+            )
+            files = FilesBrowserReducer.reduce(files, FilesBrowserEvent.LoadSucceeded(load.requestId, page)).state
+        }
+
+        compose.onNodeWithText("Documents").assertIsDisplayed()
+        compose.onNodeWithText("notes.pdf").assertIsSelected()
+        compose.onNode(hasText("cover.jpg") and isSelected()).assertDoesNotExist()
+        compose.onNodeWithContentDescription("Back").performClick()
+        assertSearchShown()
+    }
+
+    private fun showSearch() {
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = files,
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { event ->
+                        val transition = FilesBrowserReducer.reduce(files, event)
+                        files = transition.state
+                        (transition.effect as? FilesBrowserEffect.LoadFolder)?.let(loads::add)
+                        transition.consumed
+                    },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    contentNavigation = opens.receiveAsFlow(),
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
+        assertSearchShown()
+    }
+
+    private fun open(item: FilesItem, origin: FilesOpenOrigin) {
+        compose.runOnIdle { assertTrue(opens.trySend(FilesExternalOpen(item, origin)).isSuccess) }
+        compose.waitForIdle()
+    }
+
+    private fun assertSearchShown() {
+        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
+        compose.onNode(hasText("Search") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
+    }
+
+    private fun externalItem(id: Long, name: String, type: PutioFileType) =
+        FilesItem(FilesItemId(id), FilesFolder.Root.id, name, type, 1L, "2026-09-30T00:00:00Z")
 }
 
 @RunWith(AndroidJUnit4::class)
@@ -2220,6 +2335,8 @@ private fun videoAndAudioFilesState(): FilesBrowserState {
 private fun pendingShellDeleteState(): FilesBrowserState = FilesBrowserReducer.reduce(
     videoFilesState(), FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(8L), FilesDeleteMode.PERMANENT),
 ).state
+
+private fun historyOpen() = FilesBrowserEvent.OpenExternalItem(shellResolvedFolder(), FilesOpenOrigin.HISTORY)
 
 private fun shellResolvedFolder(): FilesItem = FilesItem(
     FilesItemId(7L), FilesFolder.Root.id, "resolved folder", PutioFileType.FOLDER, 0L, "2026-09-06",

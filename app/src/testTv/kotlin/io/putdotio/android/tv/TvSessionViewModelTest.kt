@@ -4,9 +4,11 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesStreamUrls
@@ -52,6 +54,7 @@ import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,10 +81,15 @@ class TvSessionViewModelTest {
     private val watched = FakeWatchedRepository()
     private val playbackRepository = FakePlaybackRepository()
     private var appConfigPreferences = AndroidAppConfigPreferences()
+    /** Listing an item's own id returns it as the parent, as the API does for a file. */
+    private val listedItems = mutableMapOf<FilesItemId, FilesItem>()
+    private val heldListings = mutableMapOf<FilesItemId, CompletableDeferred<Unit>>()
     private val dependencies = TvSessionDependencies(
         filesRepository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId) =
-                FilesRepositoryResult.Success(FilesPage(emptyList(), null))
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+                heldListings[folderId]?.await()
+                return FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = listedItems[folderId]))
+            }
         },
         searchRepository = object : SearchRepository {
             override suspend fun search(term: SearchTerm) =
@@ -305,6 +313,72 @@ class TvSessionViewModelTest {
         session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
         assertNull("A closed session starts nothing", session.playback.value)
         assertEquals(listOf(FilesItemId(9)), playbackRepository.resolved.map { it.fileId })
+    }
+
+    @Test
+    fun `a media pick plays over its pane with the duration its own listing carries`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val filesBefore = session.files.state.value
+        val clip = media(9, "clip.mp4", PutioFileType.VIDEO)
+        listedItems[clip.id] = clip.copy(playback = FilesPlaybackProgress(0.0, 840.0))
+
+        assertEquals(TvExternalOpen.PLAYING, session.openExternal(clip, FilesOpenOrigin.SEARCH))
+
+        val target = checkNotNull(session.playback.value).state.value.target
+        assertEquals(PlaybackTarget(clip.id, "clip.mp4", PlaybackMediaType.VIDEO, 840.0), target)
+        assertSame("Files keeps its location", filesBefore, session.files.state.value)
+    }
+
+    @Test
+    fun `a media pick without a listed duration still plays`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        assertEquals(TvExternalOpen.PLAYING,
+            session.openExternal(media(10, "song.mp3", PutioFileType.AUDIO), FilesOpenOrigin.HISTORY))
+
+        assertEquals(PlaybackTarget(FilesItemId(10), "song.mp3", PlaybackMediaType.AUDIO),
+            checkNotNull(session.playback.value).state.value.target)
+    }
+
+    @Test
+    fun `a newer pick in Files cancels media still waiting for its duration`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val clip = media(9, "clip.mp4", PutioFileType.VIDEO)
+        val listing = CompletableDeferred<Unit>().also { heldListings[clip.id] = it }
+
+        assertEquals(TvExternalOpen.PLAYING, session.openExternal(clip, FilesOpenOrigin.SEARCH))
+        assertEquals(TvExternalOpen.IN_FILES,
+            session.openExternal(media(44, "Documents", PutioFileType.FOLDER), FilesOpenOrigin.SEARCH))
+        listing.complete(Unit)
+
+        assertNull(session.playback.value)
+        assertEquals(FilesItemId(44), session.files.state.value.current.folder.id)
+    }
+
+    @Test
+    fun `a document pick opens its folder in Files with focus on it`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val notes = media(11, "notes.pdf", PutioFileType.PDF).copy(parentId = FilesItemId(44))
+
+        assertEquals(TvExternalOpen.IN_FILES, session.openExternal(notes, FilesOpenOrigin.HISTORY))
+
+        val current = session.files.state.value.current
+        assertEquals(FilesItemId(44), current.folder.id)
+        assertEquals(FilesOpenOrigin.HISTORY, current.openedFrom)
+        assertEquals(11L, session.filesFocusMemory[44L])
+        assertNull(session.playback.value)
+    }
+
+    @Test
+    fun `a folder pick opens that folder in Files`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        val folder = media(44, "Documents", PutioFileType.FOLDER)
+        assertEquals(TvExternalOpen.IN_FILES, session.openExternal(folder, FilesOpenOrigin.SEARCH))
+
+        val path = session.files.state.value.path
+        assertEquals(listOf(FilesFolder.Root, FilesFolder(FilesItemId(44), "Documents")), path)
+        assertTrue(session.filesFocusMemory.isEmpty())
     }
 
     private fun media(id: Long, name: String, type: PutioFileType) = FilesItem(

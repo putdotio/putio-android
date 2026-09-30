@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
@@ -120,7 +121,7 @@ class FilesMoveRecoveryUiProofTest {
         compose.runOnIdle {
             val retained = preview.state
             for (event in listOf(FilesBrowserEvent.NavigateBack,
-                FilesBrowserEvent.OpenExternalItem(preview.item.copy(id = FilesItemId(99))))) {
+                FilesBrowserEvent.OpenExternalItem(preview.item.copy(id = FilesItemId(99)), FilesOpenOrigin.SEARCH))) {
                 val transition = FilesBrowserReducer.reduce(retained, event)
                 assertFalse(transition.consumed)
                 assertSame(retained, transition.state)
