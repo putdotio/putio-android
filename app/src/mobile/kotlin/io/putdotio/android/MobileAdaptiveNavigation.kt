@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -78,6 +79,7 @@ internal fun MobileNavigationContainer(
     layout: MobileNavigationLayout,
     selectedDestination: MobileDestination,
     onDestination: (MobileDestination) -> Unit,
+    enabled: Boolean = true,
     content: @Composable ((() -> Unit)?) -> Unit,
 ) {
     if (layout != MobileNavigationLayout.Modal) {
@@ -88,6 +90,8 @@ internal fun MobileNavigationContainer(
     val scope = rememberCoroutineScope()
     val visible = drawer.currentValue == DrawerValue.Open || drawer.targetValue == DrawerValue.Open
     val close: () -> Unit = { scope.launch(start = CoroutineStart.UNDISPATCHED) { drawer.close() } }
+    // Playback keeps this container, and a now-playing request can arrive while the drawer is open.
+    if (!enabled && visible) LaunchedEffect(drawer) { drawer.snapTo(DrawerValue.Closed) }
     ModalNavigationDrawer(
         drawerState = drawer,
         gesturesEnabled = visible,
