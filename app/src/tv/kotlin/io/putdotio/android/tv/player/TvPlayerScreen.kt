@@ -269,7 +269,6 @@ private fun TvReadyPlayer(
         val listener = object : Player.Listener {
             override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) {
                 playWhenReady = value
-                // The media session plays and pauses the player directly for the system's controls.
                 apply(overlay.playingChanged(value))
             }
 
@@ -321,7 +320,9 @@ private fun TvReadyPlayer(
         player.playWhenReady = stoppedAtMillis == null
         player.prepare()
         val positions = reporter.observe(player)
-        val session = playerFactory.publish(context, player)
+        // The system's play and pause go through the overlay: during a scrub the player is already
+        // paused, so a pause there changes nothing the listener would hear.
+        val session = playerFactory.publish(context, tvSessionPlayer(player) { apply(overlay.sessionPlaying(it)) })
         onDispose {
             // Captures the exit position while the player still has it.
             positions.close()

@@ -29,6 +29,7 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.pollsAutomatically
 import io.putdotio.android.playback.retryable
+import io.putdotio.android.playback.startable
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -42,8 +43,8 @@ internal const val TV_CONVERSION_STATUS_TAG = "tv-player-conversion-status"
  * (putio-web `apps/tv-native` `features/files/components/video-conversion-status.tsx` @
  * `22264d5`): the file name, why it cannot play yet, then its conversion status. A queued or
  * running conversion is read again every 3 s while the app is in the foreground, and playback
- * starts on its own once it resolves. The RN app started the conversion itself on opening; the
- * SDK leaves that to the viewer, so only a failed conversion offers Convert again.
+ * starts on its own once it resolves. The RN app started the conversion itself on opening; here
+ * the viewer does: Convert on one never requested, Convert again after a failed one.
  */
 @Composable
 internal fun TvConversionScreen(
@@ -67,6 +68,7 @@ internal fun TvConversionScreen(
     }
     val action = when {
         state == PlaybackConversionState.Failed -> R.string.tv_player_convert_again to onStartConversion
+        conversion.startable -> R.string.tv_player_convert to onStartConversion
         state == PlaybackConversionState.NotAvailable || state.pollsAutomatically -> null
         else -> R.string.tv_player_check_again to onRefresh
     }
@@ -89,10 +91,10 @@ internal fun TvConversionScreen(
         )
         Text(
             text = stringResource(
-                if (state == PlaybackConversionState.NotAvailable) {
-                    R.string.tv_player_conversion_unavailable_message
-                } else {
-                    R.string.tv_player_conversion_message
+                when {
+                    state != PlaybackConversionState.NotAvailable -> R.string.tv_player_conversion_message
+                    conversion.startable -> R.string.tv_player_conversion_start_message
+                    else -> R.string.tv_player_conversion_unavailable_message
                 },
             ),
             style = MaterialTheme.typography.titleMedium,

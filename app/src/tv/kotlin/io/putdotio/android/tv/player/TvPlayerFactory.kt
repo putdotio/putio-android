@@ -3,6 +3,7 @@ package io.putdotio.android.tv.player
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -78,6 +79,20 @@ internal fun tvMediaSession(context: Context, player: Player): MediaSession.Buil
                         .build()
             },
         )
+
+/**
+ * [player] as the media session drives it: the system's play and pause reach [onPlayingRequested],
+ * which decides with the overlay and then plays or pauses [player] itself.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun tvSessionPlayer(player: Player, onPlayingRequested: (Boolean) -> Unit): Player =
+    object : ForwardingPlayer(player) {
+        override fun play() = onPlayingRequested(true)
+
+        override fun pause() = onPlayingRequested(false)
+
+        override fun setPlayWhenReady(playWhenReady: Boolean) = onPlayingRequested(playWhenReady)
+    }
 
 internal val TV_SESSION_PLAYER_COMMANDS: Player.Commands = Player.Commands.Builder()
     .addAll(

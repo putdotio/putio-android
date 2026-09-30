@@ -123,14 +123,30 @@ class TvPlaybackStatesTest {
     }
 
     @Test
-    fun aVideoThatCannotBeConvertedOffersNothingButBack() {
+    fun aConversionNeverRequestedOffersConvertAndNeverStartsOnItsOwn() {
         content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable)
+        show()
+        compose.onNodeWithText("This video isn’t in a format this app can play yet. Convert it to play it here.")
+            .assertIsDisplayed()
+        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("Not available")
+        compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
+        compose.runOnIdle { assertEquals(0, starts + refreshes) }
+
+        compose.onNodeWithText("Convert").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, starts) }
+    }
+
+    @Test
+    fun aVideoThatCannotBeConvertedOffersNothingButBack() {
+        // The viewer's own Convert still found no conversion.
+        content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, startRequested = true)
         show()
         compose.onNodeWithText("This video isn’t in a format this app can play, and it can’t be converted.")
             .assertIsDisplayed()
         compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("Not available")
         compose.onNodeWithText("Check again").assertDoesNotExist()
         compose.onNodeWithText("Convert again").assertDoesNotExist()
+        compose.onNodeWithText("Convert").assertDoesNotExist()
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
         compose.runOnIdle { assertEquals(0, refreshes) }
     }

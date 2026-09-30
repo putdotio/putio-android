@@ -31,6 +31,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
+import androidx.media3.session.MediaSession
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -254,9 +255,9 @@ class TvPlayerScreenTest {
         val factory = object : TvPlayerFactory {
             override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Player = player
 
-            override fun publish(context: android.content.Context, player: Player): java.io.Closeable {
-                events += "published ${player.currentMediaItem?.mediaId}"
-                return java.io.Closeable { events += "unpublished released=${this@TvPlayerScreenTest.released(player)}" }
+            override fun publish(context: android.content.Context, published: Player): java.io.Closeable {
+                events += "published ${published.currentMediaItem?.mediaId}"
+                return java.io.Closeable { events += "unpublished released=${player.released}" }
             }
         }
         compose.setContent {
@@ -311,6 +312,41 @@ class TvPlayerScreenTest {
         } finally {
             session.release()
         }
+    }
+
+    @Test
+    fun aSystemPauseDuringAScrubKeepsItsTargetAndBackNoLongerResumes() {
+        val player = FakePlayer()
+        val sessions = mutableListOf<MediaSession>()
+        val factory = object : TvPlayerFactory {
+            override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Player = player
+
+            override fun publish(context: android.content.Context, published: Player): java.io.Closeable {
+                val session = tvMediaSession(context, published).build()
+                sessions += session
+                return java.io.Closeable { session.release() }
+            }
+        }
+        showReady(player, resumePositionMillis = 42_000L, playerFactory = factory)
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
+        settle()
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+
+        // The scrub already paused the player, so this pause changes nothing it reports.
+        val pending = MediaController.Builder(compose.activity, sessions.single().token).buildAsync()
+        shadowOf(Looper.getMainLooper()).idle()
+        val controller = pending.get()
+        controller.pause()
+        shadowOf(Looper.getMainLooper()).idle()
+        settle()
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:27")
+
+        back()
+        compose.runOnIdle {
+            assertEquals("Dismissing seek mode never seeks", 42_000L, player.currentPosition)
+            assertFalse("The system's pause holds", player.playWhenReady)
+        }
+        controller.release()
     }
 
     @Test
@@ -847,9 +883,12 @@ class TvPlayerScreenTest {
         compose.runOnIdle { assertEquals("The held key did not also leave", 0, backs) }
     }
 
-    private fun released(player: Player): Boolean = (player as FakePlayer).released
-
-    private fun showReady(player: FakePlayer, resumePositionMillis: Long? = null, onBack: () -> Unit = {}) {
+    private fun showReady(
+        player: FakePlayer,
+        resumePositionMillis: Long? = null,
+        onBack: () -> Unit = {},
+        playerFactory: TvPlayerFactory = TvPlayerFactory { _, _ -> player },
+    ) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
@@ -860,7 +899,7 @@ class TvPlayerScreenTest {
                     onResume = {},
                     onRestart = {},
                     onPlayerFailure = { _, _ -> },
-                    playerFactory = { _, _ -> player },
+                    playerFactory = playerFactory,
                 )
             }
         }

@@ -179,9 +179,23 @@ internal fun TvPlayerOverlay.setPlaying(play: Boolean): TvPlayerTransition {
 }
 
 /**
- * Playback started or stopped, whoever asked: the overlay's own commands, or the media session
- * on behalf of the system's controls. A pause shows the paused controls; playing drops a pending
- * scrub, whose target no longer means anything.
+ * The system's controls asked the media session to play or pause. Play is the dedicated play
+ * key's. A pause keeps a pending scrub's target but no longer resumes on Back: a scrub already
+ * holds playback paused, so the player alone would not report it.
+ */
+internal fun TvPlayerOverlay.sessionPlaying(play: Boolean): TvPlayerTransition =
+    when {
+        exited -> TvPlayerTransition(this)
+        play -> setPlaying(play = true)
+        else -> TvPlayerTransition(
+            copy(controlsVisible = true, activity = activity + 1, scrub = scrub?.copy(wasPlaying = false)),
+            listOf(TvPlayerCommand.Pause),
+        )
+    }
+
+/**
+ * Playback started or stopped, whoever asked. A pause shows the paused controls; playing drops a
+ * pending scrub, whose target no longer means anything.
  */
 internal fun TvPlayerOverlay.playingChanged(playing: Boolean): TvPlayerTransition =
     when {
