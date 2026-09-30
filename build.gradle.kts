@@ -53,7 +53,11 @@ tasks.register("verify") {
     description = "Run the canonical local checks"
     dependsOn(
         ":app:check",
+        // `check` lints only the default mobile variant.
+        ":app:lintTvProductionDebug",
         ":app:assembleMobileProductionRelease",
+        ":app:assembleTvProductionRelease",
+        ":app:assembleTvNightlyRelease",
         ":app:assembleMobileProductionDebugAndroidTest",
         checkDesignAssets,
         checkIcons,

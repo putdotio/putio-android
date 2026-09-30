@@ -21,10 +21,10 @@ import androidx.tv.material3.Text
 @Composable
 internal fun TvStatusScreen(
     title: String,
+    modifier: Modifier = Modifier,
     message: String? = null,
     action: String? = null,
     onAction: () -> Unit = {},
-    modifier: Modifier = Modifier,
     actionFocus: FocusRequester = remember { FocusRequester() },
     /** False while D-pad focus is elsewhere, so the action does not pull it back. */
     claimFocus: Boolean = true,

@@ -42,7 +42,8 @@ unrelated failure cannot satisfy them.
 Every phone boot, including reuse, also verifies API 37, selects the bundled
 Chrome as the browser role holder, and requires its AndroidX Auth Tab service
 category. The harness fails closed before install when that secure OAuth
-transport is unavailable. TV and the CI managed device remain API 36.
+transport is unavailable. The CI managed device (`ciPhone`) is also API 37;
+TV remains API 36.
 
 Bootstrap never replaces a mismatched AVD. It still provisions the other
 profiles, then fails with an explicit command; stop and delete that exact
@@ -531,6 +532,34 @@ relaunch must land in the shell without a code: that is the Keystore restore.
 `pm clear io.put.putio.debug` drops the stored token. The emulator has no
 Fire TV feature flag, so it always links as the Android TV client (6221);
 Fire TV (6233) needs the physical device set from #51.
+
+## TV safe-area proof
+
+`TvSafeAreaProofTest` (TV instrumentation, synthetic account, no API calls)
+mounts the signed-in shell with placeholder panes at the emulator's current
+display, outlines the safe edge in red, screenshots the collapsed and expanded
+drawer, and fails if any label or focus target leaves the safe area. It needs
+no sign-in, so the existing `putio-tv` session survives:
+
+```bash
+./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
+adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
+adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+run=$(uuidgen | tr 'A-Z' 'a-z')
+adb -s emulator-5554 shell wm size 1280x720 && adb -s emulator-5554 shell wm density 213   # optional 720p
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvSafeAreaProofTest \
+  -e putio.tv.safearea.enabled true -e putio.tv.safearea.runId "$run" \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
+adb -s emulator-5554 pull "/sdcard/Android/data/io.put.putio.debug/files/tv-safearea-proof-$run" .evidence/
+adb -s emulator-5554 shell wm size reset && adb -s emulator-5554 shell wm density reset
+```
+
+Android accepts `wm size` overrides up to three times the display's largest
+initial dimension, but a device can clamp them further (for example with a
+configured maximum UI width). The `putio-tv` AVD did not apply a 3840x2160
+override on its 1920x1080 panel when this proof was written, so 4K is covered
+by the JVM test at xxxhdpi. On another device, check that `wm size` reports the
+requested `Override size` before calling a run 4K.
 
 ## TV Files browse proof
 

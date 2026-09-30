@@ -84,6 +84,7 @@ import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
+import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.android.tv.files.tvMessage
 import kotlinx.coroutines.flow.first
@@ -154,10 +155,10 @@ internal fun TvSearchScreen(
             query = state.query,
             onQueryChanged = actions.onQueryChanged,
             onSubmit = actions.onSubmit,
-            modifier = owner.section(fieldFocus).focusRequester(fieldFocus),
+            modifier = Modifier.paneSection(owner, fieldFocus).focusRequester(fieldFocus),
         )
         // Composed while there are terms; when the last one is removed the section disposes
-        // and its section() hands the entry target back, but focus itself must be re-placed.
+        // and its paneSection() hands the entry target back, but focus itself must be re-placed.
         val hadRecent = remember { mutableStateOf(false) }
         LaunchedEffect(state.recentTerms.isEmpty()) {
             if (state.recentTerms.isEmpty() && hadRecent.value && owner.owns(fieldFocus)) {
@@ -195,7 +196,7 @@ internal fun TvSearchScreen(
             is SearchContent.Empty ->
                 Column(modifier = Modifier.weight(1f)) {
                     TvStatusScreen(stringResource(R.string.tv_search_no_results), modifier = Modifier.weight(1f))
-                    TvSearchPaging(content.paging, actions.onNextPage, actions.onRetry, owner)
+                    TvSearchPaging(content.paging, actions.onNextPage, actions.onRetry, owner = owner)
                 }
             is SearchContent.Ready ->
                 TvSearchResults(
@@ -218,7 +219,7 @@ internal fun TvSearchScreen(
                         fieldFocus.requestFocus()
                         actions.onRetry()
                     },
-                    modifier = owner.section(retryFocus).weight(1f),
+                    modifier = Modifier.paneSection(owner, retryFocus).weight(1f),
                     actionFocus = retryFocus,
                     // The field keeps focus; Down reaches Try again like any other row.
                     claimFocus = false,
@@ -393,7 +394,7 @@ private fun TvRecentSearches(
     LazyRow(
         modifier = modifier
             .fillMaxWidth()
-            .then(owner.section(rowFocus))
+            .paneSection(owner, rowFocus)
             .onFocusChanged { rowHasFocus.value = it.hasFocus }
             .focusRequester(rowFocus)
             .focusRestorer(firstChip)
@@ -459,7 +460,7 @@ private fun TvSearchNotice(
                     owner.focusHome()
                     onRetry()
                 },
-                modifier = owner.section(retryFocus).focusRequester(retryFocus),
+                modifier = Modifier.paneSection(owner, retryFocus).focusRequester(retryFocus),
             ) {
                 Text(stringResource(R.string.tv_files_retry))
             }
@@ -511,7 +512,7 @@ private fun TvSearchResults(
         modifier = modifier
             .fillMaxWidth()
             .padding(top = 16.dp)
-            .then(owner.section(listFocus))
+            .paneSection(owner, listFocus)
             .focusRequester(listFocus)
             // Answered when the paging node is removed, before the hand-off effect runs: the
             // last row if it is already composed, else the anchor until the effect scrolls.
@@ -552,6 +553,7 @@ private fun TvSearchPaging(
     paging: SearchPaging,
     onNextPage: () -> Unit,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
     owner: TvPaneFocusOwner? = null,
     buttonModifier: Modifier = Modifier,
 ) {
@@ -565,7 +567,7 @@ private fun TvSearchPaging(
         SearchPaging.Complete -> null
     } ?: return
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
@@ -583,7 +585,7 @@ private fun TvSearchPaging(
                 }
             },
             modifier = buttonModifier
-                .then(owner?.section(pagingFocus) ?: Modifier)
+                .then(if (owner != null) Modifier.paneSection(owner, pagingFocus) else Modifier)
                 .focusRequester(pagingFocus),
         ) {
             Text(stringResource(label))

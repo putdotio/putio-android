@@ -10,9 +10,12 @@ on:
 permissions:
   contents: read
 
+# Pull requests share a group per ref so a new push cancels the stale run. Every
+# other run gets its own group: each main commit keeps its verdict, and no push
+# replaces a queued one.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:

@@ -87,6 +87,7 @@ import io.putdotio.android.tv.TvChoice
 import io.putdotio.android.tv.TvChoiceDialog
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.auth.TvAccount
+import io.putdotio.android.tv.paneSection
 import io.putdotio.sdk.files.PlaybackPreference
 
 internal const val TV_ACCOUNT_STORAGE_TAG = "tv-account-storage"
@@ -275,7 +276,7 @@ private fun TvAccountBody(
         TvAccountHeader(
             account = account,
             onSignOut = onSignOut,
-            signOutModifier = owner.section(signOutFocus).focusRequester(signOutFocus),
+            signOutModifier = Modifier.paneSection(owner, signOutFocus).focusRequester(signOutFocus),
         )
         Column(
             modifier = Modifier
@@ -444,7 +445,8 @@ private fun TvAccountBody(
 private fun TvAccountHeader(
     account: TvAccount,
     onSignOut: () -> Unit,
-    signOutModifier: Modifier,
+    modifier: Modifier = Modifier,
+    signOutModifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val storage = account.storage
@@ -456,7 +458,7 @@ private fun TvAccountHeader(
     val usedPercent = (usedFraction * PERCENT).toInt()
     val storageDescription = stringResource(R.string.tv_account_storage_description, available, size, usedPercent)
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -847,7 +849,9 @@ private fun TvAccountNotice(
         if (action != null) {
             TvButton(
                 onClick = onAction,
-                modifier = owner.section(actionFocus, fallback = returnTo?.let { { it } }).focusRequester(actionFocus),
+                modifier = Modifier
+                    .paneSection(owner, actionFocus, fallback = returnTo?.let { { it } })
+                    .focusRequester(actionFocus),
             ) {
                 Text(action)
             }
@@ -871,7 +875,7 @@ private fun TvSwitchRow(
         leadingContent = { TvRowIcon(icon) },
         trailingContent = { Switch(checked = checked, onCheckedChange = null) },
         scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
-        modifier = owner.section(focus)
+        modifier = Modifier.paneSection(owner, focus)
             .focusRequester(focus)
             .fillMaxWidth()
             .semantics {
@@ -904,7 +908,7 @@ private fun TvChoiceRow(
             )
         },
         scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
-        modifier = owner.section(focus)
+        modifier = Modifier.paneSection(owner, focus)
             .focusRequester(focus)
             .fillMaxWidth(),
     )
@@ -928,7 +932,7 @@ private fun TvAccountRow(
         leadingContent = { TvRowIcon(icon) },
         scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
         modifier = modifier
-            .then(owner.section(focus))
+            .paneSection(owner, focus)
             .focusRequester(focus)
             .fillMaxWidth(),
     )

@@ -1,3 +1,4 @@
+import com.android.build.api.variant.HostTestBuilder
 import java.io.File
 import java.util.Properties
 
@@ -62,6 +63,9 @@ android {
 
         create("production") {
             dimension = "channel"
+            // `lint` checks only the default variant; without this AGP picks
+            // mobileNightlyDebug.
+            isDefault = true
         }
 
         // Play internal/closed tracks ship nightly; the public listing keeps
@@ -111,7 +115,7 @@ android {
                 // proof stays on scripts/prove.sh with the reusable AVDs.
                 create("ciPhone") {
                     device = "Pixel 7"
-                    apiLevel = 36
+                    apiLevel = 37
                     systemImageSource = "google"
                     testedAbi = "x86_64"
                 }
@@ -138,18 +142,43 @@ val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDes
     outputDir.set(layout.buildDirectory.dir("generated/designTokens/kotlin"))
 }
 
+val launchSmokeTest = "io.putdotio.android.LaunchSmokeTest#shellLaunchesStaysResumedAndRenders"
+
 for (surface in listOf("Mobile", "Tv")) {
-    tasks.register<VerifyLaunchProofTask>("verify${surface}LaunchProof") {
+    tasks.register<VerifyInstrumentationProofTask>("verify${surface}LaunchProof") {
         group = "verification"
         description = "Require a successful ${surface.lowercase()} launch smoke test result"
         dependsOn("connected${surface}ProductionDebugAndroidTest")
         resultsDirectory.set(layout.buildDirectory.dir(
             "outputs/androidTest-results/connected/debug/flavors/${surface.lowercase()}Production",
         ))
+        requiredTest.set(launchSmokeTest)
+    }
+}
+
+// Emulator smoke workflow: one invocation per suite, each gated on its own XML result.
+mapOf(
+    "Launch" to launchSmokeTest,
+    "OAuth" to "io.putdotio.android.auth.StaleOAuthCallbackTest#" +
+        "staleCallbackPreservesNewerAttemptAndMatchingMalformedCallbackConsumesIt",
+).forEach { (suite, test) ->
+    tasks.register<VerifyInstrumentationProofTask>("verifyCiPhone${suite}Proof") {
+        group = "verification"
+        description = "Require a successful $test result on the ciPhone managed device"
+        dependsOn("ciPhoneMobileProductionDebugAndroidTest")
+        resultsDirectory.set(layout.buildDirectory.dir(
+            "outputs/androidTest-results/managedDevice/debug/flavors/mobileProduction/ciPhone",
+        ))
+        requiredTest.set(test)
     }
 }
 
 androidComponents {
+    // Nightly adds resources only, so its unit tests would rerun production's.
+    beforeVariants(selector().withFlavor("channel" to "nightly")) { variant ->
+        variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+    }
+
     onVariants { variant ->
         variant.sources.kotlin?.addGeneratedSourceDirectory(
             generateDesignTokens,
