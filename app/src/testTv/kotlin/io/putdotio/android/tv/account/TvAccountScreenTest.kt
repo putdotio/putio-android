@@ -43,7 +43,7 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.tv.auth.TvAccount
-import io.putdotio.android.tv.auth.TvAccountStorage
+import io.putdotio.android.AccountStorage
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -66,7 +66,7 @@ class TvAccountScreenTest {
         userId = 1,
         username = "devs-auto",
         email = "devs@example.com",
-        storage = TvAccountStorage(
+        storage = AccountStorage(
             availableBytes = 750_000_000_000,
             sizeBytes = 1_000_000_000_000,
             usedBytes = 250_000_000_000,
@@ -85,13 +85,26 @@ class TvAccountScreenTest {
         var settings by mutableStateOf(AccountSettingsReducer.start().state)
         show(settingsState = { settings })
 
-        compose.onNodeWithText("750 GB of 1.0 TB free").assertIsDisplayed()
+        compose.onNodeWithText("250 GB of 1.0 TB used").assertIsDisplayed()
         compose.onNodeWithText("Loading account settings").assertIsDisplayed()
         compose.onAllNodesWithText("Sign out")[0].assertIsFocused()
 
         compose.runOnIdle { settings = ready(preferences) }
         compose.onNodeWithText("Choose your proxy").assertIsFocused()
         compose.onNodeWithText("cdn77").assertIsDisplayed()
+    }
+
+    @Test
+    fun theQuotaStatesWhatIsFreeWhenTheAccountShowsOptimisticUsage() {
+        var shown by mutableStateOf(account)
+        show(settingsState = { ready(preferences) }, account = { shown })
+
+        compose.onNodeWithText("250 GB of 1.0 TB used").assertIsDisplayed()
+        compose.onNodeWithContentDescription("devs-auto. 250 GB of 1.0 TB used, 25% used").assertExists()
+
+        compose.runOnIdle { shown = account.copy(storage = account.storage.copy(showOptimisticUsage = true)) }
+        compose.onNodeWithText("750 GB of 1.0 TB free").assertIsDisplayed()
+        compose.onNodeWithContentDescription("devs-auto. 750 GB of 1.0 TB free, 25% used").assertExists()
     }
 
     @Test
@@ -319,6 +332,7 @@ class TvAccountScreenTest {
 
     private fun show(
         settingsState: () -> AccountSettingsState,
+        account: () -> TvAccount = { this.account },
         appConfigState: () -> AndroidAppConfigState = { readyConfig(VideoPlaybackType.Hls) },
         onSignOut: () -> Unit = {},
         loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
@@ -329,7 +343,7 @@ class TvAccountScreenTest {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 val paneFocus = remember { FocusRequester() }
                 TvAccountScreen(
-                    account = account,
+                    account = account(),
                     settingsState = settingsState(),
                     appConfigState = appConfigState(),
                     onSettingsEvent = { settingsEvents += it; true },

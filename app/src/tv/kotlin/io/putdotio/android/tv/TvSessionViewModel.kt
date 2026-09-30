@@ -19,7 +19,10 @@ import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryFileOpener
+import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryRepository
+import io.putdotio.android.history.keeping
+import io.putdotio.android.tv.history.isShownOnTv
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRepository
@@ -321,7 +324,11 @@ internal class TvSessionViewModel(
                 files = FilesBrowserController(dependencies.filesRepository, viewModelScope),
                 filesRepository = dependencies.filesRepository,
                 search = SearchController(dependencies.searchRepository, recentSearches, viewModelScope),
-                history = HistoryController(dependencies.historyRepository, account.historyEnabled, viewModelScope),
+                history = HistoryController(
+                    dependencies.historyRepository.keeping(HistoryEventKind::isShownOnTv),
+                    account.historyEnabled,
+                    viewModelScope,
+                ),
                 trash = TrashController(dependencies.trashRepository, viewModelScope),
                 settings = AccountSettingsController(dependencies.settingsRepository, viewModelScope),
                 appConfig = AndroidAppConfigController(dependencies.appConfigRepository, viewModelScope),

@@ -20,6 +20,7 @@ import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.history.HistoryEventId
+import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.history.HistoryRepositoryResult
@@ -41,6 +42,7 @@ import io.putdotio.android.settings.AndroidAppConfigRepository
 import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.trash.TrashBulkSelection
+import io.putdotio.android.trash.TrashItem
 import io.putdotio.android.trash.TrashPage
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
@@ -54,8 +56,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Fake account repositories for the controlled-state TV proofs: Files serves [listings],
- * Search answers every term with [searchResults], and playback resolves to [playback], read only
- * when something plays.
+ * Search answers every term with [searchResults], History and Trash list one page of
+ * [history] and [trash], account settings confirm [historyEnabled], and playback resolves to
+ * [playback], read only when something plays.
  * Nothing reaches the API.
  */
 internal fun tvProofDependencies(
@@ -63,6 +66,9 @@ internal fun tvProofDependencies(
     searchResults: List<FilesItem>,
     recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
     playback: () -> PlaybackResolution = { error("No playback in this proof") },
+    history: List<HistoryItem> = emptyList(),
+    trash: List<TrashItem> = emptyList(),
+    historyEnabled: Boolean = true,
 ) = TvSessionDependencies(
     filesRepository = ProofFilesRepository(listings),
     searchRepository = object : SearchRepository {
@@ -73,15 +79,15 @@ internal fun tvProofDependencies(
     },
     historyRepository = object : HistoryRepository {
         override suspend fun load(before: HistoryEventId?) =
-            HistoryRepositoryResult.Success(HistoryPage(emptyList(), hasMore = false))
+            HistoryRepositoryResult.Success(HistoryPage(history, hasMore = false))
 
         override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
     },
-    trashRepository = ProofTrashRepository,
+    trashRepository = ProofTrashRepository(trash),
     settingsRepository = object : AccountSettingsRepository {
         override suspend fun load() = AccountSettingsRepositoryResult.Success(
             AccountSettingsPreferences(
-                historyEnabled = true,
+                historyEnabled = historyEnabled,
                 trashEnabled = true,
                 showSubtitles = true,
                 autoSelectSubtitles = true,
@@ -128,8 +134,8 @@ internal fun tvProofDependencies(
 internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>.mountTvProofSession(
     dependencies: TvSessionDependencies,
     onExit: (() -> Unit)? = null,
+    account: TvAccount = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true),
 ): TvSession {
-    val account = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true)
     val auth = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1)))
     lateinit var session: TvSession
     runOnUiThread {
@@ -182,8 +188,8 @@ internal class ProofFilesRepository(private val listings: Map<FilesItemId, Files
     override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")
 }
 
-internal object ProofTrashRepository : TrashRepository {
-    override suspend fun load() = FilesRepositoryResult.Success(TrashPage(emptyList(), nextCursor = null))
+internal class ProofTrashRepository(private val items: List<TrashItem>) : TrashRepository {
+    override suspend fun load() = FilesRepositoryResult.Success(TrashPage(items, nextCursor = null))
 
     override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
 

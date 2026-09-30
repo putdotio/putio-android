@@ -123,14 +123,13 @@
     <string name="tv_history_metadata">%1$s · %2$s</string>
     <string name="tv_history_shared_file">Shared file</string>
     <string name="tv_history_completed_transfer">Completed transfer</string>
-    <string name="tv_history_activity">Activity</string>
     <string name="tv_history_open_file">Open %1$s</string>
     <string name="tv_history_file">File</string>
     <string name="tv_history_transfer">Transfer</string>
     <string name="tv_history_loading">Loading history</string>
     <string name="tv_history_empty">No activity yet.</string>
     <string name="tv_history_disabled_title">History is off</string>
-    <string name="tv_history_disabled_message">Turn on history in your put.io account settings to see activity here.</string>
+    <string name="tv_history_disabled_message">Turn on “%1$s” in %2$s to see activity here.</string>
     <string name="tv_history_error_title">Couldn’t load history</string>
     <string name="tv_history_load_more">Load more</string>
     <string name="tv_history_loading_more">Loading more history</string>
@@ -144,8 +143,9 @@
     <string name="tv_history_clear_error_title">Couldn’t clear history</string>
     <string name="tv_history_ok">OK</string>
     <string name="tv_account_manage_trash">Manage your trash</string>
-    <string name="tv_account_storage">%1$s of %2$s free</string>
-    <string name="tv_account_storage_description">%1$s of %2$s free, %3$d%% used</string>
+    <string name="tv_account_storage_used">%1$s of %2$s used</string>
+    <string name="tv_account_storage_free">%1$s of %2$s free</string>
+    <string name="tv_account_storage_description">%1$s, %2$d%% used</string>
     <string name="tv_account_section_playback">Playback settings</string>
     <string name="tv_account_section_storage">Storage settings</string>
     <string name="tv_account_section_device">App and device information</string>
@@ -194,6 +194,7 @@
     <string name="tv_trash_restore_all">Restore all</string>
     <string name="tv_trash_empty_action">Empty trash</string>
     <string name="tv_trash_loading">Loading trash</string>
+    <string name="tv_trash_info">Heads up: Files in trash have an expiry date of 14 days.</string>
     <string name="tv_trash_empty_title">Your trash is empty</string>
     <string name="tv_trash_empty_message">When you send files to trash, we keep them here for 14 days.</string>
     <string name="tv_trash_error_title">Couldn’t load trash</string>

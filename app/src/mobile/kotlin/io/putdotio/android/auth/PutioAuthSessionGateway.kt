@@ -1,5 +1,6 @@
 package io.putdotio.android.auth
 
+import io.putdotio.android.toAccountStorage
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.errors.PutioException
@@ -120,10 +121,5 @@ private fun AccountInfo.toMobileAccount(): MobileAccount =
         email = mail,
         historyEnabled = settings.historyEnabled,
         avatarUrl = avatarUrl,
-        storage =
-            MobileAccountStorage(
-                availableBytes = disk.available,
-                sizeBytes = disk.size,
-                usedBytes = disk.used,
-            ),
+        storage = toAccountStorage(),
     )

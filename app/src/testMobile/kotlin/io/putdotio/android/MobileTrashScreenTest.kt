@@ -136,9 +136,22 @@ class MobileTrashScreenTest {
     fun emptyIntermediatePageOffersContinuationWithoutClaimingEmptyTrash() {
         val state = TrashState(content = TrashContent.Loaded(emptyList(), FilesCursor("next"), 7, 1234))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
-        compose.onNodeWithText("Trash is empty").assertDoesNotExist()
+        compose.onNodeWithText("Your trash is empty").assertDoesNotExist()
         compose.onNodeWithText("Load more").assertIsDisplayed()
-        compose.onNodeWithText("Deleted items will appear here when Trash is enabled.").assertDoesNotExist()
+        compose.onNodeWithText("When you send files to trash, we keep them here for 14 days.").assertDoesNotExist()
+    }
+
+    @Test
+    fun trashStatesWebsFourteenDayRetention() {
+        var state by mutableStateOf(TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0)))
+        compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.onNodeWithText("Heads up: Files in trash have an expiry date of 14 days.").assertIsDisplayed()
+        compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
+        compose.onNodeWithText("When you send files to trash, we keep them here for 14 days.").assertIsDisplayed()
+
+        compose.runOnIdle { state = TrashState(content = loaded) }
+        compose.onNodeWithText("Heads up: Files in trash have an expiry date of 14 days.").assertIsDisplayed()
+        compose.onNodeWithText("Your trash is empty").assertDoesNotExist()
     }
 
     @Test

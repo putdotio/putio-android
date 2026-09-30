@@ -198,6 +198,12 @@ internal fun TvTrashScreen(
                         entryTarget.value = listFocus
                         onDispose {}
                     }
+                    Text(
+                        text = stringResource(R.string.tv_trash_info),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
                     TvTrashList(
                         content = content,
                         // A row with nothing the controller allows right now has no dialog to offer.

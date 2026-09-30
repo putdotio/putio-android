@@ -43,27 +43,29 @@ internal fun HistoryItem.relativeTime(now: Instant): CharSequence {
     return DateUtils.getRelativeTimeSpanString(created.toEpochMilli(), now.toEpochMilli(), DateUtils.MINUTE_IN_MILLIS)
 }
 
+/** tv-native's History: shared files and completed transfers only. */
+internal fun HistoryEventKind.isShownOnTv(): Boolean =
+    this is HistoryEventKind.File || this is HistoryEventKind.Transfer
+
 @StringRes
 internal fun HistoryEventKind.tvLabel(): Int =
     when (this) {
-        is HistoryEventKind.File -> R.string.tv_history_shared_file
         is HistoryEventKind.Transfer -> R.string.tv_history_completed_transfer
-        is HistoryEventKind.Other -> R.string.tv_history_activity
+        else -> R.string.tv_history_shared_file
     }
 
 @DrawableRes
 internal fun HistoryEventKind.tvIcon(): Int =
     when (this) {
-        is HistoryEventKind.File -> R.drawable.ic_ph_file_fill
         is HistoryEventKind.Transfer -> R.drawable.ic_ph_arrow_circle_down_fill
-        is HistoryEventKind.Other -> R.drawable.ic_ph_clock_counter_clockwise
+        else -> R.drawable.ic_ph_file_fill
     }
 
 internal fun HistoryEventKind.navigableFileId(): HistoryFileId? =
     when (this) {
         is HistoryEventKind.File -> id
         is HistoryEventKind.Transfer -> fileId
-        is HistoryEventKind.Other -> null
+        is HistoryEventKind.Notice, is HistoryEventKind.Other -> null
     }
 
 private const val DAYS_IN_WEEK = 7L

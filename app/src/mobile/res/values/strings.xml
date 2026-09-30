@@ -137,7 +137,8 @@
     <string name="mobile_files_sort_watch_ascending">Unwatched first</string>
     <string name="mobile_files_sort_watch_descending">Watched first</string>
     <string name="mobile_account_signed_in_as">Signed in as</string>
-    <string name="mobile_account_storage">%1$s used · %2$s free</string>
+    <string name="mobile_account_storage_used">%1$s of %2$s used</string>
+    <string name="mobile_account_storage_free">%1$s of %2$s free</string>
     <string name="mobile_account_sign_out">Sign out</string>
     <string name="mobile_settings_loading">Loading account settings</string>
     <string name="mobile_settings_error_title">Couldn’t load account settings</string>
@@ -204,7 +205,7 @@
     <string name="mobile_settings_history">Keep account history</string>
     <string name="mobile_settings_history_description">Keep watched files and transfer activity in your put.io history.</string>
     <string name="mobile_settings_trash">Move deleted files to Trash</string>
-    <string name="mobile_settings_trash_description">Keep deleted files recoverable before permanent removal.</string>
+    <string name="mobile_settings_trash_description">If you disable this, your files will be deleted permanently. Otherwise, we’ll keep them for 14 days.</string>
     <string name="mobile_settings_trash_confirm_title">Turn off Trash?</string>
     <string name="mobile_settings_trash_confirm_message">Deleted files will no longer be recoverable. Continue?</string>
     <string name="mobile_settings_trash_confirm_action">Turn off</string>
@@ -255,7 +256,7 @@
     <string name="mobile_history_empty_title">No history yet</string>
     <string name="mobile_history_empty_message">Completed transfers and shared files will appear here.</string>
     <string name="mobile_history_disabled_title">History is turned off</string>
-    <string name="mobile_history_disabled_message">Enable history in your put.io account settings to see activity here.</string>
+    <string name="mobile_history_disabled_message">Turn on “%1$s” in %2$s to see activity here.</string>
     <string name="mobile_history_clear">Clear history</string>
     <string name="mobile_history_clear_title">Clear history?</string>
     <string name="mobile_history_clear_message">This removes all activity from your put.io history.</string>
@@ -267,7 +268,13 @@
     <string name="mobile_history_transfer">Transfer</string>
     <string name="mobile_history_shared_file">Shared file</string>
     <string name="mobile_history_completed_transfer">Completed transfer</string>
-    <string name="mobile_history_activity">Activity</string>
+    <string name="mobile_history_uploaded_file">Uploaded file</string>
+    <string name="mobile_history_transfer_error">Error in transfer %1$s</string>
+    <string name="mobile_history_rss_file_deleted">We had to delete %1$s per your instructions, since there wasn’t enough free space.</string>
+    <string name="mobile_history_rss_filter_paused">%1$s is paused because we couldn’t reach the source</string>
+    <string name="mobile_history_rss_transfer_error">Error in transfer from RSS for %1$s</string>
+    <string name="mobile_history_transfer_callback_error">Error in transfer callback for %1$s</string>
+    <string name="mobile_history_no_title">No title</string>
     <string name="mobile_history_metadata">%1$s · %2$s</string>
     <string name="mobile_navigation_error_title">Couldn’t open this file</string>
     <string name="mobile_transfers_loading">Loading transfers</string>
@@ -369,10 +376,10 @@
     <string name="mobile_trash_title">Trash</string>
     <string name="mobile_trash_loading">Loading Trash…</string>
     <string name="mobile_trash_storage">Trash uses %1$s</string>
-    <string name="mobile_trash_expiration_hint">Items are removed automatically on their expiration date.</string>
+    <string name="mobile_trash_expiration_hint">Heads up: Files in trash have an expiry date of 14 days.</string>
     <string name="mobile_action_refresh">Refresh</string>
-    <string name="mobile_trash_empty_title">Trash is empty</string>
-    <string name="mobile_trash_empty_message">Deleted items will appear here when Trash is enabled.</string>
+    <string name="mobile_trash_empty_title">Your trash is empty</string>
+    <string name="mobile_trash_empty_message">When you send files to trash, we keep them here for 14 days.</string>
     <string name="mobile_trash_restore_title">Restore item?</string>
     <string name="mobile_trash_restore_message">Restoration may take a moment. You can check when this item is available again.</string>
     <string name="mobile_trash_restore_folder_message">Restore this folder and its contents. Restoration may take a moment.</string>

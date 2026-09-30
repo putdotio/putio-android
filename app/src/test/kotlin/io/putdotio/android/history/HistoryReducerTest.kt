@@ -217,5 +217,5 @@ class HistoryReducerTest {
     }
 
     private fun item(id: Long): HistoryItem =
-        HistoryItem(HistoryEventId(id), "2026-08-30T00:00:00Z", HistoryEventKind.Other("OTHER", null))
+        HistoryItem(HistoryEventId(id), "2026-08-30T00:00:00Z", HistoryEventKind.Other("OTHER"))
 }
