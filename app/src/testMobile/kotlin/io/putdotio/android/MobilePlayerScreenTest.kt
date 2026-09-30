@@ -625,11 +625,13 @@ class MobilePlayerScreenTest {
             }
         }
         compose.runOnIdle {
-            assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
-            policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false)
+            // Settings still loading: off, whatever the system caption setting (#229).
+            assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+            policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true)
         }
         compose.runOnIdle {
-            assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+            assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+            assertTrue(player.trackSelectionParameters.selectTextByDefault)
         }
     }
 
@@ -661,8 +663,8 @@ class MobilePlayerScreenTest {
                 .setOverrideForType(audioOverride).setPreferredAudioLanguage("de").build()
         }
         for (nextPolicy in listOf(
-            SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false),
             SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
+            SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false),
             SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
         )) {
             compose.runOnIdle { policy = nextPolicy }

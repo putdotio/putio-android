@@ -14,6 +14,11 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.settings.AccountSettingsEvent
+import io.putdotio.android.settings.AccountSettingsFailure
+import io.putdotio.android.settings.AccountSettingsPreferences
+import io.putdotio.android.settings.AccountSettingsReducer
+import io.putdotio.android.settings.AccountSettingsState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -68,7 +73,7 @@ class PlaybackSubtitleSelectionTest {
             restoreSubtitleSelection(
                 defaults = defaults,
                 retained = SubtitleSelection.Off,
-                systemCaptionsEnabled = true,
+                startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
             )
 
         assertFalse(restored.selectTextByDefault)
@@ -90,41 +95,33 @@ class PlaybackSubtitleSelectionTest {
             restoreSubtitleSelection(
                 defaults = defaults,
                 retained = SubtitleSelection.Track(track.identity),
-                systemCaptionsEnabled = false,
+                startupPolicy = null,
             ).withSubtitleSelection(SubtitleSelection.Track(track.identity), listOf(track))
 
         assertEquals(listOf(1), restoredSelection.overrides.getValue(group).trackIndices)
     }
 
     @Test
-    fun playerDefaultsPreserveTheSystemCaptionPreference() {
+    fun forcedOnlyStartupReadsAsOffUntilTheViewerPicksAutomatic() {
         val captionsDisabled =
             TrackSelectionParameters.Builder()
                 .setSelectTextByDefault(false)
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                 .build()
 
-        val restored =
+        val forcedOnly =
             restoreSubtitleSelection(
                 captionsDisabled,
                 retained = null,
-                systemCaptionsEnabled = false,
-            )
-        val captionsEnabled =
-            restoreSubtitleSelection(
-                captionsDisabled,
-                retained = null,
-                systemCaptionsEnabled = true,
+                startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
             )
 
-        assertFalse(C.TRACK_TYPE_TEXT in restored.disabledTrackTypes)
-        assertFalse(restored.subtitlesEnabled(emptyList()))
-        assertTrue(captionsEnabled.selectTextByDefault)
+        assertFalse(C.TRACK_TYPE_TEXT in forcedOnly.disabledTrackTypes)
+        assertFalse(forcedOnly.subtitlesEnabled(emptyList()))
 
-        val automatic = restored.withSubtitleSelection(SubtitleSelection.Automatic, emptyList())
+        val automatic = forcedOnly.withSubtitleSelection(SubtitleSelection.Automatic, emptyList())
         assertEquals(0, automatic.ignoredTextSelectionFlags)
         assertTrue(automatic.selectTextByDefault)
-        assertFalse(C.TRACK_TYPE_TEXT in captionsEnabled.disabledTrackTypes)
     }
 
     @Test
@@ -134,28 +131,24 @@ class PlaybackSubtitleSelectionTest {
             restoreSubtitleSelection(
                 defaults = defaults,
                 retained = null,
-                systemCaptionsEnabled = true,
                 startupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
             )
         val forcedOnly =
             restoreSubtitleSelection(
                 defaults = defaults,
                 retained = null,
-                systemCaptionsEnabled = true,
                 startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
             )
         val automatic =
             restoreSubtitleSelection(
                 defaults = defaults,
                 retained = null,
-                systemCaptionsEnabled = false,
                 startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
             )
         val retained =
             restoreSubtitleSelection(
                 defaults = defaults,
                 retained = SubtitleSelection.Automatic,
-                systemCaptionsEnabled = false,
                 startupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false),
             )
 
@@ -171,72 +164,61 @@ class PlaybackSubtitleSelectionTest {
 
     @Test
     fun forcedOnlyPolicySelectsForcedTrackInsteadOfDefaultCaption() {
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val defaults =
-            TrackSelectionParameters.Builder()
-                .setPreferredTextLanguages("en")
-                .setPreferredTextRoleFlags(C.ROLE_FLAG_CAPTION)
-                .setPreferredTextLabels("English")
-                .setIgnoredTextSelectionFlags(C.SELECTION_FLAG_FORCED)
-                .setSelectUndeterminedTextLanguage(true)
-                .build()
-        val audio =
-            Format.Builder()
-                .setId("audio")
-                .setSampleMimeType(MimeTypes.AUDIO_AAC)
-                .setLanguage("en")
-                .build()
-        val ordinary =
-            Format.Builder()
-                .setId("ordinary")
-                .setSampleMimeType(MimeTypes.TEXT_VTT)
-                .setLanguage("en")
-                .setLabel("English")
-                .setRoleFlags(C.ROLE_FLAG_CAPTION)
-                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
-                .build()
-        val forced =
-            Format.Builder()
-                .setId("forced")
-                .setSampleMimeType(MimeTypes.TEXT_VTT)
-                .setLanguage("en")
-                .setSelectionFlags(C.SELECTION_FLAG_FORCED)
-                .build()
-        val trackGroups = TrackGroupArray(TrackGroup(audio), TrackGroup(ordinary, forced))
-        fun selectedTextId(parameters: TrackSelectionParameters): String? {
-            val selector = DefaultTrackSelector(context, parameters)
-            selector.init({ _ -> }, DefaultBandwidthMeter.getSingletonInstance(context))
-            val result =
-                selector.selectTracks(
-                    arrayOf(rendererCapabilities(C.TRACK_TYPE_AUDIO), rendererCapabilities(C.TRACK_TYPE_TEXT)),
-                    trackGroups,
-                    MediaSource.MediaPeriodId(Any()),
-                    Timeline.EMPTY,
-                )
-            return result.selections[1]?.selectedFormat?.id.also { selector.release() }
-        }
         val forcedOnly =
             restoreSubtitleSelection(
-                defaults = defaults,
+                defaults = CaptionDefaults,
                 retained = null,
-                systemCaptionsEnabled = true,
                 startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
-            )
-        val noPolicyFallback =
-            restoreSubtitleSelection(
-                defaults = defaults,
-                retained = null,
-                systemCaptionsEnabled = false,
             )
         val automatic =
             forcedOnly
-                .withSubtitleSelection(SubtitleSelection.Off, emptyList(), defaults)
-                .withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaults)
+                .withSubtitleSelection(SubtitleSelection.Off, emptyList(), CaptionDefaults)
+                .withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), CaptionDefaults)
 
         assertEquals("forced", selectedTextId(forcedOnly))
-        assertEquals("forced", selectedTextId(noPolicyFallback))
         assertEquals("ordinary", selectedTextId(automatic))
+    }
 
+    @Test
+    fun subtitlesStayOffWhileAccountSettingsLoad() {
+        val loading = AccountSettingsReducer.start().state
+
+        assertNull(startupTextTrack(loading))
+    }
+
+    @Test
+    fun failedAccountSettingsKeepSubtitlesOffAndThePickerStillSelects() {
+        val start = AccountSettingsReducer.start()
+        val failed =
+            AccountSettingsReducer.reduce(
+                start.state,
+                AccountSettingsEvent.LoadFailed(
+                    requireNotNull(start.effect).requestId,
+                    AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                ),
+            ).state
+        val startup = startupParameters(failed)
+        val tracks = listOf(PlaybackSubtitleTrack(TextGroup, 0, label = "English", selected = false))
+
+        assertNull(selectedTextId(startup))
+        assertEquals(
+            "ordinary",
+            selectedTextId(startup.withSubtitleSelection(SubtitleSelection.Track(tracks[0].identity), tracks)),
+        )
+        assertEquals(
+            "ordinary",
+            selectedTextId(startup.withSubtitleSelection(SubtitleSelection.Automatic, tracks, CaptionDefaults)),
+        )
+    }
+
+    @Test
+    fun loadedHideSubtitlesKeepsSubtitlesOff() {
+        assertNull(startupTextTrack(loaded(showSubtitles = false)))
+    }
+
+    @Test
+    fun loadedShowSubtitlesSelectsTheDefaultTrack() {
+        assertEquals("ordinary", startupTextTrack(loaded(showSubtitles = true)))
     }
 
     @Test
@@ -411,5 +393,76 @@ class PlaybackSubtitleSelectionTest {
             ).resolve(selected.toSubtitleTrackIdentity())
 
         assertEquals(selectedGroup, resolved?.group)
+    }
+
+    private fun loaded(showSubtitles: Boolean): AccountSettingsState {
+        val start = AccountSettingsReducer.start()
+        return AccountSettingsReducer.reduce(
+            start.state,
+            AccountSettingsEvent.LoadSucceeded(
+                requireNotNull(start.effect).requestId,
+                AccountSettingsPreferences(
+                    historyEnabled = true,
+                    trashEnabled = true,
+                    showSubtitles = showSubtitles,
+                    autoSelectSubtitles = true,
+                ),
+            ),
+        ).state
+    }
+
+    private fun startupParameters(settings: AccountSettingsState): TrackSelectionParameters =
+        restoreSubtitleSelection(CaptionDefaults, retained = null, startupPolicy = settings.subtitleStartupPolicy())
+
+    private fun startupTextTrack(settings: AccountSettingsState): String? = selectedTextId(startupParameters(settings))
+
+    /** The text track DefaultTrackSelector picks for [parameters], or null when none shows. */
+    private fun selectedTextId(parameters: TrackSelectionParameters): String? {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val selector = DefaultTrackSelector(context, parameters)
+        selector.init({ _ -> }, DefaultBandwidthMeter.getSingletonInstance(context))
+        val result =
+            selector.selectTracks(
+                arrayOf(rendererCapabilities(C.TRACK_TYPE_AUDIO), rendererCapabilities(C.TRACK_TYPE_TEXT)),
+                TrackGroupArray(TrackGroup(AudioFormat), TextGroup),
+                MediaSource.MediaPeriodId(Any()),
+                Timeline.EMPTY,
+            )
+        return result.selections[1]?.selectedFormat?.id.also { selector.release() }
+    }
+
+    private companion object {
+        // A device whose caption settings ask for English captions.
+        val CaptionDefaults: TrackSelectionParameters =
+            TrackSelectionParameters.Builder()
+                .setPreferredTextLanguages("en")
+                .setPreferredTextRoleFlags(C.ROLE_FLAG_CAPTION)
+                .setPreferredTextLabels("English")
+                .setIgnoredTextSelectionFlags(C.SELECTION_FLAG_FORCED)
+                .setSelectUndeterminedTextLanguage(true)
+                .build()
+        val AudioFormat: Format =
+            Format.Builder()
+                .setId("audio")
+                .setSampleMimeType(MimeTypes.AUDIO_AAC)
+                .setLanguage("en")
+                .build()
+        val TextGroup =
+            TrackGroup(
+                Format.Builder()
+                    .setId("ordinary")
+                    .setSampleMimeType(MimeTypes.TEXT_VTT)
+                    .setLanguage("en")
+                    .setLabel("English")
+                    .setRoleFlags(C.ROLE_FLAG_CAPTION)
+                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                    .build(),
+                Format.Builder()
+                    .setId("forced")
+                    .setSampleMimeType(MimeTypes.TEXT_VTT)
+                    .setLanguage("en")
+                    .setSelectionFlags(C.SELECTION_FLAG_FORCED)
+                    .build(),
+            )
     }
 }

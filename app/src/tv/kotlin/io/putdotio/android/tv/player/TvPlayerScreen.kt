@@ -98,7 +98,6 @@ import io.putdotio.android.playback.displayAspectRatioOrNull
 import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.playback.restoreSubtitleSelection
-import io.putdotio.android.playback.systemCaptionsEnabled
 import io.putdotio.android.playback.toPlaybackMillis
 import io.putdotio.android.playback.withAudioSelection
 import io.putdotio.android.playback.withAudioTrack
@@ -319,7 +318,6 @@ private fun TvReadyPlayer(
             restoreSubtitleSelection(
                 defaults = defaultTrackSelection,
                 retained = options.subtitles,
-                systemCaptionsEnabled = context.systemCaptionsEnabled(),
                 startupPolicy = subtitleStartupPolicy,
             ).withAudioSelection(options.audio, emptyList())
         player.setPlaybackSpeed(options.speed)
@@ -357,7 +355,7 @@ private fun TvReadyPlayer(
         val updated = if (policy.showSubtitles && policy.autoSelectSubtitles) {
             current.withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaultTrackSelection)
         } else {
-            restoreSubtitleSelection(current, null, context.systemCaptionsEnabled(), policy)
+            restoreSubtitleSelection(current, null, policy)
         }
         if (updated != current) player.trackSelectionParameters = updated
     }
