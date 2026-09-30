@@ -20,15 +20,16 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 
 /**
- * A centred 28dp dialog per the TV contract: a title, an optional message, and stacked
- * full-width actions. The action given the requester takes focus once the window is up;
- * Back is the caller's dismissal.
+ * A centred 28dp dialog per the TV contract: a title, an optional message, an optional
+ * non-focusable body (such as a progress bar), and stacked full-width actions. The action
+ * given the requester takes focus once the window is up; Back is the caller's dismissal.
  */
 @Composable
 internal fun TvDialog(
     title: String,
     message: String?,
     onDismiss: () -> Unit,
+    body: (@Composable () -> Unit)? = null,
     actions: (@Composable (focus: FocusRequester) -> Unit)? = null,
 ) {
     val actionFocus = remember { FocusRequester() }
@@ -66,6 +67,7 @@ internal fun TvDialog(
                     modifier = Modifier.padding(bottom = 12.dp),
                 )
             }
+            body?.invoke()
             actions?.invoke(actionFocus)
         }
     }

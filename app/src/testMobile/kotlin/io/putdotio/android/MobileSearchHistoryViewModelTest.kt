@@ -148,6 +148,53 @@ class MobileSearchHistoryViewModelTest {
         }
 
     @Test
+    fun secondHistoryTapWhileTheFirstResolvesNavigatesOnlyToTheSecond() =
+        runBlocking {
+            val firstStarted = CompletableDeferred<Unit>()
+            val releaseFirst = CompletableDeferred<Unit>()
+            val secondStarted = CompletableDeferred<Unit>()
+            val recentSearchStore = FakeRecentSearchStore()
+            val history = HistoryController(EmptyHistoryRepository, historyEnabled = true, parentScope = this)
+            val session =
+                ActiveSearchHistorySession(
+                    key = SessionKey(USER_ID, SessionOne),
+                    recentSearchStore = recentSearchStore,
+                    search = SearchController(RecordingSearchRepository(), recentSearchStore, this),
+                    history = history,
+                    parentScope = this,
+                    filesItemResolver =
+                        object : FilesItemResolver {
+                            override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+                                if (itemId.value == 1L) {
+                                    firstStarted.complete(Unit)
+                                    releaseFirst.await()
+                                } else {
+                                    secondStarted.complete(Unit)
+                                }
+                                return EmptyFilesItemResolver.resolveItem(itemId)
+                            }
+                        },
+                )
+
+            try {
+                assertTrue(history.dispatch(HistoryEvent.OpenFile(HistoryFileId(1L))))
+                withTimeout(TIMEOUT) { firstStarted.await() }
+                assertTrue(history.dispatch(HistoryEvent.OpenFile(HistoryFileId(2L))))
+                // Sequential collection never starts the second before the first ends; let it lapse.
+                withTimeoutOrNull(NO_SECOND_EVENT_TIMEOUT) { secondStarted.await() }
+                releaseFirst.complete(Unit)
+
+                assertEquals(FilesItemId(2L), withTimeout(TIMEOUT) { session.navigation.first() }.id)
+                assertEquals(
+                    null,
+                    withTimeoutOrNull(NO_SECOND_EVENT_TIMEOUT) { session.navigation.first() },
+                )
+            } finally {
+                session.close()
+            }
+        }
+
+    @Test
     fun reauthenticationClosesOldSessionAndUsesReplacementRepositories() {
         val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
         val stores = mutableListOf<FakeRecentSearchStore>()

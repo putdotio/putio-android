@@ -1,13 +1,16 @@
 package io.putdotio.android.auth
 
-import io.putdotio.sdk.errors.PutioConfigurationException
-import io.putdotio.sdk.errors.PutioException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -15,7 +18,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 import java.util.ArrayDeque
+import kotlin.time.Duration.Companion.seconds
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MobileAuthControllerTest {
     @Test
     fun `sign in emits sdk url and cancellation returns quietly to signed out`() = runBlocking {
@@ -363,20 +368,17 @@ class MobileAuthControllerTest {
     }
 
     @Test
-    fun `secure storage failure cannot start a new sign in`() = runBlocking {
+    fun `secure storage failure resets storage before a new sign in`() = runBlocking {
         val fixture = Fixture(storedToken = TOKEN)
         fixture.tokenStore.failRead = true
 
         fixture.controller.restoreSession()
         val launch = fixture.controller.beginSignIn()
 
-        assertEquals(OAuthLaunchResult.StorageUnavailable, launch)
-        assertNull(fixture.pendingAttemptStore.attempt)
-        assertEquals(
-            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
-            fixture.controller.state.value,
-        )
-        assertFalse("build-url" in fixture.gateway.calls)
+        assertEquals(OAuthLaunchResult.Ready(AUTHORIZATION_URL), launch)
+        assertNull(fixture.tokenStore.token)
+        assertEquals(OAUTH_STATE, fixture.pendingAttemptStore.attempt?.state)
+        assertEquals(MobileAuthState.AwaitingOAuthCallback, fixture.controller.state.value)
     }
 
     @Test
@@ -393,7 +395,6 @@ class MobileAuthControllerTest {
         assertEquals(OAuthCallbackHandlingResult.REJECTED, callback)
         assertFalse(fixture.controller.cancelSignIn())
         assertFalse(fixture.controller.failSignIn())
-        assertEquals(OAuthLaunchResult.StorageUnavailable, fixture.controller.beginSignIn())
         assertEquals(OAUTH_STATE, pendingAttemptStore.attempt?.state)
         assertEquals(
             MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
@@ -523,6 +524,7 @@ class MobileAuthControllerTest {
         assertNull(fixture.tokenStore.token)
         assertNull(fixture.gateway.configuredToken)
         assertEquals(listOf("clear-token"), fixture.gateway.calls)
+        assertTrue(fixture.revoker.attempts.isEmpty())
         assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.SessionExpired), fixture.controller.state.value)
         assertFalse(fixture.controller.rejectAuthoritativeSession())
     }
@@ -670,9 +672,8 @@ class MobileAuthControllerTest {
     }
 
     @Test
-    fun `logout clears local session even when remote logout fails`() = runBlocking {
+    fun `logout signs out locally and revokes the token in the background`() = runBlocking {
         val fixture = Fixture(storedToken = TOKEN)
-        fixture.gateway.logoutFailure = PutioConfigurationException("offline")
         fixture.controller.restoreSession()
 
         fixture.controller.logout()
@@ -680,6 +681,117 @@ class MobileAuthControllerTest {
         assertNull(fixture.tokenStore.token)
         assertNull(fixture.gateway.configuredToken)
         assertEquals(MobileAuthState.SignedOut(), fixture.controller.state.value)
+        assertEquals(listOf(TOKEN), fixture.revoker.attempts)
+        assertNull(fixture.revocationStore.token)
+    }
+
+    @Test
+    fun `failed revocation is retried with backoff until put io confirms it`() = runBlocking {
+        val fixture = Fixture(
+            storedToken = TOKEN,
+            revocationResults = listOf(
+                TokenRevocationResult.UNAVAILABLE,
+                TokenRevocationResult.UNAVAILABLE,
+                TokenRevocationResult.REVOKED,
+            ),
+        )
+        fixture.controller.restoreSession()
+
+        fixture.controller.logout()
+
+        assertEquals(MobileAuthState.SignedOut(), fixture.controller.state.value)
+        assertNull(fixture.tokenStore.token)
+        assertEquals(listOf(TOKEN), fixture.revoker.attempts)
+        assertEquals(TOKEN, fixture.revocationStore.token?.reveal())
+        fixture.revocationScope.advanceTimeBy(15.seconds)
+        fixture.revocationScope.testScheduler.runCurrent()
+        assertEquals(listOf(TOKEN, TOKEN), fixture.revoker.attempts)
+        fixture.revocationScope.advanceUntilIdle()
+        assertEquals(listOf(TOKEN, TOKEN, TOKEN), fixture.revoker.attempts)
+        assertNull(fixture.revocationStore.token)
+    }
+
+    @Test
+    fun `revocation rejected by put io is dropped without further attempts`() = runBlocking {
+        val fixture = Fixture(storedToken = TOKEN, revocationResults = listOf(TokenRevocationResult.REJECTED))
+        fixture.controller.restoreSession()
+
+        fixture.controller.logout()
+        fixture.revocationScope.advanceUntilIdle()
+
+        assertEquals(listOf(TOKEN), fixture.revoker.attempts)
+        assertNull(fixture.revocationStore.token)
+        assertEquals(MobileAuthState.SignedOut(), fixture.controller.state.value)
+    }
+
+    @Test
+    fun `unconfirmed revocation from an earlier process resumes on app start`() = runBlocking {
+        val fixture = Fixture(pendingRevocation = OLD_TOKEN)
+
+        fixture.controller.restoreSession()
+
+        assertEquals(listOf(OLD_TOKEN), fixture.revoker.attempts)
+        assertNull(fixture.revocationStore.token)
+    }
+
+    @Test
+    fun `logout revokes the session token even when the store cannot be read`() = runBlocking {
+        val fixture = Fixture(storedToken = TOKEN)
+        fixture.controller.restoreSession()
+        fixture.tokenStore.failRead = true
+
+        fixture.controller.logout()
+
+        assertEquals(listOf(TOKEN), fixture.revoker.attempts)
+        assertNull(fixture.revocationStore.token)
+    }
+
+    @Test
+    fun `app start keeps a restored session whose token is still recorded for revocation`() = runBlocking {
+        val fixture = Fixture(storedToken = TOKEN, pendingRevocation = TOKEN)
+
+        fixture.controller.restoreSession()
+
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
+        assertTrue(fixture.revoker.attempts.isEmpty())
+        assertNull(fixture.revocationStore.token)
+    }
+
+    @Test
+    fun `a sign-in whose token put io revokes in flight ends signed out`() = runBlocking {
+        val fixture = Fixture(pendingRevocation = TOKEN)
+        val inFlight = CompletableDeferred<Unit>()
+        fixture.revoker.gate = inFlight
+        fixture.controller.restoreSession()
+        fixture.controller.beginSignIn()
+
+        val callback = async(start = CoroutineStart.UNDISPATCHED) {
+            fixture.controller.handleOAuthCallback(VALID_CALLBACK)
+        }
+        assertFalse(callback.isCompleted)
+        inFlight.complete(Unit)
+
+        assertEquals(OAuthCallbackHandlingResult.ACCEPTED, callback.await())
+        assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.SessionExpired), fixture.controller.state.value)
+        assertNull(fixture.tokenStore.token)
+        assertEquals(listOf(TOKEN), fixture.revoker.attempts)
+    }
+
+    @Test
+    fun `signing in with the token awaiting revocation cancels the revocation`() = runBlocking {
+        val fixture = Fixture(
+            pendingRevocation = TOKEN,
+            revocationResults = listOf(TokenRevocationResult.UNAVAILABLE),
+        )
+        fixture.controller.restoreSession()
+        fixture.controller.beginSignIn()
+
+        fixture.controller.handleOAuthCallback(VALID_CALLBACK)
+        fixture.revocationScope.advanceUntilIdle()
+
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
+        assertEquals(listOf(TOKEN), fixture.revoker.attempts)
+        assertNull(fixture.revocationStore.token)
     }
 
     @Test
@@ -732,14 +844,20 @@ class MobileAuthControllerTest {
         stateGenerator: OAuthStateGenerator = OAuthStateGenerator { OAUTH_STATE },
         val pendingAttemptStore: FakePendingOAuthAttemptStore = FakePendingOAuthAttemptStore(),
         clock: OAuthAttemptClock = FakeOAuthAttemptClock(NOW_EPOCH_MILLIS),
+        pendingRevocation: String? = null,
+        revocationResults: List<TokenRevocationResult> = emptyList(),
     ) {
         val tokenStore = FakeAuthTokenStore(storedToken?.let { checkNotNull(AccessToken.parse(it)) })
         val gateway = FakeAuthSessionGateway(validationResults)
+        val revocationStore = InMemoryAuthTokenStore(pendingRevocation?.let { checkNotNull(AccessToken.parse(it)) })
+        val revoker = ScriptedTokenRevoker(*revocationResults.toTypedArray())
+        val revocationScope = TestScope(UnconfinedTestDispatcher())
         val controller = MobileAuthController(
             oauthConfiguration = configuration,
             tokenStore = tokenStore,
             pendingOAuthAttemptStore = pendingAttemptStore,
             sessionGateway = gateway,
+            tokenRevocations = PendingTokenRevocations(revocationStore, tokenStore, revoker, revocationScope),
             stateGenerator = stateGenerator,
             clock = clock,
         )
@@ -810,7 +928,6 @@ class MobileAuthControllerTest {
         val results = ArrayDeque(validationResults)
         var configuredToken: AccessToken? = null
         var clearCount = 0
-        var logoutFailure: PutioException? = null
         var validationFailure: Throwable? = null
 
         override fun buildLoginUrl(redirectUri: String, state: String): String {
@@ -835,15 +952,11 @@ class MobileAuthControllerTest {
             validationFailure?.let { throw it }
             return results.removeFirst()
         }
-
-        override suspend fun logout(): RemoteLogoutResult {
-            calls += "logout"
-            return logoutFailure?.let(RemoteLogoutResult::Failed) ?: RemoteLogoutResult.Completed
-        }
     }
 
     private companion object {
         const val TOKEN = "token-value"
+        const val OLD_TOKEN = "old-token-value"
         const val OAUTH_STATE = "fixed-oauth-state"
         const val AUTHORIZATION_URL = "https://app.put.io/authenticate?state=fixed-oauth-state"
         const val VALID_CALLBACK = "putio://auth?state=$OAUTH_STATE#access_token=$TOKEN&state=$OAUTH_STATE"

@@ -9,12 +9,12 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.history.HistoryController
+import io.putdotio.android.history.HistoryFileOpener
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.search.AppConfigRecentSearchStore
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
@@ -27,9 +27,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
@@ -124,15 +122,15 @@ internal class ActiveSearchHistorySession(
     val search: SearchController,
     val history: HistoryController,
     parentScope: CoroutineScope,
-    private val filesItemResolver: FilesItemResolver,
+    filesItemResolver: FilesItemResolver,
 ) {
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + sessionJob)
     private val navigationChannel = Channel<FilesItem>(Channel.BUFFERED)
-    private val mutableNavigationFailure = MutableStateFlow<FilesFailure?>(null)
+    private val historyOpener = HistoryFileOpener(history.navigation, filesItemResolver, navigationChannel::send, scope)
 
     val navigation: Flow<FilesItem> = navigationChannel.receiveAsFlow()
-    val navigationFailure: StateFlow<FilesFailure?> = mutableNavigationFailure.asStateFlow()
+    val navigationFailure: StateFlow<FilesFailure?> = historyOpener.failure
     val recentSearchFailure: StateFlow<FilesFailure?> = recentSearchStore.failure
 
     init {
@@ -143,33 +141,12 @@ internal class ActiveSearchHistorySession(
                 }
             }
         }
-        scope.launch {
-            history.navigation.collect { output ->
-                when (val result = filesItemResolver.resolveItem(FilesItemId(output.fileId.value))) {
-                    is FilesRepositoryResult.Success -> {
-                        mutableNavigationFailure.value = null
-                        navigationChannel.send(result.value)
-                    }
-                    is FilesRepositoryResult.Failure -> mutableNavigationFailure.value = result.failure
-                }
-            }
-        }
     }
 
-    fun dismissNavigationFailure() {
-        mutableNavigationFailure.value = null
-    }
+    fun dismissNavigationFailure() = historyOpener.dismissFailure()
 
     /** A product link names a file; resolve it like a history row so Files opens its folder. */
-    suspend fun openFile(fileId: FilesItemId) {
-        when (val result = filesItemResolver.resolveItem(fileId)) {
-            is FilesRepositoryResult.Success -> {
-                mutableNavigationFailure.value = null
-                navigationChannel.send(result.value)
-            }
-            is FilesRepositoryResult.Failure -> mutableNavigationFailure.value = result.failure
-        }
-    }
+    suspend fun openFile(fileId: FilesItemId) = historyOpener.open(fileId)
 
     fun retryRecentSearches() {
         recentSearchStore.retry()
@@ -177,6 +154,7 @@ internal class ActiveSearchHistorySession(
 
     fun close() {
         scope.cancel()
+        historyOpener.close()
         navigationChannel.close()
         search.close()
         history.close()

@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import android.os.Bundle
 import android.view.accessibility.CaptioningManager
@@ -15,7 +15,7 @@ internal data class SubtitleStartupPolicy(
 )
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal data class MobileSubtitleTrack(
+internal data class PlaybackSubtitleTrack(
     val group: TrackGroup,
     val trackIndex: Int,
     val identity: SubtitleTrackIdentity = group.getFormat(trackIndex).toSubtitleTrackIdentity(),
@@ -44,7 +44,7 @@ internal data class SubtitleTrackIdentity(
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun List<MobileSubtitleTrack>.resolve(identity: SubtitleTrackIdentity): MobileSubtitleTrack? {
+internal fun List<PlaybackSubtitleTrack>.resolve(identity: SubtitleTrackIdentity): PlaybackSubtitleTrack? {
     val candidates = identity.id?.let { id -> filter { it.group.getFormat(it.trackIndex).id == id } }
     if (candidates?.size == 1) return candidates.single()
     return (candidates ?: this).singleOrNull { identity.exactlyMatches(it.group.getFormat(it.trackIndex)) }
@@ -58,7 +58,7 @@ internal sealed interface SubtitleSelection {
     data class Track(val identity: SubtitleTrackIdentity) : SubtitleSelection
 }
 
-internal fun Tracks.mobileSubtitleTracks(): List<MobileSubtitleTrack> =
+internal fun Tracks.playbackSubtitleTracks(): List<PlaybackSubtitleTrack> =
     groups
         .filter { it.type == C.TRACK_TYPE_TEXT }
         .flatMap { group ->
@@ -66,7 +66,7 @@ internal fun Tracks.mobileSubtitleTracks(): List<MobileSubtitleTrack> =
                 .filter { group.isTrackSupported(it) }
                 .map { trackIndex ->
                     val format = group.getTrackFormat(trackIndex)
-                    MobileSubtitleTrack(
+                    PlaybackSubtitleTrack(
                         group = group.mediaTrackGroup,
                         trackIndex = trackIndex,
                         identity = format.toSubtitleTrackIdentity(),
@@ -91,7 +91,7 @@ internal fun androidx.media3.common.Format.toSubtitleTrackIdentity(): SubtitleTr
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun TrackSelectionParameters.withSubtitleSelection(
     selection: SubtitleSelection,
-    tracks: List<MobileSubtitleTrack>,
+    tracks: List<PlaybackSubtitleTrack>,
     textDefaults: TrackSelectionParameters? = null,
 ): TrackSelectionParameters {
     val builder =
@@ -145,9 +145,9 @@ internal fun TrackSelectionParameters.withSubtitleSelection(
     }
 }
 
-internal fun TrackSelectionParameters.subtitlesEnabled(tracks: List<MobileSubtitleTrack>): Boolean =
+internal fun TrackSelectionParameters.subtitlesEnabled(tracks: List<PlaybackSubtitleTrack>): Boolean =
     C.TRACK_TYPE_TEXT !in disabledTrackTypes &&
-        (selectTextByDefault || tracks.any(MobileSubtitleTrack::selected))
+        (selectTextByDefault || tracks.any(PlaybackSubtitleTrack::selected))
 
 internal fun restoreSubtitleSelection(
     defaults: TrackSelectionParameters,

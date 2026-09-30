@@ -2,6 +2,7 @@ package io.putdotio.android.trash
 
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.parsePutioTimestamp
 
 internal fun TrashMachine.completeAction(
     completed: TrashRequest.Act,
@@ -57,7 +58,7 @@ private fun TrashActionOutcome.verifyRestoreAll(page: TrashContent.Loaded): Tras
         page.items.any { it.id in snapshot.itemIds } -> TrashActionCheck.INCONCLUSIVE
         !snapshot.coversUnloadedItems -> TrashActionCheck.VERIFIED
         newest != null && page.items.all { item ->
-            item.deletedAt?.let(::parseTrashTimestamp)?.isAfter(newest) == true
+            item.deletedAt?.let(::parsePutioTimestamp)?.isAfter(newest) == true
         } -> TrashActionCheck.VERIFIED
         else -> TrashActionCheck.INCONCLUSIVE
     }

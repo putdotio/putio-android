@@ -60,6 +60,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.playback.SubtitleSelection
+import io.putdotio.android.playback.PlaybackSubtitleTrack
+import io.putdotio.android.playback.withSubtitleSelection
+import io.putdotio.android.playback.restoreSubtitleSelection
+import io.putdotio.android.playback.systemCaptionsEnabled
+import io.putdotio.android.playback.toSubtitleTrackIdentity
+import io.putdotio.android.playback.SubtitleCueOverlay
+import io.putdotio.android.playback.SUBTITLE_CUES_TAG
 
 private fun ImageBitmap.hasVisiblePixel(): Boolean {
     val pixels = toPixelMap()
@@ -233,7 +241,7 @@ class MobileSubtitleControlsTest {
         val cue = Cue.Builder().setText("A rendered subtitle").build()
         compose.setContent {
             PutioTheme {
-                MobileSubtitleCueOverlay(
+                SubtitleCueOverlay(
                     cues = listOf(cue),
                     videoAspectRatio = 16f / 9f,
                     modifier = Modifier.requiredSize(320.dp, 180.dp),
@@ -241,11 +249,11 @@ class MobileSubtitleControlsTest {
             }
         }
 
-        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG)
+        compose.onNodeWithTag(SUBTITLE_CUES_TAG)
             .assertIsDisplayed()
             .assertWidthIsEqualTo(320.dp)
             .assertHeightIsEqualTo(180.dp)
-        assertTrue(compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
+        assertTrue(compose.onNodeWithTag(SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
     }
 
     @Test
@@ -254,7 +262,7 @@ class MobileSubtitleControlsTest {
         val cues = listOf(Cue.Builder().setText("A retained subtitle").build())
         compose.setContent {
             PutioTheme {
-                MobileSubtitleCueOverlay(
+                SubtitleCueOverlay(
                     cues = cues,
                     videoAspectRatio = aspectRatio,
                     modifier = Modifier.requiredSize(320.dp, 640.dp),
@@ -262,15 +270,15 @@ class MobileSubtitleControlsTest {
             }
         }
 
-        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
         compose.runOnIdle { aspectRatio = 16f / 9f }
-        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG)
+        compose.onNodeWithTag(SUBTITLE_CUES_TAG)
             .assertIsDisplayed()
             .assertWidthIsEqualTo(320.dp)
             .assertHeightIsEqualTo(180.dp)
-        assertTrue(compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
+        assertTrue(compose.onNodeWithTag(SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
         compose.runOnIdle { aspectRatio = null }
-        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
     }
 
     @Test
@@ -289,7 +297,7 @@ class MobileSubtitleControlsTest {
                 .build()
         compose.setContent {
             PutioTheme {
-                MobileSubtitleCueOverlay(
+                SubtitleCueOverlay(
                     cues = listOf(cue),
                     videoAspectRatio = 16f / 9f,
                     modifier = Modifier.requiredSize(320.dp, 180.dp),
@@ -297,11 +305,11 @@ class MobileSubtitleControlsTest {
             }
         }
 
-        compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG)
+        compose.onNodeWithTag(SUBTITLE_CUES_TAG)
             .assertIsDisplayed()
             .assertWidthIsEqualTo(320.dp)
             .assertHeightIsEqualTo(180.dp)
-        assertTrue(compose.onNodeWithTag(MOBILE_SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
+        assertTrue(compose.onNodeWithTag(SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
     }
 
     @Test
@@ -327,7 +335,7 @@ class MobileSubtitleControlsTest {
                                 detectTapGestures { taps += 1 }
                             },
                     )
-                    MobileSubtitleCueOverlay(
+                    SubtitleCueOverlay(
                         cues = listOf(Cue.Builder().setText("Visible subtitle").build()),
                         videoAspectRatio = 16f / 9f,
                         modifier = Modifier.zIndex(1f),
@@ -351,7 +359,7 @@ class MobileSubtitleControlsTest {
             PutioTheme {
                 MobileSubtitleTrackOption(
                     track =
-                        MobileSubtitleTrack(
+                        PlaybackSubtitleTrack(
                             group = group,
                             trackIndex = 0,
                             label = "English",
@@ -378,7 +386,7 @@ class MobileSubtitleControlsTest {
             inputModeManager = LocalInputModeManager.current
             PutioTheme {
                 MobileSubtitleTrackOption(
-                    track = MobileSubtitleTrack(group, 0, label = "English", selected = false),
+                    track = PlaybackSubtitleTrack(group, 0, label = "English", selected = false),
                     onClick = {},
                     modifier =
                         Modifier
