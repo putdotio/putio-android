@@ -426,13 +426,14 @@ Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
 
 ## History events
 
-Mobile gives each event iOS's copy (`HistoryTableViewCell`): shared files,
-completed transfers and uploads show their name and kind; transfer errors, RSS
-deletions and paused RSS filters read as a sentence naming the transfer, file or
-filter. An event missing that name, or of a type iOS has no copy for, reads No
-title, never its raw API type. TV lists only shared files and completed
-transfers, as tv-native does; a page with neither reads on to the next, so
-dropped events neither end the list nor leave it empty while older events wait.
+Mobile gives each event iOS's copy (`HistoryTableViewCell`): shared files and
+completed transfers show their name and kind, uploads their name; transfer
+errors, RSS deletions and paused RSS filters read as a sentence naming the
+transfer, file or filter. An event with no name, or of a type iOS has no copy
+for, reads No title, never its raw API type. TV lists only shared files and
+completed transfers, as tv-native does, including a share whose file is gone; a
+page with neither reads on to the next, so dropped events neither end the list
+nor leave it empty while older events wait.
 With history off, both surfaces name the Keep account history switch in Account.
 
 Tests: `SdkHistoryRepositoryTest`, `MobileSearchHistoryScreenTest`,

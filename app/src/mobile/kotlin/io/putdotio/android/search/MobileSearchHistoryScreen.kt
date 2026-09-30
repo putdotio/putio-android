@@ -575,12 +575,12 @@ private fun HistoryItem.timeLabel(): String {
     return DateUtils.formatDateTime(context, created.toEpochMilli(), DateUtils.FORMAT_SHOW_TIME)
 }
 
-/** iOS's copy per event type (`HistoryTableViewCell`). */
+/** iOS's copy per event type (`HistoryTableViewCell`); an event without its name reads No title. */
 @Composable
 private fun HistoryItem.title(): String =
     when (val value = kind) {
-        is HistoryEventKind.File -> value.name ?: stringResource(R.string.mobile_history_file)
-        is HistoryEventKind.Transfer -> value.name ?: stringResource(R.string.mobile_history_transfer)
+        is HistoryEventKind.File -> value.name ?: stringResource(R.string.mobile_history_no_title)
+        is HistoryEventKind.Transfer -> value.name ?: stringResource(R.string.mobile_history_no_title)
         is HistoryEventKind.Notice ->
             when (value.type) {
                 HistoryNoticeType.Upload -> value.subject
@@ -596,15 +596,13 @@ private fun HistoryItem.title(): String =
         is HistoryEventKind.Other -> stringResource(R.string.mobile_history_no_title)
     }
 
-/** Rows titled by a bare name say what happened to it; notices already do. */
+/** Shared files and completed transfers keep their kind; iOS gives other events only their time. */
 @Composable
 private fun HistoryItem.kindLabel(): String? =
-    when (val value = kind) {
+    when (kind) {
         is HistoryEventKind.File -> stringResource(R.string.mobile_history_shared_file)
         is HistoryEventKind.Transfer -> stringResource(R.string.mobile_history_completed_transfer)
-        is HistoryEventKind.Notice ->
-            if (value.type == HistoryNoticeType.Upload) stringResource(R.string.mobile_history_uploaded_file) else null
-        is HistoryEventKind.Other -> null
+        is HistoryEventKind.Notice, is HistoryEventKind.Other -> null
     }
 
 private fun HistoryEventKind.navigableFileId(): HistoryFileId? =

@@ -57,7 +57,7 @@ class SdkHistoryRepositoryTest {
     }
 
     @Test
-    fun eachEventTypeKeepsTheNameItsCopyStatesAndOthersKeepOnlyTheirType() = runBlocking {
+    fun eachEventTypeKeepsTheNameItsCopyStatesAndBlankNamesAreAbsent() = runBlocking {
         val events = listOf(
             event(1, HistoryEventType.UPLOAD, fileName = "Harbor film.mp4"),
             event(2, HistoryEventType.FILE_FROM_RSS_DELETED_FOR_SPACE, fileName = "Old episode.mkv"),
@@ -68,6 +68,9 @@ class SdkHistoryRepositoryTest {
             event(6, HistoryEventType.VOUCHER, fileName = "unused"),
             event(7, HistoryEventType.fromRaw("brand_new_event"), transferName = "unused"),
             event(8, HistoryEventType.FILE_SHARED, fileName = "no file id"),
+            event(9, HistoryEventType.FILE_SHARED, fileName = " "),
+            event(10, HistoryEventType.TRANSFER_COMPLETED, fileName = "", transferName = " "),
+            event(11, HistoryEventType.UPLOAD, fileName = " "),
         )
         val repository = SdkHistoryRepository({ response(events, hasMore = false) }, {})
 
@@ -82,7 +85,10 @@ class SdkHistoryRepositoryTest {
                 HistoryEventKind.Other("transfer_error"),
                 HistoryEventKind.Other("voucher"),
                 HistoryEventKind.Other("brand_new_event"),
-                HistoryEventKind.Other("file_shared"),
+                HistoryEventKind.File(id = null, name = "no file id"),
+                HistoryEventKind.File(id = null, name = null),
+                HistoryEventKind.Transfer(transferId = null, fileId = null, name = null),
+                HistoryEventKind.Other("upload"),
             ),
             kinds,
         )

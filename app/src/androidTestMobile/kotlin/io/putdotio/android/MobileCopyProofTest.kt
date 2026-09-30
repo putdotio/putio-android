@@ -36,6 +36,7 @@ import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.HistoryTransferId
+import io.putdotio.android.search.MOBILE_HISTORY_LIST_TAG
 import io.putdotio.android.search.MobileSearchHistoryScreen
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchState
@@ -107,7 +108,19 @@ class MobileCopyProofTest {
         }
 
         compose.onNodeWithText("History").performClick()
-        compose.onNodeWithText("Error in transfer Sample transfer").assertIsDisplayed()
+        compose.onNodeWithText("Shared file · ", substring = true).assertIsDisplayed()
+        listOf(
+            "Archive été 東京.zip",
+            "Error in transfer Sample transfer",
+            "We had to delete Old episode.mkv per your instructions, since there wasn’t enough free space.",
+            "Sample feed is paused because we couldn’t reach the source",
+            "Error in transfer from RSS for Feed item",
+            "Error in transfer callback for Callback transfer",
+            "No title",
+        ).forEach { title ->
+            compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(title))
+            compose.onNodeWithText(title).assertIsDisplayed()
+        }
         capture("01-history-events")
         compose.runOnIdle { history = HistoryState(HistoryContent.Disabled) }
         compose.onNodeWithText("Turn on “Keep account history” in Account to see activity here.").assertIsDisplayed()

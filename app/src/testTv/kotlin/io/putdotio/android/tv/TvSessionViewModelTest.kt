@@ -175,6 +175,12 @@ class TvSessionViewModelTest {
 
     @Test
     fun `History lists only shared files and completed transfers, as tv-native does`() {
+        // tv-native filters on the event type, so a share without a file id stays listed.
+        val sharedWithoutFile = HistoryItem(
+            HistoryEventId(5),
+            "2026-09-12T11:00:00",
+            HistoryEventKind.File(id = null, name = "Removed share.mp4"),
+        )
         val shared = HistoryItem(
             HistoryEventId(4),
             "2026-09-12T10:00:00",
@@ -186,6 +192,7 @@ class TvSessionViewModelTest {
             HistoryEventKind.Transfer(HistoryTransferId(20), HistoryFileId(21), "Sample folder"),
         )
         historyItems = listOf(
+            sharedWithoutFile,
             shared,
             HistoryItem(
                 HistoryEventId(3),
@@ -198,7 +205,7 @@ class TvSessionViewModelTest {
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         assertEquals(
-            HistoryContent.Ready(listOf(shared, completed), HistoryPaging.Complete),
+            HistoryContent.Ready(listOf(sharedWithoutFile, shared, completed), HistoryPaging.Complete),
             session.history.state.value.content,
         )
     }

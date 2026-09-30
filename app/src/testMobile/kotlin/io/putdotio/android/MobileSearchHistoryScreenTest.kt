@@ -202,7 +202,7 @@ class MobileSearchHistoryScreenTest {
     }
 
     @Test
-    fun eachEventTypeReadsAsIosStatesItAndOnlyNamedRowsCarryAKind() {
+    fun eachEventTypeReadsAsIosStatesItWithOnlyItsTime() {
         val previous = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         try {
@@ -221,7 +221,8 @@ class MobileSearchHistoryScreenTest {
             setScreen(history = HistoryState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
             compose.onNodeWithText("History").performClick()
-            compose.onAllNodesWithText("Uploaded file · ", substring = true).assertCountEquals(1)
+            // iOS details these rows with their time alone; only shared files and transfers name a kind.
+            compose.onAllNodesWithText(" · ", substring = true).assertCountEquals(0)
             listOf(
                 "Harbor film.mp4",
                 "Error in transfer Sample transfer",
@@ -239,6 +240,20 @@ class MobileSearchHistoryScreenTest {
         } finally {
             TimeZone.setDefault(previous)
         }
+    }
+
+    @Test
+    fun namelessSharedFilesAndTransfersReadNoTitle() {
+        val items = listOf(
+            HistoryEventKind.File(id = null, name = null),
+            HistoryEventKind.Transfer(transferId = null, fileId = null, name = null),
+        ).mapIndexed { index, kind -> HistoryItem(HistoryEventId(index + 1L), "2026-09-09T15:25:32", kind) }
+        setScreen(history = HistoryState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+
+        compose.onNodeWithText("History").performClick()
+        compose.onAllNodesWithText("No title").assertCountEquals(2)
+        compose.onNodeWithText("Shared file · ", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Completed transfer · ", substring = true).assertIsDisplayed()
     }
 
     @Test

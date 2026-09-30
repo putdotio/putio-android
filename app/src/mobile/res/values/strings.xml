@@ -264,11 +264,8 @@
     <string name="mobile_history_clearing">Clearing history</string>
     <string name="mobile_history_clear_error_title">Couldn’t clear history</string>
     <string name="mobile_history_open_file">Open file</string>
-    <string name="mobile_history_file">File</string>
-    <string name="mobile_history_transfer">Transfer</string>
     <string name="mobile_history_shared_file">Shared file</string>
     <string name="mobile_history_completed_transfer">Completed transfer</string>
-    <string name="mobile_history_uploaded_file">Uploaded file</string>
     <string name="mobile_history_transfer_error">Error in transfer %1$s</string>
     <string name="mobile_history_rss_file_deleted">We had to delete %1$s per your instructions, since there wasn’t enough free space.</string>
     <string name="mobile_history_rss_filter_paused">%1$s is paused because we couldn’t reach the source</string>

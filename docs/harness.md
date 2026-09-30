@@ -775,9 +775,9 @@ adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.T
   io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-Mobile screenshots go to `copy-proof-<UUID>/`: `01` each event's copy, `02`
-history off, `03` and `04` the quota used and free, `05` and `06` Trash with
-items and empty. TV screenshots go to `tv-copy-proof-<UUID>/`: `01` History
+Mobile screenshots go to `copy-proof-<UUID>/`: `01` History after asserting
+each event's copy, `02` history off, `03` and `04` the quota used and free,
+`05` and `06` Trash with items and empty. TV screenshots go to `tv-copy-proof-<UUID>/`: `01` History
 with only the shared file and completed transfer, `02` the quota used, `03`
 Trash's retention line, `04` history off, `05` the quota free. Remove the
 screenshot directories afterwards.
@@ -842,8 +842,9 @@ adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc
 ```
 
 The pane is disabled when the account's `history_enabled` setting is off and
-names Account's Keep account history switch; either surface's Account screen
-toggles it, and the TV pane follows on the next session validation.
+names Account's Keep account history switch. TV's own Account toggle flips the
+pane as soon as the setting is confirmed; a change made on mobile or the web
+reaches it on the next session validation.
 
 ## TV Files actions proof
 

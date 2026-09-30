@@ -16,9 +16,9 @@ value class HistoryTransferId(
 )
 
 sealed interface HistoryEventKind {
-    /** `file_shared`. */
+    /** `file_shared`; an event without [id] opens nothing but still names the file. */
     data class File(
-        val id: HistoryFileId,
+        val id: HistoryFileId?,
         val name: String?,
     ) : HistoryEventKind
 

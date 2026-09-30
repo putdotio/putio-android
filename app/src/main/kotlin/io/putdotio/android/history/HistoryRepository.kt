@@ -59,13 +59,12 @@ private fun HistoryEvent.toHistoryItem(): HistoryItem =
 
 private fun HistoryEvent.toHistoryEventKind(): HistoryEventKind =
     when (type) {
-        HistoryEventType.FILE_SHARED ->
-            fileId?.let { HistoryEventKind.File(HistoryFileId(it), fileName) } ?: HistoryEventKind.Other(type.raw)
+        HistoryEventType.FILE_SHARED -> HistoryEventKind.File(fileId?.let(::HistoryFileId), fileName.nonBlank())
         HistoryEventType.TRANSFER_COMPLETED ->
             HistoryEventKind.Transfer(
                 transferId = transferId?.let(::HistoryTransferId),
                 fileId = fileId?.let(::HistoryFileId),
-                name = transferName ?: fileName,
+                name = transferName.nonBlank() ?: fileName.nonBlank(),
             )
         HistoryEventType.UPLOAD -> notice(HistoryNoticeType.Upload, fileName)
         HistoryEventType.TRANSFER_ERROR -> notice(HistoryNoticeType.TransferError, transferName)
@@ -77,8 +76,9 @@ private fun HistoryEvent.toHistoryEventKind(): HistoryEventKind =
     }
 
 private fun HistoryEvent.notice(type: HistoryNoticeType, subject: String?): HistoryEventKind =
-    subject?.takeIf(String::isNotBlank)?.let { HistoryEventKind.Notice(type, it) }
-        ?: HistoryEventKind.Other(this.type.raw)
+    subject.nonBlank()?.let { HistoryEventKind.Notice(type, it) } ?: HistoryEventKind.Other(this.type.raw)
+
+private fun String?.nonBlank(): String? = this?.takeIf(String::isNotBlank)
 
 /**
  * Only the events [keep] accepts. A page it empties reads on from that page's oldest event,
