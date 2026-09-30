@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -42,6 +43,8 @@ import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.util.UUID
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -79,6 +82,136 @@ class TvPlayerProofTest {
 
     @Test
     fun selectPlaysTheFixtureAndBackReturnsToItsRow() {
+        val factory = mountFilesWithPlayer()
+        compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
+        pause()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
+        screenshot("01-files-row-focused")
+        pause()
+
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) {
+            it.playbackState == Player.STATE_READY && it.isPlaying && factory.renderedFrame &&
+                it.currentPosition > 1_000L && it.videoSize.width > 0
+        }
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        screenshot("02-playing-controls")
+        // Controls hide three seconds into playback.
+        elapse(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 1_500L)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+        screenshot("03-playing-clean")
+
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { !it.playWhenReady }
+        compose.onNodeWithContentDescription("Paused").assertExists()
+        screenshot("04-paused")
+        pause()
+
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.isPlaying }
+        pause()
+
+        val player = factory.current()
+        // The first Back hides the controls; the second leaves.
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(10_000) { compose.runOnIdle { playing == null } }
+        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
+        compose.runOnIdle {
+            assertNull(playing)
+            assertTrue("Leaving playback releases the player", factory.released(player))
+        }
+        screenshot("05-back-on-files-row")
+        pause()
+    }
+
+    @Test
+    fun dpadScrubbingAndBackWalkTheOverlayStack() {
+        val factory = mountFilesWithPlayer()
+        compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) {
+            it.playbackState == Player.STATE_READY && it.isPlaying && factory.renderedFrame &&
+                it.currentPosition > 1_000L
+        }
+        elapse(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 1_000L)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+        screenshot("10-playing-clean")
+
+        // Right twice: the first press reveals the controls, pauses and targets +15 s; the second
+        // grows the step when it lands inside the press window.
+        val before = compose.runOnIdle { factory.current().currentPosition }
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        awaitPlayer(factory) { !it.playWhenReady }
+        val target = shownElapsedSeconds()
+        assertTrue("Scrub target $target s from ${before / 1_000L} s", target * 1_000L >= before + 30_000L - 1_000L)
+        val paused = compose.runOnIdle { factory.current().currentPosition }
+        assertTrue("Nothing seeks before the commit", paused < target * 1_000L - 10_000L)
+        screenshot("11-seek-mode")
+        pause()
+
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.isPlaying && it.currentPosition >= target * 1_000L - 1_000L }
+        screenshot("12-seek-committed")
+        pause()
+
+        // Rewind scrubs back; Back dismisses seek mode without seeking and resumes playback.
+        val committed = compose.runOnIdle { factory.current().currentPosition }
+        press(KeyEvent.KEYCODE_MEDIA_REWIND)
+        awaitPlayer(factory) { !it.playWhenReady }
+        assertTrue(shownElapsedSeconds() * 1_000L <= committed - 14_000L)
+        screenshot("13-seek-mode-rewind")
+        pause()
+        press(KeyEvent.KEYCODE_BACK)
+        awaitPlayer(factory) { it.isPlaying }
+        val resumed = compose.runOnIdle { factory.current().currentPosition }
+        assertTrue("Dismissing seek mode keeps the time", resumed >= committed)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertExists()
+        screenshot("14-seek-dismissed")
+        pause()
+
+        // Back hides the playing controls; playback continues and the player keeps focus.
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        awaitPlayer(factory) { it.isPlaying }
+        assertNotNull("Still playing", playing)
+        screenshot("15-controls-dismissed")
+        pause()
+
+        // Paused controls dismiss without resuming or leaving.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { !it.playWhenReady }
+        compose.onNodeWithContentDescription("Paused").assertExists()
+        screenshot("16-paused-controls")
+        pause()
+        press(KeyEvent.KEYCODE_BACK)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+        elapse(STEP_PAUSE_MILLIS)
+        compose.runOnIdle {
+            assertFalse("Still paused", factory.current().playWhenReady)
+            assertNotNull("Still in playback", playing)
+        }
+        screenshot("17-paused-clean")
+
+        // Nothing left: Back leaves to the row, once.
+        val player = factory.current()
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(10_000) { compose.runOnIdle { playing == null } }
+        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
+        compose.runOnIdle { assertTrue(factory.released(player)) }
+        screenshot("18-back-on-files-row")
+        pause()
+    }
+
+    private var playing by mutableStateOf<FilesItem?>(null)
+
+    /** A fixed Files listing whose media row plays the local fixture on the production player. */
+    private fun mountFilesWithPlayer(): ProofPlayerFactory {
         val source = localSource()
         val factory = ProofPlayerFactory()
         val video = row(FIXTURE_FILE_ID, FIXTURE_TITLE, PutioFileType.VIDEO)
@@ -95,7 +228,6 @@ class TvPlayerProofTest {
             nextRequestValue = 1L,
         )
         val focusMemory = mutableMapOf<Long, Long>()
-        var playing by mutableStateOf<FilesItem?>(null)
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvPlaybackLayer(
@@ -132,45 +264,14 @@ class TvPlayerProofTest {
                 }
             }
         }
-        compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
-        pause()
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
-        screenshot("01-files-row-focused")
-        pause()
+        return factory
+    }
 
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitPlayer(factory) {
-            it.playbackState == Player.STATE_READY && it.isPlaying && factory.renderedFrame &&
-                it.currentPosition > 1_000L && it.videoSize.width > 0
-        }
-        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
-        screenshot("02-playing-controls")
-        // Controls hide three seconds into playback.
-        elapse(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 1_500L)
-        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
-        screenshot("03-playing-clean")
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitPlayer(factory) { !it.playWhenReady }
-        compose.onNodeWithContentDescription("Paused").assertExists()
-        screenshot("04-paused")
-        pause()
-
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        awaitPlayer(factory) { it.isPlaying }
-        pause()
-
-        val player = factory.current()
-        press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(10_000) { compose.runOnIdle { playing == null } }
-        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
-        compose.runOnIdle {
-            assertNull(playing)
-            assertTrue("Leaving playback releases the player", factory.released(player))
-        }
-        screenshot("05-back-on-files-row")
-        pause()
+    /** The elapsed label, which shows a pending scrub's target. */
+    private fun shownElapsedSeconds(): Long {
+        val text = compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).fetchSemanticsNode()
+            .config[SemanticsProperties.Text].joinToString("") { it.text }
+        return text.split(":").fold(0L) { total, part -> total * 60L + part.toLong() }
     }
 
     private fun press(keyCode: Int) {

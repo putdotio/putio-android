@@ -235,6 +235,7 @@
     <string name="tv_player_loading">Loading</string>
     <string name="tv_player_playing">Playing</string>
     <string name="tv_player_paused">Paused</string>
+    <string name="tv_player_seek_bar">%1$s of %2$s</string>
     <string name="tv_player_error_title">Couldn’t play this file</string>
     <string name="tv_player_error_message">Check the network and try again.</string>
     <string name="tv_player_retry">Try again</string>

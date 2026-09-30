@@ -4,16 +4,21 @@ import android.os.Build
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +31,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -39,7 +45,10 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -70,14 +79,17 @@ import kotlinx.coroutines.delay
 
 internal const val TV_PLAYER_TAG = "tv-player"
 internal const val TV_PLAYER_CONTROLS_TAG = "tv-player-controls"
+internal const val TV_PLAYER_SEEK_BAR_TAG = "tv-player-seek-bar"
+internal const val TV_PLAYER_ELAPSED_TAG = "tv-player-elapsed"
 internal const val TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS = 3_000L
 private const val TV_PLAYER_POSITION_POLL_MILLIS = 500L
 private const val TV_PLAYER_SCRIM_ALPHA = 0.75f
 
 /**
  * Full-screen TV playback of one Files item: the resolved source plays at once, Center or
- * the remote's play/pause key toggles playback, any key reveals the title and progress for
- * three seconds (they stay while paused), and Back leaves playback.
+ * the remote's play/pause key toggles playback, any key reveals the title and seek bar for
+ * three seconds (they stay while paused), Left, Right, rewind and fast-forward scrub, and
+ * Back dismisses seek mode, then the controls, before it leaves playback.
  */
 @Composable
 internal fun TvPlayerScreen(
@@ -89,7 +101,8 @@ internal fun TvPlayerScreen(
     modifier: Modifier = Modifier,
     playerFactory: TvPlayerFactory = DefaultTvPlayerFactory,
 ) {
-    BackHandler(onBack = onBack)
+    // Ready playback registers its own Back for the overlay stack.
+    BackHandler(enabled = state.content !is PlaybackContent.Ready, onBack = onBack)
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         when (val content = state.content) {
             is PlaybackContent.Ready ->
@@ -99,7 +112,7 @@ internal fun TvPlayerScreen(
                     resumePositionMillis = state.resumePositionMillis,
                     playerFactory = playerFactory,
                     onPlayerFailure = onPlayerFailure,
-                    onEnded = onBack,
+                    onExit = onBack,
                 )
 
             is PlaybackContent.AwaitingResume -> {
@@ -146,12 +159,26 @@ private fun TvReadyPlayer(
     resumePositionMillis: Long?,
     playerFactory: TvPlayerFactory,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
-    onEnded: () -> Unit,
+    onExit: () -> Unit,
 ) {
     val context = LocalContext.current
     val player = remember(source, playerFactory) { playerFactory.create(context, target.mediaType) }
     val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
-    val currentOnEnded by rememberUpdatedState(onEnded)
+    val currentOnExit by rememberUpdatedState(onExit)
+    var overlay by remember(player) { mutableStateOf(TvPlayerOverlay()) }
+    val apply: (TvPlayerTransition) -> Unit = remember(player) {
+        { transition ->
+            overlay = transition.overlay
+            transition.commands.forEach { command ->
+                when (command) {
+                    TvPlayerCommand.Play -> player.play()
+                    TvPlayerCommand.Pause -> player.pause()
+                    is TvPlayerCommand.SeekTo -> player.seekTo(command.positionMillis)
+                    TvPlayerCommand.Exit -> currentOnExit()
+                }
+            }
+        }
+    }
     var playWhenReady by remember(player) { mutableStateOf(true) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
     DisposableEffect(player) {
@@ -162,7 +189,7 @@ private fun TvReadyPlayer(
 
             override fun onPlaybackStateChanged(value: Int) {
                 playbackState = value
-                if (value == Player.STATE_ENDED) currentOnEnded()
+                if (value == Player.STATE_ENDED) apply(overlay.ended())
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -179,8 +206,13 @@ private fun TvReadyPlayer(
             player.release()
         }
     }
-    // Home or another app takes the screen: stop where we are and let the viewer resume.
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.pause() }
+    // Back walks the overlay stack before it leaves; see TvPlayerOverlay.back.
+    BackHandler { apply(overlay.back()) }
+    // Home or another app takes the screen: stop where we are and show the paused controls.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        apply(overlay.setPlaying(play = false))
+        apply(overlay.reveal())
+    }
     val view = LocalView.current
     val keepScreenOn = playWhenReady && playbackState != Player.STATE_ENDED && playbackState != Player.STATE_IDLE
     DisposableEffect(view, keepScreenOn) {
@@ -188,12 +220,11 @@ private fun TvReadyPlayer(
         onDispose { view.keepScreenOn = false }
     }
 
-    var controlsRevealed by remember(player) { mutableStateOf(true) }
-    var controlsActivity by remember(player) { mutableIntStateOf(0) }
-    LaunchedEffect(controlsRevealed, playWhenReady, controlsActivity) {
-        if (controlsRevealed && playWhenReady) {
+    // Playing controls hide after three seconds without a key; paused or scrubbing ones stay.
+    LaunchedEffect(overlay.controlsVisible, overlay.activity, playWhenReady, overlay.scrub == null) {
+        if (overlay.controlsVisible && playWhenReady && overlay.scrub == null) {
             delay(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS)
-            controlsRevealed = false
+            apply(overlay.hideTimedOut())
         }
     }
     val focus = remember { FocusRequester() }
@@ -204,16 +235,31 @@ private fun TvReadyPlayer(
             .testTag(TV_PLAYER_TAG)
             .focusRequester(focus)
             .onKeyEvent { event ->
-                // Back belongs to the screen's BackHandler; everything else is the player's.
+                // Back belongs to the BackHandler; everything else is the player's.
                 if (event.key == Key.Back || event.key !in TV_PLAYER_KEYS) return@onKeyEvent false
                 if (event.type == KeyEventType.KeyDown) {
-                    controlsRevealed = true
-                    controlsActivity += 1
+                    val direction = event.key.scrubDirection()
+                    apply(
+                        if (direction != null && player.canScrub()) {
+                            overlay.scrub(
+                                direction = direction,
+                                positionMillis = player.currentPosition.coerceAtLeast(0L),
+                                durationMillis = player.duration,
+                                playing = player.playWhenReady,
+                                nowMillis = event.nativeKeyEvent.eventTime,
+                                repeat = event.nativeKeyEvent.repeatCount > 0,
+                            )
+                        } else {
+                            overlay.reveal()
+                        },
+                    )
                 } else if (event.type == KeyEventType.KeyUp) {
-                    when (event.key.playbackCommand(player.playWhenReady)) {
-                        true -> player.play()
-                        false -> player.pause()
-                        null -> Unit
+                    when (event.key) {
+                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause ->
+                            apply(overlay.select(player.playWhenReady))
+                        Key.MediaPlay -> apply(overlay.setPlaying(play = true))
+                        Key.MediaPause -> apply(overlay.setPlaying(play = false))
+                        else -> Unit
                     }
                 }
                 true
@@ -227,18 +273,19 @@ private fun TvReadyPlayer(
                 surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
             )
         }
-        if (controlsRevealed || !playWhenReady) {
+        if (overlay.controlsVisible) {
             TvPlayerControls(
                 player = player,
                 title = target.name,
                 paused = !playWhenReady,
+                scrubTargetMillis = overlay.scrub?.targetMillis,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
     }
 }
 
-/** Keys the player handles itself: the D-pad (so focus stays put) and play/pause. */
+/** Keys the player handles itself: the D-pad (so focus stays put), play/pause and scrubbing. */
 private val TV_PLAYER_KEYS = setOf(
     Key.DirectionCenter,
     Key.Enter,
@@ -250,22 +297,33 @@ private val TV_PLAYER_KEYS = setOf(
     Key.MediaPlayPause,
     Key.MediaPlay,
     Key.MediaPause,
+    Key.MediaFastForward,
+    Key.MediaRewind,
 )
 
-/** True to play, false to pause, null for a key that only reveals the controls. */
-private fun Key.playbackCommand(playWhenReady: Boolean): Boolean? =
+/**
+ * Left, Right, rewind and fast-forward scrub. The seek bar is the overlay's only focus target
+ * until the track and speed buttons land, so rewind and fast-forward need no focus capture yet.
+ */
+private fun Key.scrubDirection(): TvScrubDirection? =
     when (this) {
-        Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause -> !playWhenReady
-        Key.MediaPlay -> true
-        Key.MediaPause -> false
+        Key.DirectionLeft, Key.MediaRewind -> TvScrubDirection.Backward
+        Key.DirectionRight, Key.MediaFastForward -> TvScrubDirection.Forward
         else -> null
     }
+
+private fun Player.canScrub(): Boolean =
+    isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM) &&
+        isCurrentMediaItemSeekable &&
+        duration != C.TIME_UNSET &&
+        duration > 0L
 
 @Composable
 private fun TvPlayerControls(
     player: Player,
     title: String,
     paused: Boolean,
+    scrubTargetMillis: Long?,
     modifier: Modifier = Modifier,
 ) {
     var positionMillis by remember(player) { mutableLongStateOf(player.currentPosition.coerceAtLeast(0L)) }
@@ -279,7 +337,13 @@ private fun TvPlayerControls(
             delay(TV_PLAYER_POSITION_POLL_MILLIS)
         }
     }
+    // A pending scrub shows its target until it is committed or dismissed.
+    val shownMillis = scrubTargetMillis ?: positionMillis
     val knownDuration = durationMillis.takeIf { it != C.TIME_UNSET && it > 0L }
+    val elapsed = shownMillis.elapsedLabel()
+    val seekBarDescription = knownDuration?.let {
+        stringResource(R.string.tv_player_seek_bar, elapsed, it.elapsedLabel())
+    } ?: elapsed
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -296,21 +360,11 @@ private fun TvPlayerControls(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth(TITLE_WIDTH_FRACTION),
         )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .clearAndSetSemantics {},
-        ) {
-            val fraction = knownDuration?.let { (positionMillis.toFloat() / it).coerceIn(0f, 1f) } ?: 0f
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(fraction)
-                    .height(4.dp)
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        }
+        TvSeekBar(
+            fraction = knownDuration?.let { (shownMillis.toFloat() / it).coerceIn(0f, 1f) } ?: 0f,
+            description = seekBarDescription,
+            scrubbing = scrubTargetMillis != null,
+        )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -318,9 +372,10 @@ private fun TvPlayerControls(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = positionMillis.elapsedLabel(),
+                    text = elapsed,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.testTag(TV_PLAYER_ELAPSED_TAG),
                 )
                 Icon(
                     painter = painterResource(if (paused) R.drawable.ic_ph_play_fill else R.drawable.ic_ph_pause_fill),
@@ -342,7 +397,55 @@ private fun TvPlayerControls(
     }
 }
 
+/**
+ * The played part in `primary` over `surfaceVariant`, with a thumb at the playhead: the seek
+ * bar holds the overlay's focus, as the RN player's did. Scrubbing enlarges the thumb.
+ */
+@Composable
+private fun TvSeekBar(fraction: Float, description: String, scrubbing: Boolean) {
+    val thumb = if (scrubbing) SEEK_THUMB_SCRUBBING else SEEK_THUMB
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(SEEK_THUMB_SCRUBBING)
+            .testTag(TV_PLAYER_SEEK_BAR_TAG)
+            .clearAndSetSemantics {
+                contentDescription = description
+                progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f)
+            },
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(SEEK_TRACK)
+                .clip(RoundedCornerShape(SEEK_TRACK / 2))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction)
+                    .height(SEEK_TRACK)
+                    .background(MaterialTheme.colorScheme.primary),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .offset(x = (maxWidth * fraction - thumb / 2).coerceIn(0.dp, maxWidth - thumb))
+                .size(thumb)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .border(SEEK_THUMB_BORDER, Color.White.copy(alpha = SEEK_THUMB_BORDER_ALPHA), CircleShape),
+        )
+    }
+}
+
 private fun Long.elapsedLabel(): String = DateUtils.formatElapsedTime(this / MILLIS_PER_SECOND)
 
 private const val MILLIS_PER_SECOND = 1_000L
 private const val TITLE_WIDTH_FRACTION = 0.8f
+private const val SEEK_THUMB_BORDER_ALPHA = 0.25f
+private val SEEK_TRACK = 8.dp
+private val SEEK_THUMB = 20.dp
+private val SEEK_THUMB_SCRUBBING = 28.dp
+private val SEEK_THUMB_BORDER = 3.dp

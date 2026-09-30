@@ -553,8 +553,12 @@ Center on a media row opens the TV player; Back returns to that row. See
 Behaviour: [TV playback](./behavior.md#tv-playback). `TvPlayerProofTest`
 (`androidTestTv`) mounts a fixed Files listing, the TV shell and the real TV
 player screen with the production ExoPlayer factory, then drives it with D-pad
-key events: Down to the video row, Center to play, Center to pause and resume,
-Back to the row. It makes no API calls; the listing and the resolved source
+key events. `selectPlaysTheFixtureAndBackReturnsToItsRow`: Down to the video
+row, Center to play, Center to pause and resume, Back to hide the controls and
+Back to the row. `dpadScrubbingAndBackWalkTheOverlayStack`: Right twice to
+scrub, Center to commit, rewind then Back to dismiss seek mode, Back to hide
+the playing controls, Center then Back to hide the paused controls, and Back
+to the row. It makes no API calls; the listing and the resolved source
 stand in for a signed-in session, so report it as controlled-state proof.
 
 ```bash
@@ -574,8 +578,11 @@ adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.p
 The fixture must sit under the app's external files directory; an `.m3u8`
 plays as HLS, anything else as the original file. Start
 `scripts/evidence.sh record --allow-dark` just before the instrumentation for
-the clip. Screenshots go to `tv-player-proof-<UUID>/`: the focused row,
-playing with controls, playing clean, paused, and back on the row. The
+the clip; append `#<method>` to the class to record one flow. Screenshots go
+to `tv-player-proof-<UUID>/`: `01`–`05` for the first flow (focused row,
+playing with controls, playing clean, paused, back on the row) and `10`–`18`
+for the second (clean, seek mode, committed, rewind seek mode, seek dismissed,
+controls dismissed, paused controls, paused clean, back on the row). The
 proof keeps the Compose test clock in step with real time so the auto-hide
 and position timers run as they do in the app. Remove the fixture and
 screenshot directories afterwards.
