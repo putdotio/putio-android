@@ -124,9 +124,11 @@ within 10 seconds of the known duration counts as finished (iOS main's
 threshold): the video or audio starts from the beginning without asking, on
 both surfaces and for autoplay. The server keeps that position, so the file
 still reads as watched with its progress bar. The duration comes from the
-listing; when the opened target has none (mobile opens, search, History, deep
-links), resolution lists the file once to read it, and without one the saved
-position is offered as before. The retained
+listing. When a video with a saved position opens without one (search, History,
+product links, a row without `video_metadata`), resolution lists the file once
+to read it, keeps it for the prompt and retries, and a failed read leaves the
+duration unknown: mobile then offers the saved position, and TV continues from
+it without asking. Audio never needs the read. The retained
 controller keeps that decision across Activity recreation. Live audio attachment
 and retained player-error recovery bypass the prompt. Start over starts locally
 at zero; it does not immediately reset the server position.
@@ -260,8 +262,9 @@ player did: a centred dialog with the raw file name, a progress bar and
 stacked Continue playing from `mm:ss` and Start from the beginning buttons.
 Continue takes focus; the bar previews where the focused choice starts. Back
 leaves playback, as the RN prompt and mobile's do. The dialog needs the
-listing's duration; without one the saved position is continued without asking,
-as the RN player did.
+listing's duration, or the one resolution read for a target without it;
+without either the saved position is continued without asking, as the RN
+player did.
 
 With Account's Autoplay next video on (the confirmed `autoplay_next_video`), a
 finished video plays the next one in its folder by the shared rules mobile

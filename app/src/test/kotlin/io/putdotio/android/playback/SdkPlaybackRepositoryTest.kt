@@ -117,6 +117,30 @@ class SdkPlaybackRepositoryTest {
         }
 
     @Test
+    fun aFailedDurationLookupStillResolvesAndCancellationPropagates() {
+        fun repository(lookupFailure: Exception) = SdkPlaybackRepository(
+            playbackPreference = { PlaybackPreference.HLS },
+            loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+            resolvePlayback = {
+                io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource().copy(startFromSeconds = 1_255.0))
+            },
+            listFolder = { _, _ -> throw lookupFailure },
+        )
+        val failed = runBlocking { repository(IllegalStateException("listing failed")).resolve(Target) }
+        val ready = (failed as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
+        assertEquals(1_255.0, ready.source.startFromSeconds, 0.0)
+        assertNull(ready.durationSeconds)
+
+        val cancellation = CancellationException("route closed")
+        try {
+            runBlocking { repository(cancellation).resolve(Target) }
+            fail("Expected cancellation")
+        } catch (actual: CancellationException) {
+            assertSame(cancellation, actual)
+        }
+    }
+
+    @Test
     fun preservesTheResolvedReadySource() =
         runBlocking {
             val source = playbackSource()

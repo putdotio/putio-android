@@ -403,6 +403,37 @@ class PlaybackReducerTest {
     }
 
     @Test
+    fun aLookedUpDurationStaysOnTheTargetForThePromptAndRetries() {
+        val pending = PlaybackReducer.reduce(
+            PlaybackReducer.start(Target).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true, durationSeconds = 1_200.0),
+            ),
+        )
+        assertTrue(pending.state.content is PlaybackContent.AwaitingResume)
+        assertEquals(Target.copy(durationSeconds = 1_200.0), pending.state.target)
+        val resumed = PlaybackReducer.reduce(pending.state, PlaybackEvent.Resume)
+        val failure = PlaybackFailure.Unexpected(IllegalStateException("decoder"))
+        val failed = PlaybackReducer.reduce(resumed.state, PlaybackEvent.PlayerFailed(failure, 12_000L))
+        val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
+        assertEquals(
+            PlaybackEffect.Resolve(Target.copy(durationSeconds = 1_200.0), PlaybackRequestId(2L)),
+            retry.effect,
+        )
+
+        // A listing's duration is not replaced.
+        val listed = PlaybackReducer.reduce(
+            PlaybackReducer.start(Target.copy(durationSeconds = 900.0)).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(playbackSource(), useStartFrom = true, durationSeconds = 1_200.0),
+            ),
+        )
+        assertEquals(900.0, listed.state.target.durationSeconds)
+    }
+
+    @Test
     fun autoplayStartsAFinishedNextVideoOverWithoutAPrompt() {
         val finding = PlaybackReducer.reduce(readyState().copy(resumePositionMillis = 0L), PlaybackEvent.PlayerEnded)
         val next = Target.copy(fileId = FilesItemId(43L), name = "next.mkv", durationSeconds = 15.0)

@@ -50,8 +50,11 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackReducer
+import io.putdotio.android.playback.PlaybackRequestId
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.tv.TvShell
@@ -526,6 +529,36 @@ class TvPlayerScreenTest {
         }
         compose.runOnIdle { assertEquals(1, resumes) }
         compose.onNodeWithText(CONTINUE_LABEL).assertDoesNotExist()
+    }
+
+    @Test
+    fun aDurationReadAtResolutionOffersTheChoice() {
+        val pending = PlaybackReducer.reduce(
+            PlaybackReducer.start(readyState().target).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(
+                    source(startFromSeconds = SAVED_SECONDS.toDouble()),
+                    useStartFrom = true,
+                    durationSeconds = DURATION_SECONDS.toDouble(),
+                ),
+            ),
+        ).state
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlayerScreen(
+                    state = pending,
+                    onBack = {},
+                    onRetry = {},
+                    onResume = { error("The choice is offered") },
+                    onRestart = { error("The choice is offered") },
+                    onPlayerFailure = { _, _ -> },
+                    playerFactory = { _, _ -> error("No player before the choice") },
+                )
+            }
+        }
+        compose.onNodeWithText(CONTINUE_LABEL).assertIsDisplayed()
+        assertResumeProgress(SAVED_SECONDS / DURATION_SECONDS)
     }
 
     @Test

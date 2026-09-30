@@ -1003,7 +1003,7 @@ the original orientation and bar visibility. Saved-state recreation uses Compose
 `portraitVideoKeepsAnUnlockedPortraitWindow` runs only with
 `putio.video.fullscreen.portraitFixture` (any portrait MP4 under the same
 directory, for example `ffmpeg -f lavfi -i testsrc2=size=720x1280:rate=30:duration=20
--f lavfi -i sine=duration=20 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest`): from an
+-f lavfi -i sine=duration=20 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest portrait.mp4`): from an
 unlocked portrait window, the video plays full-screen in portrait with the bars
 hidden and no orientation request, and Back restores the bars.
 
