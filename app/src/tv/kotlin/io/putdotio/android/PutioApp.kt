@@ -37,7 +37,6 @@ import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.SdkAccountSettingsRepository
-import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
@@ -55,6 +54,7 @@ import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvLinkScreen
 import io.putdotio.android.tv.TvSession
 import io.putdotio.android.tv.TvSessionDependencies
+import io.putdotio.android.tv.tvAppConfigRepository
 import io.putdotio.android.tv.TvSessionViewModel
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.TvStatusScreen
@@ -127,7 +127,7 @@ private fun TvSignedInApp(
             historyRepository = SdkHistoryRepository(runtime.putioClient),
             trashRepository = SdkTrashRepository(runtime.putioClient),
             settingsRepository = SdkAccountSettingsRepository(runtime.putioClient),
-            appConfigRepository = SdkAndroidAppConfigRepository(runtime.putioClient),
+            appConfigRepository = tvAppConfigRepository(runtime.putioClient),
             watchedRepository = SdkFilesWatchedRepository(runtime.putioClient),
             streamUrls = SdkFilesStreamUrls(runtime.putioClient),
             filesItemResolver = filesRepository,

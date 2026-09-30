@@ -52,6 +52,76 @@ class TvAuthControllerTest {
     }
 
     @Test
+    fun `a tv-native token put io accepts is stored and signs in without a code`() = runTest {
+        val harness = Harness(legacyToken = "fake-legacy-token")
+
+        harness.controller.restoreSession()
+
+        assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
+        assertEquals("fake-legacy-token", harness.tokenStore.stored?.reveal())
+        assertEquals(1, harness.legacySession.deletes)
+        assertNull(harness.legacySession.token)
+        assertEquals(listOf("set", "validate"), harness.gateway.calls)
+    }
+
+    @Test
+    fun `a tv-native token without an accepting verdict is deleted and a fresh code offered`() = runTest {
+        listOf(
+            TvSessionValidation.Rejected,
+            TvSessionValidation.Unavailable(IOException("offline")),
+        ).forEach { verdict ->
+            val harness = Harness(legacyToken = "fake-legacy-token", validation = verdict)
+
+            harness.controller.restoreSession()
+
+            assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
+            assertNull(harness.tokenStore.stored)
+            assertEquals(1, harness.legacySession.deletes)
+            assertEquals(listOf("set", "validate", "clear", "link"), harness.gateway.calls)
+        }
+    }
+
+    @Test
+    fun `a tv-native token the keystore cannot hold is deleted and storage reported unavailable`() = runTest {
+        val harness = Harness(legacyToken = "fake-legacy-token", tokenStore = FakeTokenStore(writeFails = true))
+
+        harness.controller.restoreSession()
+
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
+            harness.controller.state.value,
+        )
+        assertEquals(1, harness.legacySession.deletes)
+        assertEquals(listOf("set", "validate", "clear"), harness.gateway.calls)
+    }
+
+    @Test
+    fun `a keystore session leaves tv-native storage unread`() = runTest {
+        val harness = Harness(storedToken = "stored-token", legacyToken = "fake-legacy-token")
+
+        harness.controller.restoreSession()
+
+        assertEquals("stored-token", harness.tokenStore.stored?.reveal())
+        assertEquals(0, harness.legacySession.reads)
+        assertEquals(0, harness.legacySession.deletes)
+    }
+
+    @Test
+    fun `a tv-native import cancelled mid validation keeps the legacy copy for the next launch`() = runTest {
+        val harness = Harness(legacyToken = "fake-legacy-token")
+        harness.gateway.validationGate = CompletableDeferred()
+        val restore = launch(start = CoroutineStart.UNDISPATCHED) { harness.controller.restoreSession() }
+
+        restore.cancel()
+        restore.join()
+
+        assertEquals(TvAuthState.Initializing, harness.controller.state.value)
+        assertNull(harness.tokenStore.stored)
+        assertEquals(0, harness.legacySession.deletes)
+        assertEquals(listOf("set", "validate", "clear"), harness.gateway.calls)
+    }
+
+    @Test
     fun `no stored token starts a link attempt and shows the code`() = runTest {
         val harness = Harness()
 
@@ -361,8 +431,10 @@ class TvAuthControllerTest {
         val tokenStore: FakeTokenStore = FakeTokenStore(),
         pendingRevocation: String? = null,
         revocationResults: List<TokenRevocationResult> = emptyList(),
+        legacyToken: String? = null,
     ) {
         val gateway = FakeGateway(validation)
+        val legacySession = FakeLegacySession(legacyToken?.let { checkNotNull(AccessToken.parse(it)) })
         val scope = TestScope(UnconfinedTestDispatcher())
         val revocationStore = InMemoryAuthTokenStore(pendingRevocation?.let { checkNotNull(AccessToken.parse(it)) })
         val revoker = ScriptedTokenRevoker(*revocationResults.toTypedArray())
@@ -375,6 +447,7 @@ class TvAuthControllerTest {
                 gateway,
                 PendingTokenRevocations(revocationStore, tokenStore, revoker, scope),
                 scope,
+                legacySession,
             )
         }
     }
@@ -397,6 +470,23 @@ class TvAuthControllerTest {
 
         override suspend fun clear() {
             stored = null
+        }
+    }
+
+    private class FakeLegacySession(
+        var token: AccessToken?,
+    ) : LegacyTvSession {
+        var reads = 0
+        var deletes = 0
+
+        override suspend fun read(): AccessToken? {
+            reads += 1
+            return token
+        }
+
+        override suspend fun delete() {
+            deletes += 1
+            token = null
         }
     }
 

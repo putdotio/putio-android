@@ -52,6 +52,7 @@ class TvAuthRuntime internal constructor(
                         scope = applicationScope,
                     ),
                     scope = applicationScope,
+                    legacySession = AsyncStorageLegacyTvSession(context),
                 ),
                 applicationScope = applicationScope,
             )

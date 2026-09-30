@@ -40,6 +40,33 @@ gets revoked. Nothing in the path logs the token.
 Tests: `PendingTokenRevocationsTest`, `KeystoreAuthTokenStoreTest`,
 `MobileAuthControllerTest`, `TvAuthControllerTest`.
 
+## Upgrade from tv-native
+
+Android TV replaces the React Native TV app (putio-web `apps/tv-native`) under
+the same application id, so its data survives the update (#244). tv-native kept
+the token as a raw string under `@putio:auth_token` in React Native AsyncStorage
+1.23.1, whose Android backend is the SQLite database `RKStorage`, table
+`catalystLocalStorage`. On a start with no Keystore session, TV reads that token
+once and validates it with put.io before anything is stored. Accepted, it goes
+into the Keystore record and the shell opens without a code. Rejected, or with
+no verdict (offline, put.io down), it is dropped and TV offers a fresh code; a
+Keystore that cannot hold it shows storage unavailable. Every outcome deletes
+the whole `RKStorage` database, journals included; its only other key is
+tv-native's update notice. A start cancelled mid-validation keeps it for the
+next one, and a start with a Keystore session never reads it. Nothing logs it.
+
+`/config` is per user and OAuth app, and TV links as tv-native's clients, so a
+tv-native viewer's `playbackType` is already there. A TV read of `/config` with
+no `video_playback_type` key maps `playbackType` `hls` or `mp4` to it, writes it
+and plays that type; an existing `video_playback_type`, even one the app cannot
+parse, is never overwritten. A failed write still applies to that read, and the
+next read writes again. tv-native's `bufferSize` is not carried over: Android TV
+has no buffer setting and always buffers as tv-native's default `medium` (see
+[TV playback](#tv-playback)); the key is left untouched in `/config`.
+
+Tests: `TvAuthControllerTest`, `AsyncStorageLegacyTvSessionTest` (a fixture
+AsyncStorage database), `TvNativeConfigMigrationTest` (fixture `/config` blobs).
+
 ## Trash
 
 Every Trash action confirms, submits exactly once, then verifies with one fresh
