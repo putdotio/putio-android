@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -105,6 +108,33 @@ class DownloadsControllerTest {
         }
     }
 
+    @Test
+    fun progressRefreshesEverySecondOnlyWhileTheScreenIsShown() = runTest {
+        val engine = FakeDownloadEngine()
+        val controller = DownloadsController(FakeDownloadStore(), engine, backgroundScope)
+        runCurrent()
+        advanceTimeBy(3_000L)
+        assertEquals(0, engine.progressRefreshes)
+
+        assertTrue(controller.dispatch(DownloadsEvent.Shown))
+        assertFalse(controller.dispatch(DownloadsEvent.Shown))
+        runCurrent()
+        assertEquals(1, engine.progressRefreshes)
+        advanceTimeBy(2_000L)
+        runCurrent()
+        assertEquals(3, engine.progressRefreshes)
+
+        assertTrue(controller.dispatch(DownloadsEvent.Hidden))
+        advanceTimeBy(5_000L)
+        assertEquals(3, engine.progressRefreshes)
+
+        assertTrue(controller.dispatch(DownloadsEvent.Shown))
+        runCurrent()
+        controller.close()
+        advanceTimeBy(5_000L)
+        assertEquals(4, engine.progressRefreshes)
+    }
+
     private suspend fun DownloadsController.awaitState(predicate: (DownloadsState) -> Boolean): DownloadsState =
         withTimeout(5_000L) { state.first(predicate) }
 }
@@ -140,6 +170,8 @@ internal class FakeDownloadStore : DownloadStore {
 internal class FakeDownloadEngine : DownloadEngine {
     val started = mutableListOf<DownloadEntry>()
     val removed = mutableListOf<FilesItemId>()
+    var progressRefreshes = 0
+        private set
     private val removing = mutableSetOf<FilesItemId>()
     private val version = MutableStateFlow(0)
 
@@ -155,6 +187,10 @@ internal class FakeDownloadEngine : DownloadEngine {
     }
 
     override fun isRemoving(fileId: FilesItemId): Boolean = fileId in removing
+
+    override fun refreshProgress() {
+        progressRefreshes += 1
+    }
 
     suspend fun finishRemoval(fileId: FilesItemId, store: FakeDownloadStore) {
         removing -= fileId

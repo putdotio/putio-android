@@ -88,8 +88,6 @@ class PutioAuthSessionGatewayTest {
             calls += "account"
             return accountInfo()
         }
-
-        override suspend fun logout() = Unit
     }
 
     private companion object {

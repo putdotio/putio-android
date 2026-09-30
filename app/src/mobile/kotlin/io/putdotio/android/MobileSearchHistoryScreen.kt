@@ -60,7 +60,6 @@ import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
-import java.time.Instant
 import java.time.ZoneId
 
 internal const val MOBILE_SEARCH_FIELD_TAG = "mobile-search-field"
@@ -556,20 +555,13 @@ private fun MobileHistoryDialog(
 }
 
 private fun HistoryItem.dateKey(): String =
-    runCatching {
-        Instant.parse(createdAt).atZone(ZoneId.systemDefault()).toLocalDate().toString()
-    }.getOrDefault(createdAt)
+    parsePutioTimestamp(createdAt)?.atZone(ZoneId.systemDefault())?.toLocalDate()?.toString() ?: createdAt
 
 @Composable
 private fun HistoryItem.timeLabel(): String {
     val context = LocalContext.current
-    return runCatching {
-        DateUtils.formatDateTime(
-            context,
-            Instant.parse(createdAt).toEpochMilli(),
-            DateUtils.FORMAT_SHOW_TIME,
-        )
-    }.getOrDefault(createdAt)
+    val created = parsePutioTimestamp(createdAt) ?: return createdAt
+    return DateUtils.formatDateTime(context, created.toEpochMilli(), DateUtils.FORMAT_SHOW_TIME)
 }
 
 @Composable

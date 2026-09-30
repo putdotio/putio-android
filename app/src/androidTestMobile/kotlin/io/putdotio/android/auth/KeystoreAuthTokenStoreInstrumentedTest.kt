@@ -15,7 +15,7 @@ import java.security.KeyStore
 @RunWith(AndroidJUnit4::class)
 class KeystoreAuthTokenStoreInstrumentedTest {
     @Test
-    fun productionKeystoreRoundTripRejectsTampering() = runBlocking {
+    fun productionKeystoreRoundTripWipesTamperedRecord() = runBlocking {
         val context = IsolatedAuthTestContext(InstrumentationRegistry.getInstrumentation().targetContext)
         val preferences = context.getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE)
         val keyAlias = authTokenKeyAlias(context.packageName)
@@ -38,8 +38,9 @@ class KeystoreAuthTokenStoreInstrumentedTest {
                 encrypted.copy(ciphertext = tamperedCiphertext).serialize(),
             ).commit()
 
-            val tamperedRead = runCatching { store.read() }
-            assertTrue(tamperedRead.exceptionOrNull() is AuthTokenStorageException)
+            assertNull(store.read())
+            assertFalse(loadKeyStore().containsAlias(keyAlias))
+            assertNull(preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null))
         } finally {
             try {
                 store.clear()

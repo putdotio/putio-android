@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +15,7 @@ import java.security.GeneralSecurityException
 import java.security.KeyStore
 import java.security.ProviderException
 import java.util.Base64
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -43,6 +45,7 @@ internal class KeystoreAuthTokenStore internal constructor(
     private val preferences: SharedPreferences,
     private val tokenCipher: AuthTokenCipher,
     private val ioDispatcher: CoroutineDispatcher,
+    private val recordKey: String = ENCRYPTED_ACCESS_TOKEN_KEY,
 ) : AuthTokenStore {
     constructor(context: Context) : this(
         preferences = context.getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE),
@@ -50,13 +53,31 @@ internal class KeystoreAuthTokenStore internal constructor(
         ioDispatcher = Dispatchers.IO,
     )
 
+    /**
+     * A record that can never decrypt (missing key, failed GCM tag, malformed
+     * ciphertext or plaintext) is wiped with its key and read as absent, so the
+     * next sign-in starts clean. Anything else may be transient and throws.
+     */
     override suspend fun read(): AccessToken? = withContext(ioDispatcher) {
-        storageOperation(AUTH_STORAGE_READ_OPERATION) {
-            val serialized = preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null) ?: return@storageOperation null
-            val encryptedValue = EncryptedAuthTokenValue.deserialize(serialized)
-            val plaintext = tokenCipher.decrypt(encryptedValue)
-            AccessToken.parse(String(plaintext, StandardCharsets.UTF_8))
-                ?: throw IllegalArgumentException("Decrypted access token has an invalid shape")
+        try {
+            storageOperation(AUTH_STORAGE_READ_OPERATION) {
+                val serialized = preferences.getString(recordKey, null) ?: return@storageOperation null
+                val encryptedValue = EncryptedAuthTokenValue.deserialize(serialized)
+                val plaintext = tokenCipher.decrypt(encryptedValue)
+                AccessToken.parse(String(plaintext, StandardCharsets.UTF_8))
+                    ?: throw IllegalArgumentException("Decrypted access token has an invalid shape")
+            }
+        } catch (error: AuthTokenStorageException) {
+            if (error.cause?.isUndecryptableRecord() != true) {
+                throw error
+            }
+            try {
+                clear()
+            } catch (clearFailure: AuthTokenStorageException) {
+                clearFailure.addSuppressed(error)
+                throw clearFailure
+            }
+            null
         }
     }
 
@@ -64,7 +85,7 @@ internal class KeystoreAuthTokenStore internal constructor(
         storageOperation(AUTH_STORAGE_WRITE_OPERATION) {
             val plaintext = accessToken.reveal().toByteArray(StandardCharsets.UTF_8)
             val serialized = tokenCipher.encrypt(plaintext).serialize()
-            if (!preferences.edit().putString(ENCRYPTED_ACCESS_TOKEN_KEY, serialized).commit()) {
+            if (!preferences.edit().putString(recordKey, serialized).commit()) {
                 throw AuthTokenStorageException(AUTH_STORAGE_WRITE_OPERATION)
             }
         }
@@ -83,7 +104,7 @@ internal class KeystoreAuthTokenStore internal constructor(
 
         try {
             storageOperation(AUTH_STORAGE_CLEAR_OPERATION) {
-                if (!preferences.edit().remove(ENCRYPTED_ACCESS_TOKEN_KEY).commit()) {
+                if (!preferences.edit().remove(recordKey).commit()) {
                     throw AuthTokenStorageException(AUTH_STORAGE_CLEAR_OPERATION)
                 }
             }
@@ -93,6 +114,20 @@ internal class KeystoreAuthTokenStore internal constructor(
 
         clearFailure?.let { throw it }
         Unit
+    }
+
+    companion object {
+        /**
+         * A signed-out token whose revocation put.io has not confirmed yet. It has its
+         * own record and Keystore key, so clearing the session never drops it.
+         */
+        fun pendingRevocation(context: Context): KeystoreAuthTokenStore =
+            KeystoreAuthTokenStore(
+                preferences = context.getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE),
+                tokenCipher = AndroidKeystoreAuthTokenCipher(pendingRevocationKeyAlias(context.packageName)),
+                ioDispatcher = Dispatchers.IO,
+                recordKey = PENDING_REVOCATION_TOKEN_KEY,
+            )
     }
 }
 
@@ -149,7 +184,7 @@ private class AndroidKeystoreAuthTokenCipher(
 
     override fun decrypt(value: EncryptedAuthTokenValue): ByteArray {
         val key = keyStore.getKey(keyAlias, null) as? SecretKey
-            ?: throw GeneralSecurityException("Android Keystore access-token key is missing")
+            ?: throw MissingAuthTokenKeyException()
         val cipher = Cipher.getInstance(AUTH_CIPHER_TRANSFORMATION)
         cipher.init(
             Cipher.DECRYPT_MODE,
@@ -206,6 +241,15 @@ private inline fun <T> storageOperation(
         throw AuthTokenStorageException(operation, error)
     }
 
+internal class MissingAuthTokenKeyException : GeneralSecurityException("Android Keystore access-token key is missing")
+
+private fun Throwable.isUndecryptableRecord(): Boolean =
+    this is MissingAuthTokenKeyException ||
+        this is AEADBadTagException ||
+        this is KeyPermanentlyInvalidatedException ||
+        this is IllegalArgumentException ||
+        this is ClassCastException
+
 private fun ByteArray.encodeBase64Url(): String =
     Base64.getUrlEncoder().withoutPadding().encodeToString(this)
 
@@ -214,9 +258,13 @@ private fun String.decodeBase64Url(): ByteArray =
 
 internal const val AUTH_PREFERENCES_NAME = "putio_auth"
 internal const val ENCRYPTED_ACCESS_TOKEN_KEY = "access_token_v1"
+internal const val PENDING_REVOCATION_TOKEN_KEY = "pending_revocation_token_v1"
 internal fun authTokenKeyAlias(packageName: String): String = "$packageName.$AUTH_KEY_ALIAS_SUFFIX"
+internal fun pendingRevocationKeyAlias(packageName: String): String =
+    "$packageName.$PENDING_REVOCATION_KEY_ALIAS_SUFFIX"
 
 private const val AUTH_KEY_ALIAS_SUFFIX = "oauth.access-token.v1"
+private const val PENDING_REVOCATION_KEY_ALIAS_SUFFIX = "oauth.pending-revocation.v1"
 private const val ANDROID_KEYSTORE_PROVIDER = "AndroidKeyStore"
 private const val AUTH_CIPHER_TRANSFORMATION = "AES/GCM/NoPadding"
 private const val GCM_AUTHENTICATION_TAG_BIT_COUNT = 128

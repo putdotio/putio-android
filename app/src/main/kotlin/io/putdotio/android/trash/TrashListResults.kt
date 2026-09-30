@@ -2,6 +2,7 @@ package io.putdotio.android.trash
 
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.sdk.errors.PutioException
 
 internal fun TrashMachine.completeList(
@@ -32,8 +33,8 @@ private fun TrashMachine.acceptPage(completed: TrashRequest.ListPage, page: Tras
         // Only a fresh initial page can establish a new deletion of an already restored ID.
         // Continuations can contain stale rows from the cursor's original snapshot.
         val newOccurrences = content.items.filter { item ->
-            val restoredAt = state.restoredOccurrences[item.id]?.let(::parseTrashTimestamp)
-            val deletedAt = item.deletedAt?.let(::parseTrashTimestamp)
+            val restoredAt = state.restoredOccurrences[item.id]?.let(::parsePutioTimestamp)
+            val deletedAt = item.deletedAt?.let(::parsePutioTimestamp)
             !state.hasPendingRestore && restoredAt != null && deletedAt != null && deletedAt > restoredAt
         }.map(TrashItem::id).toSet()
         (state.restoredItemIds + state.restoredOccurrences.keys) - newOccurrences
