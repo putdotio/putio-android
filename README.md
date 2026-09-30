@@ -49,7 +49,13 @@ TV:
 - Files: browse folders with Refresh, Sort, paging, watched progress and the
   unsupported-type screen. Long-press or Menu on a row offers Open in VLC,
   Mark as watched or unwatched, and Move to trash or Delete permanently per
-  the account's Trash setting. Media rows do not play yet
+  the account's Trash setting. Center on a media row plays it full-screen
+  through Media3 (HLS or MP4 per the account's playback type) with a
+  play/pause overlay, a D-pad seek bar (Left, Right, rewind and
+  fast-forward scrub), a resume prompt, and Language, Subtitles and Speed
+  pickers; subtitles start from the account's settings. Back dismisses a
+  picker, then seek mode, then the controls, then returns to the row. System
+  media controls are still to come (#34)
 - Search through the system IME, with recent-query chips and paged results
   that open in Files
 - History grouped under relative-date headers; an event opens its file in

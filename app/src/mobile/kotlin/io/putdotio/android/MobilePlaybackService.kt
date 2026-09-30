@@ -15,6 +15,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionToken
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackPositionObserver
 import io.putdotio.android.auth.MobileOAuthRuntime
 
 /**
@@ -25,7 +26,7 @@ import io.putdotio.android.auth.MobileOAuthRuntime
 class MobilePlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var taskRemoved = false
-    private var positionObserver: MobilePlayerPositionObserver? = null
+    private var positionObserver: PlaybackPositionObserver? = null
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {

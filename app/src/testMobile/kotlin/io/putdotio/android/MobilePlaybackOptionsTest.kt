@@ -47,6 +47,16 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.playback.SubtitleSelection
+import io.putdotio.android.playback.AudioSelection
+import io.putdotio.android.playback.PlaybackAudioTrack
+import io.putdotio.android.playback.playbackAudioTracks
+import io.putdotio.android.playback.toAudioTrackIdentity
+import io.putdotio.android.playback.withAudioSelection
+import io.putdotio.android.playback.withAudioTrack
+import io.putdotio.android.playback.withRetainedAudioSelection
+import io.putdotio.android.playback.toAudioSelection
+import io.putdotio.android.playback.toBundle
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -195,8 +205,8 @@ class MobilePlaybackOptionsTest {
             val restored = player.trackSelectionParameters.withAudioSelection(
                 retained,
                 listOf(
-                    MobileAudioTrack(recreated, 0, label = label, selected = false),
-                    MobileAudioTrack(recreated, 1, label = label, selected = false),
+                    PlaybackAudioTrack(recreated, 0, label = label, selected = false),
+                    PlaybackAudioTrack(recreated, 1, label = label, selected = false),
                 ),
             )
             assertEquals(listOf(0), restored.overrides.getValue(recreated).trackIndices)
@@ -223,7 +233,7 @@ class MobilePlaybackOptionsTest {
         compose.runOnIdle {
             player.trackSelectionParameters = player.trackSelectionParameters.withRetainedAudioSelection(
                 selection,
-                player.currentTracks.mobileAudioTracks(),
+                player.currentTracks.playbackAudioTracks(),
             )
             assertEquals(listOf(1), player.trackSelectionParameters.overrides.getValue(player.audio).trackIndices)
             assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
@@ -357,7 +367,7 @@ class MobilePlaybackOptionsTest {
             val selected = AudioSelection.Track(player.audio.getFormat(1).toAudioTrackIdentity())
             player.trackSelectionParameters = player.trackSelectionParameters.withAudioSelection(
                 selected,
-                player.currentTracks.mobileAudioTracks(),
+                player.currentTracks.playbackAudioTracks(),
             )
             val originalParameters = player.trackSelectionParameters
 
@@ -388,7 +398,7 @@ class MobilePlaybackOptionsTest {
         compose.runOnIdle {
             player.setPlaybackSpeed(1.5f)
             player.trackSelectionParameters = player.trackSelectionParameters.withAudioTrack(
-                MobileAudioTrack(player.audio, 1, label = "English", selected = false),
+                PlaybackAudioTrack(player.audio, 1, label = "English", selected = false),
             )
             val selectedTracks = player.currentTracks
             val originalParameters = player.trackSelectionParameters
@@ -410,7 +420,7 @@ class MobilePlaybackOptionsTest {
             player.updateTracks(selectedTracks)
             val restored = player.trackSelectionParameters.withRetainedAudioSelection(
                 preferences.audioSelection,
-                player.currentTracks.mobileAudioTracks(),
+                player.currentTracks.playbackAudioTracks(),
             )
             assertEquals(listOf(1), restored.overrides.getValue(player.audio).trackIndices)
             assertEquals(player.subtitleOverride, restored.overrides[player.text])

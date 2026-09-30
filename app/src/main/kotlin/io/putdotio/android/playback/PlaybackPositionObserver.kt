@@ -1,5 +1,6 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
+import android.os.Bundle
 import android.os.Looper
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -17,8 +18,18 @@ import kotlinx.coroutines.launch
 internal const val PLAYBACK_REPORTING_LEASE_KEY = "io.putdotio.android.playback.reportingLease"
 private const val POSITION_REPORT_INTERVAL_MILLIS = 15_000L
 
-/** The owner calls this on the player's application looper and supplies a scope on that looper. */
-internal class MobilePlayerPositionObserver(
+/** Tags [this] item with a [PlaybackPositionWriter] lease, so an observer reports its positions under it. */
+internal fun MediaItem.withReportingLease(token: String): MediaItem {
+    val extras = Bundle(mediaMetadata.extras ?: Bundle())
+    extras.putString(PLAYBACK_REPORTING_LEASE_KEY, token)
+    return buildUpon().setMediaMetadata(mediaMetadata.buildUpon().setExtras(extras).build()).build()
+}
+
+/**
+ * One per actual player, on mobile and TV. The owner calls this on the player's application
+ * looper and supplies a scope on that looper.
+ */
+internal class PlaybackPositionObserver(
     private val player: Media3Player,
     parentScope: CoroutineScope,
     private val submit: (String, Long) -> Unit,
