@@ -112,10 +112,12 @@ the row that was playing. Playback belongs to the session: sign-out ends it.
 The overlay shows the raw file name, a progress bar, position and duration.
 Any key reveals it for three seconds of playback; it stays while paused.
 Center, Enter or the remote's play/pause key toggles playback, and leaving the
-app pauses it. A saved position is continued without a prompt until the resume
-dialog lands; conversion, unsupported and failed resolutions show a status
-screen with Check again or Try again, and a player error keeps its position
-for the retry. Back always leaves playback for now: the overlay Back stack
+app pauses it. If the activity is recreated (a remote or keyboard connecting, a
+locale change), playback continues paused from where it stopped. A saved
+position is continued without a prompt until the resume dialog lands;
+conversion and failed resolutions show a status screen with Check again or Try
+again, unsupported files a plain status screen as on mobile, and a player error
+keeps its position for the retry. Back always leaves playback for now: the overlay Back stack
 (#9), seeking, track pickers, position write-back and the media session are
 later #34 layers.
 
