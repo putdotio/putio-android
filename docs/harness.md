@@ -957,3 +957,23 @@ calls and leaves the session alone; report it as synthetic proof. Opt in with
 record the screen while it runs, and require `OK (1 test)`: it fails unless the
 row shows at least five distinct byte counts before `On this device`.
 Screenshots land in the `downloads-progress-proof-<UUID>/` run directory.
+
+## Transfers polling CPU benchmark
+
+`TransfersPollingCpuBenchmark` replays the deterministic Transfers histories
+from `app/src/sharedTest` on a device, with no network or account, and logs the
+median thread CPU and wall time per poll for the pre-by-id list walk and the
+current refresh under the `TransfersPollingCpu` tag. Install the mobile
+production debug app and instrumentation APKs, then:
+
+```bash
+adb -s <serial> logcat -c
+adb -s <serial> shell am instrument -w \
+  -e class io.putdotio.android.transfers.TransfersPollingCpuBenchmark \
+  -e putio.transfers.benchmark.enabled true \
+  io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
+adb -s <serial> logcat -d -s TransfersPollingCpu:I
+```
+
+Label results with the device and build; emulator numbers depend on host load.
+Results live in [Behaviour](./behavior.md#transfers-polling).

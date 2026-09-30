@@ -310,3 +310,40 @@ edges, with its controls inset by the same safe area plus 16dp.
 Tests: `TvSafeAreaTest` (collapsed and expanded drawer; 960x540dp and
 1280x720dp viewports; a 4K xxxhdpi panel), `DesignTokenCodegenTest` (overscan
 ratios, axis and presence checks).
+
+## Transfers polling
+
+While Transfers is shown, rows that are still running, or completed without a
+file yet, refresh every 5 s; polling pauses while the screen is hidden. Up to 10
+such rows are read by id, so a poll costs one small request per row however
+deep the history is. More rows are read from 1,000-row list pages until all are
+found. A row the API no longer has (404 by id, or absent from the list) leaves
+the list. Any other failure keeps the rows for the next poll; only a rejected
+session surfaces.
+
+CPU per poll, emulator numbers: `TransfersPollingCpuBenchmark` replayed the
+same fake 10k and 50k histories on the `putio-phone` emulator (API 37,
+arm64-v8a, debuggable build) and took the median thread CPU time of 15 polls
+after 5 warmup polls. Before is the list walk this path replaced.
+
+| History, polled rows | Before, CPU ms | After, CPU ms |
+| --- | --- | --- |
+| 10k, 1 recent running | 27.3 | 0.37 |
+| 10k, 1 old running (position 9,500) | 239 | 0.36 |
+| 10k, 1 deleted | 223 | 0.65 |
+| 10k, 3 recent + 1 old | 236 | 0.59 |
+| 10k, 11 recent (list walk both) | 24.1 | 31.2 |
+| 50k, 1 recent running | 25.1 | 0.38 |
+| 50k, 1 running past the cap (position 20,000) | 228, reported missing | 0.33 |
+| 50k, 1 deleted | 239 | 0.68 |
+
+The host was shared with other emulators, so absolute times vary by about 2x
+between runs; a second run measured the 11-row list walk at 16.6 ms before and
+16.5 ms after. At 12 polls a minute, one old running row cost about 2.9 s of
+CPU per minute before and about 4 ms after. A physical phone measurement waits
+on [#51](https://github.com/putdotio/putio-android/issues/51).
+
+Tests: `SdkTransfersRepositoryTest`, `TransfersRefreshCostTest` (request and row
+counts per poll against 10k and 50k histories), `TransfersControllerTest`,
+`TransfersPollingCpuBenchmark` (opt-in device CPU time; see
+[Harness](./harness.md#transfers-polling-cpu-benchmark)).

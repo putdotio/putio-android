@@ -12,6 +12,9 @@ import io.putdotio.sdk.transfers.TransfersCleanResponse
 import io.putdotio.sdk.transfers.TransfersListQuery
 import io.putdotio.sdk.transfers.TransfersListResponse
 import java.util.concurrent.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 interface TransfersRepository {
     suspend fun load(cursor: TransferCursor? = null): FilesRepositoryResult<TransfersPage>
@@ -25,6 +28,7 @@ interface TransfersRepository {
 internal class TransfersReadOperations(
     val list: suspend (TransfersListQuery) -> TransfersListResponse,
     val continueList: suspend (String, TransfersListQuery) -> TransfersListResponse,
+    val get: suspend (Long) -> Transfer,
 )
 
 class SdkTransfersRepository internal constructor(
@@ -39,6 +43,7 @@ class SdkTransfersRepository internal constructor(
             TransfersReadOperations(
                 list = client.transfers::list,
                 continueList = client.transfers::continueList,
+                get = client.transfers::get,
             ),
         addTransfer = client.transfers::add,
         cancelTransfers = { client.transfers.cancel(it) },
@@ -60,31 +65,58 @@ class SdkTransfersRepository internal constructor(
             return FilesRepositoryResult.Success(TransfersRowRefresh(emptyList(), emptySet()))
         }
         return request {
-            val requestedSet = requestedIds.toSet()
-            val foundById = mutableMapOf<TransferId, TransferItem>()
-            val consumedCursors = mutableSetOf<String>()
-            val query = TransfersListQuery(perPage = REFRESH_PAGE_SIZE)
-            var cursor: String? = null
-            do {
-                val response =
-                    cursor?.let { reads.continueList(it, query) }
-                        ?: reads.list(query)
-                response.transfers
-                    .asSequence()
-                    .map(Transfer::toTransferItem)
-                    .filter { it.id in requestedSet }
-                    .forEach { foundById[it.id] = it }
-                cursor =
-                    response.cursor
-                        ?.takeIf(String::isNotBlank)
-                        ?.takeIf { foundById.size < requestedSet.size }
-                check(cursor == null || consumedCursors.add(cursor)) { "Transfers refresh cursor repeated" }
-            } while (cursor != null)
+            if (requestedIds.size <= DIRECT_REFRESH_LIMIT) {
+                refreshEach(requestedIds)
+            } else {
+                refreshFromList(requestedIds)
+            }
+        }
+    }
+
+    // `/transfers/list` rebuilds the newest 10,000 ids and returns a full page of rows on
+    // every call, so a few polled rows are read by id instead. The limit keeps a 5 s poll
+    // well inside the API's 300 requests/minute transfers-get budget.
+    private suspend fun refreshEach(ids: List<TransferId>): TransfersRowRefresh =
+        coroutineScope {
+            val found = ids.map { id -> async { getOrNull(id) } }.awaitAll()
             TransfersRowRefresh(
-                items = requestedIds.mapNotNull(foundById::get),
-                missingIds = requestedSet - foundById.keys,
+                items = found.filterNotNull(),
+                missingIds = ids.filterIndexed { index, _ -> found[index] == null }.toSet(),
             )
         }
+
+    private suspend fun getOrNull(id: TransferId): TransferItem? =
+        try {
+            reads.get(id.value).toTransferItem()
+        } catch (error: PutioException) {
+            if (error.isTransferNotFound()) null else throw error
+        }
+
+    private suspend fun refreshFromList(requestedIds: List<TransferId>): TransfersRowRefresh {
+        val requestedSet = requestedIds.toSet()
+        val foundById = mutableMapOf<TransferId, TransferItem>()
+        val consumedCursors = mutableSetOf<String>()
+        val query = TransfersListQuery(perPage = REFRESH_PAGE_SIZE)
+        var cursor: String? = null
+        do {
+            val response =
+                cursor?.let { reads.continueList(it, query) }
+                    ?: reads.list(query)
+            response.transfers
+                .asSequence()
+                .filter { TransferId(it.id) in requestedSet }
+                .map(Transfer::toTransferItem)
+                .forEach { foundById[it.id] = it }
+            cursor =
+                response.cursor
+                    ?.takeIf(String::isNotBlank)
+                    ?.takeIf { foundById.size < requestedSet.size }
+            check(cursor == null || consumedCursors.add(cursor)) { "Transfers refresh cursor repeated" }
+        } while (cursor != null)
+        return TransfersRowRefresh(
+            items = requestedIds.mapNotNull(foundById::get),
+            missingIds = requestedSet - foundById.keys,
+        )
     }
 
     override suspend fun add(submission: TransferSubmission): FilesRepositoryResult<TransferItem> =
@@ -114,6 +146,7 @@ class SdkTransfersRepository internal constructor(
     private companion object {
         const val PAGE_SIZE = 50
         const val REFRESH_PAGE_SIZE = 1_000
+        const val DIRECT_REFRESH_LIMIT = 10
     }
 }
 
@@ -133,6 +166,15 @@ internal fun Transfer.toTransferItem(): TransferItem =
         createdAt = createdAt,
         userFileExists = userFileExists,
     )
+
+private fun PutioException.isTransferNotFound(): Boolean {
+    val failure = toFilesFailure()
+    return failure is FilesFailure.ApiRejected &&
+        failure.statusCode == HTTP_NOT_FOUND &&
+        failure.httpStatusCode == HTTP_NOT_FOUND
+}
+
+private const val HTTP_NOT_FOUND = 404
 
 private fun Transfer.displayPercentDone(): Double? =
     when (status) {

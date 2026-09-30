@@ -103,6 +103,13 @@ android {
         lintConfig = file("lint.xml")
     }
 
+    sourceSets {
+        // Fakes that JVM tests and on-device benchmarks both replay.
+        for (name in listOf("test", "androidTest")) {
+            getByName(name).kotlin.directories.add("src/sharedTest/kotlin")
+        }
+    }
+
     testOptions {
         unitTests {
             // Robolectric-backed Compose tests need the app's resources.

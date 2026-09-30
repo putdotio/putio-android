@@ -48,44 +48,58 @@ class SdkTransfersRepositoryTest {
     }
 
     @Test
-    fun refreshesLoadedRowsWithOneLargePagedRead() = runBlocking {
-        val queries = mutableListOf<TransfersListQuery>()
+    fun refreshesAFewRowsByIdAndReportsNotFoundRowsAsMissing() = runBlocking {
         val reads = ReadOperations().apply {
-            list = { query ->
-                queries += query
-                response((1L..50L).map { sdkTransfer(it, TransferStatus.COMPLETED) }, null)
-            }
-        }
-        val repository = repository(reads = reads)
-
-        val result =
-            repository.refresh(listOf(TransferId(3L), TransferId(7L))) as FilesRepositoryResult.Success
-
-        assertEquals(listOf(1_000), queries.map(TransfersListQuery::perPage))
-        assertEquals(listOf(TransferId(3L), TransferId(7L)), result.value.items.map(TransferItem::id))
-        assertEquals(emptySet<TransferId>(), result.value.missingIds)
-    }
-
-    @Test
-    fun refreshKeepsSuccessfulRowsAroundMissingTransfers() = runBlocking {
-        val cursors = mutableListOf<String>()
-        val reads = ReadOperations().apply {
-            list = { response(listOf(sdkTransfer(3L)), "next") }
-            continueList = { cursor, _ ->
-                cursors += cursor
-                response(listOf(sdkTransfer(5L)), null)
-            }
+            list = { throw AssertionError("A few rows must not list the history") }
+            get = { id -> if (id == 4L) throw apiFailure("get", 404) else sdkTransfer(id) }
         }
         val repository = repository(reads = reads)
 
         val result =
             repository.refresh(
-                listOf(TransferId(3L), TransferId(4L), TransferId(5L)),
+                listOf(TransferId(5L), TransferId(4L), TransferId(3L)),
             ) as FilesRepositoryResult.Success
 
-        assertEquals(listOf("next"), cursors)
-        assertEquals(listOf(TransferId(3L), TransferId(5L)), result.value.items.map(TransferItem::id))
+        assertEquals(listOf(TransferId(5L), TransferId(3L)), result.value.items.map(TransferItem::id))
         assertEquals(setOf(TransferId(4L)), result.value.missingIds)
+    }
+
+    @Test
+    fun refreshFailsWhenAByIdReadFailsForAnotherReason() = runBlocking {
+        val reads = ReadOperations().apply {
+            get = { id -> if (id == 4L) throw apiFailure("get", 500) else sdkTransfer(id) }
+        }
+        val repository = repository(reads = reads)
+
+        val result = repository.refresh(listOf(TransferId(3L), TransferId(4L))) as FilesRepositoryResult.Failure
+
+        assertTrue(result.failure is FilesFailure.ServerUnavailable)
+    }
+
+    @Test
+    fun refreshesManyRowsFromLargePagedReadsAndKeepsRowsAroundMissingTransfers() = runBlocking {
+        val queries = mutableListOf<TransfersListQuery>()
+        val cursors = mutableListOf<String>()
+        val reads = ReadOperations().apply {
+            list = { query ->
+                queries += query
+                response((1L..10L).map(::sdkTransfer), "next")
+            }
+            continueList = { cursor, query ->
+                queries += query
+                cursors += cursor
+                response(listOf(sdkTransfer(12L)), null)
+            }
+            get = { throw AssertionError("Many rows must not be read one by one") }
+        }
+        val repository = repository(reads = reads)
+
+        val result = repository.refresh((1L..12L).map(::TransferId)) as FilesRepositoryResult.Success
+
+        assertEquals(listOf(1_000, 1_000), queries.map(TransfersListQuery::perPage))
+        assertEquals(listOf("next"), cursors)
+        assertEquals(((1L..10L) + 12L).map(::TransferId), result.value.items.map(TransferItem::id))
+        assertEquals(setOf(TransferId(11L)), result.value.missingIds)
     }
 
     @Test
@@ -180,23 +194,7 @@ class SdkTransfersRepositoryTest {
 
     @Test
     fun propagatesAuthenticationFailureAndCancellation() {
-        val api =
-            PutioApiException(
-                request = PutioRequestData("GET", "https://api.put.io/v2/transfers/list"),
-                resolvedStatusCode = 401,
-                resolvedErrorType = "invalid_scope",
-                envelope = PutioApiErrorEnvelope(statusCode = 401, errorType = "invalid_scope"),
-                responseBody = "{}",
-                message = "Unauthorized",
-            )
-        val unauthorized =
-            PutioOperationException(
-                domain = "transfers",
-                operation = "list",
-                contract = null,
-                reason = null,
-                underlyingError = api,
-            )
+        val unauthorized = apiFailure("list", 401, errorType = "invalid_scope")
         val failed = runBlocking { throwingRepository(unauthorized).load() } as FilesRepositoryResult.Failure
         assertTrue(failed.failure is FilesFailure.AuthenticationRequired)
 
@@ -216,7 +214,7 @@ class SdkTransfersRepositoryTest {
         reads: ReadOperations = ReadOperations(),
         mutations: MutationOperations = MutationOperations(),
     ) = SdkTransfersRepository(
-        TransfersReadOperations(reads.list, reads.continueList),
+        TransfersReadOperations(reads.list, reads.continueList, reads.get),
         mutations.add,
         mutations.cancel,
         mutations.retry,
@@ -228,6 +226,7 @@ class SdkTransfersRepositoryTest {
         var continueList: suspend (String, TransfersListQuery) -> TransfersListResponse = { _, _ ->
             response(emptyList(), null)
         }
+        var get: suspend (Long) -> Transfer = { sdkTransfer(it) }
     }
 
     private inner class MutationOperations {
@@ -236,6 +235,23 @@ class SdkTransfersRepositoryTest {
         var retry: suspend (Long) -> Transfer = { sdkTransfer(it) }
         var clean: suspend (List<Long>) -> TransfersCleanResponse = { TransfersCleanResponse(it, "OK") }
     }
+
+    private fun apiFailure(operation: String, statusCode: Int, errorType: String? = null) =
+        PutioOperationException(
+            domain = "transfers",
+            operation = operation,
+            contract = null,
+            reason = null,
+            underlyingError =
+                PutioApiException(
+                    request = PutioRequestData("GET", "https://api.put.io/v2/transfers/$operation"),
+                    resolvedStatusCode = statusCode,
+                    resolvedErrorType = errorType,
+                    envelope = PutioApiErrorEnvelope(statusCode = statusCode, errorType = errorType),
+                    responseBody = "{}",
+                    message = "Rejected",
+                ),
+        )
 
     private fun response(transfers: List<Transfer>, cursor: String?) =
         TransfersListResponse(cursor = cursor, transfers = transfers, status = "OK")
