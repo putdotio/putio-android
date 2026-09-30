@@ -154,19 +154,28 @@ conversion state. The SDK resolves a conversion only for a video the server mark
 `need_convert`, and its MP4 status reads not available until a conversion is
 requested ([live check](https://github.com/putdotio/putio-android/pull/222#issuecomment-5904428342):
 a not-available video converted and played).
+Opening such a video starts its conversion through the SDK's
+`startMp4Conversion` without a tap, as putio-web, tv-native, tv-vite and iOS do,
+and the interstitial says the conversion has started. Only the first conversion
+status read of an opening can start one, including one that follows a Retry after
+the opening's resolve failed: a first read of queued, running, completed or failed
+is only read, so opening the file again while it converts requests nothing, and
+after that first read, polls, Check again and retries never start one, even across
+a failed read.
+The SDK's consumer guide asks for the same
+([putio-sdk-kotlin#59](https://github.com/putdotio/putio-sdk-kotlin/pull/59),
+[#236](https://github.com/putdotio/putio-android/issues/236)).
 A queued or running conversion is read again every 3 s while the app is in the
 foreground, keeping the interstitial up, and plays on its own once it resolves.
 Completed is read once more at once; if it stays completed, Check again waits for
-the viewer, as does an unknown status. The viewer starts a conversion through
-the SDK's `startMp4Conversion`, which is then read like any other: Convert on one
-never requested, Convert again after a failed one. A start the server accepted
-reads as queued once, so a status read that has not caught up polls again; if the
-status still reads not available after that, the video cannot be converted and
-offers only Back. The app never starts a conversion on its own; putio-web, tv-native
-and tv-vite do on opening, and doing so here is an owner decision.
+the viewer, as does an unknown status. Convert again after a failed one starts it
+again. A start the server accepted reads as queued once, so a status read that
+has not caught up polls again; if the status still reads not available after
+that, the video cannot be converted and offers only Back.
 
-Tests: `PlaybackReducerTest`, `SdkPlaybackRepositoryTest`, `MobilePlayerScreenTest`,
-`TvPlaybackStatesTest`, `OfflinePlaybackRepositoryTest`.
+Tests: `PlaybackConversionReducerTest`, `PlaybackReducerTest`, `PlaybackControllerTest`,
+`SdkPlaybackRepositoryTest`, `MobilePlayerScreenTest`, `TvPlaybackStatesTest`,
+`OfflinePlaybackRepositoryTest`.
 
 ## TV playback
 
@@ -267,8 +276,8 @@ player buffers as the RN player's default `medium` size did: 8 s to 30 s
 ahead, starting after 1.5 s, or 3 s after a stall.
 
 A file that needs MP4 conversion shows the RN player's conversion interstitial:
-the file name, why it cannot play yet, and its conversion status (in queue, a
-percentage, completed, failed, not available, or the server's own value), with
+the file name, why it cannot play yet, and its conversion status (starting, in
+queue, a percentage, completed, failed, not available, or the server's own value), with
 the actions under [MP4 conversion](#mp4-conversion).
 
 Failures say what happened: no network, an expired playback link, too many

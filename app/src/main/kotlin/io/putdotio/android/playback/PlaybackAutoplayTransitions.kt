@@ -48,6 +48,7 @@ private fun PlaybackState.resolveNext(nextTarget: PlaybackTarget): PlaybackTrans
                 nextRequestValue = nextRequestValue + 1,
                 resumePositionMillis = null,
                 visitedFileIds = visitedFileIds + nextTarget.fileId,
+                conversionStatusRead = false,
             ),
         effect = PlaybackEffect.Resolve(nextTarget, resolveRequestId),
     )

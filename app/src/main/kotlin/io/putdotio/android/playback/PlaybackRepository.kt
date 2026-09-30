@@ -261,8 +261,9 @@ class SdkPlaybackRepository internal constructor(
 }
 
 /**
- * [delegate] plus the SDK's MP4 conversion start. Only the viewer's explicit Convert starts one
- * (see [PlaybackContent.Conversion.startable]); the resolver itself never does (putio-sdk-kotlin
+ * [delegate] plus the SDK's MP4 conversion start. The player starts one when a video it opens
+ * reads not available, and when the viewer converts again after a failure (see
+ * [PlaybackContent.Conversion.starting]); the resolver itself never does (putio-sdk-kotlin
  * `docs/ARCHITECTURE.md`, conversion handling).
  */
 class ConvertingPlaybackRepository internal constructor(

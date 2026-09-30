@@ -1145,7 +1145,6 @@ private fun rememberTouchExplorationEnabled(): Boolean {
     return enabled
 }
 
-/** Queued and running conversions poll; the viewer starts one, or checks again where it waits. */
 /** Try again repeats the same request; it shows only where that can succeed. */
 @Composable
 private fun MobilePlaybackFailureState(
@@ -1166,6 +1165,10 @@ private fun MobilePlaybackFailureState(
     }
 }
 
+/**
+ * Opening a video with no conversion requested starts one; queued and running conversions poll.
+ * After a failure the viewer converts again, and checks again where the status waits.
+ */
 @Composable
 private fun MobileConversionState(
     conversion: PlaybackContent.Conversion,
@@ -1174,13 +1177,12 @@ private fun MobileConversionState(
 ) {
     PlaybackConversionPolling(conversion, onRefresh)
     val title = stringResource(R.string.mobile_playback_conversion_title)
-    val message = if (conversion.startable && conversion.state == PlaybackConversionState.NotAvailable) {
-        stringResource(R.string.mobile_playback_conversion_not_requested)
+    val message = if (conversion.starting) {
+        stringResource(R.string.mobile_playback_conversion_starting)
     } else {
         conversion.state.message()
     }
     val action = when (conversion.action) {
-        PlaybackConversionAction.Convert -> R.string.mobile_playback_convert to onStart
         PlaybackConversionAction.ConvertAgain -> R.string.mobile_playback_convert_again to onStart
         PlaybackConversionAction.CheckAgain -> R.string.mobile_playback_check_again to onRefresh
         null -> null

@@ -370,8 +370,10 @@ class MobilePlayerScreenTest {
     }
 
     @Test
-    fun theViewerConvertsAVideoNeverRequestedOrFailedButNotOneThatCannotBe() {
-        var content by mutableStateOf(PlaybackContent.Conversion(PlaybackConversionState.NotAvailable))
+    fun aConversionSaysItHasStartedAndOnlyAFailedOneOffersConvertAgain() {
+        var content by mutableStateOf(
+            PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L)),
+        )
         var starts = 0
         compose.setContent {
             PutioTheme {
@@ -385,18 +387,19 @@ class MobilePlayerScreenTest {
             }
         }
 
-        compose.onNodeWithText("This video needs converting before it can play here.").assertIsDisplayed()
-        compose.onNodeWithText("Convert").performClick()
-        compose.runOnIdle { assertEquals(1, starts) }
+        compose.onNodeWithText("This video can’t play here yet, so its conversion is starting.").assertIsDisplayed()
+        compose.onNodeWithText("Convert again").assertDoesNotExist()
+        content = PlaybackContent.Conversion(PlaybackConversionState.Queued)
+        compose.onNodeWithText("Conversion has started and is queued.").assertIsDisplayed()
 
         content = PlaybackContent.Conversion(PlaybackConversionState.Failed)
         compose.onNodeWithText("Convert again").performClick()
-        compose.runOnIdle { assertEquals(2, starts) }
+        compose.runOnIdle { assertEquals(1, starts) }
 
-        // The viewer's own Convert still found no conversion.
-        content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, startRequested = true)
+        // The app's own start still found no conversion.
+        content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable)
         compose.onNodeWithText("This video cannot be converted.").assertIsDisplayed()
-        compose.onNodeWithText("Convert").assertDoesNotExist()
+        compose.onNodeWithText("Convert again").assertDoesNotExist()
         compose.onNodeWithText("Check again").assertDoesNotExist()
     }
 

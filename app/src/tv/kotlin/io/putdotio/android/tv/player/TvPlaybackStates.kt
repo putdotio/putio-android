@@ -26,6 +26,7 @@ import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.action
 import io.putdotio.android.playback.retryable
 import io.putdotio.android.playback.startable
+import io.putdotio.android.playback.starting
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -38,8 +39,8 @@ internal const val TV_CONVERSION_STATUS_TAG = "tv-player-conversion-status"
  * (putio-web `apps/tv-native` `features/files/components/video-conversion-status.tsx` @
  * `22264d5`): the file name, why it cannot play yet, then its conversion status. A queued or
  * running conversion polls ([PlaybackConversionPolling]), and playback starts on its own once
- * it resolves. The RN app started the conversion itself on opening; here the viewer does, with
- * the shared [PlaybackConversionAction].
+ * it resolves. As in the RN app, opening a video that has none requested starts it; after a
+ * failure the viewer converts again or checks again with the shared [PlaybackConversionAction].
  */
 @Composable
 internal fun TvConversionScreen(
@@ -52,7 +53,6 @@ internal fun TvConversionScreen(
     val idle = conversion.refreshRequestId == null
     PlaybackConversionPolling(conversion, onRefresh)
     val action = when (conversion.action) {
-        PlaybackConversionAction.Convert -> R.string.tv_player_convert to onStartConversion
         PlaybackConversionAction.ConvertAgain -> R.string.tv_player_convert_again to onStartConversion
         PlaybackConversionAction.CheckAgain -> R.string.tv_player_check_again to onRefresh
         null -> null
@@ -77,8 +77,9 @@ internal fun TvConversionScreen(
         Text(
             text = stringResource(
                 when {
-                    state != PlaybackConversionState.NotAvailable -> R.string.tv_player_conversion_message
-                    conversion.startable -> R.string.tv_player_conversion_start_message
+                    conversion.startable -> R.string.tv_player_conversion_failed_message
+                    state != PlaybackConversionState.NotAvailable || conversion.starting ->
+                        R.string.tv_player_conversion_message
                     else -> R.string.tv_player_conversion_unavailable_message
                 },
             ),
@@ -93,7 +94,7 @@ internal fun TvConversionScreen(
             modifier = Modifier.padding(top = 16.dp),
         )
         Text(
-            text = state.label(),
+            text = if (conversion.starting) stringResource(R.string.tv_player_conversion_starting) else state.label(),
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.testTag(TV_CONVERSION_STATUS_TAG),

@@ -76,7 +76,8 @@
     <string name="mobile_playback_finding_next">Finding next video</string>
     <string name="mobile_playback_next_error_title">Couldn’t find the next video</string>
     <string name="mobile_playback_conversion_title">Video is being prepared</string>
-    <string name="mobile_playback_conversion_queued">Conversion is queued.</string>
+    <string name="mobile_playback_conversion_starting">This video can’t play here yet, so its conversion is starting.</string>
+    <string name="mobile_playback_conversion_queued">Conversion has started and is queued.</string>
     <string name="mobile_playback_conversion_progress">Conversion is in progress. %1$s</string>
     <string name="mobile_playback_conversion_working">Conversion is in progress.</string>
     <string name="mobile_playback_conversion_completed">Conversion finished. Check again to play.</string>
@@ -84,9 +85,7 @@
     <string name="mobile_playback_conversion_unavailable">This video cannot be converted.</string>
     <string name="mobile_playback_conversion_unknown">Conversion status is unavailable.</string>
     <string name="mobile_playback_check_again">Check again</string>
-    <string name="mobile_playback_convert">Convert</string>
     <string name="mobile_playback_convert_again">Convert again</string>
-    <string name="mobile_playback_conversion_not_requested">This video needs converting before it can play here.</string>
     <string name="mobile_playback_unsupported_title">Can’t play this file</string>
     <string name="mobile_playback_unsupported_message">Choose a video or audio file to start playback.</string>
     <string name="mobile_playback_error_title">Couldn’t play this video</string>
