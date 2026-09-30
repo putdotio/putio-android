@@ -53,6 +53,8 @@ import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
+import io.putdotio.android.playback.AudioTrackIdentity
+import io.putdotio.android.playback.playbackAudioTracks
 
 /** Real local media and production players; lifecycle and saved-state transitions use a controlled host. */
 @RunWith(AndroidJUnit4::class)
@@ -172,7 +174,7 @@ class MobilePlaybackOptionsProofTest {
         selectSpeedWithKeyboard(factory)
         openSpeedOptions()
         compose.onNodeWithText("1.5×").performTouchInput { click() }
-        val track = compose.runOnIdle { factory.current().currentTracks.mobileAudioTracks()[1] }
+        val track = compose.runOnIdle { factory.current().currentTracks.playbackAudioTracks()[1] }
         val title = track.label ?: context.getString(R.string.mobile_playback_audio_track_number, 2)
         openAudioOptions()
         compose.onNodeWithText(title).performScrollTo().performTouchInput { click() }
@@ -262,7 +264,7 @@ class MobilePlaybackOptionsProofTest {
             compose.runOnIdle {
                 factory.player?.let {
                     check(it.playerError == null) { "Local player failed: ${it.playerError?.errorCodeName}" }
-                    it.playbackState == Player.STATE_READY && it.currentTracks.mobileAudioTracks().size == 2
+                    it.playbackState == Player.STATE_READY && it.currentTracks.playbackAudioTracks().size == 2
                 } == true
             }
         }
@@ -273,7 +275,7 @@ class MobilePlaybackOptionsProofTest {
             compose.runOnIdle {
                 val player = factory.current()
                 player.playbackParameters.speed == 1.5f &&
-                    player.currentTracks.mobileAudioTracks().any { it.identity == identity && it.selected }
+                    player.currentTracks.playbackAudioTracks().any { it.identity == identity && it.selected }
             }
         }
         compose.runOnIdle { assertEquals(1.5f, factory.current().playbackParameters.speed, 0f) }

@@ -1,13 +1,14 @@
 package io.putdotio.android
 
-import android.os.Bundle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
+import io.putdotio.android.playback.PlaybackPositionObserver
 import io.putdotio.android.playback.PlaybackPositionWriter
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.withReportingLease
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.confirmedResumePlayback
 import kotlinx.coroutines.CoroutineScope
@@ -87,17 +88,13 @@ internal class MobilePlaybackReporting(
                     (auth.value as? MobileAuthState.SignedIn)?.sessionId == sessionId &&
                         settings?.takeIf { it.sessionId == sessionId }?.state?.value?.confirmedResumePlayback() == true
                 }
-                val extras = Bundle(item.mediaMetadata.extras ?: Bundle())
-                extras.putString(PLAYBACK_REPORTING_LEASE_KEY, token)
-                return item.buildUpon()
-                    .setMediaMetadata(item.mediaMetadata.buildUpon().setExtras(extras).build())
-                    .build()
+                return item.withReportingLease(token)
             }
         }
     }
 
-    fun observe(player: Player): MobilePlayerPositionObserver =
-        MobilePlayerPositionObserver(player, scope, writer::offer)
+    fun observe(player: Player): PlaybackPositionObserver =
+        PlaybackPositionObserver(player, scope, writer::offer)
 
     private data class SettingsBinding(
         val sessionId: MobileAuthSessionId,

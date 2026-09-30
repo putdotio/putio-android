@@ -47,9 +47,6 @@ internal interface TvSessionGateway {
     fun clearAccessToken()
 
     suspend fun validateSession(): TvSessionValidation
-
-    /** False when put.io could not revoke the grant; the local session is dropped either way. */
-    suspend fun logout(): Boolean
 }
 
 internal class PutioTvSessionGateway(
@@ -83,14 +80,6 @@ internal class PutioTvSessionGateway(
                 TvSessionValidation.Unavailable(error)
             }
         }
-
-    override suspend fun logout(): Boolean =
-        try {
-            boundary.logout()
-            true
-        } catch (_: PutioException) {
-            false
-        }
 }
 
 /** The SDK calls behind the gateway, seamed so the verdict mapping is testable without a transport. */
@@ -104,8 +93,6 @@ internal interface TvSdkBoundary {
     suspend fun validateToken(): Boolean
 
     suspend fun getAccountInfo(): AccountInfo
-
-    suspend fun logout()
 }
 
 private class PutioClientTvBoundary(
@@ -120,10 +107,6 @@ private class PutioClientTvBoundary(
     override suspend fun validateToken(): Boolean = client.auth.validateToken().result
 
     override suspend fun getAccountInfo(): AccountInfo = client.account.getInfo()
-
-    override suspend fun logout() {
-        client.auth.logout()
-    }
 }
 
 internal fun AccountInfo.toTvAccount(): TvAccount =

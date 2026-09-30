@@ -15,8 +15,6 @@ internal interface AuthSessionGateway {
     fun clearAccessToken()
 
     suspend fun validateSession(): SessionValidationResult
-
-    suspend fun logout(): RemoteLogoutResult
 }
 
 internal sealed interface SessionValidationResult {
@@ -38,14 +36,6 @@ internal sealed interface SessionRejectionReason {
     data object ValidateReturnedFalse : SessionRejectionReason
 
     data object Unauthorized : SessionRejectionReason
-}
-
-internal sealed interface RemoteLogoutResult {
-    data object Completed : RemoteLogoutResult
-
-    data class Failed(
-        val cause: PutioException,
-    ) : RemoteLogoutResult
 }
 
 internal class PutioAuthSessionGateway(
@@ -81,14 +71,6 @@ internal class PutioAuthSessionGateway(
                 SessionValidationResult.Unavailable(error)
             }
         }
-
-    override suspend fun logout(): RemoteLogoutResult =
-        try {
-            boundary.logout()
-            RemoteLogoutResult.Completed
-        } catch (error: PutioException) {
-            RemoteLogoutResult.Failed(error)
-        }
 }
 
 internal interface PutioSdkAuthBoundary {
@@ -104,8 +86,6 @@ internal interface PutioSdkAuthBoundary {
     suspend fun validateToken(): Boolean
 
     suspend fun getAccountInfo(): AccountInfo
-
-    suspend fun logout()
 }
 
 private class PutioClientAuthBoundary(
@@ -131,10 +111,6 @@ private class PutioClientAuthBoundary(
     override suspend fun validateToken(): Boolean = client.auth.validateToken().result
 
     override suspend fun getAccountInfo(): AccountInfo = client.account.getInfo()
-
-    override suspend fun logout() {
-        client.auth.logout()
-    }
 }
 
 private fun AccountInfo.toMobileAccount(): MobileAccount =

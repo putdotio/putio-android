@@ -90,8 +90,6 @@ import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
-import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
-import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.lifecycle.Lifecycle
@@ -133,6 +131,13 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.IOException
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import io.putdotio.android.playback.SubtitleSelection
+import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.PlaybackAudioTrack
+import io.putdotio.android.playback.withAudioTrack
+import io.putdotio.android.playback.displayAspectRatioOrNull
+import io.putdotio.android.playback.fitInside
+import io.putdotio.android.playback.FittedVideoSize
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -1620,7 +1625,7 @@ class MobilePlayerScreenTest {
         session.setPlaybackSpeed(1.5f)
         val group = TrackGroup(Format.Builder().setId("audio-en").setSampleMimeType(MimeTypes.AUDIO_AAC).build())
         val selected = session.trackSelectionParameters.withAudioTrack(
-            MobileAudioTrack(group, 0, label = "English", selected = false),
+            PlaybackAudioTrack(group, 0, label = "English", selected = false),
         )
         session.trackSelectionParameters = selected
         var sourceRequests = 0
@@ -2702,19 +2707,6 @@ class MobilePlayerCodecTest {
         assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_ENDED, false))
         assertTrue(controlsVisibleAfterTap(true, Media3Player.STATE_READY, true))
         assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_READY, true))
-    }
-
-    @Test
-    fun emulatorCodecsDemoteGoldfishDecoders() {
-        assertTrue(requiresEmulatorCodecWorkaround(37, "ranchu"))
-        assertTrue(requiresEmulatorCodecWorkaround(37, "goldfish"))
-        assertFalse(requiresEmulatorCodecWorkaround(36, "ranchu"))
-        assertFalse(requiresEmulatorCodecWorkaround(37, "tensor"))
-        assertEquals(1, emulatorCodecPriority("c2.goldfish.h264.decoder"))
-        assertEquals(0, emulatorCodecPriority("c2.android.avc.decoder"))
-        assertEquals(SURFACE_TYPE_TEXTURE_VIEW, playbackSurfaceType(37, "ranchu"))
-        assertEquals(SURFACE_TYPE_SURFACE_VIEW, playbackSurfaceType(36, "ranchu"))
-        assertEquals(SURFACE_TYPE_SURFACE_VIEW, playbackSurfaceType(37, "tensor"))
     }
 
     @Test

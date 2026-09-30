@@ -95,6 +95,7 @@ class MobileAuthStorageRecoveryTest {
             tokenStore = store,
             pendingOAuthAttemptStore = SharedPreferencesPendingOAuthAttemptStore(preferences, Dispatchers.Unconfined),
             sessionGateway = ValidSessionGateway(),
+            tokenRevocations = NoTokenRevocations,
             stateGenerator = OAuthStateGenerator { OAUTH_STATE },
             clock = OAuthAttemptClock { NOW_EPOCH_MILLIS },
         )
@@ -133,8 +134,6 @@ class MobileAuthStorageRecoveryTest {
         override fun clearAccessToken() = Unit
 
         override suspend fun validateSession(): SessionValidationResult = SessionValidationResult.Valid(ACCOUNT)
-
-        override suspend fun logout(): RemoteLogoutResult = RemoteLogoutResult.Completed
     }
 
     private companion object {

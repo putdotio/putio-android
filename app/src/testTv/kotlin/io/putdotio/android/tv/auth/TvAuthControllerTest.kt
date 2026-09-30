@@ -3,6 +3,10 @@ package io.putdotio.android.tv.auth
 import io.putdotio.android.auth.AccessToken
 import io.putdotio.android.auth.AuthTokenStorageException
 import io.putdotio.android.auth.AuthTokenStore
+import io.putdotio.android.auth.InMemoryAuthTokenStore
+import io.putdotio.android.auth.PendingTokenRevocations
+import io.putdotio.android.auth.ScriptedTokenRevoker
+import io.putdotio.android.auth.TokenRevocationResult
 import io.putdotio.sdk.account.AccountDisk
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.account.AccountSettings
@@ -23,6 +27,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,6 +36,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TvAuthControllerTest {
@@ -205,7 +212,7 @@ class TvAuthControllerTest {
     }
 
     @Test
-    fun `logout revokes then drops the local session and returns to linking`() = runTest {
+    fun `logout drops the local session, returns to linking, and revokes in the background`() = runTest {
         val harness = Harness(storedToken = "stored-token")
         harness.controller.restoreSession()
 
@@ -213,7 +220,90 @@ class TvAuthControllerTest {
 
         assertNull(harness.tokenStore.stored)
         assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
-        assertEquals(listOf("set", "validate", "logout", "clear", "link"), harness.gateway.calls)
+        assertEquals(listOf("set", "validate", "clear", "link"), harness.gateway.calls)
+        assertEquals(listOf("stored-token"), harness.revoker.attempts)
+        assertNull(harness.revocationStore.token)
+    }
+
+    @Test
+    fun `logout revokes the session token even when the store cannot be read`() = runTest {
+        val harness = Harness(storedToken = "stored-token")
+        harness.controller.restoreSession()
+        harness.tokenStore.readFails = true
+
+        harness.controller.logout()
+
+        assertEquals(listOf("stored-token"), harness.revoker.attempts)
+        assertNull(harness.revocationStore.token)
+    }
+
+    @Test
+    fun `a link whose token put io revokes in flight starts a new link`() = runTest {
+        val harness = Harness(pendingRevocation = "fresh-token")
+        val inFlight = CompletableDeferred<Unit>()
+        harness.revoker.gate = inFlight
+        harness.controller.restoreSession()
+
+        harness.gateway.emit(DeviceCodeAuthState.Linked("fresh-token", accountInfo()))
+        harness.scope.testScheduler.runCurrent()
+        assertTrue(harness.controller.state.value is TvAuthState.Linking)
+        inFlight.complete(Unit)
+        harness.scope.advanceUntilIdle()
+
+        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true), harness.controller.state.value)
+        assertNull(harness.tokenStore.stored)
+        assertEquals(listOf("fresh-token"), harness.revoker.attempts)
+    }
+
+    @Test
+    fun `failed revocation is retried with backoff until put io confirms it`() = runTest {
+        val harness = Harness(
+            storedToken = "stored-token",
+            revocationResults = listOf(
+                TokenRevocationResult.UNAVAILABLE,
+                TokenRevocationResult.UNAVAILABLE,
+                TokenRevocationResult.REVOKED,
+            ),
+        )
+        harness.controller.restoreSession()
+
+        harness.controller.logout()
+
+        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
+        assertEquals(listOf("stored-token"), harness.revoker.attempts)
+        assertEquals("stored-token", harness.revocationStore.token?.reveal())
+        harness.scope.advanceTimeBy(15.seconds)
+        harness.scope.testScheduler.runCurrent()
+        assertEquals(listOf("stored-token", "stored-token"), harness.revoker.attempts)
+        harness.scope.advanceUntilIdle()
+        assertEquals(listOf("stored-token", "stored-token", "stored-token"), harness.revoker.attempts)
+        assertNull(harness.revocationStore.token)
+    }
+
+    @Test
+    fun `revocation rejected by put io is dropped without further attempts`() = runTest {
+        val harness = Harness(storedToken = "stored-token", revocationResults = listOf(TokenRevocationResult.REJECTED))
+        harness.controller.restoreSession()
+
+        harness.controller.logout()
+        harness.scope.advanceUntilIdle()
+
+        assertEquals(listOf("stored-token"), harness.revoker.attempts)
+        assertNull(harness.revocationStore.token)
+    }
+
+    @Test
+    fun `linking with the token awaiting revocation cancels the revocation`() = runTest {
+        val harness = Harness(pendingRevocation = "fresh-token", revocationResults = listOf(TokenRevocationResult.UNAVAILABLE))
+        harness.controller.restoreSession()
+        assertEquals(listOf("fresh-token"), harness.revoker.attempts)
+
+        harness.gateway.emit(DeviceCodeAuthState.Linked("fresh-token", accountInfo()))
+        harness.scope.advanceUntilIdle()
+
+        assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
+        assertEquals(listOf("fresh-token"), harness.revoker.attempts)
+        assertNull(harness.revocationStore.token)
     }
 
     @Test
@@ -269,20 +359,29 @@ class TvAuthControllerTest {
         storedToken: String? = null,
         validation: TvSessionValidation = TvSessionValidation.Valid(accountInfo().toTvAccount()),
         val tokenStore: FakeTokenStore = FakeTokenStore(),
+        pendingRevocation: String? = null,
+        revocationResults: List<TokenRevocationResult> = emptyList(),
     ) {
         val gateway = FakeGateway(validation)
         val scope = TestScope(UnconfinedTestDispatcher())
+        val revocationStore = InMemoryAuthTokenStore(pendingRevocation?.let { checkNotNull(AccessToken.parse(it)) })
+        val revoker = ScriptedTokenRevoker(*revocationResults.toTypedArray())
         val controller: TvAuthController
 
         init {
             tokenStore.stored = storedToken?.let { checkNotNull(AccessToken.parse(it)) }
-            controller = TvAuthController(tokenStore, gateway, scope)
+            controller = TvAuthController(
+                tokenStore,
+                gateway,
+                PendingTokenRevocations(revocationStore, tokenStore, revoker, scope),
+                scope,
+            )
         }
     }
 
     private class FakeTokenStore(
         private val writeFails: Boolean = false,
-        private val readFails: Boolean = false,
+        var readFails: Boolean = false,
     ) : AuthTokenStore {
         var stored: AccessToken? = null
 
@@ -347,11 +446,6 @@ class TvAuthControllerTest {
             calls += "validate"
             validationGate?.await()
             return validation
-        }
-
-        override suspend fun logout(): Boolean {
-            calls += "logout"
-            return true
         }
     }
 
