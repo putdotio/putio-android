@@ -33,6 +33,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
+import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
+import io.putdotio.android.search.MOBILE_SEARCH_RESULTS_TAG
 
 @RunWith(AndroidJUnit4::class)
 class AuthenticatedFilesRenameTest {

@@ -42,6 +42,7 @@ import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.mobilePlaybackViewModelFactory
 import io.putdotio.android.playback.subtitleStartupPolicy
+import io.putdotio.android.search.MobileSearchHistoryScreen
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState

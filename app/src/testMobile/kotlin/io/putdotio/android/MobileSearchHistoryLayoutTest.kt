@@ -29,6 +29,7 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
+import io.putdotio.android.search.MobileSearchHistoryScreen
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchState

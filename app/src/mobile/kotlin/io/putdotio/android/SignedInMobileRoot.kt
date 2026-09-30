@@ -29,6 +29,7 @@ import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.playbackPreference
+import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.authoritativeSessionFailure
 import io.putdotio.android.settings.AccountSettingsFailure

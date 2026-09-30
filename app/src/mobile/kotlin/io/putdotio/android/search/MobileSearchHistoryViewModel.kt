@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.search
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -16,11 +16,6 @@ import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryFileOpener
 import io.putdotio.android.history.HistoryRepository
-import io.putdotio.android.search.AppConfigRecentSearchStore
-import io.putdotio.android.search.RecentSearchStoreOwner
-import io.putdotio.android.search.SearchController
-import io.putdotio.android.search.SearchOutput
-import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.session.SessionScopedHolder
 import io.putdotio.sdk.PutioClient
 import kotlinx.coroutines.CoroutineScope

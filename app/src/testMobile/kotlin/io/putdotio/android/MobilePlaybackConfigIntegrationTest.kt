@@ -54,6 +54,7 @@ import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.playback.MOBILE_PLAYER_TAG
 import io.putdotio.android.playback.dispatch
+import io.putdotio.android.search.MobileSearchHistoryViewModel
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

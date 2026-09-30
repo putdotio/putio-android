@@ -29,6 +29,8 @@ import io.putdotio.android.files.MOBILE_FILES_MOVE_OUTCOME_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_PICKER_TAG
 import io.putdotio.android.files.MOBILE_FILES_SORT_TAG
 import io.putdotio.android.files.mobileFilesMoveFolderTag
+import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
+import io.putdotio.android.search.MOBILE_SEARCH_RESULTS_TAG
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesSearchQuery
 import io.putdotio.sdk.files.PutioFileType

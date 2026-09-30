@@ -22,6 +22,8 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.files.MOBILE_FILES_SORT_TAG
+import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
+import io.putdotio.android.search.MOBILE_SEARCH_RESULTS_TAG
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.files.FilesListQuery

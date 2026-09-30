@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.search
 
 import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
@@ -23,9 +23,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Tab
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,14 +39,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.MobileEmptyState
+import io.putdotio.android.MobileErrorState
+import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.R
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.MobileFilesRow
+import io.putdotio.android.files.mobileMessageResource
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -55,14 +61,8 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
-import io.putdotio.android.search.RecentSearchEdit
-import io.putdotio.android.search.SearchContent
-import io.putdotio.android.search.SearchPaging
-import io.putdotio.android.search.SearchState
-import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.parsePutioTimestamp
 import java.time.ZoneId
-import io.putdotio.android.files.MobileFilesRow
-import io.putdotio.android.files.mobileMessageResource
 
 internal const val MOBILE_SEARCH_FIELD_TAG = "mobile-search-field"
 internal const val MOBILE_SEARCH_RESULTS_TAG = "mobile-search-results"

@@ -55,6 +55,7 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 import io.putdotio.android.transfers.AppTransferStatus
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem
