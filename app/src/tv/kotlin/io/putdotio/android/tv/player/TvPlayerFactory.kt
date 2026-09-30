@@ -64,6 +64,7 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
  * a controller that replaced or added media items would play another file while the screen
  * still reports positions for the first.
  */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun tvMediaSession(context: Context, player: Player): MediaSession.Builder =
     MediaSession.Builder(context, player)
         // A recreated screen can publish its player before the old session is gone.
@@ -94,7 +95,10 @@ internal fun tvSessionPlayer(player: Player, onPlayingRequested: (Boolean) -> Un
         override fun setPlayWhenReady(playWhenReady: Boolean) = onPlayingRequested(playWhenReady)
     }
 
-internal val TV_SESSION_PLAYER_COMMANDS: Player.Commands = Player.Commands.Builder()
+internal val TV_SESSION_PLAYER_COMMANDS: Player.Commands = tvSessionPlayerCommands()
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun tvSessionPlayerCommands(): Player.Commands = Player.Commands.Builder()
     .addAll(
         Player.COMMAND_PLAY_PAUSE,
         Player.COMMAND_PREPARE,
