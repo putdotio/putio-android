@@ -304,11 +304,21 @@ class TvPlayerOptionsTest {
             assertTrue(C.TRACK_TYPE_TEXT in rebuilt.trackSelectionParameters.disabledTrackTypes)
         }
 
+        // The media session changes speed on the player directly; that choice survives too.
+        compose.runOnIdle { players.last().setPlaybackSpeed(1.5f) }
+        settle()
+        restoration.emulateSavedInstanceStateRestore()
+        settle()
+        compose.runOnIdle {
+            assertEquals(3, players.size)
+            assertEquals(1.5f, players.last().playbackParameters.speed)
+        }
+
         state = readyState(fileId = 10L, name = "Next.mp4")
         settle()
         compose.runOnIdle {
             val next = players.last()
-            assertEquals(3, players.size)
+            assertEquals(4, players.size)
             assertEquals("Speed starts over with each file", 1f, next.playbackParameters.speed)
             assertEquals(0, next.selectedTextIndex())
         }

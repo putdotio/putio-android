@@ -99,6 +99,27 @@ and checks the session identity again under the authentication controller's lock
 Tests: `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
 `MobilePlaybackReportingTest`, `MobileResumePlaybackDialogTest`.
 
+## MP4 conversion
+
+Both surfaces resolve a video that needs MP4 conversion to the same shared
+conversion state. The SDK resolves a conversion only for a video the server marks
+`need_convert`, and its MP4 status reads not available until a conversion is
+requested ([live check](https://github.com/putdotio/putio-android/pull/222#issuecomment-5904428342):
+a not-available video converted and played).
+A queued or running conversion is read again every 3 s while the app is in the
+foreground, keeping the interstitial up, and plays on its own once it resolves.
+Completed is read once more at once; if it stays completed, Check again waits for
+the viewer, as does an unknown status. The viewer starts a conversion through
+the SDK's `startMp4Conversion`, which is then read like any other: Convert on one
+never requested, Convert again after a failed one. A start the server accepted
+reads as queued once, so a status read that has not caught up polls again; if the
+status still reads not available after that, the video cannot be converted and
+offers only Back. The app never starts a conversion on its own; putio-web, tv-native
+and tv-vite do on opening, and doing so here is an owner decision.
+
+Tests: `PlaybackReducerTest`, `SdkPlaybackRepositoryTest`, `MobilePlayerScreenTest`,
+`TvPlaybackStatesTest`, `OfflinePlaybackRepositoryTest`.
+
 ## TV playback
 
 Center on a Files media row resolves it through the shared
@@ -167,12 +188,31 @@ playback (activity recreation) keeps its lease, so the old player's exit write
 still lands. A saved position updates the Files row. A 401 from a write rejects
 the session that issued it; sign-out discards pending writes.
 
-Conversion and failed resolutions show a status screen with Check again or Try
-again, unsupported files a plain status screen as on mobile, and a player error
-keeps its position for the retry. The media session is a later #34 layer.
+The player is published as a Media3 media session while it shows, so the
+system's media controls, Now Playing and remote media keys the screen does not
+take itself reach it; the session is released before the player. A pause from
+the session shows the paused controls; during a scrub it keeps the target but
+Back no longer resumes. A play or a seek from the session drops a pending scrub,
+and a play while the screen is stopped is ignored rather than run hidden. The
+player buffers as the RN player's default `medium` size did: 8 s to 30 s
+ahead, starting after 1.5 s, or 3 s after a stall.
 
-Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlayerOptionsTest`,
-`TvPlayerTracksTest`, `TvPlaybackReportingTest`, `TvSessionViewModelTest`,
+A file that needs MP4 conversion shows the RN player's conversion interstitial:
+the file name, why it cannot play yet, and its conversion status (in queue, a
+percentage, completed, failed, not available, or the server's own value), with
+the actions under [MP4 conversion](#mp4-conversion).
+
+Failures say what happened: no network, an expired playback link, too many
+requests, put.io unavailable, no access, a request put.io refused, an expired
+session (the shell then signs out), or a format this device cannot play. Try
+again shows only where it can succeed; it resolves the file again, which also
+replaces an expired link, and a player error keeps its position for it.
+Unsupported file types get a plain status screen as on mobile.
+
+Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlaybackStatesTest`,
+`TvPlayerOptionsTest`, `TvPlayerTracksTest`, `TvPlaybackReportingTest`,
+`TvSessionViewModelTest`, `PlaybackReducerTest`, `PlaybackControllerTest`,
+`SdkPlaybackRepositoryTest`, `PlaybackFailureTest`,
 `PlaybackPositionObserverTest`, `PlaybackExoPlayerTest`,
 `PlaybackSubtitleSelectionTest`, `PlaybackAudioSelectionTest`.
 

@@ -14,6 +14,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.key.Key
 import androidx.lifecycle.Lifecycle
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.LifecycleOwner
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -30,6 +34,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.MediaController
+import androidx.media3.session.MediaSession
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -84,6 +90,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowDialog
+import org.robolectric.Shadows.shadowOf
 
 /** The TV player on a fake Media3 player; the emulator lane plays real media through ExoPlayer. */
 @OptIn(ExperimentalTestApi::class)
@@ -242,6 +249,262 @@ class TvPlayerScreenTest {
         compose.onNodeWithText("Couldn’t play this file").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, retries) }
+    }
+
+    @Test
+    fun theScreenPublishesItsPlayerAsAMediaSessionUntilPlaybackEnds() {
+        val player = FakePlayer()
+        val events = mutableListOf<String>()
+        var showing by mutableStateOf(true)
+        val factory = object : TvPlayerFactory {
+            override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Player = player
+
+            override fun publish(context: android.content.Context, published: Player): java.io.Closeable {
+                events += "published ${published.currentMediaItem?.mediaId}"
+                return java.io.Closeable { events += "unpublished released=${player.released}" }
+            }
+        }
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                if (showing) {
+                    TvPlayerScreen(
+                        state = readyState(),
+                        onBack = {},
+                        onRetry = {},
+                        onResume = {},
+                        onRestart = {},
+                        onPlayerFailure = { _, _ -> },
+                        playerFactory = factory,
+                    )
+                }
+            }
+        }
+        compose.runOnIdle { assertEquals(listOf("published 9"), events) }
+
+        compose.runOnIdle { showing = false }
+        compose.runOnIdle {
+            assertEquals(listOf("published 9", "unpublished released=false"), events)
+            assertTrue(player.released)
+        }
+    }
+
+    @Test
+    fun theSessionLetsControllersPlayPauseAndSeekButNotSwapTheFile() {
+        val player = FakePlayer()
+        player.setMediaItem(MediaItem.Builder().setMediaId("9").setUri(SOURCE_URL).build())
+        player.prepare()
+        player.play()
+        val context = compose.activity
+        val session = tvMediaSession(context, player).build()
+        try {
+            val pending = MediaController.Builder(context, session.token).buildAsync()
+            shadowOf(Looper.getMainLooper()).idle()
+            val controller = pending.get()
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_PLAY_PAUSE))
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
+            assertFalse(controller.isCommandAvailable(Player.COMMAND_SET_MEDIA_ITEM))
+            assertFalse(controller.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS))
+
+            controller.setMediaItem(MediaItem.Builder().setMediaId("10").setUri("https://example.com/other.mp4").build())
+            controller.pause()
+            controller.seekTo(5_000L)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(listOf("9"), player.mediaItems.map { it.mediaId })
+            assertFalse(player.playWhenReady)
+            assertEquals(5_000L, player.currentPosition)
+            controller.release()
+        } finally {
+            session.release()
+        }
+    }
+
+    @Test
+    fun aSystemPauseDuringAScrubKeepsItsTargetAndBackNoLongerResumes() {
+        val player = FakePlayer()
+        val sessions = mutableListOf<MediaSession>()
+        showReady(player, resumePositionMillis = 42_000L, playerFactory = sessionFactory(player, sessions))
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
+        settle()
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+
+        // The scrub already paused the player, so this pause changes nothing it reports.
+        val controller = connect(sessions.single())
+        controller.pause()
+        idleSession()
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:27")
+
+        back()
+        compose.runOnIdle {
+            assertEquals("Dismissing seek mode never seeks", 42_000L, player.currentPosition)
+            assertFalse("The system's pause holds", player.playWhenReady)
+        }
+        controller.release()
+    }
+
+    @Test
+    fun aSystemSeekDuringAScrubReplacesItsTarget() {
+        val player = FakePlayer()
+        val sessions = mutableListOf<MediaSession>()
+        showReady(player, resumePositionMillis = 42_000L, playerFactory = sessionFactory(player, sessions))
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
+        settle()
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:27")
+
+        val controller = connect(sessions.single())
+        controller.seekTo(90_000L)
+        idleSession()
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("01:30")
+
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionCenter) }
+        settle()
+        compose.runOnIdle { assertEquals("Center cannot undo the system's seek", 90_000L, player.currentPosition) }
+        controller.release()
+    }
+
+    @Test
+    fun theSystemCannotResumePlaybackWhileTheScreenIsStopped() {
+        val player = FakePlayer()
+        val sessions = mutableListOf<MediaSession>()
+        val owner = object : LifecycleOwner {
+            val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+            override val lifecycle: Lifecycle get() = registry
+        }
+        showReady(player, playerFactory = sessionFactory(player, sessions), lifecycleOwner = owner)
+        val controller = connect(sessions.single())
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        settle()
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+        controller.play()
+        idleSession()
+        compose.runOnIdle { assertFalse("Nothing plays behind another app", player.playWhenReady) }
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
+        settle()
+        controller.play()
+        idleSession()
+        compose.runOnIdle { assertTrue(player.playWhenReady) }
+        controller.release()
+    }
+
+    @Test
+    fun aPauseFromTheSystemControlsShowsThePausedControls() {
+        val player = FakePlayer()
+        showReady(player)
+        compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 100L)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+
+        // The media session drives the player directly, as for a Now Playing pause.
+        compose.runOnIdle { player.pause() }
+        settle()
+        compose.onNodeWithContentDescription("Paused").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS * 2)
+        compose.onNodeWithContentDescription("Paused").assertIsDisplayed()
+
+        compose.runOnIdle { player.play() }
+        settle()
+        compose.onNodeWithContentDescription("Playing").assertIsDisplayed()
+        compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 100L)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun aConvertingVideoPlaysOnItsOwnOnceTheConversionFinishes() {
+        val player = FakePlayer()
+        val answers = ArrayDeque(
+            listOf(
+                PlaybackResolution.Conversion(io.putdotio.sdk.files.PlaybackConversionState.Queued),
+                PlaybackResolution.Conversion(io.putdotio.sdk.files.PlaybackConversionState.Converting(60.0)),
+                PlaybackResolution.Ready(source()),
+            ),
+        )
+        var resolutions = 0
+        val controller = PlaybackController(
+            PlaybackTarget(FilesItemId(9), "Sintel.mp4", PlaybackMediaType.VIDEO),
+            object : PlaybackRepository {
+                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                    resolutions += 1
+                    return PlaybackRepositoryResult.Success(answers.removeFirst())
+                }
+
+                override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+            },
+            CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        )
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlaybackRoute(
+                    controller = controller,
+                    onExit = {},
+                    onSessionRejected = {},
+                    playerFactory = { _, _ -> player },
+                )
+            }
+        }
+        settle()
+        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
+
+        compose.mainClock.advanceTimeBy(io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS)
+        settle()
+        compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("60%")
+        compose.runOnIdle { assertTrue("Nothing plays yet", player.mediaItems.isEmpty()) }
+
+        compose.mainClock.advanceTimeBy(io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS)
+        settle()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        compose.runOnIdle {
+            assertEquals(3, resolutions)
+            assertTrue(player.prepared)
+            assertTrue(player.playWhenReady)
+        }
+    }
+
+    @Test
+    fun aConversionThatReadsTheSameStatusAgainKeepsPolling() {
+        val player = FakePlayer()
+        val queued = PlaybackResolution.Conversion(io.putdotio.sdk.files.PlaybackConversionState.Queued)
+        val answers = ArrayDeque(listOf(queued, queued, queued, PlaybackResolution.Ready(source())))
+        var resolutions = 0
+        val controller = PlaybackController(
+            PlaybackTarget(FilesItemId(9), "Sintel.mp4", PlaybackMediaType.VIDEO),
+            object : PlaybackRepository {
+                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                    resolutions += 1
+                    return PlaybackRepositoryResult.Success(answers.removeFirst())
+                }
+
+                override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+            },
+            // Each read settles before the next frame, so the screen never sees it in flight.
+            CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        )
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlaybackRoute(
+                    controller = controller,
+                    onExit = {},
+                    onSessionRejected = {},
+                    playerFactory = { _, _ -> player },
+                )
+            }
+        }
+        settle()
+        repeat(2) { poll ->
+            compose.mainClock.advanceTimeBy(io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS)
+            settle()
+            compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
+            compose.runOnIdle { assertEquals(poll + 2, resolutions) }
+        }
+
+        compose.mainClock.advanceTimeBy(io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS)
+        settle()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        compose.runOnIdle {
+            assertEquals(4, resolutions)
+            assertTrue(player.prepared)
+        }
     }
 
     @Test
@@ -658,19 +921,27 @@ class TvPlayerScreenTest {
         compose.runOnIdle { assertEquals("The held key did not also leave", 0, backs) }
     }
 
-    private fun showReady(player: FakePlayer, resumePositionMillis: Long? = null, onBack: () -> Unit = {}) {
+    private fun showReady(
+        player: FakePlayer,
+        resumePositionMillis: Long? = null,
+        onBack: () -> Unit = {},
+        playerFactory: TvPlayerFactory = TvPlayerFactory { _, _ -> player },
+        lifecycleOwner: LifecycleOwner? = null,
+    ) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlayerScreen(
-                    state = readyState(resumePositionMillis = resumePositionMillis),
-                    onBack = onBack,
-                    onRetry = {},
-                    onResume = {},
-                    onRestart = {},
-                    onPlayerFailure = { _, _ -> },
-                    playerFactory = { _, _ -> player },
-                )
+            CompositionLocalProvider(LocalLifecycleOwner provides (lifecycleOwner ?: LocalLifecycleOwner.current)) {
+                MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                    TvPlayerScreen(
+                        state = readyState(resumePositionMillis = resumePositionMillis),
+                        onBack = onBack,
+                        onRetry = {},
+                        onResume = {},
+                        onRestart = {},
+                        onPlayerFailure = { _, _ -> },
+                        playerFactory = playerFactory,
+                    )
+                }
             }
         }
         settle()
@@ -741,6 +1012,29 @@ class TvPlayerScreenTest {
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
         compose.mainClock.advanceTimeBy(SETTLE_MILLIS)
+    }
+
+    /** Publishes [player] through the app's real session, as the default factory does. */
+    private fun sessionFactory(player: FakePlayer, sessions: MutableList<MediaSession>) = object : TvPlayerFactory {
+        override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Player = player
+
+        override fun publish(context: android.content.Context, published: Player): java.io.Closeable {
+            val session = tvMediaSession(context, published).build()
+            sessions += session
+            return java.io.Closeable { session.release() }
+        }
+    }
+
+    /** A system controller, as Now Playing or a remote's media keys reach the session. */
+    private fun connect(session: MediaSession): MediaController {
+        val pending = MediaController.Builder(compose.activity, session.token).buildAsync()
+        shadowOf(Looper.getMainLooper()).idle()
+        return pending.get()
+    }
+
+    private fun idleSession() {
+        shadowOf(Looper.getMainLooper()).idle()
+        settle()
     }
 
     /** A few frames: the key's state change, then the recomposition it causes. */

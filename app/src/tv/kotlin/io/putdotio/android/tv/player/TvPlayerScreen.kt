@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -136,6 +137,8 @@ internal fun TvPlayerScreen(
     onRestart: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     modifier: Modifier = Modifier,
+    onRefreshConversion: () -> Unit = {},
+    onStartConversion: () -> Unit = {},
     playerFactory: TvPlayerFactory = DefaultTvPlayerFactory,
     reporter: TvPlaybackReporter = TvPlaybackReporter.None,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
@@ -180,24 +183,18 @@ internal fun TvPlayerScreen(
             -> TvStatusScreen(stringResource(R.string.tv_player_loading))
 
             is PlaybackContent.Conversion ->
-                TvStatusScreen(
-                    title = stringResource(R.string.tv_player_conversion_title),
-                    message = stringResource(R.string.tv_player_conversion_message),
-                    action = stringResource(R.string.tv_player_check_again),
-                    onAction = onRetry,
+                TvConversionScreen(
+                    title = state.target.name,
+                    conversion = content,
+                    onRefresh = onRefreshConversion,
+                    onStartConversion = onStartConversion,
                 )
 
             is PlaybackContent.Unsupported -> TvStatusScreen(stringResource(R.string.tv_player_unsupported_title))
 
-            is PlaybackContent.Failed,
-            is PlaybackContent.NextFailed,
-            ->
-                TvStatusScreen(
-                    title = stringResource(R.string.tv_player_error_title),
-                    message = stringResource(R.string.tv_player_error_message),
-                    action = stringResource(R.string.tv_player_retry),
-                    onAction = onRetry,
-                )
+            is PlaybackContent.Failed -> TvPlaybackFailureScreen(content.failure, onRetry)
+
+            is PlaybackContent.NextFailed -> TvPlaybackFailureScreen(content.failure, onRetry)
 
             PlaybackContent.Ended -> LaunchedEffect(Unit) { onBack() }
         }
@@ -218,6 +215,7 @@ private fun TvReadyPlayer(
     onExit: () -> Unit,
 ) {
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     // Recreating the activity (a remote or keyboard connecting, a locale change) rebuilds the
     // player; the new one continues, paused, from where the old one was stopped. The key is
     // scoped to this process and file so a position saved before process death never applies.
@@ -272,6 +270,16 @@ private fun TvReadyPlayer(
         val listener = object : Player.Listener {
             override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) {
                 playWhenReady = value
+                apply(overlay.playingChanged(value))
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int,
+            ) {
+                // The overlay's own commit drops its scrub before seeking, so this is anyone else's.
+                if (reason == Player.DISCONTINUITY_REASON_SEEK) apply(overlay.soughtElsewhere())
             }
 
             override fun onPlaybackStateChanged(value: Int) {
@@ -294,6 +302,8 @@ private fun TvReadyPlayer(
 
             override fun onPlaybackParametersChanged(value: PlaybackParameters) {
                 speed = value.speed
+                // The media session sets speed on the player directly; keep it like a picked one.
+                if (options.speed != value.speed) options = options.copy(speed = value.speed)
             }
 
             override fun onCues(cueGroup: CueGroup) {
@@ -320,9 +330,21 @@ private fun TvReadyPlayer(
         player.playWhenReady = stoppedAtMillis == null
         player.prepare()
         val positions = reporter.observe(player)
+        // The system's play and pause go through the overlay: during a scrub the player is already
+        // paused, so a pause there changes nothing the listener would hear. The session stays
+        // published while the screen is stopped, where a play would run hidden playback.
+        val session = playerFactory.publish(
+            context,
+            tvSessionPlayer(player) { play ->
+                if (!play || lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    apply(overlay.sessionPlaying(play))
+                }
+            },
+        )
         onDispose {
             // Captures the exit position while the player still has it.
             positions.close()
+            session.close()
             player.removeListener(listener)
             player.release()
         }

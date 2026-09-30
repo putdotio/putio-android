@@ -39,6 +39,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
@@ -61,12 +62,14 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.files.TvFilesScreen
+import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -417,6 +420,201 @@ class TvPlayerProofTest {
         player.currentTracks.playbackAudioTracks().singleOrNull { it.selected }
             ?.let { it.group.getFormat(it.trackIndex).language }
 
+    /**
+     * The conversion interstitial on a fake conversion source, then the remote's play/pause key
+     * and the system's media controls through the published session, then a failed resolution
+     * that Try again recovers from.
+     */
+    @Test
+    fun conversionThenSessionControlsAndARecoverableError() {
+        val factory = mountFilesWithSessionRoute()
+        compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithContentDescription("Play $CONVERTING_TITLE").assertIsFocused()
+
+        // Queued, then running; the interstitial reads the conversion again every 3 s.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitConversionStatus("In queue…")
+        compose.onNodeWithText("CONVERSION STATUS").assertExists()
+        screenshot("50-conversion-queued")
+        awaitConversionStatus("35%")
+        screenshot("51-conversion-35")
+        awaitConversionStatus("80%")
+        screenshot("52-conversion-80")
+        awaitPlayer(factory) { it.isPlaying && factory.renderedFrame && it.currentPosition > 1_000L }
+        screenshot("53-converted-playing")
+        elapse(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 1_000L)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+
+        // The remote's play/pause key, as `adb shell input keyevent` sends it.
+        shell("input keyevent KEYCODE_MEDIA_PLAY_PAUSE")
+        awaitPlayer(factory) { !it.playWhenReady }
+        compose.onNodeWithContentDescription("Paused").assertExists()
+        screenshot("54-remote-paused")
+        pause()
+        shell("input keyevent KEYCODE_MEDIA_PLAY_PAUSE")
+        awaitPlayer(factory) { it.isPlaying }
+        screenshot("55-remote-playing")
+
+        // The system sees the session, and its media controls reach the player through it.
+        val system = sessionController()
+        assertEquals(CONVERTING_TITLE, system.metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE))
+        assertEquals(android.media.session.PlaybackState.STATE_PLAYING, system.playbackState?.state)
+        elapse(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 1_000L)
+        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+        system.transportControls.pause()
+        awaitPlayer(factory) { !it.playWhenReady }
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag(TV_PLAYER_CONTROLS_TAG).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithContentDescription("Paused").assertExists()
+        screenshot("56-system-paused")
+        pause()
+        system.transportControls.play()
+        awaitPlayer(factory) { it.isPlaying }
+        screenshot("57-system-playing")
+        leavePlayback()
+        compose.waitUntil(5_000) { activeSessions().isEmpty() }
+
+        // A failed resolution explains itself; Try again resolves again and plays.
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithContentDescription("Play $OFFLINE_TITLE").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText("Check the network and try again.").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("Try again").assertIsFocused()
+        screenshot("58-network-error")
+        pause()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.isPlaying && factory.renderedFrame && it.currentPosition > 1_000L }
+        screenshot("59-retried-playing")
+        leavePlayback()
+        compose.onNodeWithContentDescription("Play $OFFLINE_TITLE").assertIsFocused()
+        screenshot("60-back-on-files-row")
+        pause()
+    }
+
+    private fun awaitConversionStatus(text: String) {
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithTag(TV_CONVERSION_STATUS_TAG).fetchSemanticsNodes().any { node ->
+                node.config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text } == text
+            }
+        }
+    }
+
+    /** Runs [command] as the shell user, as `adb shell` does, and waits for it to finish. */
+    private fun shell(command: String) {
+        val output = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(output).use { it.readBytes() }
+        compose.waitForIdle()
+    }
+
+    /** This app's sessions as the system's media controls see them. */
+    private fun activeSessions(): List<android.media.session.MediaController> {
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        automation.adoptShellPermissionIdentity(android.Manifest.permission.MEDIA_CONTENT_CONTROL)
+        return try {
+            context.getSystemService(android.media.session.MediaSessionManager::class.java)
+                .getActiveSessions(null)
+                .filter { it.packageName == context.packageName }
+        } finally {
+            automation.dropShellPermissionIdentity()
+        }
+    }
+
+    private fun sessionController(): android.media.session.MediaController {
+        compose.waitUntil(5_000) { activeSessions().size == 1 }
+        return activeSessions().single()
+    }
+
+    /**
+     * Two rows on the real session route, without write-back: one whose conversion runs
+     * (queued, 35 %, 80 %, then the local fixture) and one whose first resolution fails
+     * with a network error before the fixture resolves.
+     */
+    private fun mountFilesWithSessionRoute(): ProofPlayerFactory {
+        val source = localSource()
+        val factory = ProofPlayerFactory()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val conversion = ArrayDeque(
+            listOf(
+                PlaybackResolution.Conversion(PlaybackConversionState.Queued),
+                PlaybackResolution.Conversion(PlaybackConversionState.Converting(35.0)),
+                PlaybackResolution.Conversion(PlaybackConversionState.Converting(80.0)),
+            ),
+        )
+        var offlineFailed = false
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+                when {
+                    target.fileId.value == FIXTURE_FILE_ID && conversion.isNotEmpty() ->
+                        PlaybackRepositoryResult.Success(conversion.removeFirst())
+                    target.fileId.value == OFFLINE_FILE_ID && !offlineFailed -> {
+                        offlineFailed = true
+                        PlaybackRepositoryResult.Failure(PlaybackFailure.NetworkUnavailable(IOException("proof: offline")))
+                    }
+                    else -> PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source))
+                }
+
+            override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+        }
+        val files = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    FilesFolder.Root,
+                    FilesContent.Ready(
+                        listOf(
+                            row(1, "Documents", PutioFileType.FOLDER),
+                            row(FIXTURE_FILE_ID, CONVERTING_TITLE, PutioFileType.VIDEO),
+                            row(OFFLINE_FILE_ID, OFFLINE_TITLE, PutioFileType.VIDEO),
+                        ),
+                        FilesPaging.Complete,
+                    ),
+                ),
+            ),
+            nextRequestValue = 1L,
+        )
+        val focusMemory = mutableMapOf<Long, Long>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlaybackLayer(
+                    playing = controller != null,
+                    player = {
+                        TvPlaybackRoute(
+                            controller = checkNotNull(controller),
+                            onExit = {
+                                controller?.close()
+                                controller = null
+                            },
+                            onSessionRejected = { error("Unexpected rejection") },
+                            playerFactory = factory,
+                        )
+                    },
+                ) {
+                    TvShell(
+                        account = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid"),
+                        onSignOut = {},
+                        filesPane = { paneFocus ->
+                            TvFilesScreen(
+                                state = files,
+                                onEvent = { true },
+                                onPlayMedia = { item ->
+                                    controller = PlaybackController(
+                                        PlaybackTarget(item.id, item.name, PlaybackMediaType.VIDEO, FIXTURE_SECONDS),
+                                        repository,
+                                        scope,
+                                    )
+                                },
+                                modifier = Modifier.focusRequester(paneFocus),
+                                focusMemory = focusMemory,
+                            )
+                        },
+                    )
+                }
+            }
+        }
+        return factory
+    }
+
     private fun stateIs(value: String) =
         SemanticsMatcher("state $value") { it.config.getOrNull(SemanticsProperties.StateDescription) == value }
 
@@ -671,6 +869,9 @@ class TvPlayerProofTest {
     private companion object {
         const val FIXTURE_FILE_ID = 9_340_001L
         const val FIXTURE_TITLE = "TV player proof.mp4"
+        const val CONVERTING_TITLE = "Needs conversion.avi"
+        const val OFFLINE_TITLE = "Offline first.mp4"
+        const val OFFLINE_FILE_ID = 9_340_002L
         const val STEP_PAUSE_MILLIS = 1_500L
         const val ELAPSE_STEP_MILLIS = 100L
         const val FIXTURE_SECONDS = 90.0
@@ -698,7 +899,7 @@ private class ProofPositionServer(var startFromSeconds: Double) {
     }
 }
 
-/** The production TV player, observed for its first rendered frame and its release. */
+/** The production TV player and media session, observed for its first rendered frame and its release. */
 @UnstableApi
 private class ProofPlayerFactory : TvPlayerFactory {
     var player: Player? = null
@@ -719,4 +920,7 @@ private class ProofPlayerFactory : TvPlayerFactory {
                 }
             })
         }
+
+    override fun publish(context: Context, player: Player): java.io.Closeable =
+        DefaultTvPlayerFactory.publish(context, player)
 }

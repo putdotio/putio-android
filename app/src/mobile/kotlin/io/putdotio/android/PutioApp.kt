@@ -74,6 +74,7 @@ import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.SdkFilesRepository
+import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
@@ -81,7 +82,6 @@ import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackTarget
-import io.putdotio.android.playback.SdkPlaybackRepository
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.files.FilesItemId
@@ -447,7 +447,7 @@ internal fun SignedInMobileRoot(
     }
     val appContext = LocalContext.current.applicationContext
     val playbackRepository = remember(runtime.putioClient, appConfigController, downloadsController) {
-        val streaming = SdkPlaybackRepository(runtime.putioClient) {
+        val streaming = ConvertingPlaybackRepository(runtime.putioClient) {
             appConfigController.state.value.playbackPreference()
         }
         if (downloadsController == null) {
@@ -1301,6 +1301,8 @@ private fun MobilePlaybackRoute(
     MobilePlayerScreen(
         state = state,
         onRetry = { controller.dispatch(PlaybackEvent.Retry) },
+        onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
+        onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },
         onPlayerFailure = { failure, positionMillis ->
             controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))
         },

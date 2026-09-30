@@ -47,7 +47,7 @@ import io.putdotio.android.tv.files.tvMessage
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
-import io.putdotio.android.playback.SdkPlaybackRepository
+import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.tv.player.TvPlaybackLayer
 import io.putdotio.android.tv.player.TvPlaybackRoute
 import io.putdotio.android.tv.account.TvAccountScreen
@@ -132,7 +132,7 @@ private fun TvSignedInApp(
             streamUrls = SdkFilesStreamUrls(runtime.putioClient),
             filesItemResolver = filesRepository,
             recentSearchStore = { scope -> AppConfigRecentSearchStore(runtime.putioClient, scope) },
-            playbackRepository = { preference -> SdkPlaybackRepository(runtime.putioClient, preference) },
+            playbackRepository = { preference -> ConvertingPlaybackRepository(runtime.putioClient, preference) },
             writePlaybackPosition = SdkPlaybackPositionRepository(runtime.putioClient)::write,
         )
     }

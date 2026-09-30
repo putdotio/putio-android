@@ -74,9 +74,14 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.ContentFrame
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackConversionAction
+import io.putdotio.android.playback.PlaybackConversionPolling
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.action
+import io.putdotio.android.playback.retryable
+import io.putdotio.android.playback.startable
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.playbackSurfaceType
 import io.putdotio.android.playback.preparePlayback
@@ -124,6 +129,8 @@ internal fun MobilePlayerScreen(
     onSourceRequired: (Long?) -> Unit = {},
     onResume: () -> Unit = {},
     onRestart: () -> Unit = {},
+    onRefreshConversion: () -> Unit = {},
+    onStartConversion: () -> Unit = {},
 ) {
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
         MobileVideoWindow(fileId = state.target.fileId.value)
@@ -200,22 +207,16 @@ internal fun MobilePlayerScreen(
                 MobileLoadingState(stringResource(R.string.mobile_playback_finding_next))
 
             is PlaybackContent.NextFailed ->
-                MobileErrorState(
+                MobilePlaybackFailureState(
                     title = stringResource(R.string.mobile_playback_next_error_title),
-                    message = stringResource(content.failure.messageResource()),
-                    retryLabel = stringResource(R.string.mobile_action_retry),
+                    failure = content.failure,
                     onRetry = onRetry,
                 )
 
             PlaybackContent.Ended -> Unit
 
             is PlaybackContent.Conversion ->
-                MobileErrorState(
-                    title = stringResource(R.string.mobile_playback_conversion_title),
-                    message = content.state.message(),
-                    retryLabel = stringResource(R.string.mobile_playback_check_again),
-                    onRetry = onRetry,
-                )
+                MobileConversionState(content, onRefreshConversion, onStartConversion)
 
             is PlaybackContent.Unsupported ->
                 MobileEmptyState(
@@ -224,7 +225,7 @@ internal fun MobilePlayerScreen(
                 )
 
             is PlaybackContent.Failed ->
-                MobileErrorState(
+                MobilePlaybackFailureState(
                     title = stringResource(
                         if (state.target.mediaType == PlaybackMediaType.AUDIO) {
                             R.string.mobile_playback_error_title_audio
@@ -232,8 +233,7 @@ internal fun MobilePlayerScreen(
                             R.string.mobile_playback_error_title
                         },
                     ),
-                    message = stringResource(content.failure.messageResource()),
-                    retryLabel = stringResource(R.string.mobile_action_retry),
+                    failure = content.failure,
                     onRetry = onRetry,
                 )
         }
@@ -1166,6 +1166,59 @@ private fun rememberTouchExplorationEnabled(): Boolean {
     return enabled
 }
 
+/** Queued and running conversions poll; the viewer starts one, or checks again where it waits. */
+/** Try again repeats the same request; it shows only where that can succeed. */
+@Composable
+private fun MobilePlaybackFailureState(
+    title: String,
+    failure: PlaybackFailure,
+    onRetry: () -> Unit,
+) {
+    val message = stringResource(failure.messageResource())
+    if (failure.retryable) {
+        MobileErrorState(
+            title = title,
+            message = message,
+            retryLabel = stringResource(R.string.mobile_action_retry),
+            onRetry = onRetry,
+        )
+    } else {
+        MobileEmptyState(title = title, message = message)
+    }
+}
+
+@Composable
+private fun MobileConversionState(
+    conversion: PlaybackContent.Conversion,
+    onRefresh: () -> Unit,
+    onStart: () -> Unit,
+) {
+    PlaybackConversionPolling(conversion, onRefresh)
+    val title = stringResource(R.string.mobile_playback_conversion_title)
+    val message = if (conversion.startable && conversion.state == PlaybackConversionState.NotAvailable) {
+        stringResource(R.string.mobile_playback_conversion_not_requested)
+    } else {
+        conversion.state.message()
+    }
+    val action = when (conversion.action) {
+        PlaybackConversionAction.Convert -> R.string.mobile_playback_convert to onStart
+        PlaybackConversionAction.ConvertAgain -> R.string.mobile_playback_convert_again to onStart
+        PlaybackConversionAction.CheckAgain -> R.string.mobile_playback_check_again to onRefresh
+        null -> null
+    }
+    if (action == null) {
+        MobileEmptyState(title = title, message = message)
+    } else {
+        MobileErrorState(
+            title = title,
+            message = message,
+            retryLabel = stringResource(action.first),
+            onRetry = action.second,
+            retryEnabled = conversion.refreshRequestId == null,
+        )
+    }
+}
+
 @Composable
 private fun PlaybackConversionState.message(): String =
     when (this) {
@@ -1189,6 +1242,7 @@ private fun PlaybackFailure.messageResource(): Int =
         is PlaybackFailure.RateLimited -> R.string.mobile_state_error_rate_limited
         is PlaybackFailure.NetworkUnavailable -> R.string.mobile_state_error_message
         is PlaybackFailure.MediaCredentialUnavailable -> R.string.mobile_playback_error_credential
+        is PlaybackFailure.MediaUnsupported -> R.string.mobile_playback_error_media_unsupported
         is PlaybackFailure.ApiRejected,
         is PlaybackFailure.InvalidResponse,
         is PlaybackFailure.Misconfigured,

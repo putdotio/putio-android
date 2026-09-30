@@ -11,11 +11,13 @@ import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
 import io.putdotio.sdk.files.FileDetailsQuery
+import io.putdotio.sdk.files.FileMp4ConversionStatus
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackMediaCredential
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
@@ -75,13 +77,48 @@ sealed interface PlaybackFailure {
         override val cause: PutioException,
     ) : PlaybackFailure
 
+    /** The device cannot decode or parse this media; resolving it again plays nothing. */
+    data class MediaUnsupported(
+        override val cause: Throwable,
+    ) : PlaybackFailure
+
     data class Unexpected(
         override val cause: Throwable,
     ) : PlaybackFailure
 }
 
+/**
+ * Whether trying again can succeed: a network, rate-limit, server, request-timeout or
+ * expired-link failure can, a rejected session, a refused or rejected request, or media the
+ * device cannot play cannot.
+ */
+val PlaybackFailure.retryable: Boolean
+    get() = when (this) {
+        is PlaybackFailure.NetworkUnavailable,
+        is PlaybackFailure.MediaCredentialUnavailable,
+        is PlaybackFailure.RateLimited,
+        is PlaybackFailure.ServerUnavailable,
+        is PlaybackFailure.InvalidResponse,
+        is PlaybackFailure.Unexpected,
+        -> true
+
+        is PlaybackFailure.ApiRejected -> statusCode == HTTP_REQUEST_TIMEOUT
+
+        is PlaybackFailure.AuthenticationRequired,
+        is PlaybackFailure.AccessDenied,
+        is PlaybackFailure.Misconfigured,
+        is PlaybackFailure.MediaUnsupported,
+        -> false
+    }
+
 interface PlaybackRepository {
     suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution>
+
+    /** Starts converting [target] to MP4, then resolves it again. */
+    suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        PlaybackRepositoryResult.Failure(
+            PlaybackFailure.Unexpected(UnsupportedOperationException("This source cannot start a conversion")),
+        )
 
     suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
 }
@@ -209,6 +246,49 @@ class SdkPlaybackRepository internal constructor(
     }
 }
 
+/**
+ * [delegate] plus the SDK's MP4 conversion start. Only the viewer's explicit Convert starts one
+ * (see [PlaybackContent.Conversion.startable]); the resolver itself never does (putio-sdk-kotlin
+ * `docs/ARCHITECTURE.md`, conversion handling).
+ */
+class ConvertingPlaybackRepository internal constructor(
+    private val delegate: PlaybackRepository,
+    /** Starts the conversion; true when the server accepted it (any status but not available). */
+    private val startMp4Conversion: suspend (Long) -> Boolean,
+) : PlaybackRepository by delegate {
+    constructor(
+        client: PutioClient,
+        playbackPreference: () -> PlaybackPreference,
+    ) : this(
+        delegate = SdkPlaybackRepository(client, playbackPreference),
+        startMp4Conversion = { fileId ->
+            client.files.startMp4Conversion(fileId).status != FileMp4ConversionStatus.NOT_AVAILABLE
+        },
+    )
+
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        try {
+            val accepted = startMp4Conversion(target.fileId.value)
+            val resolved = delegate.resolve(target)
+            val read = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Conversion
+            val stillNotAvailable = read?.state == PlaybackConversionState.NotAvailable
+            // A status read that has not caught up with an accepted start polls once more before
+            // it is final.
+            if (accepted && stillNotAvailable) {
+                PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued))
+            } else {
+                resolved
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: PutioException) {
+            PlaybackRepositoryResult.Failure(error.toPlaybackFailure())
+        } catch (unexpected: Exception) {
+            PlaybackRepositoryResult.Failure(PlaybackFailure.Unexpected(unexpected))
+        }
+}
+
 private const val AUTOPLAY_PAGE_SIZE = 200
 
 internal class MissingPlaybackCredentialException : IllegalStateException("Playback credential is unavailable")
@@ -287,6 +367,7 @@ private fun PutioException.leafFailure(context: PutioException): PlaybackFailure
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
 private const val HTTP_NOT_FOUND = 404
+private const val HTTP_REQUEST_TIMEOUT = 408
 private const val HTTP_TOO_MANY_REQUESTS = 429
 private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
 private const val HTTP_SERVER_ERROR_START = 500

@@ -599,6 +599,15 @@ Center, Down, Center switches to the second audio track; Right, Center, Up,
 Center turns subtitles off; Down, Right, Center seeks and subtitles stay off;
 Down, Up, Right, Right, Center opens Speed, Back closes only the picker, then
 Down twice picks 1.5×; Back hides the controls and Back returns to the row.
+`conversionThenSessionControlsAndARecoverableError` runs the session route on
+a fake conversion source: Center on the first video shows the conversion
+interstitial reading in queue, 35 % and 80 % three seconds apart before the
+fixture plays. `input keyevent KEYCODE_MEDIA_PLAY_PAUSE`, sent as the shell
+user as `adb shell` does, pauses and resumes it; the system's media session
+list then shows the player with its title as playing, and its transport
+controls pause (the paused controls come up) and play it. Leaving removes the
+session. The second video's first resolution fails with a network error, and
+Try again plays it.
 It makes no API calls; the listing, the resolved source and the position
 server stand in for a signed-in session, so report it as controlled-state
 proof.
@@ -638,7 +647,10 @@ continued after Back, started over, the dialog after starting over, continued,
 back on the row), and `30`–`41` for the fourth (automatic subtitles, Language
 focused, the audio picker, the second track, the subtitle picker, subtitles
 off, still off after a seek, the speed picker, the picker dismissed, 1.5×,
-controls dismissed, back on the row). The
+controls dismissed, back on the row), and `50`–`60` for the fifth (in queue,
+35 %, 80 %, converted and playing, paused and resumed by the remote key,
+paused and resumed by the system's controls, the network error, playing after
+Try again, back on the row). The
 proof keeps the Compose test clock in step with real time so the auto-hide
 and position timers run as they do in the app. Remove the fixture and
 screenshot directories afterwards.

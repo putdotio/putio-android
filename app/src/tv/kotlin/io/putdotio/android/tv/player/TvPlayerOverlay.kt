@@ -179,6 +179,39 @@ internal fun TvPlayerOverlay.setPlaying(play: Boolean): TvPlayerTransition {
 }
 
 /**
+ * The system's controls asked the media session to play or pause. Play is the dedicated play
+ * key's. A pause keeps a pending scrub's target but no longer resumes on Back: a scrub already
+ * holds playback paused, so the player alone would not report it.
+ */
+internal fun TvPlayerOverlay.sessionPlaying(play: Boolean): TvPlayerTransition =
+    when {
+        exited -> TvPlayerTransition(this)
+        play -> setPlaying(play = true)
+        else -> TvPlayerTransition(
+            copy(controlsVisible = true, activity = activity + 1, scrub = scrub?.copy(wasPlaying = false)),
+            listOf(TvPlayerCommand.Pause),
+        )
+    }
+
+/**
+ * Playback moved without the overlay: the system's controls sought through the session. A pending
+ * scrub's target no longer applies, so a later commit cannot undo that seek.
+ */
+internal fun TvPlayerOverlay.soughtElsewhere(): TvPlayerTransition =
+    TvPlayerTransition(if (scrub == null) this else copy(scrub = null, activity = activity + 1))
+
+/**
+ * Playback started or stopped, whoever asked. A pause shows the paused controls; playing drops a
+ * pending scrub, whose target no longer means anything.
+ */
+internal fun TvPlayerOverlay.playingChanged(playing: Boolean): TvPlayerTransition =
+    when {
+        exited -> TvPlayerTransition(this)
+        playing -> TvPlayerTransition(copy(scrub = null))
+        else -> reveal()
+    }
+
+/**
  * Back dismisses the topmost layer: an open picker (no change; focus back on its button), seek
  * mode (the position never moved; playback resumes only if the scrub paused it), then the
  * controls (pause state untouched). With nothing open it exits once; Backs that arrive before

@@ -33,6 +33,22 @@ class TvPlayerOverlayTest {
     }
 
     @Test
+    fun theSystemControlsPausingShowsTheControlsAndPlayingDropsAPendingScrub() {
+        val hidden = TvPlayerOverlay().hideTimedOut().overlay
+        val paused = hidden.playingChanged(playing = false)
+        assertTrue(paused.overlay.controlsVisible)
+        assertEquals("The session already paused the player", emptyList<TvPlayerCommand>(), paused.commands)
+
+        val scrubbing = TvPlayerOverlay().scrubForward(nowMillis = 0L, playing = false).overlay
+        val played = scrubbing.playingChanged(playing = true)
+        assertNull(played.overlay.scrub)
+        assertEquals(emptyList<TvPlayerCommand>(), played.commands)
+
+        // A scrub pausing the player keeps its target.
+        assertEquals(scrubbing.scrub, scrubbing.playingChanged(playing = false).overlay.scrub)
+    }
+
+    @Test
     fun dismissingPausedControlsKeepsPlaybackPaused() {
         val paused = TvPlayerOverlay().select(playing = true)
         assertEquals(listOf(Pause), paused.commands)
