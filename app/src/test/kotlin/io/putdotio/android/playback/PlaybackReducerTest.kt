@@ -192,6 +192,8 @@ class PlaybackReducerTest {
 
         val started = PlaybackReducer.reduce(notRequested, PlaybackEvent.StartConversion)
         assertEquals(PlaybackEffect.StartConversion(Target, PlaybackRequestId(2L)), started.effect)
+        // A slow start is not a verdict yet: Convert stays offered, disabled by the request in flight.
+        assertEquals(PlaybackConversionAction.Convert, (started.state.content as PlaybackContent.Conversion).action)
         val queued = PlaybackReducer.reduce(
             started.state,
             PlaybackEvent.ResolveSucceeded(
@@ -213,6 +215,7 @@ class PlaybackReducerTest {
             ),
         )
         assertFalse((refused.state.content as PlaybackContent.Conversion).startable)
+        assertNull((refused.state.content as PlaybackContent.Conversion).action)
         assertFalse(PlaybackReducer.reduce(refused.state, PlaybackEvent.StartConversion).consumed)
     }
 

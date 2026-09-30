@@ -68,7 +68,7 @@ sealed interface PlaybackContent {
      * The file needs MP4 conversion first. A [refreshRequestId] is a resolution or conversion
      * start in flight; the interstitial stays up meanwhile instead of flashing a loading screen.
      * [startRequested] records that the viewer started one here, after which a status that
-     * still reads not available is final.
+     * still reads not available once that start has returned is final.
      */
     data class Conversion(
         val state: PlaybackConversionState,
@@ -365,11 +365,12 @@ val PlaybackConversionState.pollsAutomatically: Boolean
  * Whether the viewer may start a conversion: after a failed one, or when none was requested yet.
  * The SDK resolves a conversion only for a video the server marks `need_convert`, and its MP4
  * status reads not available until a conversion is requested, so not available is startable
- * until the viewer's own start still reads it; then the file cannot be converted.
+ * until the viewer's own start returns and still reads it; then the file cannot be converted.
+ * While that start is in flight the status is the one read before it, not a verdict.
  */
 val PlaybackContent.Conversion.startable: Boolean
     get() = state == PlaybackConversionState.Failed ||
-        (state == PlaybackConversionState.NotAvailable && !startRequested)
+        (state == PlaybackConversionState.NotAvailable && (!startRequested || refreshRequestId != null))
 
 /** What the conversion interstitial offers besides Back. */
 enum class PlaybackConversionAction {
