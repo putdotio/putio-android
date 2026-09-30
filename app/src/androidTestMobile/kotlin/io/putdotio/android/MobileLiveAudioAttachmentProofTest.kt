@@ -57,6 +57,10 @@ import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
+import io.putdotio.android.playback.AudioSelection
+import io.putdotio.android.playback.AudioTrackIdentity
+import io.putdotio.android.playback.playbackAudioTracks
+import io.putdotio.android.playback.withAudioSelection
 
 /** Real service playback with a controlled shell request; no notification tap, auth runtime, or API calls. */
 @RunWith(AndroidJUnit4::class)
@@ -109,13 +113,13 @@ class MobileLiveAudioAttachmentProofTest {
                 live.play()
             }
             awaitPlayer(live) {
-                it.playbackState == Player.STATE_READY && it.currentTracks.mobileAudioTracks().size == 2
+                it.playbackState == Player.STATE_READY && it.currentTracks.playbackAudioTracks().size == 2
             }
             val selected = compose.runOnIdle {
-                val track = live.currentTracks.mobileAudioTracks()[1]
+                val track = live.currentTracks.playbackAudioTracks()[1]
                 live.setPlaybackSpeed(1.5f)
                 live.trackSelectionParameters = live.trackSelectionParameters.withAudioSelection(
-                    AudioSelection.Track(track.identity), live.currentTracks.mobileAudioTracks(),
+                    AudioSelection.Track(track.identity), live.currentTracks.playbackAudioTracks(),
                 )
                 track.identity
             }
@@ -179,7 +183,7 @@ class MobileLiveAudioAttachmentProofTest {
         awaitPlayer(live) { player ->
             player.currentMediaItem?.mediaId == fileId && player.playbackParameters.speed == 1.5f &&
                 player.currentPosition >= 30_000 &&
-                player.currentTracks.mobileAudioTracks().any { track ->
+                player.currentTracks.playbackAudioTracks().any { track ->
                     track.identity == selected && track.selected &&
                         player.trackSelectionParameters.overrides[track.group]
                             ?.trackIndices?.contains(track.trackIndex) == true

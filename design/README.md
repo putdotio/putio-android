@@ -1,18 +1,36 @@
 # Design tokens
 
 `tokens.dtcg.json` is the DTCG token graph from
-[`@putdotio/design` 3.3.0](https://github.com/putdotio/putio-design)
-(`dist/tokens.dtcg.json`), vendored verbatim.
+[`@putdotio/design`](https://github.com/putdotio/putio-design)
+(`dist/tokens.dtcg.json`), vendored verbatim. The nightly launcher icons in
+`app/src/nightly/res/drawable-*/putio_icon.png` are downscaled from the same
+release's `system/assets/app-icon-nightly-stars.png`.
 
+`putio-design.lock.json` pins the npm release by version and tarball SHA-512
+SRI, and pins the SHA-256 of both source assets and of every written file.
 The Compose color schemes and the TV overscan ratios (`tv.overscan.x/y`) are
-generated from this file at build time by `:app:generateDesignTokens` (task
-class in `build-logic/`). Never hand-edit the generated Kotlin or this JSON; to
-take a new design release:
+generated from the JSON at build time by `:app:generateDesignTokens` (task
+class in `build-logic/`), which records the locked version in the generated
+header. Never hand-edit the generated Kotlin, the JSON, or the icons.
+
+Syncing downloads that one tarball, verifies it and each source asset before
+use, and writes the files only when every output matches the lock. Icon
+downscaling uses `sips`, so syncing needs macOS:
 
 ```bash
-cp ../putio-design/dist/tokens.dtcg.json design/tokens.dtcg.json
-./gradlew verify   # regenerates and re-pins the scheme
+./scripts/sync-design-assets.sh
 ```
+
+`verify` runs the network-free drift check, which hashes every locked file:
+
+```bash
+./scripts/sync-design-assets.sh --check
+```
+
+To take a new design release, update the version, tarball URL and `integrity`
+(`npm view @putdotio/design@<version> dist.integrity`) in the lock, run the
+sync, and replace each digest it reports as unlocked. Then run
+`./gradlew verify`, which regenerates and re-pins the scheme.
 
 The M3-role → token map is the binding contract in
 [`platforms/android/DESIGN.md`](https://github.com/putdotio/putio-design/blob/main/platforms/android/DESIGN.md);

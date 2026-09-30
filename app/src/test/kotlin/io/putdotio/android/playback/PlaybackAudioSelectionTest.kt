@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import android.os.Bundle
 import androidx.media3.common.C
@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 @UnstableApi
-class MobileAudioSelectionTest {
+class PlaybackAudioSelectionTest {
     @Test
     fun listsOnlySupportedAudioTracksWithLabelsAndSelection() {
         val audio = TrackGroup(audioFormat("en", "en"), audioFormat("de", "de"), audioFormat("fr", "fr"))
@@ -36,7 +36,7 @@ class MobileAudioSelectionTest {
                 ),
                 Tracks.Group(text, false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(true)),
             ),
-        ).mobileAudioTracks()
+        ).playbackAudioTracks()
 
         assertEquals(listOf(0, 2), tracks.map { it.trackIndex })
         assertEquals(listOf("en", "fr"), tracks.map { it.label })
@@ -219,6 +219,6 @@ class MobileAudioSelectionTest {
             .setSampleRate(44100)
             .build()
 
-    private fun track(group: TrackGroup, index: Int = 0): MobileAudioTrack =
-        MobileAudioTrack(group, index, label = null, selected = false)
+    private fun track(group: TrackGroup, index: Int = 0): PlaybackAudioTrack =
+        PlaybackAudioTrack(group, index, label = null, selected = false)
 }

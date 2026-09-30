@@ -2,6 +2,8 @@ package io.putdotio.android.tv.auth
 
 import android.content.Context
 import io.putdotio.android.auth.KeystoreAuthTokenStore
+import io.putdotio.android.auth.PendingTokenRevocations
+import io.putdotio.android.auth.PutioAuthTokenRevoker
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
@@ -37,11 +39,18 @@ class TvAuthRuntime internal constructor(
                 PutioConfig(clientId = oauthClient.clientId, clientName = oauthClient.clientName),
             )
             val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+            val tokenStore = KeystoreAuthTokenStore(context)
             return TvAuthRuntime(
                 putioClient = putioClient,
                 authController = TvAuthController(
-                    tokenStore = KeystoreAuthTokenStore(context),
+                    tokenStore = tokenStore,
                     sessionGateway = PutioTvSessionGateway(putioClient),
+                    tokenRevocations = PendingTokenRevocations(
+                        store = KeystoreAuthTokenStore.pendingRevocation(context),
+                        sessionStore = tokenStore,
+                        revoker = PutioAuthTokenRevoker(putioClient.config),
+                        scope = applicationScope,
+                    ),
                     scope = applicationScope,
                 ),
                 applicationScope = applicationScope,

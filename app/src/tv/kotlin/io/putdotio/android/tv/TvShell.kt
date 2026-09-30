@@ -191,4 +191,4 @@ private fun PaneTitle(text: String) {
 
 /** Full-width rows scale less than compact surfaces so they stay inside the safe area. */
 internal const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
-private val PANE_INSET = 16.dp
+internal val PANE_INSET = 16.dp
