@@ -137,7 +137,7 @@ internal const val AUTOPLAY_NEXT_VIDEO_KEY = "autoplay_next_video"
 private const val VIDEO_PLAYBACK_TYPE_HLS = "hls"
 private const val VIDEO_PLAYBACK_TYPE_MP4 = "mp4"
 
-private fun PutioException.toAndroidAppConfigFailure(): AndroidAppConfigFailure {
+internal fun PutioException.toAndroidAppConfigFailure(): AndroidAppConfigFailure {
     if (findPutioApiException()?.errorType == INVALID_SCOPE_ERROR_TYPE) {
         return AndroidAppConfigFailure.AccessDenied(this)
     }

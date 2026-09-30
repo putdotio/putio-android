@@ -81,9 +81,10 @@ enum class TvSessionValidationSource {
 }
 
 /**
- * Owns the TV session: restores a stored token, otherwise drives one device-code
- * attempt at a time through the SDK orchestrator, and persists the linked token
- * in Keystore-backed storage. One attempt runs on [scope] at a time: a
+ * Owns the TV session: restores a stored token, imports a tv-native one when there
+ * is none, otherwise drives one device-code attempt at a time through the SDK
+ * orchestrator, and persists the linked token in Keystore-backed storage. One
+ * attempt runs on [scope] at a time: a
  * replacement joins the previous collector first, and every event carries the
  * generation it belongs to, so an abandoned poll can neither repaint the screen
  * nor persist a token after the user asked for a new code.
@@ -93,6 +94,7 @@ class TvAuthController internal constructor(
     private val sessionGateway: TvSessionGateway,
     private val tokenRevocations: TokenRevocations,
     private val scope: CoroutineScope,
+    private val legacySession: LegacyTvSession,
 ) {
     private val operationMutex = Mutex()
     private val mutableState = MutableStateFlow<TvAuthState>(TvAuthState.Initializing)
@@ -114,9 +116,13 @@ class TvAuthController internal constructor(
         tokenRevocations.resume()
         try {
             val accessToken = when (val stored = readStoredToken()) {
-                is StoredToken.Present -> stored.accessToken
+                is StoredToken.Present -> {
+                    // Unread: a Keystore session supersedes it. Deleting here retries a cleanup that failed after import.
+                    legacySession.delete()
+                    stored.accessToken
+                }
                 StoredToken.Absent -> {
-                    startLinkAttempt(sessionExpired = false)
+                    importLegacySession(TvSessionValidationSource.RESTORE)
                     return@withLock
                 }
                 StoredToken.Unreadable -> {
@@ -160,10 +166,7 @@ class TvAuthController internal constructor(
         try {
             val accessToken = when (val stored = readStoredToken()) {
                 is StoredToken.Present -> stored.accessToken
-                StoredToken.Absent -> {
-                    startLinkAttempt(sessionExpired = false)
-                    return@withLock false
-                }
+                StoredToken.Absent -> return@withLock importLegacySession(TvSessionValidationSource.RETRY)
                 StoredToken.Unreadable -> {
                     stopLinking(TvLinkStop.StorageUnavailable, sessionExpired = false)
                     return@withLock false
@@ -307,6 +310,66 @@ class TvAuthController internal constructor(
             TvSessionValidation.Rejected -> expireSession()
         }
     }
+
+    /**
+     * Carries a tv-native session over: the token is stored only after put.io
+     * accepts it, and the legacy copy is deleted once the token is stored or
+     * put.io rejects it. Without a verdict (offline, put.io down) the copy stays
+     * and the viewer gets Retry, which comes back here, as does the next launch;
+     * a Keystore write failure also keeps it for the next launch. True when a
+     * legacy token was validated.
+     */
+    // Gateway implementations are process boundaries; cancellation remains control flow.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun importLegacySession(source: TvSessionValidationSource): Boolean {
+        val legacyToken = legacySession.read()
+        if (legacyToken == null) {
+            withContext(NonCancellable) { legacySession.delete() }
+            startLinkAttempt(sessionExpired = false)
+            return false
+        }
+        configureSession(legacyToken)
+        mutableState.value = TvAuthState.ValidatingSession(source)
+        val result = try {
+            sessionGateway.validateSession()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            TvSessionValidation.Unavailable(error)
+        }
+        withContext(NonCancellable) {
+            when (result) {
+                is TvSessionValidation.Unavailable -> {
+                    clearConfiguredSession()
+                    mutableState.value = TvAuthState.ValidationUnavailable(source)
+                }
+                TvSessionValidation.Rejected -> {
+                    legacySession.delete()
+                    clearConfiguredSession()
+                    startLinkAttempt(sessionExpired = false)
+                }
+                is TvSessionValidation.Valid -> {
+                    if (storeImportedToken(legacyToken)) {
+                        legacySession.delete()
+                        // Like a linked token: one awaiting revocation is kept, one already revoked is not.
+                        if (tokenRevocations.keep(legacyToken)) signIn(result.account) else expireSession()
+                    } else {
+                        clearConfiguredSession()
+                        stopLinking(TvLinkStop.StorageUnavailable, sessionExpired = false)
+                    }
+                }
+            }
+        }
+        return true
+    }
+
+    private suspend fun storeImportedToken(accessToken: AccessToken): Boolean =
+        try {
+            tokenStore.write(accessToken)
+            true
+        } catch (_: AuthTokenStorageException) {
+            false
+        }
 
     private fun signIn(account: TvAccount) {
         sessionSequence = Math.incrementExact(sessionSequence)
