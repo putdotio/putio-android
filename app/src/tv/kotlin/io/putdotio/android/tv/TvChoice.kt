@@ -53,7 +53,7 @@ internal fun <T> TvChoiceDialog(
     val bringSelectedIntoView = remember { BringIntoViewRequester() }
     Dialog(onDismissRequest = onDismiss) {
         // Requested from inside the dialog window, after its content has attached. The
-        // column is scrolled first so a choice below the fold is on screen when it lights up.
+        // rows are scrolled first so a choice below the fold is on screen when it lights up.
         // Nothing carries the requesters when there are no choices, so nothing is requested.
         LaunchedEffect(choices.isEmpty()) {
             if (choices.isEmpty()) return@LaunchedEffect
@@ -65,44 +65,50 @@ internal fun <T> TvChoiceDialog(
         Column(
             modifier = Modifier
                 .width(560.dp)
-                // Twelve rows outgrow a 540dp canvas; the bound is what lets the column scroll.
+                // Twelve rows outgrow a 540dp canvas; the bound is what lets the rows scroll.
                 .heightIn(max = 480.dp)
                 .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(28.dp))
-                .padding(24.dp)
-                .verticalScroll(rememberScrollState())
-                .focusGroup(),
+                .padding(24.dp),
         ) {
+            // Outside the scrolling rows, so bringing a choice into view never scrolls it away (#224).
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
-            val selectedIndex = choices.indexOfFirst { it.value == selected }
-            choices.forEachIndexed { index, choice ->
-                val isSelected = index == selectedIndex
-                val focusTarget = isSelected || (selectedIndex < 0 && index == 0)
-                ListItem(
-                    selected = isSelected,
-                    onClick = { onSelect(choice.value) },
-                    headlineContent = { Text(choice.label) },
-                    leadingContent = { RadioButton(selected = isSelected, onClick = null) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (focusTarget) {
-                                Modifier
-                                    .bringIntoViewRequester(bringSelectedIntoView)
-                                    .focusRequester(selectedFocus)
-                            } else {
-                                Modifier
+            Column(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .focusGroup(),
+            ) {
+                val selectedIndex = choices.indexOfFirst { it.value == selected }
+                choices.forEachIndexed { index, choice ->
+                    val isSelected = index == selectedIndex
+                    val focusTarget = isSelected || (selectedIndex < 0 && index == 0)
+                    ListItem(
+                        selected = isSelected,
+                        onClick = { onSelect(choice.value) },
+                        headlineContent = { Text(choice.label) },
+                        leadingContent = { RadioButton(selected = isSelected, onClick = null) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (focusTarget) {
+                                    Modifier
+                                        .bringIntoViewRequester(bringSelectedIntoView)
+                                        .focusRequester(selectedFocus)
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .semantics {
+                                role = Role.RadioButton
+                                this.selected = isSelected
                             },
-                        )
-                        .semantics {
-                            role = Role.RadioButton
-                            this.selected = isSelected
-                        },
-                )
+                    )
+                }
             }
         }
     }

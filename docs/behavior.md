@@ -153,9 +153,10 @@ button's name shows above it while focused. Left and Right scrub only on the
 seek bar; rewind and fast-forward scrub from anywhere and pull focus back to it.
 Center opens the button's centred picker with focus on the current choice:
 Audio tracks, Subtitles (Off, then the tracks) or Playback speed (0.25× to 2×
-in quarter steps). A track shows its name, else its language; MP4 subtitles read
-`LANGUAGE - name`, as the RN player relabelled its sidecar tracks. Speed and
-audio start over with each file. Choices survive a rebuilt player.
+in quarter steps). Only the choices scroll, so the title stays in view (#224).
+A track shows its name, else its language; MP4 subtitles read `LANGUAGE - name`,
+as the RN player relabelled its sidecar tracks. Speed and audio start over with
+each file. Choices survive a rebuilt player.
 
 Subtitles start from the account's settings, as on mobile: hidden with
 `hide_subtitles`, forced tracks only with `dont_autoselect_subtitles`, otherwise
@@ -210,8 +211,9 @@ replaces an expired link, and a player error keeps its position for it.
 Unsupported file types get a plain status screen as on mobile.
 
 Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlaybackStatesTest`,
-`TvPlayerOptionsTest`, `TvPlayerTracksTest`, `TvPlaybackReportingTest`,
-`TvSessionViewModelTest`, `PlaybackReducerTest`, `PlaybackControllerTest`,
+`TvPlayerOptionsTest`, `TvChoiceDialogTest`, `TvPlayerTracksTest`,
+`TvPlaybackReportingTest`, `TvSessionViewModelTest`, `PlaybackReducerTest`,
+`PlaybackControllerTest`,
 `SdkPlaybackRepositoryTest`, `PlaybackFailureTest`,
 `PlaybackPositionObserverTest`, `PlaybackExoPlayerTest`,
 `PlaybackSubtitleSelectionTest`, `PlaybackAudioSelectionTest`.

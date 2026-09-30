@@ -13,6 +13,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
@@ -136,6 +137,8 @@ class TvPlayerOptionsTest {
         show(player, onBack = { exits += 1 })
         openPicker(SPEED, rightPresses = 2)
         compose.onNodeWithText("Playback speed").assertIsDisplayed()
+        settle()
+        compose.onNode(hasText("1×") and hasClickAction()).assertIsFocused()
         choose("1.5×")
         settle()
         compose.onNodeWithText("Playback speed").assertDoesNotExist()
@@ -145,6 +148,8 @@ class TvPlayerOptionsTest {
         // Back with a picker open dismisses only the picker (#9): playback, speed and focus stay.
         key(Key.DirectionCenter)
         compose.onNodeWithText("Playback speed").assertIsDisplayed()
+        settle()
+        compose.onNode(hasText("1.5×") and hasClickAction()).assertIsFocused()
         backInDialog()
         compose.onNodeWithText("Playback speed").assertDoesNotExist()
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
