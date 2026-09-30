@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 
 internal enum class MobileDestination(

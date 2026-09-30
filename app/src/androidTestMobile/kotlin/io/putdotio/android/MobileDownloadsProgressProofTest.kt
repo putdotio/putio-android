@@ -41,6 +41,7 @@ import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.downloads.MobileDownloadEngine
 import io.putdotio.android.downloads.MobileDownloadStore
+import io.putdotio.android.downloads.MobileDownloadsScreen
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.dispatch
 import io.putdotio.sdk.files.PutioFileType

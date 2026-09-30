@@ -22,6 +22,8 @@ import io.putdotio.android.downloads.DownloadRequest
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
+import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
+import io.putdotio.android.downloads.MobileDownloadsScreen
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesItem

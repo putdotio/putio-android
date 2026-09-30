@@ -74,7 +74,7 @@ import androidx.media3.ui.compose.material3.indicator.DurationText
 import androidx.media3.ui.compose.material3.indicator.PositionText
 import androidx.media3.ui.compose.state.rememberPlayPauseButtonState
 import io.putdotio.android.R
-import io.putdotio.android.description
+import io.putdotio.android.downloads.description
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable

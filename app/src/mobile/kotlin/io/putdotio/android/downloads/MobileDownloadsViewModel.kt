@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.downloads
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -10,9 +10,6 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.auth.sessionKey
-import io.putdotio.android.downloads.DownloadsController
-import io.putdotio.android.downloads.MobileDownloadEngine
-import io.putdotio.android.downloads.MobileDownloadStore
 import io.putdotio.android.session.SessionScopedHolder
 import kotlinx.coroutines.flow.StateFlow
 

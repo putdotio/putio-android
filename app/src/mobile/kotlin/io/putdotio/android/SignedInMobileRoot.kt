@@ -16,6 +16,7 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.downloads.MobileDownloadCache
+import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.OfflinePlaybackRepository
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesFailure

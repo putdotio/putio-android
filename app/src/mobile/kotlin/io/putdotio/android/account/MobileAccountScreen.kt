@@ -62,7 +62,7 @@ import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAccountStorage
 import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.description
+import io.putdotio.android.downloads.description
 import io.putdotio.android.files.labelResource
 import io.putdotio.android.isSupportedAvatarUrl
 import io.putdotio.android.playback.playbackPreference

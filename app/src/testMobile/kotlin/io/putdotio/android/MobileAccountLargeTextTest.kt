@@ -22,6 +22,7 @@ import io.putdotio.android.account.MobileAccountScreen
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.downloads.description
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsContent

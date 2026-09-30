@@ -33,7 +33,7 @@ import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.util.UnstableApi
 import io.putdotio.android.R
-import io.putdotio.android.description
+import io.putdotio.android.downloads.description
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

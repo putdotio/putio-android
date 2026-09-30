@@ -28,7 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.R
-import io.putdotio.android.description
+import io.putdotio.android.downloads.description
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.labelResource
 import io.putdotio.android.settings.AccountSettingsChange

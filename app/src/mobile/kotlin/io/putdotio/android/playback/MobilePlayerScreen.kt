@@ -77,8 +77,8 @@ import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
-import io.putdotio.android.description
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.downloads.description
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import kotlin.math.roundToInt

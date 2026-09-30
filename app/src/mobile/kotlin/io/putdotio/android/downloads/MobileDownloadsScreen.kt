@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.downloads
 
 import android.text.format.Formatter
 import androidx.compose.foundation.clickable
@@ -38,12 +38,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleStartEffect
+import io.putdotio.android.MobileEmptyState
+import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
-import io.putdotio.android.downloads.DownloadEntry
-import io.putdotio.android.downloads.DownloadFailureReason
-import io.putdotio.android.downloads.DownloadStatus
-import io.putdotio.android.downloads.DownloadsEvent
-import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.files.FilesItem
 import kotlin.math.roundToInt
 
