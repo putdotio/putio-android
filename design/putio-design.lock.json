@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "@putdotio/design",
+    "version": "3.3.0",
+    "tarball": "https://registry.npmjs.org/@putdotio/design/-/design-3.3.0.tgz",
+    "integrity": "sha512-darpeQVwgMsuz/gYNEOfvQ2rNymj02k9TqnVo5W7BCnsKlpTu79O9nK1nO2SWgzdaB8B4SYIT1RX8Ftzc0NMqw=="
+  },
+  "tokens": {
+    "asset": "dist/tokens.dtcg.json",
+    "sourceSha256": "a915906059426c95bde3fea77b4de72e1097fc50d46842b417143172dfc5c0c6"
+  },
+  "nightlyIcon": {
+    "asset": "system/assets/app-icon-nightly-stars.png",
+    "sourceSha256": "b36d0be8f67f4244fc3b1daaddc42b9d020671196519d9afa93eeb5baa7606be",
+    "outputs": [
+      { "density": "mdpi", "size": 48, "sha256": "5a4dd2cc7857e82654298175bff01ec9f1766d74453a7a78fe59082cf89634d0" },
+      { "density": "hdpi", "size": 72, "sha256": "8aa27a1a64b6507467141a5ccf0c55dd18cd3090e2f5c0e21799c70dcf2b5243" },
+      { "density": "xhdpi", "size": 96, "sha256": "f086ebae75e75f0b685e3236a0442d6734355fa56c22f0b971d146f6778d6279" },
+      { "density": "xxhdpi", "size": 144, "sha256": "9a00c3398e6cdd6fb24379a74853e8f993fb6fd8242df1e1bc9ee27f8db5fd93" },
+      { "density": "xxxhdpi", "size": 192, "sha256": "55586eec7ea76b9c2da8858971fa6643c6502e98a29d11877e5e258bbe3ce2aa" }
+    ]
+  }
+}

@@ -45,6 +45,7 @@ internal class KeystoreAuthTokenStore internal constructor(
     private val preferences: SharedPreferences,
     private val tokenCipher: AuthTokenCipher,
     private val ioDispatcher: CoroutineDispatcher,
+    private val recordKey: String = ENCRYPTED_ACCESS_TOKEN_KEY,
 ) : AuthTokenStore {
     constructor(context: Context) : this(
         preferences = context.getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE),
@@ -60,7 +61,7 @@ internal class KeystoreAuthTokenStore internal constructor(
     override suspend fun read(): AccessToken? = withContext(ioDispatcher) {
         try {
             storageOperation(AUTH_STORAGE_READ_OPERATION) {
-                val serialized = preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null) ?: return@storageOperation null
+                val serialized = preferences.getString(recordKey, null) ?: return@storageOperation null
                 val encryptedValue = EncryptedAuthTokenValue.deserialize(serialized)
                 val plaintext = tokenCipher.decrypt(encryptedValue)
                 AccessToken.parse(String(plaintext, StandardCharsets.UTF_8))
@@ -84,7 +85,7 @@ internal class KeystoreAuthTokenStore internal constructor(
         storageOperation(AUTH_STORAGE_WRITE_OPERATION) {
             val plaintext = accessToken.reveal().toByteArray(StandardCharsets.UTF_8)
             val serialized = tokenCipher.encrypt(plaintext).serialize()
-            if (!preferences.edit().putString(ENCRYPTED_ACCESS_TOKEN_KEY, serialized).commit()) {
+            if (!preferences.edit().putString(recordKey, serialized).commit()) {
                 throw AuthTokenStorageException(AUTH_STORAGE_WRITE_OPERATION)
             }
         }
@@ -103,7 +104,7 @@ internal class KeystoreAuthTokenStore internal constructor(
 
         try {
             storageOperation(AUTH_STORAGE_CLEAR_OPERATION) {
-                if (!preferences.edit().remove(ENCRYPTED_ACCESS_TOKEN_KEY).commit()) {
+                if (!preferences.edit().remove(recordKey).commit()) {
                     throw AuthTokenStorageException(AUTH_STORAGE_CLEAR_OPERATION)
                 }
             }
@@ -113,6 +114,20 @@ internal class KeystoreAuthTokenStore internal constructor(
 
         clearFailure?.let { throw it }
         Unit
+    }
+
+    companion object {
+        /**
+         * A signed-out token whose revocation put.io has not confirmed yet. It has its
+         * own record and Keystore key, so clearing the session never drops it.
+         */
+        fun pendingRevocation(context: Context): KeystoreAuthTokenStore =
+            KeystoreAuthTokenStore(
+                preferences = context.getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE),
+                tokenCipher = AndroidKeystoreAuthTokenCipher(pendingRevocationKeyAlias(context.packageName)),
+                ioDispatcher = Dispatchers.IO,
+                recordKey = PENDING_REVOCATION_TOKEN_KEY,
+            )
     }
 }
 
@@ -243,9 +258,13 @@ private fun String.decodeBase64Url(): ByteArray =
 
 internal const val AUTH_PREFERENCES_NAME = "putio_auth"
 internal const val ENCRYPTED_ACCESS_TOKEN_KEY = "access_token_v1"
+internal const val PENDING_REVOCATION_TOKEN_KEY = "pending_revocation_token_v1"
 internal fun authTokenKeyAlias(packageName: String): String = "$packageName.$AUTH_KEY_ALIAS_SUFFIX"
+internal fun pendingRevocationKeyAlias(packageName: String): String =
+    "$packageName.$PENDING_REVOCATION_KEY_ALIAS_SUFFIX"
 
 private const val AUTH_KEY_ALIAS_SUFFIX = "oauth.access-token.v1"
+private const val PENDING_REVOCATION_KEY_ALIAS_SUFFIX = "oauth.pending-revocation.v1"
 private const val ANDROID_KEYSTORE_PROVIDER = "AndroidKeyStore"
 private const val AUTH_CIPHER_TRANSFORMATION = "AES/GCM/NoPadding"
 private const val GCM_AUTHENTICATION_TAG_BIT_COUNT = 128

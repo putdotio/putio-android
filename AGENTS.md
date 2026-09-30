@@ -26,7 +26,7 @@ rest.
 | Machine provides | How |
 | --- | --- |
 | JDK 21 on PATH | `.java-version` pins 21; `mise install` or `brew install temurin@21` |
-| `python3` on PATH | macOS ships it with the Xcode Command Line Tools; `verify` runs the icon pipeline through it |
+| `python3` on PATH | macOS ships it with the Xcode Command Line Tools; `verify` runs the icon and design asset pipelines through it |
 | Homebrew (macOS) | only needed if Android cmdline-tools are absent |
 | Network | first bootstrap downloads several GB of SDK packages plus FFmpeg |
 
@@ -59,9 +59,9 @@ production debug JVM unit tests; nightly adds resources only, so its unit-test
 variants are disabled. Unsigned minified `mobileProductionRelease`,
 `tvProductionRelease`, and `tvNightlyRelease` builds prove the composite
 Kotlin SDK, resource shrinking, and `lintVital` against R8 for each surface and
-channel. It also compiles the instrumentation APK, checks the Phosphor icon
-lock, and runs the shell and Python contract tests, which need `python3`,
-`bash`, and `ffprobe` on PATH, plus the tests of the
+channel. It also compiles the instrumentation APK, checks the Phosphor icon and
+design asset locks, and runs the shell and Python contract tests, which need
+`python3`, `bash`, and `ffprobe` on PATH, plus the tests of the
 [`build-logic`](./build-logic) included build, which owns the design-token
 codegen and host proof task classes. Fix findings at the source; suppress only
 with a comment stating the platform constraint.
@@ -69,7 +69,7 @@ with a comment stating the platform constraint.
 Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
 `nightly`); [app/build.gradle.kts](./app/build.gradle.kts) owns the application
 ids. Nightly carries its own id, label, and the stars launcher icon
-(`scripts/generate-nightly-icon.sh`); Play internal/closed tracks ship nightly,
+(`scripts/sync-design-assets.sh`); Play internal/closed tracks ship nightly,
 the public listing keeps production. Harness launch proof uses debug builds,
 `io.put.putio.mobile.debug` and `io.put.putio.debug` for production. Nothing in
 the harness needs release credentials.
@@ -77,9 +77,12 @@ the harness needs release credentials.
 ## Design system
 
 The theme is a tier-2 binding of putio-design (Material 3 + tokens, dark
-only). `design/tokens.dtcg.json` is vendored from `@putdotio/design`;
-`:app:generateDesignTokens` (`build-logic`) generates `PutioDesignTokens.kt` with
-the color schemes; never hand-write colors. See `design/README.md`.
+only). `design/putio-design.lock.json` pins the `@putdotio/design` npm release
+by version and SHA-512 SRI; `scripts/sync-design-assets.sh` fetches it and
+writes `design/tokens.dtcg.json` and the nightly launcher icons, and `verify`
+checks both against the lock offline. `:app:generateDesignTokens`
+(`build-logic`) generates `PutioDesignTokens.kt` with the color schemes; never
+hand-write colors. See `design/README.md`.
 Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
 
 ## CI

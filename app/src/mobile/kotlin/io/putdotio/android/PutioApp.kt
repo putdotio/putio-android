@@ -89,7 +89,6 @@ import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.pendingDelete
 import io.putdotio.android.files.pendingMove
-import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -144,6 +143,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.subtitleStartupPolicy
 
 internal const val MOBILE_NAV_BAR_TAG = "mobile-navigation-bar"
 internal const val MOBILE_NAV_RAIL_TAG = "mobile-navigation-rail"
@@ -1433,10 +1434,7 @@ private fun MobileNavHost(
             val mediaType =
                 PlaybackMediaType.entries.firstOrNull { it.name == backStackEntry.arguments?.getString("media") }
                     ?: PlaybackMediaType.VIDEO
-            val subtitleStartupPolicy =
-                (accountSettingsState.content as? AccountSettingsContent.Ready)
-                    ?.preferences
-                    ?.let { SubtitleStartupPolicy(it.showSubtitles, it.autoSelectSubtitles) }
+            val subtitleStartupPolicy = accountSettingsState.subtitleStartupPolicy()
             val target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name, mediaType)
             val playbackViewModel: MobilePlaybackViewModel =
                 viewModel(

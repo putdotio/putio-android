@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.playback
 
 import android.os.Bundle
 import androidx.media3.common.C
@@ -10,7 +10,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal data class MobileAudioTrack(
+internal data class PlaybackAudioTrack(
     val group: TrackGroup,
     val trackIndex: Int,
     val identity: AudioTrackIdentity = group.getFormat(trackIndex).toAudioTrackIdentity(),
@@ -41,7 +41,7 @@ internal data class AudioTrackIdentity(
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun List<MobileAudioTrack>.resolve(identity: AudioTrackIdentity): MobileAudioTrack? {
+internal fun List<PlaybackAudioTrack>.resolve(identity: AudioTrackIdentity): PlaybackAudioTrack? {
     val candidates = identity.id?.let { id -> filter { it.group.getFormat(it.trackIndex).id == id } }
     if (candidates?.size == 1) return candidates.single()
     return (candidates ?: this).singleOrNull { identity.exactlyMatches(it.group.getFormat(it.trackIndex)) }
@@ -53,7 +53,7 @@ internal sealed interface AudioSelection {
     data class Track(val identity: AudioTrackIdentity) : AudioSelection
 }
 
-internal fun Tracks.mobileAudioTracks(): List<MobileAudioTrack> =
+internal fun Tracks.playbackAudioTracks(): List<PlaybackAudioTrack> =
     groups
         .filter { it.type == C.TRACK_TYPE_AUDIO }
         .flatMap { group ->
@@ -61,7 +61,7 @@ internal fun Tracks.mobileAudioTracks(): List<MobileAudioTrack> =
                 .filter { group.isTrackSupported(it) }
                 .map { trackIndex ->
                     val format = group.getTrackFormat(trackIndex)
-                    MobileAudioTrack(
+                    PlaybackAudioTrack(
                         group = group.mediaTrackGroup,
                         trackIndex = trackIndex,
                         identity = format.toAudioTrackIdentity(),
@@ -87,7 +87,7 @@ internal fun Format.toAudioTrackIdentity(): AudioTrackIdentity =
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun TrackSelectionParameters.withAudioSelection(
     selection: AudioSelection,
-    tracks: List<MobileAudioTrack>,
+    tracks: List<PlaybackAudioTrack>,
 ): TrackSelectionParameters {
     val builder =
         buildUpon()
@@ -102,7 +102,7 @@ internal fun TrackSelectionParameters.withAudioSelection(
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun TrackSelectionParameters.withAudioTrack(track: MobileAudioTrack): TrackSelectionParameters =
+internal fun TrackSelectionParameters.withAudioTrack(track: PlaybackAudioTrack): TrackSelectionParameters =
     buildUpon()
         .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
         .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
@@ -112,7 +112,7 @@ internal fun TrackSelectionParameters.withAudioTrack(track: MobileAudioTrack): T
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun TrackSelectionParameters.withRetainedAudioSelection(
     selection: AudioSelection,
-    tracks: List<MobileAudioTrack>,
+    tracks: List<PlaybackAudioTrack>,
 ): TrackSelectionParameters {
     val pendingOverride = overrides.values.singleOrNull { it.type == C.TRACK_TYPE_AUDIO }
     val pendingIdentity = pendingOverride?.let { selected ->

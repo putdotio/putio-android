@@ -82,12 +82,16 @@ class MobileAuthController internal constructor(
     private val tokenStore: AuthTokenStore,
     private val pendingOAuthAttemptStore: PendingOAuthAttemptStore,
     private val sessionGateway: AuthSessionGateway,
+    private val tokenRevocations: TokenRevocations,
     private val stateGenerator: OAuthStateGenerator = SecureOAuthStateGenerator(),
     private val clock: OAuthAttemptClock = SystemOAuthAttemptClock,
 ) {
     private val operationMutex = Mutex()
     private val mutableState = MutableStateFlow<MobileAuthState>(MobileAuthState.Initializing)
     private var sessionSequence = 0L
+
+    /** The token the gateway holds, so sign-out can revoke it even when the store can't be read. */
+    private var sessionToken: AccessToken? = null
 
     val state: StateFlow<MobileAuthState> = mutableState.asStateFlow()
     val isOAuthConfigured: Boolean = oauthConfiguration is MobileOAuthConfiguration.Configured
@@ -98,12 +102,13 @@ class MobileAuthController internal constructor(
         }
 
         mutableState.value = MobileAuthState.RestoringSession
+        tokenRevocations.resume()
         try {
             val accessToken = readStoredToken() ?: return@withLock
-            sessionGateway.setAccessToken(accessToken)
+            configureSession(accessToken)
             validateConfiguredSession(SessionValidationSource.RESTORE)
         } catch (error: CancellationException) {
-            sessionGateway.clearAccessToken()
+            clearConfiguredSession()
             mutableState.value = MobileAuthState.Initializing
             throw error
         }
@@ -208,11 +213,11 @@ class MobileAuthController internal constructor(
 
         try {
             val accessToken = readStoredToken() ?: return@withLock false
-            sessionGateway.setAccessToken(accessToken)
+            configureSession(accessToken)
             validateConfiguredSession(SessionValidationSource.RETRY)
             true
         } catch (error: CancellationException) {
-            sessionGateway.clearAccessToken()
+            clearConfiguredSession()
             mutableState.value = unavailableState
             throw error
         }
@@ -232,12 +237,12 @@ class MobileAuthController internal constructor(
         true
     }
 
+    /** Signs out locally without waiting for put.io; the token is revoked in the background. */
     suspend fun logout(): Unit = operationMutex.withLock {
         mutableState.value = MobileAuthState.SigningOut
-        try {
-            sessionGateway.logout()
-        } finally {
-            val cleared = withContext(NonCancellable) { clearLocalSession() }
+        withContext(NonCancellable) {
+            (sessionToken ?: storedTokenOrNull())?.let { tokenRevocations.revoke(it) }
+            val cleared = clearLocalSession()
             mutableState.value = if (cleared) {
                 MobileAuthState.SignedOut()
             } else {
@@ -250,12 +255,16 @@ class MobileAuthController internal constructor(
         try {
             tokenStore.write(accessToken)
         } catch (_: AuthTokenStorageException) {
-            sessionGateway.clearAccessToken()
+            clearConfiguredSession()
             mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
             return
         }
 
-        sessionGateway.setAccessToken(accessToken)
+        if (!tokenRevocations.keep(accessToken)) {
+            handleRejectedSession()
+            return
+        }
+        configureSession(accessToken)
         validateConfiguredSession(SessionValidationSource.OAUTH_CALLBACK)
     }
 
@@ -296,13 +305,30 @@ class MobileAuthController internal constructor(
         try {
             val accessToken = tokenStore.read()
             if (accessToken == null) {
-                sessionGateway.clearAccessToken()
+                clearConfiguredSession()
                 mutableState.value = oauthConfiguration.initialSignedOutState()
             }
             accessToken
         } catch (_: AuthTokenStorageException) {
-            sessionGateway.clearAccessToken()
+            clearConfiguredSession()
             mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
+            null
+        }
+
+    private fun configureSession(accessToken: AccessToken) {
+        sessionToken = accessToken
+        sessionGateway.setAccessToken(accessToken)
+    }
+
+    private fun clearConfiguredSession() {
+        sessionToken = null
+        sessionGateway.clearAccessToken()
+    }
+
+    private suspend fun storedTokenOrNull(): AccessToken? =
+        try {
+            tokenStore.read()
+        } catch (_: AuthTokenStorageException) {
             null
         }
 
@@ -314,7 +340,7 @@ class MobileAuthController internal constructor(
             false
         }
         val pendingAttemptCleared = clearPendingOAuthAttempt()
-        sessionGateway.clearAccessToken()
+        clearConfiguredSession()
         return storageCleared && pendingAttemptCleared
     }
 

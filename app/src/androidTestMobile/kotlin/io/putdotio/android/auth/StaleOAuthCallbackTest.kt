@@ -38,6 +38,7 @@ class StaleOAuthCallbackTest {
             tokenStore = tokenStore,
             pendingOAuthAttemptStore = pendingStore,
             sessionGateway = PutioAuthSessionGateway(client),
+            tokenRevocations = UnusedTokenRevocations,
         )
         val runtimeJob = SupervisorJob()
         val runtimeFailure = AtomicReference<Exception>()
@@ -97,4 +98,13 @@ class StaleOAuthCallbackTest {
     private companion object {
         const val CALLBACK_TIMEOUT_MILLIS = 10_000L
     }
+}
+
+/** This lane never signs out; nothing reaches put.io's logout endpoint. */
+private object UnusedTokenRevocations : TokenRevocations {
+    override suspend fun revoke(accessToken: AccessToken) = Unit
+
+    override suspend fun keep(accessToken: AccessToken) = true
+
+    override fun resume() = Unit
 }

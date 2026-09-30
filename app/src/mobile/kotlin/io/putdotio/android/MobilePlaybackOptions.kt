@@ -39,6 +39,12 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.Player as Media3Player
+import io.putdotio.android.playback.AudioSelection
+import io.putdotio.android.playback.PlaybackAudioTrack
+import io.putdotio.android.playback.playbackAudioTracks
+import io.putdotio.android.playback.toAudioTrackIdentity
+import io.putdotio.android.playback.withAudioSelection
+import io.putdotio.android.playback.withAudioTrack
 
 internal val MOBILE_PLAYBACK_SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
 
@@ -68,7 +74,7 @@ internal fun MobilePlaybackOptions(
     directControls: Boolean = false,
 ) {
     var speed by remember(player) { mutableStateOf(player.playbackParameters.speed) }
-    var tracks by remember(player) { mutableStateOf(player.currentTracks.mobileAudioTracks()) }
+    var tracks by remember(player) { mutableStateOf(player.currentTracks.playbackAudioTracks()) }
     var parameters by remember(player) { mutableStateOf(player.trackSelectionParameters) }
     var commands by remember(player) { mutableStateOf(player.availableCommands) }
     var expanded by remember(player) { mutableStateOf(false) }
@@ -78,7 +84,7 @@ internal fun MobilePlaybackOptions(
         val listener = object : Media3Player.Listener {
             override fun onEvents(player: Media3Player, events: Media3Player.Events) {
                 speed = player.playbackParameters.speed
-                tracks = player.currentTracks.mobileAudioTracks()
+                tracks = player.currentTracks.playbackAudioTracks()
                 parameters = player.trackSelectionParameters
                 commands = player.availableCommands
             }
@@ -222,7 +228,7 @@ internal fun MobilePlaybackOptions(
 }
 
 @Composable
-private fun audioOptionLabels(tracks: List<MobileAudioTrack>): List<String> {
+private fun audioOptionLabels(tracks: List<PlaybackAudioTrack>): List<String> {
     val labels = tracks.mapIndexed { index, track ->
         track.label ?: stringResource(R.string.mobile_playback_audio_track_number, index + 1)
     }

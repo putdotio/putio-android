@@ -3,6 +3,7 @@ package io.putdotio.android.tv.auth
 import io.putdotio.android.auth.AccessToken
 import io.putdotio.android.auth.AuthTokenStorageException
 import io.putdotio.android.auth.AuthTokenStore
+import io.putdotio.android.auth.TokenRevocations
 import io.putdotio.sdk.auth.DeviceCodeAuthState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -90,6 +91,7 @@ enum class TvSessionValidationSource {
 class TvAuthController internal constructor(
     private val tokenStore: AuthTokenStore,
     private val sessionGateway: TvSessionGateway,
+    private val tokenRevocations: TokenRevocations,
     private val scope: CoroutineScope,
 ) {
     private val operationMutex = Mutex()
@@ -97,6 +99,9 @@ class TvAuthController internal constructor(
     private var sessionSequence = 0L
     private var linkAttempt: Job? = null
     private var linkGeneration = 0L
+
+    /** The token the gateway holds; sign-out revokes it without rereading the store. */
+    private var sessionToken: AccessToken? = null
 
     val state: StateFlow<TvAuthState> = mutableState.asStateFlow()
 
@@ -106,6 +111,7 @@ class TvAuthController internal constructor(
         }
 
         mutableState.value = TvAuthState.RestoringSession
+        tokenRevocations.resume()
         try {
             val accessToken = when (val stored = readStoredToken()) {
                 is StoredToken.Present -> stored.accessToken
@@ -118,7 +124,7 @@ class TvAuthController internal constructor(
                     return@withLock
                 }
             }
-            sessionGateway.setAccessToken(accessToken)
+            configureSession(accessToken)
             validateStoredSession(TvSessionValidationSource.RESTORE)
         } catch (error: CancellationException) {
             rollBackInterruptedValidation(TvAuthState.Initializing)
@@ -163,7 +169,7 @@ class TvAuthController internal constructor(
                     return@withLock false
                 }
             }
-            sessionGateway.setAccessToken(accessToken)
+            configureSession(accessToken)
             validateStoredSession(TvSessionValidationSource.RETRY)
             true
         } catch (error: CancellationException) {
@@ -178,7 +184,7 @@ class TvAuthController internal constructor(
     private fun rollBackInterruptedValidation(previous: TvAuthState) {
         val current = mutableState.value
         if (current is TvAuthState.ValidatingSession || current == TvAuthState.RestoringSession) {
-            sessionGateway.clearAccessToken()
+            clearConfiguredSession()
             mutableState.value = previous
         }
     }
@@ -193,18 +199,16 @@ class TvAuthController internal constructor(
             true
         }
 
+    /** Signs out locally without waiting for put.io; the token is revoked in the background. */
     suspend fun logout(): Unit = operationMutex.withLock {
         if (mutableState.value !is TvAuthState.SignedIn) {
             return@withLock
         }
         mutableState.value = TvAuthState.SigningOut
-        try {
-            sessionGateway.logout()
-        } finally {
-            withContext(NonCancellable) {
-                val cleared = clearLocalSession()
-                startLinkAttempt(sessionExpired = false, storageCleared = cleared)
-            }
+        withContext(NonCancellable) {
+            sessionToken?.let { tokenRevocations.revoke(it) }
+            val cleared = clearLocalSession()
+            startLinkAttempt(sessionExpired = false, storageCleared = cleared)
         }
     }
 
@@ -271,7 +275,11 @@ class TvAuthController internal constructor(
             stopLinking(TvLinkStop.StorageUnavailable, sessionExpired)
             return
         }
-        sessionGateway.setAccessToken(accessToken)
+        if (!tokenRevocations.keep(accessToken)) {
+            expireSession()
+            return
+        }
+        configureSession(accessToken)
         signIn(linked.account.toTvAccount())
     }
 
@@ -329,8 +337,18 @@ class TvAuthController internal constructor(
         data object Unreadable : StoredToken
     }
 
-    private suspend fun clearLocalSession(): Boolean {
+    private fun configureSession(accessToken: AccessToken) {
+        sessionToken = accessToken
+        sessionGateway.setAccessToken(accessToken)
+    }
+
+    private fun clearConfiguredSession() {
+        sessionToken = null
         sessionGateway.clearAccessToken()
+    }
+
+    private suspend fun clearLocalSession(): Boolean {
+        clearConfiguredSession()
         return try {
             tokenStore.clear()
             true
