@@ -122,6 +122,8 @@ internal class TvSession internal constructor(
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
     private val playbackRepository = playbackRepositoryFor { appConfig.state.value.playbackPreference() }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
+    /** The item that started playback; autoplay stays within its folder. */
+    private var playbackStart: FilesItem? = null
     private var durationLookup: Job? = null
 
     /** Start-from write-back for this session's playback; see [TvPlaybackReporting]. */
@@ -211,12 +213,21 @@ internal class TvSession internal constructor(
         val controller = PlaybackController(target, playbackRepository, scope)
         playbackReporting.startPlayback()
         mutablePlayback.getAndUpdate { controller }?.close()
+        playbackStart = item
     }
 
-    /** Leaves playback; the shell shows again. */
+    /**
+     * Leaves playback; the shell shows again. After autoplay moved on, Files focuses the row of
+     * the video that played last rather than the one that started.
+     */
     fun stopPlayback() {
         durationLookup?.cancel()
-        mutablePlayback.getAndUpdate { null }?.close()
+        val stopped = mutablePlayback.getAndUpdate { null } ?: return
+        val last = stopped.state.value.target.fileId
+        val start = playbackStart
+        val folder = start?.parentId
+        if (folder != null && last != start.id) filesFocusMemory[folder.value] = last.value
+        stopped.close()
     }
 
     /**

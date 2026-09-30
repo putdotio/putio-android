@@ -235,6 +235,17 @@ continues from the saved position and stays in playback (the RN prompt had
 no Back of its own and left). The dialog needs the listing's duration; without
 one the saved position is continued without asking, as the RN player did.
 
+With Account's Autoplay next video on (the confirmed `autoplay_next_video`), a
+finished video plays the next one in its folder by the shared rules mobile
+uses (#248): the folder's videos in name order, stopping after the last without
+wrapping or crossing folders, never a video already played in that run, and
+never after audio. The finished video's end is written under its own lease
+first. The next video resolves fresh, so a saved position asks as above; the
+folder read supplies its duration. Back while it is found or loads leaves
+playback. With the setting off, or after the folder's last video, playback
+leaves as before. Leaving after autoplay moved on focuses the row of the video
+that played last, when Files has it loaded.
+
 TV writes positions back through the same writer and observer as mobile,
 owned by the signed-in session: a 15 s sample while playing plus pause, stop,
 end, error and leaving playback, never a write per progress tick. Writes need

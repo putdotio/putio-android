@@ -13,41 +13,35 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.TvSessionShell
 import io.putdotio.android.design.putioTvDarkColorScheme
-import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesDeleteMode
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPlaybackProgress
-import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
-import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.history.HistoryRepositoryResult
+import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
-import io.putdotio.android.search.RecentSearchStoreOwner
+import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsRepository
@@ -57,24 +51,23 @@ import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
 import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import io.putdotio.android.settings.TunnelRouteOption
-import io.putdotio.android.trash.TrashBulkSelection
-import io.putdotio.android.trash.TrashPage
-import io.putdotio.android.trash.TrashRepository
+import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.player.TV_PLAYER_TAG
-import io.putdotio.sdk.files.FileDeleteResult
-import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
+import java.util.Collections
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
@@ -84,17 +77,21 @@ import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
 /**
- * Controlled-state proof that a Search pick opens the item itself on the real signed-in TV
- * shell: fake repositories stand in for the account, the TV session and shell are the
- * production ones, and the player streams a caller-owned local fixture. No API calls.
+ * Controlled-state proof of Autoplay next video on the real signed-in TV shell: fake
+ * repositories stand in for an account with the setting and resume on, the TV session, shell
+ * and ExoPlayer are the production ones, and each video plays a caller-owned local fixture to
+ * its end. No API calls.
  */
 @RunWith(AndroidJUnit4::class)
-class TvExternalOpenProofTest {
+class TvAutoplayProofTest {
     private val compose = createAndroidComposeRule<ComponentActivity>()
     private val optIn = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {
-                assumeTrue("TV open proof requires opt-in", arguments.getString("putio.tv.open.enabled") == "true")
+                assumeTrue(
+                    "TV autoplay proof requires opt-in",
+                    arguments.getString("putio.tv.autoplay.enabled") == "true",
+                )
                 runId()
                 base.evaluate()
             }
@@ -104,68 +101,58 @@ class TvExternalOpenProofTest {
     @get:Rule
     val rules: RuleChain = RuleChain.outerRule(optIn).around(compose)
 
+    private val lookups: MutableList<Long> = Collections.synchronizedList(mutableListOf())
+    private val writes: MutableList<Pair<Long, Double>> = Collections.synchronizedList(mutableListOf())
+    private val saved = Collections.synchronizedMap(mutableMapOf(SECOND_ID to SECOND_SAVED_SECONDS))
+
     @Test
-    fun searchPicksPlayOrOpenTheItemAndBackReturnsToTheResults() {
+    fun aFinishedVideoPlaysTheNextInItsFolderAndLeavingFocusesItsRow() {
         val session = mount()
+        compose.waitUntil(5_000) { isFocused("Play $FIRST") }
+        screenshot("01-first-row-focused")
 
-        // The prior Files location, which the outside opens must keep.
-        compose.onNodeWithContentDescription("Open Movies").assertIsFocused()
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(5_000) { hasContentDescription("Play Old clip.mp4") }
-        screenshot("01-files-prior-location")
-
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_DPAD_DOWN)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        // Typed into the field, as `adb shell input text` does; the pane owns the field's text.
-        compose.onNodeWithContentDescription("Search files").assertIsFocused().performTextInput("proof")
-        compose.waitUntil(5_000) { hasContentDescription("Play $VIDEO") }
-
-        // A video result plays at once, after the resume prompt.
-        focus("Play $VIDEO")
-        screenshot("02-search-results")
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(CONTINUE_LABEL).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText(CONTINUE_LABEL).assertIsFocused()
-        screenshot("03-resume-prompt")
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag(TV_PLAYER_TAG).fetchSemanticsNodes().isNotEmpty() }
         Thread.sleep(PLAY_MILLIS)
-        screenshot("04-playing")
-        // Back hides the controls, then leaves playback.
+        screenshot("02-first-playing")
+
+        // The first video plays to its end; the next in the folder has a saved position, so it asks.
+        compose.waitUntil(FIXTURE_MILLIS * 3) {
+            compose.onAllNodesWithText(SECOND_CONTINUE_LABEL).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertNotNull("Autoplay stays in playback", compose.runOnIdle { session.playback.value })
+        compose.onNodeWithText(SECOND).assertExists()
+        compose.onNodeWithText(SECOND_CONTINUE_LABEL).assertIsFocused()
+        assertEquals(listOf(FIRST_ID), lookups.toList())
+        val firstEnd = writes.toList().last { it.first == FIRST_ID }.second
+        assertTrue("The finished video's end is written: $firstEnd s", firstEnd >= FIXTURE_SECONDS - 1.0)
+        screenshot("03-next-resume-prompt")
+
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag(TV_PLAYER_TAG).fetchSemanticsNodes().isNotEmpty() }
+        Thread.sleep(PLAY_MILLIS)
+        screenshot("04-next-playing")
+
+        // Back hides the controls, then leaves; Files focuses the video that played last.
         press(KeyEvent.KEYCODE_BACK)
         if (compose.runOnIdle { session.playback.value != null }) press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { compose.runOnIdle { session.playback.value == null } }
-        compose.waitUntil(10_000) { isFocused("Play $VIDEO") }
-        screenshot("05-back-on-the-played-result")
+        compose.waitUntil(10_000) { isFocused("Play $SECOND") }
+        screenshot("05-back-on-the-autoplayed-row")
 
-        // Any other file opens its folder, titled and focused on it; Back returns to the results.
-        focus("Open $DOCUMENT")
+        // The folder's last video leaves playback when it ends, back on its row.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(5_000) { hasContentDescription(DOCUMENT) }
-        compose.onNodeWithContentDescription(DOCUMENT).assertIsFocused()
-        assertEquals(1, compose.onAllNodesWithText(FOLDER).fetchSemanticsNodes().size)
-        screenshot("06-document-in-its-folder")
-        press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(5_000) { isFocused("Open $DOCUMENT") }
-        screenshot("07-back-on-the-document-result")
-
-        // A folder opens under its name; Back returns to the results.
-        focus("Open $FOLDER")
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(5_000) { hasContentDescription(DOCUMENT) }
-        assertEquals(1, compose.onAllNodesWithText(FOLDER).fetchSemanticsNodes().size)
-        screenshot("08-folder")
-        press(KeyEvent.KEYCODE_BACK)
-        compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-
-        // Files still holds the location the viewer left.
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
-        press(KeyEvent.KEYCODE_DPAD_UP)
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        compose.waitUntil(5_000) { hasContentDescription("Play Old clip.mp4") }
-        compose.onNodeWithTag(io.putdotio.android.tv.files.TV_FILES_LIST_TAG).assertExists()
-        screenshot("09-files-prior-location-kept")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag(TV_PLAYER_TAG).fetchSemanticsNodes().isNotEmpty() }
+        Thread.sleep(PLAY_MILLIS)
+        screenshot("06-last-playing")
+        compose.waitUntil(FIXTURE_MILLIS * 3) { compose.runOnIdle { session.playback.value == null } }
+        assertEquals(listOf(FIRST_ID, SECOND_ID), lookups.toList())
+        compose.waitUntil(10_000) { isFocused("Play $SECOND") }
+        screenshot("07-folder-end-back-on-its-row")
     }
 
     private fun mount(): TvSession {
@@ -187,34 +174,28 @@ class TvExternalOpenProofTest {
                 )
             }
         }
-        compose.waitUntil(5_000) { hasContentDescription("Open Movies") }
+        compose.waitUntil(5_000) {
+            compose.runOnIdle {
+                session.appConfig.state.value.confirmedAutoplayNextVideo() &&
+                    session.settings.state.value.confirmedResumePlayback() == true
+            }
+        }
         return session
     }
 
     private fun dependencies(): TvSessionDependencies {
-        val movies = item(MOVIES_ID, "Movies", PutioFileType.FOLDER, FilesFolder.Root.id)
-        val folder = item(FOLDER_ID, FOLDER, PutioFileType.FOLDER, FilesFolder.Root.id)
-        val video = item(VIDEO_ID, VIDEO, PutioFileType.VIDEO, folder.id)
-        val document = item(DOCUMENT_ID, DOCUMENT, PutioFileType.PDF, folder.id)
+        val first = row(FIRST_ID, FIRST)
+        val second = row(SECOND_ID, SECOND)
         val listings = mapOf(
-            FilesFolder.Root.id to FilesPage(listOf(movies, folder), null),
-            movies.id to FilesPage(listOf(item(30, "Old clip.mp4", PutioFileType.VIDEO, movies.id)), null, parent = movies),
-            folder.id to FilesPage(
-                (1L..6L).map { item(100 + it, "Scan $it.jpg", PutioFileType.IMAGE, folder.id) } + document + video,
-                null,
-                parent = folder,
-            ),
-            // Listing a file returns it as the parent with its duration, as put.io does.
-            video.id to FilesPage(emptyList(), null, parent = video.copy(playback = FilesPlaybackProgress(0.0, 90.0))),
+            FilesFolder.Root.id to FilesPage(listOf(first, second, row(3, "notes.txt", PutioFileType.TEXT)), null),
         )
         val source = localSource()
         return TvSessionDependencies(
             filesRepository = ProofFilesRepository(listings),
             searchRepository = object : SearchRepository {
-                override suspend fun search(term: SearchTerm) =
-                    FilesRepositoryResult.Success(SearchPage(listOf(video, folder, document), null, total = 3))
+                override suspend fun search(term: SearchTerm) = error("No search")
 
-                override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
+                override suspend fun loadNextPage(cursor: FilesCursor) = error("No search")
             },
             historyRepository = object : HistoryRepository {
                 override suspend fun load(before: HistoryEventId?) =
@@ -240,7 +221,8 @@ class TvExternalOpenProofTest {
                     AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>())
             },
             appConfigRepository = object : AndroidAppConfigRepository {
-                override suspend fun load() = AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences())
+                override suspend fun load() =
+                    AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences(autoplayNextVideo = true))
 
                 override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
             },
@@ -257,29 +239,37 @@ class TvExternalOpenProofTest {
             recentSearchStore = { ProofRecentSearchStore() },
             playbackRepository = {
                 object : PlaybackRepository {
-                    override suspend fun resolve(target: PlaybackTarget) = PlaybackRepositoryResult.Success(
-                        PlaybackResolution.Ready(source.copy(startFromSeconds = SAVED_SECONDS), useStartFrom = true),
-                    )
+                    override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                        val id = target.fileId.value
+                        return PlaybackRepositoryResult.Success(
+                            PlaybackResolution.Ready(
+                                source.copy(fileId = id, startFromSeconds = saved[id] ?: 0.0),
+                                useStartFrom = true,
+                            ),
+                        )
+                    }
 
-                    override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")
+                    // The folder read in name order, with the listing's duration.
+                    override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult {
+                        lookups += target.fileId.value
+                        return if (target.fileId.value == FIRST_ID) {
+                            PlaybackNextResult.Found(PlaybackTarget(second.id, SECOND, durationSeconds = FIXTURE_SECONDS))
+                        } else {
+                            PlaybackNextResult.Ended
+                        }
+                    }
                 }
             },
-            writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
+            writePlaybackPosition = { fileId, seconds ->
+                writes += fileId to seconds
+                saved[fileId] = seconds
+                PlaybackRepositoryResult.Success(Unit)
+            },
         )
     }
 
-    private fun hasContentDescription(label: String) =
-        compose.onAllNodesWithContentDescription(label).fetchSemanticsNodes().isNotEmpty()
-
     private fun isFocused(label: String) = compose.onAllNodesWithContentDescription(label).fetchSemanticsNodes()
         .any { it.config.getOrNull(SemanticsProperties.Focused) == true }
-
-    /** Walks the D-pad down, then up, until [label] holds focus. */
-    private fun focus(label: String) {
-        repeat(MAX_STEPS) { if (!isFocused(label)) press(KeyEvent.KEYCODE_DPAD_DOWN) }
-        repeat(MAX_STEPS) { if (!isFocused(label)) press(KeyEvent.KEYCODE_DPAD_UP) }
-        compose.onNodeWithContentDescription(label).assertIsFocused()
-    }
 
     private fun press(keyCode: Int) {
         InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(keyCode)
@@ -292,8 +282,8 @@ class TvExternalOpenProofTest {
      * under `Android/data` is not readable to the app, and the app cannot read `/data/local/tmp`.
      */
     private fun localSource(): PlaybackSource {
-        val pushed = requireNotNull(arguments.getString("putio.tv.open.fixture"))
-        val file = File(requireNotNull(context.getExternalFilesDir(null)), "tv-open-fixture.mp4")
+        val pushed = requireNotNull(arguments.getString("putio.tv.autoplay.fixture"))
+        val file = File(requireNotNull(context.getExternalFilesDir(null)), "tv-autoplay-fixture.mp4")
         val copy = InstrumentationRegistry.getInstrumentation().uiAutomation
             .executeShellCommand("cp $pushed ${file.absolutePath}")
         ParcelFileDescriptor.AutoCloseInputStream(copy).use { it.readBytes() }
@@ -302,7 +292,7 @@ class TvExternalOpenProofTest {
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
         return PlaybackSource(
-            fileId = VIDEO_ID,
+            fileId = FIRST_ID,
             kind = PlaybackSourceKind.ORIGINAL,
             url = url,
             startFromSeconds = 0.0,
@@ -314,7 +304,7 @@ class TvExternalOpenProofTest {
         compose.waitForIdle()
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.waitForIdleSync()
-        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "tv-open-proof-${runId()}")
+        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "tv-autoplay-proof-${runId()}")
         check(directory.mkdirs() || directory.isDirectory)
         val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
         try {
@@ -326,90 +316,31 @@ class TvExternalOpenProofTest {
         }
     }
 
-    private fun runId(): UUID = UUID.fromString(requireNotNull(arguments.getString("putio.tv.open.runId")))
+    private fun runId(): UUID = UUID.fromString(requireNotNull(arguments.getString("putio.tv.autoplay.runId")))
     private val arguments get() = InstrumentationRegistry.getArguments()
     private val context: Context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+    private fun row(id: Long, name: String, type: PutioFileType = PutioFileType.VIDEO) = FilesItem(
+        id = FilesItemId(id),
+        parentId = FilesFolder.Root.id,
+        name = name,
+        type = type,
+        sizeBytes = 1_048_576L,
+        createdAt = "2026-09-30T10:00:00Z",
+        playback = if (type == PutioFileType.VIDEO) FilesPlaybackProgress(saved[id] ?: 0.0, FIXTURE_SECONDS) else null,
+    )
+
     private companion object {
-        const val MOVIES_ID = 5L
-        const val FOLDER_ID = 44L
-        const val VIDEO_ID = 9_350_001L
-        const val DOCUMENT_ID = 9_350_002L
-        const val FOLDER = "Documents"
-        const val VIDEO = "TV open proof.mp4"
-        const val DOCUMENT = "notes.pdf"
-        const val SAVED_SECONDS = 45.0
-        const val CONTINUE_LABEL = "Continue playing from 00:45"
-        const val MAX_STEPS = 8
+        const val FIRST_ID = 9_360_001L
+        const val SECOND_ID = 9_360_002L
+        const val FIRST = "Harbor film 1.mp4"
+        const val SECOND = "Harbor film 2.mp4"
+        const val FIXTURE_SECONDS = 12.0
+        const val FIXTURE_MILLIS = 12_000L
+        const val SECOND_SAVED_SECONDS = 5.0
+        const val SECOND_CONTINUE_LABEL = "Continue playing from 00:05"
+        const val RESUME_PREFIX = "Continue playing from"
         const val STEP_MILLIS = 400L
-        const val PLAY_MILLIS = 3_000L
+        const val PLAY_MILLIS = 2_000L
     }
-}
-
-private fun item(id: Long, name: String, type: PutioFileType, parentId: FilesItemId) = FilesItem(
-    id = FilesItemId(id),
-    parentId = parentId,
-    name = name,
-    type = type,
-    sizeBytes = 1_048_576L,
-    createdAt = "2026-09-30T10:00:00Z",
-)
-
-internal class ProofFilesRepository(private val listings: Map<FilesItemId, FilesPage>) : FilesRepository {
-    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
-        listings[folderId]?.let { FilesRepositoryResult.Success(it) }
-            ?: FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("No listing $folderId")))
-
-    override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
-
-    override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) = error("No moves")
-
-    override suspend fun move(itemId: FilesItemId, destinationId: FilesItemId):
-        FilesRepositoryResult<List<FileMoveError>> = error("No moves")
-
-    override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort) = error("No sorting")
-
-    override suspend fun rename(itemId: FilesItemId, name: String) = error("No renames")
-
-    override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode):
-        FilesRepositoryResult<FileDeleteResult> = error("No deletes")
-
-    override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")
-}
-
-internal object ProofTrashRepository : TrashRepository {
-    override suspend fun load() = FilesRepositoryResult.Success(TrashPage(emptyList(), nextCursor = null))
-
-    override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
-
-    override suspend fun restore(itemId: FilesItemId) = error("No restores")
-
-    override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")
-
-    override suspend fun deleteItem(itemId: FilesItemId) = error("No deletes")
-
-    override suspend fun restoreAll(selection: TrashBulkSelection) = error("No restores")
-
-    override suspend fun empty() = error("No empties")
-}
-
-internal class ProofRecentSearchStore : RecentSearchStoreOwner {
-    override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
-    override val failure = MutableStateFlow<FilesFailure?>(null)
-
-    override fun record(term: SearchTerm) {
-        terms.value = listOf(term) + terms.value.filterNot { it == term }
-    }
-
-    override fun remove(term: SearchTerm) {
-        terms.value = terms.value.filterNot { it == term }
-    }
-
-    override fun clear() {
-        terms.value = emptyList()
-    }
-
-    override fun retry() = Unit
-
-    override fun close() = Unit
 }

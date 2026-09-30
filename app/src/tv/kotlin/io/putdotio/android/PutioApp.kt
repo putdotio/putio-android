@@ -34,6 +34,7 @@ import io.putdotio.android.search.AppConfigRecentSearchStore
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.SearchOutput
 import io.putdotio.android.search.authoritativeSessionFailure
+import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
@@ -244,6 +245,7 @@ internal fun TvSessionShell(
                     onSessionRejected = onSessionRejected,
                     reporter = session.playbackReporting,
                     subtitleStartupPolicy = settingsState.subtitleStartupPolicy(),
+                    autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
                 )
             }
         },
