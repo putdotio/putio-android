@@ -14,6 +14,11 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.trash.MOBILE_TRASH_CONFIRM_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_ITEM_DELETE_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_ITEM_RESTORE_TAG
+import io.putdotio.android.trash.MobileTrashItemSheet
+import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashItem

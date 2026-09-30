@@ -44,6 +44,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.transfers.MOBILE_TRANSFERS_LIST_TAG
+import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
+import io.putdotio.android.transfers.MobileTransfersScreen
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

@@ -50,6 +50,16 @@ import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.files.MobileFilesViewModel
+import io.putdotio.android.search.MobileSearchHistoryViewModel
+import io.putdotio.android.transfers.MobileTransfersViewModel
+import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_CHECK_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_CONFIRM_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_ITEM_RESTORE_TAG
+import io.putdotio.android.trash.MobileTrashViewModel
+import io.putdotio.android.account.MobileAccountSettingsViewModel
+import io.putdotio.android.account.MobileAndroidAppConfigViewModel
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

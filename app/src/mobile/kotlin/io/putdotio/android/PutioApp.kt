@@ -16,6 +16,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.putdotio.android.account.MobileAccountSettingsViewModel
+import io.putdotio.android.account.MobileAndroidAppConfigViewModel
+import io.putdotio.android.account.mobileAccountSettingsViewModelFactory
+import io.putdotio.android.account.mobileAndroidAppConfigViewModelFactory
 import io.putdotio.android.auth.AuthTabOAuthBrowser
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
@@ -23,6 +27,17 @@ import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.auth.OAuthBrowserLaunchResult
 import io.putdotio.android.auth.OAuthLaunchResult
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.downloads.MobileDownloadsViewModel
+import io.putdotio.android.downloads.mobileDownloadsViewModelFactory
+import io.putdotio.android.files.MobileFilesViewModel
+import io.putdotio.android.files.mobileFilesViewModelFactory
+import io.putdotio.android.search.MobileSearchHistoryViewModel
+import io.putdotio.android.search.mobileSearchHistoryViewModelFactory
+import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.MobileTransfersViewModel
+import io.putdotio.android.transfers.mobileTransfersViewModelFactory
+import io.putdotio.android.trash.MobileTrashViewModel
+import io.putdotio.android.trash.mobileTrashViewModelFactory
 import kotlinx.coroutines.launch
 
 @Composable

@@ -68,6 +68,10 @@ import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.toSubtitleTrackIdentity
 import io.putdotio.android.playback.SubtitleCueOverlay
 import io.putdotio.android.playback.SUBTITLE_CUES_TAG
+import io.putdotio.android.playback.MobileSubtitleControls
+import io.putdotio.android.playback.MobileSubtitleTrackOption
+import io.putdotio.android.playback.observePlayerControlInteraction
+import io.putdotio.android.playback.observePlayerControlKeyActivity
 
 private fun ImageBitmap.hasVisiblePixel(): Boolean {
     val pixels = toPixelMap()

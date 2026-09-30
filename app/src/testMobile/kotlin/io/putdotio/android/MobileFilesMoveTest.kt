@@ -46,6 +46,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.files.MOBILE_FILES_MOVE_BACK_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_LOAD_MORE_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_PICKER_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_RETRY_TAG
+import io.putdotio.android.files.MobileFilesRoute
+import io.putdotio.android.files.MobileFilesScreen
+import io.putdotio.android.files.mobileFilesMoveFolderTag
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

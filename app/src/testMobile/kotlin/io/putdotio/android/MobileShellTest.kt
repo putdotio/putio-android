@@ -117,6 +117,22 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.files.MOBILE_FILES_SHARE_ACTION_TAG
+import io.putdotio.android.files.MOBILE_FILES_SORT_TAG
+import io.putdotio.android.playback.ActiveAudio
+import io.putdotio.android.playback.MOBILE_AUDIO_COVER_TAG
+import io.putdotio.android.playback.MOBILE_NOW_PLAYING_DISMISS_TAG
+import io.putdotio.android.playback.MOBILE_NOW_PLAYING_OPEN_TAG
+import io.putdotio.android.playback.MOBILE_NOW_PLAYING_TAG
+import io.putdotio.android.playback.MOBILE_NOW_PLAYING_TOGGLE_TAG
+import io.putdotio.android.playback.MOBILE_PLAYER_TAG
+import io.putdotio.android.playback.MobilePlayerFactory
+import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
+import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
+import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.parseMobileSharedTransfer
+import io.putdotio.android.account.MOBILE_ABOUT_ROW_TAG
+import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 
 /** JVM proof for the mobile Material 3 shell; LaunchSmokeTest owns device launch proof. */
 @RunWith(AndroidJUnit4::class)

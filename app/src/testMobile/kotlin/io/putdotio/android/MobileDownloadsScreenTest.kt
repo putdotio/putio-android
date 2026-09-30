@@ -8,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
+import io.putdotio.android.downloads.MobileDownloadsScreen
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test

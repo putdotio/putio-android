@@ -3,7 +3,6 @@ package io.putdotio.android.auth
 import android.content.Context
 import android.util.Log
 import io.putdotio.android.BuildConfig
-import io.putdotio.android.MobilePlaybackReporting
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.share.MobileFileShareService
@@ -16,6 +15,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import io.putdotio.android.playback.MobilePlaybackReporting
 
 internal fun interface OAuthRuntimeFailureReporter {
     fun report(error: Exception)

@@ -57,6 +57,13 @@ import io.putdotio.android.playback.withAudioTrack
 import io.putdotio.android.playback.withRetainedAudioSelection
 import io.putdotio.android.playback.toAudioSelection
 import io.putdotio.android.playback.toBundle
+import io.putdotio.android.playback.MobilePlaybackOptions
+import io.putdotio.android.playback.PlaybackOption
+import io.putdotio.android.playback.RetainedPlayerPreferences
+import io.putdotio.android.playback.adoptPlaybackOptions
+import io.putdotio.android.playback.observePlayerControlKeyActivity
+import io.putdotio.android.playback.rememberRetainedPlayerPreferences
+import io.putdotio.android.playback.toRetainedPlayerPreferences
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

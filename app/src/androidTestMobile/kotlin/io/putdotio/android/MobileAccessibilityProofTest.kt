@@ -53,6 +53,16 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
+import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
+import io.putdotio.android.files.MobileFilesScreen
+import io.putdotio.android.search.MobileSearchHistoryScreen
+import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
+import io.putdotio.android.transfers.MobileTransfersScreen
+import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
+import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
+import io.putdotio.android.trash.MobileTrashScreen
+import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
+import io.putdotio.android.account.MobileAccountScreen
 
 /** Controlled production surfaces at 200% system font with animations disabled. */
 @RunWith(AndroidJUnit4::class)

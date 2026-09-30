@@ -17,6 +17,7 @@ import androidx.media3.session.SessionToken
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackPositionObserver
 import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.android.playback.DefaultMobilePlayerFactory
 
 /**
  * Owns the audio player so playback outlives the player screen: the session

@@ -16,6 +16,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.playback.MobileResumePlaybackDialog
 import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 import org.junit.Assert.assertEquals

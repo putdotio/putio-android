@@ -16,9 +16,13 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
+import io.putdotio.android.account.MOBILE_STRICTLY_NECESSARY_TAG
+import io.putdotio.android.account.MobileAccountScreen
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.downloads.description
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsContent

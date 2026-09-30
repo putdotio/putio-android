@@ -21,6 +21,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.PlaybackMediaType
 import java.io.Closeable
 import java.io.File

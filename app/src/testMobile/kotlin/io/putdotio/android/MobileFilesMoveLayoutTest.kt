@@ -34,6 +34,13 @@ import org.junit.rules.RuleChain
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_LIST_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_LOAD_MORE_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_PICKER_TAG
+import io.putdotio.android.files.MobileFilesMoveDestination
+import io.putdotio.android.files.mobileFilesMoveFolderTag
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

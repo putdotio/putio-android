@@ -77,6 +77,8 @@ import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
+import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
+import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 
 @RunWith(AndroidJUnit4::class)
 class FilesDeleteNavigationUiProofTest {

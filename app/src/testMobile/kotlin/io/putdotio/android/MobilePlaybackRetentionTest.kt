@@ -10,6 +10,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import io.putdotio.android.playback.PlayerRetentionEvent
+import io.putdotio.android.playback.PlayerRetentionUpdate
+import io.putdotio.android.playback.RetainedPlayback
+import io.putdotio.android.playback.lifecycleAllowsAutoplay
+import io.putdotio.android.playback.playbackKeepsScreenOn
+import io.putdotio.android.playback.playerRetentionUpdate
+import io.putdotio.android.playback.replacementPositionMillis
+import io.putdotio.android.playback.retainPlaybackOnPause
+import io.putdotio.android.playback.retainedPositionOnDispose
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])

@@ -11,6 +11,9 @@ import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.share.MobileResumedActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.consumeMobileSharedTransfer
+import io.putdotio.android.auth.handleAuthTabActivityResult
 
 class MainActivity : BasePutioActivity() {
     internal val authTabLauncher = AuthTabIntent.registerActivityResultLauncher(this) { result ->

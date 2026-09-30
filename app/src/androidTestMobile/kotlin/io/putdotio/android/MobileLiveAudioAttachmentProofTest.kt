@@ -61,6 +61,9 @@ import io.putdotio.android.playback.AudioSelection
 import io.putdotio.android.playback.AudioTrackIdentity
 import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.withAudioSelection
+import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import io.putdotio.android.playback.MOBILE_AUDIO_COVER_TAG
+import io.putdotio.android.playback.MOBILE_NOW_PLAYING_TAG
 
 /** Real service playback with a controlled shell request; no notification tap, auth runtime, or API calls. */
 @RunWith(AndroidJUnit4::class)

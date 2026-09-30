@@ -45,6 +45,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import io.putdotio.android.playback.dispatch
+import io.putdotio.android.search.ActiveSearchHistorySession
+import io.putdotio.android.search.MobileSearchHistoryViewModel
+import io.putdotio.android.search.mobileSearchHistoryViewModelFactory
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
