@@ -100,6 +100,7 @@ import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackReducer
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
@@ -317,26 +318,59 @@ class MobilePlayerScreenTest {
     }
 
     @Test
-    fun conversionStateOffersRefreshAndBack() {
-        var retries = 0
+    fun aRunningConversionPollsOnItsOwnAndOffersBack() {
+        var refreshes = 0
         var backs = 0
+        compose.mainClock.autoAdvance = false
         compose.setContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(PlaybackContent.Conversion(PlaybackConversionState.Converting(42.0))),
-                    onRetry = { retries += 1 },
+                    onRetry = {},
                     onPlayerFailure = { _, _ -> },
                     onBack = { backs += 1 },
+                    onRefreshConversion = { refreshes += 1 },
                 )
             }
         }
 
         compose.onNodeWithText("Conversion is in progress. 42%").assertIsDisplayed()
-        compose.onNodeWithText("Check again").performClick()
+        compose.onNodeWithText("Check again").assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS + 100L)
+        compose.runOnIdle { assertEquals(1, refreshes) }
         compose.onNodeWithContentDescription("Back").performClick()
+        compose.runOnIdle { assertEquals(1, backs) }
+    }
 
-        assertEquals(1, retries)
-        assertEquals(1, backs)
+    @Test
+    fun theViewerConvertsAVideoNeverRequestedOrFailedButNotOneThatCannotBe() {
+        var content by mutableStateOf(PlaybackContent.Conversion(PlaybackConversionState.NotAvailable))
+        var starts = 0
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(content),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    onStartConversion = { starts += 1 },
+                )
+            }
+        }
+
+        compose.onNodeWithText("This video needs converting before it can play here.").assertIsDisplayed()
+        compose.onNodeWithText("Convert").performClick()
+        compose.runOnIdle { assertEquals(1, starts) }
+
+        content = PlaybackContent.Conversion(PlaybackConversionState.Failed)
+        compose.onNodeWithText("Convert again").performClick()
+        compose.runOnIdle { assertEquals(2, starts) }
+
+        // The viewer's own Convert still found no conversion.
+        content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, startRequested = true)
+        compose.onNodeWithText("This video cannot be converted.").assertIsDisplayed()
+        compose.onNodeWithText("Convert").assertDoesNotExist()
+        compose.onNodeWithText("Check again").assertDoesNotExist()
     }
 
     @Test

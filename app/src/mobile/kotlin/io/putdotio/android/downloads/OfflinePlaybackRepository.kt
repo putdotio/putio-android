@@ -41,5 +41,8 @@ internal class OfflinePlaybackRepository(
         return PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source, useStartFrom = false))
     }
 
+    override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+        delegate.startConversion(target)
+
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = delegate.findNextVideo(target)
 }

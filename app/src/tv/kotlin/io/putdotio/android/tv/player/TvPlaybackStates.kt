@@ -7,9 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -18,23 +16,20 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.currentStateAsState
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
-import io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackConversionAction
+import io.putdotio.android.playback.PlaybackConversionPolling
 import io.putdotio.android.playback.PlaybackFailure
-import io.putdotio.android.playback.pollsAutomatically
+import io.putdotio.android.playback.action
 import io.putdotio.android.playback.retryable
 import io.putdotio.android.playback.startable
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.sdk.files.PlaybackConversionState
 import kotlin.math.roundToInt
-import kotlinx.coroutines.delay
 
 internal const val TV_CONVERSION_STATUS_TAG = "tv-player-conversion-status"
 
@@ -42,9 +37,9 @@ internal const val TV_CONVERSION_STATUS_TAG = "tv-player-conversion-status"
  * The conversion-in-progress interstitial, laid out as tv-native's `VideoConversionStatus`
  * (putio-web `apps/tv-native` `features/files/components/video-conversion-status.tsx` @
  * `22264d5`): the file name, why it cannot play yet, then its conversion status. A queued or
- * running conversion is read again every 3 s while the app is in the foreground, and playback
- * starts on its own once it resolves. The RN app started the conversion itself on opening; here
- * the viewer does: Convert on one never requested, Convert again after a failed one.
+ * running conversion polls ([PlaybackConversionPolling]), and playback starts on its own once
+ * it resolves. The RN app started the conversion itself on opening; here the viewer does, with
+ * the shared [PlaybackConversionAction].
  */
 @Composable
 internal fun TvConversionScreen(
@@ -55,22 +50,12 @@ internal fun TvConversionScreen(
 ) {
     val state = conversion.state
     val idle = conversion.refreshRequestId == null
-    val foreground by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
-    val polling = idle && state.pollsAutomatically && foreground.isAtLeast(Lifecycle.State.STARTED)
-    val refresh by rememberUpdatedState(onRefresh)
-    LaunchedEffect(conversion, polling) {
-        // A read that starts and settles between frames can leave `conversion` equal to the last
-        // one (Queued again, the same percent), so the wait repeats rather than relying on a change.
-        while (polling) {
-            delay(PLAYBACK_CONVERSION_POLL_MILLIS)
-            refresh()
-        }
-    }
-    val action = when {
-        state == PlaybackConversionState.Failed -> R.string.tv_player_convert_again to onStartConversion
-        conversion.startable -> R.string.tv_player_convert to onStartConversion
-        state == PlaybackConversionState.NotAvailable || state.pollsAutomatically -> null
-        else -> R.string.tv_player_check_again to onRefresh
+    PlaybackConversionPolling(conversion, onRefresh)
+    val action = when (conversion.action) {
+        PlaybackConversionAction.Convert -> R.string.tv_player_convert to onStartConversion
+        PlaybackConversionAction.ConvertAgain -> R.string.tv_player_convert_again to onStartConversion
+        PlaybackConversionAction.CheckAgain -> R.string.tv_player_check_again to onRefresh
+        null -> null
     }
     val focus = remember { FocusRequester() }
     LaunchedEffect(action?.first, idle) { if (action != null && idle) focus.requestFocus() }

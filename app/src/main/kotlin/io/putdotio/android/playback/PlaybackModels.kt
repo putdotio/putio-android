@@ -371,6 +371,27 @@ val PlaybackContent.Conversion.startable: Boolean
     get() = state == PlaybackConversionState.Failed ||
         (state == PlaybackConversionState.NotAvailable && !startRequested)
 
+/** What the conversion interstitial offers besides Back. */
+enum class PlaybackConversionAction {
+    /** [PlaybackEvent.StartConversion] for a conversion never requested. */
+    Convert,
+
+    /** [PlaybackEvent.StartConversion] after a failed one. */
+    ConvertAgain,
+
+    /** [PlaybackEvent.RefreshConversion] for a status that does not poll on its own. */
+    CheckAgain,
+}
+
+/** Null while the conversion polls on its own, and once the file cannot be converted. */
+val PlaybackContent.Conversion.action: PlaybackConversionAction?
+    get() = when {
+        state == PlaybackConversionState.Failed -> PlaybackConversionAction.ConvertAgain
+        startable -> PlaybackConversionAction.Convert
+        state == PlaybackConversionState.NotAvailable || state.pollsAutomatically -> null
+        else -> PlaybackConversionAction.CheckAgain
+    }
+
 private fun PlaybackState.chooseResume(restart: Boolean): PlaybackTransition {
     val pending = content as? PlaybackContent.AwaitingResume ?: return PlaybackTransition(this, consumed = false)
     return PlaybackTransition(

@@ -74,9 +74,13 @@ import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.compose.ContentFrame
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackConversionAction
+import io.putdotio.android.playback.PlaybackConversionPolling
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.action
+import io.putdotio.android.playback.startable
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.playbackSurfaceType
 import io.putdotio.android.playback.preparePlayback
@@ -124,6 +128,8 @@ internal fun MobilePlayerScreen(
     onSourceRequired: (Long?) -> Unit = {},
     onResume: () -> Unit = {},
     onRestart: () -> Unit = {},
+    onRefreshConversion: () -> Unit = {},
+    onStartConversion: () -> Unit = {},
 ) {
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
         MobileVideoWindow(fileId = state.target.fileId.value)
@@ -210,12 +216,7 @@ internal fun MobilePlayerScreen(
             PlaybackContent.Ended -> Unit
 
             is PlaybackContent.Conversion ->
-                MobileErrorState(
-                    title = stringResource(R.string.mobile_playback_conversion_title),
-                    message = content.state.message(),
-                    retryLabel = stringResource(R.string.mobile_playback_check_again),
-                    onRetry = onRetry,
-                )
+                MobileConversionState(content, onRefreshConversion, onStartConversion)
 
             is PlaybackContent.Unsupported ->
                 MobileEmptyState(
@@ -1164,6 +1165,39 @@ private fun rememberTouchExplorationEnabled(): Boolean {
         onDispose { manager.removeTouchExplorationStateChangeListener(listener) }
     }
     return enabled
+}
+
+/** Queued and running conversions poll; the viewer starts one, or checks again where it waits. */
+@Composable
+private fun MobileConversionState(
+    conversion: PlaybackContent.Conversion,
+    onRefresh: () -> Unit,
+    onStart: () -> Unit,
+) {
+    PlaybackConversionPolling(conversion, onRefresh)
+    val title = stringResource(R.string.mobile_playback_conversion_title)
+    val message = if (conversion.startable && conversion.state == PlaybackConversionState.NotAvailable) {
+        stringResource(R.string.mobile_playback_conversion_not_requested)
+    } else {
+        conversion.state.message()
+    }
+    val action = when (conversion.action) {
+        PlaybackConversionAction.Convert -> R.string.mobile_playback_convert to onStart
+        PlaybackConversionAction.ConvertAgain -> R.string.mobile_playback_convert_again to onStart
+        PlaybackConversionAction.CheckAgain -> R.string.mobile_playback_check_again to onRefresh
+        null -> null
+    }
+    if (action == null) {
+        MobileEmptyState(title = title, message = message)
+    } else {
+        MobileErrorState(
+            title = title,
+            message = message,
+            retryLabel = stringResource(action.first),
+            onRetry = action.second,
+            retryEnabled = conversion.refreshRequestId == null,
+        )
+    }
 }
 
 @Composable

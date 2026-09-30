@@ -99,6 +99,26 @@ and checks the session identity again under the authentication controller's lock
 Tests: `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
 `MobilePlaybackReportingTest`, `MobileResumePlaybackDialogTest`.
 
+## MP4 conversion
+
+Both surfaces resolve a video that needs MP4 conversion to the same shared
+conversion state. The SDK resolves a conversion only for a video the server marks
+`need_convert`, and its MP4 status reads not available until a conversion is
+requested ([live check](https://github.com/putdotio/putio-android/pull/222#issuecomment-5904428342):
+a not-available video converted and played).
+A queued or running conversion is read again every 3 s while the app is in the
+foreground, keeping the interstitial up, and plays on its own once it resolves.
+Completed is read once more at once; if it stays completed, Check again waits for
+the viewer, as does an unknown status. The viewer starts a conversion through
+the SDK's `startMp4Conversion`, which is then read like any other: Convert on one
+never requested, Convert again after a failed one. If the status still reads not
+available after the viewer's Convert, the video cannot be converted and offers
+only Back. The app never starts a conversion on its own; putio-web, tv-native
+and tv-vite do on opening, and doing so here is an owner decision.
+
+Tests: `PlaybackReducerTest`, `MobilePlayerScreenTest`, `TvPlaybackStatesTest`,
+`OfflinePlaybackRepositoryTest`.
+
 ## TV playback
 
 Center on a Files media row resolves it through the shared
@@ -177,17 +197,8 @@ ahead, starting after 1.5 s, or 3 s after a stall.
 
 A file that needs MP4 conversion shows the RN player's conversion interstitial:
 the file name, why it cannot play yet, and its conversion status (in queue, a
-percentage, completed, failed, not available, or the server's own value). A
-queued or running conversion is read again every 3 s while the app is in the
-foreground, keeping the interstitial up, and plays on its own once it
-resolves. Completed is read once more at once; if it stays completed, Check
-again waits for the viewer, as does an unknown status. The viewer starts a
-conversion through the SDK and it is then read like any other: Convert on one
-never requested (the SDK resolves a conversion only for a `need_convert` video,
-whose MP4 status reads not available until one is requested), Convert again
-after a failed one. If the status still reads not available after the viewer's
-Convert, the video cannot be converted and offers only Back. The app never
-starts a conversion on its own, where the RN app did on opening.
+percentage, completed, failed, not available, or the server's own value), with
+the actions under [MP4 conversion](#mp4-conversion).
 
 Failures say what happened: no network, an expired playback link, too many
 requests, put.io unavailable, no access, a request put.io refused, an expired
