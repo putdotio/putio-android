@@ -42,7 +42,8 @@ unrelated failure cannot satisfy them.
 Every phone boot, including reuse, also verifies API 37, selects the bundled
 Chrome as the browser role holder, and requires its AndroidX Auth Tab service
 category. The harness fails closed before install when that secure OAuth
-transport is unavailable. TV and the CI managed device remain API 36.
+transport is unavailable. The CI managed device (`ciPhone`) is also API 37;
+TV remains API 36.
 
 Bootstrap never replaces a mismatched AVD. It still provisions the other
 profiles, then fails with an explicit command; stop and delete that exact

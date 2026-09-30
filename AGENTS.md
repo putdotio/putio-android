@@ -130,7 +130,9 @@ modifications with a failure report; SHA pairs describe only committed source.
 
 [Emulator smoke](./.github/workflows/emulator-smoke.yml) runs weekly and on
 dispatch: `LaunchSmokeTest` and the credential-free `StaleOAuthCallbackTest` on
-the `ciPhone` Gradle Managed Device. It is deliberately not a PR gate:
+the `ciPhone` Gradle Managed Device (API 37). Each suite runs through
+`verifyCiPhoneLaunchProof` or `verifyCiPhoneOAuthProof`, which fail unless that
+test's own XML result passed. It is deliberately not a PR gate:
 shared-runner emulator boots are too slow and flaky to block merges, so
 `scripts/prove.sh` stays the local proof.
 
