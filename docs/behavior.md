@@ -75,6 +75,18 @@ has no buffer setting and always buffers as tv-native's default `medium` (see
 Tests: `TvAuthControllerTest`, `AsyncStorageLegacyTvSessionTest` (a fixture
 AsyncStorage database), `TvNativeConfigMigrationTest` (fixture `/config` blobs).
 
+## Shared-with-me items
+
+Friends' shared files (`is_shared`) and the shared folders (`SHARED_ROOT`,
+`SHARED_FRIEND`) accept no owner mutations, so neither surface offers Rename,
+Move, Move to trash/Delete or Mark as watched/unwatched on them. Download and
+Share file (which downloads the original, then opens the share sheet) stay on
+shared files, as web and iOS keep Download; a shared folder has no mobile
+actions button, and on TV Menu on it opens nothing. Make a copy is not offered
+yet.
+
+Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesScreenTest`.
+
 ## Trash
 
 Every Trash action confirms, submits exactly once, then verifies with one fresh

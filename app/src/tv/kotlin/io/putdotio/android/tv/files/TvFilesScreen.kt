@@ -259,7 +259,15 @@ internal fun TvFilesScreen(
                             else -> unsupported = item.id.value
                         }
                     },
-                    onActions = { item -> actionsFor = item.id.value },
+                    // As in tv-native, a row with nothing to offer opens no menu.
+                    onActions = { item ->
+                        val actions = item.tvActions(
+                            watchedToggleEnabled,
+                            confirmedTrashEnabled,
+                            current.operation.canStartOperation,
+                        )
+                        if (actions.isNotEmpty()) actionsFor = item.id.value
+                    },
                 )
         }
     }

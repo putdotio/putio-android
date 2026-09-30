@@ -10,9 +10,11 @@ import io.putdotio.sdk.errors.PutioTransportException
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PutioFolderType
 import io.putdotio.sdk.files.PutioVideoMetadata
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -386,6 +388,20 @@ class SdkFilesRepositoryTest {
             cursor = cursor,
             status = "OK",
         )
+
+    @Test
+    fun carriesSharingSoSurfacesCanWithholdOwnerActions() {
+        val friendFile = sdkFile(1L, "clip.mkv", PutioFileType.VIDEO).copy(isShared = true).toFilesItem()
+        val sharedRoot = sdkFile(2L, "Items shared with you", PutioFileType.FOLDER)
+            .copy(folderType = PutioFolderType.SHARED_ROOT)
+            .toFilesItem()
+
+        assertTrue(friendFile.isShared)
+        assertEquals(PutioFolderType.SHARED_ROOT, sharedRoot.folderType)
+        assertFalse(friendFile.acceptsOwnerActions)
+        assertFalse(sharedRoot.acceptsOwnerActions)
+        assertTrue(sdkFile(3L, "mine.mkv", PutioFileType.VIDEO).toFilesItem().acceptsOwnerActions)
+    }
 
     @Test
     fun mapsWatchPositionOnlyForMediaAndDropsMalformedValues() {

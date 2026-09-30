@@ -30,6 +30,7 @@ internal sealed interface TvFilesAction {
  * The actions a row can offer. VLC takes the original file for any media row; the watched
  * toggle needs the account to keep positions (`use_start_from`) and, to mark watched, a
  * known duration; deletion needs the confirmed trash setting so the wording is honest.
+ * Friends' shared files and the shared folders keep only VLC, as in tv-native.
  */
 internal fun FilesItem.tvActions(
     watchedToggleEnabled: Boolean,
@@ -39,6 +40,7 @@ internal fun FilesItem.tvActions(
     buildList {
         if (isPlayable) add(TvFilesAction.OpenInVlc)
         val watched = playback?.isWatched == true
+        if (!acceptsOwnerActions) return@buildList
         if (type == PutioFileType.VIDEO && watchedToggleEnabled && (watched || playback?.durationSeconds != null)) {
             add(TvFilesAction.SetWatched(!watched))
         }

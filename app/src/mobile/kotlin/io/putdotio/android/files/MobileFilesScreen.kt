@@ -203,6 +203,7 @@ private fun MobileRefreshableFilesContent(
                             onEvent = onEvent,
                             onPlayMedia = onPlayMedia,
                             onActions = { selectedItemId = it.id.value },
+                            hasActions = { it.hasMobileActions(onDownloadItem != null, onShareItem != null) },
                             operation = operation,
                             downloads = downloads,
                         )
@@ -400,6 +401,7 @@ private fun MobileFilesList(
     onEvent: (FilesBrowserEvent) -> Unit,
     onPlayMedia: (FilesItem) -> Unit,
     onActions: (FilesItem) -> Unit,
+    hasActions: (FilesItem) -> Boolean,
     operation: FilesFolderOperation,
     modifier: Modifier = Modifier,
     downloads: DownloadsState = DownloadsState(),
@@ -462,7 +464,7 @@ private fun MobileFilesList(
                 item = item,
                 highlighted = item.id == revealItemId,
                 downloadStatus = downloads.entry(item.id)?.status,
-                onActions = if (item.id.value > 0L) { { onActions(item) } } else null,
+                onActions = if (hasActions(item)) { { onActions(item) } } else null,
                 actionsEnabled = actionsEnabled,
                 onClick = when {
                     item.id == pendingItemId -> null
