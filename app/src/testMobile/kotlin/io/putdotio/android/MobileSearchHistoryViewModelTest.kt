@@ -77,7 +77,6 @@ class MobileSearchHistoryViewModelTest {
                 )
             val session =
                 ActiveSearchHistorySession(
-                    key = SessionKey(USER_ID, SessionOne),
                     recentSearchStore = recentSearchStore,
                     search = search,
                     history = HistoryController(EmptyHistoryRepository, historyEnabled = true, parentScope = this),
@@ -116,7 +115,6 @@ class MobileSearchHistoryViewModelTest {
             val history = HistoryController(EmptyHistoryRepository, historyEnabled = true, parentScope = this)
             val session =
                 ActiveSearchHistorySession(
-                    key = SessionKey(USER_ID, SessionOne),
                     recentSearchStore = recentSearchStore,
                     search = SearchController(RecordingSearchRepository(), recentSearchStore, this),
                     history = history,
@@ -157,7 +155,6 @@ class MobileSearchHistoryViewModelTest {
             val history = HistoryController(EmptyHistoryRepository, historyEnabled = true, parentScope = this)
             val session =
                 ActiveSearchHistorySession(
-                    key = SessionKey(USER_ID, SessionOne),
                     recentSearchStore = recentSearchStore,
                     search = SearchController(RecordingSearchRepository(), recentSearchStore, this),
                     history = history,
