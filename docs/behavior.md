@@ -287,6 +287,17 @@ the next session's export; signing out of a restored session deletes an earlier
 process's export), `MobileShellTest` (Share on file rows in the phone and rail
 layouts).
 
+## Launcher entry
+
+`MainActivity` answers each launcher's `ACTION_MAIN` query: `LAUNCHER` on both
+surfaces, and `LEANBACK_LAUNCHER` on TV, so Android TV home lists the app. The
+manifest merger keeps a flavor filter apart from main's, so the TV filter
+carries its own `MAIN` action. The harness launches by explicit component and
+cannot catch a missing entry.
+
+Tests: `VerifyLauncherManifestTest`, plus `verify<Variant>LauncherManifest`
+against each merged manifest in `check`.
+
 ## Deep links
 
 `https://{app.put.io,put.io,www.put.io}/{files,files/<id>,transfers,search,history,trash}`
