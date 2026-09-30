@@ -36,6 +36,7 @@ import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
@@ -296,6 +297,33 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `leaving a video autoplay moved on to focuses that video's Files row`() {
+        playbackRepository.next[FilesItemId(9)] = PlaybackTarget(FilesItemId(10), "Harbor film 2.mp4")
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        session.filesFocusMemory[0L] = 9L
+
+        session.play(media(9, "Harbor film.mp4", PutioFileType.VIDEO))
+        val playback = checkNotNull(session.playback.value)
+        assertTrue(playback.dispatch(PlaybackEvent.PlayerEnded))
+        assertEquals(FilesItemId(10), playback.state.value.target.fileId)
+        assertTrue(playback.state.value.content is PlaybackContent.Ready)
+
+        session.stopPlayback()
+        assertEquals(10L, session.filesFocusMemory[0L])
+    }
+
+    @Test
+    fun `leaving a video that played alone keeps the focused Files row`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        session.filesFocusMemory[0L] = 9L
+
+        session.play(media(9, "Harbor film.mp4", PutioFileType.VIDEO))
+        session.stopPlayback()
+
+        assertEquals(mapOf(0L to 9L), session.filesFocusMemory)
+    }
+
+    @Test
     fun `only media plays and signing out ends playback`() {
         val viewModel = TvSessionViewModel(auth)
         val session = checkNotNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
@@ -446,7 +474,11 @@ class TvSessionViewModelTest {
             return PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source(target.fileId.value)))
         }
 
-        override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV yet")
+        /** The video after each one in its folder; anything else is the folder's last. */
+        val next = mutableMapOf<FilesItemId, PlaybackTarget>()
+
+        override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
+            next[target.fileId]?.let(PlaybackNextResult::Found) ?: PlaybackNextResult.Ended
 
         private fun source(fileId: Long) = PlaybackSource(
             fileId = fileId,

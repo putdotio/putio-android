@@ -1,6 +1,7 @@
 package io.putdotio.android.tv
 
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.tv.material3.MaterialTheme
@@ -53,14 +54,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Fake account repositories for the controlled-state TV proofs: Files serves [listings],
- * Search answers every term with [searchResults], and playback resolves to [playback].
+ * Search answers every term with [searchResults], and playback resolves to [playback], read only
+ * when something plays.
  * Nothing reaches the API.
  */
 internal fun tvProofDependencies(
     listings: Map<FilesItemId, FilesPage>,
     searchResults: List<FilesItem>,
     recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
-    playback: PlaybackResolution? = null,
+    playback: () -> PlaybackResolution = { error("No playback in this proof") },
 ) = TvSessionDependencies(
     filesRepository = ProofFilesRepository(listings),
     searchRepository = object : SearchRepository {
@@ -111,17 +113,21 @@ internal fun tvProofDependencies(
     playbackRepository = {
         object : PlaybackRepository {
             override suspend fun resolve(target: PlaybackTarget) =
-                PlaybackRepositoryResult.Success(requireNotNull(playback) { "No playback in this proof" })
+                PlaybackRepositoryResult.Success(playback())
 
-            override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+            override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")
         }
     },
     writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
 )
 
-/** Mounts the production TV session and signed-in shell on [dependencies]. */
+/**
+ * Mounts the production TV session and signed-in shell on [dependencies]. [onExit] stands in for
+ * the system leaving the app; it is registered before the shell.
+ */
 internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>.mountTvProofSession(
     dependencies: TvSessionDependencies,
+    onExit: (() -> Unit)? = null,
 ): TvSession {
     val account = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true)
     val auth = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1)))
@@ -130,6 +136,7 @@ internal fun AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, Com
         session = checkNotNull(TvSessionViewModel(auth).sessionFor(account, TvAuthSessionId(1), dependencies))
     }
     setContent {
+        if (onExit != null) BackHandler(onBack = onExit)
         MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
             TvSessionShell(
                 session = session,
@@ -153,7 +160,7 @@ internal fun proofItem(id: Long, name: String, type: PutioFileType, parentId: Fi
     createdAt = "2026-09-30T10:00:00Z",
 )
 
-private class ProofFilesRepository(private val listings: Map<FilesItemId, FilesPage>) : FilesRepository {
+internal class ProofFilesRepository(private val listings: Map<FilesItemId, FilesPage>) : FilesRepository {
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
         listings[folderId]?.let { FilesRepositoryResult.Success(it) }
             ?: FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("No listing $folderId")))
@@ -175,7 +182,7 @@ private class ProofFilesRepository(private val listings: Map<FilesItemId, FilesP
     override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")
 }
 
-private object ProofTrashRepository : TrashRepository {
+internal object ProofTrashRepository : TrashRepository {
     override suspend fun load() = FilesRepositoryResult.Success(TrashPage(emptyList(), nextCursor = null))
 
     override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")

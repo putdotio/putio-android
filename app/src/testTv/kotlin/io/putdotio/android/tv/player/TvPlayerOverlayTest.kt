@@ -3,6 +3,7 @@ package io.putdotio.android.tv.player
 import io.putdotio.android.tv.player.TvPlayerCommand.Exit
 import io.putdotio.android.tv.player.TvPlayerCommand.Pause
 import io.putdotio.android.tv.player.TvPlayerCommand.Play
+import io.putdotio.android.tv.player.TvPlayerCommand.PlayNext
 import io.putdotio.android.tv.player.TvPlayerCommand.SeekTo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,6 +31,19 @@ class TvPlayerOverlayTest {
         // A repeated Back, or playback ending, before the player leaves does nothing more.
         assertEquals(emptyList<TvPlayerCommand>(), exited.overlay.back().commands)
         assertEquals(emptyList<TvPlayerCommand>(), exited.overlay.ended().commands)
+    }
+
+    @Test
+    fun anEndedVideoMovesOnOnceWithAutoplayAndLeavesWithout() {
+        assertEquals(listOf(Exit), TvPlayerOverlay().ended().commands)
+
+        val advanced = TvPlayerOverlay().scrubForward(nowMillis = 0L).overlay.ended(autoplayNext = true)
+        assertEquals(listOf(PlayNext), advanced.commands)
+        assertNull(advanced.overlay.scrub)
+
+        // Repeated end signals, and Backs, before the next video takes over do nothing more.
+        assertEquals(emptyList<TvPlayerCommand>(), advanced.overlay.ended(autoplayNext = true).commands)
+        assertEquals(emptyList<TvPlayerCommand>(), advanced.overlay.back().commands)
     }
 
     @Test

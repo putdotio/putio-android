@@ -244,6 +244,19 @@ continues from the saved position and stays in playback (the RN prompt had
 no Back of its own and left). The dialog needs the listing's duration; without
 one the saved position is continued without asking, as the RN player did.
 
+With Account's Autoplay next video on (the confirmed `autoplay_next_video`), a
+finished video plays the next one in its folder by the shared rules mobile
+uses (#248): the folder's videos in name order, stopping after the last without
+wrapping or crossing folders, never a video already played in that run, and
+never after audio. The finished video's end is reported to the shared
+position writer under its own lease, as on mobile. The next video resolves
+fresh, so a saved position asks as above; the folder read supplies its
+duration. Back while it is found or loads leaves playback. With the setting
+off, or after the folder's last video, playback leaves as before. Leaving
+after autoplay moved on focuses the row of the video it moved to last, even
+when Back came while that video loaded or asked where to start. Files keeps
+its own paging: a row on a page it has not loaded falls back to the first row.
+
 TV writes positions back through the same writer and observer as mobile,
 owned by the signed-in session: a 15 s sample while playing plus pause, stop,
 end, error and leaving playback, never a write per progress tick. Writes need
@@ -460,6 +473,21 @@ close before reconcile, in-memory progress, the recorded request URL against
 a real Media3 manager),
 `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`.
+
+## TV Back
+
+Files is the TV home, as Home is in tv-native and tv-vite. Back with focus on
+the drawer closes it and returns focus to the pane's last-focused row, on every
+destination, without applying any pane rule (an empty History returns to
+Clear); a pane with nothing to focus takes its own step at once. In the pane,
+its own layer closes first (Trash under Account, the unsupported-file screen).
+Then Back on Search, History or Account returns to Files, focused on the row
+that last held focus there, with any folder stack kept; Back on Files leaves a
+folder, and on the Files root it falls through to the system and leaves the app
+without a confirmation, per Google's TV navigation guidance.
+
+Tests: `TvShellTest`, and on an emulator
+`TvExternalOpenProofTest#backOnTheDrawerReturnsToThePaneThenThePaneRulesApply`.
 
 ## TV overscan safe area
 

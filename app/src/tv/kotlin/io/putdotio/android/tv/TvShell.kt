@@ -1,5 +1,6 @@
 package io.putdotio.android.tv
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
@@ -16,9 +17,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -40,6 +44,11 @@ import io.putdotio.android.tv.auth.TvAccount
  * re-entry the drawer restores focus to the item that last held it, and on
  * first entry to the selected destination.
  *
+ * Files is home. Back with the drawer focused returns focus to the pane. In the pane,
+ * a pane's own Back (an overlay, a sub-screen) comes first; then another destination
+ * returns to Files, and Files takes [onFilesBack] or, at its root, falls through to the
+ * system and leaves the app.
+ *
  * The background reaches the screen edges; the drawer and pane sit inside the
  * overscan safe area ([tvOverscanPadding]), and the pane adds one `space.sm`
  * step (16dp) from the drawer and the safe edges.
@@ -56,8 +65,26 @@ internal fun TvShell(
     /** Set by a pane that wants another destination shown, such as Search opening a result in Files. */
     requestedDestination: TvDestination? = null,
     onDestinationRequestHandled: () -> Unit = {},
+    /** Files' own Back step, such as leaving a folder; null when Files has none. */
+    onFilesBack: (() -> Unit)? = null,
 ) {
     var destination by rememberSaveable { mutableStateOf(TvDestination.Files) }
+    var drawerHasFocus by remember { mutableStateOf(false) }
+    // Registered before any pane composes, so each pane's own Back handlers take precedence.
+    BackHandler(enabled = destination != TvDestination.Files) { destination = TvDestination.Files }
+    BackHandler(enabled = destination == TvDestination.Files && onFilesBack != null) { onFilesBack?.invoke() }
+    // Composed each time the drawer takes focus, so it registers after every pane handler and
+    // Back closes the drawer before any pane rule runs. Focus re-enters the pane as D-pad Right
+    // does, landing on its last-focused row; a pane with nothing to focus takes its own step
+    // at once.
+    val focusManager = LocalFocusManager.current
+    if (drawerHasFocus) {
+        BackHandler {
+            if (!focusManager.moveFocus(FocusDirection.Right)) {
+                if (destination != TvDestination.Files) destination = TvDestination.Files else onFilesBack?.invoke()
+            }
+        }
+    }
     LaunchedEffect(requestedDestination) {
         if (requestedDestination != null) {
             destination = requestedDestination
@@ -80,6 +107,7 @@ internal fun TvShell(
                     // First entry lands on the selected destination; later entries return
                     // to whichever item was focused last.
                     .focusRestorer(selectedItemFocus)
+                    .onFocusChanged { drawerHasFocus = it.hasFocus }
                     .focusGroup(),
             ) {
                 Text(
