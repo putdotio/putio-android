@@ -31,6 +31,17 @@ class VerifyInstrumentationProofTest {
     }
 
     @Test
+    fun requiredTestSelectsWhichResultCounts() {
+        val oauthTest = "io.putdotio.android.auth.StaleOAuthCallbackTest#staleCallback"
+        writeReport(testCase())
+        assertThrows(GradleException::class.java) {
+            requireSuccessfulInstrumentationResult(temporaryFolder.root, oauthTest)
+        }
+        writeReport("<testcase classname=\"io.putdotio.android.auth.StaleOAuthCallbackTest\" name=\"staleCallback\"/>")
+        requireSuccessfulInstrumentationResult(temporaryFolder.root, oauthTest)
+    }
+
+    @Test
     fun rejectsFailedErroredAndSkippedResults() {
         for (result in listOf("failure", "error", "skipped")) {
             writeReport(testCase("<$result/>"))
