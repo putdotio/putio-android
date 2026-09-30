@@ -1,5 +1,6 @@
 package io.putdotio.android.auth
 
+import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.sdk.account.AccountDisk
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.account.AccountSettings
@@ -31,6 +32,17 @@ class PutioAuthSessionGatewayTest {
                 ),
             ),
             result,
+        )
+    }
+
+    @Test
+    fun `an inactive family plan member carries the family notice`() = runBlocking {
+        val boundary = FakePutioSdkAuthBoundary(accountStatus = "inactive", subAccount = true)
+        val result = PutioAuthSessionGateway(boundary).validateSession()
+
+        assertEquals(
+            InactiveAccountNotice.FamilyPlanExpired,
+            (result as SessionValidationResult.Valid).account.inactiveNotice,
         )
     }
 
@@ -69,6 +81,8 @@ class PutioAuthSessionGatewayTest {
     private class FakePutioSdkAuthBoundary(
         private val validateResult: Boolean = true,
         private val validationFailure: PutioOperationException? = null,
+        private val accountStatus: String = "active",
+        private val subAccount: Boolean = false,
     ) : PutioSdkAuthBoundary {
         val calls = mutableListOf<String>()
 
@@ -86,7 +100,7 @@ class PutioAuthSessionGatewayTest {
 
         override suspend fun getAccountInfo(): AccountInfo {
             calls += "account"
-            return accountInfo()
+            return accountInfo().copy(accountStatus = accountStatus, isSubAccount = subAccount)
         }
     }
 

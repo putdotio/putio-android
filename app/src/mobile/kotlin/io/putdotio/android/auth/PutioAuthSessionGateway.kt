@@ -1,5 +1,6 @@
 package io.putdotio.android.auth
 
+import io.putdotio.android.account.inactiveAccountNotice
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.errors.PutioException
@@ -126,4 +127,5 @@ private fun AccountInfo.toMobileAccount(): MobileAccount =
                 sizeBytes = disk.size,
                 usedBytes = disk.used,
             ),
+        inactiveNotice = inactiveAccountNotice(),
     )

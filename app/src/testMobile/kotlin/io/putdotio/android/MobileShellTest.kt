@@ -41,6 +41,8 @@ import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.Player as Media3Player
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.account.InactiveAccountNotice
+import io.putdotio.android.account.MOBILE_INACTIVE_ACCOUNT_NOTICE_TAG
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileSignedOutReason
@@ -1074,6 +1076,35 @@ class MobileShellTest {
                 events.filterIsInstance<FilesBrowserEvent.OpenExternalItem>())
             deliveries.close()
         }
+    }
+
+    @Test
+    fun inactiveAccountNoticeStaysAboveEveryDestinationAndActiveAccountsShowNone() {
+        var account by mutableStateOf(Account.copy(inactiveNotice = InactiveAccountNotice.Deactivated(null)))
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
+
+        compose.onNode(hasText("Account") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
+        compose.onNodeWithTag(MOBILE_INACTIVE_ACCOUNT_NOTICE_TAG).assertIsDisplayed()
+
+        account = Account
+        compose.onNodeWithTag(MOBILE_INACTIVE_ACCOUNT_NOTICE_TAG).assertDoesNotExist()
     }
 
     @Test

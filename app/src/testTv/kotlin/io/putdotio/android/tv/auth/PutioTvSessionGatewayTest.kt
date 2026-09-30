@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.auth
 
+import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.sdk.account.AccountDisk
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.account.AccountSettings
@@ -17,6 +18,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import java.time.Instant
 
 class PutioTvSessionGatewayTest {
     @Test
@@ -37,6 +39,16 @@ class PutioTvSessionGatewayTest {
                 ),
             ),
             result,
+        )
+    }
+
+    @Test
+    fun `an inactive account carries its notice`() = runBlocking {
+        val result = PutioTvSessionGateway(FakeBoundary(accountStatus = "inactive")).validateSession()
+
+        assertEquals(
+            InactiveAccountNotice.Deactivated(Instant.parse("2026-10-15T08:00:00Z")),
+            (result as TvSessionValidation.Valid).account.inactiveNotice,
         )
     }
 
@@ -72,6 +84,7 @@ class PutioTvSessionGatewayTest {
     private class FakeBoundary(
         private val validateResult: Boolean = true,
         private val validationFailure: PutioException? = null,
+        private val accountStatus: String = "active",
     ) : TvSdkBoundary {
         val calls = mutableListOf<String>()
 
@@ -96,7 +109,8 @@ class PutioTvSessionGatewayTest {
                 avatarUrl = "https://example.com/avatar.png",
                 disk = AccountDisk(available = 1, size = 2, used = 1),
                 settings = AccountSettings(sortBy = "NAME_ASC"),
-                accountStatus = "active",
+                accountStatus = accountStatus,
+                filesWillBeDeletedAt = "2026-10-15T08:00:00".takeIf { accountStatus == "inactive" },
             )
         }
     }

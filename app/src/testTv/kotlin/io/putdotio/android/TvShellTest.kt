@@ -63,6 +63,7 @@ import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvLinkPhase
@@ -134,6 +135,46 @@ class TvShellTest {
             keyUp(Key.DirectionCenter)
         }
         assertEquals(1, requests)
+    }
+
+    @Test
+    fun inactiveAccountNoticeShowsAboveEveryPaneWithoutTakingFocus() {
+        val zone = java.time.ZoneId.systemDefault()
+        val deletion = java.time.LocalDate.now(zone).plusDays(14).atTime(12, 0).atZone(zone).toInstant()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(
+                        userId = 1,
+                        username = "user",
+                        email = "user@example.com",
+                        inactiveNotice = InactiveAccountNotice.Deactivated(deletion),
+                    ),
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
+        compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
+            .assertIsDisplayed()
+        compose.onNodeWithText("Keep a good thing going!").assertIsDisplayed()
+        compose.onNodeWithText("app.put.io/billing").assertIsDisplayed()
+
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Sign out").assertIsFocused()
+        compose.onNodeWithText("app.put.io/billing").assertIsDisplayed()
     }
 
     @Test

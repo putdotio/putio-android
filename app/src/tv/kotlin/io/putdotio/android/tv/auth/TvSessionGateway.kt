@@ -1,5 +1,7 @@
 package io.putdotio.android.tv.auth
 
+import io.putdotio.android.account.InactiveAccountNotice
+import io.putdotio.android.account.inactiveAccountNotice
 import io.putdotio.android.auth.AccessToken
 import io.putdotio.android.auth.isAuthoritativeAuthRejection
 import io.putdotio.sdk.PutioClient
@@ -19,6 +21,7 @@ data class TvAccount(
     /** The account's `history_enabled` setting; History is a disabled pane without it. */
     val historyEnabled: Boolean = false,
     val avatarUrl: String? = null,
+    val inactiveNotice: InactiveAccountNotice? = null,
 )
 
 data class TvAccountStorage(
@@ -117,6 +120,7 @@ internal fun AccountInfo.toTvAccount(): TvAccount =
         storage = TvAccountStorage(availableBytes = disk.available, sizeBytes = disk.size, usedBytes = disk.used),
         historyEnabled = settings.historyEnabled,
         avatarUrl = avatarUrl.takeIf { it.isNotBlank() },
+        inactiveNotice = inactiveAccountNotice(),
     )
 
 enum class TvLinkFailure {

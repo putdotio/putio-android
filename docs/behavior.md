@@ -75,6 +75,29 @@ has no buffer setting and always buffers as tv-native's default `medium` (see
 Tests: `TvAuthControllerTest`, `AsyncStorageLegacyTvSessionTest` (a fixture
 AsyncStorage database), `TvNativeConfigMigrationTest` (fixture `/config` blobs).
 
+## Inactive account
+
+An account whose `account_status` is `inactive` shows a persistent notice on
+every signed-in screen, with putio-web's copy and states
+(`AccountStatusNotification`). A family plan member (`is_sub_account`) reads
+that the plan's owner has to update their payment details, with Leave the
+family plan pointing at `app.put.io/family`. Anyone else reads Your account has
+been deactivated 😢, the days until `files_will_be_deleted_at` (whole calendar
+days in the device's zone, as web counts them; no message without a date), and
+Keep a good thing going! pointing at `app.put.io/billing`. Web's notices for
+active accounts (payment warnings) and `stranger` accounts are not ported, so
+those show nothing. The status is read with the account at sign-in and session
+restore.
+
+Mobile puts the notice under the top bar and opens the link in the browser; with
+no browser the address replaces the action. TV puts it above the pane with the
+address as text and no focus target, so D-pad entry into the pane is unchanged.
+In-app renewal is out of scope.
+
+Tests: `InactiveAccountNoticeTest`, `PutioAuthSessionGatewayTest`,
+`PutioTvSessionGatewayTest`, `MobileInactiveAccountNoticeTest`,
+`MobileShellTest`, `TvShellTest`; on device, `TvSafeAreaProofTest`.
+
 ## Shared-with-me items
 
 Friends' shared files (`is_shared`) and the shared folders (`SHARED_ROOT`,

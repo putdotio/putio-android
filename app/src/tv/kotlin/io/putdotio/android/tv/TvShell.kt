@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -35,6 +36,7 @@ import androidx.tv.material3.NavigationDrawerItem
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.tv.account.TvInactiveAccountNotice
 import io.putdotio.android.tv.auth.TvAccount
 
 /**
@@ -48,6 +50,8 @@ import io.putdotio.android.tv.auth.TvAccount
  * a pane's own Back (an overlay, a sub-screen) comes first; then another destination
  * returns to Files, and Files takes [onFilesBack] or, at its root, falls through to the
  * system and leaves the app.
+ *
+ * An inactive account's notice sits above every pane and takes no focus.
  *
  * The background reaches the screen edges; the drawer and pane sit inside the
  * overscan safe area ([tvOverscanPadding]), and the pane adds one `space.sm`
@@ -135,16 +139,21 @@ internal fun TvShell(
             }
         },
     ) {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(PANE_INSET),
         ) {
-            when (destination) {
-                TvDestination.Files -> filesPane(paneFocus)
-                TvDestination.Search -> searchPane(paneFocus)
-                TvDestination.History -> historyPane(paneFocus)
-                TvDestination.Account -> accountPane(paneFocus)
+            account.inactiveNotice?.let { notice ->
+                TvInactiveAccountNotice(notice, Modifier.padding(bottom = PANE_INSET))
+            }
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                when (destination) {
+                    TvDestination.Files -> filesPane(paneFocus)
+                    TvDestination.Search -> searchPane(paneFocus)
+                    TvDestination.History -> historyPane(paneFocus)
+                    TvDestination.Account -> accountPane(paneFocus)
+                }
             }
         }
     }

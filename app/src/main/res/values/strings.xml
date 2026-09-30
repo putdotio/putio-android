@@ -1,4 +1,14 @@
 <resources>
     <string name="app_name">put.io</string>
-</resources>
 
+    <!-- Inactive account notice; copy from putio-web AccountStatusNotification. -->
+    <string name="account_inactive_title">Your account has been deactivated 😢</string>
+    <plurals name="account_inactive_files_deletion">
+        <item quantity="one">Your files are still here, but they are scheduled to be deleted in %d day.</item>
+        <item quantity="other">Your files are still here, but they are scheduled to be deleted in %d days.</item>
+    </plurals>
+    <string name="account_inactive_renew">Keep a good thing going!</string>
+    <string name="account_family_expired_title">Your family plan’s owner needs to update their payment details to keep your plan active.</string>
+    <string name="account_family_expired_message">If you’re ready to leave the nest, you can start your own subscription too!</string>
+    <string name="account_family_expired_action">Leave the family plan</string>
+</resources>
