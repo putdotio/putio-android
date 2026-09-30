@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.player
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -14,6 +15,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.putioTvDarkColorScheme
@@ -46,6 +51,10 @@ class TvPlaybackStatesTest {
     private var refreshes = 0
     private var starts = 0
     private var retries = 0
+    private val lifecycleOwner = object : LifecycleOwner {
+        val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
+    }
 
     @Test
     fun aQueuedConversionShowsItsStatusAndReadsItAgainEveryThreeSeconds() {
@@ -68,6 +77,22 @@ class TvPlaybackStatesTest {
         compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("42%")
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS + 100L)
         compose.runOnIdle { assertEquals(2, refreshes) }
+    }
+
+    @Test
+    fun aConversionIsNotReadAgainWhileTheAppIsInTheBackground() {
+        show()
+        compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS - 100L)
+        moveTo(Lifecycle.State.CREATED)
+        compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
+        compose.runOnIdle { assertEquals(0, refreshes) }
+
+        // Back in the foreground, a full wait starts again.
+        moveTo(Lifecycle.State.RESUMED)
+        compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS - 100L)
+        compose.runOnIdle { assertEquals(0, refreshes) }
+        compose.mainClock.advanceTimeBy(200L)
+        compose.runOnIdle { assertEquals(1, refreshes) }
     }
 
     @Test
@@ -147,25 +172,33 @@ class TvPlaybackStatesTest {
         compose.waitForIdle()
     }
 
+    private fun moveTo(state: Lifecycle.State) {
+        compose.runOnIdle { lifecycleOwner.registry.currentState = state }
+        compose.mainClock.advanceTimeBy(50L)
+        compose.waitForIdle()
+    }
+
     private fun show() {
         compose.mainClock.autoAdvance = false
         compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlayerScreen(
-                    state = PlaybackState(
-                        target = PlaybackTarget(FilesItemId(9), TITLE, PlaybackMediaType.VIDEO),
-                        content = content,
-                        nextRequestValue = 3L,
-                    ),
-                    onBack = {},
-                    onRetry = { retries += 1 },
-                    onResume = {},
-                    onRestart = {},
-                    onPlayerFailure = { _, _ -> },
-                    onRefreshConversion = { refreshes += 1 },
-                    onStartConversion = { starts += 1 },
-                    playerFactory = { _, _ -> error("No player before a source") },
-                )
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                    TvPlayerScreen(
+                        state = PlaybackState(
+                            target = PlaybackTarget(FilesItemId(9), TITLE, PlaybackMediaType.VIDEO),
+                            content = content,
+                            nextRequestValue = 3L,
+                        ),
+                        onBack = {},
+                        onRetry = { retries += 1 },
+                        onResume = {},
+                        onRestart = {},
+                        onPlayerFailure = { _, _ -> },
+                        onRefreshConversion = { refreshes += 1 },
+                        onStartConversion = { starts += 1 },
+                        playerFactory = { _, _ -> error("No player before a source") },
+                    )
+                }
             }
         }
         compose.mainClock.advanceTimeBy(50L)
