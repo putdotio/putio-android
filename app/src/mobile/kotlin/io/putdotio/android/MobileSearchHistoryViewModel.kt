@@ -6,20 +6,22 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
-import io.putdotio.android.history.HistoryController
-import io.putdotio.android.history.HistoryFileOpener
-import io.putdotio.android.history.HistoryRepository
+import io.putdotio.android.auth.MobileSessionKey
+import io.putdotio.android.auth.sessionKey
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
+import io.putdotio.android.history.HistoryController
+import io.putdotio.android.history.HistoryFileOpener
+import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.search.AppConfigRecentSearchStore
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchOutput
 import io.putdotio.android.search.SearchRepository
+import io.putdotio.android.session.SessionScopedHolder
 import io.putdotio.sdk.PutioClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -33,18 +35,16 @@ import kotlinx.coroutines.launch
 
 internal class MobileSearchHistoryViewModel(
     application: Application,
-    private val authState: StateFlow<MobileAuthState>,
+    authState: StateFlow<MobileAuthState>,
     private val recentSearchStoreFactory: (PutioClient, CoroutineScope) -> RecentSearchStoreOwner =
         { client, scope -> AppConfigRecentSearchStore(client, scope) },
 ) : AndroidViewModel(application) {
-    private val lock = Any()
-    private var activeSession: ActiveSearchHistorySession? = null
-
-    init {
-        viewModelScope.launch {
-            authState.collect { reconcileActiveSession() }
-        }
-    }
+    private val activeSession = SessionScopedHolder<MobileAuthState, MobileSessionKey, ActiveSearchHistorySession>(
+        authState = authState,
+        keyOf = MobileAuthState::sessionKey,
+        scope = viewModelScope,
+        close = ActiveSearchHistorySession::close,
+    )
 
     fun controllersFor(
         session: MobileAuthState.SignedIn,
@@ -53,71 +53,33 @@ internal class MobileSearchHistoryViewModel(
         historyRepository: HistoryRepository,
         filesItemResolver: FilesItemResolver,
     ): ActiveSearchHistorySession? =
-        synchronized(lock) {
-            val key = SessionKey(session.account.userId, session.sessionId)
-            if (authState.value.sessionKey() != key) return@synchronized null
-            activeSession?.takeIf { it.key == key }?.let { return@synchronized it }
-
-            activeSession?.close()
-            activeSession = null
-            if (authState.value.sessionKey() != key) return@synchronized null
-
+        activeSession.valueFor(MobileSessionKey(session.account.userId, session.sessionId)) {
             val recentSearchStore = recentSearchStoreFactory(putioClient, viewModelScope)
-            val session =
-                ActiveSearchHistorySession(
-                    key = key,
-                    recentSearchStore = recentSearchStore,
-                    search =
-                        SearchController(
-                            repository = searchRepository,
-                            recentSearchStore = recentSearchStore,
-                            parentScope = viewModelScope,
-                        ),
-                    history =
-                        HistoryController(
-                            repository = historyRepository,
-                            historyEnabled = session.account.historyEnabled,
-                            parentScope = viewModelScope,
-                        ),
-                    parentScope = viewModelScope,
-                    filesItemResolver = filesItemResolver,
-                )
-            if (authState.value.sessionKey() != key) {
-                session.close()
-                null
-            } else {
-                activeSession = session
-                session
-            }
+            ActiveSearchHistorySession(
+                recentSearchStore = recentSearchStore,
+                search =
+                    SearchController(
+                        repository = searchRepository,
+                        recentSearchStore = recentSearchStore,
+                        parentScope = viewModelScope,
+                    ),
+                history =
+                    HistoryController(
+                        repository = historyRepository,
+                        historyEnabled = session.account.historyEnabled,
+                        parentScope = viewModelScope,
+                    ),
+                parentScope = viewModelScope,
+                filesItemResolver = filesItemResolver,
+            )
         }
 
     override fun onCleared() {
-        clearActiveSession()
+        activeSession.clear()
     }
-
-    private fun reconcileActiveSession() {
-        synchronized(lock) {
-            val active = activeSession ?: return
-            if (active.key != authState.value.sessionKey()) {
-                active.close()
-                activeSession = null
-            }
-        }
-    }
-
-    private fun clearActiveSession() {
-        synchronized(lock) {
-            activeSession?.close()
-            activeSession = null
-        }
-    }
-
-    private fun MobileAuthState.sessionKey(): SessionKey? =
-        (this as? MobileAuthState.SignedIn)?.let { SessionKey(it.account.userId, it.sessionId) }
 }
 
 internal class ActiveSearchHistorySession(
-    internal val key: SessionKey,
     private val recentSearchStore: RecentSearchStoreOwner,
     val search: SearchController,
     val history: HistoryController,
@@ -161,11 +123,6 @@ internal class ActiveSearchHistorySession(
         recentSearchStore.close()
     }
 }
-
-internal data class SessionKey(
-    val userId: Long,
-    val sessionId: MobileAuthSessionId,
-)
 
 internal fun mobileSearchHistoryViewModelFactory(
     application: Application,

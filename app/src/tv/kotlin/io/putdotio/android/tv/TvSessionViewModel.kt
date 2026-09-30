@@ -27,6 +27,7 @@ import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchRepository
+import io.putdotio.android.session.SessionScopedHolder
 import io.putdotio.android.settings.AccountSettingsController
 import io.putdotio.android.settings.AccountSettingsRepository
 import io.putdotio.android.settings.AndroidAppConfigController
@@ -80,7 +81,6 @@ internal class TvSessionDependencies(
  * changes together and are closed together when the session ends.
  */
 internal class TvSession internal constructor(
-    internal val key: TvSessionKey,
     val files: FilesBrowserController,
     val search: SearchController,
     val history: HistoryController,
@@ -233,27 +233,22 @@ internal data class TvSessionKey(
 internal class TvSessionViewModel(
     private val authState: StateFlow<TvAuthState>,
 ) : ViewModel() {
-    private val lock = Any()
-    private var active: TvSession? = null
-
-    init {
-        viewModelScope.launch { authState.collect { reconcile() } }
-    }
+    private val active = SessionScopedHolder<TvAuthState, TvSessionKey, TvSession>(
+        authState = authState,
+        keyOf = { it.sessionKey() },
+        scope = viewModelScope,
+        close = TvSession::close,
+    )
 
     fun sessionFor(
         account: TvAccount,
         sessionId: TvAuthSessionId,
         dependencies: TvSessionDependencies,
-    ): TvSession? =
-        synchronized(lock) {
-            val key = TvSessionKey(account.userId, sessionId)
-            if (authState.value.sessionKey() != key) return@synchronized null
-            active?.takeIf { it.key == key }?.let { return@synchronized it }
-            active?.close()
-            active = null
+    ): TvSession? {
+        val key = TvSessionKey(account.userId, sessionId)
+        return active.valueFor(key) {
             val recentSearches = dependencies.recentSearchStore(viewModelScope)
-            val session = TvSession(
-                key = key,
+            TvSession(
                 files = FilesBrowserController(dependencies.filesRepository, viewModelScope),
                 search = SearchController(dependencies.searchRepository, recentSearches, viewModelScope),
                 history = HistoryController(dependencies.historyRepository, account.historyEnabled, viewModelScope),
@@ -269,29 +264,11 @@ internal class TvSessionViewModel(
                 sessionCurrent = { authState.value.sessionKey() == key },
                 parentScope = viewModelScope,
             )
-            if (authState.value.sessionKey() != key) {
-                session.close()
-                null
-            } else {
-                session.also { active = it }
-            }
-        }
-
-    override fun onCleared() {
-        synchronized(lock) {
-            active?.close()
-            active = null
         }
     }
 
-    private fun reconcile() {
-        synchronized(lock) {
-            val current = active ?: return
-            if (current.key != authState.value.sessionKey()) {
-                current.close()
-                active = null
-            }
-        }
+    override fun onCleared() {
+        active.clear()
     }
 
     private fun TvAuthState.sessionKey(): TvSessionKey? =
