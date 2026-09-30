@@ -11,11 +11,13 @@ import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
 import io.putdotio.sdk.files.FileDetailsQuery
+import io.putdotio.sdk.files.FileMp4ConversionStatus
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
+import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackMediaCredential
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
@@ -249,21 +251,33 @@ class SdkPlaybackRepository internal constructor(
  */
 class ConvertingPlaybackRepository internal constructor(
     private val delegate: PlaybackRepository,
-    private val startMp4Conversion: suspend (Long) -> Unit,
+    /** Starts the conversion; true when the server accepted it (any status but not available). */
+    private val startMp4Conversion: suspend (Long) -> Boolean,
 ) : PlaybackRepository by delegate {
     constructor(
         client: PutioClient,
         playbackPreference: () -> PlaybackPreference,
     ) : this(
         delegate = SdkPlaybackRepository(client, playbackPreference),
-        startMp4Conversion = { fileId -> client.files.startMp4Conversion(fileId) },
+        startMp4Conversion = { fileId ->
+            client.files.startMp4Conversion(fileId).status != FileMp4ConversionStatus.NOT_AVAILABLE
+        },
     )
 
     @Suppress("TooGenericExceptionCaught")
     override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
         try {
-            startMp4Conversion(target.fileId.value)
-            delegate.resolve(target)
+            val accepted = startMp4Conversion(target.fileId.value)
+            val resolved = delegate.resolve(target)
+            val read = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Conversion
+            val stillNotAvailable = read?.state == PlaybackConversionState.NotAvailable
+            // A status read that has not caught up with an accepted start polls once more before
+            // it is final.
+            if (accepted && stillNotAvailable) {
+                PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued))
+            } else {
+                resolved
+            }
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {

@@ -160,7 +160,10 @@ class SdkPlaybackRepositoryTest {
                         io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.Queued)
                     },
                 ),
-                startMp4Conversion = { calls += "start $it" },
+                startMp4Conversion = {
+                    calls += "start $it"
+                    true
+                },
             )
 
             val result = repository.startConversion(Target) as PlaybackRepositoryResult.Success
@@ -177,6 +180,30 @@ class SdkPlaybackRepositoryTest {
                 startMp4Conversion = { throw apiFailure(401) },
             ).startConversion(Target) as PlaybackRepositoryResult.Failure
             assertTrue(rejected.failure is PlaybackFailure.AuthenticationRequired)
+        }
+
+    @Test
+    fun anAcceptedStartKeepsPollingUntilTheStatusReadCatchesUp() =
+        runBlocking {
+            fun startingWith(accepted: Boolean) = ConvertingPlaybackRepository(
+                SdkPlaybackRepository(
+                    playbackPreference = { PlaybackPreference.HLS },
+                    loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+                    resolvePlayback = {
+                        io.putdotio.sdk.files.PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable)
+                    },
+                ),
+                startMp4Conversion = { accepted },
+            )
+
+            assertEquals(
+                PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued)),
+                startingWith(accepted = true).startConversion(Target),
+            )
+            assertEquals(
+                PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable)),
+                startingWith(accepted = false).startConversion(Target),
+            )
         }
 
     @Test

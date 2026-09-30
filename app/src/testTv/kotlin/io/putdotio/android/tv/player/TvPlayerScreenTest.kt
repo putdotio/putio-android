@@ -14,6 +14,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.key.Key
 import androidx.lifecycle.Lifecycle
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.LifecycleOwner
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -318,27 +322,15 @@ class TvPlayerScreenTest {
     fun aSystemPauseDuringAScrubKeepsItsTargetAndBackNoLongerResumes() {
         val player = FakePlayer()
         val sessions = mutableListOf<MediaSession>()
-        val factory = object : TvPlayerFactory {
-            override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Player = player
-
-            override fun publish(context: android.content.Context, published: Player): java.io.Closeable {
-                val session = tvMediaSession(context, published).build()
-                sessions += session
-                return java.io.Closeable { session.release() }
-            }
-        }
-        showReady(player, resumePositionMillis = 42_000L, playerFactory = factory)
+        showReady(player, resumePositionMillis = 42_000L, playerFactory = sessionFactory(player, sessions))
         compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
         settle()
         compose.runOnIdle { assertFalse(player.playWhenReady) }
 
         // The scrub already paused the player, so this pause changes nothing it reports.
-        val pending = MediaController.Builder(compose.activity, sessions.single().token).buildAsync()
-        shadowOf(Looper.getMainLooper()).idle()
-        val controller = pending.get()
+        val controller = connect(sessions.single())
         controller.pause()
-        shadowOf(Looper.getMainLooper()).idle()
-        settle()
+        idleSession()
         compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:27")
 
         back()
@@ -346,6 +338,52 @@ class TvPlayerScreenTest {
             assertEquals("Dismissing seek mode never seeks", 42_000L, player.currentPosition)
             assertFalse("The system's pause holds", player.playWhenReady)
         }
+        controller.release()
+    }
+
+    @Test
+    fun aSystemSeekDuringAScrubReplacesItsTarget() {
+        val player = FakePlayer()
+        val sessions = mutableListOf<MediaSession>()
+        showReady(player, resumePositionMillis = 42_000L, playerFactory = sessionFactory(player, sessions))
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionLeft) }
+        settle()
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("00:27")
+
+        val controller = connect(sessions.single())
+        controller.seekTo(90_000L)
+        idleSession()
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("01:30")
+
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionCenter) }
+        settle()
+        compose.runOnIdle { assertEquals("Center cannot undo the system's seek", 90_000L, player.currentPosition) }
+        controller.release()
+    }
+
+    @Test
+    fun theSystemCannotResumePlaybackWhileTheScreenIsStopped() {
+        val player = FakePlayer()
+        val sessions = mutableListOf<MediaSession>()
+        val owner = object : LifecycleOwner {
+            val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+            override val lifecycle: Lifecycle get() = registry
+        }
+        showReady(player, playerFactory = sessionFactory(player, sessions), lifecycleOwner = owner)
+        val controller = connect(sessions.single())
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        settle()
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+        controller.play()
+        idleSession()
+        compose.runOnIdle { assertFalse("Nothing plays behind another app", player.playWhenReady) }
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
+        settle()
+        controller.play()
+        idleSession()
+        compose.runOnIdle { assertTrue(player.playWhenReady) }
         controller.release()
     }
 
@@ -888,19 +926,22 @@ class TvPlayerScreenTest {
         resumePositionMillis: Long? = null,
         onBack: () -> Unit = {},
         playerFactory: TvPlayerFactory = TvPlayerFactory { _, _ -> player },
+        lifecycleOwner: LifecycleOwner? = null,
     ) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlayerScreen(
-                    state = readyState(resumePositionMillis = resumePositionMillis),
-                    onBack = onBack,
-                    onRetry = {},
-                    onResume = {},
-                    onRestart = {},
-                    onPlayerFailure = { _, _ -> },
-                    playerFactory = playerFactory,
-                )
+            CompositionLocalProvider(LocalLifecycleOwner provides (lifecycleOwner ?: LocalLifecycleOwner.current)) {
+                MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                    TvPlayerScreen(
+                        state = readyState(resumePositionMillis = resumePositionMillis),
+                        onBack = onBack,
+                        onRetry = {},
+                        onResume = {},
+                        onRestart = {},
+                        onPlayerFailure = { _, _ -> },
+                        playerFactory = playerFactory,
+                    )
+                }
             }
         }
         settle()
@@ -971,6 +1012,29 @@ class TvPlayerScreenTest {
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.waitForIdle()
         compose.mainClock.advanceTimeBy(SETTLE_MILLIS)
+    }
+
+    /** Publishes [player] through the app's real session, as the default factory does. */
+    private fun sessionFactory(player: FakePlayer, sessions: MutableList<MediaSession>) = object : TvPlayerFactory {
+        override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Player = player
+
+        override fun publish(context: android.content.Context, published: Player): java.io.Closeable {
+            val session = tvMediaSession(context, published).build()
+            sessions += session
+            return java.io.Closeable { session.release() }
+        }
+    }
+
+    /** A system controller, as Now Playing or a remote's media keys reach the session. */
+    private fun connect(session: MediaSession): MediaController {
+        val pending = MediaController.Builder(compose.activity, session.token).buildAsync()
+        shadowOf(Looper.getMainLooper()).idle()
+        return pending.get()
+    }
+
+    private fun idleSession() {
+        shadowOf(Looper.getMainLooper()).idle()
+        settle()
     }
 
     /** A few frames: the key's state change, then the recomposition it causes. */
