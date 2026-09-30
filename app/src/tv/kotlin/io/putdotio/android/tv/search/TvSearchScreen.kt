@@ -123,7 +123,10 @@ internal fun TvSearchScreen(
     /** The result the viewer last opened; it takes focus again when the pane comes back. */
     pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
 ) = key(sessionKey) {
-    val restoreRowId = remember { pickedRow.take() }
+    // Only the results the viewer came back to restore the pick; a new search starts as usual.
+    var restoreRowId by remember { mutableStateOf(pickedRow.take()) }
+    val resultsShown = state.content is SearchContent.Ready
+    LaunchedEffect(resultsShown) { if (!resultsShown) restoreRowId = null }
     // The shell asks the pane for focus on entry, and Right from the drawer enters it by
     // direction. Both land on the section that held focus last, the field the first time.
     val fieldFocus = remember { FocusRequester() }

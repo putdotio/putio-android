@@ -37,6 +37,7 @@ import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchPaging
+import io.putdotio.android.search.SearchRequestId
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.auth.TvAccount
@@ -96,6 +97,48 @@ class TvPickReturnFocusTest {
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
         compose.onNodeWithContentDescription("Play clip 7.mp4").assertIsFocused()
+    }
+
+    @Test
+    fun aNewSearchAfterTheReturnKeepsFocusInTheField() {
+        val picked = TvPickedRow()
+        val results = (1L..12L).map { result(it) }
+        val ready = SearchContent.Ready(SearchTerm("clip"), results, SearchPaging.Complete)
+        var content by mutableStateOf<SearchContent>(ready)
+        mount(TvDestination.Search) {
+            searchPane = { paneFocus ->
+                TvSearchScreen(
+                    state = SearchState(
+                        query = "clip",
+                        content = content,
+                        recentTerms = emptyList(),
+                        consumedCursors = emptySet(),
+                        nextRequestValue = 2L,
+                    ),
+                    actions = TvSearchActions({}, {}, { playing = true }, {}, {}, {}, {}, {}),
+                    modifier = Modifier.focusRequester(paneFocus),
+                    pickedRow = picked,
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Search files").performKeyInput {
+            repeat(3) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionCenter)
+        }
+        compose.onNodeWithTag(PLAYER_TAG).assertIsFocused()
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused().performKeyInput {
+            repeat(3) { pressKey(Key.DirectionUp) }
+        }
+        compose.onNodeWithContentDescription("Search files").assertIsFocused()
+
+        compose.runOnIdle { content = SearchContent.Debouncing(SearchTerm("clip 3"), SearchRequestId(3L)) }
+        compose.waitForIdle()
+        compose.runOnIdle { content = ready }
+
+        compose.onNodeWithContentDescription("Search files").assertIsFocused()
     }
 
     @Test

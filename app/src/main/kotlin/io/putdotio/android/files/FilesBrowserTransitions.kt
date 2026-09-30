@@ -33,12 +33,14 @@ internal fun FilesBrowserState.openExternalItem(
     if (stack.any { it.operation.pendingDelete != null || it.operation.pendingMove != null }) {
         return FilesBrowserTransition(this, consumed = false)
     }
-    // The parent's name arrives with its listing.
+    // A parent the stack does not already name takes its name from its listing.
     val destination =
         if (item.isFolder) {
             FilesFolder(id = item.id, name = item.name)
         } else {
-            item.parentId?.let { FilesFolder(id = it, name = null) }
+            item.parentId?.let { parentId ->
+                FilesFolder(id = parentId, name = stack.lastOrNull { it.folder.id == parentId }?.folder?.name)
+            }
         }
     return if (destination == null) {
         FilesBrowserTransition(this, consumed = false)
@@ -51,7 +53,8 @@ internal fun FilesBrowserState.openExternalItem(
                 openedFrom = origin,
                 revealItemId = item.id.takeUnless { item.isFolder },
             )
-        val location = stack.take(outsideOpenIndex() ?: stack.size)
+        // Changes made above can reach the listings kept below it, so each reloads on the way back.
+        val location = stack.take(outsideOpenIndex() ?: stack.size).map { it.copy(needsReload = true) }
         FilesBrowserTransition(
             state = copy(stack = location + folder, nextRequestValue = nextRequestValue + 1),
             effect = FilesBrowserEffect.LoadFolder(destination.id, requestId),

@@ -1547,6 +1547,17 @@ class MobileShellExternalOpenTest {
     }
 
     @Test
+    fun aSecondMediaPickReplacesThePlayerAndBackReturnsToSearch() {
+        showSearch()
+        open(externalItem(8L, "episode.mkv", PutioFileType.VIDEO), FilesOpenOrigin.SEARCH)
+        open(externalItem(9L, "next.mkv", PutioFileType.VIDEO), FilesOpenOrigin.SEARCH)
+
+        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").performClick()
+        assertSearchShown()
+    }
+
+    @Test
     fun aFolderResultOpensWithItsNameAndBackReturnsToSearchOverThePriorLocation() {
         showSearch()
         open(externalItem(44L, "Documents", PutioFileType.FOLDER), FilesOpenOrigin.SEARCH)

@@ -367,7 +367,9 @@ without asking. A folder opens in Files under its name. Any other file opens
 its parent folder, titled from that folder's listing, with the file's row
 selected on mobile and focused on TV, scrolled to when it is on the first page.
 
-That folder sits on top of the viewer's Files location instead of replacing it.
+That folder sits on top of the viewer's Files location instead of replacing it;
+the kept location reloads when Back returns to it, since changes made above can
+reach its listing.
 Back from it returns to Search (mobile shows History there too), History on TV,
 or Transfers, whose file opens the same way without playing, with TV focus back
 on the chosen row; after a product link it returns to the Files location. A later outside open replaces the earlier

@@ -267,8 +267,11 @@ internal fun MobileShell(
             val editingTransfer = navController.currentDestination?.route == MobileDestination.Transfers.route &&
                 (draft.open || draft.pendingReplacement)
             if (item.isPlayable) {
-                // A delayed history result must not displace a newer transfer draft.
-                if (!editingTransfer) navController.navigateToPlayback(item)
+                // A delayed history result must not displace a newer transfer draft. A newer pick
+                // replaces the player, so Back still returns to the screen below it.
+                if (!editingTransfer) {
+                    navController.navigateToPlayback(item, replaceCurrentPlayback = currentPlaybackFileId != null)
+                }
             } else if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item, origin))) {
                 // A delayed history result may update Files without displacing a newer transfer draft.
                 if (!editingTransfer) navController.navigateTo(MobileDestination.Files)

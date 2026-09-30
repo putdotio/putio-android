@@ -284,9 +284,9 @@ internal fun NavHostController.navigateTo(destination: MobileDestination) {
     }
 }
 
-internal fun NavHostController.navigateToPlayback(item: FilesItem) {
+internal fun NavHostController.navigateToPlayback(item: FilesItem, replaceCurrentPlayback: Boolean = false) {
     val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
-    navigateToPlayback(item.id, item.name, mediaType)
+    navigateToPlayback(item.id, item.name, mediaType, replaceCurrentPlayback)
 }
 
 internal fun NavHostController.navigateToPlayback(

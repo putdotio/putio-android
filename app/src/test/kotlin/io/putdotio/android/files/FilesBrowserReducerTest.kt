@@ -498,6 +498,7 @@ class FilesBrowserReducerTest {
     fun externalFolderOpensWithItsNameAboveThePriorLocationAndBackReturnsThere() {
         val shows = item(7L, "Shows", PutioFileType.FOLDER)
         val prior = opened(loadedRoot(items = listOf(shows), nextCursor = null), FilesBrowserEvent.OpenFolder(shows.id))
+            .withItems()
         val folder = item(70L, "Search result", PutioFileType.FOLDER).copy(parentId = FilesItemId(44L))
 
         val opened = FilesBrowserReducer.reduce(
@@ -510,7 +511,9 @@ class FilesBrowserReducerTest {
         assertNull(opened.state.current.revealItemId)
         assertEquals(folder.id, (opened.effect as FilesBrowserEffect.LoadFolder).folderId)
         val back = FilesBrowserReducer.reduce(opened.state, FilesBrowserEvent.NavigateBack)
-        assertEquals(prior.stack, back.state.stack)
+        assertEquals(prior.path, back.state.path)
+        assertEquals("changes made above reach the kept location", shows.id,
+            (back.effect as FilesBrowserEffect.LoadFolder).folderId)
     }
 
     @Test
@@ -536,6 +539,18 @@ class FilesBrowserReducerTest {
     }
 
     @Test
+    fun externalFileInAFolderTheStackNamesKeepsThatTitleWhileItLoads() {
+        val movies = item(44L, "Movies", PutioFileType.FOLDER)
+        val root = loadedRoot(items = listOf(movies), nextCursor = null)
+        val inMovies = opened(root, FilesBrowserEvent.OpenFolder(movies.id))
+        val file = item(71L, "notes.pdf", PutioFileType.PDF).copy(parentId = movies.id)
+
+        val opening = opened(inMovies, FilesBrowserEvent.OpenExternalItem(file, FilesOpenOrigin.SEARCH))
+
+        assertEquals(FilesFolder(movies.id, "Movies"), opening.current.folder)
+    }
+
+    @Test
     fun externalFileInTheRootKeepsTheRootTitleAndThePriorRoot() {
         val root = loadedRoot(items = listOf(item(1L, "older.mkv", PutioFileType.VIDEO)), nextCursor = null)
         val newFile = item(71L, "new.txt", PutioFileType.TEXT)
@@ -549,7 +564,7 @@ class FilesBrowserReducerTest {
         )).state
 
         assertEquals(listOf(FilesFolder.Root, FilesFolder.Root), loaded.path)
-        assertEquals(root.current, loaded.stack.first())
+        assertEquals(root.current.content, loaded.stack.first().content)
         assertEquals(FilesOpenOrigin.LINK, loaded.current.openedFrom)
     }
 
