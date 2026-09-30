@@ -304,7 +304,6 @@ private fun MobileReadyPlayer(
     val currentOnPlaybackEnded = rememberUpdatedState(onPlaybackEnded)
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
-    val currentRetainedSubtitleSelection = rememberUpdatedState(retainedSubtitleSelection)
     val currentSubtitleStartupPolicy = rememberUpdatedState(subtitleStartupPolicy)
     val currentPreferences = rememberUpdatedState(preferences)
     // A session player outlives this screen: it is never paused, released, or recreated here.
@@ -577,10 +576,11 @@ private fun MobileReadyPlayer(
     }
     DisposableEffect(player) {
         // A picked track is found again in each new track list, and automatic subtitles find the
-        // account's default.
+        // account's default. The pick is read live: tracks can change before recomposition
+        // passes it back as retainedSubtitleSelection.
         fun resolveRetainedSubtitleSelection(tracks: List<PlaybackSubtitleTrack>) {
             val parameters = player.trackSelectionParameters.withSubtitleTracks(
-                retained = currentRetainedSubtitleSelection.value,
+                retained = currentPreferences.value.subtitleSelection,
                 startupPolicy = currentSubtitleStartupPolicy.value,
                 tracks = tracks,
                 textDefaults = defaultTrackSelection,

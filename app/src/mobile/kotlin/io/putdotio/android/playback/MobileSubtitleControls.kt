@@ -72,12 +72,13 @@ internal fun MobileSubtitleControls(
         onMenuVisibilityChanged(false)
     }
     fun select(selection: SubtitleSelection) {
+        // Recorded first: the new parameters can change the tracks, whose listeners read it.
+        onSubtitleSelectionChanged(selection)
         player.trackSelectionParameters = player.trackSelectionParameters.withSubtitleSelection(
             selection = selection,
             tracks = tracks,
             textDefaults = defaultTrackSelection,
         )
-        onSubtitleSelectionChanged(selection)
         dismiss()
     }
     val interactionModifier = Modifier

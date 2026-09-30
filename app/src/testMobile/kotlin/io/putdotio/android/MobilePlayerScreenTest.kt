@@ -2377,6 +2377,35 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun offStaysOffWhenTheTracksChangeBeforeThePickRecomposes() {
+        val player = RecordingPlayer()
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+                )
+            }
+        }
+        compose.runOnIdle { assertTrue(player.trackSelectionParameters.selectTextByDefault) }
+        val text = TrackGroup(Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT).build())
+        compose.runOnIdle {
+            player.tracksOnNextSelection =
+                Tracks(listOf(Tracks.Group(text, false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(false))))
+        }
+
+        compose.onNodeWithText("Captions").performClick()
+        compose.onNodeWithText("Off").performClick()
+        // Automatic must not come back from a track change that beat the pick's recomposition.
+        compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+    }
+
+    @Test
     fun hidingThatArrivesAfterAPickTurnsSubtitlesOffAndRemovesTheCaptionsPicker() {
         val player = RecordingPlayer()
         var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
@@ -2627,10 +2656,19 @@ internal class RecordingPlayer(
         return Futures.immediateVoidFuture()
     }
 
+    /** Tracks the next parameter change reports at once, as a reselecting player can. */
+    var tracksOnNextSelection: Tracks? = null
+
     override fun handleSetTrackSelectionParameters(
         trackSelectionParameters: TrackSelectionParameters,
     ): ListenableFuture<*> {
         state = state.buildUpon().setTrackSelectionParameters(trackSelectionParameters).build()
+        tracksOnNextSelection?.let { tracks ->
+            tracksOnNextSelection = null
+            state = state.buildUpon()
+                .setPlaylist(state.playlist.map { it.buildUpon().setTracks(tracks).build() })
+                .build()
+        }
         invalidateState()
         return Futures.immediateVoidFuture()
     }
