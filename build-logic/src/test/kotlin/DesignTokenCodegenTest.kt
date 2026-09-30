@@ -73,4 +73,30 @@ class DesignTokenCodegenTest {
         assertTrue(code.contains("inverseSurface = PutioDesignTokens.componentBgActive,"))
         assertTrue(code.contains("borderVariant = PutioDesignTokens.line,"))
     }
+
+    @Test
+    fun generatesTvOverscanRatiosFromFullGraph() {
+        val dtcg = java.io.File("../design/tokens.dtcg.json").readText()
+        val code = DesignTokenCodegen.generate(dtcg, "3.3.0")
+        assertTrue(code.contains("const val tvOverscanX: Float = 0.04f"))
+        assertTrue(code.contains("const val tvOverscanY: Float = 0.02f"))
+    }
+
+    @Test
+    fun overscanOnTheWrongAxisFailsLoudly() {
+        val dtcg = java.io.File("../design/tokens.dtcg.json").readText()
+            .replace("\"basis\": \"viewport-width\"", "\"basis\": \"viewport-height\"")
+        val error = runCatching { DesignTokenCodegen.generate(dtcg, "test") }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+        assertTrue(error!!.message!!.contains("tv-overscan-x"))
+    }
+
+    @Test
+    fun missingOverscanFailsLoudly() {
+        val dtcg = java.io.File("../design/tokens.dtcg.json").readText()
+            .replace("\"tv-overscan-y\"", "\"tv-overscan-renamed\"")
+        val error = runCatching { DesignTokenCodegen.generate(dtcg, "test") }.exceptionOrNull()
+        assertTrue(error is IllegalStateException)
+        assertTrue(error!!.message!!.contains("tv-overscan-y"))
+    }
 }

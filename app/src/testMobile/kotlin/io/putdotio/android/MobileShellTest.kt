@@ -29,7 +29,10 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
@@ -643,6 +646,42 @@ class MobileShellTest {
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
         compose.onNodeWithText("Tablet").assertIsDisplayed()
+    }
+
+    @Test
+    fun tabletRailOffersShareOnFileRows() = assertShareOnFileRows(width = 700.dp, navigationTag = MOBILE_NAV_RAIL_TAG)
+
+    @Test
+    fun phoneBarOffersShareOnFileRows() = assertShareOnFileRows(width = 360.dp, navigationTag = MOBILE_NAV_BAR_TAG)
+
+    private fun assertShareOnFileRows(width: Dp, navigationTag: String) {
+        val shared = mutableListOf<FilesItem>()
+        compose.setContent {
+            PutioTheme {
+                Box(modifier = Modifier.requiredSize(width = width, height = 640.dp)) {
+                    MobileShell(
+                        playbackPlayerFactory = NoAudioSessionFactory,
+                        filesState = readyFilesState(FilesSort.NAME_ASCENDING),
+                        accountSettingsState = readyAccountSettingsState(),
+                        appConfigState = readyAndroidAppConfigState(),
+                        account = Account,
+                        playbackRepository = ConversionRepository,
+                        sessionId = Session,
+                        onFilesEvent = { true },
+                        onAccountSettingsEvent = {},
+                        onPlaybackAuthenticationRequired = {},
+                        onShareItem = shared::add,
+                        onSignOut = {},
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithTag(navigationTag).assertExists()
+        compose.onNodeWithText("movie.mkv").performTouchInput { longClick() }
+        compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertIsDisplayed().performClick()
+
+        compose.runOnIdle { assertEquals(listOf(FilesItemId(9L)), shared.map(FilesItem::id)) }
     }
 
     @Test

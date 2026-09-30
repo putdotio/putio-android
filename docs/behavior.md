@@ -198,7 +198,8 @@ Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest`,
 
 ## Share-out
 
-Share file (Files and Downloads action sheets, non-folder items only) starts a
+Share file (Files and Downloads action sheets, non-folder items only, in both
+the phone and the tablet rail layout) starts a
 foreground `dataSync` service that fetches the original file through the API
 download endpoint with the session header, stores it under private
 `files/shares/<process>/<session>/<fileId>/<name>`, and opens the system chooser with a
@@ -234,7 +235,8 @@ stop rules, session exit, ready timeout, prior-export wipe, failure notification
 name sanitizer, all on virtual time with a fake download source),
 `MobileOAuthRuntimeTest` (session-exit cleanup that lags the next sign-in keeps
 the next session's export; signing out of a restored session deletes an earlier
-process's export).
+process's export), `MobileShellTest` (Share on file rows in the phone and rail
+layouts).
 
 ## Deep links
 
@@ -293,3 +295,18 @@ Tests: `DownloadsControllerTest` (intents, progress polling while shown),
 close before reconcile, in-memory progress against a real Media3 manager),
 `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`.
+
+## TV overscan safe area
+
+The signed-in TV shell paints its background to the screen edges and keeps
+the drawer and pane inside the overscan safe area: `tv.overscan.x` of the
+viewport width on the left and right, `tv.overscan.y` of its height on the top
+and bottom (4% and 2% in `@putdotio/design` 3.3.0). The fractions are generated
+from the token graph and applied to whatever viewport the shell fills, so 720p,
+1080p and 4K panels keep the same proportion clear. The pane adds 16dp from the
+drawer and the safe edges. The player's control scrim also reaches the screen
+edges, with its controls inset by the same safe area plus 16dp.
+
+Tests: `TvSafeAreaTest` (collapsed and expanded drawer; 960x540dp and
+1280x720dp viewports; a 4K xxxhdpi panel), `DesignTokenCodegenTest` (overscan
+ratios, axis and presence checks).

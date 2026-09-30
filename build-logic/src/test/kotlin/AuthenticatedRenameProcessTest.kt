@@ -1,4 +1,6 @@
 import java.io.File
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
@@ -7,12 +9,33 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
+import org.junit.After
+import org.junit.BeforeClass
+import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 class AuthenticatedRenameProcessTest {
     @get:Rule val temporaryFolder = TemporaryFolder()
+
+    companion object {
+        @get:ClassRule @JvmStatic val suiteFolder = TemporaryFolder()
+
+        // Nested builds share one daemon JVM whose java.io.tmpdir is this folder, so the task's
+        // default lock never touches the host temp that real proofs use to serialize a serial.
+        // The space keeps the quoted jvmargs honest for temp roots that contain one.
+        private val isolatedTemp by lazy { File(suiteFolder.root, "nested proof tmp").apply { check(mkdirs()) } }
+
+        // A serial no real emulator uses, so a host temp lock for it can only come from this suite.
+        private val SERIAL = "emulator-9" + ProcessHandle.current().pid() + System.nanoTime() % 100_000
+        private val hostLock = File(System.getProperty("java.io.tmpdir"), "putio-rename-proof-$SERIAL.lock")
+
+        @BeforeClass @JvmStatic
+        fun hostTempStartsWithoutTheSuiteLock() {
+            assertFalse("Stale $hostLock", hostLock.exists())
+        }
+    }
 
     @Test
     fun completedFailureSkipAndMissingResultCleanUpOwnedRecorder() {
@@ -22,6 +45,38 @@ class AuthenticatedRenameProcessTest {
             assertTrue(output, output.contains("Authenticated instrumentation proof failed"))
             assertOwnedCleanup(fixture)
         }
+    }
+
+    @Test
+    fun hostTempLockDoesNotBlockTheSuite() {
+        withLock(hostLock) {
+            val output = runFailure(fixture("assertion"))
+            assertFalse(output, output.contains("Another rename proof owns this serial"))
+            assertTrue(output, output.contains("Authenticated instrumentation proof failed"))
+        }
+        assertTrue(hostLock.delete())
+    }
+
+    @Test
+    fun heldFallbackLockInTheIsolatedTempRejectsAConcurrentProof() {
+        val fixture = fixture("assertion")
+        withLock(File(isolatedTemp, "putio-rename-proof-$SERIAL.lock")) {
+            val output = runFailure(fixture)
+            assertTrue(output, output.contains("Another rename proof owns this serial"))
+            assertFalse(File(fixture, "state/commands").exists())
+        }
+    }
+
+    @Test
+    fun fallbackLockLandsInTheIsolatedTemp() {
+        runFailure(fixture("assertion"))
+        assertTrue(File(isolatedTemp, "putio-rename-proof-$SERIAL.lock").isFile)
+    }
+
+    // Every test, including the nested builds it starts, must leave the real host temp untouched.
+    @After
+    fun suiteCreatesNoHostTempLock() {
+        assertFalse("Suite created $hostLock", hostLock.exists())
     }
 
     @Test
@@ -226,7 +281,7 @@ class AuthenticatedRenameProcessTest {
         val hostPid = File(fixture, "state/recorder-host-pid").readText().trim().toLong()
         assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
         val commands = File(fixture, "state/commands").readLines()
-        assertEquals(listOf("adb -s emulator-5584 shell kill -INT 27182", "adb -s emulator-5584 shell kill -KILL 27182"),
+        assertEquals(listOf("adb -s $SERIAL shell kill -INT 27182", "adb -s $SERIAL shell kill -KILL 27182"),
             commands.filter { it.contains(" shell kill -") })
         assertOwnedCleanup(fixture)
     }
@@ -384,6 +439,14 @@ class AuthenticatedRenameProcessTest {
         assertFalse(commands, commands.contains("PROOF PASS"))
     }
 
+    // A null tryLock means another process already holds the file, which is still held.
+    private fun withLock(file: File, block: () -> Unit) {
+        FileChannel.open(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE).use { channel ->
+            val lock = channel.tryLock()
+            try { block() } finally { lock?.release() }
+        }
+    }
+
     private fun runFailure(fixture: File): String {
         val result = runner(fixture).buildAndFail()
         assertFalse(result.output, result.output.contains("PROOF PASS"))
@@ -404,6 +467,9 @@ class AuthenticatedRenameProcessTest {
         val root = temporaryFolder.newFolder(mode)
         File(root, "state").mkdirs()
         File(root, "state/mode").writeText(mode)
+        File(root, "state/serial").writeText(SERIAL)
+        File(root, "gradle.properties").writeText(
+            "org.gradle.jvmargs=-Xmx512m \"-Djava.io.tmpdir=" + isolatedTemp.path.replace("\\", "/") + "\"\n")
         File(root, "settings.gradle").writeText("rootProject.name = 'rename-process-proof'\n")
         val source = requireNotNull(javaClass.getResource("/rename-proof-command.sh")).readText()
         for (path in listOf("bin/putio", "sdk/platform-tools/adb", "sdk/cmdline-tools/latest/bin/apkanalyzer")) {
@@ -428,7 +494,7 @@ class AuthenticatedRenameProcessTest {
             buildscript { dependencies { classpath files($classpath) } }
             tasks.register('proof', RunAuthenticatedRenameProofTask) {
                 proofEnabled.set(true)
-                serial.set('emulator-5584')
+                serial.set('$SERIAL')
                 fixtureFile.set(layout.projectDirectory.file('fixture.json'))
                 repositoryDirectory.set(layout.projectDirectory)
                 apkDirectory.set(layout.projectDirectory.dir('app'))
