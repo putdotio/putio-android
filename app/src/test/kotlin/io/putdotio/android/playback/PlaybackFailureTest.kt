@@ -72,5 +72,7 @@ class PlaybackFailureTest {
         assertEquals(false, PlaybackFailure.AccessDenied(cause).retryable)
         assertEquals(true, PlaybackFailure.RateLimited(cause).retryable)
         assertEquals(true, PlaybackFailure.ServerUnavailable(503, cause).retryable)
+        assertEquals(false, PlaybackFailure.ApiRejected(400, null, cause).retryable)
+        assertEquals(true, PlaybackFailure.ApiRejected(408, null, cause).retryable)
     }
 }

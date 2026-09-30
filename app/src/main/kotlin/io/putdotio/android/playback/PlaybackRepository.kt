@@ -88,8 +88,9 @@ sealed interface PlaybackFailure {
 }
 
 /**
- * Whether trying again can succeed: a network, rate-limit, server or expired-link failure can,
- * a rejected session, a refused or rejected request, or media the device cannot play cannot.
+ * Whether trying again can succeed: a network, rate-limit, server, request-timeout or
+ * expired-link failure can, a rejected session, a refused or rejected request, or media the
+ * device cannot play cannot.
  */
 val PlaybackFailure.retryable: Boolean
     get() = when (this) {
@@ -101,9 +102,10 @@ val PlaybackFailure.retryable: Boolean
         is PlaybackFailure.Unexpected,
         -> true
 
+        is PlaybackFailure.ApiRejected -> statusCode == HTTP_REQUEST_TIMEOUT
+
         is PlaybackFailure.AuthenticationRequired,
         is PlaybackFailure.AccessDenied,
-        is PlaybackFailure.ApiRejected,
         is PlaybackFailure.Misconfigured,
         is PlaybackFailure.MediaUnsupported,
         -> false
@@ -365,6 +367,7 @@ private fun PutioException.leafFailure(context: PutioException): PlaybackFailure
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
 private const val HTTP_NOT_FOUND = 404
+private const val HTTP_REQUEST_TIMEOUT = 408
 private const val HTTP_TOO_MANY_REQUESTS = 429
 private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
 private const val HTTP_SERVER_ERROR_START = 500
