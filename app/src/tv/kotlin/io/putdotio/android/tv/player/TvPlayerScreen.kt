@@ -293,6 +293,8 @@ private fun TvReadyPlayer(
 
             override fun onPlaybackParametersChanged(value: PlaybackParameters) {
                 speed = value.speed
+                // The media session sets speed on the player directly; keep it like a picked one.
+                if (options.speed != value.speed) options = options.copy(speed = value.speed)
             }
 
             override fun onCues(cueGroup: CueGroup) {

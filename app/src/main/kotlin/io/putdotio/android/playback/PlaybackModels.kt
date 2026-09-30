@@ -240,6 +240,10 @@ private fun PlaybackState.playerFailed(event: PlaybackEvent.PlayerFailed): Playb
 private fun PlaybackState.retry(): PlaybackTransition {
     val requestId = PlaybackRequestId(nextRequestValue)
     return when (content) {
+        // A read already running settles the interstitial; the controller runs one request at a time.
+        is PlaybackContent.Conversion if content.refreshRequestId != null ->
+            PlaybackTransition(this, consumed = false)
+
         is PlaybackContent.Failed,
         is PlaybackContent.Conversion,
         ->

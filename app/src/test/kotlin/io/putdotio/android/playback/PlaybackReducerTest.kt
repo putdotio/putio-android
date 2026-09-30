@@ -106,6 +106,10 @@ class PlaybackReducerTest {
         assertEquals(PlaybackEffect.Resolve(Target, requestId), refresh.effect)
         val second = PlaybackReducer.reduce(refresh.state, PlaybackEvent.RefreshConversion)
         assertFalse("One read at a time", second.consumed)
+        assertFalse(
+            "Mobile's Check again waits for the running read",
+            PlaybackReducer.reduce(refresh.state, PlaybackEvent.Retry).consumed,
+        )
         val stale = PlaybackReducer.reduce(
             refresh.state,
             PlaybackEvent.ResolveSucceeded(PlaybackRequestId(1L), PlaybackResolution.Ready(playbackSource())),
