@@ -78,6 +78,19 @@ class SessionScopedHolderTest {
     }
 
     @Test
+    fun aSessionThatEndsWhileTheOldValueClosesBuildsNothing() {
+        val fixture = Fixture(initial = "a", eager = false)
+        val first = checkNotNull(fixture.holder.valueFor("a") { fixture.build() })
+        fixture.authState.value = "b"
+        fixture.onClose = { fixture.authState.value = "c" }
+
+        assertNull(fixture.holder.valueFor("b") { fixture.build() })
+
+        assertEquals(listOf(first), fixture.built)
+        assertEquals(listOf(first), fixture.closed)
+    }
+
+    @Test
     fun aValueWhoseSessionEndsWhileBuildingIsClosedAndNotHeld() {
         val fixture = Fixture(initial = "a")
 
@@ -142,12 +155,16 @@ class SessionScopedHolderTest {
         val built = mutableListOf<Value>()
         val closed = mutableListOf<Value>()
         val ended = mutableListOf<Value>()
+        var onClose: () -> Unit = {}
         val holder: SessionScopedHolder<String?, String, Value> =
             SessionScopedHolder(
                 authState = authState,
                 keyOf = { it },
                 scope = scope,
-                close = { closed += it },
+                close = {
+                    closed += it
+                    onClose()
+                },
                 onSessionEnded = { ended += it },
             )
 
