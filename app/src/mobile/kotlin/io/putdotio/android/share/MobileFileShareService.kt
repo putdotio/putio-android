@@ -218,7 +218,12 @@ class MobileFileShareService : Service() {
     // The type constant is inlined and ServiceCompat drops it below API 29, where the manifest type suffices.
     @SuppressLint("InlinedApi")
     private fun show(notification: Notification) {
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            notification,
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+        )
     }
 
     private suspend fun currentCoroutineContextActive() = currentCoroutineContext().ensureActive()
@@ -262,7 +267,11 @@ class MobileFileShareService : Service() {
 
     private fun baseNotification(text: String): NotificationCompat.Builder {
         getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, getString(R.string.mobile_share_channel_name), NotificationManager.IMPORTANCE_LOW),
+            NotificationChannel(
+                CHANNEL_ID,
+                getString(R.string.mobile_share_channel_name),
+                NotificationManager.IMPORTANCE_LOW,
+            ),
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_ph_arrow_circle_down)

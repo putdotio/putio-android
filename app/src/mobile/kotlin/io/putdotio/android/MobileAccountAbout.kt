@@ -101,7 +101,11 @@ internal fun MobileAboutDialog(
     var copied by remember(supportText) { mutableStateOf(false) }
     val rows = listOf(
         R.string.mobile_settings_about_version to
-            stringResource(R.string.mobile_settings_about_version_value, diagnostics.appVersion, diagnostics.versionCode),
+            stringResource(
+                R.string.mobile_settings_about_version_value,
+                diagnostics.appVersion,
+                diagnostics.versionCode,
+            ),
         R.string.mobile_settings_about_channel to
             stringResource(channelLabel(diagnostics.releaseChannel), diagnostics.buildType),
         R.string.mobile_settings_about_android to diagnostics.runtimeVersion.toString(),

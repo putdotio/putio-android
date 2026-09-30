@@ -181,7 +181,10 @@ class TvAuthControllerTest {
         harness.controller.restoreSession()
 
         assertNull(harness.tokenStore.stored)
-        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true), harness.controller.state.value)
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true),
+            harness.controller.state.value,
+        )
         harness.gateway.emit(DeviceCodeAuthState.AwaitingLink("ABCDEF", "https://put.io/link", budget = BUDGET))
         assertEquals(
             TvAuthState.Linking(TvLinkPhase.AwaitingLink("ABCDEF"), sessionExpired = true),
@@ -197,7 +200,10 @@ class TvAuthControllerTest {
         )
 
         harness.controller.restoreSession()
-        assertEquals(TvAuthState.ValidationUnavailable(TvSessionValidationSource.RESTORE), harness.controller.state.value)
+        assertEquals(
+            TvAuthState.ValidationUnavailable(TvSessionValidationSource.RESTORE),
+            harness.controller.state.value,
+        )
         assertEquals("stored-token", harness.tokenStore.stored?.reveal())
 
         harness.gateway.validation = TvSessionValidation.Valid(accountInfo().toTvAccount())
@@ -308,7 +314,10 @@ class TvAuthControllerTest {
         restore.cancel()
         restore.join()
 
-        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true), harness.controller.state.value)
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true),
+            harness.controller.state.value,
+        )
         assertEquals(1, harness.gateway.linkAttempts)
         harness.controller.restoreSession()
         assertEquals(1, harness.gateway.linkAttempts)
@@ -316,7 +325,10 @@ class TvAuthControllerTest {
 
     @Test
     fun `a restore cancelled mid validation returns to initializing`() = runTest {
-        val harness = Harness(storedToken = "stored-token", validation = TvSessionValidation.Valid(accountInfo().toTvAccount()))
+        val harness = Harness(
+            storedToken = "stored-token",
+            validation = TvSessionValidation.Valid(accountInfo().toTvAccount()),
+        )
         harness.gateway.validationGate = CompletableDeferred()
         val restore = launch(start = CoroutineStart.UNDISPATCHED) { harness.controller.restoreSession() }
         assertEquals(TvAuthState.ValidatingSession(TvSessionValidationSource.RESTORE), harness.controller.state.value)
@@ -337,7 +349,10 @@ class TvAuthControllerTest {
         assertFalse(harness.controller.rejectAuthoritativeSession(TvAuthSessionId(current.value + 1)))
         assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
         assertTrue(harness.controller.rejectAuthoritativeSession(current))
-        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true), harness.controller.state.value)
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true),
+            harness.controller.state.value,
+        )
     }
 
     private inner class Harness(
@@ -440,7 +455,9 @@ class TvAuthControllerTest {
         fun stopped(failure: TvLinkFailure) = TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.Failed(failure)))
 
         fun DeviceCodeAuthState.isTerminal(): Boolean =
-            this is DeviceCodeAuthState.Linked || this is DeviceCodeAuthState.Expired || this is DeviceCodeAuthState.Failed
+            this is DeviceCodeAuthState.Linked ||
+                this is DeviceCodeAuthState.Expired ||
+                this is DeviceCodeAuthState.Failed
 
         fun transportFailure(): PutioOperationException =
             PutioOperationException(

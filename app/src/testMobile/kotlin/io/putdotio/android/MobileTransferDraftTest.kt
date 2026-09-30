@@ -20,15 +20,15 @@ class MobileTransferDraftTest {
     @Test
     fun authPendingShareSurvivesUntilFirstSignInThenClearsOnSessionExit() {
         val draft = MobileTransferDraft()
-        draft.receive(parseMobileSharedTransfer(First))
+        draft.receive(parseMobileSharedTransfer(FIRST))
         draft.reconcileSession(null)
         draft.reconcileSession(null)
-        assertEquals(First, draft.state.value.input)
+        assertEquals(FIRST, draft.state.value.input)
         draft.reconcileSession(MobileAuthSessionId(1))
-        assertEquals(First, draft.state.value.input)
-        draft.edit(Edited)
+        assertEquals(FIRST, draft.state.value.input)
+        draft.edit(EDITED)
         draft.reconcileSession(MobileAuthSessionId(1))
-        assertEquals(Edited, draft.state.value.input)
+        assertEquals(EDITED, draft.state.value.input)
         draft.reconcileSession(null)
         assertEquals(MobileTransferDraftState(), draft.state.value)
         draft.reconcileSession(MobileAuthSessionId(2))
@@ -39,8 +39,8 @@ class MobileTransferDraftTest {
     fun changingAccountsClearsBothTheDraftAndPendingReplacement() {
         val draft = MobileTransferDraft()
         draft.reconcileSession(MobileAuthSessionId(1))
-        draft.receive(parseMobileSharedTransfer(First))
-        draft.receive(parseMobileSharedTransfer(Second))
+        draft.receive(parseMobileSharedTransfer(FIRST))
+        draft.receive(parseMobileSharedTransfer(SECOND))
         assertTrue(draft.state.value.pendingReplacement)
         draft.reconcileSession(MobileAuthSessionId(2))
         draft.useSharedLink()
@@ -50,20 +50,20 @@ class MobileTransferDraftTest {
     @Test
     fun aNewSharePreservesAnEditedDraftUntilTheUserChoosesReplacement() {
         val draft = MobileTransferDraft()
-        draft.receive(parseMobileSharedTransfer(First))
-        draft.edit(Edited)
-        draft.receive(parseMobileSharedTransfer(Second))
-        assertEquals(Edited, draft.state.value.input)
+        draft.receive(parseMobileSharedTransfer(FIRST))
+        draft.edit(EDITED)
+        draft.receive(parseMobileSharedTransfer(SECOND))
+        assertEquals(EDITED, draft.state.value.input)
         assertTrue(draft.state.value.pendingReplacement)
         draft.keepDraft()
-        assertEquals(Edited, draft.state.value.input)
+        assertEquals(EDITED, draft.state.value.input)
         assertFalse(draft.state.value.pendingReplacement)
         assertNull(draft.state.value.incomingRequestId)
-        draft.receive(parseMobileSharedTransfer(First))
-        draft.receive(parseMobileSharedTransfer(Second))
+        draft.receive(parseMobileSharedTransfer(FIRST))
+        draft.receive(parseMobileSharedTransfer(SECOND))
         val requestId = requireNotNull(draft.state.value.incomingRequestId)
         draft.useSharedLink()
-        assertEquals(Second, draft.state.value.input)
+        assertEquals(SECOND, draft.state.value.input)
         assertFalse(draft.state.value.pendingReplacement)
         assertTrue(draft.state.value.open)
         assertEquals(requestId, draft.state.value.incomingRequestId)
@@ -75,33 +75,33 @@ class MobileTransferDraftTest {
     fun openEmptyDraftIsNotReplacedAndNavigationAcknowledgementCannotConsumeANewerShare() {
         val draft = MobileTransferDraft()
         draft.open()
-        draft.receive(parseMobileSharedTransfer(First))
+        draft.receive(parseMobileSharedTransfer(FIRST))
         val firstRequest = requireNotNull(draft.state.value.incomingRequestId)
         assertEquals("", draft.state.value.input)
         assertTrue(draft.state.value.pendingReplacement)
-        draft.receive(parseMobileSharedTransfer(Second))
+        draft.receive(parseMobileSharedTransfer(SECOND))
         val secondRequest = requireNotNull(draft.state.value.incomingRequestId)
         draft.acknowledgeNavigation(firstRequest)
         assertEquals(secondRequest, draft.state.value.incomingRequestId)
         draft.acknowledgeNavigation(secondRequest)
         assertNull(draft.state.value.incomingRequestId)
         draft.useSharedLink()
-        assertEquals(Second, draft.state.value.input)
+        assertEquals(SECOND, draft.state.value.input)
     }
 
     @Test
     fun validationRequiresOneCompleteLinkAndEditsClearTheShareError() {
         val draft = MobileTransferDraft()
-        draft.receive(parseMobileSharedTransfer("$First and $Second"))
+        draft.receive(parseMobileSharedTransfer("$FIRST and $SECOND"))
         assertNull(draft.validate())
         assertEquals(MobileShareValidation.MultipleLinks, draft.state.value.validation)
         draft.edit("not a link")
         assertNull(draft.state.value.validation)
         assertNull(draft.validate())
         assertEquals(MobileShareValidation.InvalidLink, draft.state.value.validation)
-        draft.edit("  $Edited  ")
-        assertEquals(Edited, draft.validate())
-        assertEquals(Edited, draft.state.value.input)
+        draft.edit("  $EDITED  ")
+        assertEquals(EDITED, draft.validate())
+        assertEquals(EDITED, draft.state.value.input)
         assertNull(draft.state.value.validation)
         assertTrue(draft.state.value.open)
     }
@@ -109,19 +109,19 @@ class MobileTransferDraftTest {
     @Test
     fun runningAddCannotBeEditedDismissedReplacedOrSubmittedTwice() {
         val draft = MobileTransferDraft()
-        draft.receive(parseMobileSharedTransfer(First))
-        assertEquals(First, draft.validate())
+        draft.receive(parseMobileSharedTransfer(FIRST))
+        assertEquals(FIRST, draft.validate())
         draft.setSubmitting(true)
-        draft.edit(Edited)
+        draft.edit(EDITED)
         draft.dismiss()
-        draft.receive(parseMobileSharedTransfer(Second))
+        draft.receive(parseMobileSharedTransfer(SECOND))
         draft.useSharedLink()
         assertNull(draft.validate())
-        assertEquals(First, draft.state.value.input)
+        assertEquals(FIRST, draft.state.value.input)
         assertTrue(draft.state.value.open)
         assertTrue(draft.state.value.pendingReplacement)
         draft.submissionSucceeded()
-        assertEquals(Second, draft.state.value.input)
+        assertEquals(SECOND, draft.state.value.input)
         assertTrue(draft.state.value.open)
         assertFalse(draft.state.value.submitting)
         assertFalse(draft.state.value.pendingReplacement)
@@ -130,16 +130,16 @@ class MobileTransferDraftTest {
     @Test
     fun rejectionPreservesTheEditedValueAndSuccessClearsTheFinishedDraft() {
         val draft = MobileTransferDraft()
-        draft.receive(parseMobileSharedTransfer(First))
-        draft.edit(Edited)
+        draft.receive(parseMobileSharedTransfer(FIRST))
+        draft.edit(EDITED)
         draft.setSubmitting(true)
-        draft.restoreRejectedInput(First)
-        assertEquals(Edited, draft.state.value.input)
+        draft.restoreRejectedInput(FIRST)
+        assertEquals(EDITED, draft.state.value.input)
         assertFalse(draft.state.value.submitting)
         draft.dismiss()
         assertFalse(draft.state.value.open)
         draft.open()
-        assertEquals(Edited, draft.state.value.input)
+        assertEquals(EDITED, draft.state.value.input)
         draft.submissionSucceeded()
         assertEquals(MobileTransferDraftState(), draft.state.value)
     }
@@ -147,15 +147,15 @@ class MobileTransferDraftTest {
     @Test
     fun oversizedEditsKeepTheOriginalAndNeverCreateATruncatedSubmission() {
         val draft = MobileTransferDraft()
-        draft.edit(First)
+        draft.edit(FIRST)
         draft.edit("https://example.invalid/" + "a".repeat(MOBILE_TRANSFER_INPUT_LIMIT))
-        assertEquals(First, draft.state.value.input)
+        assertEquals(FIRST, draft.state.value.input)
         assertEquals(MobileShareValidation.TooLong, draft.state.value.validation)
         assertNull(draft.validate())
-        draft.edit(Edited)
-        assertEquals(Edited, draft.validate())
+        draft.edit(EDITED)
+        assertEquals(EDITED, draft.validate())
         draft.edit("https://example.invalid/" + "東".repeat(MOBILE_TRANSFER_INPUT_LIMIT / 2))
-        assertEquals(Edited, draft.state.value.input)
+        assertEquals(EDITED, draft.state.value.input)
         assertNull(draft.validate())
     }
 
@@ -165,12 +165,12 @@ class MobileTransferDraftTest {
         try {
             val provider = ViewModelProvider(store, ViewModelProvider.NewInstanceFactory())
             val first = provider[MobileTransferDraft::class.java]
-            first.receive(parseMobileSharedTransfer(First))
-            first.edit(Edited)
+            first.receive(parseMobileSharedTransfer(FIRST))
+            first.edit(EDITED)
             val recreatedProvider = ViewModelProvider(store, ViewModelProvider.NewInstanceFactory())
             val retained = recreatedProvider[MobileTransferDraft::class.java]
             assertSame(first, retained)
-            assertEquals(Edited, retained.state.value.input)
+            assertEquals(EDITED, retained.state.value.input)
             assertFalse(retained.state.value.toString().contains("private-marker"))
             val fresh = MobileTransferDraft()
             assertNotSame(retained, fresh)
@@ -181,6 +181,6 @@ class MobileTransferDraftTest {
     }
 }
 
-private const val First = "https://example.invalid/first?token=private-marker"
-private const val Second = "magnet:?xt=urn:btih:12345"
-private const val Edited = "https://example.invalid/edited?token=private-marker"
+private const val FIRST = "https://example.invalid/first?token=private-marker"
+private const val SECOND = "magnet:?xt=urn:btih:12345"
+private const val EDITED = "https://example.invalid/edited?token=private-marker"

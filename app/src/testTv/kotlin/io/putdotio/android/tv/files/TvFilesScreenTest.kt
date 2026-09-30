@@ -63,7 +63,12 @@ class TvFilesScreenTest {
                 TvFilesScreen(
                     state = ready(
                         item(1, "tears_of_steel", PutioFileType.FOLDER, sizeBytes = 544_890_000),
-                        item(2, "Tears of Steel.webm", PutioFileType.VIDEO, playback = FilesPlaybackProgress(243.0, 734.0)),
+                        item(
+                            2,
+                            "Tears of Steel.webm",
+                            PutioFileType.VIDEO,
+                            playback = FilesPlaybackProgress(243.0, 734.0),
+                        ),
                         item(3, "notes.txt", PutioFileType.TEXT, sizeBytes = 1_137),
                     ),
                     onEvent = { events += it; true },
@@ -190,7 +195,10 @@ class TvFilesScreenTest {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvFilesScreen(
-                    state = state(FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Complete), operation = operation),
+                    state = state(
+                        FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Complete),
+                        operation = operation,
+                    ),
                     onEvent = { events += it; true },
                     onPlayMedia = {},
                 )
@@ -249,7 +257,10 @@ class TvFilesScreenTest {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvFilesScreen(
-                    state = state(FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Complete), operation = operation),
+                    state = state(
+                        FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Complete),
+                        operation = operation,
+                    ),
                     onEvent = { true },
                     onPlayMedia = {},
                 )
@@ -317,7 +328,9 @@ class TvFilesScreenTest {
     @Test
     fun completingAPageWithRowsBelowTheFoldScrollsTheNewLastRowIntoFocus() {
         val firstPage = (1..8L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
-        var content by mutableStateOf<FilesContent>(FilesContent.Ready(firstPage, FilesPaging.Available(FilesCursor("c"))))
+        var content by mutableStateOf<FilesContent>(
+            FilesContent.Ready(firstPage, FilesPaging.Available(FilesCursor("c"))),
+        )
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvFilesScreen(state = state(content), onEvent = { true }, onPlayMedia = {})
@@ -326,7 +339,10 @@ class TvFilesScreenTest {
         compose.onNodeWithContentDescription("file-1.txt").performKeyInput { repeat(8) { pressKey(Key.DirectionDown) } }
         compose.onNodeWithText("Load more").assertIsFocused()
 
-        content = FilesContent.Ready(firstPage + (9..30L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }, FilesPaging.Complete)
+        content = FilesContent.Ready(
+            firstPage + (9..30L).map { item(it, "file-$it.txt", PutioFileType.TEXT) },
+            FilesPaging.Complete,
+        )
         compose.onNodeWithContentDescription("file-30.txt").assertIsFocused()
     }
 
@@ -422,7 +438,10 @@ class TvFilesScreenTest {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvFilesScreen(
                     state = state(
-                        FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Available(FilesCursor("c"))),
+                        FilesContent.Ready(
+                            listOf(item(1, "a.txt", PutioFileType.TEXT)),
+                            FilesPaging.Available(FilesCursor("c")),
+                        ),
                         operation = FilesFolderOperation.Failed(
                             networkFailure(),
                             FilesFolderOperationIntent.Refresh,
@@ -472,7 +491,9 @@ class TvFilesScreenTest {
     fun aRemountAfterTheLastPageLandedFocusesTheLastRow() {
         val memory = mutableMapOf<Long, Long>()
         var shown by mutableStateOf(true)
-        var state by mutableStateOf(ready(item(1, "first.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c"))))
+        var state by mutableStateOf(
+            ready(item(1, "first.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c"))),
+        )
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 if (shown) TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
@@ -505,7 +526,9 @@ class TvFilesScreenTest {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
         }
-        compose.onNode(hasText("Watched first") and hasClickAction() and hasSelectedState()).assertIsFocused().assertIsDisplayed()
+        compose.onNode(hasText("Watched first") and hasClickAction() and hasSelectedState())
+            .assertIsFocused()
+            .assertIsDisplayed()
     }
 
     @Test
@@ -597,7 +620,11 @@ class TvFilesScreenTest {
         }
         compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
 
-        state = ready(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT), item(3, "c.txt", PutioFileType.TEXT))
+        state = ready(
+            item(1, "a.txt", PutioFileType.TEXT),
+            item(2, "b.txt", PutioFileType.TEXT),
+            item(3, "c.txt", PutioFileType.TEXT),
+        )
         compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
     }
 
@@ -605,7 +632,11 @@ class TvFilesScreenTest {
     fun aLoadingFolderKeepsFocusInThePane() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(state = state(FilesContent.Loading(FilesRequestId(1))), onEvent = { true }, onPlayMedia = {})
+                TvFilesScreen(
+                    state = state(FilesContent.Loading(FilesRequestId(1))),
+                    onEvent = { true },
+                    onPlayMedia = {},
+                )
             }
         }
         compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
@@ -667,7 +698,9 @@ class TvFilesScreenTest {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvFilesScreen(
-                    state = state(FilesContent.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("x")))),
+                    state = state(
+                        FilesContent.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))),
+                    ),
                     onEvent = { events += it; true },
                     onPlayMedia = {},
                 )
@@ -687,7 +720,10 @@ class TvFilesScreenTest {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvFilesScreen(
-                    state = ready(item(1, "a.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c"))),
+                    state = ready(
+                        item(1, "a.txt", PutioFileType.TEXT),
+                        paging = FilesPaging.Available(FilesCursor("c")),
+                    ),
                     onEvent = { events += it; true },
                     onPlayMedia = {},
                 )
@@ -754,7 +790,9 @@ class TvFilesScreenTest {
             keyUp(Key.DirectionCenter)
         }
         assertEquals(
-            listOf<FilesBrowserEvent>(FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(2), FilesDeleteMode.TRASH)),
+            listOf<FilesBrowserEvent>(
+                FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(2), FilesDeleteMode.TRASH),
+            ),
             events,
         )
         compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused()
@@ -815,7 +853,11 @@ class TvFilesScreenTest {
         compose.runOnIdle {
             state = state(
                 FilesContent.Ready(listOf(item(2, "clip.mp4", PutioFileType.VIDEO)), FilesPaging.Complete),
-                operation = FilesFolderOperation.Failed(networkFailure(), intent, FilesFolderOperationPhase.CHECKING_DELETE),
+                operation = FilesFolderOperation.Failed(
+                    networkFailure(),
+                    intent,
+                    FilesFolderOperationPhase.CHECKING_DELETE,
+                ),
             )
         }
         compose.onNodeWithText("Couldn’t confirm the result. Check the item before trying again.").assertIsDisplayed()
@@ -839,7 +881,13 @@ class TvFilesScreenTest {
         operation: FilesFolderOperation = FilesFolderOperation.Idle,
     ): FilesBrowserState =
         FilesBrowserState(
-            stack = listOf(FilesFolderState(folder = FilesFolder.Root.copy(sort = sort), content = content, operation = operation)),
+            stack = listOf(
+                FilesFolderState(
+                    folder = FilesFolder.Root.copy(sort = sort),
+                    content = content,
+                    operation = operation,
+                ),
+            ),
             nextRequestValue = 10L,
         )
 

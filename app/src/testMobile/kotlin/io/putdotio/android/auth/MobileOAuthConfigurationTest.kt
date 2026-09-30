@@ -56,7 +56,9 @@ class MobileOAuthDebugOverrideTest {
             MobileOAuthConfiguration.Configured("9677"),
             MobileOAuthConfiguration.fromClientId("9677", debugOverride = ""),
         )
-        assertTrue(MobileOAuthConfiguration.fromClientId("6221", debugOverride = "") is MobileOAuthConfiguration.Unavailable)
+        assertTrue(
+            MobileOAuthConfiguration.fromClientId("6221", debugOverride = "") is MobileOAuthConfiguration.Unavailable,
+        )
     }
 
     @Test
@@ -71,7 +73,8 @@ class MobileOAuthDebugOverrideTest {
     fun `malformed override still fails closed`() {
         listOf("0", "-1", " 6221", "06221", "tv").forEach { override ->
             assertTrue(
-                MobileOAuthConfiguration.fromClientId("9677", debugOverride = override) is MobileOAuthConfiguration.Unavailable,
+                MobileOAuthConfiguration.fromClientId("9677", debugOverride = override) is
+                    MobileOAuthConfiguration.Unavailable,
             )
         }
     }

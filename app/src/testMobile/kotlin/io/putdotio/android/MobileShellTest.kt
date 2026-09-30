@@ -472,7 +472,8 @@ class MobileShellTest {
         val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
         val requests = NowPlayingRequests(pending) { pending.value = false }
         val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
-            override suspend fun activeAudio(context: android.content.Context) = ActiveAudio(FilesItemId(9L), "song.mp3")
+            override suspend fun activeAudio(context: android.content.Context) =
+                ActiveAudio(FilesItemId(9L), "song.mp3")
         }
         compose.setContent {
             PutioTheme {
@@ -1400,7 +1401,10 @@ class MobileShellTransfersTest {
         compose.runOnIdle {
             assertEquals(retained, files)
             assertEquals(TransferNavigation.Failed(FilesFailure.NavigationBlocked), transfers.navigation)
-            assertEquals(FilesFailure.NavigationBlocked, events.filterIsInstance<TransfersEvent.OpenFailed>().single().failure)
+            assertEquals(
+                FilesFailure.NavigationBlocked,
+                events.filterIsInstance<TransfersEvent.OpenFailed>().single().failure,
+            )
             assertTrue(events.none { it is TransfersEvent.OpenSucceeded })
         }
         compose.onNodeWithText("OK").performClick()
@@ -2175,8 +2179,22 @@ private fun mediaFilesState(): FilesBrowserState {
 private fun videoAndAudioFilesState(): FilesBrowserState {
     val initial = FilesBrowserReducer.start()
     val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
-    val video = FilesItem(FilesItemId(8L), FilesFolder.Root.id, "episode.mkv", PutioFileType.VIDEO, 1L, "2026-08-29T00:00:00Z")
-    val audio = FilesItem(FilesItemId(9L), FilesFolder.Root.id, "song.mp3", PutioFileType.AUDIO, 1L, "2026-08-29T00:00:00Z")
+    val video = FilesItem(
+        FilesItemId(8L),
+        FilesFolder.Root.id,
+        "episode.mkv",
+        PutioFileType.VIDEO,
+        1L,
+        "2026-08-29T00:00:00Z",
+    )
+    val audio = FilesItem(
+        FilesItemId(9L),
+        FilesFolder.Root.id,
+        "song.mp3",
+        PutioFileType.AUDIO,
+        1L,
+        "2026-08-29T00:00:00Z",
+    )
     return FilesBrowserReducer.reduce(
         initial.state,
         FilesBrowserEvent.LoadSucceeded(requestId, FilesPage(listOf(video, audio), nextCursor = null)),

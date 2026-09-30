@@ -182,7 +182,9 @@ private fun MobileMovePaging(paging: FilesPaging, onEvent: (FilesMoveDestination
 }
 
 private fun FilesFailure.moveDestinationMessageResource(): Int = when {
-    this is FilesFailure.AccessDenied || this is FilesFailure.ApiRejected && statusCode == 404 ->
+    this is FilesFailure.AccessDenied || this is FilesFailure.ApiRejected && statusCode == HTTP_NOT_FOUND ->
         R.string.mobile_files_move_destination_unavailable
     else -> mobileMessageResource()
 }
+
+private const val HTTP_NOT_FOUND = 404

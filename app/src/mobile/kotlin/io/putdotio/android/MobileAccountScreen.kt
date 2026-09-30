@@ -640,7 +640,10 @@ private fun MobileTunnelRouteDialog(
                             RadioButton(selected = option.name == selected, onClick = null)
                             Column {
                                 Text(option.name.displayName())
-                                if (option.description.isNotEmpty() && option.description != option.name.displayName()) {
+                                if (
+                                    option.description.isNotEmpty() &&
+                                    option.description != option.name.displayName()
+                                ) {
                                     Text(
                                         text = option.description,
                                         style = MaterialTheme.typography.bodySmall,

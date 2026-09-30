@@ -33,7 +33,10 @@ internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome) {
     if (message != null) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
             .testTag(MOBILE_FILES_MOVE_OUTCOME_TAG).semantics { liveRegion = LiveRegionMode.Polite }) {
-            Text(stringResource(message, collision?.name ?: outcome.itemName), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                stringResource(message, collision?.name ?: outcome.itemName),
+                style = MaterialTheme.typography.bodyMedium,
+            )
             if (outcome.status != FilesMoveStatus.MOVED) {
                 outcome.failure?.let {
                     Text(stringResource(it.mobileMessageResource()), color = MaterialTheme.colorScheme.error,
