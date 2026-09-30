@@ -75,8 +75,8 @@ internal fun TvShell(
     BackHandler(enabled = destination == TvDestination.Files && onFilesBack != null) { onFilesBack?.invoke() }
     // Composed each time the drawer takes focus, so it registers after every pane handler and
     // Back closes the drawer before any pane rule runs. Focus re-enters the pane as D-pad Right
-    // does, landing on its last-focused row; a pane with nothing to focus (an empty History)
-    // takes its own step at once.
+    // does, landing on its last-focused row; a pane with nothing to focus takes its own step
+    // at once.
     val focusManager = LocalFocusManager.current
     if (drawerHasFocus) {
         BackHandler {

@@ -536,13 +536,61 @@ class TvShellTest {
     }
 
     @Test
+    fun backFromAnotherDestinationKeepsTheFolderStackBehindIt() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val nested = FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "Sample folder")), FilesPaging.Complete)),
+                FilesFolderState(
+                    FilesFolder(FilesItemId(1), "Sample folder"),
+                    FilesContent.Ready(listOf(row(2, "inner.txt")), FilesPaging.Complete),
+                ),
+            ),
+            nextRequestValue = 10L,
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    onFilesBack = { events += FilesBrowserEvent.NavigateBack },
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(
+                            state = nested,
+                            onEvent = { events += it; true },
+                            onPlayMedia = {},
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
+                    },
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("inner.txt").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Sign out").assertIsFocused()
+
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("inner.txt").assertIsFocused()
+        assertEquals(emptyList<FilesBrowserEvent>(), events)
+    }
+
+    @Test
     fun backOnTheDrawerOverAPaneWithNothingToFocusReturnsToFiles() {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvShell(
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
-                    historyPane = { paneFocus -> Text("No activity yet.", Modifier.focusRequester(paneFocus)) },
+                    historyPane = { paneFocus -> Text("Nothing to focus here.", Modifier.focusRequester(paneFocus)) },
                 )
             }
         }
@@ -553,7 +601,7 @@ class TvShellTest {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
         }
-        compose.onNodeWithText("No activity yet.").assertIsDisplayed()
+        compose.onNodeWithText("Nothing to focus here.").assertIsDisplayed()
         compose.onNode(hasText("History") and hasClickAction()).assertIsFocused()
 
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }

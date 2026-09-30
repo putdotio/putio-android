@@ -10,6 +10,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -191,13 +193,20 @@ class TvExternalOpenProofTest {
         screenshot("13-back-from-search-on-the-files-row")
         returnToFilesPane(steps = 1)
 
-        // An empty History has nothing to focus, so Back on the drawer returns to Files at once.
+        // An empty History keeps Clear focusable: Back on the drawer returns to it, then Back
+        // returns to Files.
         openFromDrawer(steps = 2)
         compose.waitUntil(5_000) { compose.onAllNodesWithText(NO_HISTORY).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasText(CLEAR) and hasClickAction()).assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        compose.onNode(hasText(HISTORY) and hasClickAction()).assertIsFocused()
         screenshot("14-empty-history-drawer-focused")
         press(KeyEvent.KEYCODE_BACK)
+        compose.onNode(hasText(CLEAR) and hasClickAction()).assertIsFocused()
+        screenshot("15-drawer-back-returns-to-clear")
+        press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-        screenshot("15-back-from-history-on-the-files-row")
+        screenshot("16-back-from-history-on-the-files-row")
         returnToFilesPane(steps = 2)
 
         // Account: Back on the drawer returns to its row, then Back returns to Files.
@@ -207,10 +216,10 @@ class TvExternalOpenProofTest {
         press(KeyEvent.KEYCODE_DPAD_LEFT)
         press(KeyEvent.KEYCODE_BACK)
         compose.onNodeWithText(PROXY_ROW).assertIsFocused()
-        screenshot("16-drawer-back-returns-to-the-account-row")
+        screenshot("17-drawer-back-returns-to-the-account-row")
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
-        screenshot("17-back-from-account-on-the-files-row")
+        screenshot("18-back-from-account-on-the-files-row")
         returnToFilesPane(steps = 3)
         assertEquals(0, exits)
 
@@ -218,15 +227,15 @@ class TvExternalOpenProofTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { isFocused(FIRST_SCAN) }
         press(KeyEvent.KEYCODE_DPAD_LEFT)
-        screenshot("18-folder-drawer-focused")
+        screenshot("19-folder-drawer-focused")
         press(KeyEvent.KEYCODE_BACK)
         compose.onNodeWithContentDescription(FIRST_SCAN).assertIsFocused()
         assertEquals(0, exits)
-        screenshot("19-drawer-back-returns-to-the-folder-row")
+        screenshot("20-drawer-back-returns-to-the-folder-row")
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
         assertEquals(0, exits)
-        screenshot("20-folder-popped-to-its-row")
+        screenshot("21-folder-popped-to-its-row")
         press(KeyEvent.KEYCODE_BACK)
         assertEquals(1, exits)
     }
@@ -422,6 +431,8 @@ class TvExternalOpenProofTest {
         const val FIRST_SCAN = "Scan 1.jpg"
         const val SEARCH_FIELD = "Search files"
         const val NO_HISTORY = "No activity yet."
+        const val HISTORY = "History"
+        const val CLEAR = "Clear"
         const val PROXY_ROW = "Choose your proxy"
         const val SAVED_SECONDS = 45.0
         const val CONTINUE_LABEL = "Continue playing from 00:45"
