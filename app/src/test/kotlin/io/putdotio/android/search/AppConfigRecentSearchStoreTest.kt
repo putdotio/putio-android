@@ -2,7 +2,9 @@ package io.putdotio.android.search
 
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.sdk.config.AppConfig
+import java.util.Collections
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -146,14 +148,9 @@ class AppConfigRecentSearchStoreTest {
     @Test
     fun disablingClearsTheTermsFirstAndEnablingTurnsRecordingBackOn() =
         runBlocking {
-            val writes = mutableListOf<String>()
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
-                    saveTerms = { writes += "$SEARCH_HISTORY_KEY=$it" },
-                    saveEnabled = { writes += "$SEARCH_HISTORY_ENABLED_KEY=$it" },
-                    parentScope = this,
-                )
+            val server = FakeConfigServer(RecentSearchConfig(enabled = true, terms = listOf("one")))
+            val writes = server.writes
+            val store = server.store(this)
 
             try {
                 store.awaitTerms("one")
@@ -180,6 +177,55 @@ class AppConfigRecentSearchStoreTest {
                     ),
                     writes,
                 )
+            } finally {
+                store.close()
+            }
+        }
+
+    @Test
+    fun disablingClearsTermsAnotherClientRecordedAfterTheLoad() =
+        runBlocking {
+            val server = FakeConfigServer(RecentSearchConfig(enabled = true, terms = emptyList()))
+            val store = server.store(this)
+
+            try {
+                withTimeout(TIMEOUT) { store.enabled.first { it == true } }
+                server.config = server.config.copy(terms = listOf("from tv"))
+
+                store.setEnabled(false)
+
+                withTimeout(TIMEOUT) {
+                    while (server.writes.size < 2) delay(1)
+                }
+                assertEquals(
+                    listOf("$SEARCH_HISTORY_KEY=[]", "$SEARCH_HISTORY_ENABLED_KEY=false"),
+                    server.writes,
+                )
+                assertEquals(RecentSearchConfig(enabled = false, terms = emptyList()), server.config)
+            } finally {
+                store.close()
+            }
+        }
+
+    @Test
+    fun enablingKeepsTermsAnotherClientRecordedAfterTheLoad() =
+        runBlocking {
+            val server = FakeConfigServer(RecentSearchConfig(enabled = false, terms = emptyList()))
+            val store = server.store(this)
+
+            try {
+                withTimeout(TIMEOUT) { store.enabled.first { it == false } }
+                server.config = RecentSearchConfig(enabled = true, terms = listOf("from tv"))
+
+                store.setEnabled(true)
+                store.awaitTerms("from tv")
+                store.record(SearchTerm("two"))
+                store.awaitTerms("two", "from tv")
+
+                withTimeout(TIMEOUT) {
+                    while (server.writes.isEmpty()) delay(1)
+                }
+                assertEquals(listOf("$SEARCH_HISTORY_KEY=[two, from tv]"), server.writes)
             } finally {
                 store.close()
             }
@@ -441,6 +487,27 @@ class AppConfigRecentSearchStoreTest {
     private suspend fun AppConfigRecentSearchStore.awaitTerms(vararg expected: String) {
         val terms = expected.map(::SearchTerm)
         withTimeout(TIMEOUT) { this@awaitTerms.terms.first { it == terms } }
+    }
+
+    /** `/config` as the store and other clients see it: each save lands, each load reads it. */
+    private class FakeConfigServer(
+        @Volatile var config: RecentSearchConfig,
+    ) {
+        val writes: MutableList<String> = Collections.synchronizedList(mutableListOf())
+
+        fun store(scope: CoroutineScope) =
+            AppConfigRecentSearchStore(
+                loadConfig = { config },
+                saveTerms = {
+                    config = config.copy(terms = it)
+                    writes += "$SEARCH_HISTORY_KEY=$it"
+                },
+                saveEnabled = {
+                    config = config.copy(enabled = it)
+                    writes += "$SEARCH_HISTORY_ENABLED_KEY=$it"
+                },
+                parentScope = scope,
+            )
     }
 
     private companion object {

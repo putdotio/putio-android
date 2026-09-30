@@ -393,8 +393,9 @@ fill the list with prefixes.
 On TV, Settings to the right of the search field offers tv-native's search
 settings: Disable search history clears the list and then turns the setting
 off, Show search history turns it back on, and Clear search history empties
-the list while it has terms. While the setting is off nothing is kept and no
-chips show.
+the list while it has terms. Each setting change rereads `/config` first, so
+it clears or keeps what other clients stored since the screen loaded. While the
+setting is off nothing is kept and no chips show.
 
 Tests: `SearchControllerTest`, `AppConfigRecentSearchStoreTest`,
 `TvSearchScreenTest`.

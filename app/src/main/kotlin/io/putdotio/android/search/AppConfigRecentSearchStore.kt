@@ -110,10 +110,14 @@ internal class AppConfigRecentSearchStore internal constructor(
             null
         }
 
+    private suspend fun reload(): Boolean = loadConfigOrNull()?.also(writes::load) != null
+
     private suspend fun apply(edit: RecentSearchMutation): Boolean {
         val terms = writes.storedTerms
         return when (edit) {
-            is RecentSearchMutation.SetEnabled -> writes.writeEnabled(edit.enabled)
+            // Another client may have changed the history since it loaded; turning it off
+            // must clear what the server holds now, and turning it on must keep it.
+            is RecentSearchMutation.SetEnabled -> reload() && writes.writeEnabled(edit.enabled)
             is RecentSearchMutation.Record ->
                 writes.editTerms((listOf(edit.term) + terms.filterNot { it == edit.term }).take(MAX_RECENT_SEARCHES))
             is RecentSearchMutation.Remove -> writes.editTerms(terms.filterNot { it == edit.term })
