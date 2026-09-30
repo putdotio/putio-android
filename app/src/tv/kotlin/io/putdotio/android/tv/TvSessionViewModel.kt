@@ -177,6 +177,8 @@ internal class TvSession internal constructor(
      * opens its folder with focus on it. Back returns to [origin] either way.
      */
     fun openExternal(item: FilesItem, origin: FilesOpenOrigin): TvExternalOpen {
+        // A newer pick wins over media still waiting for its duration.
+        durationLookup?.cancel()
         if (item.isPlayable) {
             playWithDuration(item)
             return TvExternalOpen.PLAYING
@@ -190,7 +192,6 @@ internal class TvSession internal constructor(
     // listing the file itself returns it as the parent. Without one, playback continues from
     // the saved position without asking, as for any row without a duration.
     private fun playWithDuration(item: FilesItem) {
-        durationLookup?.cancel()
         if (item.playback?.durationSeconds != null) {
             startPlayback(item)
             return

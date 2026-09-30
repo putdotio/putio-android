@@ -54,6 +54,7 @@ import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -82,10 +83,13 @@ class TvSessionViewModelTest {
     private var appConfigPreferences = AndroidAppConfigPreferences()
     /** Listing an item's own id returns it as the parent, as the API does for a file. */
     private val listedItems = mutableMapOf<FilesItemId, FilesItem>()
+    private val heldListings = mutableMapOf<FilesItemId, CompletableDeferred<Unit>>()
     private val dependencies = TvSessionDependencies(
         filesRepository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId) =
-                FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = listedItems[folderId]))
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+                heldListings[folderId]?.await()
+                return FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = listedItems[folderId]))
+            }
         },
         searchRepository = object : SearchRepository {
             override suspend fun search(term: SearchTerm) =
@@ -334,6 +338,21 @@ class TvSessionViewModelTest {
 
         assertEquals(PlaybackTarget(FilesItemId(10), "song.mp3", PlaybackMediaType.AUDIO),
             checkNotNull(session.playback.value).state.value.target)
+    }
+
+    @Test
+    fun `a newer pick in Files cancels media still waiting for its duration`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val clip = media(9, "clip.mp4", PutioFileType.VIDEO)
+        val listing = CompletableDeferred<Unit>().also { heldListings[clip.id] = it }
+
+        assertEquals(TvExternalOpen.PLAYING, session.openExternal(clip, FilesOpenOrigin.SEARCH))
+        assertEquals(TvExternalOpen.IN_FILES,
+            session.openExternal(media(44, "Documents", PutioFileType.FOLDER), FilesOpenOrigin.SEARCH))
+        listing.complete(Unit)
+
+        assertNull(session.playback.value)
+        assertEquals(FilesItemId(44), session.files.state.value.current.folder.id)
     }
 
     @Test
