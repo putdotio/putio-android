@@ -156,10 +156,12 @@ requested ([live check](https://github.com/putdotio/putio-android/pull/222#issue
 a not-available video converted and played).
 Opening such a video starts its conversion through the SDK's
 `startMp4Conversion` without a tap, as putio-web, tv-native, tv-vite and iOS do,
-and the interstitial says the conversion has started. Only the first status read
-of an opening can start one: a first read of queued, running, completed or failed
+and the interstitial says the conversion has started. Only the first conversion
+status read of an opening can start one, including one that follows a Retry after
+the opening's resolve failed: a first read of queued, running, completed or failed
 is only read, so opening the file again while it converts requests nothing, and
-later polls, Check again and retries never start one, even across a failed read.
+after that first read, polls, Check again and retries never start one, even across
+a failed read.
 The SDK's consumer guide asks for the same
 ([putio-sdk-kotlin#59](https://github.com/putdotio/putio-sdk-kotlin/pull/59),
 [#236](https://github.com/putdotio/putio-android/issues/236)).

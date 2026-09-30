@@ -90,7 +90,7 @@ data class PlaybackState(
     val visitedFileIds: Set<FilesItemId> = setOf(target.fileId),
     /**
      * Whether this opening of [target] has read its conversion status. Only the first read may
-     * start a conversion, so later polls, checks and retries never start one.
+     * start a conversion; after it, polls, checks and retries never start one.
      */
     internal val conversionStatusRead: Boolean = false,
 )
