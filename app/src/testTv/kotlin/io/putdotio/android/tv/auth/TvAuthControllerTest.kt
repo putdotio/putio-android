@@ -65,20 +65,42 @@ class TvAuthControllerTest {
     }
 
     @Test
-    fun `a tv-native token without an accepting verdict is deleted and a fresh code offered`() = runTest {
-        listOf(
-            TvSessionValidation.Rejected,
-            TvSessionValidation.Unavailable(IOException("offline")),
-        ).forEach { verdict ->
-            val harness = Harness(legacyToken = "fake-legacy-token", validation = verdict)
+    fun `a tv-native token put io rejects is deleted and a fresh code offered`() = runTest {
+        val harness = Harness(legacyToken = "fake-legacy-token", validation = TvSessionValidation.Rejected)
 
-            harness.controller.restoreSession()
+        harness.controller.restoreSession()
 
-            assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
-            assertNull(harness.tokenStore.stored)
-            assertEquals(1, harness.legacySession.deletes)
-            assertEquals(listOf("set", "validate", "clear", "link"), harness.gateway.calls)
-        }
+        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode), harness.controller.state.value)
+        assertNull(harness.tokenStore.stored)
+        assertEquals(1, harness.legacySession.deletes)
+        assertEquals(listOf("set", "validate", "clear", "link"), harness.gateway.calls)
+    }
+
+    @Test
+    fun `a tv-native token without a verdict is kept for retry and imported once put io answers`() = runTest {
+        val harness = Harness(
+            legacyToken = "fake-legacy-token",
+            validation = TvSessionValidation.Unavailable(IOException("offline")),
+        )
+
+        harness.controller.restoreSession()
+
+        assertEquals(
+            TvAuthState.ValidationUnavailable(TvSessionValidationSource.RESTORE),
+            harness.controller.state.value,
+        )
+        assertNull(harness.tokenStore.stored)
+        assertEquals(0, harness.legacySession.deletes)
+        assertEquals("fake-legacy-token", harness.legacySession.token?.reveal())
+        assertEquals(0, harness.gateway.linkAttempts)
+
+        harness.gateway.validation = TvSessionValidation.Valid(accountInfo().toTvAccount())
+        assertTrue(harness.controller.retryValidation())
+
+        assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
+        assertEquals("fake-legacy-token", harness.tokenStore.stored?.reveal())
+        assertEquals(1, harness.legacySession.deletes)
+        assertEquals(listOf("set", "validate", "clear", "set", "validate"), harness.gateway.calls)
     }
 
     @Test

@@ -118,7 +118,7 @@ class TvAuthController internal constructor(
             val accessToken = when (val stored = readStoredToken()) {
                 is StoredToken.Present -> stored.accessToken
                 StoredToken.Absent -> {
-                    importLegacySession()
+                    importLegacySession(TvSessionValidationSource.RESTORE)
                     return@withLock
                 }
                 StoredToken.Unreadable -> {
@@ -162,10 +162,7 @@ class TvAuthController internal constructor(
         try {
             val accessToken = when (val stored = readStoredToken()) {
                 is StoredToken.Present -> stored.accessToken
-                StoredToken.Absent -> {
-                    startLinkAttempt(sessionExpired = false)
-                    return@withLock false
-                }
+                StoredToken.Absent -> return@withLock importLegacySession(TvSessionValidationSource.RETRY)
                 StoredToken.Unreadable -> {
                     stopLinking(TvLinkStop.StorageUnavailable, sessionExpired = false)
                     return@withLock false
@@ -311,22 +308,23 @@ class TvAuthController internal constructor(
     }
 
     /**
-     * Carries a tv-native session over once: the token is stored only after put.io
-     * accepts it, and the legacy copy is deleted whatever the verdict. Without a
-     * verdict (offline, put.io down) the viewer links a new code rather than the
-     * app keeping an unvalidated token around.
+     * Carries a tv-native session over: the token is stored only after put.io
+     * accepts it, and the legacy copy is deleted once put.io accepts or rejects
+     * it. Without a verdict (offline, put.io down) the copy stays and the viewer
+     * gets Retry, which comes back here, as does the next launch. True when a
+     * legacy token was validated.
      */
     // Gateway implementations are process boundaries; cancellation remains control flow.
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun importLegacySession() {
+    private suspend fun importLegacySession(source: TvSessionValidationSource): Boolean {
         val legacyToken = legacySession.read()
         if (legacyToken == null) {
             withContext(NonCancellable) { legacySession.delete() }
             startLinkAttempt(sessionExpired = false)
-            return
+            return false
         }
         configureSession(legacyToken)
-        mutableState.value = TvAuthState.ValidatingSession(TvSessionValidationSource.RESTORE)
+        mutableState.value = TvAuthState.ValidatingSession(source)
         val result = try {
             sessionGateway.validateSession()
         } catch (error: CancellationException) {
@@ -335,21 +333,29 @@ class TvAuthController internal constructor(
             TvSessionValidation.Unavailable(error)
         }
         withContext(NonCancellable) {
-            if (result !is TvSessionValidation.Valid) {
-                legacySession.delete()
-                clearConfiguredSession()
-                startLinkAttempt(sessionExpired = false)
-                return@withContext
-            }
-            val stored = storeImportedToken(legacyToken)
-            legacySession.delete()
-            if (stored) {
-                signIn(result.account)
-            } else {
-                clearConfiguredSession()
-                stopLinking(TvLinkStop.StorageUnavailable, sessionExpired = false)
+            when (result) {
+                is TvSessionValidation.Unavailable -> {
+                    clearConfiguredSession()
+                    mutableState.value = TvAuthState.ValidationUnavailable(source)
+                }
+                TvSessionValidation.Rejected -> {
+                    legacySession.delete()
+                    clearConfiguredSession()
+                    startLinkAttempt(sessionExpired = false)
+                }
+                is TvSessionValidation.Valid -> {
+                    val stored = storeImportedToken(legacyToken)
+                    legacySession.delete()
+                    if (stored) {
+                        signIn(result.account)
+                    } else {
+                        clearConfiguredSession()
+                        stopLinking(TvLinkStop.StorageUnavailable, sessionExpired = false)
+                    }
+                }
             }
         }
+        return true
     }
 
     private suspend fun storeImportedToken(accessToken: AccessToken): Boolean =
