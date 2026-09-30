@@ -57,7 +57,10 @@ class SdkPlaybackRepositoryTest {
     @Test
     fun preservesTheResolvedReadySource() =
         runBlocking {
-            val source = playbackSource()
+            val source = playbackSource(
+                kind = PlaybackSourceKind.MP4,
+                url = "https://api.put.io/v2/files/42/mp4/stream?token=secret",
+            )
             val repository = SdkPlaybackRepository(
                 playbackPreference = { PlaybackPreference.MP4 },
                 loadAccount = { account(downloadToken = Token, useStartFrom = true) },
@@ -68,6 +71,26 @@ class SdkPlaybackRepositoryTest {
 
             assertSame(source, (result.value as PlaybackResolution.Ready).source)
             assertTrue((result.value as PlaybackResolution.Ready).useStartFrom)
+        }
+
+    @Test
+    fun hlsAsksForEverySubtitleRenditionSoHiddenSubtitlesCanStillBeTurnedOn() =
+        runBlocking {
+            val repository = SdkPlaybackRepository(
+                playbackPreference = { PlaybackPreference.HLS },
+                loadAccount = { account(downloadToken = Token, useStartFrom = true) },
+                resolvePlayback = { io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource()) },
+            )
+
+            val result = repository.resolve(Target) as PlaybackRepositoryResult.Success
+            val source = (result.value as PlaybackResolution.Ready).source
+
+            // Without it put.io drops the renditions for an account with hide_subtitles on (#223).
+            assertEquals(
+                "https://api.put.io/v2/files/42/hls/media.m3u8?token=secret&max_subtitle_count=-1",
+                source.url.value,
+            )
+            assertEquals(playbackSource().copy(url = source.url), source)
         }
 
     @Test
@@ -503,11 +526,14 @@ class SdkPlaybackRepositoryTest {
                 ),
         )
 
-    private fun playbackSource(): PlaybackSource =
+    private fun playbackSource(
+        kind: PlaybackSourceKind = PlaybackSourceKind.HLS,
+        url: String = "https://api.put.io/v2/files/42/hls/media.m3u8?token=secret",
+    ): PlaybackSource =
         PlaybackSource(
             fileId = Target.fileId.value,
-            kind = PlaybackSourceKind.HLS,
-            url = credentialUrl("https://api.put.io/v2/files/42/hls/media.m3u8?token=secret"),
+            kind = kind,
+            url = credentialUrl(url),
             startFromSeconds = 12.0,
             subtitles = PlaybackSubtitles.Embedded,
         )

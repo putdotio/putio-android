@@ -159,7 +159,10 @@ audio start over with each file. Choices survive a rebuilt player.
 
 Subtitles start from the account's settings, as on mobile: hidden with
 `hide_subtitles`, forced tracks only with `dont_autoselect_subtitles`, otherwise
-selected automatically. Once the viewer picks, the pick decides (#45): a picked
+selected automatically. Hidden means off at the start, not gone: an HLS source
+asks put.io for every subtitle rendition (`max_subtitle_count=-1`; the server
+omits them for `hide_subtitles` otherwise), so Subtitles still offers the file's
+tracks (#223). Once the viewer picks, the pick decides (#45): a picked
 track is found again after track changes, and Off keeps the text type disabled
 and draws nothing, whatever cues the renderer last delivered, across seeks and
 track changes. Cues, bitmap (PGS) ones included, draw with the system caption

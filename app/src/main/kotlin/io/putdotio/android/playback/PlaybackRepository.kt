@@ -21,6 +21,9 @@ import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackMediaCredential
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
+import io.putdotio.sdk.files.PlaybackSource
+import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import java.util.concurrent.CancellationException
@@ -295,10 +298,25 @@ internal class MissingPlaybackCredentialException : IllegalStateException("Playb
 
 private fun io.putdotio.sdk.files.PlaybackResolution.toAppResolution(useStartFrom: Boolean): PlaybackResolution =
     when (this) {
-        is io.putdotio.sdk.files.PlaybackResolution.Ready -> PlaybackResolution.Ready(source, useStartFrom)
+        is io.putdotio.sdk.files.PlaybackResolution.Ready ->
+            PlaybackResolution.Ready(source.withEverySubtitleRendition(), useStartFrom)
         is io.putdotio.sdk.files.PlaybackResolution.Conversion -> PlaybackResolution.Conversion(state)
         is io.putdotio.sdk.files.PlaybackResolution.Unsupported -> PlaybackResolution.Unsupported(fileType)
     }
+
+// put.io leaves every subtitle rendition out of the HLS master when the account hides subtitles,
+// unless max_subtitle_count asks for them. The player starts them off itself, so the viewer can
+// still turn one on (#223).
+private fun PlaybackSource.withEverySubtitleRendition(): PlaybackSource =
+    if (kind != PlaybackSourceKind.HLS || MAX_SUBTITLE_COUNT in url.queryParameterNames) {
+        this
+    } else {
+        val separator = if ('?' in url.value) '&' else '?'
+        copy(url = PutioCredentialUrl.of("${url.value}$separator$MAX_SUBTITLE_COUNT=$ALL_SUBTITLES"))
+    }
+
+private const val MAX_SUBTITLE_COUNT = "max_subtitle_count"
+private const val ALL_SUBTITLES = -1
 
 sealed interface PlaybackResolution {
     data class Ready(
