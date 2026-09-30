@@ -1,11 +1,15 @@
 package io.putdotio.android.tv
 
+import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.sdk.config.AppConfig
 import io.putdotio.sdk.config.AppConfigUpdate
+import io.putdotio.sdk.errors.PutioApiErrorEnvelope
+import io.putdotio.sdk.errors.PutioApiException
+import io.putdotio.sdk.errors.PutioException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.errors.PutioTransportException
 import kotlinx.coroutines.runBlocking
@@ -14,6 +18,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 
@@ -66,10 +71,28 @@ class TvNativeConfigMigrationTest {
         assertEquals(JsonPrimitive("mp4"), server.config["video_playback_type"])
     }
 
+    @Test
+    fun `a 401 on the write fails the read so the session expires`() = runBlocking {
+        val rejected = PutioApiException(
+            request = SAVE_REQUEST,
+            resolvedStatusCode = 401,
+            resolvedErrorType = "invalid_token",
+            envelope = PutioApiErrorEnvelope(statusCode = 401, errorType = "invalid_token"),
+            responseBody = "{}",
+            message = "Request rejected",
+        )
+        val server = FakeConfigServer(TV_NATIVE_CONFIG, failSaves = 1, saveError = rejected)
+
+        val result = server.repository.load() as AndroidAppConfigRepositoryResult.Failure
+
+        assertTrue(result.failure is AndroidAppConfigFailure.AuthenticationRequired)
+    }
+
     /** `/config` for one user and OAuth app; a save lands like the server's `PUT /config/{key}`. */
     private class FakeConfigServer(
         blob: String,
         private var failSaves: Int = 0,
+        private val saveError: PutioException = PutioTransportException(SAVE_REQUEST, IOException("offline")),
     ) {
         var config: Map<String, JsonElement> = Json.parseToJsonElement(blob).jsonObject
         val saves = mutableListOf<AppConfigUpdate>()
@@ -77,7 +100,7 @@ class TvNativeConfigMigrationTest {
             saves += update
             if (failSaves > 0) {
                 failSaves -= 1
-                throw PutioTransportException(PutioRequestData("PUT", "https://api.put.io/v2/config"), IOException("offline"))
+                throw saveError
             }
             config = config + (update.key to update.value)
         }
@@ -85,6 +108,8 @@ class TvNativeConfigMigrationTest {
     }
 
     private companion object {
+        val SAVE_REQUEST = PutioRequestData("PUT", "https://api.put.io/v2/config")
+
         /** What tv-native's `useConfigValue` leaves in `/config` after a viewer picks MP4 and a high buffer. */
         const val TV_NATIVE_CONFIG =
             """{"bufferSize": "high", "playbackType": "mp4", "searchHistory": ["dune"], "searchHistoryEnabled": true}"""

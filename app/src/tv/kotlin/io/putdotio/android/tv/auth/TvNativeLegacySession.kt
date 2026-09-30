@@ -28,7 +28,8 @@ internal interface LegacyTvSession {
  * value TEXT NOT NULL`); tv-native does not opt into the Room-based
  * `AsyncStorage_useNextStorage`. Its only other key is an update notice, so
  * the whole database goes, journals included, rather than leaving the token in
- * free pages after a row delete.
+ * free pages after a row delete. It opens read-write so SQLite can roll back a
+ * hot journal tv-native left mid-write; a read-only open fails on one.
  */
 internal class AsyncStorageLegacyTvSession(
     private val context: Context,
@@ -38,7 +39,7 @@ internal class AsyncStorageLegacyTvSession(
         val path = context.getDatabasePath(ASYNC_STORAGE_DATABASE)
         if (!path.isFile) return@withContext null
         try {
-            SQLiteDatabase.openDatabase(path.path, null, SQLiteDatabase.OPEN_READONLY).use { database ->
+            SQLiteDatabase.openDatabase(path.path, null, SQLiteDatabase.OPEN_READWRITE).use { database ->
                 database.rawQuery(TOKEN_QUERY, arrayOf(TV_NATIVE_AUTH_TOKEN_KEY)).use { cursor ->
                     if (cursor.moveToFirst()) AccessToken.parse(cursor.getString(0)) else null
                 }

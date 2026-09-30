@@ -58,6 +58,33 @@ class AsyncStorageLegacyTvSessionTest {
     }
 
     @Test
+    fun `a hot journal tv-native left mid-write is rolled back and the token read`() = runBlocking {
+        writeFixture(RN_TOKEN_KEY to FAKE_TOKEN)
+        val crashed = File(database.parentFile, "crashed")
+        // Spill an uncommitted overwrite to the file, then snapshot it with its journal, as a kill mid-write leaves it.
+        SQLiteDatabase.openDatabase(database.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+            db.rawQuery("PRAGMA journal_mode=DELETE", null).use { it.moveToFirst() }
+            db.rawQuery("PRAGMA cache_size=1", null).use { it.moveToFirst() }
+            db.beginTransaction()
+            try {
+                db.execSQL("UPDATE $RN_TABLE SET value = 'overwritten' WHERE key = ?", arrayOf(RN_TOKEN_KEY))
+                repeat(SPILL_ROWS) { index ->
+                    db.execSQL("INSERT INTO $RN_TABLE VALUES (?, ?)", arrayOf("filler-$index", "x".repeat(SPILL_BYTES)))
+                }
+                database.copyTo(crashed, overwrite = true)
+                File(database.path + "-journal").copyTo(File(crashed.path + "-journal"), overwrite = true)
+            } finally {
+                db.endTransaction()
+            }
+        }
+        context.deleteDatabase(RN_DATABASE)
+        crashed.renameTo(database)
+        File(crashed.path + "-journal").renameTo(File(database.path + "-journal"))
+
+        assertEquals(FAKE_TOKEN, session.read()?.reveal())
+    }
+
+    @Test
     fun `a file that is not a database reads as no session and is still deleted`() = runBlocking {
         database.parentFile?.mkdirs()
         database.writeText("not sqlite")
@@ -94,5 +121,7 @@ class AsyncStorageLegacyTvSessionTest {
         const val RN_TOKEN_KEY = "@putio:auth_token"
         const val FAKE_TOKEN = "FAKETOKEN0000000000000000000000000"
         const val UPDATE_NOTICE_KEY = "@putio:update-notified-for"
+        const val SPILL_ROWS = 64
+        const val SPILL_BYTES = 4096
     }
 }

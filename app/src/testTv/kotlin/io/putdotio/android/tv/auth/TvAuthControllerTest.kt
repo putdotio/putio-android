@@ -118,14 +118,14 @@ class TvAuthControllerTest {
     }
 
     @Test
-    fun `a keystore session leaves tv-native storage unread`() = runTest {
+    fun `a keystore session leaves tv-native storage unread and deletes any leftover`() = runTest {
         val harness = Harness(storedToken = "stored-token", legacyToken = "fake-legacy-token")
 
         harness.controller.restoreSession()
 
         assertEquals("stored-token", harness.tokenStore.stored?.reveal())
         assertEquals(0, harness.legacySession.reads)
-        assertEquals(0, harness.legacySession.deletes)
+        assertEquals(1, harness.legacySession.deletes)
     }
 
     @Test

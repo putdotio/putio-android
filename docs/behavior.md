@@ -55,15 +55,18 @@ code. A stored or rejected token deletes the whole `RKStorage` database,
 journals included; its only other key is tv-native's update notice.
 Without a verdict (network error, timeout, 5xx) the database stays, nothing is
 stored, and TV shows Can't reach put.io with Retry; Retry and the next launch
-try the import again. A start cancelled mid-validation also keeps it, and a
-start with a Keystore session never reads it. Nothing logs it.
+try the import again. A start cancelled mid-validation also keeps it. A start
+with a Keystore session never reads it and deletes any copy a failed cleanup
+left. The database opens read-write so SQLite can recover a journal tv-native
+left mid-write. Nothing logs it.
 
 `/config` is per user and OAuth app, and TV links as tv-native's clients, so a
 tv-native viewer's `playbackType` is already there. A TV read of `/config` with
 no `video_playback_type` key maps `playbackType` `hls` or `mp4` to it, writes it
 and plays that type; an existing `video_playback_type`, even one the app cannot
-parse, is never overwritten. A failed write still applies to that read, and the
-next read writes again. tv-native's `bufferSize` is not carried over: Android TV
+parse, is never overwritten. A 401 on that write fails the read and expires the
+session like any `/config` 401; any other failed write still applies to that
+read, and the next read writes again. tv-native's `bufferSize` is not carried over: Android TV
 has no buffer setting and always buffers as tv-native's default `medium` (see
 [TV playback](#tv-playback)); the key is left untouched in `/config`.
 

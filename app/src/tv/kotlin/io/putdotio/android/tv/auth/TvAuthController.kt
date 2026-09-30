@@ -116,7 +116,11 @@ class TvAuthController internal constructor(
         tokenRevocations.resume()
         try {
             val accessToken = when (val stored = readStoredToken()) {
-                is StoredToken.Present -> stored.accessToken
+                is StoredToken.Present -> {
+                    // Unread: a Keystore session supersedes it. Deleting here retries a cleanup that failed after import.
+                    legacySession.delete()
+                    stored.accessToken
+                }
                 StoredToken.Absent -> {
                     importLegacySession(TvSessionValidationSource.RESTORE)
                     return@withLock

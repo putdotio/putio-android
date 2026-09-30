@@ -1,9 +1,11 @@
 package io.putdotio.android.tv
 
 import io.putdotio.android.settings.AndroidAppConfigChange
+import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.VIDEO_PLAYBACK_TYPE_KEY
 import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.toAndroidAppConfigFailure
 import io.putdotio.android.settings.toUpdate
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.config.AppConfig
@@ -29,8 +31,10 @@ internal fun tvAppConfigRepository(
  * clients, so a tv-native viewer's `playbackType` (`hls` or `mp4`) is already
  * there. With no `video_playback_type` yet, it is written as that key and read
  * as if it had been. An existing `video_playback_type`, even one the app cannot
- * parse, always wins, so the write happens at most until it lands. A failed
- * write still applies the value to this read; the next read writes again.
+ * parse, always wins, so the write happens at most until it lands. A 401 on the
+ * write fails the read like any other `/config` 401, so the session expires;
+ * any other failed write still applies the value to this read, and the next
+ * read writes again.
  */
 internal suspend fun AppConfig.withTvNativePlaybackType(save: suspend (AppConfigUpdate) -> Unit): AppConfig {
     if (values.containsKey(VIDEO_PLAYBACK_TYPE_KEY)) return this
@@ -39,7 +43,8 @@ internal suspend fun AppConfig.withTvNativePlaybackType(save: suspend (AppConfig
     val update = AndroidAppConfigChange.VideoPlayback(playbackType).toUpdate()
     try {
         save(update)
-    } catch (_: PutioException) {
+    } catch (error: PutioException) {
+        if (error.toAndroidAppConfigFailure() is AndroidAppConfigFailure.AuthenticationRequired) throw error
         // The key stays absent, so the next read writes again.
     }
     return AppConfig(values + (update.key to update.value))
