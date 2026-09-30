@@ -278,16 +278,24 @@ class MobileFileShareServiceTest {
                 parentFile?.mkdirs()
                 writeText("bytes")
             }
+        fun earlierProcessExport() = File(MobileFileShareService.shareRoot(context), "earlier/1/9/poster.jpg").apply {
+            parentFile?.mkdirs()
+            writeText("bytes")
+        }
         val ended = exportOf(SESSION)
         val next = exportOf(MobileAuthSessionId(2L))
+        val leftover = earlierProcessExport()
 
         MobileFileShareService.endSession(context, SESSION)
         assertFalse(ended.exists())
+        assertFalse(leftover.exists())
         assertTrue(next.exists())
 
-        // A session an earlier process left has no known id; ending it clears every leftover.
+        // A session an earlier process left has no known id; ending it clears every earlier-process leftover.
+        val restoredLeftover = earlierProcessExport()
         MobileFileShareService.endSession(context, null)
-        assertFalse(MobileFileShareService.shareRoot(context).exists())
+        assertFalse(restoredLeftover.exists())
+        assertTrue(next.exists())
     }
 
     @Test
