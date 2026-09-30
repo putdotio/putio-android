@@ -31,6 +31,8 @@ class AppConfigRecentSearchStoreTest {
             recentSearchConfigUpdate(listOf("one", "two")).value,
         )
         assertEquals(SEARCH_HISTORY_KEY, recentSearchConfigUpdate(emptyList()).key)
+        assertEquals(SEARCH_HISTORY_ENABLED_KEY, recentSearchEnabledConfigUpdate(false).key)
+        assertEquals(JsonPrimitive(false), recentSearchEnabledConfigUpdate(false).value)
     }
 
     @Test
@@ -63,6 +65,7 @@ class AppConfigRecentSearchStoreTest {
                 AppConfigRecentSearchStore(
                     loadConfig = { RecentSearchConfig(enabled = true, terms = listOf(" existing ", "existing", "")) },
                     saveTerms = { saved += it },
+                    saveEnabled = { error("No setting change") },
                     parentScope = this,
                 )
 
@@ -92,6 +95,7 @@ class AppConfigRecentSearchStoreTest {
                 AppConfigRecentSearchStore(
                     loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one", "two")) },
                     saveTerms = { saved += it },
+                    saveEnabled = { error("No setting change") },
                     parentScope = this,
                 )
 
@@ -123,6 +127,7 @@ class AppConfigRecentSearchStoreTest {
                         RecentSearchConfig(enabled = false, terms = listOf("private"))
                     },
                     saveTerms = { saved += it },
+                    saveEnabled = { error("No setting change") },
                     parentScope = this,
                 )
 
@@ -133,6 +138,116 @@ class AppConfigRecentSearchStoreTest {
 
                 assertEquals(emptyList<SearchTerm>(), store.terms.value)
                 assertEquals(emptyList<List<String>>(), saved)
+            } finally {
+                store.close()
+            }
+        }
+
+    @Test
+    fun disablingClearsTheTermsFirstAndEnablingTurnsRecordingBackOn() =
+        runBlocking {
+            val writes = mutableListOf<String>()
+            val store =
+                AppConfigRecentSearchStore(
+                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
+                    saveTerms = { writes += "$SEARCH_HISTORY_KEY=$it" },
+                    saveEnabled = { writes += "$SEARCH_HISTORY_ENABLED_KEY=$it" },
+                    parentScope = this,
+                )
+
+            try {
+                store.awaitTerms("one")
+                assertEquals(true, store.enabled.value)
+
+                store.setEnabled(false)
+                withTimeout(TIMEOUT) { store.enabled.first { it == false } }
+                store.awaitTerms()
+                store.record(SearchTerm("ignored"))
+                store.setEnabled(true)
+                withTimeout(TIMEOUT) { store.enabled.first { it == true } }
+                store.record(SearchTerm("two"))
+                store.awaitTerms("two")
+
+                withTimeout(TIMEOUT) {
+                    while (writes.size < 4) delay(1)
+                }
+                assertEquals(
+                    listOf(
+                        "$SEARCH_HISTORY_KEY=[]",
+                        "$SEARCH_HISTORY_ENABLED_KEY=false",
+                        "$SEARCH_HISTORY_ENABLED_KEY=true",
+                        "$SEARCH_HISTORY_KEY=[two]",
+                    ),
+                    writes,
+                )
+            } finally {
+                store.close()
+            }
+        }
+
+    @Test
+    fun anAccountThatTurnedHistoryOffElsewhereCanTurnItBackOn() =
+        runBlocking {
+            val savedEnabled = mutableListOf<Boolean>()
+            val store =
+                AppConfigRecentSearchStore(
+                    loadConfig = { RecentSearchConfig(enabled = false, terms = emptyList()) },
+                    saveTerms = { error("Nothing to clear") },
+                    saveEnabled = { savedEnabled += it },
+                    parentScope = this,
+                )
+
+            try {
+                withTimeout(TIMEOUT) { store.enabled.first { it == false } }
+
+                store.setEnabled(true)
+
+                withTimeout(TIMEOUT) { store.enabled.first { it == true } }
+                withTimeout(TIMEOUT) {
+                    while (savedEnabled.isEmpty()) delay(1)
+                }
+                assertEquals(listOf(true), savedEnabled)
+            } finally {
+                store.close()
+            }
+        }
+
+    @Test
+    fun aFailedSettingWriteRollsBackAndRetries() =
+        runBlocking {
+            var attempts = 0
+            val firstAttempt = CompletableDeferred<Unit>()
+            val savedEnabled = mutableListOf<Boolean>()
+            val store =
+                AppConfigRecentSearchStore(
+                    loadConfig = { RecentSearchConfig(enabled = true, terms = emptyList()) },
+                    saveTerms = { error("Nothing to clear") },
+                    saveEnabled = {
+                        attempts += 1
+                        if (attempts == 1) {
+                            firstAttempt.complete(Unit)
+                            error("offline")
+                        }
+                        savedEnabled += it
+                    },
+                    parentScope = this,
+                )
+
+            try {
+                withTimeout(TIMEOUT) { store.enabled.first { it == true } }
+                store.setEnabled(false)
+                withTimeout(TIMEOUT) { firstAttempt.await() }
+                store.failure.first { it != null }
+                assertEquals(true, store.enabled.value)
+
+                store.retry()
+
+                withTimeout(TIMEOUT) { store.enabled.first { it == false } }
+                withTimeout(TIMEOUT) {
+                    while (savedEnabled.isEmpty()) delay(1)
+                }
+                assertEquals(listOf(false), savedEnabled)
+                assertEquals(null, store.failure.value)
             } finally {
                 store.close()
             }
@@ -155,6 +270,7 @@ class AppConfigRecentSearchStoreTest {
                         RecentSearchConfig(enabled = true, terms = listOf("existing"))
                     },
                     saveTerms = { saved += it },
+                    saveEnabled = { error("No setting change") },
                     parentScope = this,
                 )
 
@@ -190,6 +306,7 @@ class AppConfigRecentSearchStoreTest {
                         RecentSearchConfig(enabled = true, terms = listOf("existing"))
                     },
                     saveTerms = { error("No edit should be saved") },
+                    saveEnabled = { error("No setting change") },
                     parentScope = this,
                 )
 
@@ -219,6 +336,7 @@ class AppConfigRecentSearchStoreTest {
                         attempted.complete(Unit)
                         throw failure
                     },
+                    saveEnabled = { error("No setting change") },
                     parentScope = this,
                 )
 
@@ -253,6 +371,7 @@ class AppConfigRecentSearchStoreTest {
                         }
                         saved += it
                     },
+                    saveEnabled = { error("No setting change") },
                     parentScope = this,
                 )
 
@@ -295,6 +414,7 @@ class AppConfigRecentSearchStoreTest {
                         }
                         saved += it
                     },
+                    saveEnabled = { error("No setting change") },
                     parentScope = this,
                 )
 

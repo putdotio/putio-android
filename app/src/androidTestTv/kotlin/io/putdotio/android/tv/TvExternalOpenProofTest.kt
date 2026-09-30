@@ -19,53 +19,14 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.TvSessionShell
-import io.putdotio.android.design.putioTvDarkColorScheme
-import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
-import io.putdotio.android.files.FilesItem
-import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPlaybackProgress
-import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.FilesRepositoryResult
-import io.putdotio.android.files.FilesSort
-import io.putdotio.android.files.FilesStreamUrls
-import io.putdotio.android.files.FilesWatchedRepository
-import io.putdotio.android.history.HistoryEventId
-import io.putdotio.android.history.HistoryPage
-import io.putdotio.android.history.HistoryRepository
-import io.putdotio.android.history.HistoryRepositoryResult
-import io.putdotio.android.playback.PlaybackRepository
-import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
-import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.search.RecentSearchStoreOwner
-import io.putdotio.android.search.SearchPage
-import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
-import io.putdotio.android.settings.AccountSettingsChange
-import io.putdotio.android.settings.AccountSettingsPreferences
-import io.putdotio.android.settings.AccountSettingsRepository
-import io.putdotio.android.settings.AccountSettingsRepositoryResult
-import io.putdotio.android.settings.AndroidAppConfigChange
-import io.putdotio.android.settings.AndroidAppConfigPreferences
-import io.putdotio.android.settings.AndroidAppConfigRepository
-import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
-import io.putdotio.android.settings.TunnelRouteOption
-import io.putdotio.android.trash.TrashBulkSelection
-import io.putdotio.android.trash.TrashPage
-import io.putdotio.android.trash.TrashRepository
-import io.putdotio.android.tv.auth.TvAccount
-import io.putdotio.android.tv.auth.TvAuthSessionId
-import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.player.TV_PLAYER_TAG
-import io.putdotio.sdk.files.FileDeleteResult
-import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -169,102 +130,36 @@ class TvExternalOpenProofTest {
     }
 
     private fun mount(): TvSession {
-        val account = TvAccount(userId = 1, username = "proof", email = "proof@example.invalid", historyEnabled = true)
-        val auth = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1)))
-        lateinit var session: TvSession
-        compose.runOnUiThread {
-            session = checkNotNull(TvSessionViewModel(auth).sessionFor(account, TvAuthSessionId(1), dependencies()))
-        }
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSessionShell(
-                    session = session,
-                    account = account,
-                    sessionKey = 1L,
-                    onSignOut = {},
-                    onSessionRejected = { error("Unexpected rejection") },
-                    loadTunnelRoutes = { AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>()) },
-                )
-            }
-        }
+        val session = compose.mountTvProofSession(dependencies())
         compose.waitUntil(5_000) { hasContentDescription("Open Movies") }
         return session
     }
 
     private fun dependencies(): TvSessionDependencies {
-        val movies = item(MOVIES_ID, "Movies", PutioFileType.FOLDER, FilesFolder.Root.id)
-        val folder = item(FOLDER_ID, FOLDER, PutioFileType.FOLDER, FilesFolder.Root.id)
-        val video = item(VIDEO_ID, VIDEO, PutioFileType.VIDEO, folder.id)
-        val document = item(DOCUMENT_ID, DOCUMENT, PutioFileType.PDF, folder.id)
+        val movies = proofItem(MOVIES_ID, "Movies", PutioFileType.FOLDER, FilesFolder.Root.id)
+        val folder = proofItem(FOLDER_ID, FOLDER, PutioFileType.FOLDER, FilesFolder.Root.id)
+        val video = proofItem(VIDEO_ID, VIDEO, PutioFileType.VIDEO, folder.id)
+        val document = proofItem(DOCUMENT_ID, DOCUMENT, PutioFileType.PDF, folder.id)
         val listings = mapOf(
             FilesFolder.Root.id to FilesPage(listOf(movies, folder), null),
-            movies.id to FilesPage(listOf(item(30, "Old clip.mp4", PutioFileType.VIDEO, movies.id)), null, parent = movies),
+            movies.id to FilesPage(
+                listOf(proofItem(30, "Old clip.mp4", PutioFileType.VIDEO, movies.id)),
+                null,
+                parent = movies,
+            ),
             folder.id to FilesPage(
-                (1L..6L).map { item(100 + it, "Scan $it.jpg", PutioFileType.IMAGE, folder.id) } + document + video,
+                (1L..6L).map { proofItem(100 + it, "Scan $it.jpg", PutioFileType.IMAGE, folder.id) } + document + video,
                 null,
                 parent = folder,
             ),
             // Listing a file returns it as the parent with its duration, as put.io does.
             video.id to FilesPage(emptyList(), null, parent = video.copy(playback = FilesPlaybackProgress(0.0, 90.0))),
         )
-        val source = localSource()
-        return TvSessionDependencies(
-            filesRepository = ProofFilesRepository(listings),
-            searchRepository = object : SearchRepository {
-                override suspend fun search(term: SearchTerm) =
-                    FilesRepositoryResult.Success(SearchPage(listOf(video, folder, document), null, total = 3))
-
-                override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
-            },
-            historyRepository = object : HistoryRepository {
-                override suspend fun load(before: HistoryEventId?) =
-                    HistoryRepositoryResult.Success(HistoryPage(emptyList(), hasMore = false))
-
-                override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
-            },
-            trashRepository = ProofTrashRepository,
-            settingsRepository = object : AccountSettingsRepository {
-                override suspend fun load() = AccountSettingsRepositoryResult.Success(
-                    AccountSettingsPreferences(
-                        historyEnabled = true,
-                        trashEnabled = true,
-                        showSubtitles = true,
-                        autoSelectSubtitles = true,
-                        resumePlayback = true,
-                    ),
-                )
-
-                override suspend fun save(change: AccountSettingsChange) = AccountSettingsRepositoryResult.Success(Unit)
-
-                override suspend fun loadTunnelRoutes() =
-                    AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>())
-            },
-            appConfigRepository = object : AndroidAppConfigRepository {
-                override suspend fun load() = AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences())
-
-                override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
-            },
-            watchedRepository = object : FilesWatchedRepository {
-                override suspend fun setPosition(itemId: FilesItemId, seconds: Double) =
-                    FilesRepositoryResult.Success(Unit)
-
-                override suspend fun clearPosition(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
-            },
-            streamUrls = FilesStreamUrls { null },
-            filesItemResolver = object : FilesItemResolver {
-                override suspend fun resolveItem(itemId: FilesItemId) = error("No history rows")
-            },
+        return tvProofDependencies(
+            listings = listings,
+            searchResults = listOf(video, folder, document),
             recentSearchStore = { ProofRecentSearchStore() },
-            playbackRepository = {
-                object : PlaybackRepository {
-                    override suspend fun resolve(target: PlaybackTarget) = PlaybackRepositoryResult.Success(
-                        PlaybackResolution.Ready(source.copy(startFromSeconds = SAVED_SECONDS), useStartFrom = true),
-                    )
-
-                    override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
-                }
-            },
-            writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
+            playback = PlaybackResolution.Ready(localSource().copy(startFromSeconds = SAVED_SECONDS), useStartFrom = true),
         )
     }
 
@@ -346,55 +241,9 @@ class TvExternalOpenProofTest {
     }
 }
 
-private fun item(id: Long, name: String, type: PutioFileType, parentId: FilesItemId) = FilesItem(
-    id = FilesItemId(id),
-    parentId = parentId,
-    name = name,
-    type = type,
-    sizeBytes = 1_048_576L,
-    createdAt = "2026-09-30T10:00:00Z",
-)
-
-private class ProofFilesRepository(private val listings: Map<FilesItemId, FilesPage>) : FilesRepository {
-    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
-        listings[folderId]?.let { FilesRepositoryResult.Success(it) }
-            ?: FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("No listing $folderId")))
-
-    override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
-
-    override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) = error("No moves")
-
-    override suspend fun move(itemId: FilesItemId, destinationId: FilesItemId):
-        FilesRepositoryResult<List<FileMoveError>> = error("No moves")
-
-    override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort) = error("No sorting")
-
-    override suspend fun rename(itemId: FilesItemId, name: String) = error("No renames")
-
-    override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode):
-        FilesRepositoryResult<FileDeleteResult> = error("No deletes")
-
-    override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")
-}
-
-private object ProofTrashRepository : TrashRepository {
-    override suspend fun load() = FilesRepositoryResult.Success(TrashPage(emptyList(), nextCursor = null))
-
-    override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
-
-    override suspend fun restore(itemId: FilesItemId) = error("No restores")
-
-    override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")
-
-    override suspend fun deleteItem(itemId: FilesItemId) = error("No deletes")
-
-    override suspend fun restoreAll(selection: TrashBulkSelection) = error("No restores")
-
-    override suspend fun empty() = error("No empties")
-}
-
 private class ProofRecentSearchStore : RecentSearchStoreOwner {
     override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
+    override val enabled = MutableStateFlow<Boolean?>(true)
     override val failure = MutableStateFlow<FilesFailure?>(null)
 
     override fun record(term: SearchTerm) {
@@ -407,6 +256,10 @@ private class ProofRecentSearchStore : RecentSearchStoreOwner {
 
     override fun clear() {
         terms.value = emptyList()
+    }
+
+    override fun setEnabled(enabled: Boolean) {
+        this.enabled.value = enabled
     }
 
     override fun retry() = Unit
