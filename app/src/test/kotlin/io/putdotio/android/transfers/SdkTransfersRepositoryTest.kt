@@ -124,7 +124,24 @@ class SdkTransfersRepositoryTest {
         assertFalse(items[0].toString().contains(secret))
         val fieldNames = TransferItem::class.java.declaredFields.map { it.name }.toSet()
         assertFalse(fieldNames.any { it in setOf("source", "callbackUrl", "links", "raw") })
-        assertTrue(items[0].hasError)
+    }
+
+    @Test
+    fun projectionKeepsTheServerFailureReasonAndDropsBlankOnes() = runBlocking {
+        val transfers =
+            listOf(
+                sdkTransfer(1L, TransferStatus.ERROR).copy(errorMessage = "  Downloading text/html is not allowed.\n"),
+                sdkTransfer(2L, TransferStatus.ERROR).copy(errorMessage = " "),
+                sdkTransfer(3L, TransferStatus.ERROR),
+            )
+        val reads = ReadOperations().apply { list = { response(transfers, null) } }
+
+        val items = (repository(reads = reads).load() as FilesRepositoryResult.Success).value.items
+
+        assertEquals(
+            listOf("Downloading text/html is not allowed.", null, null),
+            items.map(TransferItem::errorMessage),
+        )
     }
 
     @Test
@@ -270,7 +287,7 @@ class SdkTransfersRepositoryTest {
         fileId = if (status == TransferStatus.COMPLETED) id + 100L else null,
         percentDone = percentDone,
         completionPercent = completionPercent,
-        errorMessage = "secret source rejected",
+        errorMessage = null,
         callbackUrl = "https://callback.invalid/secret",
         links = listOf(TransferLink("private", "https://example.invalid/secret")),
     )

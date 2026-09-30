@@ -299,8 +299,9 @@
     <string name="mobile_transfers_cancel_title">Cancel transfer?</string>
     <string name="mobile_transfers_cancel_message">Stop fetching “%1$s”?</string>
     <string name="mobile_transfers_cancel_confirm">Stop transfer</string>
-    <string name="mobile_transfers_retry_title">Retry transfer?</string>
-    <string name="mobile_transfers_retry_message">Try fetching “%1$s” again?</string>
+    <string name="mobile_transfers_retry_accepted">Retrying transfer</string>
+    <string name="mobile_transfers_retry_failed">Couldn’t retry transfer. %1$s</string>
+    <string name="mobile_transfers_retry_not_failed">It has no error to retry.</string>
     <string name="mobile_transfers_clean_title">Clean completed transfers?</string>
     <string name="mobile_transfers_clean_message">Remove all completed transfers from this list? Your files stay in put.io.</string>
     <string name="mobile_transfers_clean_confirm">Clean</string>

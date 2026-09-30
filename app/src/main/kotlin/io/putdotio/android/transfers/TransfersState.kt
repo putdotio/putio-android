@@ -75,6 +75,17 @@ sealed interface TransferNotice {
     ) : TransferNotice
 }
 
+/** The last retry's result, held until the screen has reported it. */
+sealed interface TransferRetryOutcome {
+    val requestId: TransfersRequestId
+
+    data class Accepted(override val requestId: TransfersRequestId) : TransferRetryOutcome
+    data class Failed(
+        override val requestId: TransfersRequestId,
+        val failure: FilesFailure,
+    ) : TransferRetryOutcome
+}
+
 @ConsistentCopyVisibility
 data class TransfersState internal constructor(
     val content: TransfersContent,
@@ -82,6 +93,7 @@ data class TransfersState internal constructor(
     val mutation: TransferMutation = TransferMutation.Idle,
     val navigation: TransferNavigation = TransferNavigation.Idle,
     val notice: TransferNotice? = null,
+    val retryOutcome: TransferRetryOutcome? = null,
     val visible: Boolean = false,
     internal val lastSuccessfulAddRequestId: TransfersRequestId? = null,
     internal val firstPageIds: Set<TransferId> = emptySet(),
@@ -100,6 +112,7 @@ sealed interface TransfersEvent {
     data class RetryTransfer(val id: TransferId) : TransfersEvent
     data object CleanCompleted : TransfersEvent
     data object DismissMutationFailure : TransfersEvent
+    data class DismissRetryOutcome(val requestId: TransfersRequestId) : TransfersEvent
     data class Open(val id: TransferId) : TransfersEvent
     data class OpenSucceeded(val requestId: TransfersRequestId) : TransfersEvent
     data class OpenFailed(val requestId: TransfersRequestId, val failure: FilesFailure) : TransfersEvent
@@ -165,6 +178,7 @@ object TransfersReducer {
             is TransfersEvent.RetryTransfer -> state.retryTransfer(event.id)
             TransfersEvent.CleanCompleted -> state.cleanCompleted()
             TransfersEvent.DismissMutationFailure -> state.dismissMutationFailure()
+            is TransfersEvent.DismissRetryOutcome -> state.dismissRetryOutcome(event.requestId)
             is TransfersEvent.Open,
             is TransfersEvent.OpenSucceeded,
             is TransfersEvent.OpenFailed,
@@ -216,3 +230,10 @@ private fun TransfersState.visibilityChanged(visible: Boolean): TransfersTransit
         )
     return TransfersTransition(next, consumed = next != this)
 }
+
+private fun TransfersState.dismissRetryOutcome(requestId: TransfersRequestId): TransfersTransition =
+    if (retryOutcome?.requestId == requestId) {
+        TransfersTransition(copy(retryOutcome = null))
+    } else {
+        TransfersTransition(this, consumed = false)
+    }

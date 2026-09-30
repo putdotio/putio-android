@@ -1092,6 +1092,19 @@ with `putio.shared.enabled=true` and `putio.shared.runId=<UUID>` and require
 actions button on the three folders), `02-shared-file-actions` (Download and
 Share file only), `03-owned-file-actions` (Rename, Move, Move to trash).
 
+## Transfer retry proof
+
+Behaviour: [Transfer failures and retry](./behavior.md#transfer-failures-and-retry).
+`MobileTransferRetryProofTest` runs the production Transfers screen and
+controller over `SdkTransfersRepository` with faked SDK calls: one failed
+transfer with a server `error_message`, one without, one downloading. Retry
+succeeds for the first and gets a 403 for the second. It makes no API calls;
+report it as synthetic proof. Opt in with `putio.transfers.enabled=true` and
+`putio.transfers.runId=<UUID>` and require `OK (1 test)`. Screenshots land in
+`transfers-proof-<UUID>/`: `01-failure-reasons`, `02-retry-accepted` (no
+dialog, "Retrying transfer" snackbar), `03-retry-rejected` (snackbar, no error
+dialog).
+
 ## Transfers polling CPU benchmark
 
 `TransfersPollingCpuBenchmark` replays the deterministic Transfers histories
