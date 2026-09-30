@@ -168,8 +168,8 @@ class MobileSearchHistoryLayoutTest {
     }
 
     private companion object {
-        const val TERM = "Bodrum film collection"
-        const val HISTORY_NAME = "Bodrum documentary collection.mp4"
+        const val TERM = "Harbor film collection"
+        const val HISTORY_NAME = "Harbor documentary collection.mp4"
         const val VIEWPORT = "search-history-viewport"
     }
 }

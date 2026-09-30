@@ -30,7 +30,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.rules.TestRule
 import org.junit.runners.model.Statement
 
-internal const val ACCESSIBILITY_FILE_NAME = "Bodrum été — documentary collection.mp4"
+internal const val ACCESSIBILITY_FILE_NAME = "Harbor été — documentary collection.mp4"
 
 internal fun accessibilityProofOptIn(): TestRule = TestRule { base, _ ->
     object : Statement() {

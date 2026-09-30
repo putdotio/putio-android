@@ -116,7 +116,7 @@ class MobileAccessibilityProofTest {
     @Test
     fun recentSearchActionsAndTransferSubmissionRemainReachableWithKeyboard() {
         var transfers by mutableStateOf(false)
-        val terms = listOf(SearchTerm("Archive été"), SearchTerm("Bodrum film collection"))
+        val terms = listOf(SearchTerm("Archive été"), SearchTerm("Harbor film collection"))
         var recent by mutableStateOf(terms)
         val edits = mutableListOf<RecentSearchEdit>()
         val events = mutableListOf<TransfersEvent>()
