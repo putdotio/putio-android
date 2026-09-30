@@ -1,0 +1,321 @@
+package io.putdotio.android
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.putdotio.android.auth.MobileAuthController
+import io.putdotio.android.auth.MobileAuthSessionId
+import io.putdotio.android.auth.MobileAuthState
+import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.android.downloads.MobileDownloadCache
+import io.putdotio.android.downloads.OfflinePlaybackRepository
+import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.SdkFilesRepository
+import io.putdotio.android.files.authoritativeSessionFailure
+import io.putdotio.android.history.HistoryEvent
+import io.putdotio.android.history.SdkHistoryRepository
+import io.putdotio.android.history.authoritativeSessionFailure
+import io.putdotio.android.playback.ConvertingPlaybackRepository
+import io.putdotio.android.playback.playbackPreference
+import io.putdotio.android.search.SdkSearchRepository
+import io.putdotio.android.search.authoritativeSessionFailure
+import io.putdotio.android.settings.AccountSettingsFailure
+import io.putdotio.android.settings.AccountSettingsRepositoryResult
+import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.SdkAccountSettingsRepository
+import io.putdotio.android.settings.SdkAndroidAppConfigRepository
+import io.putdotio.android.settings.authoritativeSessionFailure
+import io.putdotio.android.settings.confirmedHistoryEnabled
+import io.putdotio.android.share.MobileFileShareService
+import io.putdotio.android.transfers.SdkTransfersRepository
+import io.putdotio.android.transfers.TransferMutation
+import io.putdotio.android.transfers.TransfersContent
+import io.putdotio.android.transfers.TransfersPaging
+import io.putdotio.android.transfers.TransfersRefresh
+import io.putdotio.android.transfers.TransfersState
+import io.putdotio.android.trash.SdkTrashRepository
+import io.putdotio.sdk.files.PutioCredentialUrl
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+@Composable
+internal fun SignedInMobileRoot(
+    runtime: MobileOAuthRuntime,
+    signedIn: MobileAuthState.SignedIn,
+    filesViewModel: MobileFilesViewModel,
+    accountSettingsViewModel: MobileAccountSettingsViewModel,
+    appConfigViewModel: MobileAndroidAppConfigViewModel,
+    searchHistoryViewModel: MobileSearchHistoryViewModel,
+    transfersViewModel: MobileTransfersViewModel,
+    trashViewModel: MobileTrashViewModel,
+    authController: MobileAuthController,
+    rootScope: CoroutineScope,
+    downloadsViewModel: MobileDownloadsViewModel? = null,
+    playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
+    nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
+    deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
+    transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
+) {
+    val account = signedIn.account
+    val sessionId = signedIn.sessionId
+    val filesRepository = remember(runtime.putioClient) {
+        SdkFilesRepository(runtime.putioClient)
+    }
+    val filesController = remember(filesViewModel, filesRepository, account.userId, sessionId) {
+        filesViewModel.controllerFor(
+            userId = account.userId,
+            sessionId = sessionId,
+            repository = filesRepository,
+        )
+    }
+    val accountSettingsRepository = remember(runtime.putioClient) {
+        SdkAccountSettingsRepository(runtime.putioClient)
+    }
+    val accountSettingsController =
+        remember(accountSettingsViewModel, accountSettingsRepository, account.userId, sessionId) {
+            accountSettingsViewModel.controllerFor(
+                userId = account.userId,
+                sessionId = sessionId,
+                repository = accountSettingsRepository,
+            )
+        }
+    val appConfigRepository = remember(runtime.putioClient) {
+        SdkAndroidAppConfigRepository(runtime.putioClient)
+    }
+    val appConfigController =
+        remember(appConfigViewModel, appConfigRepository, account.userId, sessionId) {
+            appConfigViewModel.controllerFor(
+                userId = account.userId,
+                sessionId = sessionId,
+                repository = appConfigRepository,
+            )
+        }
+    val searchRepository = remember(runtime.putioClient) { SdkSearchRepository(runtime.putioClient) }
+    val historyRepository = remember(runtime.putioClient) { SdkHistoryRepository(runtime.putioClient) }
+    val transfersRepository = remember(runtime.putioClient) { SdkTransfersRepository(runtime.putioClient) }
+    val searchHistorySession =
+        remember(searchHistoryViewModel, runtime.putioClient, account, sessionId) {
+            searchHistoryViewModel.controllersFor(
+                session = signedIn,
+                putioClient = runtime.putioClient,
+                searchRepository = searchRepository,
+                historyRepository = historyRepository,
+                filesItemResolver = filesRepository,
+            )
+        }
+    val transfersController = remember(transfersViewModel, transfersRepository, account.userId, sessionId) {
+        transfersViewModel.controllerFor(
+            userId = account.userId,
+            sessionId = sessionId,
+            repository = transfersRepository,
+        )
+    }
+    val trashRepository = remember(runtime.putioClient) { SdkTrashRepository(runtime.putioClient) }
+    val trashController = remember(trashViewModel, trashRepository, account.userId, sessionId) {
+        trashViewModel.controllerFor(account.userId, sessionId, trashRepository)
+    }
+    val downloadsContext = LocalContext.current.applicationContext
+    val downloadsController = remember(downloadsViewModel, downloadsContext, account.userId, sessionId) {
+        downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId)
+    }
+    if (trashController == null || filesController == null ||
+        accountSettingsController == null ||
+        appConfigController == null ||
+        searchHistorySession == null ||
+        transfersController == null
+    ) {
+        MobileLoadingState(stringResource(R.string.mobile_state_loading))
+        return
+    }
+    val appContext = LocalContext.current.applicationContext
+    val playbackRepository = remember(runtime.putioClient, appConfigController, downloadsController, account.userId) {
+        val streaming = ConvertingPlaybackRepository(runtime.putioClient) {
+            appConfigController.state.value.playbackPreference()
+        }
+        if (downloadsController == null) {
+            streaming
+        } else {
+            val downloads = MobileDownloadCache.get(appContext)
+            OfflinePlaybackRepository(downloadsController.state, streaming, PutioCredentialUrl::of) { fileId ->
+                withContext(Dispatchers.IO) { downloads.requestedUrl(account.userId, fileId) }
+            }
+        }
+    }
+    val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
+        runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
+    }
+    LaunchedEffect(runtime, filesController) {
+        runtime.playbackReporting.savedPositions.collect { saved ->
+            filesController.dispatch(
+                FilesBrowserEvent.PlaybackPositionReported(FilesItemId(saved.fileId), saved.seconds),
+            )
+        }
+    }
+    val trashState by trashController.state.collectAsStateWithLifecycle()
+    val filesState by filesController.state.collectAsStateWithLifecycle()
+    val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
+    val appConfigState by appConfigController.state.collectAsStateWithLifecycle()
+    val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
+    val historyState by searchHistorySession.history.state.collectAsStateWithLifecycle()
+    val transfersState by transfersController.state.collectAsStateWithLifecycle()
+    val navigationFailure by searchHistorySession.navigationFailure.collectAsStateWithLifecycle()
+    val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
+    val confirmedHistoryEnabled = accountSettingsState.confirmedHistoryEnabled()
+    val authoritativeFailure =
+        filesState.authoritativeSessionFailure()
+            ?: searchState.authoritativeSessionFailure()
+            ?: historyState.authoritativeSessionFailure()
+            ?: transfersState.authoritativeSessionFailure()
+            ?: recentSearchFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
+            ?: navigationFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
+
+    AuthoritativeSessionFailureEffect(
+        shouldReject = trashState.authenticationFailure != null ||
+            authoritativeFailure != null ||
+            settingsRequireSessionRejection(
+                accountSettingsState = accountSettingsState,
+                appConfigState = appConfigState,
+            ),
+        onReject = authController::rejectAuthoritativeSession,
+    )
+
+    LaunchedEffect(searchHistorySession, confirmedHistoryEnabled) {
+        confirmedHistoryEnabled?.let { enabled ->
+            searchHistorySession.history.dispatch(HistoryEvent.SetEnabled(enabled))
+        }
+    }
+
+    MobileShell(
+        transferDraft = transferDraft,
+        trashController = trashController,
+        filesState = filesState,
+        filesRepository = filesRepository,
+        accountSettingsState = accountSettingsState,
+        appConfigState = appConfigState,
+        searchHistoryState =
+            MobileSearchHistoryState(
+                search = searchState,
+                history = historyState,
+                recentSearchFailure =
+                    recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired },
+            ),
+        transfersState = transfersState,
+        transfersSessionId = sessionId,
+        account = account,
+        playbackRepository = playbackRepository,
+        playbackPlayerFactory = reportingPlayerFactory,
+        nowPlayingRequests = nowPlayingRequests,
+        deepLinkRequests = deepLinkRequests,
+        onOpenFile = searchHistorySession::openFile,
+        onShareItem = { item -> MobileFileShareService.start(appContext, item.id, item.name) },
+        downloadsController = downloadsController,
+        sessionId = sessionId,
+        onFilesEvent = filesController::dispatch,
+        onAccountSettingsEvent = accountSettingsController::dispatch,
+        loadTunnelRoutes = {
+            accountSettingsRepository.loadTunnelRoutes().also { result ->
+                // A 401 here is as authoritative as one from Files or Playback.
+                if (result is AccountSettingsRepositoryResult.Failure &&
+                    result.failure is AccountSettingsFailure.AuthenticationRequired
+                ) {
+                    authController.rejectAuthoritativeSession()
+                }
+            }
+        },
+        onAppConfigEvent = appConfigController::dispatch,
+        onPlaybackAuthenticationRequired = authController::rejectAuthoritativeSession,
+        onFilesAuthenticationRequired = authController::rejectAuthoritativeSession,
+        searchHistoryActions =
+            MobileSearchHistoryActions(
+                onQueryChanged = { searchHistorySession.search.updateQuery(it) },
+                onSubmit = { searchHistorySession.search.submit() },
+                onResult = { searchHistorySession.search.openResult(it.id) },
+                onNextPage = { searchHistorySession.search.loadNextPage() },
+                onRetry = { searchHistorySession.search.retry() },
+                onRecentSearch = { term ->
+                    searchHistorySession.search.updateQuery(term.value)
+                    searchHistorySession.search.submit()
+                },
+                onRecentEdit = { searchHistorySession.search.editRecentSearches(it) },
+                onRecentRetry = searchHistorySession::retryRecentSearches,
+                onHistoryEvent = { searchHistorySession.history.dispatch(it) },
+            ),
+        onTransfersEvent = transfersController::dispatch,
+        resolveTransferFile = { fileId ->
+            filesRepository.resolveItem(FilesItemId(fileId.value))
+        },
+        onTransferAuthenticationRequired = authController::rejectAuthoritativeSession,
+        contentNavigation = searchHistorySession.navigation,
+        navigationFailure = navigationFailure,
+        onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
+        onSignOut = {
+            MobilePlaybackService.stop(appContext)
+            rootScope.launch { authController.logout() }
+        },
+    )
+}
+
+/**
+ * The playback service outlives the signed-in UI, so every way out of a session, sign-out
+ * or an authoritative rejection, must end audio that streams with that session's credential.
+ */
+@Composable
+internal fun PlaybackSessionBoundaryEffect(
+    sessionId: MobileAuthSessionId?,
+    onSessionLeft: () -> Unit,
+) {
+    var previous by remember { mutableStateOf<MobileAuthSessionId?>(null) }
+    LaunchedEffect(sessionId) {
+        if (playbackSessionLeft(previous, sessionId)) onSessionLeft()
+        previous = sessionId
+    }
+}
+
+// A cold start with no session yet is not a departure; a different session is.
+internal fun playbackSessionLeft(
+    previous: MobileAuthSessionId?,
+    current: MobileAuthSessionId?,
+): Boolean = previous != null && current != previous
+
+internal fun settingsRequireSessionRejection(
+    accountSettingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
+): Boolean =
+    accountSettingsState.authoritativeSessionFailure() != null ||
+        appConfigState.authoritativeSessionFailure() != null
+
+@Composable
+internal fun AuthoritativeSessionFailureEffect(
+    shouldReject: Boolean,
+    onReject: suspend () -> Unit,
+) {
+    LaunchedEffect(shouldReject) {
+        if (shouldReject) {
+            onReject()
+        }
+    }
+}
+
+internal fun TransfersState.authoritativeSessionFailure(): FilesFailure? =
+    listOfNotNull(
+        when (val value = content) {
+            is TransfersContent.Failed -> value.failure
+            is TransfersContent.Ready -> (value.paging as? TransfersPaging.Failed)?.failure
+            TransfersContent.Empty,
+            is TransfersContent.InitialLoading,
+            -> null
+        },
+        (refresh as? TransfersRefresh.Failed)?.failure,
+        (mutation as? TransferMutation.Failed)?.failure,
+    ).firstOrNull { it is FilesFailure.AuthenticationRequired }
