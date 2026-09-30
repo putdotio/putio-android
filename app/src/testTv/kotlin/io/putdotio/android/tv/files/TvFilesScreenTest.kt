@@ -815,11 +815,7 @@ class TvFilesScreenTest {
         }
 
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.onAllNodesWithText("Open in VLC").assertCountEquals(0)
+        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
         compose.runOnIdle { trash = false }
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
@@ -862,14 +858,30 @@ class TvFilesScreenTest {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
         }
-        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionDown)
+        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused()
+    }
+
+    @Test
+    fun aSharedFolderOpensNoMenu() {
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(
+                        item(3, "Items shared with you", PutioFileType.FOLDER)
+                            .copy(folderType = PutioFolderType.SHARED_ROOT),
+                    ),
+                    onEvent = { true },
+                    onPlayMedia = {},
+                    confirmedTrashEnabled = true,
+                )
+            }
         }
+
         compose.onNodeWithContentDescription("Open Items shared with you").assertIsFocused().performKeyInput {
             pressKey(Key.Menu)
         }
-        compose.onNodeWithText("Cancel").assertIsFocused()
-        compose.onAllNodesWithText("Move to trash").assertCountEquals(0)
+        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
+        compose.onNodeWithContentDescription("Open Items shared with you").assertIsFocused()
     }
 
     @Test

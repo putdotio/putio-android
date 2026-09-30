@@ -82,8 +82,8 @@ Friends' shared files (`is_shared`) and the shared folders (`SHARED_ROOT`,
 Move, Move to trash/Delete or Mark as watched/unwatched on them. Download and
 Share file (which downloads the original, then opens the share sheet) stay on
 shared files, as web and iOS keep Download; a shared folder has no mobile
-actions button, and on TV its menu holds only Cancel. Make a copy is not
-offered yet.
+actions button, and on TV Menu on it opens nothing. Make a copy is not offered
+yet.
 
 Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesScreenTest`.
 

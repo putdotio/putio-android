@@ -734,7 +734,9 @@ validation.
 
 Long-press Center or press Menu on a Files row for the oracle's files-actions
 state: a centred dialog titled with the file's name, one full-width button per
-action and Cancel last, the first action focused. Open in VLC hands the
+action and Cancel last, the first action focused; a row with no actions (a
+shared folder, or a text row before the trash setting is confirmed) opens
+nothing, as in tv-native. Open in VLC hands the
 original `/files/{id}/stream` URL to `org.videolan.vlc` with `ACTION_VIEW`; a
 dialog explains when VLC is not installed. Mark as watched writes the video's
 duration as its position and Mark as unwatched clears it; both appear only
