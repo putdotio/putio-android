@@ -145,4 +145,4 @@ fi
 provision_avds "${AVD_PROFILES[@]}" || exit 1
 
 log "bootstrap complete"
-log "next: ./gradlew verify :app:assembleMobileProductionDebug :app:assembleTvProductionDebug"
+log "next: ./gradlew verify :app:assembleMobileProductionDebug :app:assembleTvProductionDebug :app:assembleMobileNightlyDebug :app:assembleTvNightlyDebug"

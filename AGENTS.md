@@ -27,23 +27,24 @@ rest.
 | --- | --- |
 | JDK 21 on PATH | `.java-version` pins 21; `mise install` or `brew install temurin@21` |
 | `python3` on PATH | macOS ships it with the Xcode Command Line Tools; `verify` runs the icon and design asset pipelines through it |
-| Homebrew (macOS) | only needed if Android cmdline-tools are absent |
+| Homebrew (macOS) | only needed if Android cmdline-tools or FFmpeg are absent |
 | Network | first bootstrap downloads several GB of SDK packages plus FFmpeg |
 
 ```bash
 ./scripts/bootstrap.sh
 ```
 
-Idempotent. Installs cmdline-tools (via Homebrew if missing), accepts
-licenses, installs platform/build-tools for the compileSdk, the emulator, the
-API 37 Google Play phone image and API 36 Android TV image, creates
-the two reusable AVDs (`--google-tv` adds the opt-in Google TV image and
-AVD), and writes
-`local.properties` (`sdk.dir` plus `putioSdkKotlinPath`, defaulting to the
-sibling `../putio-sdk-kotlin` checkout, which must be cloned).
+Idempotent. Installs cmdline-tools (via Homebrew if missing) and FFmpeg
+(Homebrew or apt), accepts licenses, installs platform/build-tools for the
+compileSdk, the emulator, the API 37 Google Play phone image and API 36 Android
+TV image, creates the two reusable AVDs (`--google-tv` adds the opt-in Google
+TV image and AVD), and writes `sdk.dir` to `local.properties`. A new
+`local.properties` also gets `putioSdkKotlinPath` when the sibling
+`../putio-sdk-kotlin` checkout exists; without the key Gradle uses that
+sibling, which must be cloned.
 
-SDK root resolution everywhere: `ANDROID_HOME` → `ANDROID_SDK_ROOT` →
-`local.properties` `sdk.dir` → known install paths.
+SDK root resolution in the harness scripts: `ANDROID_HOME` →
+`ANDROID_SDK_ROOT` → `local.properties` `sdk.dir` → known install paths.
 
 ## Build and Verify
 
@@ -61,11 +62,11 @@ variants are disabled. Unsigned minified `mobileProductionRelease`,
 Kotlin SDK, resource shrinking, and `lintVital` against R8 for each surface and
 channel. It also compiles the instrumentation APK, checks the Phosphor icon and
 design asset locks, and runs the shell and Python contract tests; those need
-`python3`, `bash` (3.2 or newer, so macOS `/bin/bash` works), and `ffprobe` on
-PATH. The contract tests fake the SDK and console-port probe and give nested
-proof builds their own temp directory for the serial lock, so they pass beside
-running emulators, real proofs, and parallel checkouts. It also runs the tests
-of the
+`python3`, `bash` (3.2 or newer, so macOS `/bin/bash` works), `ffprobe`, and
+`ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH. The
+contract tests fake the SDK and console-port probe and give nested proof builds
+their own temp directory for the serial lock, so they pass beside running
+emulators, real proofs, and parallel checkouts. It also runs the tests of the
 [`build-logic`](./build-logic) included build, which owns the design-token
 codegen and host proof task classes. Fix findings at the source; suppress only
 with a comment stating the platform constraint.

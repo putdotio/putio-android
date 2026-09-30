@@ -65,7 +65,7 @@ survives tab navigation and activity recreation, and Check status repeats only
 the read. Persistence across process death is not claimed.
 
 Tests: `TrashActionTest`, `TrashRestoreTest`, `TrashRepeatedRestoreTest`,
-`FilesRestoreInvalidationTest`.
+`FilesRestoreInvalidationTest`, `MobileTrashViewModelTest`.
 
 ## Resume and position reporting
 
@@ -96,8 +96,9 @@ An authoritative authentication failure from a position write expires only the
 session that issued it. Rejection runs outside the cancellable reporting job,
 and checks the session identity again under the authentication controller's lock.
 
-Tests: `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
-`MobilePlaybackReportingTest`, `MobileResumePlaybackDialogTest`.
+Tests: `PlaybackReducerTest`, `PlaybackControllerTest`, `MobilePlayerScreenTest`
+(the prompt, recreation and Start over), `PlaybackPositionWriterTest`,
+`PlaybackPositionObserverTest`, `MobilePlaybackReportingTest`.
 
 ## MP4 conversion
 
@@ -220,10 +221,9 @@ Unsupported file types get a plain status screen as on mobile.
 Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlaybackStatesTest`,
 `TvPlayerOptionsTest`, `TvChoiceDialogTest`, `TvPlayerTracksTest`,
 `TvPlaybackReportingTest`, `TvSessionViewModelTest`, `PlaybackReducerTest`,
-`PlaybackControllerTest`,
-`SdkPlaybackRepositoryTest`, `PlaybackFailureTest`,
-`PlaybackPositionObserverTest`, `PlaybackExoPlayerTest`,
-`PlaybackSubtitleSelectionTest`, `PlaybackAudioSelectionTest`.
+`PlaybackControllerTest`, `SdkPlaybackRepositoryTest`, `PlaybackFailureTest`,
+`PlaybackPositionObserverTest`, `PlaybackSubtitleSelectionTest`,
+`PlaybackAudioSelectionTest`.
 
 ## Share-in
 
@@ -281,7 +281,7 @@ to 200 UTF-8 bytes on a code-point boundary, keeping a short extension.
 
 Tests: `MobileFileShareServiceTest` (payload shape, ready notification, service
 stop rules, session exit, ready timeout, prior-export wipe, failure notification,
-name sanitizer, all on virtual time with a fake download source),
+name sanitizer, cancelling a download blocked on the network),
 `MobileOAuthRuntimeTest` (session-exit cleanup that lags the next sign-in keeps
 the next session's export; signing out of a restored session deletes an earlier
 process's export), `MobileShellTest` (Share on file rows in the phone and rail
@@ -363,8 +363,8 @@ drawer and the safe edges. The player's control scrim also reaches the screen
 edges, with its controls inset by the same safe area plus 16dp.
 
 Tests: `TvSafeAreaTest` (collapsed and expanded drawer; 960x540dp and
-1280x720dp viewports; a 4K xxxhdpi panel), `DesignTokenCodegenTest` (overscan
-ratios, axis and presence checks).
+1280x720dp viewports; a 4K xxxhdpi panel), `TvPlayerSafeAreaTest` (player
+controls), `DesignTokenCodegenTest` (overscan ratios, axis and presence checks).
 
 ## Transfers polling
 
@@ -400,5 +400,7 @@ on [#51](https://github.com/putdotio/putio-android/issues/51).
 
 Tests: `SdkTransfersRepositoryTest`, `TransfersRefreshCostTest` (request and row
 counts per poll against 10k and 50k histories), `TransfersControllerTest`,
+`TransfersReducerTest` and `TransfersRefreshReducerTest` (failed polls keep rows;
+only a rejected session surfaces),
 `TransfersPollingCpuBenchmark` (opt-in device CPU time; see
 [Harness](./harness.md#transfers-polling-cpu-benchmark)).

@@ -54,8 +54,9 @@ TV:
   play/pause overlay, a D-pad seek bar (Left, Right, rewind and
   fast-forward scrub), a resume prompt, and Language, Subtitles and Speed
   pickers; subtitles start from the account's settings. Back dismisses a
-  picker, then seek mode, then the controls, then returns to the row. System
-  media controls are still to come (#34)
+  picker, then seek mode, then the controls, then returns to the row. The
+  player publishes a media session for system media controls and remote media
+  keys
 - Search through the system IME, with recent-query chips and paged results
   that open in Files
 - History grouped under relative-date headers; an event opens its file in
