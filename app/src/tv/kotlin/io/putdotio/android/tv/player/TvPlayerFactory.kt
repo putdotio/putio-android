@@ -44,9 +44,7 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
             context.packageManager.getLeanbackLaunchIntentForPackage(context.packageName)
                 ?: Intent(context, context.javaClass)
             ).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        val session = MediaSession.Builder(context, player)
-            // A recreated screen can publish its player before the old session is gone.
-            .setId("tv-player-${UUID.randomUUID()}")
+        val session = tvMediaSession(context, player)
             .setSessionActivity(
                 PendingIntent.getActivity(
                     context,
@@ -59,6 +57,44 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
         return Closeable { session.release() }
     }
 }
+
+/**
+ * A session for the one file the screen plays. Controllers get transport, seek and speed only:
+ * a controller that replaced or added media items would play another file while the screen
+ * still reports positions for the first.
+ */
+internal fun tvMediaSession(context: Context, player: Player): MediaSession.Builder =
+    MediaSession.Builder(context, player)
+        // A recreated screen can publish its player before the old session is gone.
+        .setId("tv-player-${UUID.randomUUID()}")
+        .setCallback(
+            object : MediaSession.Callback {
+                override fun onConnect(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                ): MediaSession.ConnectionResult =
+                    MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                        .setAvailablePlayerCommands(TV_SESSION_PLAYER_COMMANDS)
+                        .build()
+            },
+        )
+
+internal val TV_SESSION_PLAYER_COMMANDS: Player.Commands = Player.Commands.Builder()
+    .addAll(
+        Player.COMMAND_PLAY_PAUSE,
+        Player.COMMAND_PREPARE,
+        Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+        Player.COMMAND_SEEK_TO_DEFAULT_POSITION,
+        Player.COMMAND_SEEK_BACK,
+        Player.COMMAND_SEEK_FORWARD,
+        Player.COMMAND_SET_SPEED_AND_PITCH,
+        Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
+        Player.COMMAND_GET_TIMELINE,
+        Player.COMMAND_GET_METADATA,
+        Player.COMMAND_GET_AUDIO_ATTRIBUTES,
+        Player.COMMAND_GET_TRACKS,
+    )
+    .build()
 
 /**
  * The tv-native player's default `medium` buffer (putio-web `apps/tv-native`

@@ -30,6 +30,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.session.MediaController
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -84,6 +85,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowDialog
+import org.robolectric.Shadows.shadowOf
 
 /** The TV player on a fake Media3 player; the emulator lane plays real media through ExoPlayer. */
 @OptIn(ExperimentalTestApi::class)
@@ -282,6 +284,36 @@ class TvPlayerScreenTest {
     }
 
     @Test
+    fun theSessionLetsControllersPlayPauseAndSeekButNotSwapTheFile() {
+        val player = FakePlayer()
+        player.setMediaItem(MediaItem.Builder().setMediaId("9").setUri(SOURCE_URL).build())
+        player.prepare()
+        player.play()
+        val context = compose.activity
+        val session = tvMediaSession(context, player).build()
+        try {
+            val pending = MediaController.Builder(context, session.token).buildAsync()
+            shadowOf(Looper.getMainLooper()).idle()
+            val controller = pending.get()
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_PLAY_PAUSE))
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM))
+            assertFalse(controller.isCommandAvailable(Player.COMMAND_SET_MEDIA_ITEM))
+            assertFalse(controller.isCommandAvailable(Player.COMMAND_CHANGE_MEDIA_ITEMS))
+
+            controller.setMediaItem(MediaItem.Builder().setMediaId("10").setUri("https://example.com/other.mp4").build())
+            controller.pause()
+            controller.seekTo(5_000L)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(listOf("9"), player.mediaItems.map { it.mediaId })
+            assertFalse(player.playWhenReady)
+            assertEquals(5_000L, player.currentPosition)
+            controller.release()
+        } finally {
+            session.release()
+        }
+    }
+
+    @Test
     fun aPauseFromTheSystemControlsShowsThePausedControls() {
         val player = FakePlayer()
         showReady(player)
@@ -351,6 +383,53 @@ class TvPlayerScreenTest {
             assertEquals(3, resolutions)
             assertTrue(player.prepared)
             assertTrue(player.playWhenReady)
+        }
+    }
+
+    @Test
+    fun aConversionThatReadsTheSameStatusAgainKeepsPolling() {
+        val player = FakePlayer()
+        val queued = PlaybackResolution.Conversion(io.putdotio.sdk.files.PlaybackConversionState.Queued)
+        val answers = ArrayDeque(listOf(queued, queued, queued, PlaybackResolution.Ready(source())))
+        var resolutions = 0
+        val controller = PlaybackController(
+            PlaybackTarget(FilesItemId(9), "Sintel.mp4", PlaybackMediaType.VIDEO),
+            object : PlaybackRepository {
+                override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                    resolutions += 1
+                    return PlaybackRepositoryResult.Success(answers.removeFirst())
+                }
+
+                override suspend fun findNextVideo(target: PlaybackTarget) = error("No autoplay on TV")
+            },
+            // Each read settles before the next frame, so the screen never sees it in flight.
+            CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+        )
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlaybackRoute(
+                    controller = controller,
+                    onExit = {},
+                    onSessionRejected = {},
+                    playerFactory = { _, _ -> player },
+                )
+            }
+        }
+        settle()
+        repeat(2) { poll ->
+            compose.mainClock.advanceTimeBy(io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS)
+            settle()
+            compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
+            compose.runOnIdle { assertEquals(poll + 2, resolutions) }
+        }
+
+        compose.mainClock.advanceTimeBy(io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS)
+        settle()
+        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
+        compose.runOnIdle {
+            assertEquals(4, resolutions)
+            assertTrue(player.prepared)
         }
     }
 

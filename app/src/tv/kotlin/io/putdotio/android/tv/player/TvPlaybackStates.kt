@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -55,10 +56,13 @@ internal fun TvConversionScreen(
     val idle = conversion.refreshRequestId == null
     val foreground by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     val polling = idle && state.pollsAutomatically && foreground.isAtLeast(Lifecycle.State.STARTED)
+    val refresh by rememberUpdatedState(onRefresh)
     LaunchedEffect(conversion, polling) {
-        if (polling) {
+        // A read that starts and settles between frames can leave `conversion` equal to the last
+        // one (Queued again, the same percent), so the wait repeats rather than relying on a change.
+        while (polling) {
             delay(PLAYBACK_CONVERSION_POLL_MILLIS)
-            onRefresh()
+            refresh()
         }
     }
     val action = when {
