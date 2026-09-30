@@ -173,6 +173,59 @@ class DesignAssetLockTest(unittest.TestCase):
         self.assertNotIn("app-icon-nightly-stars.png is", message)
         self.assertEqual((self.repo_root / design_assets.TOKENS_PATH).read_bytes(), self.tokens)
 
+    def lock_archive(self, icon_source: bytes) -> bytes:
+        archive = tarball({
+            "dist/tokens.dtcg.json": self.tokens,
+            "system/assets/app-icon-nightly-stars.png": icon_source,
+        })
+        document = json.loads(json.dumps(self.document))
+        document["package"]["integrity"] = "sha512-" + base64.b64encode(
+            hashlib.sha512(archive).digest()
+        ).decode("ascii")
+        self.write_lock(document)
+        return archive
+
+    def rendered_icons(self) -> dict[Path, bytes]:
+        return {
+            Path("app/src/nightly/res") / f"drawable-{density}" / "putio_icon.png": data
+            for density, data in self.icon_outputs.items()
+        }
+
+    def replace_outputs(self, data: bytes) -> list[Path]:
+        paths = [self.repo_root / design_assets.TOKENS_PATH] + [
+            self.icon_path(density) for density in self.icon_outputs
+        ]
+        for path in paths:
+            path.write_bytes(data)
+        return paths
+
+    def test_sync_rejects_unlocked_nightly_source_without_writing(self) -> None:
+        archive = self.lock_archive(b"tampered art")
+        paths = self.replace_outputs(b"previous")
+
+        with self.fetch(archive), patch.object(
+            design_assets, "render_nightly_icon", return_value=self.rendered_icons()
+        ):
+            with self.assertRaises(SystemExit) as raised:
+                design_assets.sync(design_assets.load_lock())
+
+        self.assertIn(
+            f"app-icon-nightly-stars.png is {hashlib.sha256(b'tampered art').hexdigest()}",
+            str(raised.exception),
+        )
+        self.assertEqual([path.read_bytes() for path in paths], [b"previous"] * len(paths))
+
+    def test_sync_writes_every_locked_output(self) -> None:
+        archive = self.lock_archive(self.icon_source)
+        self.replace_outputs(b"previous")
+
+        with contextlib.redirect_stdout(io.StringIO()), self.fetch(archive), patch.object(
+            design_assets, "render_nightly_icon", return_value=self.rendered_icons()
+        ):
+            design_assets.sync(design_assets.load_lock())
+
+        self.check()
+
     def test_sync_rejects_package_without_locked_integrity(self) -> None:
         self.write_lock()
 
