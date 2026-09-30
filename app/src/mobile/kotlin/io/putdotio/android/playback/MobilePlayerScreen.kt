@@ -165,7 +165,9 @@ internal fun MobilePlayerScreen(
                     startPositionMillis = preferences.positionMillis ?: state.resumePositionMillis,
                     resumeAfterLifecyclePause = preferences.resumeAfterLifecyclePause,
                     retainedSubtitleSelection = preferences.subtitleSelection,
-                    subtitleStartupPolicy = subtitleStartupPolicy,
+                    subtitleStartupPolicy = subtitleStartupPolicy.orHiddenWhen(
+                        (content as? PlaybackContent.Ready)?.subtitlesHidden == true,
+                    ),
                     onPlaybackRetained = preferences::retainPlayback,
                     onPositionChanged = preferences::retainPosition,
                     onSubtitleSelectionChanged = { preferences.subtitleSelection = it },
@@ -435,7 +437,8 @@ private fun MobileReadyPlayer(
     }
     LaunchedEffect(player, activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
         val policy = subtitleStartupPolicy ?: return@LaunchedEffect
-        if (activeFileId == fileId && retainedSubtitleSelection == null) {
+        // Hiding also overrides a pick made before the settings arrived (#237).
+        if (activeFileId == fileId && (retainedSubtitleSelection == null || !policy.showSubtitles)) {
             val current = player.trackSelectionParameters
             val parameters =
                 if (policy.showSubtitles && policy.autoSelectSubtitles) {

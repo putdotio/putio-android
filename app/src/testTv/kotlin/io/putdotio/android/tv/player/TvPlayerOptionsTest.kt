@@ -306,6 +306,42 @@ class TvPlayerOptionsTest {
     }
 
     @Test
+    fun playbackResolvedForHiddenSubtitlesLeavesTheButtonOutBeforeTheSettingsLoad() {
+        val player = TrackPlayer()
+        show(player, policy = null, subtitlesHidden = true)
+
+        compose.onNodeWithContentDescription(LANGUAGE).assertIsDisplayed()
+        compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
+        compose.runOnIdle { assertNull(player.selectedTextIndex()) }
+    }
+
+    @Test
+    fun hidingThatArrivesAfterAPickClosesThePickerAndTurnsSubtitlesOff() {
+        val player = TrackPlayer()
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
+        show(player, policyProvider = { policy })
+        // Settings still loading: the viewer picks a track, then opens the picker again.
+        openPicker(SUBTITLES, rightPresses = 1)
+        choose("German")
+        compose.runOnIdle { assertEquals(1, player.selectedTextIndex()) }
+        key(Key.DirectionCenter)
+        compose.onNode(hasText("German") and hasClickAction()).assertExists()
+
+        policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true)
+        settle()
+        // hide_subtitles outranks the pick and takes its picker with it (#237).
+        compose.onNode(hasText("German") and hasClickAction()).assertDoesNotExist()
+        compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
+        compose.runOnIdle {
+            assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+            assertNull(player.selectedTextIndex())
+        }
+        compose.runOnIdle { player.replaceTracks(audio = twoAudio(period = 2), text = twoText(period = 2)) }
+        settle()
+        compose.runOnIdle { assertNull(player.selectedTextIndex()) }
+    }
+
+    @Test
     fun choicesSurviveARebuiltPlayerButSpeedStartsOverForTheNextFile() {
         val players = mutableListOf<TrackPlayer>()
         var state by mutableStateOf(readyState())
@@ -383,12 +419,17 @@ class TvPlayerOptionsTest {
         policy: SubtitleStartupPolicy? = null,
         policyProvider: () -> SubtitleStartupPolicy? = { policy },
         onBack: () -> Unit = {},
+        subtitlesHidden: Boolean = false,
     ) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvPlayerScreen(
-                    state = readyState(resumePositionMillis = resumePositionMillis, durationSeconds = durationSeconds),
+                    state = readyState(
+                        resumePositionMillis = resumePositionMillis,
+                        durationSeconds = durationSeconds,
+                        subtitlesHidden = subtitlesHidden,
+                    ),
                     onBack = onBack,
                     onRetry = {},
                     onResume = {},
@@ -459,6 +500,7 @@ class TvPlayerOptionsTest {
         name: String = "Sintel.mp4",
         resumePositionMillis: Long? = null,
         durationSeconds: Double? = null,
+        subtitlesHidden: Boolean = false,
     ) = PlaybackState(
         target = PlaybackTarget(FilesItemId(fileId), name, PlaybackMediaType.VIDEO, durationSeconds),
         content = PlaybackContent.Ready(
@@ -472,6 +514,7 @@ class TvPlayerOptionsTest {
                 subtitles = PlaybackSubtitles.None,
             ),
             useStartFrom = false,
+            subtitlesHidden = subtitlesHidden,
         ),
         nextRequestValue = 2L,
         resumePositionMillis = resumePositionMillis,

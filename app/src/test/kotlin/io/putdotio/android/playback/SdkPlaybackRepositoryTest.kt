@@ -72,8 +72,8 @@ class SdkPlaybackRepositoryTest {
                     },
                 )
 
-            repository(hideSubtitles = true).resolve(Target)
-            repository(hideSubtitles = false).resolve(Target)
+            val hidden = repository(hideSubtitles = true).resolve(Target)
+            val shown = repository(hideSubtitles = false).resolve(Target)
 
             // Hidden: no HLS renditions and no sidecar list, as every reference player asks (#237).
             assertEquals(0, requests[0].maxSubtitleCount)
@@ -81,6 +81,9 @@ class SdkPlaybackRepositoryTest {
             // Shown: the server's own default, every rendition.
             assertNull(requests[1].maxSubtitleCount)
             assertTrue(requests[1].includeSidecarSubtitles)
+            // The player hides the picker from this before the account settings load.
+            assertTrue(((hidden as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).subtitlesHidden)
+            assertFalse(((shown as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).subtitlesHidden)
         }
 
     @Test

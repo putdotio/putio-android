@@ -158,8 +158,9 @@ class PlaybackSubtitleSelectionTest {
         assertFalse(C.TRACK_TYPE_TEXT in forcedOnly.disabledTrackTypes)
         assertTrue(automatic.selectTextByDefault)
         assertFalse(C.TRACK_TYPE_TEXT in automatic.disabledTrackTypes)
-        assertTrue(retained.selectTextByDefault)
-        assertFalse(C.TRACK_TYPE_TEXT in retained.disabledTrackTypes)
+        // hide_subtitles outranks a retained pick; its picker is gone (#237).
+        assertFalse(retained.selectTextByDefault)
+        assertTrue(C.TRACK_TYPE_TEXT in retained.disabledTrackTypes)
     }
 
     @Test
@@ -262,6 +263,8 @@ class PlaybackSubtitleSelectionTest {
         // The viewer's pick still decides.
         val picked = SubtitleSelection.Track(tracks.single { it.identity.id == "tr" }.identity)
         assertEquals("tr", selectedTextId(arrived(SubtitleStartupPolicy(true, true), picked), flagged))
+        // Except under hide_subtitles, which outranks it (#237).
+        assertNull(selectedTextId(arrived(SubtitleStartupPolicy(false, true), picked), flagged))
     }
 
     @Test

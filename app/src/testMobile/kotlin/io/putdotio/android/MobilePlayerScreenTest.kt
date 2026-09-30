@@ -2356,6 +2356,53 @@ class MobilePlayerScreenTest {
         compose.onNodeWithText("Captions").assertDoesNotExist()
     }
 
+    @Test
+    fun playbackResolvedForHiddenSubtitlesLeavesTheCaptionsPickerOutBeforeTheSettingsLoad() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource(), subtitlesHidden = true)),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
+                    subtitleStartupPolicy = null,
+                )
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("Audio").assertIsDisplayed()
+        compose.onNodeWithText("Captions").assertDoesNotExist()
+    }
+
+    @Test
+    fun hidingThatArrivesAfterAPickTurnsSubtitlesOffAndRemovesTheCaptionsPicker() {
+        val player = RecordingPlayer()
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = policy,
+                )
+            }
+        }
+        // Settings still loading: the viewer turns subtitles on.
+        compose.onNodeWithText("Captions").performClick()
+        compose.onNodeWithText("Automatic").performClick()
+        compose.runOnIdle { assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+
+        compose.runOnIdle { policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true) }
+        // hide_subtitles outranks the pick: no picker is left to turn them off with (#237).
+        compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+        compose.onNodeWithText("Captions").assertDoesNotExist()
+    }
+
     private fun state(
         content: PlaybackContent,
         target: PlaybackTarget = Target,
