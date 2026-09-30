@@ -216,22 +216,25 @@ as the RN player relabelled its sidecar tracks. Speed and audio start over with
 each file. Choices survive a rebuilt player.
 
 Subtitles start from the account's settings, as on mobile: gone with
-`hide_subtitles`, forced tracks only with `dont_autoselect_subtitles`, otherwise
-selected automatically. Hidden means gone, as in every reference player (#237):
-playback asks put.io for no subtitles (`max_subtitle_count=0` for HLS, no
-subtitle list for MP4 and original sources), and neither surface shows its
-subtitle picker. Automatic selection starts on put.io's default subtitle, the
-first one the account's subtitle languages rank: the HLS master marks it
-`DEFAULT=YES`, and the MP4 subtitle list names it `default`. It outranks the
-system caption language; without a default, Media3 picks by the system caption
-setting as before. Until the settings load, and after a failed load,
-subtitles start off whatever the system caption setting, so a `hide_subtitles`
-account never sees them early; settings that arrive later still decide until
-the viewer picks (#229). Once the viewer picks, the pick decides (#45): a picked
-track is found again after track changes, and Off keeps the text type disabled
-and draws nothing, whatever cues the renderer last delivered, across seeks and
-track changes. Cues, bitmap (PGS) ones included, draw with the system caption
-style through the same overlay as mobile.
+`hide_subtitles`, forced tracks only with `dont_autoselect_subtitles`,
+otherwise selected automatically. Hidden means gone, as in every reference
+player (#237): playback asks put.io for no subtitles (`max_subtitle_count=0`
+for HLS, no subtitle list for MP4 and original sources), and neither surface
+shows its subtitle picker. Playback resolved for such an account says so, so
+the picker stays out even before the settings load; hiding also outranks a pick
+made earlier, turns that subtitle off, and closes a Subtitles picker left open.
+Automatic selection starts on put.io's default subtitle, the first one the
+account's subtitle languages rank: the HLS master marks it `DEFAULT=YES`, and
+the MP4 subtitle list names it `default`. It outranks the system caption
+language; without a default, Media3 picks by the system caption setting as
+before. Until the settings load, and after a failed load, subtitles start off
+whatever the system caption setting, so a `hide_subtitles` account never sees
+them early; settings that arrive later still decide until the viewer picks
+(#229). Once the viewer picks, the pick decides (#45), short of hiding: a
+picked track is found again after track changes, and Off keeps the text type
+disabled and draws nothing, whatever cues the renderer last delivered, across
+seeks and track changes. Cues, bitmap (PGS) ones included, draw with the system
+caption style through the same overlay as mobile.
 
 Back dismisses the topmost layer (#9): an open picker first (no change; focus
 back on its button), then seek mode (no seek; playback resumes only if the
