@@ -351,7 +351,8 @@ class TvAuthController internal constructor(
                 is TvSessionValidation.Valid -> {
                     if (storeImportedToken(legacyToken)) {
                         legacySession.delete()
-                        signIn(result.account)
+                        // Like a linked token: one awaiting revocation is kept, one already revoked is not.
+                        if (tokenRevocations.keep(legacyToken)) signIn(result.account) else expireSession()
                     } else {
                         clearConfiguredSession()
                         stopLinking(TvLinkStop.StorageUnavailable, sessionExpired = false)

@@ -399,6 +399,22 @@ class TvAuthControllerTest {
     }
 
     @Test
+    fun `importing the tv-native token awaiting revocation cancels the revocation`() = runTest {
+        val harness = Harness(
+            pendingRevocation = "fake-legacy-token",
+            revocationResults = listOf(TokenRevocationResult.UNAVAILABLE),
+            legacyToken = "fake-legacy-token",
+        )
+
+        harness.controller.restoreSession()
+        harness.scope.advanceUntilIdle()
+
+        assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
+        assertEquals(listOf("fake-legacy-token"), harness.revoker.attempts)
+        assertNull(harness.revocationStore.token)
+    }
+
+    @Test
     fun `a restore cancelled after its verdict settled keeps the verdict`() = runTest {
         val harness = Harness(storedToken = "stale", validation = TvSessionValidation.Rejected)
         val restore = launch(start = CoroutineStart.UNDISPATCHED) { harness.controller.restoreSession() }
