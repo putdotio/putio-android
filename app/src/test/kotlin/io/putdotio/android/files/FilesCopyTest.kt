@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
 import io.putdotio.sdk.sharing.SharedFileCloneInfo
@@ -101,6 +102,22 @@ class FilesCopyTest {
         ).state
         assertEquals(FilesCopyStatus.UNCONFIRMED, lost.copyOutcome?.status)
         assertEquals(listOf(true, false), lost.stack.map { it.needsReload })
+        assertNull(lost.authoritativeSessionFailure())
+    }
+
+    @Test
+    fun aRejectedSessionOnEitherCopyCallIsASessionVerdict() {
+        val expired = FilesFailure.AuthenticationRequired(PutioConfigurationException("expired"))
+        assertEquals(expired, started(FilesRepositoryResult.Failure(expired)).state.authoritativeSessionFailure())
+
+        val copying = started(FilesRepositoryResult.Success(FilesCopyId(42L)))
+        val checkRejected = FilesBrowserReducer.reduce(
+            copying.state,
+            FilesBrowserEvent.CopyChecked(
+                checkNotNull(copying.effect).requestId, FilesRepositoryResult.Failure(expired),
+            ),
+        ).state
+        assertEquals(expired, checkRejected.authoritativeSessionFailure())
     }
 
     @Test

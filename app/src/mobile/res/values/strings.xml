@@ -27,7 +27,7 @@
     <string name="mobile_files_copying">Copying “%1$s” to %2$s…</string>
     <string name="mobile_files_copied">Copied “%1$s” to %2$s.</string>
     <string name="mobile_files_copy_failed">Couldn’t copy “%1$s” to %2$s.</string>
-    <string name="mobile_files_copy_unconfirmed">Couldn’t confirm the copy of “%1$s”. It shows up in %2$s once put.io finishes.</string>
+    <string name="mobile_files_copy_unconfirmed">Couldn’t confirm the copy of “%1$s”. It may still show up in %2$s.</string>
     <string name="mobile_files_copy_concurrent_limit">You’re already copying as much as put.io allows at once. Try again when that copy finishes.</string>
     <string name="mobile_files_copy_too_many_files">That’s too many files to copy at once.</string>
     <string name="mobile_files_trash">Move to trash</string>

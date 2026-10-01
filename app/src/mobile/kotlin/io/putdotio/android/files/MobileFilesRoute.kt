@@ -91,23 +91,37 @@ private fun MobileFilesCopySession(
 ) {
     val scope = rememberCoroutineScope()
     val controller = remember(item.id, repository) { FilesMoveDestinationController(repository, scope) }
-    DisposableEffect(controller) { onDispose(controller::close) }
+    var finished by remember(controller) { mutableStateOf(false) }
+    DisposableEffect(controller) {
+        onDispose {
+            finished = true
+            controller.close()
+        }
+    }
     val destination by controller.state.collectAsState()
     val sessionFailure = destination.current.content.authoritativeSessionFailure() != null
     AuthoritativeSessionFailureEffect(shouldReject = sessionFailure, onReject = onAuthenticationRequired)
     MobileFilesMoveDestination(
         state = destination,
         onEvent = { controller.dispatch(it) },
-        onCancel = onDismiss,
+        onCancel = {
+            finished = true
+            onDismiss()
+        },
         onConfirm = {
             val current = controller.state.value
-            if (canSubmit && current.canMoveHere &&
-                onEvent(FilesBrowserEvent.Copy(folderId, item.id, current.current.folder))
+            if (!finished && canSubmit && current.canMoveHere &&
+                current.current.content.authoritativeSessionFailure() == null
             ) {
-                onDismiss()
+                finished = true
+                if (onEvent(FilesBrowserEvent.Copy(folderId, item.id, current.current.folder))) {
+                    onDismiss()
+                } else {
+                    finished = false
+                }
             }
         },
-        canSubmit = canSubmit && !sessionFailure,
+        canSubmit = canSubmit && !finished && !sessionFailure,
         title = stringResource(R.string.mobile_files_make_copy),
         confirmLabel = stringResource(R.string.mobile_files_copy_here),
         sourceName = item.name,

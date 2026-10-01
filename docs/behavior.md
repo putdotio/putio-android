@@ -98,7 +98,9 @@ reason under the [refused-request](#refused-requests) rules, or web's copy for
 the concurrency and too-many-files limits. A copy
 whose check fails, or that is still running after the last check, is
 reported as unconfirmed, because it may still land. Only one copy runs at a
-time. TV doesn't offer Make a copy, because tv-native and tv-vite don't.
+time. Rotation keeps the copy and its checks; process death discards them, so
+the line is gone and another copy can start while put.io may still run the
+first. TV doesn't offer Make a copy, because tv-native and tv-vite don't.
 
 Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesScreenTest`,
 `FilesCopyTest`, `MobileFilesCopyTest`, `MobileSharedItemsProofTest` (opt-in

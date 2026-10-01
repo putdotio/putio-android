@@ -157,6 +157,30 @@ class MobileFilesCopyTest {
     }
 
     @Test
+    fun theCopyLineStaysWhileAFolderLoadsOrFails() {
+        val running = FilesBrowserReducer.reduce(
+            loaded(listOf(sharedVideo, sharedFolder)),
+            FilesBrowserEvent.Copy(FilesFolder.Root.id, sharedVideo.id, FilesFolder.Root),
+        ).state
+        val opening = FilesBrowserReducer.reduce(running, FilesBrowserEvent.OpenFolder(sharedFolder.id))
+        var state by mutableStateOf(opening.state)
+        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
+
+        compose.onNodeWithText("Copying “Harbor film.mp4” to Files…").assertIsDisplayed()
+
+        compose.runOnIdle {
+            state = FilesBrowserReducer.reduce(
+                state,
+                FilesBrowserEvent.LoadFailed(
+                    checkNotNull(opening.effect).requestId,
+                    FilesFailure.Unexpected(IllegalStateException("offline")),
+                ),
+            ).state
+        }
+        compose.onNodeWithText("Copying “Harbor film.mp4” to Files…").assertIsDisplayed()
+    }
+
+    @Test
     fun aRunningCopyHoldsMakeACopyOnOtherItems() {
         val running = FilesBrowserReducer.reduce(
             loaded(listOf(sharedVideo, sharedFolder)),

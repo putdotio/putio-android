@@ -102,20 +102,18 @@ internal fun MobileFilesScreen(
 ) {
     val current = state.current
     when (val content = current.content) {
-        is FilesContent.Loading ->
-            MobileLoadingState(
-                message = stringResource(R.string.mobile_state_loading),
-                modifier = modifier,
-            )
+        is FilesContent.Loading -> MobileFilesStateWithCopy(state, onEvent, modifier) {
+            MobileLoadingState(message = stringResource(R.string.mobile_state_loading))
+        }
 
-        is FilesContent.Failed ->
+        is FilesContent.Failed -> MobileFilesStateWithCopy(state, onEvent, modifier) {
             MobileErrorState(
                 title = stringResource(R.string.mobile_state_error_title),
                 message = content.failure.mobileMessage(),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(FilesBrowserEvent.Retry) },
-                modifier = modifier,
             )
+        }
 
         is FilesContent.Empty,
         is FilesContent.Ready,
@@ -127,6 +125,22 @@ internal fun MobileFilesScreen(
                 onViewTrash,
                 onCopyItem,
             )
+        }
+    }
+}
+
+/** A copy outlives folder navigation, so its line stays while the folder loads or fails. */
+@Composable
+private fun MobileFilesStateWithCopy(
+    state: FilesBrowserState,
+    onEvent: (FilesBrowserEvent) -> Unit,
+    modifier: Modifier,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content() }
+        state.copyOutcome?.let {
+            MobileFilesCopyStatus(it, onDismiss = { onEvent(FilesBrowserEvent.DismissCopyOutcome) })
         }
     }
 }
