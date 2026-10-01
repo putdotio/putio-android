@@ -21,7 +21,16 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
+import android.content.ContentProvider
+import android.content.ContentValues
+import android.database.Cursor
+import android.database.MatrixCursor
+import android.net.Uri
+import android.os.ParcelFileDescriptor
+import android.provider.OpenableColumns
+import androidx.test.core.app.ApplicationProvider
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -265,6 +274,24 @@ class MobileShareIntentsTest {
     }
 
     @Test
+    fun torrentProvidersAreUntrustedAndThisAppsOwnAreRefused() {
+        val resolver = ApplicationProvider.getApplicationContext<android.content.Context>().contentResolver
+        Robolectric.buildContentProvider(TorrentProvider::class.java).create("test.torrents")
+        Robolectric.buildContentProvider(TorrentProvider::class.java).create("io.put.sample.share")
+        Robolectric.buildContentProvider(BrokenProvider::class.java).create("test.broken")
+        val served = resolver.readMobileTorrent(Uri.parse("content://test.torrents/1"), "io.put.sample")
+        assertEquals("Harbor film.torrent", served.torrent?.fileName)
+        assertEquals(
+            MobileShareValidation.InvalidTorrent,
+            resolver.readMobileTorrent(Uri.parse("content://io.put.sample.share/1"), "io.put.sample").validation,
+        )
+        assertEquals(
+            MobileShareValidation.InvalidTorrent,
+            resolver.readMobileTorrent(Uri.parse("content://test.broken/1"), "io.put.sample").validation,
+        )
+    }
+
+    @Test
     fun torrentNamesAlwaysEndInTorrentWithoutPathsOrControlCharacters() {
         assertEquals("Harbor film.torrent", torrentFileName("Harbor film.torrent"))
         assertEquals("Archive été 東京.torrent", torrentFileName("Archive été 東京.TORRENT"))
@@ -294,3 +321,28 @@ class MobileShareIntentsTest {
 
 private fun Intent.consumeShared(): MobileSharedTransfer =
     (requireNotNull(consumeMobileIncomingTransfer()) as MobileIncomingTransfer.Ready).transfer
+
+private open class TorrentProvider : ContentProvider() {
+    override fun onCreate(): Boolean = true
+
+    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor =
+        MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME)).apply { addRow(arrayOf("Harbor film.torrent")) }
+
+    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+        val file = java.io.File.createTempFile("torrent", ".torrent").apply {
+            writeBytes("d8:announce3:url4:infod4:name5:Harbore".toByteArray())
+            deleteOnExit()
+        }
+        return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+    }
+
+    override fun getType(uri: Uri): String = "application/x-bittorrent"
+    override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+    override fun delete(uri: Uri, selection: String?, args: Array<out String>?): Int = 0
+    override fun update(uri: Uri, values: ContentValues?, selection: String?, args: Array<out String>?): Int = 0
+}
+
+private class BrokenProvider : TorrentProvider() {
+    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor =
+        throw UnsupportedOperationException("no queries here")
+}

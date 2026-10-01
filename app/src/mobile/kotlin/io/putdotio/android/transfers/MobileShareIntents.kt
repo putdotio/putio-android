@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import androidx.core.content.IntentCompat
 import java.io.IOException
 import java.io.InputStream
+import java.io.InterruptedIOException
 
 internal enum class MobileShareValidation {
     InvalidLink,
@@ -116,18 +117,27 @@ internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
 
 internal fun List<TransferSubmission>.joinLines(): String = joinToString("\n") { it.value }
 
-/** Reads a shared `.torrent`; failures become a draft error instead of an exception. */
-internal fun ContentResolver.readMobileTorrent(uri: Uri): MobileSharedTransfer =
-    try {
+/**
+ * Reads a shared `.torrent`; failures become a draft error instead of an exception. URIs on this app's
+ * own providers are refused: the read runs as this app, so a caller could otherwise nominate files it
+ * cannot open itself.
+ */
+// The provider is another app's code; any runtime exception it throws is that app's failure, not ours.
+@Suppress("TooGenericExceptionCaught")
+internal fun ContentResolver.readMobileTorrent(uri: Uri, ownPackage: String): MobileSharedTransfer {
+    val authority = uri.authority
+    if (authority == null || authority == ownPackage || authority.startsWith("$ownPackage.")) {
+        return MobileSharedTransfer(validation = MobileShareValidation.InvalidTorrent)
+    }
+    return try {
         val name = query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
             if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getString(0) else null
         }
         readMobileTorrent(name ?: uri.lastPathSegment) { openInputStream(uri) }
-    } catch (_: SecurityException) {
-        MobileSharedTransfer(validation = MobileShareValidation.InvalidTorrent)
-    } catch (_: IllegalArgumentException) {
+    } catch (_: RuntimeException) {
         MobileSharedTransfer(validation = MobileShareValidation.InvalidTorrent)
     }
+}
 
 internal fun readMobileTorrent(displayName: String?, open: () -> InputStream?): MobileSharedTransfer {
     val bytes = try {
@@ -147,6 +157,8 @@ private fun InputStream.readBounded(limit: Int): ByteArray {
     val buffer = java.io.ByteArrayOutputStream()
     val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
     while (buffer.size() <= limit) {
+        // A superseded read is interrupted; stop between chunks instead of holding up to the limit.
+        if (Thread.interrupted()) throw InterruptedIOException()
         val read = read(chunk, 0, minOf(chunk.size, limit + 1 - buffer.size()))
         if (read < 0) break
         buffer.write(chunk, 0, read)

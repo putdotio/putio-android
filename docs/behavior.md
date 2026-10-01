@@ -356,8 +356,10 @@ content. Each opens an editable Add transfer sheet after sign-in; only Add
 submits it, so a tapped magnet link never starts a transfer on its own (web's
 magnet handler adds immediately). Intent payloads are untrusted: a magnet link
 must parse with an `xt` parameter or it stays visible but invalid, and a
-`.torrent` is read off the main thread from its content URI only, capped at
-16 MiB, and must look like a bencoded dictionary with an `info` key. Its name is
+`.torrent` is read off the main thread from another app's content URI only
+(never this app's own providers), capped at 16 MiB, and must look like a
+bencoded dictionary with an `info` key. Provider failures mark it invalid; a
+newer share or an account change cancels a read still running. Its name is
 stripped of paths and control characters and always ends in `.torrent`, because
 put.io starts a transfer only for that extension; the upload also sends
 `torrent=true`, so put.io refuses non-torrent content instead of saving it as a

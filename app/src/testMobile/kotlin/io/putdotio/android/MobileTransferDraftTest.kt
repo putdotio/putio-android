@@ -191,6 +191,48 @@ class MobileTransferDraftTest {
     }
 
     @Test
+    fun aNewerIntakeOrAnotherAccountSupersedesAPendingTorrentRead() = runTest {
+        val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
+        draft.reconcileSession(MobileAuthSessionId(1))
+        val other = TorrentUpload("Other.torrent", TORRENT.content)
+        draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
+        draft.receiveLater { MobileSharedTransfer(torrent = other) }
+        settle()
+        assertSame(other, draft.state.value.torrent)
+
+        draft.dismiss()
+        draft.removeTorrent()
+        draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
+        draft.receive(parseMobileSharedTransfer(FIRST))
+        settle()
+        assertEquals(FIRST, draft.state.value.input)
+        assertNull(draft.state.value.torrent)
+        assertFalse(draft.state.value.pendingReplacement)
+
+        draft.dismiss()
+        draft.edit("")
+        draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
+        draft.reconcileSession(MobileAuthSessionId(2))
+        settle()
+        assertEquals(MobileTransferDraftState(), draft.state.value)
+    }
+
+    @Test
+    fun aTorrentReadBeforeTheFirstSignInSurvivesIt() = runTest {
+        val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
+        draft.reconcileSession(null)
+        draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
+        draft.reconcileSession(MobileAuthSessionId(1))
+        settle()
+        assertSame(TORRENT, draft.state.value.torrent)
+    }
+
+    private fun kotlinx.coroutines.test.TestScope.settle() {
+        advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    @Test
     fun runningAddCannotBeEditedDismissedReplacedOrSubmittedTwice() {
         val draft = MobileTransferDraft()
         draft.receive(parseMobileSharedTransfer(FIRST))

@@ -99,7 +99,8 @@ class MainActivity : BasePutioActivity() {
             is MobileIncomingTransfer.Ready -> transferDraft.receive(incoming.transfer)
             is MobileIncomingTransfer.Torrent -> {
                 val resolver = applicationContext.contentResolver
-                transferDraft.receiveLater { resolver.readMobileTorrent(incoming.uri) }
+                val ownPackage = packageName
+                transferDraft.receiveLater { resolver.readMobileTorrent(incoming.uri, ownPackage) }
             }
         }
     }

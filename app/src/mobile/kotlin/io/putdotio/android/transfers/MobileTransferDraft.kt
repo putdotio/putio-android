@@ -6,10 +6,11 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.files.FilesFolder
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
 
 internal data class MobileTransferDraftState(
     val input: String = "",
@@ -42,9 +43,11 @@ class MobileTransferDraft internal constructor(
     private var observedTransfers = false
     private var lastSuccessfulAdd: TransfersRequestId? = null
     private var lastMutation: TransferMutation = TransferMutation.Idle
+    private var pendingRead: Job? = null
 
     internal fun reconcileSession(sessionId: MobileAuthSessionId?) {
         if (boundSessionId != null && boundSessionId != sessionId) {
+            pendingRead?.cancel()
             clear(keepDestination = false)
             observedTransfers = false
             lastSuccessfulAdd = null
@@ -72,6 +75,20 @@ class MobileTransferDraft internal constructor(
     }
 
     internal fun receive(shared: MobileSharedTransfer) {
+        pendingRead?.cancel()
+        deliver(shared)
+    }
+
+    /**
+     * Reads a shared `.torrent` off the main thread; the result arrives like any other share. A newer
+     * intake or a session change cancels the read, so at most one runs and none lands out of order.
+     */
+    internal fun receiveLater(read: () -> MobileSharedTransfer) {
+        pendingRead?.cancel()
+        pendingRead = viewModelScope.launch { deliver(runInterruptible(ioDispatcher) { read() }) }
+    }
+
+    private fun deliver(shared: MobileSharedTransfer) {
         val current = mutableState.value
         val requestId = nextRequestId++
         if (current.submitting || current.open || current.input.isNotBlank() || current.torrent != null) {
@@ -80,11 +97,6 @@ class MobileTransferDraft internal constructor(
         } else {
             present(shared, requestId)
         }
-    }
-
-    /** Reads a shared `.torrent` off the main thread; the result arrives like any other share. */
-    internal fun receiveLater(read: () -> MobileSharedTransfer) {
-        viewModelScope.launch { receive(withContext(ioDispatcher) { read() }) }
     }
 
     internal fun acknowledgeNavigation(requestId: Long) {
