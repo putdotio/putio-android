@@ -47,10 +47,11 @@ internal fun FilesFolderState.revealPageFailed(requestId: FilesRequestId, failur
     return copy(content = contentFor(search.items, FilesPaging.Failed(search.cursor, failure)), revealSearch = null)
 }
 
-/** Stops a reveal search, showing the rows read so far with the rest left to load. */
-internal fun FilesFolderState.withoutRevealSearch(): FilesFolderState {
-    val search = revealSearch ?: return this
-    return copy(content = contentFor(search.items, FilesPaging.Available(search.cursor)), revealSearch = null)
+/** Stops revealing a row: a running search shows the rows read so far, with the rest left to load. */
+internal fun FilesFolderState.withoutReveal(): FilesFolderState {
+    val search = revealSearch
+    val shown = if (search == null) content else contentFor(search.items, FilesPaging.Available(search.cursor))
+    return copy(content = shown, revealItemId = null, revealSearch = null)
 }
 
 /**

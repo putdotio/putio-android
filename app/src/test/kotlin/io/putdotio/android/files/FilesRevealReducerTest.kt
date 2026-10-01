@@ -47,22 +47,36 @@ class FilesRevealReducerTest {
     }
 
     @Test
-    fun theSearchStopsAtThePageCapAndLeavesLoadMore() {
-        val pages = folderPages(pageCount = MAX_REVEAL_PAGES + 2)
-        val beyondCap = pages[MAX_REVEAL_PAGES].items.first()
+    fun theSearchStopsAtTenPagesAndLeavesLoadMore() {
+        val pages = folderPages(pageCount = 12)
+        val beyondCap = pages[10].items.first()
         val opening = FilesBrowserReducer.reduce(
             FilesBrowserReducer.start().state, FilesBrowserEvent.OpenExternalItem(beyondCap, FilesOpenOrigin.SEARCH),
         )
 
         val (settled, reads) = drive(opening, pages)
 
-        assertEquals(MAX_REVEAL_PAGES, reads.size)
+        assertEquals(10, reads.size)
         val content = settled.current.content as FilesContent.Ready
-        assertEquals(FILES_PER_PAGE * MAX_REVEAL_PAGES, content.items.size)
+        assertEquals(500, content.items.size)
         assertEquals(FilesViewportPosition(), content.viewport)
-        assertEquals(FilesPaging.Available(FilesCursor("page-$MAX_REVEAL_PAGES")), content.paging)
+        assertEquals(FilesPaging.Available(FilesCursor("page-10")), content.paging)
         val loadMore = FilesBrowserReducer.reduce(settled, FilesBrowserEvent.LoadNextPage)
-        assertEquals(FilesCursor("page-$MAX_REVEAL_PAGES"), (loadMore.effect as FilesBrowserEffect.LoadNextPage).cursor)
+        assertEquals(FilesCursor("page-10"), (loadMore.effect as FilesBrowserEffect.LoadNextPage).cursor)
+    }
+
+    @Test
+    fun aFileOnTheTenthPageIsStillRevealed() {
+        val pages = folderPages(pageCount = 12)
+        val lastRead = pages[9].items.last()
+        val opening = FilesBrowserReducer.reduce(
+            FilesBrowserReducer.start().state, FilesBrowserEvent.OpenExternalItem(lastRead, FilesOpenOrigin.SEARCH),
+        )
+
+        val (settled, reads) = drive(opening, pages)
+
+        assertEquals(10, reads.size)
+        assertEquals(499, (settled.current.content as FilesContent.Ready).viewport.firstVisibleItemIndex)
     }
 
     @Test
@@ -130,6 +144,47 @@ class FilesRevealReducerTest {
         assertEquals(FilesPaging.Available(FilesCursor("page-1")), kept.paging)
         val late = FilesBrowserReducer.reduce(opened, FilesBrowserEvent.LoadSucceeded(pending.requestId, pages[1]))
         assertFalse(late.consumed)
+    }
+
+    @Test
+    fun aNewerOutsideOpenDropsARevealWaitingOnTheFirstPage() {
+        val pages = folderPages(pageCount = 3, parent = FilesFolder.Root.id)
+        val start = FilesBrowserReducer.start()
+        val waiting = FilesBrowserReducer.reduce(
+            start.state, FilesBrowserEvent.RevealItem(FilesFolder.Root.id, pages[2].items.first().id),
+        ).state
+        val opened = FilesBrowserReducer.reduce(
+            waiting, FilesBrowserEvent.OpenExternalItem(row(9_999L).copy(parentId = folderId), FilesOpenOrigin.SEARCH),
+        ).state
+
+        val firstPage = FilesBrowserReducer.reduce(
+            opened, FilesBrowserEvent.LoadSucceeded(start.effect!!.requestId, pages[0]),
+        )
+
+        assertNull(firstPage.effect)
+        assertEquals(FilesViewportPosition(), (firstPage.state.stack.first().content as FilesContent.Ready).viewport)
+    }
+
+    @Test
+    fun aPositionSavedDuringTheSearchShowsOnTheSettledRow() {
+        val pages = folderPages(pageCount = 3, parent = FilesFolder.Root.id)
+        val start = FilesBrowserReducer.start()
+        val loaded = FilesBrowserReducer.reduce(
+            start.state, FilesBrowserEvent.LoadSucceeded(start.effect!!.requestId, pages[0]),
+        ).state
+        val searching = FilesBrowserReducer.reduce(
+            loaded, FilesBrowserEvent.RevealItem(FilesFolder.Root.id, pages[1].items.first().id),
+        )
+        val watched = pages[0].items[7].id
+
+        val saved = FilesBrowserReducer.reduce(
+            searching.state, FilesBrowserEvent.PlaybackPositionReported(watched, 90.0),
+        )
+
+        assertTrue(saved.consumed)
+        val (settled) = drive(searching.copy(state = saved.state), pages)
+        val row = (settled.current.content as FilesContent.Ready).items.single { it.id == watched }
+        assertEquals(90.0, checkNotNull(row.playback).startFromSeconds, 0.0)
     }
 
     @Test

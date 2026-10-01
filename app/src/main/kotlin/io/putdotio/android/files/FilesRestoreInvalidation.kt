@@ -41,18 +41,26 @@ internal fun FilesBrowserState.updatePlaybackPosition(itemId: FilesItemId, secon
         return FilesBrowserTransition(this, consumed = false)
     }
     var changed = false
-    val updated = stack.map { folder ->
-        val content = folder.content as? FilesContent.Ready ?: return@map folder
-        if (content.items.none { it.id == itemId && it.isPlayable }) return@map folder
-        changed = true
-        val items = content.items.map { item ->
-            if (item.id == itemId && item.isPlayable) {
-                item.copy(playback = FilesPlaybackProgress(seconds, item.playback?.durationSeconds))
-            } else {
-                item
+    fun List<FilesItem>.withPosition(): List<FilesItem>? =
+        if (none { it.id == itemId && it.isPlayable }) {
+            null
+        } else {
+            changed = true
+            map { item ->
+                if (item.id == itemId && item.isPlayable) {
+                    item.copy(playback = FilesPlaybackProgress(seconds, item.playback?.durationSeconds))
+                } else {
+                    item
+                }
             }
         }
-        folder.copy(content = content.copy(items = items))
+    // A reveal search holds the rows it has read until it settles; they take the position too.
+    val updated = stack.map { folder ->
+        val content = folder.content as? FilesContent.Ready
+        val search = folder.revealSearch
+        content?.items?.withPosition()?.let { folder.copy(content = content.copy(items = it)) }
+            ?: search?.items?.withPosition()?.let { folder.copy(revealSearch = search.copy(items = it)) }
+            ?: folder
     }
     return if (changed) {
         FilesBrowserTransition(copy(stack = updated))

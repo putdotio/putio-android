@@ -54,9 +54,9 @@ internal fun FilesBrowserState.openExternalItem(
                 revealItemId = item.id.takeUnless { item.isFolder },
             )
         // Changes made above can reach the listings kept below it, so each reloads on the way back.
-        // A kept folder stops reading for its revealed row; the open replaces it on screen.
+        // A kept folder stops revealing a row; the open replaces it on screen.
         val location = stack.take(outsideOpenIndex() ?: stack.size).map {
-            it.withoutRevealSearch().copy(needsReload = true)
+            it.withoutReveal().copy(needsReload = true)
         }
         FilesBrowserTransition(
             state = copy(stack = location + folder, nextRequestValue = nextRequestValue + 1),
