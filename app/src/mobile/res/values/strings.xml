@@ -25,7 +25,8 @@
     <string name="mobile_files_trash">Move to trash</string>
     <string name="mobile_files_delete">Delete</string>
     <string name="mobile_files_confirm_action">Confirm</string>
-    <string name="mobile_files_trash_confirmation">Move “%1$s” to trash? You can restore it from Trash.</string>
+    <string name="mobile_files_trash_done">Moved to Trash</string>
+    <string name="mobile_files_view_trash">View Trash</string>
     <string name="mobile_files_delete_confirmation">Permanently delete “%1$s”? This cannot be undone.</string>
     <string name="mobile_files_delete_settings_unknown">Waiting for confirmed Trash settings.</string>
     <string name="mobile_files_deleting">Sending request…</string>

@@ -152,26 +152,30 @@ internal fun TvFilesScreen(
         return
     }
 
-    // The row whose actions are up, and whether its deletion is being confirmed. Both close
-    // when the row leaves the listing, like the unsupported overlay.
+    // The row whose actions are up, and whether its permanent deletion is being confirmed.
+    // Both close when the row leaves the listing, like the unsupported overlay.
     var actionsFor by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
-    // The trash mode the user chose, kept while the confirmation is up: the dialog and the
-    // event use it. A setting that changes underneath, or an operation the folder starts on
-    // its own (a reload after a restore), closes the confirmation rather than offering a
-    // Delete the reducer would refuse.
-    var confirmingDeleteTrash by rememberSaveable(sessionKey, current.folder.id.value) {
-        mutableStateOf<Boolean?>(null)
+    // Only permanent deletion confirms; Move to trash runs at once, as on web and iOS. Trash
+    // turning on underneath, or an operation the folder starts on its own (a reload after a
+    // restore), closes the confirmation rather than offering a Delete the reducer would refuse.
+    var confirmingPermanentDelete by rememberSaveable(sessionKey, current.folder.id.value) {
+        mutableStateOf(false)
     }
+    // A Move to trash press is sent after the next composition, against the latest Trash setting:
+    // a press made before a change to the setting reached the menu must not send TRASH, which
+    // the server applies as permanent deletion once Trash is off.
+    var trashPressed by remember(sessionKey, current.folder.id.value) { mutableStateOf(false) }
     val actionsItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == actionsFor }
     val actionsOrphaned = actionsFor != null && actionsItem == null
-    val confirmationStale = confirmingDeleteTrash != null &&
-        (confirmingDeleteTrash != confirmedTrashEnabled || !current.operation.canStartOperation)
+    val confirmationStale = confirmingPermanentDelete &&
+        (confirmedTrashEnabled != false || !current.operation.canStartOperation)
     SideEffect {
         if (actionsOrphaned) {
             actionsFor = null
-            confirmingDeleteTrash = null
+            confirmingPermanentDelete = false
+            trashPressed = false
         } else if (confirmationStale) {
-            confirmingDeleteTrash = null
+            confirmingPermanentDelete = false
         }
     }
     val dialogOpen = actionsItem != null || notice != null
@@ -281,18 +285,24 @@ internal fun TvFilesScreen(
     } else if (actionsItem != null) {
         val close = {
             actionsFor = null
-            confirmingDeleteTrash = null
+            confirmingPermanentDelete = false
+            trashPressed = false
         }
-        val confirmTrash = confirmingDeleteTrash
-        if (confirmTrash != null && !confirmationStale) {
+        val delete = { mode: FilesDeleteMode ->
+            close()
+            onEvent(FilesBrowserEvent.Delete(current.folder.id, actionsItem.id, mode))
+        }
+        if (trashPressed) {
+            val trashStillOn = confirmedTrashEnabled == true && current.operation.canStartOperation
+            SideEffect {
+                trashPressed = false
+                if (trashStillOn) delete(FilesDeleteMode.TRASH)
+            }
+        }
+        if (confirmingPermanentDelete && !confirmationStale) {
             TvFilesDeleteDialog(
                 item = actionsItem,
-                trash = confirmTrash,
-                onConfirm = {
-                    close()
-                    val mode = if (confirmTrash) FilesDeleteMode.TRASH else FilesDeleteMode.PERMANENT
-                    onEvent(FilesBrowserEvent.Delete(current.folder.id, actionsItem.id, mode))
-                },
+                onConfirm = { delete(FilesDeleteMode.PERMANENT) },
                 onDismiss = close,
             )
         } else {
@@ -313,7 +323,8 @@ internal fun TvFilesScreen(
                             close()
                             onSetWatched(actionsItem, action.watched)
                         }
-                        is TvFilesAction.Delete -> confirmingDeleteTrash = action.trash
+                        is TvFilesAction.Delete ->
+                            if (action.trash) trashPressed = true else confirmingPermanentDelete = true
                     }
                 },
                 onDismiss = close,

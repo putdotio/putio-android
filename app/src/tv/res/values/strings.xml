@@ -71,8 +71,6 @@
     <string name="tv_files_action_trash">Move to trash</string>
     <string name="tv_files_action_delete">Delete permanently</string>
     <string name="tv_files_cancel">Cancel</string>
-    <string name="tv_files_trash_title">Move to trash?</string>
-    <string name="tv_files_trash_message">%1$s goes to trash, where you can restore it for 14 days.</string>
     <string name="tv_files_delete_title">Delete permanently?</string>
     <string name="tv_files_delete_message">%1$s will be removed right away. This cannot be undone.</string>
     <string name="tv_files_vlc_missing">VLC isn’t installed on this device.</string>

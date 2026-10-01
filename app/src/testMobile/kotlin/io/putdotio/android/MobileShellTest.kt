@@ -532,6 +532,7 @@ class MobileShellTest {
         val optimistic = original.copy(trashEnabled = false)
         val change = AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)
         var settings by mutableStateOf(readyAccountSettingsState(preferences = original))
+        val events = mutableListOf<FilesBrowserEvent>()
         compose.setContent {
             PutioTheme {
                 MobileShell(
@@ -542,7 +543,7 @@ class MobileShellTest {
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
-                    onFilesEvent = { true },
+                    onFilesEvent = { events += it; true },
                     onAccountSettingsEvent = {},
                     onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
@@ -550,8 +551,7 @@ class MobileShellTest {
             }
         }
         compose.onNodeWithContentDescription("Actions for episode.mkv").performClick()
-        compose.onNodeWithText("Move to trash").performClick()
-        compose.onNodeWithText("Confirm").assertIsEnabled()
+        compose.onNodeWithText("Move to trash").assertIsEnabled()
         compose.runOnIdle {
             settings = readyAccountSettingsState(
                 preferences = optimistic,
@@ -560,7 +560,6 @@ class MobileShellTest {
                 ),
             )
         }
-        compose.onNodeWithText("Confirm").assertDoesNotExist()
         compose.onNodeWithText("Delete").assertIsNotEnabled()
         compose.runOnIdle {
             settings = readyAccountSettingsState(
@@ -575,6 +574,11 @@ class MobileShellTest {
         compose.runOnIdle { settings = readyAccountSettingsState(preferences = optimistic) }
         compose.onNodeWithText("Delete").assertIsEnabled().performClick()
         compose.onNodeWithText("Permanently delete “episode.mkv”? This cannot be undone.").assertIsDisplayed()
+        // Trash turning back on withdraws the permanent confirmation instead of rewording it.
+        compose.runOnIdle { settings = readyAccountSettingsState(preferences = original) }
+        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        compose.onNodeWithText("Move to trash").assertIsEnabled()
+        compose.runOnIdle { assertTrue(events.none { it is FilesBrowserEvent.Delete }) }
     }
 
     @Test

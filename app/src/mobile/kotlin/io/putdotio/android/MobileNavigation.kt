@@ -117,6 +117,7 @@ internal fun MobileNavHost(
                     { item -> controller.dispatch(DownloadsEvent.Start(item.toDownloadRequest())) }
                 },
                 onShareItem = onShareItem,
+                onViewTrash = trashController?.let { { navController.navigateToTrash() } },
             )
         }
         composable(MobileDestination.Search.route) {
@@ -290,6 +291,12 @@ internal fun NavHostController.navigateTo(destination: MobileDestination) {
         launchSingleTop = true
         restoreState = true
     }
+}
+
+/** Trash lives under Account, so Back from it lands on Account wherever it was opened from. */
+internal fun NavHostController.navigateToTrash() {
+    navigateTo(MobileDestination.Account)
+    navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true }
 }
 
 internal fun NavHostController.navigateToPlayback(item: FilesItem, replaceCurrentPlayback: Boolean = false) {

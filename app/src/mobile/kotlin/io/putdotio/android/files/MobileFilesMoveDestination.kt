@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -101,7 +103,19 @@ private fun MobileMoveFolderContent(
     } else {
         modifier
     }
-    LazyColumn(modifier = listModifier.fillMaxWidth()) {
+    val listState = rememberLazyListState()
+    val paging = when (content) {
+        is FilesContent.Ready -> content.paging
+        is FilesContent.Empty -> content.paging
+        is FilesContent.Loading, is FilesContent.Failed -> FilesPaging.Complete
+    }
+    // A folders-only page can hold no folders at all; its footer is in view, so the next one follows.
+    LoadNextPageNearEnd(
+        listState = listState,
+        nextPage = paging as? FilesPaging.Available,
+        onLoadNextPage = { onEvent(FilesMoveDestinationEvent.LoadNextPage) },
+    )
+    LazyColumn(state = listState, modifier = listModifier.fillMaxWidth()) {
         item {
             Text(state.sourceItem.name, style = MaterialTheme.typography.bodyLarge,
                 maxLines = 3, overflow = TextOverflow.Ellipsis,
@@ -134,10 +148,6 @@ private fun MobileMoveFolderContent(
             }
             is FilesContent.Ready, is FilesContent.Empty -> {
                 val items = (content as? FilesContent.Ready)?.items.orEmpty()
-                val paging = when (content) {
-                    is FilesContent.Ready -> content.paging
-                    is FilesContent.Empty -> content.paging
-                }
                 if (items.isEmpty()) item {
                     Text(stringResource(if (paging == FilesPaging.Complete) R.string.mobile_files_move_empty
                         else R.string.mobile_files_move_empty_page), modifier = Modifier.padding(16.dp))

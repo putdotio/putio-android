@@ -14,20 +14,16 @@ import io.putdotio.android.R
 @Composable
 internal fun MobileFilesDeleteConfirmation(
     item: FilesItem,
-    trash: Boolean,
     enabled: Boolean,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (trash) R.string.mobile_files_trash else R.string.mobile_files_delete)) },
+        title = { Text(stringResource(R.string.mobile_files_delete)) },
         text = {
             Text(
-                text = stringResource(
-                    if (trash) R.string.mobile_files_trash_confirmation else R.string.mobile_files_delete_confirmation,
-                    item.name,
-                ),
+                text = stringResource(R.string.mobile_files_delete_confirmation, item.name),
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             )
         },

@@ -192,10 +192,7 @@ internal fun MobileShell(
             }
             MobileDeepLink.Transfers -> navController.navigateTo(MobileDestination.Transfers)
             MobileDeepLink.Search, MobileDeepLink.History -> navController.navigateTo(MobileDestination.Search)
-            MobileDeepLink.Trash -> {
-                navController.navigateTo(MobileDestination.Account)
-                navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true }
-            }
+            MobileDeepLink.Trash -> navController.navigateToTrash()
             MobileDeepLink.Downloads -> {
                 navController.navigateTo(MobileDestination.Account)
                 navController.navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true }
@@ -325,8 +322,7 @@ internal fun MobileShell(
         if (isTrash || isDownloads) {
             navController.popBackStack()
         } else {
-            navController.navigateTo(MobileDestination.Account)
-            navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true }
+            navController.navigateToTrash()
         }
     }
 

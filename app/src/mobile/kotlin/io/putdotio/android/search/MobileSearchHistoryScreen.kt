@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -45,6 +46,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.LoadNextPageNearEnd
+import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
@@ -312,6 +315,7 @@ private fun MobileSearchEmpty(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    LoadNextPageNow(nextPage = paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
     Box(modifier = modifier.fillMaxSize()) {
         MobileEmptyState(
             title = stringResource(R.string.mobile_search_no_results_title),
@@ -337,7 +341,9 @@ private fun MobileSearchResults(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier.testTag(MOBILE_SEARCH_RESULTS_TAG)) {
+    val listState = rememberLazyListState()
+    LoadNextPageNearEnd(listState, nextPage = paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
+    LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_SEARCH_RESULTS_TAG)) {
         items(items, key = { it.id.value }) { item ->
             MobileFilesRow(
                 item = item,
@@ -434,7 +440,13 @@ private fun MobileHistoryList(
     modifier: Modifier = Modifier,
 ) {
     val grouped = remember(content.items) { content.items.groupBy(HistoryItem::dateKey) }
-    LazyColumn(modifier = modifier.testTag(MOBILE_HISTORY_LIST_TAG)) {
+    val listState = rememberLazyListState()
+    LoadNextPageNearEnd(
+        listState = listState,
+        nextPage = content.paging as? HistoryPaging.Available,
+        onLoadNextPage = { onEvent(HistoryEvent.LoadNextPage) },
+    )
+    LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_HISTORY_LIST_TAG)) {
         item {
             Row(
                 modifier = Modifier

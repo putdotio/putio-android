@@ -26,6 +26,7 @@ internal fun MobileFilesRoute(
     downloads: DownloadsState = DownloadsState(),
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
+    onViewTrash: (() -> Unit)? = null,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -41,6 +42,7 @@ internal fun MobileFilesRoute(
             downloads = downloads,
             onDownloadItem = onDownloadItem,
             onShareItem = onShareItem,
+            onViewTrash = onViewTrash,
         )
         if (movingItem != null && repository != null) {
             MobileFilesMoveSession(

@@ -22,4 +22,6 @@ data class FilesDeleteOutcome(
     val response: FileDeleteResult? = null,
     val failure: FilesFailure? = null,
     val status: FilesDeleteStatus = FilesDeleteStatus.CHECKING,
+    /** The screen announced it on its own; it stays for a later page to correct. */
+    val announced: Boolean = false,
 )
