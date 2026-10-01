@@ -16,8 +16,8 @@ the TV surface reuses the shared data, domain, theme, and component layers.
 Mobile, on the emulator harness against the live API:
 
 - OAuth sign-in through an Auth Tab, with the session in Android secure storage
-- Files: browse, paginate, sort per folder, rename, move, trash, delete, and
-  watched progress on media rows
+- Files: browse, paginate, sort per folder, rename, move, trash, delete, copy
+  items shared with you, and watched progress on media rows
 - Trash: browse, restore one or all, delete permanently, empty
 - Transfers and search
 - Video playback with subtitles, 10-second touch seek, autoplay next, and
@@ -55,15 +55,15 @@ TV:
   the account's Trash setting. Center on a media row plays it full-screen
   through Media3 (HLS or MP4 per the account's playback type) with a
   play/pause overlay, a D-pad seek bar (Left, Right, rewind and
-  fast-forward scrub), a resume prompt, and Language, Subtitles and Speed
-  pickers; subtitles start from the account's settings. Back dismisses a
-  picker, then seek mode, then the controls, then returns to the row. The
-  player publishes a media session for system media controls and remote media
-  keys
-- Search through the system IME, with recent-query chips and paged results
-  that open in Files
-- History grouped under relative-date headers; an event opens its file in
-  Files, and Clear confirms first
+  fast-forward scrub), a resume prompt, Language, Subtitles and Speed
+  pickers, and autoplay next; subtitles start from the account's settings.
+  Back dismisses a picker, then seek mode, then the controls, then returns to
+  the row. The player publishes a media session for system media controls and
+  remote media keys
+- Search through the system IME, with recent-query chips and paged results;
+  a video or audio result plays, anything else opens in Files
+- History grouped under relative-date headers; an event opens its file as a
+  Search result does, and Clear confirms first
 - Account: identity and quota header, Playback and Storage settings saved
   through the shared settings controllers, App and device information with a
   Diagnostics dialog, and Sign out

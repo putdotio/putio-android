@@ -893,8 +893,8 @@ reaches it on the next session validation.
 Long-press Center or press Menu on a Files row for the oracle's files-actions
 state: a centred dialog titled with the file's name, one full-width button per
 action and Cancel last, the first action focused; a row with no actions (a
-shared folder, or a text row before the trash setting is confirmed) opens
-nothing, as in tv-native. Open in VLC hands the
+shared item that is not media, or a text row before the trash setting is
+confirmed) opens nothing, as in tv-native. Open in VLC hands the
 original `/files/{id}/stream` URL to `org.videolan.vlc` with `ACTION_VIEW`; a
 dialog explains when VLC is not installed. Mark as watched writes the video's
 duration as its position and Mark as unwatched clears it; both appear only
@@ -925,7 +925,8 @@ row on the server value and offers Try again above the section. Choose your
 proxy loads `/tunnel/routes` when it opens and lists the direct route first;
 Video playback type lists MP4 above HLS (default) as the oracle does. Turning
 Trash off confirms first with Cancel focused. Keep account history flips the
-History pane. Video playback buffer size stays out: there is no server key.
+History pane. Video playback buffer size stays out: TV always buffers as
+tv-native's default ([TV playback](./behavior.md#tv-playback)).
 Every dialog returns focus to the row that opened it. Settings are the shared
 test identity's, so read them before a proof and restore what you flip:
 
