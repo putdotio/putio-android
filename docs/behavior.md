@@ -97,9 +97,13 @@ the read confirmed shows a "Moved to Trash" snackbar with View Trash, once per
 request; it has no Undo, because single-item Restore is queued server-side and
 needs its own check ([Trash](#trash)). Every other outcome, including one a
 later page corrects, stays as a line under the folder. The app never sends
-`partial_delete`, so a folder too large for Trash is refused with an error
-rather than skipped; web's offer to delete it permanently has no Android
-counterpart yet.
+`partial_delete`, so put.io refuses a folder with too many items for Trash
+(`FileDeleteChildrenLimitError`) and changes nothing. On mobile and TV that
+line shows web's "We couldn't send these files to trash" with Delete
+permanently, which opens web's confirmation naming the folder; only its
+Delete sends a new `skip_trash` request. Nothing falls back to permanent
+deletion on its own, and the action leaves once a refresh no longer lists
+the folder.
 
 Mobile Files, Search results, History and the Move picker ask for the next
 page once a row within 25 of the loaded end is on screen, as web does, so a
@@ -110,8 +114,10 @@ settles. Android TV keeps its Load more button: it is the D-pad focus anchor
 at the end of the list, one node that keeps focus from Load more through
 loading to Retry.
 
-Tests: `FilesDeleteReducerTest`, `MobileFilesScreenTest`,
+Tests: `FilesDeleteReducerTest`, `SdkFilesDeleteRepositoryTest`,
+`MobileFilesDeleteTest`, `MobileFilesScreenTest`,
 `MobileSearchHistoryScreenTest`, `MobileFilesMoveTest`, `TvFilesScreenTest`,
+`FilesDeleteRecoveryUiProofTest` (opt-in synthetic device proof),
 `MobileFilesTrashPagingProofTest` (opt-in device proof; see
 [Harness](./harness.md#files-trash-and-paging-proof)).
 
