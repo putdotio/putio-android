@@ -47,13 +47,16 @@ import io.putdotio.android.downloads.description
 internal const val MOBILE_FILES_RENAME_FIELD_TAG = "mobile-files-rename-field"
 internal const val MOBILE_FILES_DOWNLOAD_ACTION_TAG = "mobile-files-download-action"
 internal const val MOBILE_FILES_SHARE_ACTION_TAG = "mobile-files-share-action"
+internal const val MOBILE_FILES_COPY_ACTION_TAG = "mobile-files-copy-action"
 
 /**
- * Whether the row's sheet offers anything. Download and Share read the original, so a friend's
- * shared file keeps them; a shared folder, including the shared root, offers nothing.
+ * Whether the row's sheet offers anything. Download and Share read the original, and Make a copy
+ * reads it into the viewer's own files, so a friend's shared file or folder keeps them; the shared
+ * root and each friend's folder offer nothing.
  */
-internal fun FilesItem.hasMobileActions(canDownload: Boolean, canShare: Boolean): Boolean =
-    id.value > 0L && (acceptsOwnerActions || (canDownload && isPlayable) || (canShare && !isFolder))
+internal fun FilesItem.hasMobileActions(canDownload: Boolean, canShare: Boolean, canCopy: Boolean): Boolean =
+    id.value > 0L &&
+        (acceptsOwnerActions || (canDownload && isPlayable) || (canShare && !isFolder) || (canCopy && canMakeCopy))
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +72,8 @@ internal fun MobileFilesActions(
     downloadStatus: DownloadStatus? = null,
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
+    onCopyItem: ((FilesItem) -> Unit)? = null,
+    canStartCopy: Boolean = true,
 ) {
     val failed = operation as? FilesFolderOperation.Failed
     val failedRename = (failed?.intent as? FilesFolderOperationIntent.Rename)?.takeIf { it.itemId == item.id }
@@ -245,6 +250,17 @@ internal fun MobileFilesActions(
                             .testTag(MOBILE_FILES_SHARE_ACTION_TAG)
                             .clickable(role = Role.Button) {
                                 onShareItem(item)
+                                dismiss()
+                            },
+                    )
+                }
+                if (onCopyItem != null && item.canMakeCopy) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.mobile_files_make_copy)) },
+                        modifier = Modifier
+                            .testTag(MOBILE_FILES_COPY_ACTION_TAG)
+                            .clickable(enabled = canStartCopy, role = Role.Button) {
+                                onCopyItem(item)
                                 dismiss()
                             },
                     )

@@ -7,6 +7,7 @@ import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.TvSessionShell
 import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.files.FilesCopyId
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFailure
@@ -199,6 +200,10 @@ internal class ProofFilesRepository(
         FilesRepositoryResult<FileDeleteResult> = error("No deletes")
 
     override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")
+
+    override suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId) = error("No copies")
+
+    override suspend fun checkCopy(copyId: FilesCopyId) = error("No copies")
 }
 
 internal class ProofTrashRepository(private val items: List<TrashItem>) : TrashRepository {

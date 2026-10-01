@@ -1200,13 +1200,19 @@ Screenshots land in the `downloads-progress-proof-<UUID>/` run directory.
 ## Shared-with-me items proof
 
 Behaviour: [Shared-with-me items](./behavior.md#shared-with-me-items).
-`MobileSharedItemsProofTest` mounts the production Files screen on a synthetic
-root listing the shared root, a friend folder, a shared folder, a shared video
-and an owned video. It makes no API calls; report it as synthetic proof. Opt in
-with `putio.shared.enabled=true` and `putio.shared.runId=<UUID>` and require
-`OK (1 test)`. Screenshots land in `shared-proof-<UUID>/`: `01-list` (no
-actions button on the three folders), `02-shared-file-actions` (Download and
-Share file only), `03-owned-file-actions` (Rename, Move, Move to trash).
+`MobileSharedItemsProofTest` mounts the production Files route and controller
+on a faked repository. The synthetic root lists the shared root, a friend
+folder, a shared folder, a shared video, an owned video and an owned
+destination folder. It makes no API calls, so report it as synthetic proof.
+Opt in with `putio.shared.enabled=true` and `putio.shared.runId=<UUID>` and
+require `OK (1 test)`. Screenshots land in `shared-proof-<UUID>/`:
+
+- `01-list`: no actions button on the shared root or the friend folder
+- `02-shared-file-actions`: Download, Share file and Make a copy only
+- `03-copy-picker`: the move picker at root
+- `04-copying`: the copy line while the check is held
+- `05-copied`: the line after the faked check reports done
+- `06-owned-file-actions`: Rename, Move, Move to trash, and no Make a copy
 
 ## Transfer retry proof
 

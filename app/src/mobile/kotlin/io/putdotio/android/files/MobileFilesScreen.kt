@@ -98,6 +98,7 @@ internal fun MobileFilesScreen(
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
     onViewTrash: (() -> Unit)? = null,
+    onCopyItem: ((FilesItem) -> Unit)? = null,
 ) {
     val current = state.current
     when (val content = current.content) {
@@ -124,6 +125,7 @@ internal fun MobileFilesScreen(
                 onDownloadItem,
                 onShareItem,
                 onViewTrash,
+                onCopyItem,
             )
         }
     }
@@ -142,6 +144,7 @@ private fun MobileRefreshableFilesContent(
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
     onViewTrash: (() -> Unit)? = null,
+    onCopyItem: ((FilesItem) -> Unit)? = null,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -164,6 +167,8 @@ private fun MobileRefreshableFilesContent(
                 downloadStatus = downloads.entry(selectedItem.id)?.status,
                 onDownloadItem = onDownloadItem,
                 onShareItem = onShareItem,
+                onCopyItem = onCopyItem,
+                canStartCopy = state.canStartCopy,
             )
         }
     }
@@ -218,7 +223,9 @@ private fun MobileRefreshableFilesContent(
                                 onEvent = onEvent,
                                 onPlayMedia = onPlayMedia,
                                 onActions = { selectedItemId = it.id.value },
-                                hasActions = { it.hasMobileActions(onDownloadItem != null, onShareItem != null) },
+                                hasActions = {
+                                    it.hasMobileActions(onDownloadItem != null, onShareItem != null, onCopyItem != null)
+                                },
                                 operation = operation,
                                 downloads = downloads,
                             )
@@ -239,6 +246,9 @@ private fun MobileRefreshableFilesContent(
                     }
                 }
                 state.current.moveOutcome?.let { MobileFilesMoveStatus(it) }
+            }
+            state.copyOutcome?.let {
+                MobileFilesCopyStatus(it, onDismiss = { onEvent(FilesBrowserEvent.DismissCopyOutcome) })
             }
         }
         SnackbarHost(
