@@ -2,6 +2,7 @@ package io.putdotio.android.files
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -29,6 +30,7 @@ internal fun MobileFilesRoute(
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
     onViewTrash: (() -> Unit)? = null,
+    moveTargetStore: FilesMoveTargetStore? = null,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -56,6 +58,7 @@ internal fun MobileFilesRoute(
                 sourceFolderId = state.current.folder.id,
                 repository = repository,
                 canSubmit = state.canStartMove,
+                targetStore = moveTargetStore,
                 onAuthenticationRequired = onAuthenticationRequired,
                 onEvent = onEvent,
                 onDismiss = { movingItemId = null },
@@ -67,6 +70,7 @@ internal fun MobileFilesRoute(
                 folderId = state.current.folder.id,
                 repository = repository,
                 canSubmit = state.canStartCopy,
+                targetStore = moveTargetStore,
                 onAuthenticationRequired = onAuthenticationRequired,
                 onEvent = onEvent,
                 onDismiss = { copyingItemId = null },
@@ -77,7 +81,7 @@ internal fun MobileFilesRoute(
 
 /**
  * The move picker without a source item, so every folder of the viewer's own, root included, is a
- * destination. It opens at root, as web's does unless its "Remember target folder" is on.
+ * destination. Like Move, it opens at root unless "Remember target folder" is on.
  */
 @Composable
 private fun MobileFilesCopySession(
@@ -85,12 +89,16 @@ private fun MobileFilesCopySession(
     folderId: FilesItemId,
     repository: FilesRepository,
     canSubmit: Boolean,
+    targetStore: FilesMoveTargetStore?,
     onAuthenticationRequired: suspend () -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onDismiss: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val controller = remember(item.id, repository) { FilesMoveDestinationController(repository, scope) }
+    val memory = rememberMoveTargetMemory(targetStore, item.id)
+    val controller = remember(item.id, repository) {
+        FilesMoveDestinationController(repository, scope, memory.value.startPath(sourceItem = null))
+    }
     var finished by remember(controller) { mutableStateOf(false) }
     DisposableEffect(controller) {
         onDispose {
@@ -115,6 +123,7 @@ private fun MobileFilesCopySession(
             ) {
                 finished = true
                 if (onEvent(FilesBrowserEvent.Copy(folderId, item.id, current.current.folder))) {
+                    memory.choose(targetStore, current.path)
                     onDismiss()
                 } else {
                     finished = false
@@ -125,6 +134,8 @@ private fun MobileFilesCopySession(
         title = stringResource(R.string.mobile_files_make_copy),
         confirmLabel = stringResource(R.string.mobile_files_copy_here),
         sourceName = item.name,
+        rememberTarget = targetStore?.let { memory.value.remember },
+        onRememberTargetChange = { memory.setRemember(targetStore, it) },
     )
 }
 
@@ -134,13 +145,15 @@ private fun MobileFilesMoveSession(
     sourceFolderId: FilesItemId,
     repository: FilesRepository,
     canSubmit: Boolean,
+    targetStore: FilesMoveTargetStore?,
     onAuthenticationRequired: suspend () -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onDismiss: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val memory = rememberMoveTargetMemory(targetStore, item.id)
     val controller = remember(item.id, sourceFolderId, repository) {
-        FilesMoveDestinationController(item, sourceFolderId, repository, scope)
+        FilesMoveDestinationController(item, sourceFolderId, repository, scope, memory.value.startPath(item))
     }
     var finished by remember(controller) { mutableStateOf(false) }
     DisposableEffect(controller) {
@@ -168,6 +181,7 @@ private fun MobileFilesMoveSession(
                 current.current.content.authoritativeSessionFailure() == null) {
                 finished = true
                 if (onEvent(FilesBrowserEvent.Move(sourceFolderId, item.id, current.current.folder.id))) {
+                    memory.choose(targetStore, current.path)
                     // The session-owned browser retains the submitted operation after the picker closes.
                     onDismiss()
                 } else {
@@ -175,5 +189,28 @@ private fun MobileFilesMoveSession(
                 }
             }
         },
+        rememberTarget = targetStore?.let { memory.value.remember },
+        onRememberTargetChange = { memory.setRemember(targetStore, it) },
     )
+}
+
+/** Read once per picker, so a toggle changes where the next picker opens, as on web. */
+@Composable
+private fun rememberMoveTargetMemory(
+    store: FilesMoveTargetStore?,
+    itemId: FilesItemId,
+): MutableState<FilesMoveTargetMemory> =
+    remember(store, itemId) { mutableStateOf(store?.read() ?: FilesMoveTargetMemory()) }
+
+private fun MutableState<FilesMoveTargetMemory>.setRemember(store: FilesMoveTargetStore?, enabled: Boolean) {
+    value = value.copy(remember = enabled)
+    store?.write(value)
+}
+
+private fun MutableState<FilesMoveTargetMemory>.choose(store: FilesMoveTargetStore?, path: List<FilesFolder>) {
+    val chosen = value.chosen(path)
+    if (chosen != value) {
+        value = chosen
+        store?.write(chosen)
+    }
 }

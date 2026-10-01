@@ -88,8 +88,8 @@ On mobile, a friend's shared file or folder, and anything inside one, offers
 Make a copy, as web and iOS do; the shared root and each friend's folder
 offer nothing, so they have no actions button. The Files move picker
 chooses the destination among the viewer's own folders, root included, and
-opens at root, as web's does unless its "Remember target folder" setting is
-on (Android has no such setting). put.io copies in the background
+opens where Move's does (see [Move and copy target folder](#move-and-copy-target-folder)).
+put.io copies in the background
 (`POST /v2/sharing/clone`), so a line under the folder shows the copy until
 it is dismissed and stays across folder navigation. The app checks the copy
 every 1.5 s, as web does, for up to 200 checks. A finished copy reloads the
@@ -106,6 +106,26 @@ first. TV doesn't offer Make a copy, because tv-native and tv-vite don't.
 Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesScreenTest`,
 `FilesCopyTest`, `MobileFilesCopyTest`, `MobileSharedItemsProofTest` (opt-in
 synthetic device proof; see [Harness](./harness.md#shared-with-me-items-proof)).
+
+## Move and copy target folder
+
+On mobile, the Move and Make a copy picker shows web's "Remember target
+folder" toggle, off by default. Off, the picker opens at root. On, Move here or
+Copy here records the chosen folder and its path, and the next Move or Make a
+copy opens there; Back walks that path up to root, reading each folder as it
+is reached. Turning the toggle off keeps the last folder, as web does, and the
+toggle takes effect from the next picker. A move never opens inside the item it
+moves. A remembered folder that can't be read opens the picker at root; one
+moved since keeps only root above it, and a renamed one shows its new name.
+
+Web keeps both values in its own `/config`, which Android can't read, so
+Android keeps them on the device, per signed-in account, in private
+SharedPreferences. Sign-out and an expired session clear them for every
+account. Android TV has no Move picker.
+
+Tests: `FilesMoveTargetMemoryTest`, `FilesMoveDestinationControllerTest`,
+`MobileMoveTargetStoreTest`, `MobileAuthControllerTest`, `MobileFilesMoveTest`,
+`MobileFilesCopyTest`.
 
 ## Files delete and paging
 

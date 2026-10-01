@@ -5,6 +5,7 @@ import android.util.Log
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.downloads.MobileDownloadCache
+import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
@@ -137,6 +138,7 @@ class MobileOAuthRuntime internal constructor(
                     revoker = PutioAuthTokenRevoker(putioClient.config),
                     scope = applicationScope,
                 ),
+                clearAccountLocalState = { MobileMoveTargetStore.clearAll(context) },
             )
             return MobileOAuthRuntime(
                 putioClient = putioClient,
