@@ -6,9 +6,12 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -33,6 +36,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.search.MOBILE_HISTORY_LIST_TAG
+import io.putdotio.android.search.MOBILE_SEARCH_RESULTS_TAG
 import io.putdotio.android.search.MobileSearchHistoryScreen
 
 @RunWith(AndroidJUnit4::class)
@@ -102,6 +107,39 @@ class MobileSearchHistoryScreenTest {
         compose.onNodeWithText("Try again").performClick()
 
         assertEquals(1, retries)
+    }
+
+    @Test
+    fun searchResultsLoadTheNextPageNearTheEndWithoutATap() {
+        val items = (1L..60L).map { fileItem().copy(id = FilesItemId(it), name = "Sample $it.mp4") }
+        var loads = 0
+        setScreen(
+            search = searchState(
+                SearchContent.Ready(SearchTerm("sample"), items, SearchPaging.Available(FilesCursor("next"))),
+            ),
+            actions = MobileSearchHistoryActions(onNextPage = { loads++ }),
+        )
+
+        compose.runOnIdle { assertEquals("the top of a long page asks for nothing", 0, loads) }
+        compose.onNodeWithTag(MOBILE_SEARCH_RESULTS_TAG).performScrollToIndex(40)
+        compose.runOnIdle { assertEquals(1, loads) }
+    }
+
+    @Test
+    fun historyLoadsTheNextPageNearTheEndWithoutATap() {
+        val events = mutableListOf<HistoryEvent>()
+        val items = (1L..60L).map {
+            HistoryItem(HistoryEventId(it), "2026-08-30T10:00:00Z", HistoryEventKind.File(HistoryFileId(it), "Sample $it"))
+        }
+        setScreen(
+            history = HistoryState(HistoryContent.Ready(items, HistoryPaging.Available(HistoryEventId(60L)))),
+            actions = MobileSearchHistoryActions(onHistoryEvent = events::add),
+        )
+
+        compose.onNodeWithText("History").performClick()
+        compose.runOnIdle { assertEquals(emptyList<HistoryEvent>(), events) }
+        compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToIndex(45)
+        compose.runOnIdle { assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), events) }
     }
 
     @Test
@@ -211,7 +249,7 @@ class MobileSearchHistoryScreenTest {
                     onSearchQueryChanged = {},
                     onSearchSubmit = {},
                     onSearchResult = actions.onResult,
-                    onSearchNextPage = {},
+                    onSearchNextPage = actions.onNextPage,
                     onSearchRetry = {},
                     onRecentSearch = actions.onRecentSearch,
                     onRecentEdit = actions.onRecentEdit,

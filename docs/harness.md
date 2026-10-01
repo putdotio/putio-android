@@ -418,7 +418,9 @@ by CLI preflight.
 
 `AuthenticatedFilesDeleteTest#authenticatedDeletePreservesSessionAndCancel`
 exercises the current confirmed account mode: browse an empty fixture folder,
-sort its parent, cancel one named action, and confirm another. It checks the
+sort its parent, cancel one named action, and confirm another. With Trash on,
+Move to trash has no confirmation, so cancelling means leaving the actions sheet
+and the result is the "Moved to Trash" snackbar. It checks the
 exact item through the SDK and verifies Trash membership when appropriate.
 It never changes the account's Trash setting. A passing run covers only the
 mode recorded in its fixture; folder descendant completion is outside this test.
@@ -451,6 +453,18 @@ Delete recovery; after Check status reconciles the item, a fresh transfer open
 succeeds. It makes no API calls and captures `synthetic-navigation.png` under
 the same screenshot directory. Invoke this exact named test separately when
 refreshing shell navigation proof; it requires no live fixtures.
+
+## Files trash and paging proof
+
+Behaviour: [Files delete and paging](./behavior.md#files-delete-and-paging).
+`MobileFilesTrashPagingProofTest` runs the production Files screen and
+controller over an in-memory repository with 120 rows in 50-row pages and Trash
+on. It makes no API calls; report it as synthetic proof. Opt in with
+`putio.files.enabled=true` and `putio.files.runId=<UUID>` and require
+`OK (1 test)`. Screenshots land in `files-proof-<UUID>/`: `01-first-page`,
+`02-actions`, `03-moved-to-trash` (no confirmation, snackbar with View Trash
+and no Undo), `04-second-page-loaded` and `05-last-page` (pages that arrived by
+scrolling, no Load more).
 
 ## Authenticated Move device test
 
@@ -846,7 +860,8 @@ dialog explains when VLC is not installed. Mark as watched writes the video's
 duration as its position and Mark as unwatched clears it; both appear only
 when the account's `use_start_from` is confirmed on, and marking watched also
 needs a known duration. Move to trash or Delete permanently follows the
-confirmed `trash_enabled` setting, confirms with Cancel focused, then runs the
+confirmed `trash_enabled` setting. Move to trash runs at once; Delete
+permanently confirms with Cancel focused. Either then runs the
 shared delete operation: its phases, Check status or Retry on failure, and the
 fresh listing's verdict show above the rows. Every dialog returns focus to
 its row. The shared identity's files are the fixture, so create a throwaway

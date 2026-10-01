@@ -5,6 +5,7 @@ internal fun FilesBrowserState.reduceDelete(event: FilesBrowserEvent.DeleteEvent
         is FilesBrowserEvent.Delete -> delete(event)
         is FilesBrowserEvent.DeleteFinished -> deleteFinished(event)
         is FilesBrowserEvent.DeleteChecked -> deleteChecked(event)
+        is FilesBrowserEvent.DismissDeleteOutcome -> dismissDeleteOutcome(event.requestId)
     }
 
 private fun FilesBrowserState.delete(event: FilesBrowserEvent.Delete): FilesBrowserTransition {
@@ -85,6 +86,12 @@ private fun FilesBrowserState.deleteChecked(event: FilesBrowserEvent.DeleteCheck
             effect = FilesBrowserEffect.LoadFolder(folder.folder.id, requestId),
         )
     }
+}
+
+private fun FilesBrowserState.dismissDeleteOutcome(requestId: FilesRequestId): FilesBrowserTransition {
+    val index = stack.indexOfFirst { it.deleteOutcome?.requestId == requestId && it.operation.pendingDelete == null }
+    if (index < 0) return FilesBrowserTransition(this, consumed = false)
+    return FilesBrowserTransition(copy(stack = stack.replaceAt(index, stack[index].copy(deleteOutcome = null))))
 }
 
 private fun FilesRepositoryResult<FilesItem>.deleteReadFailure(expectedId: FilesItemId): FilesFailure? = when (this) {

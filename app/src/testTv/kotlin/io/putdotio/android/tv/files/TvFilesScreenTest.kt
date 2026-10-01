@@ -747,7 +747,7 @@ class TvFilesScreenTest {
     private fun networkFailure() = FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))
 
     @Test
-    fun theMenuKeyOpensTheRowActionsAndDeleteConfirmsBeforeDispatching() {
+    fun theMenuKeyOpensTheRowActionsAndMoveToTrashRunsWithoutAConfirmation() {
         val events = mutableListOf<FilesBrowserEvent>()
         val toggled = mutableListOf<Pair<Long, Boolean>>()
         val opened = mutableListOf<Long>()
@@ -784,12 +784,7 @@ class TvFilesScreenTest {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
         }
-        compose.onNodeWithText("Move to trash?").assertIsDisplayed()
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNodeWithText("Move to trash").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
         assertEquals(
             listOf<FilesBrowserEvent>(
                 FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(2), FilesDeleteMode.TRASH),

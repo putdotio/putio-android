@@ -45,7 +45,6 @@ import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MOBILE_FILES_MOVE_BACK_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
-import io.putdotio.android.files.MOBILE_FILES_MOVE_LOAD_MORE_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_RETRY_TAG
 import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
 import io.putdotio.android.files.MobileFilesMoveDestination
@@ -146,7 +145,7 @@ class FilesMoveRecoveryUiProofTest {
                 FilesPage(listOf(preview.source), FilesCursor("synthetic-page-two")),
             ))
         }
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).performClick()
+        // A one-folder page ends inside the paging margin, so the picker asks for the next page itself.
         val destination = preview.source.copy(id = FilesItemId(18), name = "Empty destination 東京")
         compose.runOnIdle {
             val request = checkNotNull(preview.pickerRequest)

@@ -90,6 +90,26 @@ class FilesDeleteReducerTest {
     }
 
     @Test
+    fun anAnnouncedOutcomeLeavesTheFolderOnlyOnceSettledAndOnlyForItsOwnRequest() {
+        val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
+        val requestId = checkNotNull(deleting.state.current.deleteOutcome).requestId
+        val dismiss = FilesBrowserEvent.DismissDeleteOutcome(requestId)
+        assertFalse(FilesBrowserReducer.reduce(deleting.state, dismiss).consumed)
+        val finished = finishReload(checked(acknowledge(deleting), FilesRepositoryResult.Failure(apiFailure(404))),
+            emptyList())
+        assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, finished.current.deleteOutcome?.status)
+        assertFalse(FilesBrowserReducer.reduce(
+            finished, FilesBrowserEvent.DismissDeleteOutcome(FilesRequestId(requestId.value + 1)),
+        ).consumed)
+
+        val dismissed = FilesBrowserReducer.reduce(finished, dismiss)
+
+        assertTrue(dismissed.consumed)
+        assertNull(dismissed.effect)
+        assertEquals(finished.current.copy(deleteOutcome = null), dismissed.state.current)
+    }
+
+    @Test
     fun laterFolderPresenceCorrectsAnEarlierNotFoundResultWithoutRetryingDelete() {
         val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
         val reloading = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))

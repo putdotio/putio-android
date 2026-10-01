@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.MobileAuthState
@@ -117,7 +118,13 @@ class AuthenticatedFilesDeleteTest {
         }
         requireSession(runtime, session)
         confirmOrCancel(fixture, fixture.actionName, cancel = false)
-        waitFor(hasText(compose.activity.getString(R.string.mobile_files_delete_unavailable, fixture.actionName)))
+        waitFor(hasText(
+            if (fixture.expectedTrashEnabled) {
+                compose.activity.getString(R.string.mobile_files_trash_done)
+            } else {
+                compose.activity.getString(R.string.mobile_files_delete_unavailable, fixture.actionName)
+            },
+        ))
         row(MOBILE_FILES_LIST_TAG, fixture.cancelName)
         check(compose.onAllNodes(hasText(fixture.actionName) and hasAnyAncestor(hasTestTag(MOBILE_FILES_LIST_TAG)))
             .fetchSemanticsNodes().isEmpty())
@@ -171,16 +178,22 @@ class AuthenticatedFilesDeleteTest {
             compose.activity.getString(R.string.mobile_files_actions, name),
         ).performClick()
         val action = if (fixture.expectedTrashEnabled) R.string.mobile_files_trash else R.string.mobile_files_delete
-        waitFor(hasText(compose.activity.getString(action)))
-        compose.onNodeWithText(compose.activity.getString(action)).performClick()
-        val message = compose.activity.getString(
-            if (fixture.expectedTrashEnabled) {
-                R.string.mobile_files_trash_confirmation
+        val actionLabel = compose.activity.getString(action)
+        waitFor(hasText(actionLabel))
+        if (fixture.expectedTrashEnabled) {
+            // Move to trash runs without a confirmation, so cancelling means leaving the sheet.
+            deleteProofScreenshot(if (cancel) "cancel-sheet" else "action-sheet")
+            if (cancel) {
+                Espresso.pressBack()
+                compose.waitUntil(TIMEOUT) { compose.onAllNodes(hasText(actionLabel)).fetchSemanticsNodes().isEmpty() }
+                row(MOBILE_FILES_LIST_TAG, name)
             } else {
-                R.string.mobile_files_delete_confirmation
-            },
-            name,
-        )
+                compose.onNodeWithText(actionLabel).performClick()
+            }
+            return
+        }
+        compose.onNodeWithText(actionLabel).performClick()
+        val message = compose.activity.getString(R.string.mobile_files_delete_confirmation, name)
         waitFor(hasText(message))
         deleteProofScreenshot(if (cancel) "cancel-confirmation" else "action-confirmation")
         compose.onNodeWithText(compose.activity.getString(

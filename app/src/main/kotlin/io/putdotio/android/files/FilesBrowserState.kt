@@ -210,6 +210,11 @@ sealed interface FilesBrowserEvent {
         val result: FilesRepositoryResult<FilesItem>,
     ) : DeleteEvent
 
+    /** The screen announced this settled outcome on its own, so the folder stops showing it. */
+    data class DismissDeleteOutcome(
+        val requestId: FilesRequestId,
+    ) : DeleteEvent
+
     sealed interface MoveEvent : ItemMutationEvent
 
     data class Move(

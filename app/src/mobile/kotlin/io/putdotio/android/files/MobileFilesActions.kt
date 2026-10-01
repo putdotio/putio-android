@@ -75,12 +75,13 @@ internal fun MobileFilesActions(
     var draft by rememberSaveable { mutableStateOf(failedRename?.name ?: item.name) }
     var submittedName by rememberSaveable { mutableStateOf<String?>(null) }
     var previousCompletionRequestValue by rememberSaveable { mutableStateOf<Long?>(null) }
-    var confirmedDeleteTrash by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    // Only permanent deletion confirms; Trash keeps the item, as on web and iOS.
+    var confirmingPermanentDelete by rememberSaveable { mutableStateOf(false) }
     var deleteSubmitted by rememberSaveable { mutableStateOf(false) }
     val currentTrashEnabled by rememberUpdatedState(confirmedTrashEnabled)
     val currentOperation by rememberUpdatedState(operation)
     LaunchedEffect(confirmedTrashEnabled) {
-        if (confirmedDeleteTrash != confirmedTrashEnabled) confirmedDeleteTrash = null
+        if (confirmedTrashEnabled != false) confirmingPermanentDelete = false
     }
     val dismiss = {
         if (failedRename != null) onEvent(FilesBrowserEvent.AbandonRename(folderId, failedRename))
@@ -101,27 +102,27 @@ internal fun MobileFilesActions(
             renameCompletion?.intent == FilesFolderOperationIntent.Rename(item.id, submitted)
         if (matchesSubmission && renameCompletion.requestId.value != previousCompletionRequestValue) onDismiss()
     }
-    val deleteTrash = confirmedDeleteTrash
-    if (deleteTrash != null && deleteTrash == confirmedTrashEnabled) {
+    val submitDelete = { mode: FilesDeleteMode ->
+        val confirmedMode = when (currentTrashEnabled) {
+            true -> FilesDeleteMode.TRASH
+            false -> FilesDeleteMode.PERMANENT
+            null -> null
+        }
+        if (!deleteSubmitted && confirmedMode == mode && currentOperation.canStartOperation) {
+            deleteSubmitted = true
+            onEvent(FilesBrowserEvent.Delete(folderId, item.id, mode))
+            onDismiss()
+        }
+    }
+    if (confirmingPermanentDelete && confirmedTrashEnabled == false) {
         MobileFilesDeleteConfirmation(
             item = item,
-            trash = deleteTrash,
             enabled = !deleteSubmitted && operation.canStartOperation,
             onDismiss = {
-                confirmedDeleteTrash = null
+                confirmingPermanentDelete = false
                 dismiss()
             },
-            onConfirm = {
-                if (!deleteSubmitted && confirmedDeleteTrash == deleteTrash &&
-                    currentTrashEnabled == deleteTrash && currentOperation.canStartOperation
-                ) {
-                    deleteSubmitted = true
-                    onEvent(FilesBrowserEvent.Delete(
-                        folderId, item.id, if (deleteTrash) FilesDeleteMode.TRASH else FilesDeleteMode.PERMANENT,
-                    ))
-                    onDismiss()
-                }
-            },
+            onConfirm = { submitDelete(FilesDeleteMode.PERMANENT) },
         )
     } else if (editing) {
         val focusRequester = remember { FocusRequester() }
@@ -276,7 +277,11 @@ internal fun MobileFilesActions(
                                     operation.canStartOperation,
                                 role = Role.Button,
                             ) {
-                                confirmedDeleteTrash = currentTrashEnabled
+                                when (currentTrashEnabled) {
+                                    true -> submitDelete(FilesDeleteMode.TRASH)
+                                    false -> confirmingPermanentDelete = true
+                                    null -> Unit
+                                }
                             }
                             .padding(bottom = 24.dp),
                     )
