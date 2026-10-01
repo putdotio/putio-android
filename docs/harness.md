@@ -440,10 +440,13 @@ item separately: removing its active parent does not remove its Trash entry.
 Clean only exact owned IDs; never empty Trash or use ID zero. Preserve fixtures
 when guest activity or cleanup outcomes remain unknown.
 
-The separately opted-in
-`FilesDeleteRecoveryUiProofTest#uncertainDeleteKeepsItemAndOffersStatusCheck`
-uses `putio.delete.ui.enabled=true` and the same run ID to capture controlled
-error UI without API calls. Both tests write screenshots to the
+The separately opted-in `FilesDeleteRecoveryUiProofTest` uses
+`putio.delete.ui.enabled=true` and the same run ID to capture controlled
+error UI without API calls: `uncertainDeleteKeepsItemAndOffersStatusCheck`
+for Check status recovery, and `folderTooLargeForTrashOffersConfirmedPermanentDelete`
+for a folder over the Trash limit (`synthetic-trash-limit*.png`: the line,
+the confirmation, and the result after its Delete). These tests and
+`AuthenticatedFilesDeleteTest` write screenshots to the
 `delete-proof-<UUID>/` run directory.
 
 `FilesDeleteNavigationUiProofTest#rejectedSearchAndTransferNavigationPreserveRecovery`

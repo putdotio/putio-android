@@ -106,6 +106,7 @@ private fun FilesRepositoryResult<FilesItem>.deleteReadFailure(expectedId: Files
 private fun FilesDeleteOutcome.checkedStatus(unavailable: Boolean): FilesDeleteStatus = when {
     response?.let { it.skipped > 0 || it.cursor != null } == true -> FilesDeleteStatus.SKIPPED
     unavailable -> FilesDeleteStatus.NO_LONGER_AVAILABLE
+    intent.mode == FilesDeleteMode.TRASH && failure.isTrashChildrenLimit -> FilesDeleteStatus.TOO_LARGE_FOR_TRASH
     else -> FilesDeleteStatus.STILL_PRESENT
 }
 

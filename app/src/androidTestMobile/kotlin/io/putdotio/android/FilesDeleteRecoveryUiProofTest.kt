@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.os.SystemClock
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -10,9 +11,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -40,6 +43,10 @@ import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
 import io.putdotio.android.files.MobileFilesScreen
 import io.putdotio.android.playback.dispatch
+import io.putdotio.sdk.errors.PutioApiErrorEnvelope
+import io.putdotio.sdk.errors.PutioApiException
+import io.putdotio.sdk.errors.PutioRequestData
+import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -111,6 +118,57 @@ class FilesDeleteRecoveryUiProofTest {
         assertNavigationResumes(preview)
     }
 
+    @Test
+    fun folderTooLargeForTrashOffersConfirmedPermanentDelete() {
+        // Controlled reducer/UI evidence only: effects are recorded, never executed against an API.
+        val preview = DeleteRecoveryPreview(itemName = "Sample folder")
+        compose.setContent {
+            PutioTheme {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    MobileFilesScreen(
+                        preview.state, { preview.dispatch(it) }, onPlayMedia = {}, confirmedTrashEnabled = true,
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+                    )
+                }
+            }
+        }
+        compose.runOnIdle {
+            preview.dispatch(FilesBrowserEvent.Delete(preview.folder.id, preview.item.id, FilesDeleteMode.TRASH))
+            preview.refuseTrashForFolderSize()
+            preview.finishStatusRead()
+            preview.finishFolderReload()
+            assertEquals(FilesDeleteStatus.TOO_LARGE_FOR_TRASH, preview.state.current.deleteOutcome?.status)
+        }
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val deletePermanently = context.getString(R.string.mobile_files_trash_limit_delete)
+        val message = context.getString(R.string.mobile_files_trash_limit_message)
+        compose.onNodeWithText(context.getString(R.string.mobile_files_trash_limit_title)).assertIsDisplayed()
+        compose.onNodeWithText(deletePermanently).assertIsDisplayed()
+        deleteProofScreenshot("synthetic-trash-limit")
+        compose.onNodeWithText(deletePermanently).performClick()
+        compose.onNodeWithText(message).assertIsDisplayed()
+        deleteProofScreenshot("synthetic-trash-limit-confirm")
+        compose.onNodeWithText(context.getString(R.string.mobile_action_cancel)).performClick()
+        compose.onAllNodesWithText(message).assertCountEquals(0)
+        compose.runOnIdle { assertEquals(1, preview.effects.count { it is FilesBrowserEffect.Delete }) }
+
+        compose.onNodeWithText(deletePermanently).performClick()
+        compose.onNodeWithText(context.getString(R.string.mobile_files_delete)).performClick()
+        compose.runOnIdle {
+            val permanent = preview.effects.last() as FilesBrowserEffect.Delete
+            assertEquals(FilesDeleteMode.PERMANENT, permanent.mode)
+            assertEquals(preview.item.id, permanent.itemId)
+            assertEquals(2, preview.effects.count { it is FilesBrowserEffect.Delete })
+            preview.finishPermanentDelete()
+        }
+        compose.onNodeWithText(context.getString(R.string.mobile_files_delete_unavailable, preview.item.name))
+            .assertIsDisplayed()
+        compose.waitForIdle()
+        // The dialog window's exit animation runs outside Compose idling.
+        SystemClock.sleep(1_000)
+        deleteProofScreenshot("synthetic-trash-limit-deleted")
+    }
+
     private fun assertNavigationRetainsRecovery(preview: DeleteRecoveryPreview) {
         compose.runOnIdle {
             val retained = preview.state
@@ -167,9 +225,9 @@ class FilesDeleteRecoveryUiProofTest {
     }
 }
 
-private class DeleteRecoveryPreview {
+private class DeleteRecoveryPreview(itemName: String = "A Action été") {
     val folder = FilesFolder(FilesItemId(12), "Delete recovery preview")
-    val item = FilesItem(FilesItemId(13), folder.id, "A Action été", PutioFileType.FOLDER, 0, "2026-01-01T00:00:00Z")
+    val item = FilesItem(FilesItemId(13), folder.id, itemName, PutioFileType.FOLDER, 0, "2026-01-01T00:00:00Z")
     val effects = mutableListOf<FilesBrowserEffect>()
     var state by mutableStateOf(FilesBrowserState(
         stack = listOf(
@@ -195,6 +253,30 @@ private class DeleteRecoveryPreview {
             FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("Synthetic unknown result")))))
         assertTrue(effects.last() is FilesBrowserEffect.CheckDelete)
     }
+
+    fun refuseTrashForFolderSize() {
+        val deleting = effects.last() as FilesBrowserEffect.Delete
+        dispatch(FilesBrowserEvent.DeleteFinished(deleting.requestId,
+            FilesRepositoryResult.Failure(apiRejected(400, "FileDeleteChildrenLimitError"))))
+        assertTrue(effects.last() is FilesBrowserEffect.CheckDelete)
+    }
+
+    fun finishPermanentDelete() {
+        val deleting = effects.last() as FilesBrowserEffect.Delete
+        dispatch(FilesBrowserEvent.DeleteFinished(deleting.requestId,
+            FilesRepositoryResult.Success(FileDeleteResult(status = "OK"))))
+        val checking = effects.last() as FilesBrowserEffect.CheckDelete
+        dispatch(FilesBrowserEvent.DeleteChecked(checking.requestId, FilesRepositoryResult.Failure(apiRejected(404))))
+        val reloading = effects.last() as FilesBrowserEffect.LoadFolder
+        dispatch(FilesBrowserEvent.LoadSucceeded(reloading.requestId, FilesPage(emptyList(), null)))
+        assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, state.current.deleteOutcome?.status)
+    }
+
+    private fun apiRejected(code: Int, type: String? = null) = FilesFailure.ApiRejected(code, type, PutioApiException(
+        PutioRequestData("POST", "https://api.put.io/v2/files/delete"), code, resolvedErrorType = type,
+        envelope = PutioApiErrorEnvelope(errorType = type, statusCode = code), responseBody = "{}",
+        message = "Synthetic rejection",
+    ))
 
     fun failStatusRead() {
         val checking = effects.last() as FilesBrowserEffect.CheckDelete

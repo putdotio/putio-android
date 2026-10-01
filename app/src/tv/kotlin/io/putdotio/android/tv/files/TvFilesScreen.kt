@@ -58,6 +58,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesDeleteMode
+import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesDeleteStatus
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.pendingIntent
@@ -69,6 +70,7 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.files.canStartOperation
+import io.putdotio.android.files.items
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvDialog
 import androidx.compose.ui.input.key.Key
@@ -376,14 +378,69 @@ private fun TvFilesDeleteStatus(
             ),
             onAction = { onEvent(FilesBrowserEvent.Retry) },
         )
+        operation == FilesFolderOperation.Idle &&
+            current.deleteOutcome?.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH ->
+            TvFilesTrashLimitStatus(checkNotNull(current.deleteOutcome), current, onEvent)
         operation == FilesFolderOperation.Idle -> current.deleteOutcome?.let { outcome ->
             val message = when (outcome.status) {
                 FilesDeleteStatus.NO_LONGER_AVAILABLE -> R.string.tv_files_delete_unavailable
                 FilesDeleteStatus.STILL_PRESENT -> R.string.tv_files_delete_still_present
                 FilesDeleteStatus.SKIPPED -> R.string.tv_files_delete_skipped
-                FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN -> null
+                FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN, FilesDeleteStatus.TOO_LARGE_FOR_TRASH -> null
             }
             if (message != null) TvFilesNotice(text = stringResource(message, outcome.itemName))
+        }
+    }
+}
+
+/**
+ * A folder put.io would not send to trash stays with web's explanation and a Delete permanently
+ * action; only the confirmation dialog, which opens with Cancel focused, sends the permanent delete.
+ */
+@Composable
+private fun TvFilesTrashLimitStatus(
+    outcome: FilesDeleteOutcome,
+    current: FilesFolderState,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+) {
+    var confirming by rememberSaveable(outcome.requestId.value) { mutableStateOf(false) }
+    // A refresh that no longer lists the folder leaves nothing for the reducer to delete; a
+    // rename keeps the outcome, so the dialog names the folder as it is listed now.
+    val listed = current.content.items().firstOrNull { it.id == outcome.intent.itemId }
+    TvFilesNotice(
+        text = stringResource(R.string.tv_files_trash_limit_title),
+        action = stringResource(R.string.tv_files_action_delete).takeIf { listed != null },
+        onAction = { confirming = true },
+    )
+    if (confirming && listed != null) {
+        val close = { confirming = false }
+        val delete = FilesBrowserEvent.Delete(current.folder.id, listed.id, FilesDeleteMode.PERMANENT)
+        TvDialog(
+            title = stringResource(R.string.tv_files_trash_limit_title),
+            message = stringResource(R.string.tv_files_trash_limit_message),
+            onDismiss = close,
+            body = {
+                // Bounded like TvDialog's message so a long name cannot push the actions off screen.
+                Text(
+                    listed.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+        ) { focus ->
+            TvButton(
+                onClick = {
+                    close()
+                    onEvent(delete)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.tv_files_trash_limit_confirm))
+            }
+            TvButton(onClick = close, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
+                Text(stringResource(R.string.tv_files_cancel))
+            }
         }
     }
 }

@@ -231,7 +231,13 @@ private fun MobileRefreshableFilesContent(
             }
             MobileFilesOperationStatus(operation = operation, onRetry = { onEvent(FilesBrowserEvent.Retry) })
             if (operation == FilesFolderOperation.Idle) {
-                state.current.deleteOutcome?.takeUnless { it.isConfirmedTrash }?.let { MobileFilesDeleteStatus(it) }
+                state.current.deleteOutcome?.takeUnless { it.isConfirmedTrash }?.let { outcome ->
+                    if (outcome.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH) {
+                        MobileFilesTrashLimitStatus(outcome, state.current, onEvent)
+                    } else {
+                        MobileFilesDeleteStatus(outcome)
+                    }
+                }
                 state.current.moveOutcome?.let { MobileFilesMoveStatus(it) }
             }
         }
@@ -437,7 +443,7 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
         FilesDeleteStatus.NO_LONGER_AVAILABLE -> R.string.mobile_files_delete_unavailable
         FilesDeleteStatus.STILL_PRESENT -> R.string.mobile_files_delete_still_present
         FilesDeleteStatus.SKIPPED -> R.string.mobile_files_delete_skipped
-        FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN -> null
+        FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN, FilesDeleteStatus.TOO_LARGE_FOR_TRASH -> null
     }
     if (message != null) {
         Column(
