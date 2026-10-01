@@ -85,6 +85,7 @@ import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.apiReason
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
@@ -615,7 +616,7 @@ private fun MobileTunnelRouteDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(stringResource(R.string.mobile_settings_tunnel_route_error))
-                    Text(stringResource(loaded.failure.messageResource()))
+                    Text(loaded.failure.message())
                     if (loaded.failure !is AccountSettingsFailure.AuthenticationRequired) {
                         TextButton(
                             onClick = { attempt += 1 },
@@ -901,7 +902,7 @@ private fun MobileAppConfigLoadError(
         headlineContent = { Text(stringResource(R.string.mobile_settings_playback_error_title)) },
         supportingContent = {
             Column {
-                Text(stringResource(failure.messageResource()))
+                Text(failure.message())
                 if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
@@ -934,7 +935,7 @@ private fun MobileAppConfigMutationError(
         headlineContent = { Text(stringResource(title)) },
         supportingContent = {
             Column {
-                Text(stringResource(failure.messageResource()))
+                Text(failure.message())
                 if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
@@ -944,6 +945,9 @@ private fun MobileAppConfigMutationError(
         },
     )
 }
+
+@Composable
+private fun AndroidAppConfigFailure.message(): String = apiReason ?: stringResource(messageResource())
 
 @StringRes
 private fun AndroidAppConfigFailure.messageResource(): Int =
@@ -1058,7 +1062,7 @@ private fun MobileAccountSettingsError(
         headlineContent = { Text(stringResource(R.string.mobile_settings_error_title)) },
         supportingContent = {
             Column {
-                Text(stringResource(failure.messageResource()))
+                Text(failure.message())
                 if (failure !is AccountSettingsFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
@@ -1091,7 +1095,7 @@ internal fun MobileAccountMutationError(
         headlineContent = { Text(stringResource(title)) },
         supportingContent = {
             Column {
-                Text(stringResource(failure.messageResource()))
+                Text(failure.message())
                 if (failure !is AccountSettingsFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
@@ -1101,6 +1105,9 @@ internal fun MobileAccountMutationError(
         },
     )
 }
+
+@Composable
+private fun AccountSettingsFailure.message(): String = apiReason ?: stringResource(messageResource())
 
 @StringRes
 private fun AccountSettingsFailure.messageResource(): Int =

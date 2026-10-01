@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import io.putdotio.android.apiRejectionReason
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.account.AccountInfoQuery
@@ -86,6 +87,10 @@ sealed interface PlaybackFailure {
         override val cause: Throwable,
     ) : PlaybackFailure
 }
+
+/** put.io's own reason for a refused request; the surface's copy applies when it is null. */
+internal val PlaybackFailure.apiReason: String?
+    get() = (this as? PlaybackFailure.ApiRejected)?.cause?.apiRejectionReason()
 
 /**
  * Whether trying again can succeed: a network, rate-limit, server, request-timeout or

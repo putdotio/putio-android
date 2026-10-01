@@ -1,5 +1,6 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.apiRejectionReason
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.config.AppConfig
 import io.putdotio.sdk.config.AppConfigUpdate
@@ -42,6 +43,10 @@ internal sealed interface AndroidAppConfigFailure {
     data class Misconfigured(override val cause: PutioException) : AndroidAppConfigFailure
     data class Unexpected(override val cause: Throwable) : AndroidAppConfigFailure
 }
+
+/** put.io's own reason for a refused request; the surface's copy applies when it is null. */
+internal val AndroidAppConfigFailure.apiReason: String?
+    get() = (this as? AndroidAppConfigFailure.ApiRejected)?.cause?.apiRejectionReason()
 
 internal interface AndroidAppConfigRepository {
     suspend fun load(): AndroidAppConfigRepositoryResult<AndroidAppConfigPreferences>

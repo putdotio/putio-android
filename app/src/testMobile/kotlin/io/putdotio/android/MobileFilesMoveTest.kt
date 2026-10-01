@@ -35,6 +35,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.StubFilesRepository
+import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
@@ -167,6 +168,22 @@ class MobileFilesMoveTest {
             assertEquals(listOf(null, FilesCursor("next"), FilesCursor("next")), requests)
             assertTrue(events.none { it is FilesBrowserEvent.Move || it is FilesBrowserEvent.LoadNextPage })
         }
+    }
+
+    @Test
+    fun missingDestinationKeepsThePickerCopyOverPutiosReason() {
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                error("Unexpected source read")
+            override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
+                FilesRepositoryResult.Failure(putioRefusal(404, putioErrorBody(404, "not a folder")).toFilesFailure())
+        }
+        compose.setContent {
+            PutioTheme { MobileFilesRoute(loadedRoot(), repository, { true }, {}, true, {}) }
+        }
+        openMove()
+        compose.onNodeWithText("This folder is unavailable. Choose another folder.").assertIsDisplayed()
+        compose.onNodeWithText("not a folder").assertDoesNotExist()
     }
 
     @Test

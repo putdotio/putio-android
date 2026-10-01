@@ -11,7 +11,7 @@ import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvDialog
-import io.putdotio.android.tv.files.tvMessage
+import io.putdotio.android.tv.files.tvMessageText
 
 /**
  * The clear confirmation per the TV contract: a centred 28dp dialog with stacked
@@ -47,7 +47,7 @@ internal fun TvHistoryClearDialog(
         is HistoryClearing.Failed ->
             TvDialog(
                 title = stringResource(R.string.tv_history_clear_error_title),
-                message = stringResource(clearing.failure.tvMessage()),
+                message = clearing.failure.tvMessageText(),
                 onDismiss = { onEvent(HistoryEvent.DismissClear) },
             ) { focus ->
                 TvButton(

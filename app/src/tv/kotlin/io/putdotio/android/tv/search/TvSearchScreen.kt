@@ -88,7 +88,7 @@ import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.files.TvFilesRow
-import io.putdotio.android.tv.files.tvMessage
+import io.putdotio.android.tv.files.tvMessageText
 import kotlinx.coroutines.flow.first
 
 internal const val TV_SEARCH_FIELD_TAG = "tv-search-field"
@@ -230,7 +230,7 @@ internal fun TvSearchScreen(
                 val retryFocus = remember { FocusRequester() }
                 TvStatusScreen(
                     title = stringResource(R.string.tv_search_error_title),
-                    message = stringResource(content.failure.tvMessage()),
+                    message = content.failure.tvMessageText(),
                     action = stringResource(R.string.tv_files_retry),
                     onAction = {
                         // The button leaves with the failure; the field takes over before it goes.
