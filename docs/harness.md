@@ -419,9 +419,9 @@ by CLI preflight.
 `AuthenticatedFilesDeleteTest#authenticatedDeletePreservesSessionAndCancel`
 exercises the current confirmed account mode: browse an empty fixture folder,
 sort its parent, cancel one named action, and confirm another. With Trash on,
-Move to trash has no confirmation, so cancelling means leaving the actions sheet
-and the result is the "Moved to Trash" snackbar. It checks the
-exact item through the SDK and verifies Trash membership when appropriate.
+Move to trash has no confirmation: cancelling means leaving the actions sheet,
+which sends nothing, and the confirmed move shows the "Moved to Trash" snackbar.
+It checks the exact item through the SDK and verifies Trash membership when appropriate.
 It never changes the account's Trash setting. A passing run covers only the
 mode recorded in its fixture; folder descendant completion is outside this test.
 
