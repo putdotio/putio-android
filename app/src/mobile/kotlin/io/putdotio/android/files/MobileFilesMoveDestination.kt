@@ -59,6 +59,7 @@ internal fun MobileFilesMoveDestination(
     canSubmit: Boolean = true,
     title: String = stringResource(R.string.mobile_files_move),
     confirmLabel: String = stringResource(R.string.mobile_files_move_here),
+    sourceName: String? = state.sourceItem?.name,
 ) {
     val back = {
         if (state.canNavigateBack) onEvent(FilesMoveDestinationEvent.NavigateBack) else onCancel()
@@ -80,7 +81,7 @@ internal fun MobileFilesMoveDestination(
                     }
                 }
                 key(state.current.folder.id.value) {
-                    MobileMoveFolderContent(state, onEvent, back, Modifier.weight(1f))
+                    MobileMoveFolderContent(state, sourceName, onEvent, back, Modifier.weight(1f))
                 }
                 HorizontalDivider()
                 Button(onClick = onConfirm, enabled = canSubmit && state.canMoveHere,
@@ -95,6 +96,7 @@ internal fun MobileFilesMoveDestination(
 @Composable
 private fun MobileMoveFolderContent(
     state: FilesMoveDestinationState,
+    sourceName: String?,
     onEvent: (FilesMoveDestinationEvent) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier,
@@ -118,9 +120,9 @@ private fun MobileMoveFolderContent(
         onLoadNextPage = { onEvent(FilesMoveDestinationEvent.LoadNextPage) },
     )
     LazyColumn(state = listState, modifier = listModifier.fillMaxWidth()) {
-        state.sourceItem?.let { source ->
+        sourceName?.let { name ->
             item {
-                Text(source.name, style = MaterialTheme.typography.bodyLarge,
+                Text(name, style = MaterialTheme.typography.bodyLarge,
                     maxLines = 3, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 HorizontalDivider()

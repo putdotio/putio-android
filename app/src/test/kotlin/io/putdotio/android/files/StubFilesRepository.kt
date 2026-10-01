@@ -24,4 +24,11 @@ internal abstract class StubFilesRepository : FilesRepository {
         error("Unexpected move")
     override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
         error("Unexpected item resolution")
+    override suspend fun startCopy(
+        itemId: FilesItemId,
+        destinationId: FilesItemId,
+    ): FilesRepositoryResult<FilesCopyId> =
+        error("Unexpected copy")
+    override suspend fun checkCopy(copyId: FilesCopyId): FilesRepositoryResult<FilesCopyProgress> =
+        error("Unexpected copy check")
 }

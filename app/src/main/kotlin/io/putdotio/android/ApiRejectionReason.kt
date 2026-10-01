@@ -13,12 +13,13 @@ internal fun Throwable.apiRejectionReason(): String? =
     findApiException()
         ?.takeIf { api -> listOf(api.statusCode, api.httpStatusCode).all(::isShownStatus) }
         ?.errorMessage
-        ?.let(::displayableReason)
+        ?.let(::displayableApiReason)
 
 private fun isShownStatus(status: Int): Boolean =
     status in HTTP_CLIENT_ERROR_START..HTTP_CLIENT_ERROR_END && status !in APP_EXPLAINED_STATUSES
 
-private fun displayableReason(raw: String): String? {
+/** [raw], put.io's free text, if the app may show it under the rules above; otherwise null. */
+internal fun displayableApiReason(raw: String): String? {
     val text = WHITESPACE.replace(raw, " ").trim()
     return text.takeUnless {
         it.isEmpty() ||

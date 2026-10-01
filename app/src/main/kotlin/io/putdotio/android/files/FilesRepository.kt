@@ -1,6 +1,7 @@
 package io.putdotio.android.files
 
 import io.putdotio.android.apiRejectionReason
+import io.putdotio.android.displayableApiReason
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioConfigurationException
@@ -17,6 +18,9 @@ import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
+import io.putdotio.sdk.sharing.CloneSharedFilesInput
+import io.putdotio.sdk.sharing.SharedFileCloneInfo
+import io.putdotio.sdk.sharing.SharedFileCloneStatus
 import java.util.concurrent.CancellationException
 
 sealed interface FilesRepositoryResult<out T> {
@@ -81,7 +85,7 @@ sealed interface FilesFailure {
 internal val FilesFailure.apiReason: String?
     get() = (this as? FilesFailure.ApiRejected)?.cause?.apiRejectionReason()
 
-interface FilesRepository {
+interface FilesRepository : FilesCopyRepository {
     suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage>
 
     suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage>
@@ -105,6 +109,13 @@ interface FilesRepository {
     suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem>
 }
 
+interface FilesCopyRepository {
+    /** Starts copying an item shared with the viewer into [destinationId]; put.io copies in the background. */
+    suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId): FilesRepositoryResult<FilesCopyId>
+
+    suspend fun checkCopy(copyId: FilesCopyId): FilesRepositoryResult<FilesCopyProgress>
+}
+
 interface FilesItemResolver {
     suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem>
 }
@@ -115,13 +126,43 @@ internal class SdkFilesMutations(
     val move: suspend (Long, Long) -> List<FileMoveError>,
 )
 
+internal class SdkFilesCopies(
+    private val start: suspend (Long, Long) -> Long,
+    private val info: suspend (Long) -> SharedFileCloneInfo,
+) : FilesCopyRepository {
+    override suspend fun startCopy(
+        itemId: FilesItemId,
+        destinationId: FilesItemId,
+    ): FilesRepositoryResult<FilesCopyId> = request {
+        // A lone zero is a bulk selector, never a single source item.
+        require(itemId.value > 0L && destinationId.value >= 0L) {
+            "Copy requires one positive source ID and a nonnegative destination ID"
+        }
+        FilesCopyId(start(itemId.value, destinationId.value))
+    }
+
+    override suspend fun checkCopy(copyId: FilesCopyId): FilesRepositoryResult<FilesCopyProgress> = request {
+        val info = info(copyId.value)
+        when (info.status) {
+            SharedFileCloneStatus.DONE -> FilesCopyProgress.Done
+            SharedFileCloneStatus.ERROR -> FilesCopyProgress.Failed(info.errorMessage?.let(::displayableApiReason))
+            // NEW, PROCESSING and any status this app does not know yet may still finish.
+            else -> FilesCopyProgress.Running
+        }
+    }
+}
+
 class SdkFilesRepository internal constructor(
     private val listFolder: suspend (Long, FilesListQuery) -> FilesListResponse,
     private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse,
     private val setSort: suspend (Long, String) -> Unit,
     private val getFile: suspend (Long) -> PutioFile,
     private val mutations: SdkFilesMutations,
-) : FilesRepository, FilesItemResolver {
+    copies: SdkFilesCopies = SdkFilesCopies(
+        start = { _, _ -> error("Copies are not wired") },
+        info = { error("Copies are not wired") },
+    ),
+) : FilesRepository, FilesItemResolver, FilesCopyRepository by copies {
     constructor(client: PutioClient) : this(
         listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
         continueListing = { cursor, query -> client.files.continueList(cursor = cursor, query = query) },
@@ -140,15 +181,23 @@ class SdkFilesRepository internal constructor(
             },
             move = { fileId, destinationId -> client.files.move(listOf(fileId), destinationId) },
         ),
+        copies = SdkFilesCopies(
+            start = { fileId, destinationId ->
+                client.sharing.cloneSharedFiles(CloneSharedFilesInput(ids = listOf(fileId), parentId = destinationId))
+            },
+            info = { copyId -> client.sharing.getCloneInfo(copyId) },
+        ),
     )
 
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
         // Child video_metadata carries duration for the watched indicator; continuation
         // cursors inherit the initial listing's field flags server-side.
-        requestPage { listFolder(folderId.value, FilesListQuery(perPage = FILES_PAGE_SIZE, videoMetadata = true)) }
+        request {
+            listFolder(folderId.value, FilesListQuery(perPage = FILES_PAGE_SIZE, videoMetadata = true)).toFilesPage()
+        }
 
     override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
-        requestPage { continueListing(cursor.value, FilesContinueQuery(perPage = FILES_PAGE_SIZE)) }
+        request { continueListing(cursor.value, FilesContinueQuery(perPage = FILES_PAGE_SIZE)).toFilesPage() }
 
     override suspend fun loadMoveDestinations(
         folderId: FilesItemId,
@@ -194,24 +243,21 @@ class SdkFilesRepository internal constructor(
             mutations.delete(itemId.value, mode == FilesDeleteMode.PERMANENT)
         }
 
-    // Kotlin/JVM has no typed throws contract, so the SDK boundary converts
-    // unknown failures after preserving cancellation.
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun requestPage(request: suspend () -> FilesListResponse): FilesRepositoryResult<FilesPage> =
-        request { request().toFilesPage() }
-
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun <T> request(request: suspend () -> T): FilesRepositoryResult<T> =
-        try {
-            FilesRepositoryResult.Success(request())
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: PutioException) {
-            FilesRepositoryResult.Failure(error.toFilesFailure())
-        } catch (unexpected: Exception) {
-            FilesRepositoryResult.Failure(FilesFailure.Unexpected(unexpected))
-        }
 }
+
+// Kotlin/JVM has no typed throws contract, so the SDK boundary converts
+// unknown failures after preserving cancellation.
+@Suppress("TooGenericExceptionCaught")
+private suspend fun <T> request(request: suspend () -> T): FilesRepositoryResult<T> =
+    try {
+        FilesRepositoryResult.Success(request())
+    } catch (error: CancellationException) {
+        throw error
+    } catch (error: PutioException) {
+        FilesRepositoryResult.Failure(error.toFilesFailure())
+    } catch (unexpected: Exception) {
+        FilesRepositoryResult.Failure(FilesFailure.Unexpected(unexpected))
+    }
 
 private fun FilesListResponse.toFilesPage(): FilesPage =
     FilesPage(

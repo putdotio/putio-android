@@ -65,6 +65,10 @@ class FilesBrowserController(
             is FilesBrowserEvent.MoveChecked -> requestId
             is FilesBrowserEvent.DeleteFinished -> requestId
             is FilesBrowserEvent.DeleteChecked -> requestId
+            is FilesBrowserEvent.CopyStarted -> requestId
+            is FilesBrowserEvent.CopyChecked -> requestId
+            is FilesBrowserEvent.Copy,
+            FilesBrowserEvent.DismissCopyOutcome,
             is FilesBrowserEvent.Move,
             is FilesBrowserEvent.Delete,
             is FilesBrowserEvent.DeleteOutcomeAnnounced,

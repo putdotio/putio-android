@@ -132,6 +132,7 @@ data class FilesFolderState(
 data class FilesBrowserState internal constructor(
     val stack: List<FilesFolderState>,
     internal val nextRequestValue: Long,
+    val copyOutcome: FilesCopyOutcome? = null,
 ) {
     init {
         require(stack.isNotEmpty()) { "The Files browser must contain a root folder" }
@@ -246,6 +247,29 @@ sealed interface FilesBrowserEvent {
         val result: FilesRepositoryResult<FilesItem>,
     ) : MoveEvent
 
+    /** Copies are put.io's background work, so they live beside the folder stack, not on a folder. */
+    sealed interface CopyEvent : ItemMutationEvent
+
+    /** Copies [itemId], shared with the viewer and listed in [folderId], into [destination]. */
+    data class Copy(
+        val folderId: FilesItemId,
+        val itemId: FilesItemId,
+        val destination: FilesFolder,
+    ) : CopyEvent
+
+    data class CopyStarted(
+        val requestId: FilesRequestId,
+        val result: FilesRepositoryResult<FilesCopyId>,
+    ) : CopyEvent
+
+    data class CopyChecked(
+        val requestId: FilesRequestId,
+        val result: FilesRepositoryResult<FilesCopyProgress>,
+    ) : CopyEvent
+
+    /** Clears a settled copy's status line; a running copy keeps it. */
+    data object DismissCopyOutcome : CopyEvent
+
     data object Retry : FilesBrowserEvent
 
     data class ViewportChanged(
@@ -317,6 +341,20 @@ sealed interface FilesBrowserEffect {
         val itemId: FilesItemId,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
+
+    sealed interface CopyEffect : FilesBrowserEffect
+
+    data class StartCopy(
+        val itemId: FilesItemId,
+        val destinationId: FilesItemId,
+        override val requestId: FilesRequestId,
+    ) : CopyEffect
+
+    /** Waits [COPY_CHECK_INTERVAL_MILLIS] before asking, as web does between checks. */
+    data class CheckCopy(
+        val copyId: FilesCopyId,
+        override val requestId: FilesRequestId,
+    ) : CopyEffect
 }
 
 data class FilesBrowserTransition(
@@ -381,6 +419,7 @@ object FilesBrowserReducer {
             is FilesBrowserEvent.AbandonRename -> abandonRename(event)
             is FilesBrowserEvent.DeleteEvent -> reduceDelete(event)
             is FilesBrowserEvent.MoveEvent -> reduceMove(event)
+            is FilesBrowserEvent.CopyEvent -> reduceCopy(event)
         }
 
     private fun FilesBrowserState.loadResult(event: FilesBrowserEvent.LoadResult): FilesBrowserTransition =
@@ -402,6 +441,7 @@ suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesBrowserEve
             FilesBrowserEvent.DeleteFinished(effect.requestId, delete(effect.itemId, effect.mode))
         is FilesBrowserEffect.CheckDelete ->
             FilesBrowserEvent.DeleteChecked(effect.requestId, resolveItem(effect.itemId))
+        is FilesBrowserEffect.CopyEffect -> executeCopy(effect)
         is FilesBrowserEffect.Rename ->
             when (val renamed = rename(effect.itemId, effect.name)) {
                 is FilesRepositoryResult.Success -> FilesBrowserEvent.MutationSucceeded(effect.requestId)

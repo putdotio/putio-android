@@ -25,6 +25,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserController
+import io.putdotio.android.files.FilesCopyId
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFolder
@@ -174,6 +175,10 @@ class MobileFilesTrashPagingProofTest {
                 ?: FilesRepositoryResult.Failure(notFound(itemId))
 
         override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) = error("No move")
+
+        override suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId) = error("No copy")
+
+        override suspend fun checkCopy(copyId: FilesCopyId) = error("No copy")
         override suspend fun move(itemId: FilesItemId, destinationId: FilesItemId):
             FilesRepositoryResult<List<FileMoveError>> = error("No move")
         override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort) = error("No sort")

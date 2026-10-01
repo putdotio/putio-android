@@ -37,7 +37,7 @@ internal fun FilesBrowserState.loadFailed(event: FilesBrowserEvent.LoadFailed): 
 }
 
 internal fun FilesBrowserState.hasRequest(requestId: FilesRequestId): Boolean =
-    stack.any { it.hasRequest(requestId) }
+    stack.any { it.hasRequest(requestId) } || copyOutcome.hasRequest(requestId)
 
 private fun FilesFolderState.hasRequest(requestId: FilesRequestId): Boolean =
     operation.requestId() == requestId || when (val state = content) {

@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesCopyId
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesFolder
@@ -238,6 +239,8 @@ private object SampleFolders : FilesRepository {
     override suspend fun rename(itemId: FilesItemId, name: String): Nothing = error("No rename")
     override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): Nothing = error("No delete")
     override suspend fun resolveItem(itemId: FilesItemId): Nothing = error("No item resolution")
+    override suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId): Nothing = error("No copy")
+    override suspend fun checkCopy(copyId: FilesCopyId): Nothing = error("No copy")
 }
 
 private fun transfer(id: Long, name: String) =

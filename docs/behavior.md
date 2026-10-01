@@ -81,11 +81,31 @@ Friends' shared files (`is_shared`) and the shared folders (`SHARED_ROOT`,
 `SHARED_FRIEND`) accept no owner mutations, so neither surface offers Rename,
 Move, Move to trash/Delete or Mark as watched/unwatched on them. Download and
 Share file (which downloads the original, then opens the share sheet) stay on
-shared files, as web and iOS keep Download; a shared folder has no mobile
-actions button, and on TV Menu on it opens nothing. Make a copy is not offered
-yet.
+shared files, as web and iOS keep Download. On TV, Menu on a shared folder
+opens nothing.
 
-Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesScreenTest`.
+On mobile, a friend's shared file or folder, and anything inside one, offers
+Make a copy, as web and iOS do; the shared root and each friend's folder
+offer nothing, so they have no actions button. The Files move picker
+chooses the destination among the viewer's own folders, root included, and
+opens at root, as web's does unless its "Remember target folder" setting is
+on (Android has no such setting). put.io copies in the background
+(`POST /v2/sharing/clone`), so a line under the folder shows the copy until
+it is dismissed and stays across folder navigation. The app checks the copy
+every 1.5 s, as web does, for up to 200 checks. A finished copy reloads the
+destination if it is already open in the stack. A failed copy shows put.io's
+reason under the [refused-request](#refused-requests) rules, or web's copy for
+the concurrency and too-many-files limits. A copy
+whose start gets no clear answer (a lost or unreadable response, or a server
+fault), whose check fails, or that is still running after the last check, is
+reported as unconfirmed, because it may still land. Only one copy runs at a
+time. Rotation keeps the copy and its checks; process death discards them, so
+the line is gone and another copy can start while put.io may still run the
+first. TV doesn't offer Make a copy, because tv-native and tv-vite don't.
+
+Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesScreenTest`,
+`FilesCopyTest`, `MobileFilesCopyTest`, `MobileSharedItemsProofTest` (opt-in
+synthetic device proof; see [Harness](./harness.md#shared-with-me-items-proof)).
 
 ## Files delete and paging
 

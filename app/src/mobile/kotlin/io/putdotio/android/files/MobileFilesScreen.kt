@@ -98,23 +98,22 @@ internal fun MobileFilesScreen(
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
     onViewTrash: (() -> Unit)? = null,
+    onCopyItem: ((FilesItem) -> Unit)? = null,
 ) {
     val current = state.current
     when (val content = current.content) {
-        is FilesContent.Loading ->
-            MobileLoadingState(
-                message = stringResource(R.string.mobile_state_loading),
-                modifier = modifier,
-            )
+        is FilesContent.Loading -> MobileFilesStateWithCopy(state, onEvent, modifier) {
+            MobileLoadingState(message = stringResource(R.string.mobile_state_loading))
+        }
 
-        is FilesContent.Failed ->
+        is FilesContent.Failed -> MobileFilesStateWithCopy(state, onEvent, modifier) {
             MobileErrorState(
                 title = stringResource(R.string.mobile_state_error_title),
                 message = content.failure.mobileMessage(),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(FilesBrowserEvent.Retry) },
-                modifier = modifier,
             )
+        }
 
         is FilesContent.Empty,
         is FilesContent.Ready,
@@ -124,7 +123,24 @@ internal fun MobileFilesScreen(
                 onDownloadItem,
                 onShareItem,
                 onViewTrash,
+                onCopyItem,
             )
+        }
+    }
+}
+
+/** A copy outlives folder navigation, so its line stays while the folder loads or fails. */
+@Composable
+private fun MobileFilesStateWithCopy(
+    state: FilesBrowserState,
+    onEvent: (FilesBrowserEvent) -> Unit,
+    modifier: Modifier,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content() }
+        state.copyOutcome?.let {
+            MobileFilesCopyStatus(it, onDismiss = { onEvent(FilesBrowserEvent.DismissCopyOutcome) })
         }
     }
 }
@@ -142,6 +158,7 @@ private fun MobileRefreshableFilesContent(
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
     onViewTrash: (() -> Unit)? = null,
+    onCopyItem: ((FilesItem) -> Unit)? = null,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -164,6 +181,8 @@ private fun MobileRefreshableFilesContent(
                 downloadStatus = downloads.entry(selectedItem.id)?.status,
                 onDownloadItem = onDownloadItem,
                 onShareItem = onShareItem,
+                onCopyItem = onCopyItem,
+                canStartCopy = state.canStartCopy,
             )
         }
     }
@@ -218,7 +237,9 @@ private fun MobileRefreshableFilesContent(
                                 onEvent = onEvent,
                                 onPlayMedia = onPlayMedia,
                                 onActions = { selectedItemId = it.id.value },
-                                hasActions = { it.hasMobileActions(onDownloadItem != null, onShareItem != null) },
+                                hasActions = {
+                                    it.hasMobileActions(onDownloadItem != null, onShareItem != null, onCopyItem != null)
+                                },
                                 operation = operation,
                                 downloads = downloads,
                             )
@@ -239,6 +260,9 @@ private fun MobileRefreshableFilesContent(
                     }
                 }
                 state.current.moveOutcome?.let { MobileFilesMoveStatus(it) }
+            }
+            state.copyOutcome?.let {
+                MobileFilesCopyStatus(it, onDismiss = { onEvent(FilesBrowserEvent.DismissCopyOutcome) })
             }
         }
         SnackbarHost(
