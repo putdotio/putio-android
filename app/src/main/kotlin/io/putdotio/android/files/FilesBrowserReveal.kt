@@ -47,6 +47,12 @@ internal fun FilesFolderState.revealPageFailed(requestId: FilesRequestId, failur
     return copy(content = contentFor(search.items, FilesPaging.Failed(search.cursor, failure)), revealSearch = null)
 }
 
+/** Stops a reveal search, showing the rows read so far with the rest left to load. */
+internal fun FilesFolderState.withoutRevealSearch(): FilesFolderState {
+    val search = revealSearch ?: return this
+    return copy(content = contentFor(search.items, FilesPaging.Available(search.cursor)), revealSearch = null)
+}
+
 /**
  * Shows [itemId] in the current folder, reading later pages when it is not among the loaded rows;
  * a folder still loading looks for it in what it reads.

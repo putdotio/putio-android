@@ -108,6 +108,31 @@ class FilesRevealReducerTest {
     }
 
     @Test
+    fun aNewerOutsideOpenStopsTheSearchInTheFolderItKeeps() {
+        val pages = folderPages(pageCount = 3, parent = FilesFolder.Root.id)
+        val start = FilesBrowserReducer.start()
+        val loaded = FilesBrowserReducer.reduce(
+            start.state, FilesBrowserEvent.LoadSucceeded(start.effect!!.requestId, pages[0]),
+        ).state
+        val searching = FilesBrowserReducer.reduce(
+            loaded, FilesBrowserEvent.RevealItem(FilesFolder.Root.id, pages[2].items.first().id),
+        )
+        val pending = searching.effect as FilesBrowserEffect.LoadNextPage
+        val picked = row(9_999L).copy(parentId = folderId)
+
+        val opened = FilesBrowserReducer.reduce(
+            searching.state, FilesBrowserEvent.OpenExternalItem(picked, FilesOpenOrigin.SEARCH),
+        ).state
+
+        assertFalse(opened.hasRequest(pending.requestId))
+        val kept = opened.stack.first().content as FilesContent.Ready
+        assertEquals(pages[0].items, kept.items)
+        assertEquals(FilesPaging.Available(FilesCursor("page-1")), kept.paging)
+        val late = FilesBrowserReducer.reduce(opened, FilesBrowserEvent.LoadSucceeded(pending.requestId, pages[1]))
+        assertFalse(late.consumed)
+    }
+
+    @Test
     fun revealingARowBeyondALoadedListingReadsOnToIt() {
         val pages = folderPages(pageCount = 3, parent = FilesFolder.Root.id)
         val start = FilesBrowserReducer.start()
