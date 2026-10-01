@@ -56,6 +56,7 @@ class FilesMoveDestinationController private constructor(
             FilesMoveDestinationFolder(
                 startPath.lastOrNull() ?: FilesFolder.Root,
                 FilesContent.Loading(firstRequest.requestId),
+                remembered = startPath.isNotEmpty(),
             ),
         nextRequestValue = 2L,
         opensRememberedTarget = startPath.isNotEmpty(),

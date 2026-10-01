@@ -155,6 +155,38 @@ class MobileFilesCopyTest {
     }
 
     @Test
+    fun copyHereWithRememberOnRecordsTheFolderTheNextPickerOpensAt() {
+        val store = InMemoryMoveTargetStore(FilesMoveTargetMemory(remember = true))
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                error("Unexpected source read")
+            override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
+                FilesRepositoryResult.Success(
+                    FilesPage(if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null),
+                )
+        }
+        compose.setContent {
+            PutioTheme {
+                MobileFilesRoute(loaded(listOf(sharedVideo)), repository, { true }, {}, true, {},
+                    moveTargetStore = store)
+            }
+        }
+        compose.onNodeWithContentDescription("Actions for ${sharedVideo.name}").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
+        compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
+        compose.onNodeWithText("No folders here.").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_PICKER_TAG).assertDoesNotExist()
+        val chosen = listOf(FilesFolder(destination.id, destination.name))
+        compose.runOnIdle { assertEquals(FilesMoveTargetMemory(remember = true, lastTarget = chosen), store.memory) }
+
+        compose.onNodeWithContentDescription("Actions for ${sharedVideo.name}").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_FOLDER_TAG).assertTextEquals(destination.name)
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
+    }
+
+    @Test
     fun theCopyLineFollowsTheCopyAndClearsOnceSettled() {
         val start = FilesBrowserReducer.reduce(
             loaded(listOf(sharedVideo)), FilesBrowserEvent.Copy(FilesFolder.Root.id, sharedVideo.id, FilesFolder.Root),

@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
@@ -257,6 +258,83 @@ class FilesMoveDestinationControllerTest {
             assertEquals(listOf(nested.id, FilesFolder.Root.id), calls)
         } finally {
             controller.close()
+        }
+    }
+
+    @Test
+    fun aRememberedAncestorReadOnBackTakesItsCurrentNameAndPlace() = runBlocking {
+        val deeper = folder(10L)
+        val calls = mutableListOf<FilesItemId>()
+        val repository = destinations(calls) { folderId ->
+            val parent = when (folderId) {
+                deeper.id -> deeper.copy(parentId = nested.id)
+                nested.id -> nested.copy(parentId = FilesItemId(42L), name = "Renamed folder")
+                else -> null
+            }
+            FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = parent))
+        }
+        val path = listOf(target, nested, deeper).map { FilesFolder(it.id, it.name) }
+        val controller = FilesMoveDestinationController(source, FilesFolder.Root.id, repository, this, path)
+        try {
+            controller.awaitEmpty(deeper.id)
+            assertTrue(controller.dispatch(FilesMoveDestinationEvent.NavigateBack))
+            val back = controller.awaitEmpty(nested.id)
+            assertEquals(listOf(FilesFolder.Root.id, nested.id), back.path.map { it.id })
+            assertEquals("Renamed folder", back.current.folder.name)
+            assertTrue(controller.dispatch(FilesMoveDestinationEvent.NavigateBack))
+            controller.awaitEmpty(FilesFolder.Root.id)
+            assertEquals(listOf(deeper.id, nested.id, FilesFolder.Root.id), calls)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun aRememberedFolderNowInsideTheMovedItemReopensAtRoot() = runBlocking {
+        val calls = mutableListOf<FilesItemId>()
+        val repository = destinations(calls) { folderId ->
+            val parent = nested.copy(parentId = source.id).takeIf { folderId == nested.id }
+            FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = parent))
+        }
+        val path = listOf(FilesFolder(target.id, target.name), FilesFolder(nested.id, nested.name))
+        val controller = FilesMoveDestinationController(source, FilesFolder.Root.id, repository, this, path)
+        try {
+            val root = controller.awaitEmpty(FilesFolder.Root.id)
+            assertEquals(listOf(FilesFolder.Root), root.path)
+            assertEquals(listOf(nested.id, FilesFolder.Root.id), calls)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun aRejectedSessionOpeningARememberedFolderStaysVisible() = runBlocking {
+        val rejected = FilesFailure.AuthenticationRequired(PutioConfigurationException("expired"))
+        val calls = mutableListOf<FilesItemId>()
+        val repository = destinations(calls) { FilesRepositoryResult.Failure(rejected) }
+        val controller = FilesMoveDestinationController(repository, this, listOf(FilesFolder(nested.id, nested.name)))
+        try {
+            val failed = controller.awaitState { it.current.content is FilesContent.Failed }
+            assertEquals(nested.id, failed.current.folder.id)
+            assertSame(rejected, failed.current.content.authoritativeSessionFailure())
+            assertEquals(listOf(nested.id), calls)
+        } finally {
+            controller.close()
+        }
+    }
+
+    private fun destinations(
+        calls: MutableList<FilesItemId>,
+        respond: (FilesItemId) -> FilesRepositoryResult<FilesPage>,
+    ) = object : StubFilesRepository() {
+        override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            error("Unexpected source read")
+        override suspend fun loadMoveDestinations(
+            folderId: FilesItemId,
+            cursor: FilesCursor?,
+        ): FilesRepositoryResult<FilesPage> {
+            calls += folderId
+            return respond(folderId)
         }
     }
 

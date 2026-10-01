@@ -5,6 +5,8 @@ data class FilesMoveDestinationFolder internal constructor(
     val folder: FilesFolder,
     val content: FilesContent,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
+    /** Taken from a remembered path and not yet read; its first read checks its name and place. */
+    internal val remembered: Boolean = false,
 )
 
 /** A folder picker; without a [sourceItem] it picks a destination for new content, such as a transfer. */
@@ -120,8 +122,8 @@ internal fun FilesMoveDestinationState.complete(
 ): FilesMoveDestinationTransition = when {
     current.folder.id != request.folderId || current.requestId() != request.requestId ->
         FilesMoveDestinationTransition(this)
-    opensRememberedTarget -> completeRememberedTarget(request, result)
-    else -> FilesMoveDestinationTransition(completeListing(request, result))
+    else -> completeRememberedRead(request, result)
+        ?: FilesMoveDestinationTransition(withoutRememberedTargetCheck().completeListing(request, result))
 }
 
 internal fun FilesMoveDestinationState.completeListing(

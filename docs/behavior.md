@@ -114,9 +114,14 @@ folder" toggle, off by default. Off, the picker opens at root. On, Move here or
 Copy here records the chosen folder and its path, and the next Move or Make a
 copy opens there; Back walks that path up to root, reading each folder as it
 is reached. Turning the toggle off keeps the last folder, as web does, and the
-toggle takes effect from the next picker. A move never opens inside the item it
-moves. A remembered folder that can't be read opens the picker at root; one
-moved since keeps only root above it, and a renamed one shows its new name.
+toggle takes effect from the next picker. A remembered folder that can't be
+read opens the picker at root, unless put.io rejected the session, which signs
+out as anywhere else. Each remembered folder is checked when it is first read:
+a renamed one shows its new name, and one moved since keeps only root above it.
+A move never opens inside the item it moves: a remembered path through that
+item opens at root, as does a remembered folder whose parent is now that item.
+A remembered folder nested deeper inside that item is not caught before the
+move request goes out.
 
 Web keeps both values in its own `/config`, which Android can't read, so
 Android keeps them on the device, per signed-in account, in private
