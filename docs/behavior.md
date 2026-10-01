@@ -125,7 +125,8 @@ account. Android TV has no Move picker.
 
 Tests: `FilesMoveTargetMemoryTest`, `FilesMoveDestinationControllerTest`,
 `MobileMoveTargetStoreTest`, `MobileAuthControllerTest`, `MobileFilesMoveTest`,
-`MobileFilesCopyTest`.
+`MobileFilesCopyTest`, `MobileMoveTargetProofTest` (opt-in synthetic device
+proof; see [Harness](./harness.md#move-and-copy-target-folder-proof)).
 
 ## Files delete and paging
 

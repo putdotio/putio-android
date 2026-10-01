@@ -1214,6 +1214,24 @@ require `OK (1 test)`. Screenshots land in `shared-proof-<UUID>/`:
 - `05-copied`: the line after the faked check reports done
 - `06-owned-file-actions`: Rename, Move, Move to trash, and no Make a copy
 
+## Move and copy target folder proof
+
+Behaviour: [Move and copy target folder](./behavior.md#move-and-copy-target-folder).
+`MobileMoveTargetProofTest` mounts the production Files route and controller
+on a faked repository with the on-device `MobileMoveTargetStore`, which it
+clears before and after the run. It makes no API calls, so report it as
+synthetic proof. Opt in with `putio.movetarget.enabled=true` and
+`putio.movetarget.runId=<UUID>` and require `OK (1 test)`. Screenshots land
+in `move-target-proof-<UUID>/`:
+
+- `01-move-default-root`: the picker at root with the toggle off
+- `02-remember-on-chosen-folder`: the toggle on, at a nested folder
+- `03-move-reopens-at-remembered`: the next Move opens there
+- `04-back-reads-parent`: Back reads the folder above it
+- `05-copy-reopens-at-remembered`: Make a copy opens there too
+- `06-after-sign-out-root`: after the sign-out cleanup, root with the toggle off
+- `07-missing-folder-root`: a remembered folder that can't be read opens at root
+
 ## Transfer retry proof
 
 Behaviour: [Transfer failures and retry](./behavior.md#transfer-failures-and-retry).
