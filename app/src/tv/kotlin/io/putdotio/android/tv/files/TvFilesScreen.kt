@@ -161,6 +161,10 @@ internal fun TvFilesScreen(
     var confirmingPermanentDelete by rememberSaveable(sessionKey, current.folder.id.value) {
         mutableStateOf(false)
     }
+    // A Move to trash press is sent after the next composition, against the latest Trash setting:
+    // a press made before a change to the setting reached the menu must not send TRASH, which
+    // the server applies as permanent deletion once Trash is off.
+    var trashPressed by remember(sessionKey, current.folder.id.value) { mutableStateOf(false) }
     val actionsItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == actionsFor }
     val actionsOrphaned = actionsFor != null && actionsItem == null
     val confirmationStale = confirmingPermanentDelete &&
@@ -169,6 +173,7 @@ internal fun TvFilesScreen(
         if (actionsOrphaned) {
             actionsFor = null
             confirmingPermanentDelete = false
+            trashPressed = false
         } else if (confirmationStale) {
             confirmingPermanentDelete = false
         }
@@ -281,10 +286,18 @@ internal fun TvFilesScreen(
         val close = {
             actionsFor = null
             confirmingPermanentDelete = false
+            trashPressed = false
         }
         val delete = { mode: FilesDeleteMode ->
             close()
             onEvent(FilesBrowserEvent.Delete(current.folder.id, actionsItem.id, mode))
+        }
+        if (trashPressed) {
+            val trashStillOn = confirmedTrashEnabled == true && current.operation.canStartOperation
+            SideEffect {
+                trashPressed = false
+                if (trashStillOn) delete(FilesDeleteMode.TRASH)
+            }
         }
         if (confirmingPermanentDelete && !confirmationStale) {
             TvFilesDeleteDialog(
@@ -311,7 +324,7 @@ internal fun TvFilesScreen(
                             onSetWatched(actionsItem, action.watched)
                         }
                         is TvFilesAction.Delete ->
-                            if (action.trash) delete(FilesDeleteMode.TRASH) else confirmingPermanentDelete = true
+                            if (action.trash) trashPressed = true else confirmingPermanentDelete = true
                     }
                 },
                 onDismiss = close,

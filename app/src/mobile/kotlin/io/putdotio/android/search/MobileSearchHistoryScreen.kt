@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.LoadNextPageNearEnd
+import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
@@ -314,6 +315,7 @@ private fun MobileSearchEmpty(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    LoadNextPageNow(nextPage = paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
     Box(modifier = modifier.fillMaxSize()) {
         MobileEmptyState(
             title = stringResource(R.string.mobile_search_no_results_title),
@@ -340,7 +342,7 @@ private fun MobileSearchResults(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    LoadNextPageNearEnd(listState, canLoad = paging is SearchPaging.Available, onLoadNextPage = onNextPage)
+    LoadNextPageNearEnd(listState, nextPage = paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_SEARCH_RESULTS_TAG)) {
         items(items, key = { it.id.value }) { item ->
             MobileFilesRow(
@@ -441,7 +443,7 @@ private fun MobileHistoryList(
     val listState = rememberLazyListState()
     LoadNextPageNearEnd(
         listState = listState,
-        canLoad = content.paging is HistoryPaging.Available,
+        nextPage = content.paging as? HistoryPaging.Available,
         onLoadNextPage = { onEvent(HistoryEvent.LoadNextPage) },
     )
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_HISTORY_LIST_TAG)) {

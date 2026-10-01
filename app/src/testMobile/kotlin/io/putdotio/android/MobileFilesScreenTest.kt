@@ -415,6 +415,26 @@ class MobileFilesScreenTest {
     }
 
     @Test
+    fun emptyPagesAndPagesWhoseLoadingWasNeverDrawnStillContinue() {
+        val short = listOf(filesItem(id = 1L, name = "Harbor film.mp4"))
+        var state by mutableStateOf(browserState(FilesContent.Empty(FilesPaging.Available(FilesCursor("page-2")))))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
+            }
+        }
+        fun loads() = compose.runOnIdle { events.count { it == FilesBrowserEvent.LoadNextPage } }
+
+        assertEquals("an empty page with a next one continues", 1, loads())
+        compose.runOnIdle { state = browserState(FilesContent.Ready(short, FilesPaging.Available(FilesCursor("page-3")))) }
+        assertEquals(2, loads())
+        // The next page landed before its loading state was drawn; its new cursor still continues.
+        compose.runOnIdle { state = browserState(FilesContent.Ready(short, FilesPaging.Available(FilesCursor("page-4")))) }
+        assertEquals(3, loads())
+    }
+
+    @Test
     fun restoresAndReportsTheFolderViewport() {
         val events = mutableListOf<FilesBrowserEvent>()
         val items = (0L until 30L).map { index ->

@@ -251,7 +251,7 @@ class MobileFilesDeleteTest {
         compose.onNodeWithText("View Trash").performClick()
         compose.runOnIdle {
             assertEquals(1, viewedTrash)
-            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.DismissDeleteOutcome(outcome.requestId)), events)
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.DismissDeleteOutcome(outcome)), events)
         }
         compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
 
@@ -263,6 +263,16 @@ class MobileFilesDeleteTest {
         }
         compose.onNodeWithText("“Harbor film.mp4” is no longer available in Files.").assertIsDisplayed()
         compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+
+        // A failed Trash request whose item is gone anyway proves no Trash move either.
+        compose.runOnIdle {
+            state = state.copy(stack = listOf(state.current.copy(deleteOutcome = outcome.copy(
+                requestId = FilesRequestId(6L), failure = FilesFailure.Unexpected(IllegalStateException("rejected")),
+            ))))
+        }
+        compose.onNodeWithText("“Harbor film.mp4” is no longer available in Files.").assertIsDisplayed()
+        compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(1, events.size) }
     }
 
     private fun openAction(label: String) {

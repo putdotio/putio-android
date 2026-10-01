@@ -92,20 +92,23 @@ Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesScreenTest`.
 With the account's `trash_enabled` confirmed on, Move to trash runs from the
 actions sheet without a confirmation on mobile and TV, as on web and iOS; only
 Delete permanently confirms. Either verifies the item with an exact-ID read
-before the folder reloads. On mobile, a Trash move the read confirmed shows a
-"Moved to Trash" snackbar with View Trash, once per request; it has no Undo,
-because single-item Restore is queued server-side and needs its own check
-([Trash](#trash)). Every other outcome stays as a line under the folder. The
-app never sends `partial_delete`, so a folder too large for Trash is refused
-with an error rather than skipped; web's offer to delete it permanently has no
-Android counterpart yet.
+before the folder reloads. On mobile, a Trash request that succeeded and that
+the read confirmed shows a "Moved to Trash" snackbar with View Trash, once per
+request; it has no Undo, because single-item Restore is queued server-side and
+needs its own check ([Trash](#trash)). Every other outcome, including one a
+later page corrects, stays as a line under the folder. The app never sends
+`partial_delete`, so a folder too large for Trash is refused with an error
+rather than skipped; web's offer to delete it permanently has no Android
+counterpart yet.
 
 Mobile Files, Search results, History and the Move picker ask for the next
 page once a row within 25 of the loaded end is on screen, as web does, so a
-short page continues on its own. A failed page waits for its Retry, and in
-Files a running folder operation holds paging until it settles. Android TV
-keeps its Load more button: it is the D-pad focus anchor at the end of the
-list, one node that keeps focus from Load more through loading to Retry.
+short page continues on its own; an empty page with a next one, in Files and
+Search, asks for it at once. Each page is asked for once. A failed page waits
+for its Retry, and in Files a running folder operation holds paging until it
+settles. Android TV keeps its Load more button: it is the D-pad focus anchor
+at the end of the list, one node that keeps focus from Load more through
+loading to Retry.
 
 Tests: `FilesDeleteReducerTest`, `MobileFilesScreenTest`,
 `MobileSearchHistoryScreenTest`, `MobileFilesMoveTest`, `TvFilesScreenTest`,

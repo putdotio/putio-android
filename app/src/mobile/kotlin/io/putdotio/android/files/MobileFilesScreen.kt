@@ -64,6 +64,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.LoadNextPageNearEnd
+import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
@@ -243,8 +244,10 @@ private fun MobileRefreshableFilesContent(
     }
 }
 
+/** The Trash request succeeded and the fresh read found the item gone; a failed request proves no Trash move. */
 private val FilesDeleteOutcome.isConfirmedTrash: Boolean
-    get() = intent.mode == FilesDeleteMode.TRASH && status == FilesDeleteStatus.NO_LONGER_AVAILABLE
+    get() = intent.mode == FilesDeleteMode.TRASH && failure == null &&
+        status == FilesDeleteStatus.NO_LONGER_AVAILABLE
 
 /**
  * A Trash move the fresh read confirmed is announced once, with a way to Trash and no Undo:
@@ -274,7 +277,7 @@ private fun MobileFilesTrashedAnnouncement(
             )
             if (result == SnackbarResult.ActionPerformed) currentOnViewTrash?.invoke()
         } finally {
-            currentOnEvent(FilesBrowserEvent.DismissDeleteOutcome(outcome.requestId))
+            currentOnEvent(FilesBrowserEvent.DismissDeleteOutcome(outcome))
         }
     }
 }
@@ -286,6 +289,10 @@ private fun MobileEmptyFilesContent(
     onEvent: (FilesBrowserEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    LoadNextPageNow(
+        nextPage = (paging as? FilesPaging.Available)?.takeIf { pagingEnabled },
+        onLoadNextPage = { onEvent(FilesBrowserEvent.LoadNextPage) },
+    )
     Column(modifier = modifier.fillMaxSize()) {
         BoxWithConstraints(
             modifier = Modifier
@@ -509,7 +516,7 @@ private fun MobileFilesList(
 
     LoadNextPageNearEnd(
         listState = listState,
-        canLoad = pagingEnabled && content.paging is FilesPaging.Available,
+        nextPage = (content.paging as? FilesPaging.Available)?.takeIf { pagingEnabled },
         onLoadNextPage = { currentOnEvent(FilesBrowserEvent.LoadNextPage) },
     )
 

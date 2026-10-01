@@ -92,17 +92,18 @@ class FilesDeleteReducerTest {
     @Test
     fun anAnnouncedOutcomeLeavesTheFolderOnlyOnceSettledAndOnlyForItsOwnRequest() {
         val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
-        val requestId = checkNotNull(deleting.state.current.deleteOutcome).requestId
-        val dismiss = FilesBrowserEvent.DismissDeleteOutcome(requestId)
-        assertFalse(FilesBrowserReducer.reduce(deleting.state, dismiss).consumed)
+        val pending = checkNotNull(deleting.state.current.deleteOutcome)
+        assertFalse(
+            FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DismissDeleteOutcome(pending)).consumed,
+        )
         val finished = finishReload(checked(acknowledge(deleting), FilesRepositoryResult.Failure(apiFailure(404))),
             emptyList())
-        assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, finished.current.deleteOutcome?.status)
-        assertFalse(FilesBrowserReducer.reduce(
-            finished, FilesBrowserEvent.DismissDeleteOutcome(FilesRequestId(requestId.value + 1)),
-        ).consumed)
+        val outcome = checkNotNull(finished.current.deleteOutcome)
+        assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, outcome.status)
+        val otherRequest = outcome.copy(requestId = FilesRequestId(outcome.requestId.value + 1))
+        assertFalse(FilesBrowserReducer.reduce(finished, FilesBrowserEvent.DismissDeleteOutcome(otherRequest)).consumed)
 
-        val dismissed = FilesBrowserReducer.reduce(finished, dismiss)
+        val dismissed = FilesBrowserReducer.reduce(finished, FilesBrowserEvent.DismissDeleteOutcome(outcome))
 
         assertTrue(dismissed.consumed)
         assertNull(dismissed.effect)
@@ -144,6 +145,10 @@ class FilesDeleteReducerTest {
         assertEquals(listOf(file(8L), item), appended.state.current.content.items())
         assertEquals(FilesFolderOperation.Idle, appended.state.current.operation)
         assertNull(appended.effect)
+        // Withdrawing the announcement of the earlier result leaves the corrected one in place.
+        assertFalse(FilesBrowserReducer.reduce(
+            appended.state, FilesBrowserEvent.DismissDeleteOutcome(previousOutcome),
+        ).consumed)
         assertNull(FilesBrowserReducer.reduce(appended.state, FilesBrowserEvent.Retry).effect)
     }
 

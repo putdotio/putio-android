@@ -112,7 +112,7 @@ private fun MobileMoveFolderContent(
     // A folders-only page can hold no folders at all; its footer is in view, so the next one follows.
     LoadNextPageNearEnd(
         listState = listState,
-        canLoad = paging is FilesPaging.Available,
+        nextPage = paging as? FilesPaging.Available,
         onLoadNextPage = { onEvent(FilesMoveDestinationEvent.LoadNextPage) },
     )
     LazyColumn(state = listState, modifier = listModifier.fillMaxWidth()) {

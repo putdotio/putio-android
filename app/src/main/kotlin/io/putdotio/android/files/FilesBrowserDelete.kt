@@ -5,7 +5,7 @@ internal fun FilesBrowserState.reduceDelete(event: FilesBrowserEvent.DeleteEvent
         is FilesBrowserEvent.Delete -> delete(event)
         is FilesBrowserEvent.DeleteFinished -> deleteFinished(event)
         is FilesBrowserEvent.DeleteChecked -> deleteChecked(event)
-        is FilesBrowserEvent.DismissDeleteOutcome -> dismissDeleteOutcome(event.requestId)
+        is FilesBrowserEvent.DismissDeleteOutcome -> dismissDeleteOutcome(event.outcome)
     }
 
 private fun FilesBrowserState.delete(event: FilesBrowserEvent.Delete): FilesBrowserTransition {
@@ -88,8 +88,8 @@ private fun FilesBrowserState.deleteChecked(event: FilesBrowserEvent.DeleteCheck
     }
 }
 
-private fun FilesBrowserState.dismissDeleteOutcome(requestId: FilesRequestId): FilesBrowserTransition {
-    val index = stack.indexOfFirst { it.deleteOutcome?.requestId == requestId && it.operation.pendingDelete == null }
+private fun FilesBrowserState.dismissDeleteOutcome(outcome: FilesDeleteOutcome): FilesBrowserTransition {
+    val index = stack.indexOfFirst { it.deleteOutcome == outcome && it.operation.pendingDelete == null }
     if (index < 0) return FilesBrowserTransition(this, consumed = false)
     return FilesBrowserTransition(copy(stack = stack.replaceAt(index, stack[index].copy(deleteOutcome = null))))
 }
