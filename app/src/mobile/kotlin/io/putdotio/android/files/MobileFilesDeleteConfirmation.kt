@@ -64,22 +64,23 @@ internal fun MobileFilesTrashLimitStatus(
     onEvent: (FilesBrowserEvent) -> Unit,
 ) {
     var confirming by rememberSaveable(outcome.requestId.value) { mutableStateOf(false) }
-    // A refresh that no longer lists the folder leaves nothing for the reducer to delete.
-    val listed = folder.content.items().any { it.id == outcome.intent.itemId }
+    // A refresh that no longer lists the folder leaves nothing for the reducer to delete; a
+    // rename keeps the outcome, so the dialog names the folder as it is listed now.
+    val listed = folder.content.items().firstOrNull { it.id == outcome.intent.itemId }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(
             text = stringResource(R.string.mobile_files_trash_limit_title),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
-        if (listed) {
+        if (listed != null) {
             TextButton(onClick = { confirming = true }) {
                 Text(stringResource(R.string.mobile_files_trash_limit_delete), color = MaterialTheme.colorScheme.error)
             }
         }
     }
-    if (confirming && listed) {
-        val delete = FilesBrowserEvent.Delete(folder.folder.id, outcome.intent.itemId, FilesDeleteMode.PERMANENT)
+    if (confirming && listed != null) {
+        val delete = FilesBrowserEvent.Delete(folder.folder.id, listed.id, FilesDeleteMode.PERMANENT)
         AlertDialog(
             onDismissRequest = { confirming = false },
             title = { Text(stringResource(R.string.mobile_files_trash_limit_title)) },
@@ -89,7 +90,7 @@ internal fun MobileFilesTrashLimitStatus(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(stringResource(R.string.mobile_files_trash_limit_message))
-                    Text(outcome.itemName, style = MaterialTheme.typography.titleSmall)
+                    Text(listed.name, style = MaterialTheme.typography.titleSmall)
                 }
             },
             confirmButton = {

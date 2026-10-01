@@ -404,21 +404,30 @@ private fun TvFilesTrashLimitStatus(
     onEvent: (FilesBrowserEvent) -> Boolean,
 ) {
     var confirming by rememberSaveable(outcome.requestId.value) { mutableStateOf(false) }
-    // A refresh that no longer lists the folder leaves nothing for the reducer to delete.
-    val listed = current.content.items().any { it.id == outcome.intent.itemId }
+    // A refresh that no longer lists the folder leaves nothing for the reducer to delete; a
+    // rename keeps the outcome, so the dialog names the folder as it is listed now.
+    val listed = current.content.items().firstOrNull { it.id == outcome.intent.itemId }
     TvFilesNotice(
         text = stringResource(R.string.tv_files_trash_limit_title),
-        action = stringResource(R.string.tv_files_action_delete).takeIf { listed },
+        action = stringResource(R.string.tv_files_action_delete).takeIf { listed != null },
         onAction = { confirming = true },
     )
-    if (confirming && listed) {
+    if (confirming && listed != null) {
         val close = { confirming = false }
-        val delete = FilesBrowserEvent.Delete(current.folder.id, outcome.intent.itemId, FilesDeleteMode.PERMANENT)
+        val delete = FilesBrowserEvent.Delete(current.folder.id, listed.id, FilesDeleteMode.PERMANENT)
         TvDialog(
             title = stringResource(R.string.tv_files_trash_limit_title),
             message = stringResource(R.string.tv_files_trash_limit_message),
             onDismiss = close,
-            body = { Text(outcome.itemName, style = MaterialTheme.typography.titleMedium) },
+            body = {
+                // Bounded like TvDialog's message so a long name cannot push the actions off screen.
+                Text(
+                    listed.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
         ) { focus ->
             TvButton(
                 onClick = {

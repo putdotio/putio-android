@@ -338,6 +338,13 @@ class MobileFilesDeleteTest {
         }
         compose.onAllNodesWithText(message).assertCountEquals(0)
 
+        // A rename keeps the outcome; the confirmation names the folder as it is listed now.
+        compose.runOnIdle { state = withOutcome(listOf(folder.copy(name = "Renamed folder"))) }
+        compose.onNodeWithText("Delete permanently").performClick()
+        compose.onAllNodesWithText("Renamed folder").assertCountEquals(2)
+        compose.onAllNodesWithText("Sample folder").assertCountEquals(0)
+        compose.onNodeWithText("Cancel").performClick()
+
         // A refresh that no longer lists the folder keeps the explanation but offers nothing to delete.
         compose.runOnIdle { state = withOutcome(emptyList()) }
         compose.onNodeWithText("We couldn’t send these files to trash").assertIsDisplayed()

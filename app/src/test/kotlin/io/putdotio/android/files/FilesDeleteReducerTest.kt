@@ -228,6 +228,8 @@ class FilesDeleteReducerTest {
         assertEquals(FilesDeleteStatus.TOO_LARGE_FOR_TRASH, finished.current.deleteOutcome?.status)
         assertEquals(listOf(item), finished.current.content.items())
         assertNull(FilesBrowserReducer.reduce(finished, FilesBrowserEvent.Retry).effect)
+        val confirmedAgain = FilesBrowserReducer.reduce(finished, event)
+        assertEquals(FilesDeleteMode.TRASH, (confirmedAgain.effect as FilesBrowserEffect.Delete).mode)
 
         val permanent = FilesBrowserReducer.reduce(finished, event.copy(mode = FilesDeleteMode.PERMANENT))
         assertEquals(FilesDeleteMode.PERMANENT, (permanent.effect as FilesBrowserEffect.Delete).mode)
@@ -255,6 +257,15 @@ class FilesDeleteReducerTest {
         ))
         val gone = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
         assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, gone.state.current.deleteOutcome?.status)
+
+        // The limit only explains a Trash refusal; a permanent request refused the same way is still present.
+        val permanent = FilesBrowserReducer.reduce(loadedRoot(), event.copy(mode = FilesDeleteMode.PERMANENT))
+        val permanentChecking = FilesBrowserReducer.reduce(permanent.state, FilesBrowserEvent.DeleteFinished(
+            checkNotNull(permanent.effect).requestId,
+            FilesRepositoryResult.Failure(apiFailure(400, "FileDeleteChildrenLimitError")),
+        ))
+        val permanentFinished = finishReload(checked(permanentChecking, FilesRepositoryResult.Success(item)))
+        assertEquals(FilesDeleteStatus.STILL_PRESENT, permanentFinished.current.deleteOutcome?.status)
     }
 
     @Test

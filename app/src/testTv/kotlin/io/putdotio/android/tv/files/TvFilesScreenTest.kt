@@ -14,6 +14,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -990,11 +992,13 @@ class TvFilesScreenTest {
             FilesRequestId(5), FilesFolderOperationIntent.Delete(folder.id, FilesDeleteMode.TRASH), folder.name,
             status = FilesDeleteStatus.TOO_LARGE_FOR_TRASH,
         )
-        val ready = ready(folder)
+        fun withOutcome(listed: FilesItem) =
+            ready(listed).let { it.copy(stack = listOf(it.current.copy(deleteOutcome = outcome))) }
+        var state by mutableStateOf(withOutcome(folder))
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvFilesScreen(
-                    state = ready.copy(stack = listOf(ready.current.copy(deleteOutcome = outcome))),
+                    state = state,
                     onEvent = { events += it; true },
                     onPlayMedia = {},
                     confirmedTrashEnabled = true,
@@ -1039,6 +1043,20 @@ class TvFilesScreenTest {
             )
         }
         compose.onAllNodesWithText(message).assertCountEquals(0)
+
+        // A rename keeps the outcome; the confirmation names the folder as it is listed now.
+        compose.runOnIdle { state = withOutcome(folder.copy(name = "Renamed folder")) }
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).apply {
+            performSemanticsAction(SemanticsActions.RequestFocus)
+            assertIsFocused()
+            performKeyInput {
+                keyDown(Key.DirectionCenter)
+                keyUp(Key.DirectionCenter)
+            }
+        }
+        compose.onNodeWithText(message).assertIsDisplayed()
+        compose.onAllNodesWithText("Renamed folder").assertCountEquals(2)
+        compose.onAllNodesWithText("Sample folder").assertCountEquals(0)
     }
 
     private fun ready(
