@@ -12,14 +12,29 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class FilesMoveDestinationController(
-    sourceItem: FilesItem,
-    sourceFolderId: FilesItemId,
+class FilesMoveDestinationController private constructor(
+    sourceItem: FilesItem?,
+    sourceFolderId: FilesItemId?,
     private val repository: FilesRepository,
     parentScope: CoroutineScope,
+    @Suppress("UNUSED_PARAMETER") marker: Unit,
 ) : Closeable {
+    constructor(
+        sourceItem: FilesItem,
+        sourceFolderId: FilesItemId,
+        repository: FilesRepository,
+        parentScope: CoroutineScope,
+    ) : this(sourceItem, sourceFolderId, repository, parentScope, Unit)
+
+    /** Picks a folder for new content; every folder, root included, is a valid destination. */
+    constructor(repository: FilesRepository, parentScope: CoroutineScope) :
+        this(null, null, repository, parentScope, Unit)
+
     init {
-        require(sourceItem.id.value > 0L && sourceFolderId.value >= 0L) { "Move picker requires a non-root source" }
+        require(
+            sourceItem == null && sourceFolderId == null ||
+                sourceItem != null && sourceItem.id.value > 0L && sourceFolderId != null && sourceFolderId.value >= 0L,
+        ) { "Move picker requires a non-root source" }
     }
 
     private val lock = Any()

@@ -12,7 +12,8 @@ import io.putdotio.android.transfers.MobileTransfersViewModel
 import io.putdotio.android.transfers.TransferCursor
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem
-import io.putdotio.android.transfers.TransferSubmission
+import io.putdotio.android.transfers.TransferAddOutcome
+import io.putdotio.android.transfers.TransferAddRequest
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersPage
 import io.putdotio.android.transfers.TransfersRepository
@@ -77,7 +78,7 @@ class MobileTransfersViewModelTest {
         override suspend fun refresh(ids: List<TransferId>): FilesRepositoryResult<TransfersRowRefresh> =
             error("No refresh expected")
 
-        override suspend fun add(submission: TransferSubmission): FilesRepositoryResult<TransferItem> =
+        override suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome> =
             error("No add expected")
 
         override suspend fun cancel(id: TransferId): FilesRepositoryResult<Unit> =

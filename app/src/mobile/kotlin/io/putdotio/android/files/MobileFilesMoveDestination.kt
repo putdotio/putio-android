@@ -55,6 +55,8 @@ internal fun MobileFilesMoveDestination(
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
     canSubmit: Boolean = true,
+    title: String = stringResource(R.string.mobile_files_move),
+    confirmLabel: String = stringResource(R.string.mobile_files_move_here),
 ) {
     val back = {
         if (state.canNavigateBack) onEvent(FilesMoveDestinationEvent.NavigateBack) else onCancel()
@@ -69,7 +71,7 @@ internal fun MobileFilesMoveDestination(
         ) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text(stringResource(R.string.mobile_files_move), style = MaterialTheme.typography.headlineSmall,
+                    Text(title, style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.weight(1f))
                     TextButton(onClick = onCancel, modifier = Modifier.testTag(MOBILE_FILES_MOVE_CANCEL_TAG)) {
                         Text(stringResource(R.string.mobile_action_cancel))
@@ -81,7 +83,7 @@ internal fun MobileFilesMoveDestination(
                 HorizontalDivider()
                 Button(onClick = onConfirm, enabled = canSubmit && state.canMoveHere,
                     modifier = Modifier.padding(16.dp).fillMaxWidth().testTag(MOBILE_FILES_MOVE_HERE_TAG)) {
-                    Text(stringResource(R.string.mobile_files_move_here))
+                    Text(confirmLabel)
                 }
             }
         }
@@ -102,11 +104,13 @@ private fun MobileMoveFolderContent(
         modifier
     }
     LazyColumn(modifier = listModifier.fillMaxWidth()) {
-        item {
-            Text(state.sourceItem.name, style = MaterialTheme.typography.bodyLarge,
-                maxLines = 3, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            HorizontalDivider()
+        state.sourceItem?.let { source ->
+            item {
+                Text(source.name, style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                HorizontalDivider()
+            }
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {

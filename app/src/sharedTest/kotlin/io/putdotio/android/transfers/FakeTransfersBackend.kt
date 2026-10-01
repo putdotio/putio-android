@@ -44,7 +44,7 @@ internal class FakeTransfersBackend(historySize: Int, activePositions: Set<Int>)
     fun repository(): SdkTransfersRepository =
         SdkTransfersRepository(
             reads(),
-            addTransfer = { error("unused") },
+            adds = TransfersAddOperations({ error("unused") }, { error("unused") }, { error("unused") }),
             cancelTransfers = { error("unused") },
             retryTransfer = { error("unused") },
             cleanTransfers = { TransfersCleanResponse(emptyList(), "OK") },

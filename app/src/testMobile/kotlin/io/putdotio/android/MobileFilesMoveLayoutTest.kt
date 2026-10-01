@@ -85,7 +85,7 @@ class MobileFilesMoveLayoutTest {
         }
 
         val layouts = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText(state.sourceItem.name).performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
+        compose.onNodeWithText(requireNotNull(state.sourceItem).name).performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
             it(layouts)
         }
         assertEquals(

@@ -143,6 +143,8 @@ internal fun MobileNavHost(
                 state = currentTransfersState,
                 onEvent = eventHandler,
                 sessionId = currentTransfersSessionId,
+                filesRepository = filesRepository,
+                onFilesAuthenticationRequired = onFilesAuthenticationRequired,
             )
         }
         composable(MobileDestination.Account.route) {

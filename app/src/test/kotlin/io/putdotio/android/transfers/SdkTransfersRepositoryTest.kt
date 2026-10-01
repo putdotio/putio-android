@@ -7,7 +7,13 @@ import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.transfers.Transfer
+import io.putdotio.sdk.files.FileUploadInput
+import io.putdotio.sdk.files.FileUploadResult
+import io.putdotio.sdk.files.PutioFile
+import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.transfers.TransferAddInput
+import io.putdotio.sdk.transfers.TransfersAddManyError
+import io.putdotio.sdk.transfers.TransfersAddManyResponse
 import io.putdotio.sdk.transfers.TransferLink
 import io.putdotio.sdk.transfers.TransferStatus
 import io.putdotio.sdk.transfers.TransfersCleanResponse
@@ -197,7 +203,7 @@ class SdkTransfersRepositoryTest {
         }
         val repository = repository(mutations = mutations)
 
-        repository.add(requireNotNull(TransferSubmission.parse("magnet:?xt=urn:test")))
+        repository.add(TransferAddRequest.Links(requireNotNull(TransferSubmission.parseAll("magnet:?xt=urn:test"))))
         repository.cancel(TransferId(8L))
         repository.retry(TransferId(8L))
         val result = repository.clean(emptyList()) as FilesRepositoryResult.Success
@@ -207,6 +213,82 @@ class SdkTransfersRepositoryTest {
         assertEquals(8L, retried)
         assertEquals(emptyList<Long>(), cleaned)
         assertEquals(emptySet<TransferId>(), result.value)
+    }
+
+    @Test
+    fun severalLinksUseOneMultiAddWithTheDestinationAndReportRefusedLinks() = runBlocking {
+        var sent: List<TransferAddInput>? = null
+        val repository = repository(mutations = MutationOperations().apply {
+            addMany = { inputs ->
+                sent = inputs
+                TransfersAddManyResponse(
+                    errors = listOf(TransfersAddManyError("UNKNOWN_SCHEME", 400, "https://example.invalid/second")),
+                    transfers = listOf(sdkTransfer(21L)),
+                    status = "OK",
+                )
+            }
+        })
+        val links = requireNotNull(TransferSubmission.parseAll("magnet:?xt=urn:first\nhttps://example.invalid/second"))
+
+        val result =
+            repository.add(TransferAddRequest.Links(links, saveParentId = 44L)) as FilesRepositoryResult.Success
+
+        assertEquals(listOf("magnet:?xt=urn:first", "https://example.invalid/second"), sent?.map { it.url })
+        assertEquals(listOf(44L, 44L), sent?.map { it.saveParentId })
+        assertEquals(listOf(TransferId(21L)), result.value.added.map { it.id })
+        assertEquals(listOf("https://example.invalid/second"), result.value.rejectedLinks)
+    }
+
+    @Test
+    fun singleLinkWithoutDestinationLeavesTheDefaultFolderToPutio() = runBlocking {
+        var sent: TransferAddInput? = null
+        val repository = repository(mutations = MutationOperations().apply {
+            add = {
+                sent = it
+                sdkTransfer(9L)
+            }
+        })
+
+        repository.add(TransferAddRequest.Links(requireNotNull(TransferSubmission.parseAll("magnet:?xt=urn:one"))))
+
+        assertEquals(null, sent?.saveParentId)
+    }
+
+    @Test
+    fun torrentUploadsRequireATorrentAndReturnTheStartedTransfer() = runBlocking {
+        var sent: FileUploadInput? = null
+        val repository = repository(mutations = MutationOperations().apply {
+            upload = {
+                sent = it
+                FileUploadResult.Transfer(sdkTransfer(31L))
+            }
+        })
+        val torrent = TorrentUpload("Harbor film.torrent", byteArrayOf(0x64, 0x65))
+
+        val result =
+            repository.add(TransferAddRequest.Torrent(torrent, saveParentId = 7L)) as FilesRepositoryResult.Success
+
+        assertEquals(listOf(TransferId(31L)), result.value.added.map { it.id })
+        assertEquals("Harbor film.torrent", sent?.fileName)
+        assertEquals(7L, sent?.parentId)
+        assertEquals(true, sent?.requireTorrent)
+        assertEquals("application/x-bittorrent", sent?.mediaType)
+        assertSame(torrent.content, sent?.content)
+    }
+
+    @Test
+    fun torrentStoredAsAFileIsAFailureNotASilentSuccess() = runBlocking {
+        val repository = repository(mutations = MutationOperations().apply {
+            upload = {
+                FileUploadResult.File(
+                    PutioFile(id = 3L, name = "a.torrent", createdAt = "", fileType = PutioFileType.FILE),
+                )
+            }
+        })
+
+        val result = repository.add(TransferAddRequest.Torrent(TorrentUpload("a.torrent", byteArrayOf(1))))
+
+        assertTrue((result as FilesRepositoryResult.Failure).failure is FilesFailure.Unexpected)
     }
 
     @Test
@@ -232,7 +314,7 @@ class SdkTransfersRepositoryTest {
         mutations: MutationOperations = MutationOperations(),
     ) = SdkTransfersRepository(
         TransfersReadOperations(reads.list, reads.continueList, reads.get),
-        mutations.add,
+        TransfersAddOperations(mutations.add, mutations.addMany, mutations.upload),
         mutations.cancel,
         mutations.retry,
         mutations.clean,
@@ -248,6 +330,8 @@ class SdkTransfersRepositoryTest {
 
     private inner class MutationOperations {
         var add: suspend (TransferAddInput) -> Transfer = { sdkTransfer(1L) }
+        var addMany: suspend (List<TransferAddInput>) -> TransfersAddManyResponse = { error("Unexpected addMany") }
+        var upload: suspend (FileUploadInput) -> FileUploadResult = { error("Unexpected upload") }
         var cancel: suspend (List<Long>) -> Unit = {}
         var retry: suspend (Long) -> Transfer = { sdkTransfer(it) }
         var clean: suspend (List<Long>) -> TransfersCleanResponse = { TransfersCleanResponse(it, "OK") }

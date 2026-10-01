@@ -6,7 +6,11 @@ import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.errors.PutioException
 import io.putdotio.sdk.transfers.Transfer
+import io.putdotio.sdk.files.FileUploadInput
+import io.putdotio.sdk.files.FileUploadResult
 import io.putdotio.sdk.transfers.TransferAddInput
+import io.putdotio.sdk.transfers.TransfersAddManyError
+import io.putdotio.sdk.transfers.TransfersAddManyResponse
 import io.putdotio.sdk.transfers.TransferStatus
 import io.putdotio.sdk.transfers.TransfersCleanResponse
 import io.putdotio.sdk.transfers.TransfersListQuery
@@ -19,10 +23,51 @@ import kotlinx.coroutines.coroutineScope
 interface TransfersRepository {
     suspend fun load(cursor: TransferCursor? = null): FilesRepositoryResult<TransfersPage>
     suspend fun refresh(ids: List<TransferId>): FilesRepositoryResult<TransfersRowRefresh>
-    suspend fun add(submission: TransferSubmission): FilesRepositoryResult<TransferItem>
+    suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome>
     suspend fun cancel(id: TransferId): FilesRepositoryResult<Unit>
     suspend fun retry(id: TransferId): FilesRepositoryResult<TransferItem>
     suspend fun clean(ids: List<TransferId>): FilesRepositoryResult<Set<TransferId>>
+}
+
+internal class TransfersAddOperations(
+    val add: suspend (TransferAddInput) -> Transfer,
+    val addMany: suspend (List<TransferAddInput>) -> TransfersAddManyResponse,
+    val upload: suspend (FileUploadInput) -> FileUploadResult,
+) {
+    suspend fun run(request: TransferAddRequest): TransferAddOutcome =
+        when (request) {
+            is TransferAddRequest.Links -> addLinks(request)
+            is TransferAddRequest.Torrent -> addTorrent(request)
+        }
+
+    // One link keeps `/transfers/add` so put.io's rejection reaches the user as the failure itself.
+    private suspend fun addLinks(request: TransferAddRequest.Links): TransferAddOutcome {
+        val inputs = request.links.map { TransferAddInput(url = it.value, saveParentId = request.saveParentId) }
+        val single = inputs.singleOrNull()
+        if (single != null) return TransferAddOutcome(listOf(add(single).toTransferItem()))
+        val response = addMany(inputs)
+        return TransferAddOutcome(
+            added = response.transfers.map(Transfer::toTransferItem),
+            rejectedLinks = response.errors.map(TransfersAddManyError::url).filter(String::isNotBlank).distinct(),
+        )
+    }
+
+    private suspend fun addTorrent(request: TransferAddRequest.Torrent): TransferAddOutcome {
+        val result =
+            upload(
+                FileUploadInput(
+                    content = request.file.content,
+                    fileName = request.file.fileName,
+                    parentId = request.saveParentId,
+                    requireTorrent = true,
+                    mediaType = TORRENT_MEDIA_TYPE,
+                ),
+            )
+        val transfer = checkNotNull((result as? FileUploadResult.Transfer)?.transfer) {
+            "put.io saved the torrent as a file"
+        }
+        return TransferAddOutcome(listOf(transfer.toTransferItem()))
+    }
 }
 
 internal class TransfersReadOperations(
@@ -33,7 +78,7 @@ internal class TransfersReadOperations(
 
 class SdkTransfersRepository internal constructor(
     private val reads: TransfersReadOperations,
-    private val addTransfer: suspend (TransferAddInput) -> Transfer,
+    private val adds: TransfersAddOperations,
     private val cancelTransfers: suspend (List<Long>) -> Unit,
     private val retryTransfer: suspend (Long) -> Transfer,
     private val cleanTransfers: suspend (List<Long>) -> TransfersCleanResponse,
@@ -45,7 +90,12 @@ class SdkTransfersRepository internal constructor(
                 continueList = client.transfers::continueList,
                 get = client.transfers::get,
             ),
-        addTransfer = client.transfers::add,
+        adds =
+            TransfersAddOperations(
+                add = client.transfers::add,
+                addMany = client.transfers::addMany,
+                upload = client.files::upload,
+            ),
         cancelTransfers = { client.transfers.cancel(it) },
         retryTransfer = client.transfers::retry,
         cleanTransfers = client.transfers::clean,
@@ -119,8 +169,8 @@ class SdkTransfersRepository internal constructor(
         )
     }
 
-    override suspend fun add(submission: TransferSubmission): FilesRepositoryResult<TransferItem> =
-        request { addTransfer(TransferAddInput(url = submission.value)).toTransferItem() }
+    override suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome> =
+        request { adds.run(request) }
 
     override suspend fun cancel(id: TransferId): FilesRepositoryResult<Unit> =
         request { cancelTransfers(listOf(id.value)) }
@@ -175,6 +225,7 @@ private fun PutioException.isTransferNotFound(): Boolean {
 }
 
 private const val HTTP_NOT_FOUND = 404
+internal const val TORRENT_MEDIA_TYPE = "application/x-bittorrent"
 
 private fun Transfer.displayPercentDone(): Double? =
     when (status) {

@@ -12,7 +12,9 @@ import io.putdotio.android.share.MobileResumedActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import io.putdotio.android.transfers.MobileTransferDraft
-import io.putdotio.android.transfers.consumeMobileSharedTransfer
+import io.putdotio.android.transfers.MobileIncomingTransfer
+import io.putdotio.android.transfers.consumeMobileIncomingTransfer
+import io.putdotio.android.transfers.readMobileTorrent
 import io.putdotio.android.auth.handleAuthTabActivityResult
 
 class MainActivity : BasePutioActivity() {
@@ -88,11 +90,18 @@ class MainActivity : BasePutioActivity() {
     }
 
     private fun consumeShare(intent: Intent?, restoredConsumed: Boolean, freshIntent: Boolean = false) {
-        val shared = intent?.consumeMobileSharedTransfer() ?: return
+        val incoming = intent?.consumeMobileIncomingTransfer() ?: return
         val consumed = if (freshIntent) false else launch.shareLaunchConsumed || restoredConsumed
         launch.shareLaunchConsumed = true
         val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
-        if (!consumed && !fromHistory) transferDraft.receive(shared)
+        if (consumed || fromHistory) return
+        when (incoming) {
+            is MobileIncomingTransfer.Ready -> transferDraft.receive(incoming.transfer)
+            is MobileIncomingTransfer.Torrent -> {
+                val resolver = applicationContext.contentResolver
+                transferDraft.receiveLater { resolver.readMobileTorrent(incoming.uri) }
+            }
+        }
     }
 
     private fun consumeDeepLink(intent: Intent?, restoredConsumed: Boolean, freshIntent: Boolean = false) {

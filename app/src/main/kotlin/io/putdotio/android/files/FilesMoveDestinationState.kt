@@ -7,22 +7,23 @@ data class FilesMoveDestinationFolder internal constructor(
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
 )
 
+/** A folder picker; without a [sourceItem] it picks a destination for new content, such as a transfer. */
 @ConsistentCopyVisibility
 data class FilesMoveDestinationState internal constructor(
-    val sourceItem: FilesItem,
-    val sourceFolderId: FilesItemId,
+    val sourceItem: FilesItem?,
+    val sourceFolderId: FilesItemId?,
     internal val stack: List<FilesMoveDestinationFolder>,
     internal val nextRequestValue: Long,
 ) {
     val current: FilesMoveDestinationFolder get() = stack.last()
     val path: List<FilesFolder> get() = stack.map { it.folder }
     val canNavigateBack: Boolean get() = stack.size > 1
-    val canMoveHere: Boolean get() = sourceItem.id.value > 0L && current.folder.id.value >= 0L &&
-        current.folder.id != sourceFolderId && current.folder.id != sourceItem.parentId &&
-        current.folder.id != sourceItem.id &&
+    val canMoveHere: Boolean get() = current.folder.id.value >= 0L &&
+        (sourceItem == null || sourceItem.id.value > 0L && current.folder.id != sourceFolderId &&
+            current.folder.id != sourceItem.parentId && current.folder.id != sourceItem.id) &&
         (current.content is FilesContent.Ready || current.content is FilesContent.Empty)
 
-    fun canOpenFolder(itemId: FilesItemId): Boolean = itemId.value > 0L && itemId != sourceItem.id &&
+    fun canOpenFolder(itemId: FilesItemId): Boolean = itemId.value > 0L && itemId != sourceItem?.id &&
         stack.none { it.folder.id == itemId } && current.content.items().any { it.id == itemId && it.isFolder }
 }
 
