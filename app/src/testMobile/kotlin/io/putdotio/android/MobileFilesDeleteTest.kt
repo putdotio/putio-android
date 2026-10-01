@@ -302,6 +302,48 @@ class MobileFilesDeleteTest {
         compose.runOnIdle { assertEquals(1, events.size) }
     }
 
+    @Test
+    fun aFolderTooLargeForTrashExplainsAndDeletesPermanentlyOnlyAfterConfirmation() {
+        val folder = item.copy(id = FilesItemId(8L), name = "Sample folder", type = PutioFileType.FOLDER)
+        val outcome = FilesDeleteOutcome(
+            FilesRequestId(4L), FilesFolderOperationIntent.Delete(folder.id, FilesDeleteMode.TRASH), folder.name,
+            status = FilesDeleteStatus.TOO_LARGE_FOR_TRASH,
+        )
+        fun withOutcome(items: List<FilesItem>) =
+            loadedRoot(items).let { it.copy(stack = listOf(it.current.copy(deleteOutcome = outcome))) }
+        var state by mutableStateOf(withOutcome(listOf(folder)))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme { MobileFilesScreen(state, events::add, {}, confirmedTrashEnabled = true) }
+        }
+        val message = "This folder contains too many files. Would you want to delete it PERMANENTLY?"
+
+        compose.onNodeWithText("We couldn’t send these files to trash").assertIsDisplayed()
+        compose.onAllNodesWithText("“Sample folder” is still in Files. Open its actions to try again.")
+            .assertCountEquals(0)
+        compose.onNodeWithText("Delete permanently").performClick()
+        compose.onNodeWithText(message).assertIsDisplayed()
+        compose.onAllNodesWithText("Sample folder").assertCountEquals(2)
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onAllNodesWithText(message).assertCountEquals(0)
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+
+        compose.onNodeWithText("Delete permanently").performClick()
+        compose.onNodeWithText("Delete").performClick()
+        compose.runOnIdle {
+            assertEquals(
+                listOf(FilesBrowserEvent.Delete(FilesFolder.Root.id, folder.id, FilesDeleteMode.PERMANENT)),
+                events,
+            )
+        }
+        compose.onAllNodesWithText(message).assertCountEquals(0)
+
+        // A refresh that no longer lists the folder keeps the explanation but offers nothing to delete.
+        compose.runOnIdle { state = withOutcome(emptyList()) }
+        compose.onNodeWithText("We couldn’t send these files to trash").assertIsDisplayed()
+        compose.onAllNodesWithText("Delete permanently").assertCountEquals(0)
+    }
+
     private fun openAction(label: String) {
         compose.onNodeWithContentDescription("Actions for été 東京.mkv").performClick()
         compose.onNodeWithText(label).performClick()

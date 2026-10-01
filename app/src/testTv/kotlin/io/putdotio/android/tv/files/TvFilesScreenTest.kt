@@ -24,6 +24,8 @@ import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesDeleteMode
+import io.putdotio.android.files.FilesDeleteOutcome
+import io.putdotio.android.files.FilesDeleteStatus
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
@@ -978,6 +980,65 @@ class TvFilesScreenTest {
             keyUp(Key.DirectionCenter)
         }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
+    }
+
+    @Test
+    fun aFolderTooLargeForTrashExplainsAndDeletesPermanentlyOnlyAfterConfirmation() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val folder = item(4, "Sample folder", PutioFileType.FOLDER)
+        val outcome = FilesDeleteOutcome(
+            FilesRequestId(5), FilesFolderOperationIntent.Delete(folder.id, FilesDeleteMode.TRASH), folder.name,
+            status = FilesDeleteStatus.TOO_LARGE_FOR_TRASH,
+        )
+        val ready = ready(folder)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready.copy(stack = listOf(ready.current.copy(deleteOutcome = outcome))),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                    confirmedTrashEnabled = true,
+                )
+            }
+        }
+        val message = "This folder contains too many files. Would you want to delete it PERMANENTLY?"
+
+        compose.onNodeWithText("We couldn’t send these files to trash").assertIsDisplayed()
+        compose.onAllNodesWithText("Sample folder is still in Files. Open its actions to try again.")
+            .assertCountEquals(0)
+        compose.onNodeWithContentDescription("Open Sample folder").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText(message).assertIsDisplayed()
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onAllNodesWithText(message).assertCountEquals(0)
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText("Delete").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.runOnIdle {
+            assertEquals(
+                listOf<FilesBrowserEvent>(
+                    FilesBrowserEvent.Delete(FilesFolder.Root.id, folder.id, FilesDeleteMode.PERMANENT),
+                ),
+                events,
+            )
+        }
+        compose.onAllNodesWithText(message).assertCountEquals(0)
     }
 
     private fun ready(

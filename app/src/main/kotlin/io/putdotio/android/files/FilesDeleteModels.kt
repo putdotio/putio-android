@@ -11,6 +11,9 @@ enum class FilesDeleteStatus {
     CHECKING,
     NO_LONGER_AVAILABLE,
     STILL_PRESENT,
+
+    /** The folder has more items than put.io's Trash takes; only Delete permanently removes it. */
+    TOO_LARGE_FOR_TRASH,
     SKIPPED,
     UNKNOWN,
 }
@@ -25,3 +28,7 @@ data class FilesDeleteOutcome(
     /** The screen announced it on its own; it stays for a later page to correct. */
     val announced: Boolean = false,
 )
+
+/** put.io refuses a Trash move of a folder over its item limit with this error type, before changing anything. */
+internal val FilesFailure?.isTrashChildrenLimit: Boolean
+    get() = this is FilesFailure.ApiRejected && errorType == "FileDeleteChildrenLimitError"

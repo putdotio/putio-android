@@ -37,6 +37,9 @@
     <string name="mobile_files_check_status">Check status</string>
     <string name="mobile_files_delete_unavailable">“%1$s” is no longer available in Files.</string>
     <string name="mobile_files_delete_still_present">“%1$s” is still in Files. Open its actions to try again.</string>
+    <string name="mobile_files_trash_limit_title">We couldn’t send these files to trash</string>
+    <string name="mobile_files_trash_limit_message">This folder contains too many files. Would you want to delete it PERMANENTLY?</string>
+    <string name="mobile_files_trash_limit_delete">Delete permanently</string>
     <string name="mobile_files_delete_skipped">The request was incomplete. “%1$s” was not confirmed removed.</string>
     <string name="mobile_files_actions">Actions for %1$s</string>
     <string name="mobile_files_rename">Rename</string>
