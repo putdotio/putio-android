@@ -6,8 +6,8 @@ import io.putdotio.sdk.errors.PutioOperationException
 /**
  * put.io's own explanation of a refused request, as web shows it: the SDK's `errorMessage` of a
  * 4xx the app has no copy of its own for. 401, 403, 408 and 429, 5xx, transport and parse
- * failures have none. Text that is a bare error code, names a URL, or carries the SDK's
- * redaction marker is not shown either, so callers fall back to their own copy.
+ * failures have none. Text that is a bare error code, names a URL, mentions a credential, or
+ * carries the SDK's redaction marker is not shown either, so callers fall back to their own copy.
  */
 internal fun Throwable.apiRejectionReason(): String? =
     findApiException()
@@ -25,6 +25,7 @@ private fun displayableReason(raw: String): String? {
             it.length > MAX_REASON_LENGTH ||
             ERROR_CODE.matches(it) ||
             URL_MENTION.containsMatchIn(it) ||
+            CREDENTIAL_MENTION.containsMatchIn(it) ||
             it.contains(REDACTED_MARKER)
     }
 }
@@ -50,5 +51,10 @@ private val APP_EXPLAINED_STATUSES =
 private const val MAX_REASON_LENGTH = 300
 private const val REDACTED_MARKER = "REDACTED"
 private val WHITESPACE = Regex("""\s+""")
-private val ERROR_CODE = Regex("""[A-Z0-9_]+""")
-private val URL_MENTION = Regex("""://|\bwww\.|\burls?\b""", RegexOption.IGNORE_CASE)
+// FILE_NOT_FOUND, FILE-NOT-FOUND, file_not_found: one word that is all capitals or joins parts.
+private val ERROR_CODE = Regex("""[A-Z0-9_-]+|\S*[_-]\S*""")
+// Schemes, scheme-relative and JSON-escaped links, www hosts, and host/path forms.
+private val URL_MENTION =
+    Regex("""//|\\/|\bwww\.|\burls?\b|\b[a-z0-9-]+(\.[a-z0-9-]+)+/""", RegexOption.IGNORE_CASE)
+private val CREDENTIAL_MENTION =
+    Regex("""bearer|authorization|token|secret|password|api[_ -]?key""", RegexOption.IGNORE_CASE)

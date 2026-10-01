@@ -49,6 +49,7 @@ class ApiRejectionReasonTest {
 
         assertEquals("A file with this name already exists.", wrapped.apiRejectionReason())
         assertEquals("not a folder", refusal(404, "not a folder").apiRejectionReason())
+        assertEquals("invalid sort_by param", refusal(400, "invalid sort_by param").apiRejectionReason())
     }
 
     @Test
@@ -64,13 +65,19 @@ class ApiRejectionReasonTest {
     }
 
     @Test
-    fun `codes, URLs, redacted secrets and missing messages are not shown`() {
+    fun `codes, URLs, credentials, redacted secrets and missing messages are not shown`() {
         listOf(
             "FILE_NOT_FOUND",
+            "FILE-NOT-FOUND",
+            "file_not_found",
             "The requested URL was not found on the server. If you entered the URL manually please check your " +
                 "spelling and try again.",
             "See https://example.invalid/help for details",
+            "See //example.invalid/help for details",
+            "See example.invalid/help for details",
+            """See https:\/\/example.invalid\/help for details""",
             "Invalid value for key: 'next'?access_token=secret-value",
+            "Invalid Authorization: Bearer synthetic-secret",
             "   ",
             "x".repeat(301),
         ).forEach { message -> assertNull(message, refusal(400, message).apiRejectionReason()) }

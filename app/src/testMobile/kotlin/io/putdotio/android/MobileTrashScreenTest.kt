@@ -19,6 +19,7 @@ import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.toFilesFailure
 import io.putdotio.android.trash.MOBILE_TRASH_ACTION_CHECK_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_CHECK_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
@@ -73,6 +74,18 @@ class MobileTrashScreenTest {
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("Check status"))
         compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick()
         compose.runOnIdle { assertEquals(listOf(TrashEvent.CheckRestore, TrashEvent.CheckRestore), events) }
+    }
+
+    @Test
+    fun incompleteTrashKeepsTheAppsCopyOverPutiosReason() {
+        val body = """{"error_message":"Item is still being trashed","error_type":"TRASH_INCOMPLETE_TRASH",""" +
+            """"status":"ERROR","status_code":400}"""
+        val state = TrashState(content = loaded, restoreOutcome = TrashRestoreOutcome(item,
+            TrashRestoreSubmission.REJECTED, submissionFailure = putioRefusal(400, body).toFilesFailure()))
+        compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.onNodeWithText("This item is still moving to Trash. You can try restoring it later.")
+            .assertIsDisplayed()
+        compose.onNodeWithText("Item is still being trashed").assertDoesNotExist()
     }
 
     @Test

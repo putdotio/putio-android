@@ -635,13 +635,16 @@ Files, Search, History, Transfers, Trash, the move picker, Account settings
 and the player. 401, 403, 408 and 429 keep the app's own copy, and more
 specific app copy (an unavailable move
 destination, an incomplete Trash restore, a transfer with nothing to retry)
-still wins. 5xx, network and unreadable responses keep the existing copy. A
-message that is a bare error code, longer than 300 characters, mentions a URL,
-or carries the SDK's redaction marker is not shown; the copy applies instead.
-The message comes from the SDK's redacted `PutioApiException.errorMessage`.
+still wins. 5xx, network and unreadable responses keep the existing copy, and
+copy that never named the failure, such as paging and refresh footers, stays
+as it is. A message that is a bare error code, longer than 300
+characters, mentions a URL or a credential, or carries the SDK's redaction
+marker is not shown; the copy applies instead. The message comes from the
+SDK's redacted `PutioApiException.errorMessage`.
 
 Tests: `ApiRejectionReasonTest`, `MobileFilesScreenTest`,
-`TvPlaybackStatesTest`, `MobileRefusedRequestProofTest` (opt-in device proof;
+`MobileFilesMoveTest`, `MobileTrashScreenTest`, `TvPlaybackStatesTest`,
+`MobileRefusedRequestProofTest` (opt-in device proof;
 see [Harness](./harness.md#refused-request-proof)).
 
 ## Transfer failures and retry
