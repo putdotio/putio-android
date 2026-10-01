@@ -174,7 +174,10 @@ private fun InputStream.readBounded(limit: Int): ByteArray {
 // A metainfo file is a bencoded dictionary with an `info` key; put.io validates the rest.
 private fun ByteArray.looksLikeTorrent(): Boolean =
     size >= MIN_TORRENT_BYTES && first() == 'd'.code.toByte() && last() == 'e'.code.toByte() &&
-        String(this, Charsets.ISO_8859_1).contains("4:info")
+        containsBytes(INFO_KEY)
+
+private fun ByteArray.containsBytes(needle: ByteArray): Boolean =
+    (0..size - needle.size).any { start -> needle.indices.all { this[start + it] == needle[it] } }
 
 /** put.io starts a transfer only for a `.torrent` name, so the name always ends with one. */
 internal fun torrentFileName(displayName: String?): String {
@@ -213,6 +216,7 @@ internal fun CharSequence.fitsMobileTransferInputLimit(): Boolean =
 internal const val MOBILE_TRANSFER_INPUT_LIMIT = 16 * 1024
 internal const val MAX_TORRENT_BYTES = 16 * 1024 * 1024
 private const val MIN_TORRENT_BYTES = 8
+private val INFO_KEY = "4:info".toByteArray(Charsets.US_ASCII)
 private const val MAX_TORRENT_NAME_LENGTH = 200
 private const val DEFAULT_TORRENT_NAME = "Transfer"
 private const val MAGNET_SCHEME = "magnet"
