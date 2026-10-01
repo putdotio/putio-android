@@ -350,23 +350,53 @@ Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlaybackStatesTest`,
 
 ## Share-in
 
-The mobile launcher accepts `ACTION_SEND` with `text/plain`. A URL or magnet
-opens an editable Add transfer sheet after sign-in; only Add submits it. Text
-with one unambiguous supported link prefills that link. Ambiguous prose and
-multiple links remain editable with guidance to choose one. A new share cannot
-overwrite an existing draft without confirmation or interrupt a running
-mutation. Input is limited to 16 KiB of UTF-8; oversized shares are rejected
-without truncation. A rejected oversized edit keeps the previous draft but
-blocks Add until the user edits it. After a successful Add, Transfers shows a
-"Transfer added" snackbar once per request.
+The mobile launcher accepts `ACTION_SEND` with `text/plain`, `ACTION_VIEW` of a
+`magnet:` link, and `ACTION_VIEW` or `ACTION_SEND` of `application/x-bittorrent`
+content. Each opens an editable Add transfer sheet after sign-in; only Add
+submits it, so a tapped magnet link never starts a transfer on its own (web's
+magnet handler adds immediately). Intent payloads are untrusted: a magnet link
+must parse with an `xt` parameter or it stays visible but invalid, and a
+`.torrent` is read off the main thread from another app's content URI only
+(never this app's own providers), capped at 16 MiB, and must look like a
+bencoded dictionary with an `info` key. Provider failures mark it invalid; a
+newer share or an account change cancels a read still running, and only one
+read runs at a time. Its name is
+stripped of paths and control characters and always ends in `.torrent`, because
+put.io starts a transfer only for that extension; the upload also sends
+`torrent=true`, so put.io refuses non-torrent content instead of saving it as a
+file.
 
-Share payloads and add-transfer drafts stay in Activity-owned memory. Rotation
-retains them; process death discards them. Saved state contains only consumed
-request metadata, and received share extras and ClipData are removed from the
-retained Activity intent.
+The sheet takes several links separated by spaces or new lines; each must be a
+complete HTTP(S) URL or magnet link, duplicates collapse, and at most 100 go in
+one Add (put.io's multi-add limit). One link uses `/transfers/add`, so put.io's
+rejection is the failure shown; several use `/transfers/add-multi`, and links
+put.io refuses reopen the sheet with "put.io couldn’t add these links" while the
+rest start. Shared text with complete, unambiguous links prefills them one per
+line; ambiguous prose stays editable with guidance. A shared `.torrent` replaces
+the text field with its name and a remove button.
+
+Save to defaults to the account's default download folder: the app omits
+`save_parent_id` (`parent_id` for uploads) and put.io applies the default.
+Change opens the Files move picker without a source item, where every folder,
+root included, is a destination; the choice lasts for the session, as on web,
+and resets when the account changes. put.io saves an uploaded torrent's
+transfer to the default folder when its parent is root.
+
+A new share cannot overwrite an existing draft without confirmation or
+interrupt a running mutation. Text input is limited to 16 KiB of UTF-8;
+oversized shares are rejected without truncation. A rejected oversized edit
+keeps the previous draft but blocks Add until the user edits it. After a
+successful Add, Transfers announces the number of transfers put.io started once
+per request ("1 transfer added").
+
+Share payloads, torrent bytes and add-transfer drafts stay in Activity-owned
+memory. Rotation retains them; process death discards them. Saved state
+contains only consumed request metadata, and received share extras, data URIs
+and ClipData are removed from the retained Activity intent.
 
 Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest`,
-`MainActivityShareTest`.
+`MainActivityShareTest`, `MobileTransfersScreenTest`, `TransfersReducerTest`,
+`SdkTransfersRepositoryTest`, `FilesMoveDestinationControllerTest`.
 
 ## Share-out
 

@@ -37,6 +37,9 @@ Mobile, on the emulator harness against the live API:
 - Downloads: video saves the same HLS rendition it streams, audio saves the
   original; a Downloads screen under Account lists local copies, storage used,
   retry and delete; completed downloads play without a connection
+- Transfer intake: tapped magnet links, opened or shared `.torrent` files, shared
+  text and several pasted links open the Add transfer sheet, which saves to the
+  default download folder or one picked with the move picker
 - Share out: Share file exports the original through a scoped content URI; the
   chooser never sees a token. Product deep links open Files, a folder,
   Transfers, Search, History, Trash and Downloads

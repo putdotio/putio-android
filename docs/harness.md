@@ -1095,8 +1095,31 @@ confirmation. Follow the existing session-preserving installation and fixture
 cleanup rules. The controlled `MobileShellAccessibilityProofTest` also exercises
 both replacement choices at 200% font size in portrait and landscape, checks the
 entire confirmation message is reachable, and asserts that choosing a draft
-submits no transfer. The share proof captures the "Transfer added" snackbar
+submits no transfer. The share proof captures the "1 transfer added" snackbar
 after a successful Add.
+
+Magnet and torrent intake need no account to prove the boundary: with the debug
+app in any controlled state, open a fake magnet and confirm the sheet shows it
+unsubmitted (signed out, it appears after sign-in):
+
+```bash
+adb shell am start -a android.intent.action.VIEW \
+  -d 'magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Harbor%20film' \
+  -p io.put.putio.mobile.debug
+```
+
+`MobileTransferIntakeProofTest` then proves the sheet without an account: the
+same magnet VIEW intent launches the production `MainActivity`, and its draft
+drives the production Transfers screen and controller over
+`SdkTransfersRepository` with faked SDK calls and a fake Files repository
+holding "Sample folder". It makes no API calls; report it as synthetic proof.
+Opt in with `putio.transfers.enabled=true` and `putio.transfers.runId=<UUID>`
+and require `OK (1 test)`. Screenshots land in `transfer-intake-proof-<UUID>/`:
+`01-magnet-draft-unsubmitted`, `02-save-to-picker`, `03-save-to-sample-folder`,
+`04-magnet-added` (the add carried `save_parent_id`), `05-refused-link-kept`
+(add-multi refused one of two links) and `06-torrent-draft`; the test then adds
+the torrent and checks the upload sends `torrent=true` and the folder.
+`MainActivityShareTest` covers the `.torrent` content-URI read on the JVM.
 
 ## Mobile share-out and deep links proof
 

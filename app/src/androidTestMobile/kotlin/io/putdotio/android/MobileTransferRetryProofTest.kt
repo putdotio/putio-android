@@ -21,6 +21,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.transfers.SdkTransfersRepository
+import io.putdotio.android.transfers.TransfersAddOperations
 import io.putdotio.android.transfers.TransfersController
 import io.putdotio.android.transfers.TransfersReadOperations
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
@@ -72,7 +73,11 @@ class MobileTransferRetryProofTest {
                 continueList = { _, _ -> error("No second page") },
                 get = { id -> requireNotNull(server[id]) },
             ),
-            addTransfer = { error("No add in this proof") },
+            adds = TransfersAddOperations(
+                add = { error("No add in this proof") },
+                addMany = { error("No add in this proof") },
+                upload = { error("No add in this proof") },
+            ),
             cancelTransfers = { error("No cancel in this proof") },
             retryTransfer = { id ->
                 retried += id

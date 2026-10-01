@@ -9,6 +9,16 @@ import io.putdotio.android.transfers.MobileShareValidation
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransferDraftState
 import io.putdotio.android.transfers.parseMobileSharedTransfer
+import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.transfers.MAX_TRANSFER_LINKS
+import io.putdotio.android.transfers.MobileSharedTransfer
+import io.putdotio.android.transfers.TorrentUpload
+import io.putdotio.android.transfers.TransfersEvent
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
@@ -17,7 +27,9 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import android.os.Looper
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -95,27 +107,179 @@ class MobileTransferDraftTest {
     }
 
     @Test
-    fun validationRequiresOneCompleteLinkAndEditsClearTheShareError() {
+    fun validationRequiresEveryLinkToBeCompleteAndEditsClearTheShareError() {
         val draft = MobileTransferDraft()
-        draft.receive(parseMobileSharedTransfer("$FIRST and $SECOND"))
+        draft.receive(parseMobileSharedTransfer("$FIRST and (magnet:?xt=urn:btih:1)"))
         assertNull(draft.validate())
-        assertEquals(MobileShareValidation.MultipleLinks, draft.state.value.validation)
+        assertEquals(MobileShareValidation.InvalidLink, draft.state.value.validation)
+        draft.edit("$FIRST  $SECOND\n$FIRST")
+        assertEquals(TransfersEvent.Add("$FIRST\n$SECOND"), draft.validate())
+        assertEquals("$FIRST\n$SECOND", draft.state.value.input)
+        draft.edit((0..MAX_TRANSFER_LINKS).joinToString(" ") { "magnet:?xt=urn:btih:$it" })
+        assertNull(draft.validate())
+        assertEquals(MobileShareValidation.TooManyLinks, draft.state.value.validation)
         draft.edit("not a link")
         assertNull(draft.state.value.validation)
         assertNull(draft.validate())
         assertEquals(MobileShareValidation.InvalidLink, draft.state.value.validation)
         draft.edit("  $EDITED  ")
-        assertEquals(EDITED, draft.validate())
+        assertEquals(TransfersEvent.Add(EDITED), draft.validate())
         assertEquals(EDITED, draft.state.value.input)
         assertNull(draft.state.value.validation)
         assertTrue(draft.state.value.open)
     }
 
     @Test
+    fun aSharedTorrentSubmitsAsAnUploadToTheChosenFolderAndStaysAfterARejection() {
+        val draft = MobileTransferDraft()
+        draft.receive(MobileSharedTransfer(torrent = TORRENT))
+        draft.chooseDestination(SAMPLE_FOLDER)
+        val add = draft.validate()
+        assertEquals(TransfersEvent.AddTorrent(TORRENT, SAMPLE_FOLDER.id.value), add)
+        draft.setSubmitting(true)
+        draft.removeTorrent()
+        draft.chooseDestination(null)
+        assertSame(TORRENT, draft.state.value.torrent)
+        assertEquals(SAMPLE_FOLDER, draft.state.value.destination)
+        draft.restoreRejectedTorrent(TORRENT)
+        assertSame(TORRENT, draft.state.value.torrent)
+        assertTrue(draft.state.value.open)
+        draft.removeTorrent()
+        assertNull(draft.state.value.torrent)
+        assertNull(draft.validate())
+        assertEquals(MobileShareValidation.InvalidLink, draft.state.value.validation)
+    }
+
+    @Test
+    fun theChosenFolderLastsForTheSessionButNotAcrossAccounts() {
+        val draft = MobileTransferDraft()
+        draft.reconcileSession(MobileAuthSessionId(1))
+        draft.chooseDestination(SAMPLE_FOLDER)
+        draft.receive(parseMobileSharedTransfer(FIRST))
+        assertEquals(TransfersEvent.Add(FIRST, SAMPLE_FOLDER.id.value), draft.validate())
+        draft.submissionSucceeded()
+        assertEquals(MobileTransferDraftState(destination = SAMPLE_FOLDER), draft.state.value)
+        draft.receive(parseMobileSharedTransfer(SECOND))
+        assertEquals(SAMPLE_FOLDER, draft.state.value.destination)
+        draft.reconcileSession(MobileAuthSessionId(2))
+        assertEquals(MobileTransferDraftState(), draft.state.value)
+    }
+
+    @Test
+    fun linksPutioRefusedReopenTheDraftWhileAddedOnesClear() {
+        val draft = MobileTransferDraft()
+        draft.chooseDestination(SAMPLE_FOLDER)
+        draft.receive(parseMobileSharedTransfer("$FIRST\n$SECOND"))
+        draft.setSubmitting(true)
+        draft.submissionSucceeded(rejectedLinks = listOf(SECOND))
+        val state = draft.state.value
+        assertEquals(SECOND, state.input)
+        assertEquals(MobileShareValidation.NotAdded, state.validation)
+        assertTrue(state.open)
+        assertFalse(state.submitting)
+        assertEquals(SAMPLE_FOLDER, state.destination)
+    }
+
+    @Test
+    fun aTorrentReadOffTheMainThreadArrivesLikeAShare() = runTest {
+        val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
+        draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
+        assertNull(draft.state.value.torrent)
+        advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertSame(TORRENT, draft.state.value.torrent)
+        assertTrue(draft.state.value.open)
+    }
+
+    @Test
+    fun aNewerIntakeOrAnotherAccountSupersedesAPendingTorrentRead() = runTest {
+        val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
+        draft.reconcileSession(MobileAuthSessionId(1))
+        val other = TorrentUpload("Other.torrent", TORRENT.content)
+        draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
+        draft.receiveLater { MobileSharedTransfer(torrent = other) }
+        settle()
+        assertSame(other, draft.state.value.torrent)
+
+        draft.dismiss()
+        draft.removeTorrent()
+        draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
+        draft.receive(parseMobileSharedTransfer(FIRST))
+        settle()
+        assertEquals(FIRST, draft.state.value.input)
+        assertNull(draft.state.value.torrent)
+        assertFalse(draft.state.value.pendingReplacement)
+
+        draft.dismiss()
+        draft.edit("")
+        draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
+        draft.reconcileSession(MobileAuthSessionId(2))
+        settle()
+        assertEquals(MobileTransferDraftState(), draft.state.value)
+    }
+
+    @Test
+    fun aTorrentReadBeforeTheFirstSignInSurvivesIt() = runTest {
+        val draft = MobileTransferDraft(StandardTestDispatcher(testScheduler))
+        draft.reconcileSession(null)
+        draft.receiveLater { MobileSharedTransfer(torrent = TORRENT) }
+        draft.reconcileSession(MobileAuthSessionId(1))
+        settle()
+        assertSame(TORRENT, draft.state.value.torrent)
+    }
+
+    @Test
+    fun aSupersededReadThatIgnoresInterruptsHoldsBackTheNextOne() {
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+        val draft = MobileTransferDraft(pool.asCoroutineDispatcher())
+        val release = java.util.concurrent.CountDownLatch(1)
+        val running = java.util.concurrent.atomic.AtomicInteger()
+        val mostRunning = java.util.concurrent.atomic.AtomicInteger()
+        val other = TorrentUpload("Other.torrent", TORRENT.content)
+        fun read(torrent: TorrentUpload, stuck: Boolean): () -> MobileSharedTransfer = {
+            mostRunning.accumulateAndGet(running.incrementAndGet(), ::maxOf)
+            // Like a provider call that ignores interrupts, this read keeps going until released.
+            while (stuck && !awaitIgnoringInterrupts(release)) Unit
+            running.decrementAndGet()
+            MobileSharedTransfer(torrent = torrent)
+        }
+        try {
+            draft.receiveLater(read(TORRENT, stuck = true))
+            while (running.get() == 0) Thread.sleep(5)
+            draft.receiveLater(read(other, stuck = false))
+            repeat(10) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(10) }
+            assertEquals(1, mostRunning.get())
+            release.countDown()
+            val deadline = System.nanoTime() + 5_000_000_000L
+            while (draft.state.value.torrent == null && System.nanoTime() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(10)
+            }
+            assertSame(other, draft.state.value.torrent)
+            assertEquals(1, mostRunning.get())
+        } finally {
+            release.countDown()
+            pool.shutdownNow()
+        }
+    }
+
+    private fun awaitIgnoringInterrupts(latch: java.util.concurrent.CountDownLatch): Boolean =
+        try {
+            latch.await(10, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+            false
+        }
+
+    private fun kotlinx.coroutines.test.TestScope.settle() {
+        advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    @Test
     fun runningAddCannotBeEditedDismissedReplacedOrSubmittedTwice() {
         val draft = MobileTransferDraft()
         draft.receive(parseMobileSharedTransfer(FIRST))
-        assertEquals(FIRST, draft.validate())
+        assertEquals(TransfersEvent.Add(FIRST), draft.validate())
         draft.setSubmitting(true)
         draft.edit(EDITED)
         draft.dismiss()
@@ -158,7 +322,7 @@ class MobileTransferDraftTest {
         assertEquals(MobileShareValidation.TooLong, draft.state.value.validation)
         assertNull(draft.validate())
         draft.edit(EDITED)
-        assertEquals(EDITED, draft.validate())
+        assertEquals(TransfersEvent.Add(EDITED), draft.validate())
         draft.edit("https://example.invalid/" + "東".repeat(MOBILE_TRANSFER_INPUT_LIMIT / 2))
         assertEquals(EDITED, draft.state.value.input)
         assertNull(draft.validate())
@@ -186,6 +350,8 @@ class MobileTransferDraftTest {
     }
 }
 
+private val TORRENT = TorrentUpload("Harbor film.torrent", "d4:infod4:name6:Harboree".toByteArray())
+private val SAMPLE_FOLDER = FilesFolder(FilesItemId(42), "Sample folder")
 private const val FIRST = "https://example.invalid/first?token=private-marker"
 private const val SECOND = "magnet:?xt=urn:btih:12345"
 private const val EDITED = "https://example.invalid/edited?token=private-marker"

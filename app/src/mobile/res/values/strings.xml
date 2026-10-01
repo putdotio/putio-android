@@ -287,9 +287,20 @@
     <string name="mobile_transfers_paging_error">Couldn’t load more transfers.</string>
     <string name="mobile_transfers_add">Add transfer</string>
     <string name="mobile_transfers_add_title">Add transfer</string>
-    <string name="mobile_transfers_add_label">URL or magnet link</string>
+    <string name="mobile_transfers_add_label">URLs or magnet links</string>
     <string name="mobile_transfers_add_placeholder">https://example.com/file or magnet:?xt=…</string>
     <string name="mobile_transfers_add_invalid">Enter a valid HTTP URL or magnet link.</string>
+    <string name="mobile_transfers_add_help">Separate several links with spaces or new lines.</string>
+    <string name="mobile_transfers_add_too_many">Add up to 100 links at a time.</string>
+    <string name="mobile_transfers_add_not_added">put.io couldn’t add these links. Check them and try again.</string>
+    <string name="mobile_transfers_torrent_invalid">This isn’t a readable .torrent file.</string>
+    <string name="mobile_transfers_torrent_too_large">This .torrent file is larger than 16 MB.</string>
+    <string name="mobile_transfers_remove_torrent">Remove torrent file</string>
+    <string name="mobile_transfers_save_to">Save to</string>
+    <string name="mobile_transfers_save_here">Save here</string>
+    <string name="mobile_transfers_default_folder">Default download folder</string>
+    <string name="mobile_transfers_use_default_folder">Use default</string>
+    <string name="mobile_transfers_change_folder">Change</string>
     <string name="mobile_transfers_add_confirm">Add</string>
     <string name="mobile_transfers_adding">Adding transfer</string>
     <string name="mobile_transfers_open">Open file</string>
@@ -345,7 +356,10 @@
     <string name="mobile_share_ready">%1$s is ready to share</string>
     <string name="mobile_share_failed">Couldn’t prepare %1$s. Try again.</string>
     <string name="mobile_share_channel_name">Sharing</string>
-    <string name="mobile_transfers_added">Transfer added</string>
+    <plurals name="mobile_transfers_added">
+        <item quantity="one">%1$d transfer added</item>
+        <item quantity="other">%1$d transfers added</item>
+    </plurals>
     <string name="mobile_files_downloaded">On this device</string>
     <string name="mobile_files_downloading">Downloading</string>
     <string name="mobile_files_download_failed">Download failed</string>
@@ -434,8 +448,7 @@
     <string name="mobile_playback_resume_title">Resume from %1$s?</string>
     <string name="mobile_playback_resume">Resume</string>
     <string name="mobile_playback_restart">Start over</string>
-    <string name="mobile_share_multiple_links">Share one URL or magnet link at a time.</string>
-    <string name="mobile_share_too_long">This text is too long. Paste one URL or magnet link.</string>
+    <string name="mobile_share_too_long">This text is too long. Paste fewer links.</string>
     <string name="mobile_share_replace_title">Replace the current draft?</string>
     <string name="mobile_share_replace_message">You already have an unfinished transfer. Choose which input to keep.</string>
     <string name="mobile_share_use_link">Use shared link</string>

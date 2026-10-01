@@ -17,7 +17,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import android.net.Uri
+import android.os.Looper
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -93,6 +96,46 @@ class MainActivityShareTest {
             assertNull(restored.get().intent.getCharSequenceExtra(Intent.EXTRA_TEXT))
         } finally {
             restored.close()
+        }
+    }
+
+    @Test
+    fun aTappedMagnetLinkOpensTheDraftWithoutSubmittingAndIsScrubbed() {
+        val magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Harbor%20film"
+        val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java)
+            .setAction(Intent.ACTION_VIEW).setData(Uri.parse(magnet))
+        Robolectric.buildActivity(MainActivity::class.java, intent).setup().use { controller ->
+            val activity = controller.get()
+            val draft = activity.transferDraft.state.value
+            assertEquals(magnet, draft.input)
+            assertTrue(draft.open)
+            assertFalse(draft.submitting)
+            assertNull(activity.intent.data)
+            assertNull(activity.deepLinkRequests.pending.value)
+        }
+    }
+
+    @Test
+    fun aViewedTorrentIsReadFromItsContentUriIntoTheDraft() {
+        val uri = Uri.parse("content://downloads.example/torrents/Harbor%20film.torrent")
+        val metainfo = "d8:announce3:url4:infod4:name6:Harboree".toByteArray()
+        Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
+            val activity = controller.get()
+            shadowOf(activity.contentResolver).registerInputStream(uri, metainfo.inputStream())
+            activity.deliverIntentForTest(
+                Intent(activity, MainActivity::class.java).setAction(Intent.ACTION_VIEW)
+                    .setDataAndType(uri, "application/x-bittorrent"),
+            )
+            val deadline = System.currentTimeMillis() + 5_000
+            while (activity.transferDraft.state.value.torrent == null && System.currentTimeMillis() < deadline) {
+                Thread.sleep(10)
+                shadowOf(Looper.getMainLooper()).idle()
+            }
+            val torrent = requireNotNull(activity.transferDraft.state.value.torrent)
+            assertEquals("Harbor film.torrent", torrent.fileName)
+            assertTrue(metainfo.contentEquals(torrent.content))
+            assertTrue(activity.transferDraft.state.value.open)
+            assertNull(activity.intent.data)
         }
     }
 

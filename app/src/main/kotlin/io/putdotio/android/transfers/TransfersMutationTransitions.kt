@@ -1,11 +1,17 @@
 package io.putdotio.android.transfers
 
-internal fun TransfersState.add(input: String): TransfersTransition {
-    val submission = TransferSubmission.parse(input)
-    return if (submission == null) {
+internal fun TransfersState.add(event: TransfersEvent): TransfersTransition {
+    val request = when (event) {
+        is TransfersEvent.Add ->
+            TransferSubmission.parseAll(event.input)?.let { TransferAddRequest.Links(it, event.saveParentId) }
+        is TransfersEvent.AddTorrent -> TransferAddRequest.Torrent(event.file, event.saveParentId)
+        else -> null
+    }
+    val saveParentId = request?.saveParentId
+    return if (request == null || saveParentId != null && saveParentId < 0) {
         TransfersTransition(this, consumed = false)
     } else {
-        mutate(TransferAction.Add(submission))
+        mutate(TransferAction.Add(request))
     }
 }
 
@@ -74,8 +80,16 @@ internal fun TransfersState.mutationSucceeded(
             copy(
                 content = content.withItems(items),
                 mutation = TransferMutation.Idle,
-                lastSuccessfulAddRequestId =
-                    if (running.action is TransferAction.Add) event.requestId else lastSuccessfulAddRequestId,
+                lastAddReceipt =
+                    if (running.action is TransferAction.Add) {
+                        TransferAddReceipt(
+                            event.requestId,
+                            event.added?.added?.size ?: 0,
+                            event.added?.rejectedLinks.orEmpty(),
+                        )
+                    } else {
+                        lastAddReceipt
+                    },
                 firstPageIds = updatedFirstPageIds,
                 retryOutcome =
                     if (running.action is TransferAction.Retry) {
@@ -121,7 +135,11 @@ private fun applyMutationSuccess(
     event: TransfersEvent.MutationSucceeded,
 ): List<TransferItem> =
     when (action) {
-        is TransferAction.Add -> listOfNotNull(event.item) + items.filterNot { it.id == event.item?.id }
+        is TransferAction.Add -> {
+            val added = event.added?.added.orEmpty()
+            val addedIds = added.mapTo(mutableSetOf(), TransferItem::id)
+            added + items.filterNot { it.id in addedIds }
+        }
         is TransferAction.Cancel -> items.filterNot { it.id == action.id }
         is TransferAction.Retry -> items.map { if (it.id == action.id) event.item ?: it else it }
         TransferAction.Clean ->
