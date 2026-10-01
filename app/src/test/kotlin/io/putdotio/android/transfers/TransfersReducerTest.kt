@@ -48,7 +48,10 @@ class TransfersReducerTest {
         val loaded = TransfersReducer.start().complete(TransfersPage(listOf(item(2L)), null))
         val adding = TransfersReducer.reduce(loaded, TransfersEvent.Add("  magnet:?xt=urn:abc  "))
         val request = adding.effect as TransfersEffect.Mutate
-        assertEquals(submission("magnet:?xt=urn:abc"), (request.action as TransferAction.Add).submission)
+        assertEquals(
+            TransferAddRequest.Links(listOf(submission("magnet:?xt=urn:abc"))),
+            (request.action as TransferAction.Add).request,
+        )
         assertFalse(TransfersReducer.reduce(adding.state, TransfersEvent.Cancel(TransferId(2L))).consumed)
 
         val stale =
@@ -59,7 +62,7 @@ class TransfersReducerTest {
         assertFalse(stale.consumed)
         val failed = TransfersReducer.reduce(adding.state, TransfersEvent.MutationFailed(request.requestId, failure()))
         val action = (failed.state.mutation as TransferMutation.Failed).action as TransferAction.Add
-        assertEquals("magnet:?xt=urn:abc", action.submission.value)
+        assertEquals("magnet:?xt=urn:abc", (action.request as TransferAddRequest.Links).links.single().value)
         val retainedItems = (failed.state.content as TransfersContent.Ready).items
         assertEquals(listOf(TransferId(2L)), retainedItems.map(TransferItem::id))
     }
@@ -73,11 +76,63 @@ class TransfersReducerTest {
         val completed =
             TransfersReducer.reduce(
                 adding.state,
-                TransfersEvent.MutationSucceeded(request.requestId, item(3L)),
+                TransfersEvent.MutationSucceeded(request.requestId, added = TransferAddOutcome(listOf(item(3L)))),
             ).state
 
         assertEquals(request.requestId, completed.lastSuccessfulAddRequestId)
         assertEquals(TransferMutation.Idle, completed.mutation)
+    }
+
+    @Test
+    fun severalLinksBecomeOneAddWithTheirDestinationAndTheReceiptKeepsRefusedLinks() {
+        val loaded = TransfersReducer.start().complete(TransfersPage(listOf(item(2L)), null))
+        val input = " magnet:?xt=urn:abc\nhttps://example.com/file  magnet:?xt=urn:abc\n"
+        val adding = TransfersReducer.reduce(loaded, TransfersEvent.Add(input, saveParentId = 12L))
+        val request = adding.effect as TransfersEffect.Mutate
+        assertEquals(
+            TransferAddRequest.Links(
+                listOf(submission("magnet:?xt=urn:abc"), submission("https://example.com/file")),
+                saveParentId = 12L,
+            ),
+            (request.action as TransferAction.Add).request,
+        )
+
+        val outcome = TransferAddOutcome(listOf(item(5L), item(6L)), rejectedLinks = listOf("https://example.com/file"))
+        val completed =
+            TransfersReducer.reduce(
+                adding.state,
+                TransfersEvent.MutationSucceeded(request.requestId, added = outcome),
+            ).state
+
+        assertEquals(
+            TransferAddReceipt(request.requestId, addedCount = 2, rejectedLinks = listOf("https://example.com/file")),
+            completed.lastAddReceipt,
+        )
+        assertEquals(listOf(5L, 6L, 2L), (completed.content as TransfersContent.Ready).items.map { it.id.value })
+        assertTrue(completed.firstPageIds.containsAll(setOf(TransferId(5L), TransferId(6L))))
+    }
+
+    @Test
+    fun linkListsAreAllOrNothingAndBounded() {
+        val loaded = TransfersReducer.start().complete(TransfersPage(emptyList(), null))
+        assertFalse(TransfersReducer.reduce(loaded, TransfersEvent.Add("magnet:?xt=urn:abc not-a-link")).consumed)
+        assertFalse(TransfersReducer.reduce(loaded, TransfersEvent.Add(" \n ")).consumed)
+        val negativeFolder = TransfersEvent.Add("magnet:?xt=urn:abc", saveParentId = -1L)
+        assertFalse(TransfersReducer.reduce(loaded, negativeFolder).consumed)
+        val tooMany = (0..MAX_TRANSFER_LINKS).joinToString("\n") { "magnet:?xt=urn:btih:$it" }
+        assertFalse(TransfersReducer.reduce(loaded, TransfersEvent.Add(tooMany)).consumed)
+        val atLimit = (1..MAX_TRANSFER_LINKS).joinToString("\n") { "magnet:?xt=urn:btih:$it" }
+        assertTrue(TransfersReducer.reduce(loaded, TransfersEvent.Add(atLimit)).consumed)
+    }
+
+    @Test
+    fun torrentAddCarriesTheFileAndDestination() {
+        val loaded = TransfersReducer.start().complete(TransfersPage(emptyList(), null))
+        val torrent = TorrentUpload("Harbor film.torrent", byteArrayOf(0x64, 0x65))
+        val adding = TransfersReducer.reduce(loaded, TransfersEvent.AddTorrent(torrent, saveParentId = 3L))
+        val action = (adding.effect as TransfersEffect.Mutate).action as TransferAction.Add
+        assertEquals(TransferAddRequest.Torrent(torrent, saveParentId = 3L), action.request)
+        assertFalse(torrent.toString().contains("Harbor"))
     }
 
     @Test
@@ -412,7 +467,7 @@ class TransfersReducerTest {
         val added =
             TransfersReducer.reduce(
                 adding.state,
-                TransfersEvent.MutationSucceeded(request.requestId, item(3L)),
+                TransfersEvent.MutationSucceeded(request.requestId, added = TransferAddOutcome(listOf(item(3L)))),
             )
 
         assertTrue(added.state.content is TransfersContent.InitialLoading)

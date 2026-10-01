@@ -117,8 +117,12 @@ data class FilesFolderState(
     val moveOutcome: FilesMoveOutcome? = null,
     /** Set on the folder an outside open pushed; Back from it returns to that origin. */
     val openedFrom: FilesOpenOrigin? = null,
-    /** The file an outside open came for, shown in its parent folder. */
+    /**
+     * The file this folder opens at: the one an outside open came for, or one the folder was asked
+     * to show. Pages past the first are read for it, up to [MAX_REVEAL_PAGES].
+     */
     val revealItemId: FilesItemId? = null,
+    internal val revealSearch: FilesRevealSearch? = null,
     // Cleared when a full read starts so later invalidations survive that read's result.
     internal val needsReload: Boolean = false,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
@@ -157,6 +161,12 @@ sealed interface FilesBrowserEvent {
     data object NavigateBack : FilesBrowserEvent
 
     data object LoadNextPage : FilesBrowserEvent
+
+    /** Shows [itemId] when [folderId] is the current folder, reading later pages for it when needed. */
+    data class RevealItem(
+        val folderId: FilesItemId,
+        val itemId: FilesItemId,
+    ) : FilesBrowserEvent
 
     data object Refresh : FilesBrowserEvent
 
@@ -345,6 +355,7 @@ object FilesBrowserReducer {
             is FilesBrowserEvent.OpenExternalItem -> state.openExternalItem(event.item, event.origin)
             FilesBrowserEvent.NavigateBack -> state.navigateBack()
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
+            is FilesBrowserEvent.RevealItem -> state.revealItem(event.folderId, event.itemId)
             FilesBrowserEvent.Refresh -> state.refresh()
             is FilesBrowserEvent.InvalidationEvent -> state.invalidation(event)
             is FilesBrowserEvent.SelectSort -> state.selectSort(event.sort)

@@ -291,11 +291,12 @@ private fun FilesRepositoryResult<TransfersRowRefresh>.toRowsEvent(
 private sealed interface MutationResult {
     data class Item(val item: TransferItem) : MutationResult
     data class Affected(val ids: Set<TransferId>) : MutationResult
+    data class Added(val outcome: TransferAddOutcome) : MutationResult
 }
 
 private suspend fun TransfersRepository.execute(action: TransferAction): FilesRepositoryResult<MutationResult> =
     when (action) {
-        is TransferAction.Add -> add(action.submission).mapSuccess(MutationResult::Item)
+        is TransferAction.Add -> add(action.request).mapSuccess(MutationResult::Added)
         is TransferAction.Cancel -> cancel(action.id).mapSuccess { MutationResult.Affected(setOf(action.id)) }
         is TransferAction.Retry -> retry(action.id).mapSuccess(MutationResult::Item)
         TransferAction.Clean -> clean(emptyList()).mapSuccess(MutationResult::Affected)
@@ -317,5 +318,6 @@ private fun FilesRepositoryResult<MutationResult>.toMutationEvent(
                 is MutationResult.Item -> TransfersEvent.MutationSucceeded(requestId, item = result.item)
                 is MutationResult.Affected ->
                     TransfersEvent.MutationSucceeded(requestId, affectedIds = result.ids)
+                is MutationResult.Added -> TransfersEvent.MutationSucceeded(requestId, added = result.outcome)
             }
     }

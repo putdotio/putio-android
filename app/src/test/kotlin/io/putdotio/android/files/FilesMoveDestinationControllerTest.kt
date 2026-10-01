@@ -69,6 +69,34 @@ class FilesMoveDestinationControllerTest {
     }
 
     @Test
+    fun aDestinationPickerWithoutASourceAcceptsRootAndEveryFolder() = runBlocking {
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                error("Source browser must not load")
+            override suspend fun loadMoveDestinations(
+                folderId: FilesItemId,
+                cursor: FilesCursor?,
+            ): FilesRepositoryResult<FilesPage> =
+                FilesRepositoryResult.Success(
+                    FilesPage(if (folderId == FilesFolder.Root.id) listOf(source) else emptyList(), null),
+                )
+        }
+        val controller = FilesMoveDestinationController(repository, this)
+        try {
+            assertFalse(controller.state.value.canMoveHere)
+            controller.awaitState { it.current.content is FilesContent.Ready }
+            assertTrue(controller.state.value.canMoveHere)
+            assertTrue(controller.state.value.canOpenFolder(source.id))
+            assertTrue(controller.dispatch(FilesMoveDestinationEvent.OpenFolder(source.id)))
+            controller.awaitState { it.current.content is FilesContent.Empty }
+            assertTrue(controller.state.value.canMoveHere)
+            assertEquals(source.id, controller.state.value.current.folder.id)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
     fun rootCanBeChosenFromNestedSourceAndInitialLoadFailureCanRetry() = runBlocking {
         var loads = 0
         val repository = object : StubFilesRepository() {
