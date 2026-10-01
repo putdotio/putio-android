@@ -27,6 +27,7 @@ import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
+import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.search.MobileSearchHistoryScreen
@@ -107,7 +108,7 @@ class MobileSearchHistoryLayoutTest {
 
     @Test
     fun nonNavigableHistoryRetainsMetadataWithoutInventingAnOpenAction() {
-        setScreen(history = HistoryEventKind.Other("activity", HISTORY_NAME))
+        setScreen(history = HistoryEventKind.Notice(HistoryNoticeType.Upload, HISTORY_NAME))
         compose.onNodeWithText("History").performClick()
         compose.onNodeWithText(HISTORY_NAME).assertIsDisplayed().assertHasNoClickAction()
         compose.onAllNodesWithText("Open file").assertCountEquals(0)

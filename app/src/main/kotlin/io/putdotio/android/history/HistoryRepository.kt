@@ -57,17 +57,57 @@ private fun HistoryEvent.toHistoryItem(): HistoryItem =
         kind = toHistoryEventKind(),
     )
 
-private fun HistoryEvent.toHistoryEventKind(): HistoryEventKind {
-    return when (type) {
-        HistoryEventType.FILE_SHARED ->
-            fileId?.let { HistoryEventKind.File(HistoryFileId(it), fileName) }
-                ?: HistoryEventKind.Other(type.raw, fileName)
+private fun HistoryEvent.toHistoryEventKind(): HistoryEventKind =
+    when (type) {
+        HistoryEventType.FILE_SHARED -> HistoryEventKind.File(fileId?.let(::HistoryFileId), fileName.nonBlank())
         HistoryEventType.TRANSFER_COMPLETED ->
             HistoryEventKind.Transfer(
                 transferId = transferId?.let(::HistoryTransferId),
                 fileId = fileId?.let(::HistoryFileId),
-                name = transferName ?: fileName,
+                name = transferName.nonBlank() ?: fileName.nonBlank(),
             )
-        else -> HistoryEventKind.Other(type.raw, rssFilterTitle ?: transferName ?: fileName)
+        HistoryEventType.UPLOAD -> notice(HistoryNoticeType.Upload, fileName)
+        HistoryEventType.TRANSFER_ERROR -> notice(HistoryNoticeType.TransferError, transferName)
+        HistoryEventType.FILE_FROM_RSS_DELETED_FOR_SPACE -> notice(HistoryNoticeType.RssFileDeleted, fileName)
+        HistoryEventType.RSS_FILTER_PAUSED -> notice(HistoryNoticeType.RssFilterPaused, rssFilterTitle)
+        HistoryEventType.TRANSFER_FROM_RSS_ERROR -> notice(HistoryNoticeType.RssTransferError, transferName)
+        HistoryEventType.TRANSFER_CALLBACK_ERROR -> notice(HistoryNoticeType.TransferCallbackError, transferName)
+        else -> HistoryEventKind.Other(type.raw)
     }
+
+private fun HistoryEvent.notice(type: HistoryNoticeType, subject: String?): HistoryEventKind =
+    subject.nonBlank()?.let { HistoryEventKind.Notice(type, it) } ?: HistoryEventKind.Other(this.type.raw)
+
+private fun String?.nonBlank(): String? = this?.takeIf(String::isNotBlank)
+
+/**
+ * Only the events [keep] accepts. A page it empties reads on from that page's oldest event,
+ * so a run of dropped events neither ends the list nor shows as an empty page.
+ */
+fun HistoryRepository.keeping(keep: (HistoryEventKind) -> Boolean): HistoryRepository =
+    FilteredHistoryRepository(this, keep)
+
+private class FilteredHistoryRepository(
+    private val source: HistoryRepository,
+    private val keep: (HistoryEventKind) -> Boolean,
+) : HistoryRepository {
+    override suspend fun load(before: HistoryEventId?): HistoryRepositoryResult<HistoryPage> {
+        var cursor = before
+        while (true) {
+            val page = when (val result = source.load(cursor)) {
+                is HistoryRepositoryResult.Success -> result.value
+                is HistoryRepositoryResult.Failure -> return result
+            }
+            val kept = page.items.filter { keep(it.kind) }
+            val next = page.items.lastOrNull()?.id?.takeIf { page.hasMore && it.isOlderThan(cursor) }
+            if (kept.isNotEmpty() || next == null) {
+                return HistoryRepositoryResult.Success(HistoryPage(kept, page.hasMore))
+            }
+            cursor = next
+        }
+    }
+
+    override suspend fun clear(): HistoryRepositoryResult<Unit> = source.clear()
 }
+
+private fun HistoryEventId.isOlderThan(cursor: HistoryEventId?): Boolean = cursor == null || value < cursor.value

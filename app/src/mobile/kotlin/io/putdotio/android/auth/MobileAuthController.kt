@@ -1,5 +1,6 @@
 package io.putdotio.android.auth
 
+import io.putdotio.android.AccountStorage
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,13 +16,7 @@ data class MobileAccount(
     val email: String,
     val historyEnabled: Boolean = false,
     val avatarUrl: String? = null,
-    val storage: MobileAccountStorage = MobileAccountStorage(),
-)
-
-data class MobileAccountStorage(
-    val availableBytes: Long = 0L,
-    val sizeBytes: Long = 0L,
-    val usedBytes: Long = 0L,
+    val storage: AccountStorage = AccountStorage(),
 )
 
 @JvmInline

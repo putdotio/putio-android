@@ -59,6 +59,7 @@ import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventKind
+import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
@@ -400,7 +401,11 @@ private fun MobileHistoryContent(
         HistoryContent.Disabled ->
             MobileEmptyState(
                 title = stringResource(R.string.mobile_history_disabled_title),
-                message = stringResource(R.string.mobile_history_disabled_message),
+                message = stringResource(
+                    R.string.mobile_history_disabled_message,
+                    stringResource(R.string.mobile_settings_history),
+                    stringResource(R.string.mobile_destination_account),
+                ),
                 modifier = modifier,
             )
         is HistoryContent.Loading ->
@@ -474,7 +479,8 @@ private fun MobileHistoryList(
                 ListItem(
                     headlineContent = { Text(item.title()) },
                     supportingContent = {
-                        Text(stringResource(R.string.mobile_history_metadata, item.kindLabel(), item.timeLabel()))
+                        val time = item.timeLabel()
+                        Text(item.kindLabel()?.let { stringResource(R.string.mobile_history_metadata, it, time) } ?: time)
                     },
                     modifier = if (fileId == null) Modifier else Modifier.clickable(
                         role = Role.Button,
@@ -579,27 +585,41 @@ private fun HistoryItem.timeLabel(): String {
     return DateUtils.formatDateTime(context, created.toEpochMilli(), DateUtils.FORMAT_SHOW_TIME)
 }
 
+/** iOS's copy per event type (`HistoryTableViewCell`); an event without its name reads No title. */
 @Composable
 private fun HistoryItem.title(): String =
     when (val value = kind) {
-        is HistoryEventKind.File -> value.name ?: stringResource(R.string.mobile_history_file)
-        is HistoryEventKind.Transfer -> value.name ?: stringResource(R.string.mobile_history_transfer)
-        is HistoryEventKind.Other -> value.title ?: value.type
+        is HistoryEventKind.File -> value.name ?: stringResource(R.string.mobile_history_no_title)
+        is HistoryEventKind.Transfer -> value.name ?: stringResource(R.string.mobile_history_no_title)
+        is HistoryEventKind.Notice ->
+            when (value.type) {
+                HistoryNoticeType.Upload -> value.subject
+                HistoryNoticeType.TransferError -> stringResource(R.string.mobile_history_transfer_error, value.subject)
+                HistoryNoticeType.RssFileDeleted -> stringResource(R.string.mobile_history_rss_file_deleted, value.subject)
+                HistoryNoticeType.RssFilterPaused ->
+                    stringResource(R.string.mobile_history_rss_filter_paused, value.subject)
+                HistoryNoticeType.RssTransferError ->
+                    stringResource(R.string.mobile_history_rss_transfer_error, value.subject)
+                HistoryNoticeType.TransferCallbackError ->
+                    stringResource(R.string.mobile_history_transfer_callback_error, value.subject)
+            }
+        is HistoryEventKind.Other -> stringResource(R.string.mobile_history_no_title)
     }
 
+/** Shared files and completed transfers keep their kind; iOS gives other events only their time. */
 @Composable
-private fun HistoryItem.kindLabel(): String =
+private fun HistoryItem.kindLabel(): String? =
     when (kind) {
         is HistoryEventKind.File -> stringResource(R.string.mobile_history_shared_file)
         is HistoryEventKind.Transfer -> stringResource(R.string.mobile_history_completed_transfer)
-        is HistoryEventKind.Other -> stringResource(R.string.mobile_history_activity)
+        is HistoryEventKind.Notice, is HistoryEventKind.Other -> null
     }
 
 private fun HistoryEventKind.navigableFileId(): HistoryFileId? =
     when (this) {
         is HistoryEventKind.File -> id
         is HistoryEventKind.Transfer -> fileId
-        is HistoryEventKind.Other -> null
+        is HistoryEventKind.Notice, is HistoryEventKind.Other -> null
     }
 
 private const val SEARCH_TAB = 0

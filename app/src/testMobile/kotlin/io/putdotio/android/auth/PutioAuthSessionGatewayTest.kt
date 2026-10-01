@@ -1,5 +1,6 @@
 package io.putdotio.android.auth
 
+import io.putdotio.android.AccountStorage
 import io.putdotio.sdk.account.AccountDisk
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.account.AccountSettings
@@ -27,7 +28,7 @@ class PutioAuthSessionGatewayTest {
                     email = "user@example.com",
                     historyEnabled = true,
                     avatarUrl = "https://example.com/avatar.png",
-                    storage = MobileAccountStorage(availableBytes = 1, sizeBytes = 2, usedBytes = 1),
+                    storage = AccountStorage(availableBytes = 1, sizeBytes = 2, usedBytes = 1, showOptimisticUsage = true),
                 ),
             ),
             result,
@@ -119,7 +120,7 @@ class PutioAuthSessionGatewayTest {
             mail = "user@example.com",
             avatarUrl = "https://example.com/avatar.png",
             disk = AccountDisk(available = 1, size = 2, used = 1),
-            settings = AccountSettings(sortBy = "NAME_ASC", historyEnabled = true),
+            settings = AccountSettings(sortBy = "NAME_ASC", historyEnabled = true, showOptimisticUsage = true),
             accountStatus = "active",
         )
     }

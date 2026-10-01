@@ -222,7 +222,7 @@ class TvAutoplayProofTest {
 
                 override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
             },
-            trashRepository = ProofTrashRepository,
+            trashRepository = ProofTrashRepository(emptyList()),
             settingsRepository = object : AccountSettingsRepository {
                 override suspend fun load() = AccountSettingsRepositoryResult.Success(
                     AccountSettingsPreferences(
