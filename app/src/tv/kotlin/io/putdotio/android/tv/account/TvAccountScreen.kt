@@ -456,13 +456,18 @@ private fun TvAccountHeader(
 ) {
     val context = LocalContext.current
     val storage = account.storage
-    val available = Formatter.formatShortFileSize(context, storage.availableBytes.coerceAtLeast(0L))
     val size = Formatter.formatShortFileSize(context, storage.sizeBytes.coerceAtLeast(0L))
-    val usedFraction = if (storage.sizeBytes <= 0L) 0f else {
-        (storage.usedBytes.toDouble() / storage.sizeBytes.toDouble()).coerceIn(0.0, 1.0).toFloat()
-    }
+    val storageLabel =
+        if (storage.showOptimisticUsage) {
+            val available = Formatter.formatShortFileSize(context, storage.availableBytes.coerceAtLeast(0L))
+            stringResource(R.string.tv_account_storage_free, available, size)
+        } else {
+            val used = Formatter.formatShortFileSize(context, storage.usedBytes.coerceAtLeast(0L))
+            stringResource(R.string.tv_account_storage_used, used, size)
+        }
+    val usedFraction = storage.usedFraction
     val usedPercent = (usedFraction * PERCENT).toInt()
-    val storageDescription = stringResource(R.string.tv_account_storage_description, available, size, usedPercent)
+    val storageDescription = stringResource(R.string.tv_account_storage_description, storageLabel, usedPercent)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -484,7 +489,7 @@ private fun TvAccountHeader(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = stringResource(R.string.tv_account_storage, available, size),
+                text = storageLabel,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),

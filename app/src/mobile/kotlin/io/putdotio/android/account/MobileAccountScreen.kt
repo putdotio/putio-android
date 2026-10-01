@@ -60,7 +60,6 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAccount
-import io.putdotio.android.auth.MobileAccountStorage
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.downloads.description
 import io.putdotio.android.files.labelResource
@@ -309,12 +308,16 @@ internal fun MobileAccountScreen(
 @Composable
 private fun MobileAccountIdentity(account: MobileAccount) {
     val context = LocalContext.current
+    val storage = account.storage
+    val size = Formatter.formatShortFileSize(context, storage.sizeBytes.coerceAtLeast(0L))
     val storageCopy =
-        stringResource(
-            R.string.mobile_account_storage,
-            Formatter.formatShortFileSize(context, account.storage.usedBytes.coerceAtLeast(0L)),
-            Formatter.formatShortFileSize(context, account.storage.availableBytes.coerceAtLeast(0L)),
-        )
+        if (storage.showOptimisticUsage) {
+            val available = Formatter.formatShortFileSize(context, storage.availableBytes.coerceAtLeast(0L))
+            stringResource(R.string.mobile_account_storage_free, available, size)
+        } else {
+            val used = Formatter.formatShortFileSize(context, storage.usedBytes.coerceAtLeast(0L))
+            stringResource(R.string.mobile_account_storage_used, used, size)
+        }
     ListItem(
         headlineContent = { Text(account.username) },
         supportingContent = {
@@ -326,7 +329,7 @@ private fun MobileAccountIdentity(account: MobileAccount) {
                     style = MaterialTheme.typography.bodySmall,
                 )
                 LinearProgressIndicator(
-                    progress = { account.storage.usedFraction() },
+                    progress = { storage.usedFraction },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp)
@@ -377,11 +380,6 @@ private fun MobileAccountAvatarFallback(modifier: Modifier) {
             modifier = Modifier.size(28.dp),
         )
     }
-}
-
-private fun MobileAccountStorage.usedFraction(): Float {
-    if (sizeBytes <= 0L) return 0f
-    return (usedBytes.toDouble() / sizeBytes.toDouble()).coerceIn(0.0, 1.0).toFloat()
 }
 
 private fun LazyListScope.accountSettingsItems(

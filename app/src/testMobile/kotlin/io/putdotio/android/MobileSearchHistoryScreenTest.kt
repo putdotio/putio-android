@@ -6,7 +6,10 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesFailure
@@ -19,6 +22,7 @@ import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
+import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.search.SearchContent
@@ -33,6 +37,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.search.MOBILE_HISTORY_LIST_TAG
 import io.putdotio.android.search.MobileSearchHistoryScreen
 
 @RunWith(AndroidJUnit4::class)
@@ -194,6 +199,69 @@ class MobileSearchHistoryScreenTest {
         compose.onNodeWithText("movie.mkv").performClick()
 
         assertEquals(listOf(HistoryEvent.OpenFile(HistoryFileId(32L))), events)
+    }
+
+    @Test
+    fun eachEventTypeReadsAsIosStatesItWithOnlyItsTime() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val kinds = listOf(
+                HistoryEventKind.Notice(HistoryNoticeType.Upload, "Harbor film.mp4"),
+                HistoryEventKind.Notice(HistoryNoticeType.TransferError, "Sample transfer"),
+                HistoryEventKind.Notice(HistoryNoticeType.RssFileDeleted, "Old episode.mkv"),
+                HistoryEventKind.Notice(HistoryNoticeType.RssFilterPaused, "Sample feed"),
+                HistoryEventKind.Notice(HistoryNoticeType.RssTransferError, "Feed item"),
+                HistoryEventKind.Notice(HistoryNoticeType.TransferCallbackError, "Callback transfer"),
+                HistoryEventKind.Other("zip_created"),
+            )
+            val items = kinds.mapIndexed { index, kind ->
+                HistoryItem(HistoryEventId(index + 1L), "2026-09-09T15:25:32", kind)
+            }
+            setScreen(history = HistoryState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+
+            compose.onNodeWithText("History").performClick()
+            // iOS details these rows with their time alone; only shared files and transfers name a kind.
+            compose.onAllNodesWithText(" · ", substring = true).assertCountEquals(0)
+            listOf(
+                "Harbor film.mp4",
+                "Error in transfer Sample transfer",
+                "We had to delete Old episode.mkv per your instructions, since there wasn’t enough free space.",
+                "Sample feed is paused because we couldn’t reach the source",
+                "Error in transfer from RSS for Feed item",
+                "Error in transfer callback for Callback transfer",
+                "No title",
+            ).forEach { title ->
+                compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(title))
+                compose.onNodeWithText(title).assertIsDisplayed()
+            }
+            compose.onAllNodesWithText("zip_created", substring = true).assertCountEquals(0)
+            compose.onAllNodesWithText("Activity", substring = true).assertCountEquals(0)
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
+    @Test
+    fun namelessSharedFilesAndTransfersReadNoTitle() {
+        val items = listOf(
+            HistoryEventKind.File(id = null, name = null),
+            HistoryEventKind.Transfer(transferId = null, fileId = null, name = null),
+        ).mapIndexed { index, kind -> HistoryItem(HistoryEventId(index + 1L), "2026-09-09T15:25:32", kind) }
+        setScreen(history = HistoryState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+
+        compose.onNodeWithText("History").performClick()
+        compose.onAllNodesWithText("No title").assertCountEquals(2)
+        compose.onNodeWithText("Shared file · ", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Completed transfer · ", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun disabledHistoryPointsAtTheAccountToggle() {
+        setScreen(history = HistoryState(HistoryContent.Disabled))
+
+        compose.onNodeWithText("History").performClick()
+        compose.onNodeWithText("Turn on “Keep account history” in Account to see activity here.").assertIsDisplayed()
     }
 
     private fun setScreen(

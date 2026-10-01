@@ -769,6 +769,32 @@ the results after slow typing with nothing kept, `03` the opened result kept,
 with nothing kept, `08` Settings while off, `09` kept again once on. Remove
 the screenshot directory afterwards.
 
+## Copy proof
+
+Behaviour: [History events](./behavior.md#history-events),
+[Storage quota](./behavior.md#storage-quota), [Trash](./behavior.md#trash).
+`MobileCopyProofTest` (`androidTestMobile`) mounts mobile History, Account and
+Trash on controlled state; `TvCopyProofTest` (`androidTestTv`) mounts the
+production TV session and signed-in shell on fake repositories whose History
+mixes every kind of event. Neither makes API calls, so report them as
+controlled-state proof.
+
+```bash
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.MobileCopyProofTest \
+  -e putio.copy.enabled true -e putio.copy.runId "$(uuidgen)" \
+  io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvCopyProofTest \
+  -e putio.tv.copy.enabled true -e putio.tv.copy.runId "$(uuidgen)" \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Mobile screenshots go to `copy-proof-<UUID>/`: `01` History after asserting
+each event's copy, `02` history off, `03` and `04` the quota used and free,
+`05` and `06` Trash with items and empty. TV screenshots go to `tv-copy-proof-<UUID>/`: `01` History
+with only the shared file and completed transfer, `02` the quota used, `03`
+Trash's retention line, `04` history off, `05` the quota free. Remove the
+screenshot directories afterwards.
+
 ## TV Search and History opens proof
 
 Behaviour: [History opens](./behavior.md#timestamps-and-history-opens).
@@ -814,7 +840,8 @@ it with the same instrument command, selecting the method with `#` and dropping
 
 ## TV History proof
 
-History is the third drawer destination. Focus enters on the first event row;
+History is the third drawer destination and, as in tv-native, lists only
+shared files and completed transfers. Focus enters on the first event row;
 Up from it reaches Clear, Left from anything returns to the drawer. Rows are
 grouped under Today, Yesterday, Last week, Last month, and Earlier, and show
 the event's kind with its relative time, or its date once it is more than a
@@ -827,9 +854,10 @@ with mobile and the web, so only clear on a proof account:
 adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc="Open [^"]+"' | head
 ```
 
-The pane is disabled when the account's `history_enabled` setting is off; the
-mobile Account screen toggles it, and the TV pane follows on the next session
-validation.
+The pane is disabled when the account's `history_enabled` setting is off and
+names Account's Keep account history switch. TV's own Account toggle flips the
+pane as soon as the setting is confirmed; a change made on mobile or the web
+reaches it on the next session validation.
 
 ## TV Files actions proof
 
@@ -858,8 +886,9 @@ PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation files.getStartFrom --args
 
 ## TV Account proof
 
-Account per oracle captures 09–12 and 14: the avatar, username, "X of Y free"
-bar and Sign out button in the header, then Playback settings, Storage
+Account per oracle captures 09–12 and 14: the avatar, username, quota bar
+("X of Y free" with `show_optimistic_usage` on, "X of Y used" otherwise) and
+Sign out button in the header, then Playback settings, Storage
 settings and App and device information as full-width rows, with Sign out as
 the final row. Focus enters on Choose your proxy once account settings load,
 and on the header's Sign out until then. Switches save through the shared
@@ -885,7 +914,7 @@ row reaches Refresh, Restore all, and Empty trash. Center on a row opens a
 choice dialog with Restore and Delete permanently; every mutation confirms
 in a centred dialog with focus on Cancel, then reports above the list with
 Check status or Check trash until the fresh listing confirms it. Restores
-invalidate the Files cache like mobile. The empty state carries the oracle's
+invalidate the Files cache like mobile. The list and the empty state carry web's
 14-day copy. Trash contents are the shared test identity's, so list the
 items before a proof and never confirm a mutation you have not fixtured:
 
