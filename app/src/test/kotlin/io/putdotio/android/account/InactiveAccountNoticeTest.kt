@@ -34,13 +34,11 @@ class InactiveAccountNoticeTest {
     }
 
     @Test
-    fun `an inactive family plan member is told the owner has to pay`() {
-        val notice = account(status = "inactive", deletesAt = "2026-10-15T08:00:00", subAccount = true)
-            .inactiveAccountNotice()
-
-        assertEquals(InactiveAccountNotice.FamilyPlanExpired, notice)
-        assertEquals("https://app.put.io/family", notice?.renewUrl)
-        assertEquals("app.put.io/billing", InactiveAccountNotice.Deactivated(null).renewUrlLabel)
+    fun `an inactive family plan member gets the family plan notice`() {
+        assertEquals(
+            InactiveAccountNotice.FamilyPlanExpired,
+            account(status = "inactive", deletesAt = "2026-10-15T08:00:00", subAccount = true).inactiveAccountNotice(),
+        )
     }
 
     @Test

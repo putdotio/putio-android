@@ -1,11 +1,15 @@
 package io.putdotio.android
 
-import android.content.Intent
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.account.MobileInactiveAccountNotice
@@ -16,7 +20,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
@@ -26,65 +29,58 @@ class MobileInactiveAccountNoticeTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun deactivatedAccountShowsWebCopyWithTheDeletionCountdownAndOpensBilling() {
-        val zone = ZoneId.systemDefault()
-        val deletion = LocalDate.now(zone).plusDays(14).atTime(12, 0).atZone(zone).toInstant()
-        compose.setContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletion)) } }
+    fun deactivatedAccountShowsWebCopyWithTheDeletionCountdown() {
+        compose.setContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletionIn(14))) } }
 
         compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
         compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
             .assertIsDisplayed()
-        compose.onNodeWithText("Keep a good thing going!").performClick()
-
-        val opened = shadowOf(compose.activity).nextStartedActivity
-        assertEquals(Intent.ACTION_VIEW, opened.action)
-        assertEquals("https://app.put.io/billing", opened.dataString)
+        assertNoActionOrPaymentWording()
     }
 
     @Test
     fun deletionTomorrowReadsInTheSingular() {
-        val zone = ZoneId.systemDefault()
-        val deletion = LocalDate.now(zone).plusDays(1).atTime(12, 0).atZone(zone).toInstant()
-        compose.setContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletion)) } }
+        compose.setContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletionIn(1))) } }
 
         compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 1 day.")
             .assertIsDisplayed()
     }
 
     @Test
-    fun withoutADeletionDateOnlyTheTitleAndActionShow() {
+    fun withoutADeletionDateOnlyTheTitleShows() {
         compose.setContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(null)) } }
 
         compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
         compose.onNodeWithText("Your files are still here", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("Keep a good thing going!").assertIsDisplayed()
+        assertNoActionOrPaymentWording()
     }
 
     @Test
-    fun familyPlanMemberIsSentToTheFamilyPage() {
+    fun familyPlanMemberIsToldThePlanExpired() {
         compose.setContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.FamilyPlanExpired) } }
 
-        compose.onNodeWithText(
-            "Your family plan’s owner needs to update their payment details to keep your plan active.",
-        ).assertIsDisplayed()
-        compose.onNodeWithText("If you’re ready to leave the nest, you can start your own subscription too!")
-            .assertIsDisplayed()
-        compose.onNodeWithText("Leave the family plan").performClick()
-
-        assertEquals("https://app.put.io/family", shadowOf(compose.activity).nextStartedActivity.dataString)
+        compose.onNodeWithText("Your family plan is no longer active.").assertIsDisplayed()
+        assertNoActionOrPaymentWording()
     }
 
-    @Test
-    fun withoutABrowserTheAddressReplacesTheAction() {
-        compose.setContent {
-            PutioTheme {
-                MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(null), openUrl = { _, _ -> false })
-            }
+    /** Google Play's payments policy: no link out to billing and no call to pay, renew or subscribe. */
+    private fun assertNoActionOrPaymentWording() {
+        compose.onAllNodes(hasClickAction()).assertCountEquals(0)
+        compose.onAllNodesWithText("app.put.io", substring = true).assertCountEquals(0)
+        val words = compose.onRoot(useUnmergedTree = true).fetchSemanticsNode().let { root ->
+            generateSequence(listOf(root)) { nodes -> nodes.flatMap { it.children }.ifEmpty { null } }
+                .flatten()
+                .flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty() }
+                .joinToString(" ")
         }
+        assertEquals(emptyList<String>(), PaymentWords.findAll(words).map { it.value }.toList())
+    }
 
-        compose.onNodeWithText("Keep a good thing going!").performClick()
+    private fun deletionIn(days: Long) = ZoneId.systemDefault().let { zone ->
+        LocalDate.now(zone).plusDays(days).atTime(12, 0).atZone(zone).toInstant()
+    }
 
-        compose.onNodeWithText("app.put.io/billing").assertIsDisplayed()
-        compose.onNodeWithText("Keep a good thing going!").assertDoesNotExist()
+    private companion object {
+        val PaymentWords = Regex("""\b(pay\w*|renew\w*|subscri\w*|billing|keep a good thing going)""", RegexOption.IGNORE_CASE)
     }
 }

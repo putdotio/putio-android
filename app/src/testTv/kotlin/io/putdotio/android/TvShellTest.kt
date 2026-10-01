@@ -1,10 +1,12 @@
 package io.putdotio.android
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
@@ -157,8 +159,8 @@ class TvShellTest {
         compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
         compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
             .assertIsDisplayed()
-        compose.onNodeWithText("Keep a good thing going!").assertIsDisplayed()
-        compose.onNodeWithText("app.put.io/billing").assertIsDisplayed()
+        compose.onAllNodesWithText("app.put.io", substring = true).assertCountEquals(0)
+        compose.onNodeWithText("Keep a good thing going!").assertDoesNotExist()
 
         compose.onNodeWithText("Your files will show up here.").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
@@ -174,7 +176,7 @@ class TvShellTest {
             keyUp(Key.DirectionCenter)
         }
         compose.onNodeWithText("Sign out").assertIsFocused()
-        compose.onNodeWithText("app.put.io/billing").assertIsDisplayed()
+        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
     }
 
     @Test
