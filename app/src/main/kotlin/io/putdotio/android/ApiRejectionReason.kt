@@ -2,13 +2,9 @@ package io.putdotio.android
 
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioOperationException
-import kotlinx.serialization.SerializationException
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * put.io's own explanation of a refused request, as web shows it: the `error_message` of a
+ * put.io's own explanation of a refused request, as web shows it: the SDK's `errorMessage` of a
  * 4xx the app has no copy of its own for. 401, 403, 408 and 429, 5xx, transport and parse
  * failures have none. Text that is a bare error code, names a URL, or carries the SDK's
  * redaction marker is not shown either, so callers fall back to their own copy.
@@ -16,24 +12,11 @@ import kotlinx.serialization.json.JsonPrimitive
 internal fun Throwable.apiRejectionReason(): String? =
     findApiException()
         ?.takeIf { api -> listOf(api.statusCode, api.httpStatusCode).all(::isShownStatus) }
-        ?.bodyMessage()
+        ?.errorMessage
         ?.let(::displayableReason)
 
 private fun isShownStatus(status: Int): Boolean =
     status in HTTP_CLIENT_ERROR_START..HTTP_CLIENT_ERROR_END && status !in APP_EXPLAINED_STATUSES
-
-// The SDK's envelope reads `message`, but put.io sends `error_message`, so the reason is read
-// from the SDK's already-redacted response body.
-private fun PutioApiException.bodyMessage(): String? {
-    val body = try {
-        Json.parseToJsonElement(responseBody) as? JsonObject
-    } catch (_: SerializationException) {
-        null
-    } ?: return null
-    return MESSAGE_KEYS.firstNotNullOfOrNull { key ->
-        (body[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
-    }
-}
 
 private fun displayableReason(raw: String): String? {
     val text = WHITESPACE.replace(raw, " ").trim()
@@ -64,7 +47,6 @@ private const val HTTP_REQUEST_TIMEOUT = 408
 private const val HTTP_TOO_MANY_REQUESTS = 429
 private val APP_EXPLAINED_STATUSES =
     setOf(HTTP_UNAUTHORIZED, HTTP_FORBIDDEN, HTTP_REQUEST_TIMEOUT, HTTP_TOO_MANY_REQUESTS)
-private val MESSAGE_KEYS = listOf("error_message", "message")
 private const val MAX_REASON_LENGTH = 300
 private const val REDACTED_MARKER = "REDACTED"
 private val WHITESPACE = Regex("""\s+""")

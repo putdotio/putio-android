@@ -82,9 +82,14 @@ class MobileRefusedRequestProofTest {
             request = PutioRequestData("GET", "https://api.put.io/v2/files/list"),
             resolvedStatusCode = status,
             resolvedErrorType = "BadRequest",
-            envelope = PutioApiErrorEnvelope(status = "ERROR", statusCode = status, errorType = "BadRequest"),
+            envelope = PutioApiErrorEnvelope(
+                status = "ERROR",
+                statusCode = status,
+                errorType = "BadRequest",
+                errorMessage = REASON,
+            ),
             responseBody = body,
-            message = "put.io returned HTTP $status",
+            message = REASON,
         )
     }
 

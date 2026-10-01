@@ -632,8 +632,7 @@ destination, an incomplete Trash restore, a transfer with nothing to retry)
 still wins. 5xx, network and unreadable responses keep the existing copy. A
 message that is a bare error code, longer than 300 characters, mentions a URL,
 or carries the SDK's redaction marker is not shown; the copy applies instead.
-The SDK's error envelope reads `message`, so the app reads `error_message`
-from the SDK's redacted response body.
+The message comes from the SDK's redacted `PutioApiException.errorMessage`.
 
 Tests: `ApiRejectionReasonTest`, `MobileFilesScreenTest`,
 `TvPlaybackStatesTest`, `MobileRefusedRequestProofTest` (opt-in device proof;

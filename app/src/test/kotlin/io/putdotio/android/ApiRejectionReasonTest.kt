@@ -89,14 +89,10 @@ class ApiRejectionReasonTest {
     }
 }
 
-/**
- * A put.io error response as the SDK decodes it: the envelope has no `message`, because put.io
- * sends `error_message`.
- */
+/** A put.io error response as the SDK's transport decodes it. */
 internal fun putioRefusal(status: Int, body: String, httpStatusCode: Int = status): PutioApiException {
     val envelope = runCatching { lenientJson.decodeFromString(PutioApiErrorEnvelope.serializer(), body) }
         .getOrElse { PutioApiErrorEnvelope(statusCode = status) }
-    assertNull(envelope.message)
     return PutioApiException(
         request = PutioRequestData("POST", "https://api.put.io/v2/files/rename"),
         resolvedStatusCode = envelope.statusCode ?: status,
@@ -104,7 +100,7 @@ internal fun putioRefusal(status: Int, body: String, httpStatusCode: Int = statu
         resolvedErrorType = envelope.errorType,
         envelope = envelope,
         responseBody = body,
-        message = "put.io returned HTTP $status",
+        message = envelope.errorMessage ?: "put.io returned HTTP $status",
     )
 }
 
