@@ -140,7 +140,7 @@ class TvShellTest {
     }
 
     @Test
-    fun inactiveAccountNoticeShowsAboveEveryPaneWithoutTakingFocus() {
+    fun inactiveAccountNoticeShowsAboveEveryPaneWithoutTakingFocusOrBack() {
         val zone = java.time.ZoneId.systemDefault()
         val deletion = java.time.LocalDate.now(zone).plusDays(14).atTime(12, 0).atZone(zone).toInstant()
         compose.setContent {
@@ -176,6 +176,11 @@ class TvShellTest {
             keyUp(Key.DirectionCenter)
         }
         compose.onNodeWithText("Sign out").assertIsFocused()
+        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
+
+        compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+        compose.waitForIdle()
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused()
         compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
     }
 
