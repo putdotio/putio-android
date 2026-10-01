@@ -71,6 +71,7 @@ class FilesBrowserController(
             is FilesBrowserEvent.Rename,
             is FilesBrowserEvent.AbandonRename,
             is FilesBrowserEvent.LoadNextPage,
+            is FilesBrowserEvent.RevealItem,
             is FilesBrowserEvent.OpenFolder,
             is FilesBrowserEvent.OpenExternalItem,
             is FilesBrowserEvent.InvalidateRestoredItem,

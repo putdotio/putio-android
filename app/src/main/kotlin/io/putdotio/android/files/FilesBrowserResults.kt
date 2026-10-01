@@ -2,7 +2,11 @@ package io.putdotio.android.files
 
 internal fun FilesBrowserState.loadSucceeded(event: FilesBrowserEvent.LoadSucceeded): FilesBrowserTransition {
     val index = stack.indexOfFirst { it.hasRequest(event.requestId) }
-    val updated = stack.getOrNull(index)?.loadSucceeded(event.requestId, event.page)
+    val folder = stack.getOrNull(index)
+    if (folder != null && (folder.content as? FilesContent.Loading)?.requestId == event.requestId) {
+        return listingLoaded(index, folder, event.requestId, event.page)
+    }
+    val updated = folder?.loadSucceeded(event.requestId, event.page)
     return if (updated == null) {
         FilesBrowserTransition(this, consumed = false)
     } else {
@@ -54,22 +58,8 @@ private fun FilesFolderState.loadSucceeded(
         replaceFirstPage(requestId, page)
     } else {
         when (val state = content) {
-            is FilesContent.Loading ->
-                if (state.requestId == requestId) {
-                    // A folder an outside open pushed takes its name from the listing (the root keeps
-                    // its localized title) and opens at the file it came for, when that is on this page.
-                    val loaded = contentFor(page.items, page.nextCursor.toPaging(consumedCursors))
-                    val revealIndex = loaded.items().indexOfFirst { it.id == revealItemId }
-                    val name = folder.name ?: page.parent?.takeIf { it.id != FilesFolder.Root.id }?.name
-                    copy(
-                        folder = folder.copy(sort = page.sort ?: folder.sort, name = name),
-                        content = loaded.takeIf { revealIndex < 0 }
-                            ?: loaded.withViewport(FilesViewportPosition(revealIndex)) ?: loaded,
-                        consumedCursors = emptySet(),
-                    )
-                } else {
-                    null
-                }
+            // A loading folder's own listing is settled by [listingLoaded].
+            is FilesContent.Loading -> null
 
             is FilesContent.Empty,
             is FilesContent.Ready,
@@ -133,7 +123,7 @@ private fun FilesFolderState.loadFailed(
         when (val state = content) {
             is FilesContent.Loading ->
                 if (state.requestId == requestId) {
-                    copy(content = FilesContent.Failed(failure))
+                    revealPageFailed(requestId, failure) ?: copy(content = FilesContent.Failed(failure))
                 } else {
                     null
                 }

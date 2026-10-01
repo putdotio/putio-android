@@ -1,6 +1,7 @@
 package io.putdotio.android.tv
 
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
@@ -92,12 +93,20 @@ class TvSessionViewModelTest {
     private val listedItems = mutableMapOf<FilesItemId, FilesItem>()
     private val heldListings = mutableMapOf<FilesItemId, CompletableDeferred<Unit>>()
     private var historyItems = emptyList<HistoryItem>()
+    /** The root listing's pages, continued by `page-N` cursors; empty lists an empty root. */
+    private var rootPages = emptyList<FilesPage>()
     private val dependencies = TvSessionDependencies(
         filesRepository = object : StubFilesRepository() {
             override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
                 heldListings[folderId]?.await()
+                rootPages.firstOrNull()?.takeIf { folderId == FilesFolder.Root.id }?.let {
+                    return FilesRepositoryResult.Success(it)
+                }
                 return FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = listedItems[folderId]))
             }
+
+            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
+                FilesRepositoryResult.Success(rootPages[cursor.value.removePrefix("page-").toInt()])
         },
         searchRepository = object : SearchRepository {
             override suspend fun search(term: SearchTerm) =
@@ -354,6 +363,29 @@ class TvSessionViewModelTest {
 
         session.stopPlayback()
         assertEquals(10L, session.filesFocusMemory[0L])
+    }
+
+    @Test
+    fun `leaving a video autoplay moved on to beyond the loaded rows reads on to that row`() {
+        rootPages = (0 until 3).map { page ->
+            FilesPage(
+                items = (1L..50L).map { media(page * 100L + it, "Harbor film ${page * 100L + it}.mp4", PutioFileType.VIDEO) },
+                nextCursor = FilesCursor("page-${page + 1}").takeIf { page < 2 },
+            )
+        }
+        playbackRepository.next[FilesItemId(9)] = PlaybackTarget(FilesItemId(203), "Harbor film 203.mp4")
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        assertEquals(50, (session.files.state.value.current.content as FilesContent.Ready).items.size)
+
+        session.play(media(9, "Harbor film 9.mp4", PutioFileType.VIDEO))
+        val playback = checkNotNull(session.playback.value)
+        assertTrue(playback.dispatch(PlaybackEvent.PlayerEnded))
+        session.stopPlayback()
+
+        assertEquals(203L, session.filesFocusMemory[0L])
+        val content = session.files.state.value.current.content as FilesContent.Ready
+        assertEquals(150, content.items.size)
+        assertEquals(102, content.viewport.firstVisibleItemIndex)
     }
 
     @Test

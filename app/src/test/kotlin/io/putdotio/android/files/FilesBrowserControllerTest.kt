@@ -213,6 +213,48 @@ class FilesBrowserControllerTest {
         }
 
     @Test
+    fun navigateBackCancelsTheRevealSearchForAFileBeyondTheFirstPage() =
+        runBlocking {
+            val searchStarted = CompletableDeferred<FilesCursor>()
+            val searchCancelled = CompletableDeferred<Unit>()
+            val file = item(99L, "Harbor film.mp4", PutioFileType.VIDEO).copy(parentId = FilesItemId(44L))
+            val repository =
+                object : StubFilesRepository() {
+                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                        FilesRepositoryResult.Success(
+                            FilesPage(
+                                listOf(item(folderId.value + 1, "Sample.txt", PutioFileType.TEXT)),
+                                FilesCursor("next"),
+                            ),
+                        )
+
+                    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+                        searchStarted.complete(cursor)
+                        try {
+                            awaitCancellation()
+                        } finally {
+                            searchCancelled.complete(Unit)
+                        }
+                    }
+                }
+            val controller = FilesBrowserController(repository, this)
+
+            try {
+                controller.awaitState { it.current.content is FilesContent.Ready }
+                assertTrue(controller.dispatch(FilesBrowserEvent.OpenExternalItem(file, FilesOpenOrigin.SEARCH)))
+                assertEquals(FilesCursor("next"), withTimeout(TEST_TIMEOUT_MILLIS) { searchStarted.await() })
+                assertTrue(controller.state.value.current.content is FilesContent.Loading)
+
+                assertTrue(controller.dispatch(FilesBrowserEvent.NavigateBack))
+
+                withTimeout(TEST_TIMEOUT_MILLIS) { searchCancelled.await() }
+                assertEquals(listOf(FilesFolder.Root), controller.state.value.path)
+            } finally {
+                controller.close()
+            }
+        }
+
+    @Test
     fun anotherExternalOpenCancelsTheLoadOfTheOneItReplaces() =
         runBlocking {
             val childStarted = CompletableDeferred<Unit>()

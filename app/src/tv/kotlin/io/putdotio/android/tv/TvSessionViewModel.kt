@@ -221,7 +221,8 @@ internal class TvSession internal constructor(
 
     /**
      * Leaves playback; the shell shows again. After autoplay moved on, Files focuses the row of
-     * the video that played last rather than the one that started.
+     * the video that played last rather than the one that started, reading later pages when that
+     * row is not loaded yet.
      */
     fun stopPlayback() {
         durationLookup?.cancel()
@@ -229,7 +230,10 @@ internal class TvSession internal constructor(
         val last = stopped.state.value.target.fileId
         val start = playbackStart
         val folder = start?.parentId
-        if (folder != null && last != start.id) filesFocusMemory[folder.value] = last.value
+        if (folder != null && last != start.id) {
+            filesFocusMemory[folder.value] = last.value
+            files.dispatch(FilesBrowserEvent.RevealItem(folder, last))
+        }
         stopped.close()
     }
 
