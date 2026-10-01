@@ -1,5 +1,6 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.apiRejectionReason
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountSettings
 import io.putdotio.sdk.account.AccountSettingsPatch
@@ -71,6 +72,10 @@ internal sealed interface AccountSettingsFailure {
         override val cause: Throwable,
     ) : AccountSettingsFailure
 }
+
+/** put.io's own reason for a refused request; the surface's copy applies when it is null. */
+internal val AccountSettingsFailure.apiReason: String?
+    get() = (this as? AccountSettingsFailure.ApiRejected)?.cause?.apiRejectionReason()
 
 internal interface AccountSettingsRepository {
     suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences>

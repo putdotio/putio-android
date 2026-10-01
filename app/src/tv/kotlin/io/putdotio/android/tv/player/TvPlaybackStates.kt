@@ -24,6 +24,7 @@ import io.putdotio.android.playback.PlaybackConversionAction
 import io.putdotio.android.playback.PlaybackConversionPolling
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.action
+import io.putdotio.android.playback.apiReason
 import io.putdotio.android.playback.retryable
 import io.putdotio.android.playback.startable
 import io.putdotio.android.playback.starting
@@ -136,7 +137,7 @@ internal fun TvPlaybackFailureScreen(failure: PlaybackFailure, onRetry: () -> Un
     val (title, message) = failure.titleAndMessage()
     TvStatusScreen(
         title = stringResource(title),
-        message = stringResource(message),
+        message = failure.apiReason ?: stringResource(message),
         action = if (failure.retryable) stringResource(R.string.tv_player_retry) else null,
         onAction = onRetry,
     )

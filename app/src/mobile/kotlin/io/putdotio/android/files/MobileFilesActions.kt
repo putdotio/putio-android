@@ -168,7 +168,7 @@ internal fun MobileFilesActions(
                         supportingText = {
                             if (failedRename != null && failed.phase == FilesFolderOperationPhase.RENAMING) {
                                 Text(
-                                    text = stringResource(failed.failure.mobileMessageResource()),
+                                    text = failed.failure.mobileMessage(),
                                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                                 )
                             }

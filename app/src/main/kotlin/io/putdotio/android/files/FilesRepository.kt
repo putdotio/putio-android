@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.apiRejectionReason
+import io.putdotio.android.displayableApiReason
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioConfigurationException
@@ -79,6 +81,10 @@ sealed interface FilesFailure {
     ) : FilesFailure
 }
 
+/** put.io's own reason for a refused request; the surface's copy applies when it is null. */
+internal val FilesFailure.apiReason: String?
+    get() = (this as? FilesFailure.ApiRejected)?.cause?.apiRejectionReason()
+
 interface FilesRepository : FilesCopyRepository {
     suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage>
 
@@ -139,7 +145,7 @@ internal class SdkFilesCopies(
         val info = info(copyId.value)
         when (info.status) {
             SharedFileCloneStatus.DONE -> FilesCopyProgress.Done
-            SharedFileCloneStatus.ERROR -> FilesCopyProgress.Failed(info.errorMessage?.takeIf(String::isNotBlank))
+            SharedFileCloneStatus.ERROR -> FilesCopyProgress.Failed(info.errorMessage?.let(::displayableApiReason))
             // NEW, PROCESSING and any status this app does not know yet may still finish.
             else -> FilesCopyProgress.Running
         }

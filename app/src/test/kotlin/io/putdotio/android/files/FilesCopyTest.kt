@@ -189,6 +189,7 @@ class FilesCopyTest {
                 SharedFileCloneInfo(SharedFileCloneStatus.DONE),
                 SharedFileCloneInfo(SharedFileCloneStatus.ERROR, "File(s) size exceed disk limit."),
                 SharedFileCloneInfo(SharedFileCloneStatus.ERROR, " "),
+                SharedFileCloneInfo(SharedFileCloneStatus.ERROR, "See https://example.test/cb?oauth_token=REDACTED"),
             ),
         )
         val repository = SdkFilesRepository(
@@ -214,12 +215,12 @@ class FilesCopyTest {
             assertTrue(repository.startCopy(FilesItemId(item), FilesItemId(parent)) is FilesRepositoryResult.Failure)
         }
         assertEquals(listOf(7L to 9L), starts)
-        val progress = List(6) { (repository.checkCopy(FilesCopyId(42L)) as FilesRepositoryResult.Success).value }
+        val progress = List(7) { (repository.checkCopy(FilesCopyId(42L)) as FilesRepositoryResult.Success).value }
         assertEquals(
             listOf(
                 FilesCopyProgress.Running, FilesCopyProgress.Running, FilesCopyProgress.Running,
                 FilesCopyProgress.Done, FilesCopyProgress.Failed("File(s) size exceed disk limit."),
-                FilesCopyProgress.Failed(null),
+                FilesCopyProgress.Failed(null), FilesCopyProgress.Failed(null),
             ),
             progress,
         )

@@ -61,7 +61,7 @@ import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.paneSection
-import io.putdotio.android.tv.files.tvMessage
+import io.putdotio.android.tv.files.tvMessageText
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -154,7 +154,7 @@ internal fun TvHistoryScreen(
                 text = if (notice == FilesFailure.NavigationBlocked) {
                     stringResource(R.string.tv_error_navigation_blocked)
                 } else {
-                    stringResource(R.string.tv_history_open_error, stringResource(notice.tvMessage()))
+                    stringResource(R.string.tv_history_open_error, notice.tvMessageText())
                 },
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
@@ -183,7 +183,7 @@ internal fun TvHistoryScreen(
                 }
                 TvStatusScreen(
                     title = stringResource(R.string.tv_history_error_title),
-                    message = stringResource(content.failure.tvMessage()),
+                    message = content.failure.tvMessageText(),
                     action = stringResource(R.string.tv_files_retry),
                     onAction = { onEvent(HistoryEvent.Retry) },
                     modifier = Modifier.paneSection(owner, retryFocus).weight(1f),

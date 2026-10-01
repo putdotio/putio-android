@@ -37,7 +37,7 @@ internal fun MobileFilesCopyStatus(outcome: FilesCopyOutcome, onDismiss: () -> U
     val reason = when {
         outcome.status != FilesCopyStatus.FAILED -> null
         outcome.serverMessage != null -> outcome.serverMessage
-        else -> outcome.failure?.let { stringResource(it.copyMessageResource()) }
+        else -> outcome.failure?.copyMessage()
     }
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
@@ -60,8 +60,11 @@ internal fun MobileFilesCopyStatus(outcome: FilesCopyOutcome, onDismiss: () -> U
     }
 }
 
-private fun FilesFailure.copyMessageResource(): Int = when ((this as? FilesFailure.ApiRejected)?.errorType) {
-    "SharedFileCloneConcurrentLimit" -> R.string.mobile_files_copy_concurrent_limit
-    "SharedFileCloneTooManyFiles", "SharedFileCloneTooManyChildren" -> R.string.mobile_files_copy_too_many_files
-    else -> mobileMessageResource()
+/** Web's wording for put.io's copy limits wins over put.io's reason, as other specific copy does. */
+@Composable
+private fun FilesFailure.copyMessage(): String = when ((this as? FilesFailure.ApiRejected)?.errorType) {
+    "SharedFileCloneConcurrentLimit" -> stringResource(R.string.mobile_files_copy_concurrent_limit)
+    "SharedFileCloneTooManyFiles", "SharedFileCloneTooManyChildren" ->
+        stringResource(R.string.mobile_files_copy_too_many_files)
+    else -> mobileMessage()
 }

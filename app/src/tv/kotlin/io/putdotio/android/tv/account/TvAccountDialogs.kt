@@ -52,7 +52,7 @@ internal fun TvTunnelRouteDialog(
         )
         is AccountSettingsRepositoryResult.Failure -> TvDialog(
             title = stringResource(R.string.tv_account_tunnel_route_error),
-            message = stringResource(loaded.failure.tvMessage()),
+            message = loaded.failure.tvMessageText(),
             onDismiss = onDismiss,
         ) { focus ->
             // A session verdict is final; every other failure is worth one more try.

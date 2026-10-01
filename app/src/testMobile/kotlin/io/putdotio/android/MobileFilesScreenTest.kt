@@ -53,6 +53,7 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
@@ -348,6 +349,21 @@ class MobileFilesScreenTest {
         compose.onNodeWithText("You don’t have access to this folder.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
         assertEquals(listOf(FilesBrowserEvent.Retry, FilesBrowserEvent.Retry), events.takeLast(2))
+
+        // A refused request shows put.io's own reason; a server error keeps the app's copy.
+        compose.runOnIdle {
+            state = browserState(
+                FilesContent.Failed(putioRefusal(400, putioErrorBody(400, "not a folder")).toFilesFailure()),
+            )
+        }
+        compose.onNodeWithText("not a folder").assertIsDisplayed()
+        compose.runOnIdle {
+            state = browserState(
+                FilesContent.Failed(putioRefusal(503, putioErrorBody(503, "not a folder")).toFilesFailure()),
+            )
+        }
+        compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
+        compose.onNodeWithText("not a folder").assertDoesNotExist()
     }
 
     @Test

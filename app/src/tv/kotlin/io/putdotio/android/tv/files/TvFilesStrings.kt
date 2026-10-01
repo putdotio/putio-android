@@ -1,9 +1,12 @@
 package io.putdotio.android.tv.files
 
 import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.files.apiReason
 
 @StringRes
 internal fun FilesSort.tvLabel(): Int =
@@ -21,6 +24,10 @@ internal fun FilesSort.tvLabel(): Int =
         FilesSort.WATCH_STATUS_ASCENDING -> R.string.tv_files_sort_watch_ascending
         FilesSort.WATCH_STATUS_DESCENDING -> R.string.tv_files_sort_watch_descending
     }
+
+/** put.io's reason for a refused request, else this failure's copy. */
+@Composable
+internal fun FilesFailure.tvMessageText(): String = apiReason ?: stringResource(tvMessage())
 
 @StringRes
 internal fun FilesFailure.tvMessage(): Int =

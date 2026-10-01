@@ -55,7 +55,7 @@ import io.putdotio.android.R
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.MobileFilesRow
-import io.putdotio.android.files.mobileMessageResource
+import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -207,7 +207,7 @@ private fun MobileSearchContent(
             is SearchContent.Failed ->
                 MobileErrorState(
                     title = stringResource(R.string.mobile_search_error_title),
-                    message = stringResource(content.failure.mobileMessageResource()),
+                    message = content.failure.mobileMessage(),
                     retryLabel = stringResource(R.string.mobile_action_retry),
                     onRetry = onRetry,
                     modifier = Modifier.weight(1f),
@@ -252,7 +252,7 @@ private fun MobileRecentSearchFailureText(failure: FilesFailure, modifier: Modif
             style = MaterialTheme.typography.titleSmall,
         )
         Text(
-            text = stringResource(failure.mobileMessageResource()),
+            text = failure.mobileMessage(),
             style = MaterialTheme.typography.bodySmall,
         )
     }
@@ -421,7 +421,7 @@ private fun MobileHistoryContent(
         is HistoryContent.Failed ->
             MobileErrorState(
                 title = stringResource(R.string.mobile_history_error_title),
-                message = stringResource(content.failure.mobileMessageResource()),
+                message = content.failure.mobileMessage(),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(HistoryEvent.Retry) },
                 modifier = modifier,
@@ -566,7 +566,7 @@ private fun MobileHistoryDialog(
             AlertDialog(
                 onDismissRequest = { onEvent(HistoryEvent.DismissClear) },
                 title = { Text(stringResource(R.string.mobile_history_clear_error_title)) },
-                text = { Text(stringResource(clearing.failure.mobileMessageResource())) },
+                text = { Text(clearing.failure.mobileMessage()) },
                 confirmButton = {
                     TextButton(onClick = { onEvent(HistoryEvent.DismissClear) }) {
                         Text(stringResource(R.string.mobile_action_ok))

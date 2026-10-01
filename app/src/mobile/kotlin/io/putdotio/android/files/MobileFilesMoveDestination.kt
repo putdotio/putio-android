@@ -145,7 +145,7 @@ private fun MobileMoveFolderContent(
             }
             is FilesContent.Failed -> item {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.Center) {
-                    Text(stringResource(content.failure.moveDestinationMessageResource()))
+                    Text(content.failure.moveDestinationMessage())
                     TextButton(onClick = { onEvent(FilesMoveDestinationEvent.Retry) },
                         modifier = Modifier.testTag(MOBILE_FILES_MOVE_RETRY_TAG)) {
                         Text(stringResource(R.string.mobile_action_retry))
@@ -184,7 +184,7 @@ private fun MobileMovePaging(paging: FilesPaging, onEvent: (FilesMoveDestination
             Text(stringResource(R.string.mobile_files_move_more))
         }
         is FilesPaging.Failed -> Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(paging.failure.moveDestinationMessageResource()))
+            Text(paging.failure.moveDestinationMessage())
             TextButton(onClick = { onEvent(FilesMoveDestinationEvent.Retry) },
                 modifier = Modifier.testTag(MOBILE_FILES_MOVE_RETRY_TAG)) {
                 Text(stringResource(R.string.mobile_action_retry))
@@ -193,10 +193,11 @@ private fun MobileMovePaging(paging: FilesPaging, onEvent: (FilesMoveDestination
     }
 }
 
-private fun FilesFailure.moveDestinationMessageResource(): Int = when {
+@Composable
+private fun FilesFailure.moveDestinationMessage(): String = when {
     this is FilesFailure.AccessDenied || this is FilesFailure.ApiRejected && statusCode == HTTP_NOT_FOUND ->
-        R.string.mobile_files_move_destination_unavailable
-    else -> mobileMessageResource()
+        stringResource(R.string.mobile_files_move_destination_unavailable)
+    else -> mobileMessage()
 }
 
 private const val HTTP_NOT_FOUND = 404

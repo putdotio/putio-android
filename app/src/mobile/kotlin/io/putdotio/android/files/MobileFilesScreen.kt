@@ -111,7 +111,7 @@ internal fun MobileFilesScreen(
         is FilesContent.Failed ->
             MobileErrorState(
                 title = stringResource(R.string.mobile_state_error_title),
-                message = stringResource(content.failure.mobileMessageResource()),
+                message = content.failure.mobileMessage(),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(FilesBrowserEvent.Retry) },
                 modifier = modifier,
@@ -466,7 +466,7 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
             if (outcome.status != FilesDeleteStatus.NO_LONGER_AVAILABLE) {
                 outcome.failure?.let {
                     Text(
-                        stringResource(it.mobileMessageResource()),
+                        it.mobileMessage(),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -836,6 +836,10 @@ private fun String.toDisplayDate(context: Context): String? =
                 DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_SHOW_YEAR,
             )
         }
+
+/** put.io's reason for a refused request, else this failure's copy. */
+@Composable
+internal fun FilesFailure.mobileMessage(): String = apiReason ?: stringResource(mobileMessageResource())
 
 @StringRes
 internal fun FilesFailure.mobileMessageResource(): Int =
