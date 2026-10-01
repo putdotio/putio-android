@@ -1,5 +1,6 @@
 package io.putdotio.android.auth
 
+import io.putdotio.android.account.inactiveAccountNotice
 import io.putdotio.android.toAccountStorage
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountInfo
@@ -122,4 +123,5 @@ private fun AccountInfo.toMobileAccount(): MobileAccount =
         historyEnabled = settings.historyEnabled,
         avatarUrl = avatarUrl,
         storage = toAccountStorage(),
+        inactiveNotice = inactiveAccountNotice(),
     )

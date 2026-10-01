@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -26,10 +27,13 @@ import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.tv.material3.MaterialTheme
+import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.tv.auth.TvAccount
 import java.io.File
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -82,6 +86,32 @@ class TvSafeAreaProofTest {
         compose.onNode(hasText("Files") and hasClickAction()).assertExists()
         compose.waitForIdle()
         screenshot("drawer-$label")
+        assertContentInsideSafeArea()
+    }
+
+    @Test
+    fun inactiveAccountNoticeStaysInsideTheSafeArea() {
+        val zone = ZoneId.systemDefault()
+        val deletion = LocalDate.now(zone).plusDays(14).atTime(12, 0).atZone(zone).toInstant()
+        val account = TvAccount(
+            userId = 1,
+            username = "proof",
+            email = "proof@example.com",
+            inactiveNotice = InactiveAccountNotice.Deactivated(deletion),
+        )
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                Box(Modifier.fillMaxSize().drawWithContent { drawContent(); outlineSafeArea(size) }) {
+                    TvShell(account = account, onSignOut = {})
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
+            .assertExists()
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused()
+        val label = compose.onRoot().fetchSemanticsNode().boundsInRoot.let { "${it.width.toInt()}x${it.height.toInt()}" }
+        screenshot("inactive-$label")
         assertContentInsideSafeArea()
     }
 

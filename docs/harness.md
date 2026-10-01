@@ -555,7 +555,8 @@ Fire TV (6233) needs the physical device set from #51.
 `TvSafeAreaProofTest` (TV instrumentation, synthetic account, no API calls)
 mounts the signed-in shell with placeholder panes at the emulator's current
 display, outlines the safe edge in red, screenshots the collapsed and expanded
-drawer, and fails if any label or focus target leaves the safe area. It needs
+drawer and the shell with an inactive account's notice, and fails if any label
+or focus target leaves the safe area. It needs
 no sign-in, so the existing `putio-tv` session survives:
 
 ```bash

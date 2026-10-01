@@ -75,6 +75,28 @@ has no buffer setting and always buffers as tv-native's default `medium` (see
 Tests: `TvAuthControllerTest`, `AsyncStorageLegacyTvSessionTest` (a fixture
 AsyncStorage database), `TvNativeConfigMigrationTest` (fixture `/config` blobs).
 
+## Inactive account
+
+An account whose `account_status` is `inactive` shows a persistent notice on
+every signed-in screen, with putio-web's states (`AccountStatusNotification`).
+A family plan member (`is_sub_account`) reads Your family plan is no longer
+active. Anyone else reads Your account has been deactivated 😢 and the days
+until `files_will_be_deleted_at` (whole calendar days in the device's zone, as
+web counts them; no message without a date). Unlike web, the count uses
+Android plurals, so one day reads "1 day". Web's notices for active accounts
+(payment warnings) and `stranger` accounts are not ported, so those show
+nothing. The status is read with the account at sign-in and session restore.
+
+Google Play's payments policy rules out web's billing and family links and its
+calls to pay, renew or subscribe, so the notice has no action on either surface:
+facts only, taken from web's copy (`strings.xml` cites each source key). Mobile
+puts it under the top bar with nothing clickable; TV puts it above the pane as
+plain text with no focus target, so D-pad entry into the pane is unchanged.
+
+Tests: `InactiveAccountNoticeTest`, `PutioAuthSessionGatewayTest`,
+`PutioTvSessionGatewayTest`, `MobileInactiveAccountNoticeTest`,
+`MobileShellTest`, `TvShellTest`; on device, `TvSafeAreaProofTest`.
+
 ## Shared-with-me items
 
 Friends' shared files (`is_shared`) and the shared folders (`SHARED_ROOT`,

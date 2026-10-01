@@ -40,6 +40,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import io.putdotio.android.account.InactiveAccountNotice
+import io.putdotio.android.account.MobileInactiveAccountNotice
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.downloads.DownloadsController
@@ -346,6 +348,7 @@ internal fun MobileShell(
                     playbackPlayerFactory = playbackPlayerFactory,
                     onFilesEvent = { onFilesEvent(it) },
                     onFilesBack = onFilesBack,
+                    inactiveNotice = account.inactiveNotice,
                 ) { contentModifier ->
                     MobileNavHost(
                         transferDraft = transferDraft,
@@ -464,6 +467,7 @@ private fun MobileChrome(
     playbackPlayerFactory: MobilePlayerFactory,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onFilesBack: () -> Unit,
+    inactiveNotice: InactiveAccountNotice?,
     content: @Composable (Modifier) -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxSize()) {
@@ -484,16 +488,25 @@ private fun MobileChrome(
             topBar = {
                 if (visible) {
                     val route = navController.currentBackStackEntryAsState().value?.destination?.route
-                    MobileTopBar(
-                        openNavigation = openNavigation,
-                        destination = selectedDestination,
-                        isTrash = route == MOBILE_TRASH_ROUTE,
-                        isDownloads = route == MOBILE_DOWNLOADS_ROUTE,
-                        onTrashBack = { navController.popBackStack() },
-                        filesState = filesState,
-                        onFilesBack = onFilesBack,
-                        onFilesEvent = onFilesEvent,
-                    )
+                    Column {
+                        MobileTopBar(
+                            openNavigation = openNavigation,
+                            destination = selectedDestination,
+                            isTrash = route == MOBILE_TRASH_ROUTE,
+                            isDownloads = route == MOBILE_DOWNLOADS_ROUTE,
+                            onTrashBack = { navController.popBackStack() },
+                            filesState = filesState,
+                            onFilesBack = onFilesBack,
+                            onFilesEvent = onFilesEvent,
+                        )
+                        // Every signed-in screen, like web's app layout; the top bar owns the status bar inset.
+                        inactiveNotice?.let { notice ->
+                            MobileInactiveAccountNotice(
+                                notice,
+                                Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+                            )
+                        }
+                    }
                 }
             },
             bottomBar = {
