@@ -15,6 +15,7 @@ import io.putdotio.android.transfers.MAX_TRANSFER_LINKS
 import io.putdotio.android.transfers.MobileSharedTransfer
 import io.putdotio.android.transfers.TorrentUpload
 import io.putdotio.android.transfers.TransfersEvent
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -226,6 +227,48 @@ class MobileTransferDraftTest {
         settle()
         assertSame(TORRENT, draft.state.value.torrent)
     }
+
+    @Test
+    fun aSupersededReadThatIgnoresInterruptsHoldsBackTheNextOne() {
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+        val draft = MobileTransferDraft(pool.asCoroutineDispatcher())
+        val release = java.util.concurrent.CountDownLatch(1)
+        val running = java.util.concurrent.atomic.AtomicInteger()
+        val mostRunning = java.util.concurrent.atomic.AtomicInteger()
+        val other = TorrentUpload("Other.torrent", TORRENT.content)
+        fun read(torrent: TorrentUpload, stuck: Boolean): () -> MobileSharedTransfer = {
+            mostRunning.accumulateAndGet(running.incrementAndGet(), ::maxOf)
+            // Like a provider call that ignores interrupts, this read keeps going until released.
+            while (stuck && !awaitIgnoringInterrupts(release)) Unit
+            running.decrementAndGet()
+            MobileSharedTransfer(torrent = torrent)
+        }
+        try {
+            draft.receiveLater(read(TORRENT, stuck = true))
+            while (running.get() == 0) Thread.sleep(5)
+            draft.receiveLater(read(other, stuck = false))
+            repeat(10) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(10) }
+            assertEquals(1, mostRunning.get())
+            release.countDown()
+            val deadline = System.nanoTime() + 5_000_000_000L
+            while (draft.state.value.torrent == null && System.nanoTime() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(10)
+            }
+            assertSame(other, draft.state.value.torrent)
+            assertEquals(1, mostRunning.get())
+        } finally {
+            release.countDown()
+            pool.shutdownNow()
+        }
+    }
+
+    private fun awaitIgnoringInterrupts(latch: java.util.concurrent.CountDownLatch): Boolean =
+        try {
+            latch.await(10, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+            false
+        }
 
     private fun kotlinx.coroutines.test.TestScope.settle() {
         advanceUntilIdle()

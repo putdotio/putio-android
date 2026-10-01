@@ -359,7 +359,8 @@ must parse with an `xt` parameter or it stays visible but invalid, and a
 `.torrent` is read off the main thread from another app's content URI only
 (never this app's own providers), capped at 16 MiB, and must look like a
 bencoded dictionary with an `info` key. Provider failures mark it invalid; a
-newer share or an account change cancels a read still running. Its name is
+newer share or an account change cancels a read still running, and only one
+read runs at a time. Its name is
 stripped of paths and control characters and always ends in `.torrent`, because
 put.io starts a transfer only for that extension; the upload also sends
 `torrent=true`, so put.io refuses non-torrent content instead of saving it as a

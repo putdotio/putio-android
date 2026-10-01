@@ -125,8 +125,7 @@ internal fun List<TransferSubmission>.joinLines(): String = joinToString("\n") {
 // The provider is another app's code; any runtime exception it throws is that app's failure, not ours.
 @Suppress("TooGenericExceptionCaught")
 internal fun ContentResolver.readMobileTorrent(uri: Uri, ownPackage: String): MobileSharedTransfer {
-    val authority = uri.authority
-    if (authority == null || authority == ownPackage || authority.startsWith("$ownPackage.")) {
+    if (isOwnProviderAuthority(uri.authority, ownPackage)) {
         return MobileSharedTransfer(validation = MobileShareValidation.InvalidTorrent)
     }
     return try {
@@ -137,6 +136,12 @@ internal fun ContentResolver.readMobileTorrent(uri: Uri, ownPackage: String): Mo
     } catch (_: RuntimeException) {
         MobileSharedTransfer(validation = MobileShareValidation.InvalidTorrent)
     }
+}
+
+/** Android drops a `<userId>@` prefix when it resolves a provider, so ownership ignores it too. */
+internal fun isOwnProviderAuthority(authority: String?, ownPackage: String): Boolean {
+    val resolved = authority?.substringAfterLast('@') ?: return true
+    return resolved == ownPackage || resolved.startsWith("$ownPackage.")
 }
 
 internal fun readMobileTorrent(displayName: String?, open: () -> InputStream?): MobileSharedTransfer {

@@ -11,6 +11,7 @@ import io.putdotio.android.transfers.MobileIncomingTransfer
 import io.putdotio.android.transfers.MobileSharedTransfer
 import io.putdotio.android.transfers.consumeMobileIncomingTransfer
 import io.putdotio.android.transfers.parseMobileMagnetLink
+import io.putdotio.android.transfers.isOwnProviderAuthority
 import io.putdotio.android.transfers.readMobileTorrent
 import io.putdotio.android.transfers.torrentFileName
 import io.putdotio.android.transfers.fitsMobileTransferInputLimit
@@ -285,6 +286,12 @@ class MobileShareIntentsTest {
             MobileShareValidation.InvalidTorrent,
             resolver.readMobileTorrent(Uri.parse("content://io.put.sample.share/1"), "io.put.sample").validation,
         )
+        for (own in listOf("io.put.sample", "io.put.sample.share", "0@io.put.sample.share", "10@io.put.sample", null)) {
+            assertTrue(own.toString(), isOwnProviderAuthority(own, "io.put.sample"))
+        }
+        for (other in listOf("test.torrents", "io.put.samplex.share", "0@test.torrents")) {
+            assertFalse(other, isOwnProviderAuthority(other, "io.put.sample"))
+        }
         assertEquals(
             MobileShareValidation.InvalidTorrent,
             resolver.readMobileTorrent(Uri.parse("content://test.broken/1"), "io.put.sample").validation,

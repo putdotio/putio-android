@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal data class MobileTransferDraftState(
     val input: String = "",
@@ -44,6 +46,7 @@ class MobileTransferDraft internal constructor(
     private var lastSuccessfulAdd: TransfersRequestId? = null
     private var lastMutation: TransferMutation = TransferMutation.Idle
     private var pendingRead: Job? = null
+    private val readLock = Mutex()
 
     internal fun reconcileSession(sessionId: MobileAuthSessionId?) {
         if (boundSessionId != null && boundSessionId != sessionId) {
@@ -81,11 +84,14 @@ class MobileTransferDraft internal constructor(
 
     /**
      * Reads a shared `.torrent` off the main thread; the result arrives like any other share. A newer
-     * intake or a session change cancels the read, so at most one runs and none lands out of order.
+     * intake or a session change cancels the read so none lands out of order. A provider may ignore the
+     * interrupt, so the lock is held until the read actually returns: at most one runs at a time.
      */
     internal fun receiveLater(read: () -> MobileSharedTransfer) {
         pendingRead?.cancel()
-        pendingRead = viewModelScope.launch { deliver(runInterruptible(ioDispatcher) { read() }) }
+        pendingRead = viewModelScope.launch {
+            deliver(readLock.withLock { runInterruptible(ioDispatcher) { read() } })
+        }
     }
 
     private fun deliver(shared: MobileSharedTransfer) {
