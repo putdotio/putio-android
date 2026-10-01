@@ -31,7 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.R
 import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.mobileMessageResource
+import io.putdotio.android.files.mobileMessage
 
 internal const val MOBILE_TRASH_ITEM_SHEET_TAG = "mobile-trash-item-sheet"
 internal const val MOBILE_TRASH_ITEM_RESTORE_TAG = "mobile-trash-item-restore"
@@ -158,7 +158,7 @@ internal fun MobileTrashActionOutcome(
         }
         Text(outcome.message())
         outcome.submissionFailure?.takeIf { outcome.submission == TrashActionSubmission.REJECTED }?.let { failure ->
-            Text(stringResource(failure.trashActionMessageResource()))
+            Text(failure.trashActionMessage())
         }
         when (outcome.check) {
             TrashActionCheck.CHECKING -> {
@@ -166,7 +166,7 @@ internal fun MobileTrashActionOutcome(
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
             TrashActionCheck.FAILED -> outcome.checkFailure?.let {
-                Text(stringResource(it.trashActionMessageResource()))
+                Text(it.trashActionMessage())
             }
             TrashActionCheck.NOT_CHECKED, TrashActionCheck.VERIFIED, TrashActionCheck.INCONCLUSIVE -> Unit
         }
@@ -228,5 +228,6 @@ private fun TrashAction.confirmResource(): Int = when (this) {
     TrashAction.Empty -> R.string.mobile_trash_empty_action
 }
 
-private fun FilesFailure.trashActionMessageResource(): Int =
-    if (this is FilesFailure.AccessDenied) R.string.mobile_trash_access_denied else mobileMessageResource()
+@Composable
+private fun FilesFailure.trashActionMessage(): String =
+    if (this is FilesFailure.AccessDenied) stringResource(R.string.mobile_trash_access_denied) else mobileMessage()

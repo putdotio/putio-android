@@ -77,7 +77,8 @@ data class TransferItem(
     val uploadSpeedBytesPerSecond: Double?,
     val estimatedSecondsRemaining: Double?,
     val availability: Double?,
-    val hasError: Boolean,
+    /** put.io's own failure reason, trimmed; null when the API sends none. */
+    val errorMessage: String?,
     val createdAt: String,
     val userFileExists: Boolean?,
 )
@@ -114,7 +115,65 @@ value class TransferSubmission private constructor(val value: String) {
                 }
             return value.takeIf { valid }?.let(::TransferSubmission)
         }
+
+        /** Every whitespace-separated link, or null when any is invalid, none is given, or there are too many. */
+        fun parseAll(input: String): List<TransferSubmission>? {
+            val links = input.split(LinkSeparator)
+                .filter(String::isNotEmpty)
+                .map { parse(it) ?: return null }
+                .distinct()
+            return links.takeIf { it.isNotEmpty() && it.size <= MAX_TRANSFER_LINKS }
+        }
     }
+}
+
+/** put.io's `TRANSFER_MULTI_ADD_LIMIT` for one `/transfers/add-multi` call. */
+const val MAX_TRANSFER_LINKS = 100
+
+private val LinkSeparator = Regex("[\\s\\p{Z}\\u0085]+")
+
+/** A `.torrent` the user picked or shared; its bytes stay in memory and never reach logs. */
+class TorrentUpload(val fileName: String, val content: ByteArray) {
+    init {
+        require(fileName.endsWith(TORRENT_EXTENSION, ignoreCase = true)) { "A torrent upload needs a .torrent name" }
+    }
+
+    override fun toString(): String = "TorrentUpload(<redacted>, size=${content.size})"
+
+    companion object {
+        const val TORRENT_EXTENSION = ".torrent"
+    }
+}
+
+/** One confirmed submission, saved to [saveParentId] or, when null, the account's default download folder. */
+sealed interface TransferAddRequest {
+    val saveParentId: Long?
+
+    data class Links(
+        val links: List<TransferSubmission>,
+        override val saveParentId: Long? = null,
+    ) : TransferAddRequest {
+        init {
+            require(links.isNotEmpty() && links.size <= MAX_TRANSFER_LINKS) {
+                "Add between 1 and $MAX_TRANSFER_LINKS links"
+            }
+        }
+
+        override fun toString(): String = "Links(<redacted> x${links.size}, saveParentId=$saveParentId)"
+    }
+
+    data class Torrent(
+        val file: TorrentUpload,
+        override val saveParentId: Long? = null,
+    ) : TransferAddRequest
+}
+
+/** put.io adds each link on its own; [rejectedLinks] are the ones it refused. */
+data class TransferAddOutcome(
+    val added: List<TransferItem>,
+    val rejectedLinks: List<String> = emptyList(),
+) {
+    override fun toString(): String = "TransferAddOutcome(added=${added.size}, rejected=${rejectedLinks.size})"
 }
 
 private fun URI.hasHttpHost(): Boolean {

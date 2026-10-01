@@ -1,5 +1,6 @@
 package io.putdotio.android.auth
 
+import io.putdotio.android.AccountStorage
 import io.putdotio.android.account.InactiveAccountNotice
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CancellationException
@@ -16,14 +17,8 @@ data class MobileAccount(
     val email: String,
     val historyEnabled: Boolean = false,
     val avatarUrl: String? = null,
-    val storage: MobileAccountStorage = MobileAccountStorage(),
+    val storage: AccountStorage = AccountStorage(),
     val inactiveNotice: InactiveAccountNotice? = null,
-)
-
-data class MobileAccountStorage(
-    val availableBytes: Long = 0L,
-    val sizeBytes: Long = 0L,
-    val usedBytes: Long = 0L,
 )
 
 @JvmInline

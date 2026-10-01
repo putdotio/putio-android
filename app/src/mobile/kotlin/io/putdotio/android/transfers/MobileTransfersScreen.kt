@@ -46,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -71,7 +73,10 @@ import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.files.mobileMessageResource
+import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.files.FilesFolder
+import io.putdotio.android.files.FilesRepository
+import io.putdotio.android.files.mobileMessage
 import java.text.NumberFormat
 
 internal const val MOBILE_TRANSFERS_LIST_TAG = "mobile-transfers-list"
@@ -86,6 +91,8 @@ internal fun MobileTransfersScreen(
     modifier: Modifier = Modifier,
     sessionId: MobileAuthSessionId? = null,
     draft: MobileTransferDraft = remember { MobileTransferDraft() },
+    filesRepository: FilesRepository? = null,
+    onFilesAuthenticationRequired: suspend () -> Unit = {},
 ) {
     LaunchedEffect(draft, sessionId, state.mutation, state.lastSuccessfulAddRequestId) {
         draft.reconcileSession(sessionId)
@@ -93,14 +100,30 @@ internal fun MobileTransfersScreen(
     }
     var confirmation by remember(sessionId) { mutableStateOf<TransferConfirmation?>(null) }
     val snackbarHostState = remember(sessionId) { SnackbarHostState() }
-    val addedMessage = stringResource(R.string.mobile_transfers_added)
+    val addedCount = state.lastAddReceipt?.addedCount ?: 0
+    val addedMessage = pluralStringResource(R.plurals.mobile_transfers_added, addedCount, addedCount)
     // The successful add id changes once per accepted submission; the first value is history, not news.
     var announcedAdd by remember(sessionId) { mutableStateOf(state.lastSuccessfulAddRequestId) }
+    // Newest news replaces a visible snackbar instead of queueing behind it, where leaving the screen would drop it.
     LaunchedEffect(state.lastSuccessfulAddRequestId) {
         val added = state.lastSuccessfulAddRequestId
         if (added != null && added != announcedAdd) {
             announcedAdd = added
-            snackbarHostState.showSnackbar(addedMessage)
+            // Refused links reopen the draft with their own message; only started transfers are news.
+            if (addedCount > 0) {
+                snackbarHostState.currentSnackbarData?.dismiss()
+                snackbarHostState.showSnackbar(addedMessage)
+            }
+        }
+    }
+    val retryMessage = state.retryOutcome?.let { retryOutcomeMessage(it) }
+    LaunchedEffect(state.retryOutcome) {
+        val outcome = state.retryOutcome ?: return@LaunchedEffect
+        snackbarHostState.currentSnackbarData?.dismiss()
+        try {
+            snackbarHostState.showSnackbar(requireNotNull(retryMessage))
+        } finally {
+            onEvent(TransfersEvent.DismissRetryOutcome(outcome.requestId))
         }
     }
 
@@ -134,6 +157,8 @@ internal fun MobileTransfersScreen(
                         state = state,
                         onEvent = onEvent,
                         enabled = controlsEnabled,
+                        filesRepository = filesRepository,
+                        onFilesAuthenticationRequired = onFilesAuthenticationRequired,
                     )
                 }
                 MobileTransferActionsMenu(
@@ -185,7 +210,7 @@ internal fun MobileTransfersScreen(
         AlertDialog(
             onDismissRequest = { onEvent(TransfersEvent.DismissMutationFailure) },
             title = { Text(stringResource(R.string.mobile_transfers_action_error_title)) },
-            text = { Text(stringResource(nonAddFailure.failure.mobileMessageResource())) },
+            text = { Text(nonAddFailure.failure.mobileMessage()) },
             confirmButton = {
                 TextButton(onClick = { onEvent(TransfersEvent.DismissMutationFailure) }) {
                     Text(stringResource(R.string.mobile_action_ok))
@@ -255,7 +280,7 @@ private fun MobileTransfersContent(
         is TransfersContent.Failed ->
             MobileErrorState(
                 title = stringResource(R.string.mobile_transfers_error_title),
-                message = stringResource(content.failure.mobileMessageResource()),
+                message = content.failure.mobileMessage(),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(TransfersEvent.RetryLoad) },
                 retryEnabled = interactionsEnabled,
@@ -338,9 +363,12 @@ private fun MobileTransferDetails(item: TransferItem, context: Context) {
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        if (item.hasError) {
+        val error =
+            item.errorMessage
+                ?: stringResource(R.string.mobile_transfer_error).takeIf { item.status == AppTransferStatus.Failed }
+        if (error != null) {
             Text(
-                text = stringResource(R.string.mobile_transfer_error),
+                text = error,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -377,7 +405,7 @@ private fun MobileTransferRowActions(
         AppTransferStatus.Failed -> {
             val retryLabel = stringResource(R.string.mobile_transfers_retry_named, item.name)
             TextButton(
-                onClick = { onConfirmation(TransferConfirmation.Retry(item.id, item.name)) },
+                onClick = { onEvent(TransfersEvent.RetryTransfer(item.id)) },
                 enabled = actionsEnabled,
                 modifier = Modifier.semantics { contentDescription = retryLabel },
             ) {
@@ -497,9 +525,12 @@ private fun MobileAddTransfer(
     state: TransfersState,
     onEvent: (TransfersEvent) -> Unit,
     enabled: Boolean,
+    filesRepository: FilesRepository?,
+    onFilesAuthenticationRequired: suspend () -> Unit,
 ) {
     val input by draft.state.collectAsStateWithLifecycle()
     val adding = (state.mutation as? TransferMutation.Running)?.action is TransferAction.Add
+    var choosingDestination by rememberSaveable { mutableStateOf(false) }
     Button(onClick = draft::open, enabled = enabled) {
         Text(stringResource(R.string.mobile_transfers_add))
     }
@@ -507,6 +538,14 @@ private fun MobileAddTransfer(
         val addFailure = (state.mutation as? TransferMutation.Failed)?.takeIf { it.action is TransferAction.Add }
         MobileAddTransferSheet(
             input = input.input,
+            torrent = input.torrent,
+            destination = input.destination,
+            onChooseDestination = filesRepository?.let { { choosingDestination = true } },
+            onResetDestination = { draft.chooseDestination(null) },
+            onRemoveTorrent = {
+                draft.removeTorrent()
+                if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
+            },
             validation = input.validation,
             failure = addFailure,
             adding = adding,
@@ -522,10 +561,21 @@ private fun MobileAddTransfer(
                 }
             },
             onSubmit = {
-                if (enabled) draft.validate()?.let { normalized ->
+                if (enabled) draft.validate()?.let { add ->
                     if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
-                    onEvent(TransfersEvent.Add(normalized))
+                    onEvent(add)
                 }
+            },
+        )
+    }
+    if (input.open && choosingDestination && filesRepository != null) {
+        MobileTransferDestinationPicker(
+            repository = filesRepository,
+            onAuthenticationRequired = onFilesAuthenticationRequired,
+            onDismiss = { choosingDestination = false },
+            onChoose = { folder ->
+                draft.chooseDestination(folder)
+                choosingDestination = false
             },
         )
     }
@@ -569,6 +619,11 @@ private fun MobileAddTransfer(
 @Composable
 private fun MobileAddTransferSheet(
     input: String,
+    torrent: TorrentUpload?,
+    destination: FilesFolder?,
+    onChooseDestination: (() -> Unit)?,
+    onResetDestination: () -> Unit,
+    onRemoveTorrent: () -> Unit,
     validation: MobileShareValidation?,
     failure: TransferMutation.Failed?,
     adding: Boolean,
@@ -593,7 +648,15 @@ private fun MobileAddTransferSheet(
                 text = stringResource(R.string.mobile_transfers_add_title),
                 style = MaterialTheme.typography.titleLarge,
             )
-            OutlinedTextField(
+            MobileTransferDestinationRow(destination, enabled = !adding, onChooseDestination, onResetDestination)
+            if (torrent != null) {
+                MobileTransferTorrentRow(torrent, enabled = !adding, onRemove = onRemoveTorrent)
+                val message = validation?.messageResource()?.let { stringResource(it) } ?: failure?.failure?.mobileMessage()
+                if (message != null) {
+                    Text(message, color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            } else OutlinedTextField(
                 value = input,
                 onValueChange = onInputChanged,
                 modifier = Modifier
@@ -605,18 +668,15 @@ private fun MobileAddTransferSheet(
                 placeholder = { Text(stringResource(R.string.mobile_transfers_add_placeholder)) },
                 supportingText = {
                     when {
-                        validation != null -> Text(stringResource(when (validation) {
-                            MobileShareValidation.InvalidLink -> R.string.mobile_transfers_add_invalid
-                            MobileShareValidation.MultipleLinks -> R.string.mobile_share_multiple_links
-                            MobileShareValidation.TooLong -> R.string.mobile_share_too_long
-                        }))
-                        failure != null -> Text(stringResource(failure.failure.mobileMessageResource()))
+                        validation != null -> Text(stringResource(validation.messageResource()))
+                        failure != null -> Text(failure.failure.mobileMessage())
+                        else -> Text(stringResource(R.string.mobile_transfers_add_help))
                     }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { if (submitEnabled) onSubmit() }),
                 minLines = 2,
-                maxLines = 4,
+                maxLines = 6,
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -660,20 +720,17 @@ private fun MobileTransferConfirmation(
     val title =
         when (confirmation) {
             is TransferConfirmation.Cancel -> stringResource(R.string.mobile_transfers_cancel_title)
-            is TransferConfirmation.Retry -> stringResource(R.string.mobile_transfers_retry_title)
             is TransferConfirmation.Clean -> stringResource(R.string.mobile_transfers_clean_title)
         }
     val message =
         when (confirmation) {
             is TransferConfirmation.Cancel ->
                 stringResource(R.string.mobile_transfers_cancel_message, confirmation.name)
-            is TransferConfirmation.Retry -> stringResource(R.string.mobile_transfers_retry_message, confirmation.name)
             is TransferConfirmation.Clean -> stringResource(R.string.mobile_transfers_clean_message)
         }
     val action =
         when (confirmation) {
             is TransferConfirmation.Cancel -> stringResource(R.string.mobile_transfers_cancel_confirm)
-            is TransferConfirmation.Retry -> stringResource(R.string.mobile_action_retry)
             is TransferConfirmation.Clean -> stringResource(R.string.mobile_transfers_clean_confirm)
         }
     AlertDialog(
@@ -686,6 +743,22 @@ private fun MobileTransferConfirmation(
         },
     )
 }
+
+@Composable
+private fun retryOutcomeMessage(outcome: TransferRetryOutcome): String =
+    when (outcome) {
+        is TransferRetryOutcome.Accepted -> stringResource(R.string.mobile_transfers_retry_accepted)
+        is TransferRetryOutcome.Failed ->
+            stringResource(
+                R.string.mobile_transfers_retry_failed,
+                // put.io answers 403 when the transfer has no error left to retry.
+                if (outcome.failure is FilesFailure.AccessDenied) {
+                    stringResource(R.string.mobile_transfers_retry_not_failed)
+                } else {
+                    outcome.failure.mobileMessage()
+                },
+            )
+    }
 
 @Composable
 private fun TransferItem.statusLabel(): String =
@@ -756,10 +829,6 @@ private sealed interface TransferConfirmation {
 
     data class Cancel(val id: TransferId, val name: String) : TransferConfirmation {
         override val event = TransfersEvent.Cancel(id)
-    }
-
-    data class Retry(val id: TransferId, val name: String) : TransferConfirmation {
-        override val event = TransfersEvent.RetryTransfer(id)
     }
 
     data object Clean : TransferConfirmation {

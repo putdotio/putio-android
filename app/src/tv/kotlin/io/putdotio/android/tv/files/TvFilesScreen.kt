@@ -58,6 +58,7 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesDeleteMode
+import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesDeleteStatus
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.pendingIntent
@@ -69,6 +70,7 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.files.canStartOperation
+import io.putdotio.android.files.items
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvDialog
 import androidx.compose.ui.input.key.Key
@@ -152,26 +154,30 @@ internal fun TvFilesScreen(
         return
     }
 
-    // The row whose actions are up, and whether its deletion is being confirmed. Both close
-    // when the row leaves the listing, like the unsupported overlay.
+    // The row whose actions are up, and whether its permanent deletion is being confirmed.
+    // Both close when the row leaves the listing, like the unsupported overlay.
     var actionsFor by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
-    // The trash mode the user chose, kept while the confirmation is up: the dialog and the
-    // event use it. A setting that changes underneath, or an operation the folder starts on
-    // its own (a reload after a restore), closes the confirmation rather than offering a
-    // Delete the reducer would refuse.
-    var confirmingDeleteTrash by rememberSaveable(sessionKey, current.folder.id.value) {
-        mutableStateOf<Boolean?>(null)
+    // Only permanent deletion confirms; Move to trash runs at once, as on web and iOS. Trash
+    // turning on underneath, or an operation the folder starts on its own (a reload after a
+    // restore), closes the confirmation rather than offering a Delete the reducer would refuse.
+    var confirmingPermanentDelete by rememberSaveable(sessionKey, current.folder.id.value) {
+        mutableStateOf(false)
     }
+    // A Move to trash press is sent after the next composition, against the latest Trash setting:
+    // a press made before a change to the setting reached the menu must not send TRASH, which
+    // the server applies as permanent deletion once Trash is off.
+    var trashPressed by remember(sessionKey, current.folder.id.value) { mutableStateOf(false) }
     val actionsItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == actionsFor }
     val actionsOrphaned = actionsFor != null && actionsItem == null
-    val confirmationStale = confirmingDeleteTrash != null &&
-        (confirmingDeleteTrash != confirmedTrashEnabled || !current.operation.canStartOperation)
+    val confirmationStale = confirmingPermanentDelete &&
+        (confirmedTrashEnabled != false || !current.operation.canStartOperation)
     SideEffect {
         if (actionsOrphaned) {
             actionsFor = null
-            confirmingDeleteTrash = null
+            confirmingPermanentDelete = false
+            trashPressed = false
         } else if (confirmationStale) {
-            confirmingDeleteTrash = null
+            confirmingPermanentDelete = false
         }
     }
     val dialogOpen = actionsItem != null || notice != null
@@ -221,7 +227,7 @@ internal fun TvFilesScreen(
             is FilesContent.Failed ->
                 TvStatusScreen(
                     title = stringResource(R.string.tv_error_title),
-                    message = stringResource(content.failure.tvMessage()),
+                    message = content.failure.tvMessageText(),
                     action = stringResource(R.string.tv_files_retry),
                     onAction = { onEvent(FilesBrowserEvent.Retry) },
                     modifier = Modifier.weight(1f),
@@ -281,18 +287,24 @@ internal fun TvFilesScreen(
     } else if (actionsItem != null) {
         val close = {
             actionsFor = null
-            confirmingDeleteTrash = null
+            confirmingPermanentDelete = false
+            trashPressed = false
         }
-        val confirmTrash = confirmingDeleteTrash
-        if (confirmTrash != null && !confirmationStale) {
+        val delete = { mode: FilesDeleteMode ->
+            close()
+            onEvent(FilesBrowserEvent.Delete(current.folder.id, actionsItem.id, mode))
+        }
+        if (trashPressed) {
+            val trashStillOn = confirmedTrashEnabled == true && current.operation.canStartOperation
+            SideEffect {
+                trashPressed = false
+                if (trashStillOn) delete(FilesDeleteMode.TRASH)
+            }
+        }
+        if (confirmingPermanentDelete && !confirmationStale) {
             TvFilesDeleteDialog(
                 item = actionsItem,
-                trash = confirmTrash,
-                onConfirm = {
-                    close()
-                    val mode = if (confirmTrash) FilesDeleteMode.TRASH else FilesDeleteMode.PERMANENT
-                    onEvent(FilesBrowserEvent.Delete(current.folder.id, actionsItem.id, mode))
-                },
+                onConfirm = { delete(FilesDeleteMode.PERMANENT) },
                 onDismiss = close,
             )
         } else {
@@ -313,7 +325,8 @@ internal fun TvFilesScreen(
                             close()
                             onSetWatched(actionsItem, action.watched)
                         }
-                        is TvFilesAction.Delete -> confirmingDeleteTrash = action.trash
+                        is TvFilesAction.Delete ->
+                            if (action.trash) trashPressed = true else confirmingPermanentDelete = true
                     }
                 },
                 onDismiss = close,
@@ -365,14 +378,69 @@ private fun TvFilesDeleteStatus(
             ),
             onAction = { onEvent(FilesBrowserEvent.Retry) },
         )
+        operation == FilesFolderOperation.Idle &&
+            current.deleteOutcome?.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH ->
+            TvFilesTrashLimitStatus(checkNotNull(current.deleteOutcome), current, onEvent)
         operation == FilesFolderOperation.Idle -> current.deleteOutcome?.let { outcome ->
             val message = when (outcome.status) {
                 FilesDeleteStatus.NO_LONGER_AVAILABLE -> R.string.tv_files_delete_unavailable
                 FilesDeleteStatus.STILL_PRESENT -> R.string.tv_files_delete_still_present
                 FilesDeleteStatus.SKIPPED -> R.string.tv_files_delete_skipped
-                FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN -> null
+                FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN, FilesDeleteStatus.TOO_LARGE_FOR_TRASH -> null
             }
             if (message != null) TvFilesNotice(text = stringResource(message, outcome.itemName))
+        }
+    }
+}
+
+/**
+ * A folder put.io would not send to trash stays with web's explanation and a Delete permanently
+ * action; only the confirmation dialog, which opens with Cancel focused, sends the permanent delete.
+ */
+@Composable
+private fun TvFilesTrashLimitStatus(
+    outcome: FilesDeleteOutcome,
+    current: FilesFolderState,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+) {
+    var confirming by rememberSaveable(outcome.requestId.value) { mutableStateOf(false) }
+    // A refresh that no longer lists the folder leaves nothing for the reducer to delete; a
+    // rename keeps the outcome, so the dialog names the folder as it is listed now.
+    val listed = current.content.items().firstOrNull { it.id == outcome.intent.itemId }
+    TvFilesNotice(
+        text = stringResource(R.string.tv_files_trash_limit_title),
+        action = stringResource(R.string.tv_files_action_delete).takeIf { listed != null },
+        onAction = { confirming = true },
+    )
+    if (confirming && listed != null) {
+        val close = { confirming = false }
+        val delete = FilesBrowserEvent.Delete(current.folder.id, listed.id, FilesDeleteMode.PERMANENT)
+        TvDialog(
+            title = stringResource(R.string.tv_files_trash_limit_title),
+            message = stringResource(R.string.tv_files_trash_limit_message),
+            onDismiss = close,
+            body = {
+                // Bounded like TvDialog's message so a long name cannot push the actions off screen.
+                Text(
+                    listed.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+        ) { focus ->
+            TvButton(
+                onClick = {
+                    close()
+                    onEvent(delete)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.tv_files_trash_limit_confirm))
+            }
+            TvButton(onClick = close, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
+                Text(stringResource(R.string.tv_files_cancel))
+            }
         }
     }
 }

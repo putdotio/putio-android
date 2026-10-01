@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -240,7 +241,7 @@ class TvPlayerProofTest {
     }
 
     @Test
-    fun resumeDialogContinueStartOverAndBackWithWriteBack() {
+    fun resumeDialogBackLeavesThenContinueAndStartOverWithWriteBack() {
         val server = ProofPositionServer(startFromSeconds = SAVED_SECONDS)
         val factory = mountFilesWithResume(server)
         compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
@@ -258,12 +259,23 @@ class TvPlayerProofTest {
         screenshot("21-resume-restart-focused")
         pause()
 
-        // Back dismisses the dialog and continues from the saved position.
+        // Back leaves playback without a player, as mobile's and tv-native's prompts do.
         press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(10_000) { compose.runOnIdle { controller == null } }
+        assertNull("No player after Back", factory.player)
+        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
+        compose.runOnIdle { assertTrue("Back writes nothing", server.writes.isEmpty()) }
+        elapse(DIALOG_EXIT_MILLIS)
+        screenshot("22-back-left-playback")
+        pause()
+
+        // Asked again, Continue plays from the saved position.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(CONTINUE_LABEL).fetchSemanticsNodes().isNotEmpty() }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { it.isPlaying && factory.renderedFrame && it.currentPosition >= SAVED_SECONDS * 1_000L }
-        assertNotNull("Back stays in playback", controller)
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
-        screenshot("22-back-continued")
+        screenshot("22b-continued")
 
         // Sixteen seconds of playback write once, not once per tick; leaving writes once more.
         elapse(POSITION_INTERVAL_MILLIS + 1_000L)
@@ -302,6 +314,61 @@ class TvPlayerProofTest {
         leavePlayback()
         compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
         screenshot("26-back-on-files-row")
+    }
+
+    @Test
+    fun aVideoFinishedWithinTenSecondsOfItsEndOpensAgainWithoutAsking() {
+        val server = ProofPositionServer(startFromSeconds = NEAR_END_SAVED_SECONDS)
+        val factory = mountFilesWithResume(server)
+        compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(NEAR_END_LABEL).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("90-near-end-prompt")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
+        screenshot("91-playing-to-the-end")
+
+        // Without autoplay the finished video leaves playback; its real end position is written.
+        compose.waitUntil(FIXTURE_SECONDS.toLong() * 1_000L) { compose.runOnIdle { controller == null } }
+        compose.waitUntil(10_000) {
+            compose.runOnIdle { (server.writes.lastOrNull() ?: 0.0) >= FIXTURE_SECONDS - 1.0 }
+        }
+        compose.onNodeWithContentDescription("Play $FIXTURE_TITLE").assertIsFocused()
+        screenshot("92-finished-back-on-the-row")
+        pause()
+
+        // Saved within 10 s of the end, it counts as finished: it starts over without asking.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.isPlaying && factory.renderedFrame }
+        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
+        compose.runOnIdle { assertTrue("Plays from the start", factory.current().currentPosition < 10_000L) }
+        screenshot("93-opened-from-the-start")
+        pause()
+        leavePlayback()
+    }
+
+    @Test
+    fun savedAudioContinuesWithoutAsking() {
+        val fixture = arguments.getString("putio.tv.player.audioFixture")
+        assumeTrue("Needs an audio fixture", fixture != null)
+        val server = ProofPositionServer(startFromSeconds = SAVED_SECONDS)
+        val factory = mountFilesWithResume(server, localSource(checkNotNull(fixture)), PlaybackMediaType.AUDIO)
+        compose.onNodeWithContentDescription("Open Documents").assertIsFocused()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.isPlaying && it.currentPosition >= SAVED_SECONDS * 1_000L }
+        compose.onAllNodesWithText(RESUME_PREFIX, substring = true).assertCountEquals(0)
+        compose.runOnIdle {
+            assertTrue(
+                "Continued from the saved position",
+                factory.current().currentPosition < (SAVED_SECONDS + 10) * 1_000L,
+            )
+        }
+        screenshot("95-audio-continued")
+        pause()
+        leavePlayback()
+        compose.onNodeWithContentDescription("Play $AUDIO_TITLE").assertIsFocused()
     }
 
     /**
@@ -720,8 +787,11 @@ class TvPlayerProofTest {
      * The Files listing on the real session route: a [PlaybackController] per play, resolving
      * the local fixture with [server]'s saved position, and TV write-back into [server].
      */
-    private fun mountFilesWithResume(server: ProofPositionServer): ProofPlayerFactory {
-        val source = localSource()
+    private fun mountFilesWithResume(
+        server: ProofPositionServer,
+        source: PlaybackSource = localSource(),
+        mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
+    ): ProofPlayerFactory {
         val factory = ProofPlayerFactory()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val repository = object : PlaybackRepository {
@@ -738,13 +808,17 @@ class TvPlayerProofTest {
             write = server::write,
             onSaved = { _, _ -> },
         )
-        val video = row(FIXTURE_FILE_ID, FIXTURE_TITLE, PutioFileType.VIDEO)
+        val media = if (mediaType == PlaybackMediaType.AUDIO) {
+            row(FIXTURE_FILE_ID, AUDIO_TITLE, PutioFileType.AUDIO)
+        } else {
+            row(FIXTURE_FILE_ID, FIXTURE_TITLE, PutioFileType.VIDEO)
+        }
         val files = FilesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
                     FilesContent.Ready(
-                        listOf(row(1, "Documents", PutioFileType.FOLDER), video, row(3, "notes.txt", PutioFileType.TEXT)),
+                        listOf(row(1, "Documents", PutioFileType.FOLDER), media, row(3, "notes.txt", PutioFileType.TEXT)),
                         FilesPaging.Complete,
                     ),
                 ),
@@ -779,7 +853,7 @@ class TvPlayerProofTest {
                                 onPlayMedia = { item ->
                                     reporting.startPlayback()
                                     controller = PlaybackController(
-                                        PlaybackTarget(item.id, item.name, PlaybackMediaType.VIDEO, FIXTURE_SECONDS),
+                                        PlaybackTarget(item.id, item.name, mediaType, FIXTURE_SECONDS),
                                         repository,
                                         scope,
                                     )
@@ -968,6 +1042,9 @@ class TvPlayerProofTest {
         const val ELAPSE_STEP_MILLIS = 100L
         const val FIXTURE_SECONDS = 90.0
         const val SAVED_SECONDS = 45.0
+        const val NEAR_END_SAVED_SECONDS = 70.0
+        const val NEAR_END_LABEL = "Continue playing from 01:10"
+        const val AUDIO_TITLE = "Harbor tune.m4a"
         const val POSITION_INTERVAL_MILLIS = 15_000L
         const val CONTINUE_LABEL = "Continue playing from 00:45"
         const val RESTART_LABEL = "Start from the beginning"

@@ -70,7 +70,7 @@ import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.paneSection
-import io.putdotio.android.tv.files.tvMessage
+import io.putdotio.android.tv.files.tvMessageText
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.first
@@ -157,7 +157,7 @@ internal fun TvTrashScreen(
         state.actionOutcome?.let { TvTrashActionOutcome(it, enabled, onEvent, owner) }
         loaded?.refreshFailure?.let { failure ->
             TvTrashNotice(
-                text = stringResource(R.string.tv_trash_refresh_error, stringResource(failure.tvMessage())),
+                text = stringResource(R.string.tv_trash_refresh_error, failure.tvMessageText()),
                 action = stringResource(R.string.tv_files_retry),
                 onAction = { onEvent(TrashEvent.Refresh) },
                 owner = owner,
@@ -178,7 +178,7 @@ internal fun TvTrashScreen(
                 }
                 TvStatusScreen(
                     title = stringResource(R.string.tv_trash_error_title),
-                    message = stringResource(content.failure.tvMessage()),
+                    message = content.failure.tvMessageText(),
                     action = stringResource(R.string.tv_files_retry),
                     onAction = { onEvent(TrashEvent.Retry) },
                     modifier = Modifier.paneSection(owner, retryFocus).weight(1f),
@@ -198,6 +198,12 @@ internal fun TvTrashScreen(
                         entryTarget.value = listFocus
                         onDispose {}
                     }
+                    Text(
+                        text = stringResource(R.string.tv_trash_info),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
                     TvTrashList(
                         content = content,
                         // A row with nothing the controller allows right now has no dialog to offer.
@@ -350,13 +356,13 @@ private fun TvTrashRestoreOutcome(
         outcome.check == TrashRestoreCheck.CHECKING -> stringResource(R.string.tv_trash_checking)
         outcome.check == TrashRestoreCheck.UNAVAILABLE -> stringResource(R.string.tv_trash_restore_not_available, name)
         outcome.check == TrashRestoreCheck.FAILED && outcome.checkFailure != null ->
-            stringResource(outcome.checkFailure.tvMessage())
+            outcome.checkFailure.tvMessageText()
         else -> when (outcome.submission) {
             TrashRestoreSubmission.SUBMITTING -> stringResource(R.string.tv_trash_submitting)
             TrashRestoreSubmission.ACKNOWLEDGED -> stringResource(R.string.tv_trash_restore_started, name)
             TrashRestoreSubmission.UNCERTAIN -> stringResource(R.string.tv_trash_restore_uncertain, name)
             TrashRestoreSubmission.REJECTED -> stringResource(R.string.tv_trash_restore_rejected, name) +
-                (outcome.submissionFailure?.let { " " + stringResource(it.tvMessage()) } ?: "")
+                (outcome.submissionFailure?.let { " " + it.tvMessageText() } ?: "")
         }
     }
     TvTrashOutcomeNotice(
@@ -407,7 +413,7 @@ private fun TrashActionOutcome.tvText(): String {
             TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_inconclusive)
             TrashAction.Empty -> stringResource(R.string.tv_trash_empty_inconclusive)
         }
-        check == TrashActionCheck.FAILED -> checkFailure?.let { stringResource(it.tvMessage()) }
+        check == TrashActionCheck.FAILED -> checkFailure?.let { it.tvMessageText() }
             ?: when (action) {
                 is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_still_present, name)
                 else -> stringResource(R.string.tv_trash_empty_still_present)
@@ -421,7 +427,7 @@ private fun TrashActionOutcome.tvText(): String {
             }
             TrashActionSubmission.UNCERTAIN -> stringResource(R.string.tv_trash_action_uncertain)
             TrashActionSubmission.REJECTED -> stringResource(R.string.tv_trash_action_rejected) +
-                (submissionFailure?.let { " " + stringResource(it.tvMessage()) } ?: "")
+                (submissionFailure?.let { " " + it.tvMessageText() } ?: "")
         }
     }
 }

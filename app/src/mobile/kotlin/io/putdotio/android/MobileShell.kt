@@ -58,7 +58,7 @@ import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MobileFilesSortMenu
-import io.putdotio.android.files.mobileMessageResource
+import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.files.pendingDelete
 import io.putdotio.android.files.pendingMove
 import io.putdotio.android.history.HistoryContent
@@ -194,10 +194,7 @@ internal fun MobileShell(
             }
             MobileDeepLink.Transfers -> navController.navigateTo(MobileDestination.Transfers)
             MobileDeepLink.Search, MobileDeepLink.History -> navController.navigateTo(MobileDestination.Search)
-            MobileDeepLink.Trash -> {
-                navController.navigateTo(MobileDestination.Account)
-                navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true }
-            }
+            MobileDeepLink.Trash -> navController.navigateToTrash()
             MobileDeepLink.Downloads -> {
                 navController.navigateTo(MobileDestination.Account)
                 navController.navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true }
@@ -327,8 +324,7 @@ internal fun MobileShell(
         if (isTrash || isDownloads) {
             navController.popBackStack()
         } else {
-            navController.navigateTo(MobileDestination.Account)
-            navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true }
+            navController.navigateToTrash()
         }
     }
 
@@ -412,7 +408,7 @@ private fun MobileNavigationAlerts(
         androidx.compose.material3.AlertDialog(
             onDismissRequest = onDismissNavigationFailure,
             title = { Text(stringResource(R.string.mobile_navigation_error_title)) },
-            text = { Text(stringResource(navigationFailure.mobileMessageResource())) },
+            text = { Text(navigationFailure.mobileMessage()) },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = onDismissNavigationFailure) {
                     Text(stringResource(R.string.mobile_action_ok))
@@ -424,7 +420,7 @@ private fun MobileNavigationAlerts(
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { onTransfersEvent(TransfersEvent.DismissNavigationFailure) },
             title = { Text(stringResource(R.string.mobile_navigation_error_title)) },
-            text = { Text(stringResource(failed.failure.mobileMessageResource())) },
+            text = { Text(failed.failure.mobileMessage()) },
             confirmButton = {
                 androidx.compose.material3.TextButton(
                     onClick = { onTransfersEvent(TransfersEvent.DismissNavigationFailure) },

@@ -61,7 +61,7 @@ import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.paneSection
-import io.putdotio.android.tv.files.tvMessage
+import io.putdotio.android.tv.files.tvMessageText
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
@@ -154,7 +154,7 @@ internal fun TvHistoryScreen(
                 text = if (notice == FilesFailure.NavigationBlocked) {
                     stringResource(R.string.tv_error_navigation_blocked)
                 } else {
-                    stringResource(R.string.tv_history_open_error, stringResource(notice.tvMessage()))
+                    stringResource(R.string.tv_history_open_error, notice.tvMessageText())
                 },
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
@@ -165,7 +165,11 @@ internal fun TvHistoryScreen(
             HistoryContent.Disabled ->
                 TvStatusScreen(
                     title = stringResource(R.string.tv_history_disabled_title),
-                    message = stringResource(R.string.tv_history_disabled_message),
+                    message = stringResource(
+                        R.string.tv_history_disabled_message,
+                        stringResource(R.string.tv_account_history_enabled),
+                        stringResource(R.string.tv_destination_account),
+                    ),
                     modifier = Modifier.weight(1f),
                 )
             is HistoryContent.Loading ->
@@ -179,7 +183,7 @@ internal fun TvHistoryScreen(
                 }
                 TvStatusScreen(
                     title = stringResource(R.string.tv_history_error_title),
-                    message = stringResource(content.failure.tvMessage()),
+                    message = content.failure.tvMessageText(),
                     action = stringResource(R.string.tv_files_retry),
                     onAction = { onEvent(HistoryEvent.Retry) },
                     modifier = Modifier.paneSection(owner, retryFocus).weight(1f),
@@ -405,11 +409,13 @@ private fun TvHistoryRow(
     onOpen: (HistoryFileId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The session keeps only shared files and completed transfers (isShownOnTv).
     val title = when (val kind = item.kind) {
-        is HistoryEventKind.File -> kind.name ?: stringResource(R.string.tv_history_file)
         is HistoryEventKind.Transfer -> kind.name ?: stringResource(R.string.tv_history_transfer)
-        is HistoryEventKind.Other -> kind.title ?: kind.type
-    }
+        is HistoryEventKind.File -> kind.name
+        is HistoryEventKind.Notice -> kind.subject
+        is HistoryEventKind.Other -> null
+    } ?: stringResource(R.string.tv_history_file)
     val fileId = item.kind.navigableFileId()
     // An event without a file is still a row the D-pad can rest on; Center does nothing there.
     val label = if (fileId == null) title else stringResource(R.string.tv_history_open_file, title)

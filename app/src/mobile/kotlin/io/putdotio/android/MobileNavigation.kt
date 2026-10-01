@@ -63,7 +63,7 @@ import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
 
-internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}&media={media}"
+internal const val MOBILE_PLAYBACK_ROUTE = "playback/{fileId}?name={name}&media={media}&duration={duration}"
 
 @Composable
 internal fun MobileNavHost(
@@ -117,6 +117,7 @@ internal fun MobileNavHost(
                     { item -> controller.dispatch(DownloadsEvent.Start(item.toDownloadRequest())) }
                 },
                 onShareItem = onShareItem,
+                onViewTrash = trashController?.let { { navController.navigateToTrash() } },
             )
         }
         composable(MobileDestination.Search.route) {
@@ -143,6 +144,8 @@ internal fun MobileNavHost(
                 state = currentTransfersState,
                 onEvent = eventHandler,
                 sessionId = currentTransfersSessionId,
+                filesRepository = filesRepository,
+                onFilesAuthenticationRequired = onFilesAuthenticationRequired,
             )
         }
         composable(MobileDestination.Account.route) {
@@ -192,6 +195,11 @@ internal fun MobileNavHost(
                         type = NavType.StringType
                         defaultValue = PlaybackMediaType.VIDEO.name
                     },
+                    navArgument("duration") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    },
                 ),
         ) { backStackEntry ->
             val fileId = requireNotNull(backStackEntry.arguments?.getLong("fileId"))
@@ -200,7 +208,10 @@ internal fun MobileNavHost(
                 PlaybackMediaType.entries.firstOrNull { it.name == backStackEntry.arguments?.getString("media") }
                     ?: PlaybackMediaType.VIDEO
             val subtitleStartupPolicy = accountSettingsState.subtitleStartupPolicy()
-            val target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name, mediaType)
+            // The listing's duration spares resolution a lookup for the near-end rule.
+            val durationSeconds = backStackEntry.arguments?.getString("duration")?.toDoubleOrNull()
+                ?.takeIf { it.isFinite() && it > 0.0 }
+            val target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name, mediaType, durationSeconds)
             val playbackViewModel: MobilePlaybackViewModel =
                 viewModel(
                     viewModelStoreOwner = backStackEntry,
@@ -284,9 +295,15 @@ internal fun NavHostController.navigateTo(destination: MobileDestination) {
     }
 }
 
+/** Trash lives under Account, so Back from it lands on Account wherever it was opened from. */
+internal fun NavHostController.navigateToTrash() {
+    navigateTo(MobileDestination.Account)
+    navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true }
+}
+
 internal fun NavHostController.navigateToPlayback(item: FilesItem, replaceCurrentPlayback: Boolean = false) {
     val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
-    navigateToPlayback(item.id, item.name, mediaType, replaceCurrentPlayback)
+    navigateToPlayback(item.id, item.name, mediaType, replaceCurrentPlayback, item.playback?.durationSeconds)
 }
 
 internal fun NavHostController.navigateToPlayback(
@@ -294,8 +311,10 @@ internal fun NavHostController.navigateToPlayback(
     name: String,
     mediaType: PlaybackMediaType,
     replaceCurrentPlayback: Boolean = false,
+    durationSeconds: Double? = null,
 ) {
-    navigate("playback/${fileId.value}?name=${Uri.encode(name)}&media=${mediaType.name}") {
+    val duration = durationSeconds?.let { "&duration=$it" }.orEmpty()
+    navigate("playback/${fileId.value}?name=${Uri.encode(name)}&media=${mediaType.name}$duration") {
         if (replaceCurrentPlayback) popUpTo(MOBILE_PLAYBACK_ROUTE) { inclusive = true }
     }
 }

@@ -19,7 +19,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable
-internal fun MobileVideoWindow(fileId: Long, landscape: Boolean = true) {
+internal fun MobileVideoWindow(fileId: Long, landscape: Boolean) {
     val activity = LocalActivity.current ?: return
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val configuration = LocalConfiguration.current

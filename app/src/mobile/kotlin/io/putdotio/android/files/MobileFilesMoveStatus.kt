@@ -38,7 +38,7 @@ internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome) {
             )
             if (outcome.status != FilesMoveStatus.MOVED) {
                 outcome.failure?.let {
-                    Text(stringResource(it.mobileMessageResource()), color = MaterialTheme.colorScheme.error,
+                    Text(it.mobileMessage(), color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium)
                 }
             }

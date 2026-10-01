@@ -1,6 +1,7 @@
 package io.putdotio.android.tv
 
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
@@ -14,12 +15,18 @@ import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.files.StubFilesRepository
+import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventId
+import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
+import io.putdotio.android.history.HistoryItem
+import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPage
+import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.history.HistoryRepositoryResult
+import io.putdotio.android.history.HistoryTransferId
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
@@ -85,12 +92,21 @@ class TvSessionViewModelTest {
     /** Listing an item's own id returns it as the parent, as the API does for a file. */
     private val listedItems = mutableMapOf<FilesItemId, FilesItem>()
     private val heldListings = mutableMapOf<FilesItemId, CompletableDeferred<Unit>>()
+    private var historyItems = emptyList<HistoryItem>()
+    /** The root listing's pages, continued by `page-N` cursors; empty lists an empty root. */
+    private var rootPages = emptyList<FilesPage>()
     private val dependencies = TvSessionDependencies(
         filesRepository = object : StubFilesRepository() {
             override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
                 heldListings[folderId]?.await()
+                rootPages.firstOrNull()?.takeIf { folderId == FilesFolder.Root.id }?.let {
+                    return FilesRepositoryResult.Success(it)
+                }
                 return FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = listedItems[folderId]))
             }
+
+            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
+                FilesRepositoryResult.Success(rootPages[cursor.value.removePrefix("page-").toInt()])
         },
         searchRepository = object : SearchRepository {
             override suspend fun search(term: SearchTerm) =
@@ -100,7 +116,7 @@ class TvSessionViewModelTest {
         },
         historyRepository = object : HistoryRepository {
             override suspend fun load(before: HistoryEventId?) =
-                HistoryRepositoryResult.Success(HistoryPage(emptyList(), hasMore = false))
+                HistoryRepositoryResult.Success(HistoryPage(historyItems, hasMore = false))
 
             override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
         },
@@ -164,6 +180,43 @@ class TvSessionViewModelTest {
 
         assertEquals("resolved-55", session.historyOpens.first().name)
         assertNull(session.historyOpenFailure.value)
+    }
+
+    @Test
+    fun `History lists only shared files and completed transfers, as tv-native does`() {
+        // tv-native filters on the event type, so a share without a file id stays listed.
+        val sharedWithoutFile = HistoryItem(
+            HistoryEventId(5),
+            "2026-09-12T11:00:00",
+            HistoryEventKind.File(id = null, name = "Removed share.mp4"),
+        )
+        val shared = HistoryItem(
+            HistoryEventId(4),
+            "2026-09-12T10:00:00",
+            HistoryEventKind.File(HistoryFileId(40), "Harbor film.mp4"),
+        )
+        val completed = HistoryItem(
+            HistoryEventId(2),
+            "2026-09-12T09:00:00",
+            HistoryEventKind.Transfer(HistoryTransferId(20), HistoryFileId(21), "Sample folder"),
+        )
+        historyItems = listOf(
+            sharedWithoutFile,
+            shared,
+            HistoryItem(
+                HistoryEventId(3),
+                "2026-09-12T09:30:00",
+                HistoryEventKind.Notice(HistoryNoticeType.Upload, "clip.mp4"),
+            ),
+            completed,
+            HistoryItem(HistoryEventId(1), "2026-09-12T08:00:00", HistoryEventKind.Other("zip_created")),
+        )
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        assertEquals(
+            HistoryContent.Ready(listOf(sharedWithoutFile, shared, completed), HistoryPaging.Complete),
+            session.history.state.value.content,
+        )
     }
 
     @Test
@@ -310,6 +363,29 @@ class TvSessionViewModelTest {
 
         session.stopPlayback()
         assertEquals(10L, session.filesFocusMemory[0L])
+    }
+
+    @Test
+    fun `leaving a video autoplay moved on to beyond the loaded rows reads on to that row`() {
+        rootPages = (0 until 3).map { page ->
+            FilesPage(
+                items = (1L..50L).map { media(page * 100L + it, "Harbor film ${page * 100L + it}.mp4", PutioFileType.VIDEO) },
+                nextCursor = FilesCursor("page-${page + 1}").takeIf { page < 2 },
+            )
+        }
+        playbackRepository.next[FilesItemId(9)] = PlaybackTarget(FilesItemId(203), "Harbor film 203.mp4")
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        assertEquals(50, (session.files.state.value.current.content as FilesContent.Ready).items.size)
+
+        session.play(media(9, "Harbor film 9.mp4", PutioFileType.VIDEO))
+        val playback = checkNotNull(session.playback.value)
+        assertTrue(playback.dispatch(PlaybackEvent.PlayerEnded))
+        session.stopPlayback()
+
+        assertEquals(203L, session.filesFocusMemory[0L])
+        val content = session.files.state.value.current.content as FilesContent.Ready
+        assertEquals(150, content.items.size)
+        assertEquals(102, content.viewport.firstVisibleItemIndex)
     }
 
     @Test

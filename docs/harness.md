@@ -418,8 +418,10 @@ by CLI preflight.
 
 `AuthenticatedFilesDeleteTest#authenticatedDeletePreservesSessionAndCancel`
 exercises the current confirmed account mode: browse an empty fixture folder,
-sort its parent, cancel one named action, and confirm another. It checks the
-exact item through the SDK and verifies Trash membership when appropriate.
+sort its parent, cancel one named action, and confirm another. With Trash on,
+Move to trash has no confirmation: cancelling means leaving the actions sheet,
+which sends nothing, and the confirmed move shows the "Moved to Trash" snackbar.
+It checks the exact item through the SDK and verifies Trash membership when appropriate.
 It never changes the account's Trash setting. A passing run covers only the
 mode recorded in its fixture; folder descendant completion is outside this test.
 
@@ -438,10 +440,13 @@ item separately: removing its active parent does not remove its Trash entry.
 Clean only exact owned IDs; never empty Trash or use ID zero. Preserve fixtures
 when guest activity or cleanup outcomes remain unknown.
 
-The separately opted-in
-`FilesDeleteRecoveryUiProofTest#uncertainDeleteKeepsItemAndOffersStatusCheck`
-uses `putio.delete.ui.enabled=true` and the same run ID to capture controlled
-error UI without API calls. Both tests write screenshots to the
+The separately opted-in `FilesDeleteRecoveryUiProofTest` uses
+`putio.delete.ui.enabled=true` and the same run ID to capture controlled
+error UI without API calls: `uncertainDeleteKeepsItemAndOffersStatusCheck`
+for Check status recovery, and `folderTooLargeForTrashOffersConfirmedPermanentDelete`
+for a folder over the Trash limit (`synthetic-trash-limit*.png`: the line,
+the confirmation, and the result after its Delete). These tests and
+`AuthenticatedFilesDeleteTest` write screenshots to the
 `delete-proof-<UUID>/` run directory.
 
 `FilesDeleteNavigationUiProofTest#rejectedSearchAndTransferNavigationPreserveRecovery`
@@ -451,6 +456,18 @@ Delete recovery; after Check status reconciles the item, a fresh transfer open
 succeeds. It makes no API calls and captures `synthetic-navigation.png` under
 the same screenshot directory. Invoke this exact named test separately when
 refreshing shell navigation proof; it requires no live fixtures.
+
+## Files trash and paging proof
+
+Behaviour: [Files delete and paging](./behavior.md#files-delete-and-paging).
+`MobileFilesTrashPagingProofTest` runs the production Files screen and
+controller over an in-memory repository with 120 rows in 50-row pages and Trash
+on. It makes no API calls; report it as synthetic proof. Opt in with
+`putio.files.enabled=true` and `putio.files.runId=<UUID>` and require
+`OK (1 test)`. Screenshots land in `files-proof-<UUID>/`: `01-first-page`,
+`02-actions`, `03-moved-to-trash` (no confirmation, snackbar with View Trash
+and no Undo), `04-second-page-loaded` and `05-last-page` (pages that arrived by
+scrolling, no Load more).
 
 ## Authenticated Move device test
 
@@ -588,13 +605,20 @@ row, Center to play, Center to pause and resume, Back to hide the controls and
 Back to the row. `dpadScrubbingAndBackWalkTheOverlayStack`: Right twice to
 scrub, Center to commit, rewind then Back to dismiss seek mode, Back to hide
 the playing controls, Center then Back to hide the paused controls, and Back
-to the row. `resumeDialogContinueStartOverAndBackWithWriteBack` runs the real
+to the row. `resumeDialogBackLeavesThenContinueAndStartOverWithWriteBack` runs the real
 session route (a `PlaybackController` per play and TV write-back) against a
 fake position server that starts at 45 s: Center shows the resume dialog with
-Continue focused, Down focuses Start from the beginning, Back continues from
-45 s, 16 s of playback write once, leaving writes once more, then Start from
-the beginning plays from zero and Continue resumes from what that playback
-saved. `languageSubtitlesAndSpeedPickersJoinTheBackStack` needs the
+Continue focused, Down focuses Start from the beginning, Back leaves playback
+without a player or a write, Center then Continue plays from 45 s, 16 s of
+playback write once, leaving writes once more, then Start from the beginning
+plays from zero and Continue resumes from what that playback saved.
+`aVideoFinishedWithinTenSecondsOfItsEndOpensAgainWithoutAsking` starts the
+server at 70 s: Continue plays to the end, playback leaves, the last write is the
+real end (at least 89 s), and Center plays again from the start without the
+dialog.
+`savedAudioContinuesWithoutAsking` runs only with `putio.tv.player.audioFixture`:
+an audio row with a 45 s saved position plays from it without the dialog.
+`languageSubtitlesAndSpeedPickersJoinTheBackStack` needs the
 multi-track fixture below and automatic subtitles: Down then Up to Language,
 Center, Down, Center switches to the second audio track; Right, Center, Up,
 Center turns subtitles off; Down, Right, Center seeks and subtitles stay off;
@@ -642,10 +666,13 @@ for f in hls/video/media*.vtt; do sed 's/TV proof subtitle/Account default subti
 sed -e 's|^#EXT-X-MEDIA:TYPE=SUBTITLES,.*|#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="Deutsch",DEFAULT=YES,AUTOSELECT=YES,LANGUAGE="de",URI="subs-de/media_vtt.m3u8"\
 #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",DEFAULT=NO,AUTOSELECT=NO,LANGUAGE="en",URI="video/media_vtt.m3u8"|' \
   hls/index.m3u8 > hls/default-subtitle.m3u8
+# The audio flow: a 90 s AAC file.
+ffmpeg -f lavfi -i sine=frequency=440:duration=90 -c:a aac hls/audio.m4a
 adb -s emulator-5554 push hls/. /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/
 adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.player.TvPlayerProofTest \
   -e putio.tv.player.enabled true -e putio.tv.player.runId "$(uuidgen)" \
   -e putio.tv.player.fixture /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/index.m3u8 \
+  -e putio.tv.player.audioFixture /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/audio.m4a \
   -e putio.tv.player.defaultSubtitleFixture /sdcard/Android/data/io.put.putio.debug/files/tv-player-fixture/default-subtitle.m3u8 \
   io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
 ```
@@ -659,8 +686,10 @@ playing with controls, playing clean, paused, back on the row) and `10`–`18`
 for the second (clean, seek mode, committed, rewind seek mode, seek dismissed,
 controls dismissed, paused controls, paused clean, back on the row), and
 `20`–`26` for the third (Continue focused, Start from the beginning focused,
-continued after Back, started over, the dialog after starting over, continued,
-back on the row), and `30`–`41` for the fourth (automatic subtitles, Language
+back on the row after Back, `22b` continued, started over, the dialog after
+starting over, continued, back on the row), `90`–`93` for the near-end flow
+(the prompt, playing to the end, back on the row, opened from the start), `95`
+for the audio flow, and `30`–`41` for the fourth (automatic subtitles, Language
 focused, the audio picker, the second track, the subtitle picker, subtitles
 off, still off after a seek, the speed picker, the picker dismissed, 1.5×,
 controls dismissed, back on the row), and `49`–`60` for the fifth (starting, in queue,
@@ -677,8 +706,9 @@ screenshot directories afterwards.
 Behaviour: [TV playback](./behavior.md#tv-playback). `TvAutoplayProofTest`
 (`androidTestTv`) mounts the production TV session and signed-in shell on fake
 repositories for an account with Autoplay next video and resume on, and plays a
-caller-owned 12 s local video for each Files row: Center on the first video, it
-plays to its end, its end position is written, the next video in the folder
+caller-owned 30 s local video for each Files row (long enough that 00:05 is not
+within 10 s of the end, which would count as finished): Center on the first
+video, it plays to its end, its end position is written, the next video in the folder
 asks to continue from 00:05, Center continues, Back twice returns to Files with
 the autoplayed row focused, and Center plays it again to its end, after which
 playback leaves (the folder's last video) back on that row. A second case turns
@@ -691,7 +721,7 @@ it into its own files directory.
 ./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
 adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
 adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
-ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=12 -f lavfi -i sine=frequency=440:duration=12 \
+ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=30 -f lavfi -i sine=frequency=440:duration=30 \
   -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest tv-autoplay-proof.mp4
 adb -s emulator-5554 push tv-autoplay-proof.mp4 /data/local/tmp/tv-autoplay-proof.mp4
 adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvAutoplayProofTest \
@@ -757,6 +787,32 @@ the results after slow typing with nothing kept, `03` the opened result kept,
 with nothing kept, `08` Settings while off, `09` kept again once on. Remove
 the screenshot directory afterwards.
 
+## Copy proof
+
+Behaviour: [History events](./behavior.md#history-events),
+[Storage quota](./behavior.md#storage-quota), [Trash](./behavior.md#trash).
+`MobileCopyProofTest` (`androidTestMobile`) mounts mobile History, Account and
+Trash on controlled state; `TvCopyProofTest` (`androidTestTv`) mounts the
+production TV session and signed-in shell on fake repositories whose History
+mixes every kind of event. Neither makes API calls, so report them as
+controlled-state proof.
+
+```bash
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.MobileCopyProofTest \
+  -e putio.copy.enabled true -e putio.copy.runId "$(uuidgen)" \
+  io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvCopyProofTest \
+  -e putio.tv.copy.enabled true -e putio.tv.copy.runId "$(uuidgen)" \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Mobile screenshots go to `copy-proof-<UUID>/`: `01` History after asserting
+each event's copy, `02` history off, `03` and `04` the quota used and free,
+`05` and `06` Trash with items and empty. TV screenshots go to `tv-copy-proof-<UUID>/`: `01` History
+with only the shared file and completed transfer, `02` the quota used, `03`
+Trash's retention line, `04` history off, `05` the quota free. Remove the
+screenshot directories afterwards.
+
 ## TV Search and History opens proof
 
 Behaviour: [History opens](./behavior.md#timestamps-and-history-opens).
@@ -800,9 +856,18 @@ it with the same instrument command, selecting the method with `#` and dropping
 `-e putio.tv.open.fixture`. Screenshots `10`–`21` go to the same
 `tv-open-proof-<UUID>/` directory.
 
+`TvExternalOpenProofTest#aPickOnALaterPageOfItsFolderOpensFocusedOnIt` proves
+the reveal beyond the first page on the same shell, also without a fixture:
+Sample folder lists 3 pages of 50 rows, each later page served after 1.5 s,
+with the picked document on the third. Center shows the folder loading (`23`),
+Back during it returns to the result with the folder gone (`24`), and Center
+again opens the folder focused on the document (`25`) with the row above it
+loaded (`26`).
+
 ## TV History proof
 
-History is the third drawer destination. Focus enters on the first event row;
+History is the third drawer destination and, as in tv-native, lists only
+shared files and completed transfers. Focus enters on the first event row;
 Up from it reaches Clear, Left from anything returns to the drawer. Rows are
 grouped under Today, Yesterday, Last week, Last month, and Earlier, and show
 the event's kind with its relative time, or its date once it is more than a
@@ -815,9 +880,10 @@ with mobile and the web, so only clear on a proof account:
 adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc="Open [^"]+"' | head
 ```
 
-The pane is disabled when the account's `history_enabled` setting is off; the
-mobile Account screen toggles it, and the TV pane follows on the next session
-validation.
+The pane is disabled when the account's `history_enabled` setting is off and
+names Account's Keep account history switch. TV's own Account toggle flips the
+pane as soon as the setting is confirmed; a change made on mobile or the web
+reaches it on the next session validation.
 
 ## TV Files actions proof
 
@@ -834,7 +900,8 @@ dialog explains when VLC is not installed. Mark as watched writes the video's
 duration as its position and Mark as unwatched clears it; both appear only
 when the account's `use_start_from` is confirmed on, and marking watched also
 needs a known duration. Move to trash or Delete permanently follows the
-confirmed `trash_enabled` setting, confirms with Cancel focused, then runs the
+confirmed `trash_enabled` setting. Move to trash runs at once; Delete
+permanently confirms with Cancel focused. Either then runs the
 shared delete operation: its phases, Check status or Retry on failure, and the
 fresh listing's verdict show above the rows. Every dialog returns focus to
 its row. The shared identity's files are the fixture, so create a throwaway
@@ -846,8 +913,9 @@ PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation files.getStartFrom --args
 
 ## TV Account proof
 
-Account per oracle captures 09–12 and 14: the avatar, username, "X of Y free"
-bar and Sign out button in the header, then Playback settings, Storage
+Account per oracle captures 09–12 and 14: the avatar, username, quota bar
+("X of Y free" with `show_optimistic_usage` on, "X of Y used" otherwise) and
+Sign out button in the header, then Playback settings, Storage
 settings and App and device information as full-width rows, with Sign out as
 the final row. Focus enters on Choose your proxy once account settings load,
 and on the header's Sign out until then. Switches save through the shared
@@ -873,7 +941,7 @@ row reaches Refresh, Restore all, and Empty trash. Center on a row opens a
 choice dialog with Restore and Delete permanently; every mutation confirms
 in a centred dialog with focus on Cancel, then reports above the list with
 Check status or Check trash until the fresh listing confirms it. Restores
-invalidate the Files cache like mobile. The empty state carries the oracle's
+invalidate the Files cache like mobile. The list and the empty state carry web's
 14-day copy. Trash contents are the shared test identity's, so list the
 items before a proof and never confirm a mutation you have not fixtured:
 
@@ -988,6 +1056,12 @@ without losing the test's injected composition. It verifies a portrait window
 with visible system bars becomes landscape with both bars hidden, and Back restores
 the original orientation and bar visibility. Saved-state recreation uses Compose's
 `StateRestorationTester`; this does not claim full Activity or process recreation.
+`portraitVideoKeepsAnUnlockedPortraitWindow` runs only with
+`putio.video.fullscreen.portraitFixture` (any portrait MP4 under the same
+directory, for example `ffmpeg -f lavfi -i testsrc2=size=720x1280:rate=30:duration=20
+-f lavfi -i sine=duration=20 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest portrait.mp4`): from an
+unlocked portrait window, the video plays full-screen in portrait with the bars
+hidden and no orientation request, and Back restores the bars.
 
 Required arguments are:
 
@@ -1006,12 +1080,15 @@ The proof opens the direct Audio, Captions and speed controls, selects the secon
 audio track, 1.5× and the caption track, then verifies selected tracks and actual
 cue text survive saved-state recreation. It checks Off clears the cues and Automatic
 restores them. It does not initialize authentication, use an API fixture, clear
-account storage, or stop a preexisting audio service; its player factory uses the
-production private video player with the service-stop hook disabled.
+account storage, or stop a preexisting audio service; its player factory builds
+an ExoPlayer with the production renderers and audio attributes, because the
+production private video player streams through the download cache's HTTP source,
+which cannot read a local file, and disables the service-stop hook.
 
 Screenshots go to `fullscreen-video-proof-<UUID>/`: initial landscape controls,
 selected captions, the speed/audio/captions sheets, restored selections,
-Automatic captions and the restored portrait window.
+Automatic captions and the restored portrait window, plus the portrait video's
+window and controls.
 
 The local Sintel fixture derives from the Blender Foundation's
 [720p trailer](https://download.blender.org/durian/trailer/sintel_trailer-720p.mp4),
@@ -1030,8 +1107,31 @@ confirmation. Follow the existing session-preserving installation and fixture
 cleanup rules. The controlled `MobileShellAccessibilityProofTest` also exercises
 both replacement choices at 200% font size in portrait and landscape, checks the
 entire confirmation message is reachable, and asserts that choosing a draft
-submits no transfer. The share proof captures the "Transfer added" snackbar
+submits no transfer. The share proof captures the "1 transfer added" snackbar
 after a successful Add.
+
+Magnet and torrent intake need no account to prove the boundary: with the debug
+app in any controlled state, open a fake magnet and confirm the sheet shows it
+unsubmitted (signed out, it appears after sign-in):
+
+```bash
+adb shell am start -a android.intent.action.VIEW \
+  -d 'magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Harbor%20film' \
+  -p io.put.putio.mobile.debug
+```
+
+`MobileTransferIntakeProofTest` then proves the sheet without an account: the
+same magnet VIEW intent launches the production `MainActivity`, and its draft
+drives the production Transfers screen and controller over
+`SdkTransfersRepository` with faked SDK calls and a fake Files repository
+holding "Sample folder". It makes no API calls; report it as synthetic proof.
+Opt in with `putio.transfers.enabled=true` and `putio.transfers.runId=<UUID>`
+and require `OK (1 test)`. Screenshots land in `transfer-intake-proof-<UUID>/`:
+`01-magnet-draft-unsubmitted`, `02-save-to-picker`, `03-save-to-sample-folder`,
+`04-magnet-added` (the add carried `save_parent_id`), `05-refused-link-kept`
+(add-multi refused one of two links) and `06-torrent-draft`; the test then adds
+the torrent and checks the upload sends `torrent=true` and the folder.
+`MainActivityShareTest` covers the `.torrent` content-URI read on the JVM.
 
 ## Mobile share-out and deep links proof
 
@@ -1101,13 +1201,50 @@ Screenshots land in the `downloads-progress-proof-<UUID>/` run directory.
 ## Shared-with-me items proof
 
 Behaviour: [Shared-with-me items](./behavior.md#shared-with-me-items).
-`MobileSharedItemsProofTest` mounts the production Files screen on a synthetic
-root listing the shared root, a friend folder, a shared folder, a shared video
-and an owned video. It makes no API calls; report it as synthetic proof. Opt in
-with `putio.shared.enabled=true` and `putio.shared.runId=<UUID>` and require
-`OK (1 test)`. Screenshots land in `shared-proof-<UUID>/`: `01-list` (no
-actions button on the three folders), `02-shared-file-actions` (Download and
-Share file only), `03-owned-file-actions` (Rename, Move, Move to trash).
+`MobileSharedItemsProofTest` mounts the production Files route and controller
+on a faked repository. The synthetic root lists the shared root, a friend
+folder, a shared folder, a shared video, an owned video and an owned
+destination folder. It makes no API calls, so report it as synthetic proof.
+Opt in with `putio.shared.enabled=true` and `putio.shared.runId=<UUID>` and
+require `OK (1 test)`. Screenshots land in `shared-proof-<UUID>/`:
+
+- `01-list`: no actions button on the shared root or the friend folder
+- `02-shared-file-actions`: Download, Share file and Make a copy only
+- `03-copy-picker`: the move picker at root
+- `04-copying`: the copy line while the check is held
+- `05-copied`: the line after the faked check reports done
+- `06-owned-file-actions`: Rename, Move, Move to trash, and no Make a copy
+
+## Transfer retry proof
+
+Behaviour: [Transfer failures and retry](./behavior.md#transfer-failures-and-retry).
+`MobileTransferRetryProofTest` runs the production Transfers screen and
+controller over `SdkTransfersRepository` with faked SDK calls: one failed
+transfer with a server `error_message`, one without, one downloading. Retry
+succeeds for the first and gets a 403 for the second. It makes no API calls;
+report it as synthetic proof. Opt in with `putio.transfers.enabled=true` and
+`putio.transfers.runId=<UUID>` and require `OK (1 test)`. Screenshots land in
+`transfers-proof-<UUID>/`: `01-failure-reasons`, `02-retry-accepted` (no
+dialog, "Retrying transfer" snackbar), `03-retry-rejected` (snackbar, no error
+dialog).
+
+## Refused request proof
+
+Behaviour: [Refused requests](./behavior.md#refused-requests).
+`MobileRefusedRequestProofTest` mounts mobile Files on a failure built from
+put.io's error body in-process; it makes no API calls, so report it as
+controlled-state proof. Install the mobile debug app and instrumentation APKs,
+then:
+
+```bash
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.MobileRefusedRequestProofTest \
+  -e putio.refused.enabled true -e putio.refused.runId "$(uuidgen)" \
+  io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Require `OK (1 test)`. Screenshots land in `refused-proof-<UUID>/`:
+`01-files-refused` (put.io's 400 reason) and `02-files-server-error` (a 503
+keeps the app's copy). Remove the directory afterwards.
 
 ## Transfers polling CPU benchmark
 

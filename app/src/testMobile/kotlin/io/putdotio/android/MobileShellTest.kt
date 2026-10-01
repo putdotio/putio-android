@@ -63,6 +63,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
@@ -533,6 +534,7 @@ class MobileShellTest {
         val optimistic = original.copy(trashEnabled = false)
         val change = AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)
         var settings by mutableStateOf(readyAccountSettingsState(preferences = original))
+        val events = mutableListOf<FilesBrowserEvent>()
         compose.setContent {
             PutioTheme {
                 MobileShell(
@@ -543,7 +545,7 @@ class MobileShellTest {
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
-                    onFilesEvent = { true },
+                    onFilesEvent = { events += it; true },
                     onAccountSettingsEvent = {},
                     onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
@@ -551,8 +553,7 @@ class MobileShellTest {
             }
         }
         compose.onNodeWithContentDescription("Actions for episode.mkv").performClick()
-        compose.onNodeWithText("Move to trash").performClick()
-        compose.onNodeWithText("Confirm").assertIsEnabled()
+        compose.onNodeWithText("Move to trash").assertIsEnabled()
         compose.runOnIdle {
             settings = readyAccountSettingsState(
                 preferences = optimistic,
@@ -561,7 +562,6 @@ class MobileShellTest {
                 ),
             )
         }
-        compose.onNodeWithText("Confirm").assertDoesNotExist()
         compose.onNodeWithText("Delete").assertIsNotEnabled()
         compose.runOnIdle {
             settings = readyAccountSettingsState(
@@ -576,6 +576,11 @@ class MobileShellTest {
         compose.runOnIdle { settings = readyAccountSettingsState(preferences = optimistic) }
         compose.onNodeWithText("Delete").assertIsEnabled().performClick()
         compose.onNodeWithText("Permanently delete “episode.mkv”? This cannot be undone.").assertIsDisplayed()
+        // Trash turning back on withdraws the permanent confirmation instead of rewording it.
+        compose.runOnIdle { settings = readyAccountSettingsState(preferences = original) }
+        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        compose.onNodeWithText("Move to trash").assertIsEnabled()
+        compose.runOnIdle { assertTrue(events.none { it is FilesBrowserEvent.Delete }) }
     }
 
     @Test
@@ -1684,6 +1689,28 @@ class MobileShellPlaybackTest {
     }
 
     @Test
+    fun aVideoRowOpensWithItsListingDuration() {
+        val targets = mutableListOf<PlaybackTarget>()
+        val repository = object : PlaybackRepository by ConversionRepository {
+            override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
+                targets += target
+                return ConversionRepository.resolve(target)
+            }
+        }
+        compose.setPlaybackShell(
+            playbackRepository = repository,
+            filesState = videoFilesState(FilesPlaybackProgress(startFromSeconds = 30.0, durationSeconds = 1_200.5)),
+        )
+
+        compose.onNodeWithText("episode.mkv").performClick()
+
+        compose.onNodeWithText("Video is being prepared").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(listOf(PlaybackTarget(FilesItemId(8L), "episode.mkv", durationSeconds = 1_200.5)), targets)
+        }
+    }
+
+    @Test
     fun phoneDestinationStateSurvivesPlayback() =
         assertDestinationStateSurvivesPlayback(width = 360.dp, navigationTag = MOBILE_NAV_BAR_TAG)
 
@@ -2304,7 +2331,7 @@ private fun resolvingTransfersState(): TransfersState =
         navigation = TransferNavigation.Resolving(TransferFileId(7L), TransfersRequestId(3L)),
     )
 
-private fun videoFilesState(): FilesBrowserState {
+private fun videoFilesState(playback: FilesPlaybackProgress? = null): FilesBrowserState {
     val initial = FilesBrowserReducer.start()
     val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
     val video = FilesItem(
@@ -2314,6 +2341,7 @@ private fun videoFilesState(): FilesBrowserState {
         type = PutioFileType.VIDEO,
         sizeBytes = 1L,
         createdAt = "2026-08-29T00:00:00Z",
+        playback = playback,
     )
     return FilesBrowserReducer.reduce(
         initial.state,
@@ -2378,7 +2406,7 @@ private fun shellOpenableTransferState(): TransfersState = TransfersState(
         id = TransferId(7L), name = "Completed transfer", status = AppTransferStatus.Completed,
         fileId = TransferFileId(7L), sizeBytes = 1.0, percentDone = 100.0,
         downloadSpeedBytesPerSecond = null, uploadSpeedBytesPerSecond = null,
-        estimatedSecondsRemaining = null, availability = null, hasError = false,
+        estimatedSecondsRemaining = null, availability = null, errorMessage = null,
         createdAt = "2026-09-06", userFileExists = true,
     )), TransfersPaging.Complete),
 )

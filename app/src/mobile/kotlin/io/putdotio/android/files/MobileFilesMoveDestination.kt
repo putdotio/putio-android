@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -55,6 +57,9 @@ internal fun MobileFilesMoveDestination(
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
     canSubmit: Boolean = true,
+    title: String = stringResource(R.string.mobile_files_move),
+    confirmLabel: String = stringResource(R.string.mobile_files_move_here),
+    sourceName: String? = state.sourceItem?.name,
 ) {
     val back = {
         if (state.canNavigateBack) onEvent(FilesMoveDestinationEvent.NavigateBack) else onCancel()
@@ -69,19 +74,19 @@ internal fun MobileFilesMoveDestination(
         ) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text(stringResource(R.string.mobile_files_move), style = MaterialTheme.typography.headlineSmall,
+                    Text(title, style = MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.weight(1f))
                     TextButton(onClick = onCancel, modifier = Modifier.testTag(MOBILE_FILES_MOVE_CANCEL_TAG)) {
                         Text(stringResource(R.string.mobile_action_cancel))
                     }
                 }
                 key(state.current.folder.id.value) {
-                    MobileMoveFolderContent(state, onEvent, back, Modifier.weight(1f))
+                    MobileMoveFolderContent(state, sourceName, onEvent, back, Modifier.weight(1f))
                 }
                 HorizontalDivider()
                 Button(onClick = onConfirm, enabled = canSubmit && state.canMoveHere,
                     modifier = Modifier.padding(16.dp).fillMaxWidth().testTag(MOBILE_FILES_MOVE_HERE_TAG)) {
-                    Text(stringResource(R.string.mobile_files_move_here))
+                    Text(confirmLabel)
                 }
             }
         }
@@ -91,6 +96,7 @@ internal fun MobileFilesMoveDestination(
 @Composable
 private fun MobileMoveFolderContent(
     state: FilesMoveDestinationState,
+    sourceName: String?,
     onEvent: (FilesMoveDestinationEvent) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier,
@@ -101,12 +107,26 @@ private fun MobileMoveFolderContent(
     } else {
         modifier
     }
-    LazyColumn(modifier = listModifier.fillMaxWidth()) {
-        item {
-            Text(state.sourceItem.name, style = MaterialTheme.typography.bodyLarge,
-                maxLines = 3, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            HorizontalDivider()
+    val listState = rememberLazyListState()
+    val paging = when (content) {
+        is FilesContent.Ready -> content.paging
+        is FilesContent.Empty -> content.paging
+        is FilesContent.Loading, is FilesContent.Failed -> FilesPaging.Complete
+    }
+    // A folders-only page can hold no folders at all; its footer is in view, so the next one follows.
+    LoadNextPageNearEnd(
+        listState = listState,
+        nextPage = paging as? FilesPaging.Available,
+        onLoadNextPage = { onEvent(FilesMoveDestinationEvent.LoadNextPage) },
+    )
+    LazyColumn(state = listState, modifier = listModifier.fillMaxWidth()) {
+        sourceName?.let { name ->
+            item {
+                Text(name, style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                HorizontalDivider()
+            }
         }
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -125,7 +145,7 @@ private fun MobileMoveFolderContent(
             }
             is FilesContent.Failed -> item {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.Center) {
-                    Text(stringResource(content.failure.moveDestinationMessageResource()))
+                    Text(content.failure.moveDestinationMessage())
                     TextButton(onClick = { onEvent(FilesMoveDestinationEvent.Retry) },
                         modifier = Modifier.testTag(MOBILE_FILES_MOVE_RETRY_TAG)) {
                         Text(stringResource(R.string.mobile_action_retry))
@@ -134,10 +154,6 @@ private fun MobileMoveFolderContent(
             }
             is FilesContent.Ready, is FilesContent.Empty -> {
                 val items = (content as? FilesContent.Ready)?.items.orEmpty()
-                val paging = when (content) {
-                    is FilesContent.Ready -> content.paging
-                    is FilesContent.Empty -> content.paging
-                }
                 if (items.isEmpty()) item {
                     Text(stringResource(if (paging == FilesPaging.Complete) R.string.mobile_files_move_empty
                         else R.string.mobile_files_move_empty_page), modifier = Modifier.padding(16.dp))
@@ -168,7 +184,7 @@ private fun MobileMovePaging(paging: FilesPaging, onEvent: (FilesMoveDestination
             Text(stringResource(R.string.mobile_files_move_more))
         }
         is FilesPaging.Failed -> Column(modifier = Modifier.padding(16.dp)) {
-            Text(stringResource(paging.failure.moveDestinationMessageResource()))
+            Text(paging.failure.moveDestinationMessage())
             TextButton(onClick = { onEvent(FilesMoveDestinationEvent.Retry) },
                 modifier = Modifier.testTag(MOBILE_FILES_MOVE_RETRY_TAG)) {
                 Text(stringResource(R.string.mobile_action_retry))
@@ -177,10 +193,11 @@ private fun MobileMovePaging(paging: FilesPaging, onEvent: (FilesMoveDestination
     }
 }
 
-private fun FilesFailure.moveDestinationMessageResource(): Int = when {
+@Composable
+private fun FilesFailure.moveDestinationMessage(): String = when {
     this is FilesFailure.AccessDenied || this is FilesFailure.ApiRejected && statusCode == HTTP_NOT_FOUND ->
-        R.string.mobile_files_move_destination_unavailable
-    else -> mobileMessageResource()
+        stringResource(R.string.mobile_files_move_destination_unavailable)
+    else -> mobileMessage()
 }
 
 private const val HTTP_NOT_FOUND = 404

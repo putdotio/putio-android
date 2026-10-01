@@ -205,12 +205,12 @@ class TransfersControllerTest {
     @Test
     fun mutationIsSingleFlightAndFailureKeepsSubmittedInput(): Unit = runBlocking {
         val addStarted = CompletableDeferred<Unit>()
-        val addResult = CompletableDeferred<FilesRepositoryResult<TransferItem>>()
+        val addResult = CompletableDeferred<FilesRepositoryResult<TransferAddOutcome>>()
         val base = repository {
             FilesRepositoryResult.Success(TransfersPage(emptyList(), null))
         }
         val repository = object : TransfersRepository by base {
-            override suspend fun add(submission: TransferSubmission): FilesRepositoryResult<TransferItem> {
+            override suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome> {
                 addStarted.complete(Unit)
                 return addResult.await()
             }
@@ -225,7 +225,7 @@ class TransfersControllerTest {
             addResult.complete(FilesRepositoryResult.Failure(failure))
             val state = controller.awaitState { it.mutation is TransferMutation.Failed }
             val action = (state.mutation as TransferMutation.Failed).action as TransferAction.Add
-            assertEquals("magnet:?xt=urn:test", action.submission.value)
+            assertEquals("magnet:?xt=urn:test", (action.request as TransferAddRequest.Links).links.single().value)
         } finally {
             controller.close()
         }
@@ -359,8 +359,8 @@ class TransfersControllerTest {
             }
         }
         val repository = object : TransfersRepository by base {
-            override suspend fun add(submission: TransferSubmission) =
-                FilesRepositoryResult.Success(item(2L, AppTransferStatus.Completed))
+            override suspend fun add(request: TransferAddRequest) =
+                FilesRepositoryResult.Success(TransferAddOutcome(listOf(item(2L, AppTransferStatus.Completed))))
         }
         val controller = TransfersController(repository, this)
         try {
@@ -401,9 +401,9 @@ class TransfersControllerTest {
             }
         }
         val repository = object : TransfersRepository by base {
-            override suspend fun add(submission: TransferSubmission): FilesRepositoryResult<TransferItem> {
+            override suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome> {
                 mutationStarted.complete(Unit)
-                return FilesRepositoryResult.Success(item(2L))
+                return FilesRepositoryResult.Success(TransferAddOutcome(listOf(item(2L))))
             }
         }
         val controller = TransfersController(repository, this)
@@ -461,9 +461,9 @@ class TransfersControllerTest {
         var adds = 0
         val base = repository { FilesRepositoryResult.Success(TransfersPage(emptyList(), null)) }
         val repository = object : TransfersRepository by base {
-            override suspend fun add(submission: TransferSubmission): FilesRepositoryResult<TransferItem> {
+            override suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome> {
                 adds += 1
-                return FilesRepositoryResult.Success(item(adds.toLong()))
+                return FilesRepositoryResult.Success(TransferAddOutcome(listOf(item(adds.toLong()))))
             }
         }
         val controller = TransfersController(repository, this)
@@ -487,7 +487,7 @@ class TransfersControllerTest {
     ): TransfersRepository = object : TransfersRepository {
         override suspend fun load(cursor: TransferCursor?) = load(cursor)
         override suspend fun refresh(ids: List<TransferId>) = refresh(ids)
-        override suspend fun add(submission: TransferSubmission) = error("Unexpected add")
+        override suspend fun add(request: TransferAddRequest) = error("Unexpected add")
         override suspend fun cancel(id: TransferId) = error("Unexpected cancel")
         override suspend fun retry(id: TransferId) = error("Unexpected retry")
         override suspend fun clean(ids: List<TransferId>) = error("Unexpected clean")
@@ -511,7 +511,7 @@ class TransfersControllerTest {
         1.0,
         30.0,
         1.0,
-        false,
+        null,
         "2026-08-30T00:00:00Z",
         null,
     )

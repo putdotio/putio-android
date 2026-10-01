@@ -222,7 +222,7 @@ class TvAutoplayProofTest {
 
                 override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
             },
-            trashRepository = ProofTrashRepository,
+            trashRepository = ProofTrashRepository(emptyList()),
             settingsRepository = object : AccountSettingsRepository {
                 override suspend fun load() = AccountSettingsRepositoryResult.Success(
                     AccountSettingsPreferences(
@@ -354,8 +354,8 @@ class TvAutoplayProofTest {
         const val SECOND_ID = 9_360_002L
         const val FIRST = "Harbor film 1.mp4"
         const val SECOND = "Harbor film 2.mp4"
-        const val FIXTURE_SECONDS = 12.0
-        const val FIXTURE_MILLIS = 12_000L
+        const val FIXTURE_SECONDS = 30.0
+        const val FIXTURE_MILLIS = 30_000L
         const val SECOND_SAVED_SECONDS = 5.0
         const val SECOND_CONTINUE_LABEL = "Continue playing from 00:05"
         const val RESUME_PREFIX = "Continue playing from"

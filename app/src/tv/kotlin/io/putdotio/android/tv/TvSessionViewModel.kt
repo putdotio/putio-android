@@ -19,7 +19,10 @@ import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryFileOpener
+import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryRepository
+import io.putdotio.android.history.keeping
+import io.putdotio.android.tv.history.isShownOnTv
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRepository
@@ -218,7 +221,8 @@ internal class TvSession internal constructor(
 
     /**
      * Leaves playback; the shell shows again. After autoplay moved on, Files focuses the row of
-     * the video that played last rather than the one that started.
+     * the video that played last rather than the one that started, reading later pages when that
+     * row is not loaded yet.
      */
     fun stopPlayback() {
         durationLookup?.cancel()
@@ -226,7 +230,10 @@ internal class TvSession internal constructor(
         val last = stopped.state.value.target.fileId
         val start = playbackStart
         val folder = start?.parentId
-        if (folder != null && last != start.id) filesFocusMemory[folder.value] = last.value
+        if (folder != null && last != start.id) {
+            filesFocusMemory[folder.value] = last.value
+            files.dispatch(FilesBrowserEvent.RevealItem(folder, last))
+        }
         stopped.close()
     }
 
@@ -321,7 +328,11 @@ internal class TvSessionViewModel(
                 files = FilesBrowserController(dependencies.filesRepository, viewModelScope),
                 filesRepository = dependencies.filesRepository,
                 search = SearchController(dependencies.searchRepository, recentSearches, viewModelScope),
-                history = HistoryController(dependencies.historyRepository, account.historyEnabled, viewModelScope),
+                history = HistoryController(
+                    dependencies.historyRepository.keeping(HistoryEventKind::isShownOnTv),
+                    account.historyEnabled,
+                    viewModelScope,
+                ),
                 trash = TrashController(dependencies.trashRepository, viewModelScope),
                 settings = AccountSettingsController(dependencies.settingsRepository, viewModelScope),
                 appConfig = AndroidAppConfigController(dependencies.appConfigRepository, viewModelScope),

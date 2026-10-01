@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.auth
 
+import io.putdotio.android.AccountStorage
 import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.sdk.account.AccountDisk
 import io.putdotio.sdk.account.AccountInfo
@@ -34,7 +35,7 @@ class PutioTvSessionGatewayTest {
                     userId = 42,
                     username = "user",
                     email = "user@example.com",
-                    storage = TvAccountStorage(availableBytes = 1, sizeBytes = 2, usedBytes = 1),
+                    storage = AccountStorage(availableBytes = 1, sizeBytes = 2, usedBytes = 1, showOptimisticUsage = true),
                     avatarUrl = "https://example.com/avatar.png",
                 ),
             ),
@@ -108,7 +109,7 @@ class PutioTvSessionGatewayTest {
                 mail = "user@example.com",
                 avatarUrl = "https://example.com/avatar.png",
                 disk = AccountDisk(available = 1, size = 2, used = 1),
-                settings = AccountSettings(sortBy = "NAME_ASC"),
+                settings = AccountSettings(sortBy = "NAME_ASC", showOptimisticUsage = true),
                 accountStatus = accountStatus,
                 filesWillBeDeletedAt = "2026-10-15T08:00:00".takeIf { accountStatus == "inactive" },
             )

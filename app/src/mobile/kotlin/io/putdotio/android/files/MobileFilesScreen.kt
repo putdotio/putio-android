@@ -29,6 +29,10 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -37,6 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -58,6 +63,8 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.LoadNextPageNearEnd
+import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
@@ -77,6 +84,7 @@ internal const val MOBILE_FILES_PAGING_ACTION_TAG = "mobile-files-paging-action"
 internal const val MOBILE_FILES_REFRESH_TAG = "mobile-files-refresh"
 internal const val MOBILE_FILES_WATCHED_TAG = "mobile-files-watched"
 internal const val MOBILE_FILES_DOWNLOAD_TAG = "mobile-files-download"
+internal const val MOBILE_FILES_SNACKBAR_TAG = "mobile-files-snackbar"
 
 @Composable
 internal fun MobileFilesScreen(
@@ -89,23 +97,23 @@ internal fun MobileFilesScreen(
     downloads: DownloadsState = DownloadsState(),
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
+    onViewTrash: (() -> Unit)? = null,
+    onCopyItem: ((FilesItem) -> Unit)? = null,
 ) {
     val current = state.current
     when (val content = current.content) {
-        is FilesContent.Loading ->
-            MobileLoadingState(
-                message = stringResource(R.string.mobile_state_loading),
-                modifier = modifier,
-            )
+        is FilesContent.Loading -> MobileFilesStateWithCopy(state, onEvent, modifier) {
+            MobileLoadingState(message = stringResource(R.string.mobile_state_loading))
+        }
 
-        is FilesContent.Failed ->
+        is FilesContent.Failed -> MobileFilesStateWithCopy(state, onEvent, modifier) {
             MobileErrorState(
                 title = stringResource(R.string.mobile_state_error_title),
-                message = stringResource(content.failure.mobileMessageResource()),
+                message = content.failure.mobileMessage(),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(FilesBrowserEvent.Retry) },
-                modifier = modifier,
             )
+        }
 
         is FilesContent.Empty,
         is FilesContent.Ready,
@@ -114,7 +122,25 @@ internal fun MobileFilesScreen(
                 state, content, onEvent, onPlayMedia, modifier, confirmedTrashEnabled, onMoveItem, downloads,
                 onDownloadItem,
                 onShareItem,
+                onViewTrash,
+                onCopyItem,
             )
+        }
+    }
+}
+
+/** A copy outlives folder navigation, so its line stays while the folder loads or fails. */
+@Composable
+private fun MobileFilesStateWithCopy(
+    state: FilesBrowserState,
+    onEvent: (FilesBrowserEvent) -> Unit,
+    modifier: Modifier,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content() }
+        state.copyOutcome?.let {
+            MobileFilesCopyStatus(it, onDismiss = { onEvent(FilesBrowserEvent.DismissCopyOutcome) })
         }
     }
 }
@@ -131,6 +157,8 @@ private fun MobileRefreshableFilesContent(
     downloads: DownloadsState = DownloadsState(),
     onDownloadItem: ((FilesItem) -> Unit)? = null,
     onShareItem: ((FilesItem) -> Unit)? = null,
+    onViewTrash: (() -> Unit)? = null,
+    onCopyItem: ((FilesItem) -> Unit)? = null,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -153,6 +181,8 @@ private fun MobileRefreshableFilesContent(
                 downloadStatus = downloads.entry(selectedItem.id)?.status,
                 onDownloadItem = onDownloadItem,
                 onShareItem = onShareItem,
+                onCopyItem = onCopyItem,
+                canStartCopy = state.canStartCopy,
             )
         }
     }
@@ -169,55 +199,118 @@ private fun MobileRefreshableFilesContent(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = {
-                if (selectedItemId == null && currentOperation.canStartOperation) {
-                    onEvent(FilesBrowserEvent.Refresh)
-                }
-            },
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .testTag(MOBILE_FILES_REFRESH_TAG)
-                .semantics {
-                    if (selectedItemId == null && operation.canStartOperation) {
-                        customActions = listOf(refreshAction)
+    val snackbarHostState = remember { SnackbarHostState() }
+    MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, onViewTrash)
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    if (selectedItemId == null && currentOperation.canStartOperation) {
+                        onEvent(FilesBrowserEvent.Refresh)
                     }
                 },
-        ) {
-            when (content) {
-                is FilesContent.Empty -> MobileEmptyFilesContent(
-                    paging = content.paging,
-                    pagingEnabled = operation == FilesFolderOperation.Idle,
-                    onEvent = onEvent,
-                )
-                is FilesContent.Ready ->
-                    // The depth tells a folder opened from Search apart from the same folder under it.
-                    key(state.stack.size, state.current.folder.id.value, state.current.viewportGeneration) {
-                        MobileFilesList(
-                            content = content,
-                            revealItemId = state.current.revealItemId,
-                            pagingEnabled = operation == FilesFolderOperation.Idle,
-                            onEvent = onEvent,
-                            onPlayMedia = onPlayMedia,
-                            onActions = { selectedItemId = it.id.value },
-                            hasActions = { it.hasMobileActions(onDownloadItem != null, onShareItem != null) },
-                            operation = operation,
-                            downloads = downloads,
-                        )
-                    }
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .testTag(MOBILE_FILES_REFRESH_TAG)
+                    .semantics {
+                        if (selectedItemId == null && operation.canStartOperation) {
+                            customActions = listOf(refreshAction)
+                        }
+                    },
+            ) {
+                when (content) {
+                    is FilesContent.Empty -> MobileEmptyFilesContent(
+                        paging = content.paging,
+                        pagingEnabled = operation == FilesFolderOperation.Idle,
+                        onEvent = onEvent,
+                    )
+                    is FilesContent.Ready ->
+                        // The depth tells a folder opened from Search apart from the same folder under it.
+                        key(state.stack.size, state.current.folder.id.value, state.current.viewportGeneration) {
+                            MobileFilesList(
+                                content = content,
+                                revealItemId = state.current.revealItemId,
+                                pagingEnabled = operation == FilesFolderOperation.Idle,
+                                onEvent = onEvent,
+                                onPlayMedia = onPlayMedia,
+                                onActions = { selectedItemId = it.id.value },
+                                hasActions = {
+                                    it.hasMobileActions(onDownloadItem != null, onShareItem != null, onCopyItem != null)
+                                },
+                                operation = operation,
+                                downloads = downloads,
+                            )
+                        }
 
-                is FilesContent.Failed,
-                is FilesContent.Loading,
-                -> Unit
+                    is FilesContent.Failed,
+                    is FilesContent.Loading,
+                    -> Unit
+                }
+            }
+            MobileFilesOperationStatus(operation = operation, onRetry = { onEvent(FilesBrowserEvent.Retry) })
+            if (operation == FilesFolderOperation.Idle) {
+                state.current.deleteOutcome?.takeUnless { it.isConfirmedTrash }?.let { outcome ->
+                    if (outcome.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH) {
+                        MobileFilesTrashLimitStatus(outcome, state.current, onEvent)
+                    } else {
+                        MobileFilesDeleteStatus(outcome)
+                    }
+                }
+                state.current.moveOutcome?.let { MobileFilesMoveStatus(it) }
+            }
+            state.copyOutcome?.let {
+                MobileFilesCopyStatus(it, onDismiss = { onEvent(FilesBrowserEvent.DismissCopyOutcome) })
             }
         }
-        MobileFilesOperationStatus(operation = operation, onRetry = { onEvent(FilesBrowserEvent.Retry) })
-        if (operation == FilesFolderOperation.Idle) {
-            state.current.deleteOutcome?.let { MobileFilesDeleteStatus(it) }
-            state.current.moveOutcome?.let { MobileFilesMoveStatus(it) }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .testTag(MOBILE_FILES_SNACKBAR_TAG),
+        )
+    }
+}
+
+/** The Trash request succeeded and the fresh read found the item gone; a failed request proves no Trash move. */
+private val FilesDeleteOutcome.isConfirmedTrash: Boolean
+    get() = intent.mode == FilesDeleteMode.TRASH && failure == null &&
+        status == FilesDeleteStatus.NO_LONGER_AVAILABLE
+
+/**
+ * A Trash move the fresh read confirmed is announced once, with a way to Trash and no Undo:
+ * restoring is queued server-side and needs its own check. Shown in full or cut short, it is
+ * then marked announced; the outcome stays, so a later page that still lists the item turns it
+ * into the still-present line.
+ */
+@Composable
+private fun MobileFilesTrashedAnnouncement(
+    current: FilesFolderState,
+    snackbarHostState: SnackbarHostState,
+    onEvent: (FilesBrowserEvent) -> Unit,
+    onViewTrash: (() -> Unit)?,
+) {
+    val trashed = current.deleteOutcome?.takeIf {
+        current.operation == FilesFolderOperation.Idle && it.isConfirmedTrash && !it.announced
+    }
+    val message = stringResource(R.string.mobile_files_trash_done)
+    val viewTrash = stringResource(R.string.mobile_files_view_trash)
+    val currentOnEvent by rememberUpdatedState(onEvent)
+    val currentOnViewTrash by rememberUpdatedState(onViewTrash)
+    LaunchedEffect(trashed?.requestId) {
+        val outcome = trashed ?: return@LaunchedEffect
+        snackbarHostState.currentSnackbarData?.dismiss()
+        try {
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = viewTrash.takeIf { currentOnViewTrash != null },
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) currentOnViewTrash?.invoke()
+        } finally {
+            currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
         }
     }
 }
@@ -229,6 +322,10 @@ private fun MobileEmptyFilesContent(
     onEvent: (FilesBrowserEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    LoadNextPageNow(
+        nextPage = (paging as? FilesPaging.Available)?.takeIf { pagingEnabled },
+        onLoadNextPage = { onEvent(FilesBrowserEvent.LoadNextPage) },
+    )
     Column(modifier = modifier.fillMaxSize()) {
         BoxWithConstraints(
             modifier = Modifier
@@ -370,7 +467,7 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
         FilesDeleteStatus.NO_LONGER_AVAILABLE -> R.string.mobile_files_delete_unavailable
         FilesDeleteStatus.STILL_PRESENT -> R.string.mobile_files_delete_still_present
         FilesDeleteStatus.SKIPPED -> R.string.mobile_files_delete_skipped
-        FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN -> null
+        FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN, FilesDeleteStatus.TOO_LARGE_FOR_TRASH -> null
     }
     if (message != null) {
         Column(
@@ -383,7 +480,7 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
             if (outcome.status != FilesDeleteStatus.NO_LONGER_AVAILABLE) {
                 outcome.failure?.let {
                     Text(
-                        stringResource(it.mobileMessageResource()),
+                        it.mobileMessage(),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -449,6 +546,12 @@ private fun MobileFilesList(
             .distinctUntilChanged()
             .collect { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
     }
+
+    LoadNextPageNearEnd(
+        listState = listState,
+        nextPage = (content.paging as? FilesPaging.Available)?.takeIf { pagingEnabled },
+        onLoadNextPage = { currentOnEvent(FilesBrowserEvent.LoadNextPage) },
+    )
 
     LazyColumn(
         state = listState,
@@ -747,6 +850,10 @@ private fun String.toDisplayDate(context: Context): String? =
                 DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or DateUtils.FORMAT_SHOW_YEAR,
             )
         }
+
+/** put.io's reason for a refused request, else this failure's copy. */
+@Composable
+internal fun FilesFailure.mobileMessage(): String = apiReason ?: stringResource(mobileMessageResource())
 
 @StringRes
 internal fun FilesFailure.mobileMessageResource(): Int =

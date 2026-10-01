@@ -104,11 +104,65 @@ Friends' shared files (`is_shared`) and the shared folders (`SHARED_ROOT`,
 `SHARED_FRIEND`) accept no owner mutations, so neither surface offers Rename,
 Move, Move to trash/Delete or Mark as watched/unwatched on them. Download and
 Share file (which downloads the original, then opens the share sheet) stay on
-shared files, as web and iOS keep Download; a shared folder has no mobile
-actions button, and on TV Menu on it opens nothing. Make a copy is not offered
-yet.
+shared files, as web and iOS keep Download. On TV, Menu on a shared folder
+opens nothing.
 
-Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesScreenTest`.
+On mobile, a friend's shared file or folder, and anything inside one, offers
+Make a copy, as web and iOS do; the shared root and each friend's folder
+offer nothing, so they have no actions button. The Files move picker
+chooses the destination among the viewer's own folders, root included, and
+opens at root, as web's does unless its "Remember target folder" setting is
+on (Android has no such setting). put.io copies in the background
+(`POST /v2/sharing/clone`), so a line under the folder shows the copy until
+it is dismissed and stays across folder navigation. The app checks the copy
+every 1.5 s, as web does, for up to 200 checks. A finished copy reloads the
+destination if it is already open in the stack. A failed copy shows put.io's
+reason under the [refused-request](#refused-requests) rules, or web's copy for
+the concurrency and too-many-files limits. A copy
+whose start gets no clear answer (a lost or unreadable response, or a server
+fault), whose check fails, or that is still running after the last check, is
+reported as unconfirmed, because it may still land. Only one copy runs at a
+time. Rotation keeps the copy and its checks; process death discards them, so
+the line is gone and another copy can start while put.io may still run the
+first. TV doesn't offer Make a copy, because tv-native and tv-vite don't.
+
+Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesScreenTest`,
+`FilesCopyTest`, `MobileFilesCopyTest`, `MobileSharedItemsProofTest` (opt-in
+synthetic device proof; see [Harness](./harness.md#shared-with-me-items-proof)).
+
+## Files delete and paging
+
+With the account's `trash_enabled` confirmed on, Move to trash runs from the
+actions sheet without a confirmation on mobile and TV, as on web and iOS; only
+Delete permanently confirms. Either verifies the item with an exact-ID read
+before the folder reloads. On mobile, a Trash request that succeeded and that
+the read confirmed shows a "Moved to Trash" snackbar with View Trash, once per
+request; it has no Undo, because single-item Restore is queued server-side and
+needs its own check ([Trash](#trash)). Every other outcome, including one a
+later page corrects, stays as a line under the folder. The app never sends
+`partial_delete`, so put.io refuses a folder with too many items for Trash
+(`FileDeleteChildrenLimitError`) and changes nothing. On mobile and TV that
+line shows web's "We couldn't send these files to trash" with Delete
+permanently, which opens web's confirmation naming the folder; only its
+Delete sends a new `skip_trash` request. Nothing falls back to permanent
+deletion on its own, and the action leaves once a refresh no longer lists
+the folder.
+
+Mobile Files, Search results, History and the Move picker ask for the next
+page once a row within 25 of the loaded end is on screen, as web does, so a
+short page continues on its own; an empty page with a next one, in Files and
+Search, asks for it at once. Each page is asked for once. A failed page waits
+for its Retry, and in Files a running folder operation holds paging until it
+settles. Android TV keeps its Load more button: it is the D-pad focus anchor
+at the end of the list, one node that keeps focus from Load more through
+loading to Retry.
+
+Tests: `FilesDeleteReducerTest`, `SdkFilesDeleteRepositoryTest`,
+`MobileFilesDeleteTest`, `MobileFilesScreenTest`,
+`MobileSearchHistoryScreenTest`, `MobileFilesMoveTest`, `TvFilesScreenTest`,
+`FilesDeleteRecoveryUiProofTest` (opt-in synthetic device proof),
+`MobileFilesTrashPagingProofTest` (opt-in device proof; see
+[Harness](./harness.md#files-trash-and-paging-proof)).
 
 ## Trash
 
@@ -134,13 +188,28 @@ available again; restored names and parents can change. Pending recovery
 survives tab navigation and activity recreation, and Check status repeats only
 the read. Persistence across process death is not claimed.
 
+Both surfaces state web's 14-day retention above the listing and in the empty
+state.
+
 Tests: `TrashActionTest`, `TrashRestoreTest`, `TrashRepeatedRestoreTest`,
-`FilesRestoreInvalidationTest`, `MobileTrashViewModelTest`.
+`FilesRestoreInvalidationTest`, `MobileTrashViewModelTest`, `MobileTrashScreenTest`,
+`TvTrashScreenTest`.
 
 ## Resume and position reporting
 
-Fresh audio/video resolution with `use_start_from` enabled and a positive saved
-position offers Resume or Start over before preparing the player. The retained
+Fresh video resolution with `use_start_from` enabled and a positive saved
+position offers Resume or Start over before preparing the player; Back or
+dismissing it leaves playback on both surfaces, as tv-native's prompt did. Audio
+continues from its saved position without asking, as iOS does. A saved position
+within 10 seconds of the known duration counts as finished (iOS main's
+threshold): the video or audio starts from the beginning without asking, on
+both surfaces and for autoplay. The server keeps that position, so the file
+still reads as watched with its progress bar. The duration comes from the
+listing. When a video with a saved position opens without one (search, History,
+product links, a row without `video_metadata`), resolution lists the file to
+read it and keeps a duration it finds for the prompt and later retries. A
+failed read leaves the duration unknown: mobile then offers the saved position,
+and TV continues from it without asking. Audio never needs the read. The retained
 controller keeps that decision across Activity recreation. Live audio attachment
 and retained player-error recovery bypass the prompt. Start over starts locally
 at zero; it does not immediately reset the server position.
@@ -149,12 +218,15 @@ One observer belongs to each actual player: the private video owner or the audio
 service on mobile, the player screen on TV. Screens and notification controllers do not duplicate audio reporting.
 The observer samples advancing playback every 15 seconds and captures positive
 positions on pause, stop, end, error, item replacement and owner exit. Buffering
-and same-item seek events do not send immediate writes. The application writer
-deduplicates positions within the same second, permits one request in flight and
-one latest pending snapshot, and times out a request after 15 seconds. Under slow
-requests or rapid file switches, newer snapshots can replace intermediate queued
-exit positions. Failed writes keep their typed cause and wait for a new position;
-there is no immediate retry loop or completion-percentage reset rule.
+and same-item seek events do not send immediate writes. The
+application writer deduplicates positions within the same second, permits one
+request in flight and one latest pending snapshot, and times out a request after
+15 seconds. A position offered while a request is in flight is written after it,
+so the final one wins. Under slow requests or rapid file switches, newer
+snapshots can replace intermediate queued exit positions, and reopening a file
+drops its previous opening's queued snapshot. Failed writes keep their typed
+cause and wait for a new position; there is no immediate retry loop or
+completion reset: a finished item's real final position is written.
 
 Reporting requires an app-issued item lease, the same signed-in session, and a
 confirmed enabled resume setting. Pending/failed resume-setting writes suspend
@@ -167,8 +239,9 @@ session that issued it. Rejection runs outside the cancellable reporting job,
 and checks the session identity again under the authentication controller's lock.
 
 Tests: `PlaybackReducerTest`, `PlaybackControllerTest`, `MobilePlayerScreenTest`
-(the prompt, recreation and Start over), `PlaybackPositionWriterTest`,
-`PlaybackPositionObserverTest`, `MobilePlaybackReportingTest`.
+(the prompt, recreation and Start over), `TvPlayerScreenTest` (Back on the
+prompt), `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
+`SdkPlaybackRepositoryTest`, `MobilePlaybackReportingTest`.
 
 ## MP4 conversion
 
@@ -269,9 +342,10 @@ position, a fresh resolution) and asks before the player exists, as the RN
 player did: a centred dialog with the raw file name, a progress bar and
 stacked Continue playing from `mm:ss` and Start from the beginning buttons.
 Continue takes focus; the bar previews where the focused choice starts. Back
-continues from the saved position and stays in playback (the RN prompt had
-no Back of its own and left). The dialog needs the listing's duration; without
-one the saved position is continued without asking, as the RN player did.
+leaves playback, as the RN prompt and mobile's do. The dialog needs the
+listing's duration, or the one resolution read for a target without it;
+without either the saved position is continued without asking, as the RN
+player did.
 
 With Account's Autoplay next video on (the confirmed `autoplay_next_video`), a
 finished video plays the next one in its folder by the shared rules mobile
@@ -283,8 +357,9 @@ fresh, so a saved position asks as above; the folder read supplies its
 duration. Back while it is found or loads leaves playback. With the setting
 off, or after the folder's last video, playback leaves as before. Leaving
 after autoplay moved on focuses the row of the video it moved to last, even
-when Back came while that video loaded or asked where to start. Files keeps
-its own paging: a row on a page it has not loaded falls back to the first row.
+when Back came while that video loaded or asked where to start. When that row
+is on a page Files has not loaded, Files reads on to it as for an outside open
+([Timestamps and History opens](#timestamps-and-history-opens)).
 
 TV writes positions back through the same writer and observer as mobile,
 owned by the signed-in session: a 15 s sample while playing plus pause, stop,
@@ -310,7 +385,8 @@ queue, a percentage, completed, failed, not available, or the server's own value
 the actions under [MP4 conversion](#mp4-conversion).
 
 Failures say what happened: no network, an expired playback link, too many
-requests, put.io unavailable, no access, a request put.io refused, an expired
+requests, put.io unavailable, no access, a request put.io refused (in put.io's
+words when it gives a reason; see [Refused requests](#refused-requests)), an expired
 session (the shell then signs out), or a format this device cannot play. Try
 again shows only where it can succeed; it resolves the file again, which also
 replaces an expired link, and a player error keeps its position for it.
@@ -325,23 +401,53 @@ Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlaybackStatesTest`,
 
 ## Share-in
 
-The mobile launcher accepts `ACTION_SEND` with `text/plain`. A URL or magnet
-opens an editable Add transfer sheet after sign-in; only Add submits it. Text
-with one unambiguous supported link prefills that link. Ambiguous prose and
-multiple links remain editable with guidance to choose one. A new share cannot
-overwrite an existing draft without confirmation or interrupt a running
-mutation. Input is limited to 16 KiB of UTF-8; oversized shares are rejected
-without truncation. A rejected oversized edit keeps the previous draft but
-blocks Add until the user edits it. After a successful Add, Transfers shows a
-"Transfer added" snackbar once per request.
+The mobile launcher accepts `ACTION_SEND` with `text/plain`, `ACTION_VIEW` of a
+`magnet:` link, and `ACTION_VIEW` or `ACTION_SEND` of `application/x-bittorrent`
+content. Each opens an editable Add transfer sheet after sign-in; only Add
+submits it, so a tapped magnet link never starts a transfer on its own (web's
+magnet handler adds immediately). Intent payloads are untrusted: a magnet link
+must parse with an `xt` parameter or it stays visible but invalid, and a
+`.torrent` is read off the main thread from another app's content URI only
+(never this app's own providers), capped at 16 MiB, and must look like a
+bencoded dictionary with an `info` key. Provider failures mark it invalid; a
+newer share or an account change cancels a read still running, and only one
+read runs at a time. Its name is
+stripped of paths and control characters and always ends in `.torrent`, because
+put.io starts a transfer only for that extension; the upload also sends
+`torrent=true`, so put.io refuses non-torrent content instead of saving it as a
+file.
 
-Share payloads and add-transfer drafts stay in Activity-owned memory. Rotation
-retains them; process death discards them. Saved state contains only consumed
-request metadata, and received share extras and ClipData are removed from the
-retained Activity intent.
+The sheet takes several links separated by spaces or new lines; each must be a
+complete HTTP(S) URL or magnet link, duplicates collapse, and at most 100 go in
+one Add (put.io's multi-add limit). One link uses `/transfers/add`, so put.io's
+rejection is the failure shown; several use `/transfers/add-multi`, and links
+put.io refuses reopen the sheet with "put.io couldn’t add these links" while the
+rest start. Shared text with complete, unambiguous links prefills them one per
+line; ambiguous prose stays editable with guidance. A shared `.torrent` replaces
+the text field with its name and a remove button.
+
+Save to defaults to the account's default download folder: the app omits
+`save_parent_id` (`parent_id` for uploads) and put.io applies the default.
+Change opens the Files move picker without a source item, where every folder,
+root included, is a destination; the choice lasts for the session, as on web,
+and resets when the account changes. put.io saves an uploaded torrent's
+transfer to the default folder when its parent is root.
+
+A new share cannot overwrite an existing draft without confirmation or
+interrupt a running mutation. Text input is limited to 16 KiB of UTF-8;
+oversized shares are rejected without truncation. A rejected oversized edit
+keeps the previous draft but blocks Add until the user edits it. After a
+successful Add, Transfers announces the number of transfers put.io started once
+per request ("1 transfer added").
+
+Share payloads, torrent bytes and add-transfer drafts stay in Activity-owned
+memory. Rotation retains them; process death discards them. Saved state
+contains only consumed request metadata, and received share extras, data URIs
+and ClipData are removed from the retained Activity intent.
 
 Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest`,
-`MainActivityShareTest`.
+`MainActivityShareTest`, `MobileTransfersScreenTest`, `TransfersReducerTest`,
+`SdkTransfersRepositoryTest`, `FilesMoveDestinationControllerTest`.
 
 ## Share-out
 
@@ -428,7 +534,13 @@ the session first lists the file itself, which put.io answers with the file as
 the parent and its `video_metadata`; if that read fails, playback continues
 without asking. A folder opens in Files under its name. Any other file opens
 its parent folder, titled from that folder's listing, with the file's row
-selected on mobile and focused on TV, scrolled to when it is on the first page.
+selected on mobile and focused on TV, and scrolled to. When the file is not on
+the pages read so far, the folder shows as loading while it reads on, one page
+at a time, until the file appears or the folder ends, then opens once at it;
+leaving the folder cancels the reads. It reads at most 10 pages (500 rows).
+Past that, or when the folder ends without the file, the folder opens at its
+top with the rows read and Load more (TV) or paging (mobile) for the rest, and
+TV focuses the first row. A failed page shows the rows read so far with Retry.
 
 That folder sits on top of the viewer's Files location instead of replacing it;
 the kept location reloads when Back returns to it, since changes made above can
@@ -440,8 +552,32 @@ one rather than stacking, and Files refuses it while a move or deletion settles.
 
 Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
 `MobileSearchHistoryScreenTest`, `MobileFilesScreenTest`, `TvSessionViewModelTest`,
-`FilesBrowserReducerTest`, `FilesBrowserControllerTest`, `MobileShellTest`
-(`MobileShellExternalOpenTest`), `TvPickReturnFocusTest`.
+`FilesBrowserReducerTest`, `FilesRevealReducerTest`, `FilesBrowserControllerTest`,
+`MobileShellTest` (`MobileShellExternalOpenTest`), `TvPickReturnFocusTest`.
+
+## History events
+
+Mobile gives each event iOS's copy (`HistoryTableViewCell`): shared files and
+completed transfers show their name and kind, uploads their name; transfer
+errors, RSS deletions and paused RSS filters read as a sentence naming the
+transfer, file or filter. An event with no name, or of a type iOS has no copy
+for, reads No title, never its raw API type. TV lists only shared files and
+completed transfers, as tv-native does, including a share whose file is gone; a
+page with neither reads on to the next, so dropped events neither end the list
+nor leave it empty while older events wait.
+With history off, both surfaces name the Keep account history switch in Account.
+
+Tests: `SdkHistoryRepositoryTest`, `MobileSearchHistoryScreenTest`,
+`TvSessionViewModelTest`, `TvHistoryScreenTest`.
+
+## Storage quota
+
+The account header labels the quota as web and iOS do: X of Y free when the
+account's `show_optimistic_usage` is on, X of Y used otherwise. The bar fills
+with what is used either way.
+
+Tests: `PutioAuthSessionGatewayTest`, `PutioTvSessionGatewayTest`,
+`MobileAccountScreenTest`, `TvAccountScreenTest`.
 
 ## Recent searches
 
@@ -533,6 +669,41 @@ edges, with its controls inset by the same safe area plus 16dp.
 Tests: `TvSafeAreaTest` (collapsed and expanded drawer; 960x540dp and
 1280x720dp viewports; a 4K xxxhdpi panel), `TvPlayerSafeAreaTest` (player
 controls), `DesignTokenCodegenTest` (overscan ratios, axis and presence checks).
+
+## Refused requests
+
+When put.io refuses a request with a 4xx and its own `error_message`, both
+surfaces show that message, as web does, in place of the app's generic copy:
+Files, Search, History, Transfers, Trash, the move picker, Account settings
+and the player. 401, 403, 408 and 429 keep the app's own copy, and more
+specific app copy (an unavailable move
+destination, an incomplete Trash restore, a transfer with nothing to retry)
+still wins. 5xx, network and unreadable responses keep the existing copy, and
+copy that never named the failure, such as paging and refresh footers, stays
+as it is. A message that is a bare error code, longer than 300
+characters, mentions a URL or a credential, or carries the SDK's redaction
+marker is not shown; the copy applies instead. The message comes from the
+SDK's redacted `PutioApiException.errorMessage`.
+
+Tests: `ApiRejectionReasonTest`, `MobileFilesScreenTest`,
+`MobileFilesMoveTest`, `MobileTrashScreenTest`, `TvPlaybackStatesTest`,
+`MobileRefusedRequestProofTest` (opt-in device proof;
+see [Harness](./harness.md#refused-request-proof)).
+
+## Transfer failures and retry
+
+Mobile only; TV has no Transfers screen. A transfer row shows put.io's
+`error_message` as the API sends it, trimmed; a failed row without one shows
+"This transfer needs attention." Retry runs at once without a confirmation.
+The result arrives as a snackbar, "Retrying transfer" or "Couldn’t retry
+transfer." with the reason, once per request, replacing any visible snackbar;
+a 403 reads as nothing to retry. A failed retry leaves no blocking error
+dialog, and a session rejection still signs out.
+
+Tests: `SdkTransfersRepositoryTest`, `TransfersReducerTest`,
+`MobileTransfersScreenTest`, `FilesSessionFailureTest`,
+`MobileTransferRetryProofTest` (opt-in device proof; see
+[Harness](./harness.md#transfer-retry-proof)).
 
 ## Transfers polling
 

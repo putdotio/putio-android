@@ -87,24 +87,20 @@ internal fun TvFilesActionsDialog(
     }
 }
 
-/** Deletion confirms first with Cancel focused; the copy says whether Trash keeps the file. */
+/** Permanent deletion confirms first with Cancel focused; Move to trash needs no confirmation. */
 @Composable
 internal fun TvFilesDeleteDialog(
     item: FilesItem,
-    trash: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     TvDialog(
-        title = stringResource(if (trash) R.string.tv_files_trash_title else R.string.tv_files_delete_title),
-        message = stringResource(
-            if (trash) R.string.tv_files_trash_message else R.string.tv_files_delete_message,
-            item.name,
-        ),
+        title = stringResource(R.string.tv_files_delete_title),
+        message = stringResource(R.string.tv_files_delete_message, item.name),
         onDismiss = onDismiss,
     ) { focus ->
         TvButton(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(if (trash) R.string.tv_files_action_trash else R.string.tv_files_action_delete))
+            Text(stringResource(R.string.tv_files_action_delete))
         }
         TvButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().focusRequester(focus)) {
             Text(stringResource(R.string.tv_files_cancel))

@@ -1,12 +1,15 @@
 package io.putdotio.android
 
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.Activity
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
 import android.view.View
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeGestures
 import androidx.compose.ui.geometry.Offset
@@ -211,6 +214,35 @@ class MobilePlayerScreenTest {
         compose.runOnIdle {
             assertEquals(2, players.size)
             assertEquals(12_345L, players.last().currentPosition)
+        }
+    }
+
+    @Test
+    fun theWindowTurnsToLandscapeOnlyForALandscapeVideo() {
+        val player = RecordingPlayer()
+        var activity: Activity? = null
+        compose.setContent {
+            activity = LocalActivity.current
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(startFromSeconds = 0.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                )
+            }
+        }
+        compose.runOnIdle {
+            assertEquals(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED, checkNotNull(activity).requestedOrientation)
+            player.updateVideoSize(VideoSize(1_080, 1_920))
+        }
+        compose.runOnIdle {
+            assertEquals(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED, checkNotNull(activity).requestedOrientation)
+            player.updateVideoSize(VideoSize(1_920, 1_080))
+        }
+        compose.runOnIdle {
+            assertEquals(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE, checkNotNull(activity).requestedOrientation)
         }
     }
 
@@ -2582,6 +2614,11 @@ internal class RecordingPlayer(
                 .setPlayerError(error)
                 .setPlaybackState(Media3Player.STATE_IDLE)
                 .build()
+        invalidateState()
+    }
+
+    fun updateVideoSize(size: VideoSize) {
+        state = state.buildUpon().setVideoSize(size).build()
         invalidateState()
     }
 

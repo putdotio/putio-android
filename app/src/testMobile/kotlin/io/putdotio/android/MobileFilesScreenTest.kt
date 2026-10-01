@@ -27,6 +27,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -52,6 +53,7 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
@@ -347,32 +349,45 @@ class MobileFilesScreenTest {
         compose.onNodeWithText("You don’t have access to this folder.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
         assertEquals(listOf(FilesBrowserEvent.Retry, FilesBrowserEvent.Retry), events.takeLast(2))
+
+        // A refused request shows put.io's own reason; a server error keeps the app's copy.
+        compose.runOnIdle {
+            state = browserState(
+                FilesContent.Failed(putioRefusal(400, putioErrorBody(400, "not a folder")).toFilesFailure()),
+            )
+        }
+        compose.onNodeWithText("not a folder").assertIsDisplayed()
+        compose.runOnIdle {
+            state = browserState(
+                FilesContent.Failed(putioRefusal(503, putioErrorBody(503, "not a folder")).toFilesFailure()),
+            )
+        }
+        compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
+        compose.onNodeWithText("not a folder").assertDoesNotExist()
     }
 
     @Test
-    fun pagingOffersContinuationAndRetry() {
-        var state by mutableStateOf(
-            browserState(
-                FilesContent.Ready(
-                    items = listOf(filesItem(id = 1L, name = "first.txt")),
-                    paging = FilesPaging.Available(FilesCursor("next-page")),
-                ),
-            ),
-        )
+    fun pagingLoadsTheNextPageNearTheEndOnceAndLeavesAFailedPageToItsRetry() {
+        val items = (1L..60L).map { filesItem(id = it, name = "Sample $it.txt") }
+        val available = FilesContent.Ready(items, FilesPaging.Available(FilesCursor("next-page")))
+        var state by mutableStateOf(browserState(available))
         val events = mutableListOf<FilesBrowserEvent>()
         compose.setContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
             }
         }
+        fun loads() = compose.runOnIdle { events.count { it == FilesBrowserEvent.LoadNextPage } }
 
-        compose.onNodeWithText("Load more").performClick()
-        assertTrue(events.contains(FilesBrowserEvent.LoadNextPage))
+        assertEquals("the top of a long page asks for nothing", 0, loads())
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(40)
+        assertEquals(1, loads())
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(50)
+        assertEquals("staying near the end asks once", 1, loads())
 
         compose.runOnIdle {
             state = browserState(
-                FilesContent.Ready(
-                    items = listOf(filesItem(id = 1L, name = "first.txt")),
+                available.copy(
                     paging = FilesPaging.Failed(
                         cursor = FilesCursor("next-page"),
                         failure = FilesFailure.Unexpected(IllegalStateException("broken")),
@@ -380,10 +395,59 @@ class MobileFilesScreenTest {
                 ),
             )
         }
-        compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToNode(hasText("Couldn’t load more files."))
+        assertEquals("a failed page waits for Retry", 1, loads())
         compose.onNodeWithText("Try again").performClick()
-
         assertEquals(FilesBrowserEvent.Retry, events.last())
+
+        // A folder operation holds paging; the next page follows once it settles.
+        compose.runOnIdle {
+            state = browserState(
+                available,
+                operation = FilesFolderOperation.Loading(
+                    FilesRequestId(9L), FilesFolderOperationIntent.Refresh, FilesFolderOperationPhase.RELOADING,
+                ),
+            )
+        }
+        assertEquals(1, loads())
+        compose.runOnIdle { state = browserState(available) }
+        assertEquals(2, loads())
+    }
+
+    @Test
+    fun aShortPageLoadsTheNextOneWithoutATap() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        setFilesContent(
+            browserState(
+                FilesContent.Ready(
+                    listOf(filesItem(id = 1L, name = "Harbor film.mp4")),
+                    FilesPaging.Available(FilesCursor("next-page")),
+                ),
+            ),
+            onEvent = { events += it },
+        )
+
+        compose.runOnIdle { assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events) }
+    }
+
+    @Test
+    fun emptyPagesAndPagesWhoseLoadingWasNeverDrawnStillContinue() {
+        val short = listOf(filesItem(id = 1L, name = "Harbor film.mp4"))
+        var state by mutableStateOf(browserState(FilesContent.Empty(FilesPaging.Available(FilesCursor("page-2")))))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
+            }
+        }
+        fun loads() = compose.runOnIdle { events.count { it == FilesBrowserEvent.LoadNextPage } }
+
+        assertEquals("an empty page with a next one continues", 1, loads())
+        compose.runOnIdle { state = browserState(FilesContent.Ready(short, FilesPaging.Available(FilesCursor("page-3")))) }
+        assertEquals(2, loads())
+        // The next page landed before its loading state was drawn; its new cursor still continues.
+        compose.runOnIdle { state = browserState(FilesContent.Ready(short, FilesPaging.Available(FilesCursor("page-4")))) }
+        assertEquals(3, loads())
     }
 
     @Test

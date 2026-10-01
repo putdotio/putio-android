@@ -136,7 +136,7 @@ class TransfersRefreshReducerTest {
         uploadSpeedBytesPerSecond = 1.0,
         estimatedSecondsRemaining = 30.0,
         availability = 1.0,
-        hasError = status == AppTransferStatus.Failed,
+        errorMessage = null,
         createdAt = "2026-08-30T00:00:00Z",
         userFileExists = null,
     )

@@ -1,10 +1,17 @@
 package io.putdotio.android.tv.account
 
 import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.apiReason
+
+/** put.io's reason for a refused request, else this failure's copy. */
+@Composable
+internal fun AccountSettingsFailure.tvMessageText(): String = apiReason ?: stringResource(tvMessage())
 
 @StringRes
 internal fun AccountSettingsFailure.tvMessage(): Int =
@@ -21,6 +28,10 @@ internal fun AccountSettingsFailure.tvMessage(): Int =
         is AccountSettingsFailure.Unexpected,
         -> R.string.tv_error_unavailable
     }
+
+/** put.io's reason for a refused request, else this failure's copy. */
+@Composable
+internal fun AndroidAppConfigFailure.tvMessageText(): String = apiReason ?: stringResource(tvMessage())
 
 @StringRes
 internal fun AndroidAppConfigFailure.tvMessage(): Int =

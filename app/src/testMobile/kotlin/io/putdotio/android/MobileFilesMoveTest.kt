@@ -35,6 +35,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.StubFilesRepository
+import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
@@ -49,7 +50,6 @@ import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.MOBILE_FILES_MOVE_BACK_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
-import io.putdotio.android.files.MOBILE_FILES_MOVE_LOAD_MORE_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_PICKER_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_RETRY_TAG
 import io.putdotio.android.files.MobileFilesRoute
@@ -137,7 +137,7 @@ class MobileFilesMoveTest {
     }
 
     @Test
-    fun emptyDestinationPageCanContinueAndRetryWithoutTouchingSourceFiles() {
+    fun emptyDestinationPageContinuesOnItsOwnAndRetriesWithoutTouchingSourceFiles() {
         var continuations = 0
         val requests = mutableListOf<FilesCursor?>()
         val repository = object : StubFilesRepository() {
@@ -160,8 +160,7 @@ class MobileFilesMoveTest {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, events::add, {}, true, {}) }
         }
         openMove()
-        compose.onNodeWithText("No folders on this page.").assertIsDisplayed()
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).performClick()
+        // The empty first page asks for the next one on its own; only the failed one waits for Retry.
         compose.onNodeWithTag(MOBILE_FILES_MOVE_RETRY_TAG).performClick()
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
@@ -169,6 +168,22 @@ class MobileFilesMoveTest {
             assertEquals(listOf(null, FilesCursor("next"), FilesCursor("next")), requests)
             assertTrue(events.none { it is FilesBrowserEvent.Move || it is FilesBrowserEvent.LoadNextPage })
         }
+    }
+
+    @Test
+    fun missingDestinationKeepsThePickerCopyOverPutiosReason() {
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                error("Unexpected source read")
+            override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
+                FilesRepositoryResult.Failure(putioRefusal(404, putioErrorBody(404, "not a folder")).toFilesFailure())
+        }
+        compose.setContent {
+            PutioTheme { MobileFilesRoute(loadedRoot(), repository, { true }, {}, true, {}) }
+        }
+        openMove()
+        compose.onNodeWithText("This folder is unavailable. Choose another folder.").assertIsDisplayed()
+        compose.onNodeWithText("not a folder").assertDoesNotExist()
     }
 
     @Test
@@ -279,7 +294,6 @@ class MobileFilesMoveTest {
         openMove()
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsEnabled()
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).performClick()
         compose.runOnIdle { assertTrue(readStarted.isCompleted) }
         compose.runOnIdle { repository = nextRepository }
         compose.waitForIdle()
@@ -401,7 +415,6 @@ class MobileFilesMoveTest {
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsEnabled()
         val queuedConfirm = clickAction(MOBILE_FILES_MOVE_HERE_TAG)
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).performClick()
         compose.runOnIdle {
             pageResult.complete(FilesRepositoryResult.Failure(
                 FilesFailure.AuthenticationRequired(PutioConfigurationException("Expired picker session")),

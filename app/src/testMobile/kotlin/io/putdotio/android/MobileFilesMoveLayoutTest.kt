@@ -85,7 +85,7 @@ class MobileFilesMoveLayoutTest {
         }
 
         val layouts = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText(state.sourceItem.name).performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
+        compose.onNodeWithText(requireNotNull(state.sourceItem).name).performSemanticsAction(SemanticsActions.GetTextLayoutResult) {
             it(layouts)
         }
         assertEquals(
@@ -105,14 +105,15 @@ class MobileFilesMoveLayoutTest {
             folderBounds.top >= listBounds.top && folderBounds.bottom <= listBounds.bottom)
         lastFolder.assertIsDisplayed().performClick()
         list.performScrollToNode(hasTestTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG))
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).assertIsDisplayed().performClick()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).assertIsDisplayed()
         assertActionFitsPicker(MOBILE_FILES_MOVE_CANCEL_TAG)
         assertActionFitsPicker(MOBILE_FILES_MOVE_HERE_TAG)
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()
         compose.runOnIdle {
-            assertEquals(listOf(FilesMoveDestinationEvent.OpenFolder(folders.last().id),
-                FilesMoveDestinationEvent.LoadNextPage), events)
+            // A 15-folder page ends inside the paging margin, so it asks for the next one on open.
+            assertEquals(listOf(FilesMoveDestinationEvent.LoadNextPage,
+                FilesMoveDestinationEvent.OpenFolder(folders.last().id)), events)
             assertEquals(1, cancellations)
             assertEquals(1, confirmations)
         }

@@ -1,9 +1,11 @@
 package io.putdotio.android.tv.auth
 
+import io.putdotio.android.AccountStorage
 import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.account.inactiveAccountNotice
 import io.putdotio.android.auth.AccessToken
 import io.putdotio.android.auth.isAuthoritativeAuthRejection
+import io.putdotio.android.toAccountStorage
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.auth.DeviceCodeAuthState
@@ -17,17 +19,11 @@ data class TvAccount(
     val userId: Long,
     val username: String,
     val email: String,
-    val storage: TvAccountStorage = TvAccountStorage(),
+    val storage: AccountStorage = AccountStorage(),
     /** The account's `history_enabled` setting; History is a disabled pane without it. */
     val historyEnabled: Boolean = false,
     val avatarUrl: String? = null,
     val inactiveNotice: InactiveAccountNotice? = null,
-)
-
-data class TvAccountStorage(
-    val availableBytes: Long = 0L,
-    val sizeBytes: Long = 0L,
-    val usedBytes: Long = 0L,
 )
 
 internal sealed interface TvSessionValidation {
@@ -117,7 +113,7 @@ internal fun AccountInfo.toTvAccount(): TvAccount =
         userId = userId,
         username = username,
         email = mail,
-        storage = TvAccountStorage(availableBytes = disk.available, sizeBytes = disk.size, usedBytes = disk.used),
+        storage = toAccountStorage(),
         historyEnabled = settings.historyEnabled,
         avatarUrl = avatarUrl.takeIf { it.isNotBlank() },
         inactiveNotice = inactiveAccountNotice(),

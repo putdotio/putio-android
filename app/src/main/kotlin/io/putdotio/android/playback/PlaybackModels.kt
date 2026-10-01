@@ -283,28 +283,49 @@ private fun PlaybackState.resolveSucceeded(
         return PlaybackTransition(this, consumed = false)
     }
     return when (val resolution = event.resolution) {
+        // A looked-up duration stays on the target: TV's prompt reads it, and retries need not list again.
         is PlaybackResolution.Ready ->
-            PlaybackTransition(
-                copy(
-                    content =
-                        if (resolution.useStartFrom && resolution.source.startFromSeconds > 0 &&
-                            resumePositionMillis == null
-                        ) {
-                            PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden)
-                        } else {
-                            PlaybackContent.Ready(
-                                resolution.source,
-                                resolution.useStartFrom,
-                                resolution.subtitlesHidden,
-                            )
-                        },
-                ),
-            )
+            (
+                resolution.durationSeconds
+                    ?.takeIf { target.durationSeconds == null }
+                    ?.let { copy(target = target.copy(durationSeconds = it)) }
+                    ?: this
+                ).ready(resolution)
         is PlaybackResolution.Conversion -> conversionResolved(resolution.state)
         is PlaybackResolution.Unsupported ->
             PlaybackTransition(copy(content = PlaybackContent.Unsupported(resolution.fileType)))
     }
 }
+
+private fun PlaybackState.ready(resolution: PlaybackResolution.Ready): PlaybackTransition =
+    if (resolution.useStartFrom && resolution.source.startFromSeconds > 0 && resumePositionMillis == null) {
+        val awaiting = copy(
+            content = PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden),
+        )
+        val durationSeconds = target.durationSeconds
+        // A position saved within 10 s of the end is a finished video (iOS main's rule, applied
+        // at open so the server keeps the watched position): it starts over without asking.
+        if (durationSeconds != null &&
+            resolution.source.startFromSeconds >= durationSeconds - FINISHED_WITHIN_SECONDS
+        ) {
+            awaiting.chooseResume(restart = true)
+        } else if (target.mediaType == PlaybackMediaType.AUDIO) {
+            // Audio continues from its saved position without asking, as iOS does.
+            awaiting.chooseResume(restart = false)
+        } else {
+            PlaybackTransition(awaiting)
+        }
+    } else {
+        PlaybackTransition(
+            copy(
+                content = PlaybackContent.Ready(
+                    resolution.source,
+                    resolution.useStartFrom,
+                    resolution.subtitlesHidden,
+                ),
+            ),
+        )
+    }
 
 /**
  * A video whose first status read on opening is not available has never had a conversion
@@ -364,6 +385,7 @@ private fun PlaybackState.isLoading(requestId: PlaybackRequestId): Boolean =
         (content as? PlaybackContent.Conversion)?.refreshRequestId == requestId
 
 private const val INITIAL_REQUEST_VALUE = 1L
+private const val FINISHED_WITHIN_SECONDS = 10.0
 
 /** How often a queued or running conversion is read again (tv-native `useConversionStatus`: 3 s). */
 const val PLAYBACK_CONVERSION_POLL_MILLIS = 3_000L

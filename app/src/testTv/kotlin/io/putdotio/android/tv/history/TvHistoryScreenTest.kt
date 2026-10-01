@@ -59,7 +59,6 @@ class TvHistoryScreenTest {
         compose.onNodeWithText("Last week").assertIsDisplayed()
         compose.onNode(hasText("2 hours ago · Completed transfer")).assertIsDisplayed()
         compose.onNode(hasText("2 days ago · Shared file")).assertIsDisplayed()
-        compose.onNode(hasText("· Activity", substring = true)).assertIsDisplayed()
 
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
@@ -173,6 +172,7 @@ class TvHistoryScreenTest {
         show(HistoryState(HistoryContent.Disabled))
 
         compose.onNodeWithText("History is off").assertIsDisplayed()
+        compose.onNodeWithText("Turn on “Keep account history” in Account to see activity here.").assertIsDisplayed()
         compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
     }
 
@@ -268,7 +268,11 @@ class TvHistoryScreenTest {
             "2026-09-12T10:00:00",
             HistoryEventKind.Transfer(HistoryTransferId(9), HistoryFileId(1), "Big Buck Bunny"),
         ),
-        HistoryItem(HistoryEventId(2), "2026-09-11T10:00:00", HistoryEventKind.Other("upload", "resume-video.mp4")),
+        HistoryItem(
+            HistoryEventId(2),
+            "2026-09-11T10:00:00",
+            HistoryEventKind.Transfer(HistoryTransferId(8), fileId = null, name = "resume-video.mp4"),
+        ),
         item(3, "sintel.mp4", 2),
     )
 

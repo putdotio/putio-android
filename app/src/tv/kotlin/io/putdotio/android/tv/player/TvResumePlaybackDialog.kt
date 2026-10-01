@@ -31,8 +31,7 @@ internal const val TV_PLAYER_RESUME_PROGRESS_TAG = "tv-player-resume-progress"
  * The play-time resume choice, as the RN player's (putio-web `apps/tv-native`
  * `withResumePlaybackPrompt.tsx`): the raw file name, a progress bar, and stacked Continue
  * and Start from the beginning buttons. Continue takes focus; the bar previews where the
- * focused choice starts. Back continues from the saved position (#34), where the RN
- * prompt had no Back of its own and left playback.
+ * focused choice starts. Back leaves playback, as the RN prompt and mobile's do (#238).
  */
 @Composable
 internal fun TvResumePlaybackDialog(
@@ -41,6 +40,7 @@ internal fun TvResumePlaybackDialog(
     durationSeconds: Double,
     onResume: () -> Unit,
     onRestart: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     var restartFocused by remember { mutableStateOf(false) }
     val previewSeconds = if (restartFocused) 0.0 else startFromSeconds
@@ -53,7 +53,7 @@ internal fun TvResumePlaybackDialog(
     TvDialog(
         title = title,
         message = null,
-        onDismiss = onResume,
+        onDismiss = onDismiss,
         body = {
             LinearProgressIndicator(
                 progress = { fraction },

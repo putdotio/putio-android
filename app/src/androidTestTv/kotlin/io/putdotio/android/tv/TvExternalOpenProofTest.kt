@@ -21,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesPage
@@ -200,6 +201,37 @@ class TvExternalOpenProofTest {
         assertEquals(1, exits)
     }
 
+    @Test
+    fun aPickOnALaterPageOfItsFolderOpensFocusedOnIt() {
+        val session = compose.mountTvProofSession(pagedDependencies())
+        compose.waitUntil(5_000) { hasContentDescription("Open $PAGED_FOLDER") }
+        press(KeyEvent.KEYCODE_DPAD_LEFT)
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.onNodeWithContentDescription(SEARCH_FIELD).assertIsFocused().performTextInput("harbor")
+        compose.waitUntil(5_000) { hasContentDescription("Open $PAGED_DOCUMENT") }
+        focus("Open $PAGED_DOCUMENT")
+        screenshot("22-paged-result")
+
+        // Back while later pages are read leaves the folder and cancels the reads.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(LOADING).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("23-reading-later-pages")
+        press(KeyEvent.KEYCODE_BACK)
+        compose.waitUntil(5_000) { isFocused("Open $PAGED_DOCUMENT") }
+        assertEquals(listOf(FilesFolder.Root), compose.runOnIdle { session.files.state.value.path })
+        screenshot("24-back-cancels-the-reads")
+
+        // Left alone, the folder reads on to the document's page and opens focused on it.
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { isFocused(PAGED_DOCUMENT) }
+        assertEquals(1, compose.onAllNodesWithText(PAGED_FOLDER).fetchSemanticsNodes().size)
+        screenshot("25-document-on-page-three-focused")
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        compose.onNodeWithContentDescription("Scan $PAGED_DOCUMENT_INDEX.jpg").assertIsFocused()
+        screenshot("26-rows-above-it-loaded")
+    }
+
     /** From the Files pane, opens the destination [steps] below Files in the drawer. */
     private fun openFromDrawer(steps: Int) {
         press(KeyEvent.KEYCODE_DPAD_LEFT)
@@ -248,6 +280,33 @@ class TvExternalOpenProofTest {
             searchResults = listOf(video, folder, document),
             recentSearchStore = { ProofRecentSearchStore() },
             playback = { PlaybackResolution.Ready(localSource().copy(startFromSeconds = SAVED_SECONDS), useStartFrom = true) },
+        )
+    }
+
+    /**
+     * [PAGED_FOLDER] lists 3 pages of 50 rows, each later page after a delay long enough to
+     * press Back during it; [PAGED_DOCUMENT] is on the third page.
+     */
+    private fun pagedDependencies(): TvSessionDependencies {
+        val folder = proofItem(PAGED_FOLDER_ID, PAGED_FOLDER, PutioFileType.FOLDER, FilesFolder.Root.id)
+        val document = proofItem(PAGED_DOCUMENT_ID, PAGED_DOCUMENT, PutioFileType.PDF, folder.id)
+        val scans = (1 until PAGE_COUNT * PAGE_SIZE).map {
+            proofItem(200L + it, "Scan $it.jpg", PutioFileType.IMAGE, folder.id)
+        }
+        val rows = scans.take(PAGED_DOCUMENT_INDEX) + document + scans.drop(PAGED_DOCUMENT_INDEX)
+        val pages = rows.chunked(PAGE_SIZE).mapIndexed { index, items ->
+            FilesPage(
+                items = items,
+                nextCursor = FilesCursor("page-${index + 1}").takeIf { index + 1 < PAGE_COUNT },
+                parent = folder.takeIf { index == 0 },
+            )
+        }
+        return tvProofDependencies(
+            listings = mapOf(FilesFolder.Root.id to FilesPage(listOf(folder), null), folder.id to pages.first()),
+            continuations = pages.drop(1).mapIndexed { index, page -> FilesCursor("page-${index + 1}") to page }.toMap(),
+            pageDelayMillis = PAGE_DELAY_MILLIS,
+            searchResults = listOf(document),
+            recentSearchStore = { ProofRecentSearchStore() },
         )
     }
 
@@ -329,6 +388,16 @@ class TvExternalOpenProofTest {
         const val PROXY_ROW = "Choose your proxy"
         const val SAVED_SECONDS = 45.0
         const val CONTINUE_LABEL = "Continue playing from 00:45"
+        const val PAGED_FOLDER_ID = 45L
+        const val PAGED_FOLDER = "Sample folder"
+        const val PAGED_DOCUMENT_ID = 9_350_003L
+        const val PAGED_DOCUMENT = "Harbor notes.pdf"
+        const val PAGE_COUNT = 3
+        const val PAGE_SIZE = 50
+        // The third page's 13th row.
+        const val PAGED_DOCUMENT_INDEX = 112
+        const val PAGE_DELAY_MILLIS = 1_500L
+        const val LOADING = "Loading"
         const val MAX_STEPS = 8
         const val STEP_MILLIS = 400L
         const val PLAY_MILLIS = 3_000L

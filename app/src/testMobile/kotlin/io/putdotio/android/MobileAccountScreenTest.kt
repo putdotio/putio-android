@@ -31,7 +31,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import io.putdotio.android.auth.MobileAccount
-import io.putdotio.android.auth.MobileAccountStorage
+import io.putdotio.android.AccountStorage
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesSort
@@ -109,8 +109,8 @@ class MobileAccountScreenTest {
         compose.onNodeWithText("user@example.com").assertIsDisplayed()
         val context = ApplicationProvider.getApplicationContext<Context>()
         val expectedStorage =
-            "${Formatter.formatShortFileSize(context, GIBIBYTE)} used · " +
-                "${Formatter.formatShortFileSize(context, 3 * GIBIBYTE)} free"
+            "${Formatter.formatShortFileSize(context, GIBIBYTE)} of " +
+                "${Formatter.formatShortFileSize(context, 4 * GIBIBYTE)} used"
         compose.onNodeWithText(expectedStorage).assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG)
             .assertRangeInfoEquals(ProgressBarRangeInfo(0.25f, 0f..1f))
@@ -132,6 +132,23 @@ class MobileAccountScreenTest {
             events,
         )
         assertTrue(signedOut)
+    }
+
+    @Test
+    fun quotaStatesWhatIsFreeWhenTheAccountShowsOptimisticUsage() {
+        setAccountContent(
+            state = readyAccountSettingsState(),
+            events = mutableListOf(),
+            account = Account.copy(storage = Account.storage.copy(showOptimisticUsage = true)),
+        )
+
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        compose.onNodeWithText(
+            "${Formatter.formatShortFileSize(context, 3 * GIBIBYTE)} of " +
+                "${Formatter.formatShortFileSize(context, 4 * GIBIBYTE)} free",
+        ).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG)
+            .assertRangeInfoEquals(ProgressBarRangeInfo(0.25f, 0f..1f))
     }
 
     @Test
@@ -167,7 +184,7 @@ class MobileAccountScreenTest {
     @Test
     fun quotaProgressClampsInvalidDiskValues() {
         var account by mutableStateOf(
-            Account.copy(storage = MobileAccountStorage(availableBytes = -1, sizeBytes = 0, usedBytes = 10)),
+            Account.copy(storage = AccountStorage(availableBytes = -1, sizeBytes = 0, usedBytes = 10)),
         )
         compose.setContent {
             PutioTheme {
@@ -186,12 +203,12 @@ class MobileAccountScreenTest {
         compose.onNodeWithTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG)
             .assertRangeInfoEquals(ProgressBarRangeInfo(0f, 0f..1f))
         compose.runOnIdle {
-            account = account.copy(storage = MobileAccountStorage(availableBytes = 5, sizeBytes = 5, usedBytes = -1))
+            account = account.copy(storage = AccountStorage(availableBytes = 5, sizeBytes = 5, usedBytes = -1))
         }
         compose.onNodeWithTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG)
             .assertRangeInfoEquals(ProgressBarRangeInfo(0f, 0f..1f))
         compose.runOnIdle {
-            account = account.copy(storage = MobileAccountStorage(availableBytes = 0, sizeBytes = 5, usedBytes = 10))
+            account = account.copy(storage = AccountStorage(availableBytes = 0, sizeBytes = 5, usedBytes = 10))
         }
         compose.onNodeWithTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG)
             .assertRangeInfoEquals(ProgressBarRangeInfo(1f, 0f..1f))
@@ -881,7 +898,7 @@ class MobileAccountScreenTest {
                 email = "user@example.com",
                 avatarUrl = null,
                 storage =
-                    MobileAccountStorage(
+                    AccountStorage(
                         availableBytes = 3 * GIBIBYTE,
                         sizeBytes = 4 * GIBIBYTE,
                         usedBytes = GIBIBYTE,

@@ -64,6 +64,7 @@ class TvTrashScreenTest {
         var state by mutableStateOf(TrashState(content = loaded))
         show { state }
 
+        compose.onNodeWithText("Heads up: Files in trash have an expiry date of 14 days.").assertIsDisplayed()
         compose.onNodeWithText("10 B · Deleted Sep 6, 2026 · Expires Sep 20, 2026").assertIsDisplayed()
         compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused().performKeyInput {
             keyDown(Key.DirectionCenter)

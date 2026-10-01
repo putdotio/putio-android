@@ -41,7 +41,7 @@ internal fun TransfersRefresh.hasRequest(requestId: TransfersRequestId): Boolean
     }
 
 sealed interface TransferAction {
-    data class Add(val submission: TransferSubmission) : TransferAction
+    data class Add(val request: TransferAddRequest) : TransferAction
     data class Cancel(val id: TransferId) : TransferAction
     data class Retry(val id: TransferId) : TransferAction
     data object Clean : TransferAction
@@ -75,6 +75,17 @@ sealed interface TransferNotice {
     ) : TransferNotice
 }
 
+/** The last retry's result, held until the screen has reported it. */
+sealed interface TransferRetryOutcome {
+    val requestId: TransfersRequestId
+
+    data class Accepted(override val requestId: TransfersRequestId) : TransferRetryOutcome
+    data class Failed(
+        override val requestId: TransfersRequestId,
+        val failure: FilesFailure,
+    ) : TransferRetryOutcome
+}
+
 @ConsistentCopyVisibility
 data class TransfersState internal constructor(
     val content: TransfersContent,
@@ -82,12 +93,25 @@ data class TransfersState internal constructor(
     val mutation: TransferMutation = TransferMutation.Idle,
     val navigation: TransferNavigation = TransferNavigation.Idle,
     val notice: TransferNotice? = null,
+    val retryOutcome: TransferRetryOutcome? = null,
     val visible: Boolean = false,
-    internal val lastSuccessfulAddRequestId: TransfersRequestId? = null,
+    internal val lastAddReceipt: TransferAddReceipt? = null,
     internal val firstPageIds: Set<TransferId> = emptySet(),
     internal val consumedCursors: Set<TransferCursor> = emptySet(),
     internal val nextRequestValue: Long = 1L,
-)
+) {
+    internal val lastSuccessfulAddRequestId: TransfersRequestId? get() = lastAddReceipt?.requestId
+}
+
+/** The last accepted add: how many transfers put.io started and which links it refused. */
+internal data class TransferAddReceipt(
+    val requestId: TransfersRequestId,
+    val addedCount: Int,
+    val rejectedLinks: List<String>,
+) {
+    override fun toString(): String =
+        "TransferAddReceipt(requestId=$requestId, addedCount=$addedCount, rejected=${rejectedLinks.size})"
+}
 
 sealed interface TransfersEvent {
     data object LoadNextPage : TransfersEvent
@@ -95,11 +119,16 @@ sealed interface TransfersEvent {
     data object Refresh : TransfersEvent
     data object Poll : TransfersEvent
     data class VisibilityChanged(val visible: Boolean) : TransfersEvent
-    data class Add(val input: String) : TransfersEvent
+    /** Whitespace-separated links; [saveParentId] null saves to the account's default download folder. */
+    data class Add(val input: String, val saveParentId: Long? = null) : TransfersEvent {
+        override fun toString(): String = "Add(<redacted>, saveParentId=$saveParentId)"
+    }
+    data class AddTorrent(val file: TorrentUpload, val saveParentId: Long? = null) : TransfersEvent
     data class Cancel(val id: TransferId) : TransfersEvent
     data class RetryTransfer(val id: TransferId) : TransfersEvent
     data object CleanCompleted : TransfersEvent
     data object DismissMutationFailure : TransfersEvent
+    data class DismissRetryOutcome(val requestId: TransfersRequestId) : TransfersEvent
     data class Open(val id: TransferId) : TransfersEvent
     data class OpenSucceeded(val requestId: TransfersRequestId) : TransfersEvent
     data class OpenFailed(val requestId: TransfersRequestId, val failure: FilesFailure) : TransfersEvent
@@ -121,6 +150,7 @@ sealed interface TransfersEvent {
         val requestId: TransfersRequestId,
         val item: TransferItem? = null,
         val affectedIds: Set<TransferId> = emptySet(),
+        val added: TransferAddOutcome? = null,
     ) : TransfersEvent
     data class MutationFailed(val requestId: TransfersRequestId, val failure: FilesFailure) : TransfersEvent
 }
@@ -160,11 +190,12 @@ object TransfersReducer {
             TransfersEvent.Refresh -> state.refresh()
             TransfersEvent.Poll -> state.poll()
             is TransfersEvent.VisibilityChanged -> state.visibilityChanged(event.visible)
-            is TransfersEvent.Add -> state.add(event.input)
+            is TransfersEvent.Add, is TransfersEvent.AddTorrent -> state.add(event)
             is TransfersEvent.Cancel -> state.cancel(event.id)
             is TransfersEvent.RetryTransfer -> state.retryTransfer(event.id)
             TransfersEvent.CleanCompleted -> state.cleanCompleted()
             TransfersEvent.DismissMutationFailure -> state.dismissMutationFailure()
+            is TransfersEvent.DismissRetryOutcome -> state.dismissRetryOutcome(event.requestId)
             is TransfersEvent.Open,
             is TransfersEvent.OpenSucceeded,
             is TransfersEvent.OpenFailed,
@@ -216,3 +247,10 @@ private fun TransfersState.visibilityChanged(visible: Boolean): TransfersTransit
         )
     return TransfersTransition(next, consumed = next != this)
 }
+
+private fun TransfersState.dismissRetryOutcome(requestId: TransfersRequestId): TransfersTransition =
+    if (retryOutcome?.requestId == requestId) {
+        TransfersTransition(copy(retryOutcome = null))
+    } else {
+        TransfersTransition(this, consumed = false)
+    }

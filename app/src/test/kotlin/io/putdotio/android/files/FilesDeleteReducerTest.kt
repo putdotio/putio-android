@@ -90,6 +90,53 @@ class FilesDeleteReducerTest {
     }
 
     @Test
+    fun anOutcomeIsMarkedAnnouncedOnceOnlyWhenSettledAndOnlyForItsOwnRequest() {
+        val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
+        val pending = checkNotNull(deleting.state.current.deleteOutcome)
+        assertFalse(
+            FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteOutcomeAnnounced(pending)).consumed,
+        )
+        val finished = finishReload(checked(acknowledge(deleting), FilesRepositoryResult.Failure(apiFailure(404))),
+            emptyList())
+        val outcome = checkNotNull(finished.current.deleteOutcome)
+        assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, outcome.status)
+        val otherRequest = outcome.copy(requestId = FilesRequestId(outcome.requestId.value + 1))
+        assertFalse(
+            FilesBrowserReducer.reduce(finished, FilesBrowserEvent.DeleteOutcomeAnnounced(otherRequest)).consumed,
+        )
+
+        val announced = FilesBrowserReducer.reduce(finished, FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
+
+        assertTrue(announced.consumed)
+        assertNull(announced.effect)
+        assertEquals(finished.current.copy(deleteOutcome = outcome.copy(announced = true)), announced.state.current)
+        assertFalse(FilesBrowserReducer.reduce(
+            announced.state, FilesBrowserEvent.DeleteOutcomeAnnounced(outcome.copy(announced = true)),
+        ).consumed)
+    }
+
+    @Test
+    fun anAnnouncedNotFoundResultIsStillCorrectedByALaterPage() {
+        val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
+        val reloading = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
+        val firstPage = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(reloading.effect).requestId, FilesPage(listOf(file(8L)), FilesCursor("after-delete")),
+        )).state
+        val outcome = checkNotNull(firstPage.current.deleteOutcome)
+        val announced = FilesBrowserReducer.reduce(firstPage, FilesBrowserEvent.DeleteOutcomeAnnounced(outcome)).state
+        val paging = FilesBrowserReducer.reduce(announced, FilesBrowserEvent.LoadNextPage)
+
+        val appended = FilesBrowserReducer.reduce(paging.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(paging.effect).requestId, FilesPage(listOf(item), null),
+        ))
+
+        assertEquals(
+            outcome.copy(status = FilesDeleteStatus.STILL_PRESENT, announced = true),
+            appended.state.current.deleteOutcome,
+        )
+    }
+
+    @Test
     fun laterFolderPresenceCorrectsAnEarlierNotFoundResultWithoutRetryingDelete() {
         val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
         val reloading = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
@@ -124,6 +171,10 @@ class FilesDeleteReducerTest {
         assertEquals(listOf(file(8L), item), appended.state.current.content.items())
         assertEquals(FilesFolderOperation.Idle, appended.state.current.operation)
         assertNull(appended.effect)
+        // Announcing the earlier result after the correction leaves the corrected one in place.
+        assertFalse(FilesBrowserReducer.reduce(
+            appended.state, FilesBrowserEvent.DeleteOutcomeAnnounced(previousOutcome),
+        ).consumed)
         assertNull(FilesBrowserReducer.reduce(appended.state, FilesBrowserEvent.Retry).effect)
     }
 
@@ -166,7 +217,7 @@ class FilesDeleteReducerTest {
     }
 
     @Test
-    fun folderLimitRefusalPreservesStructuredCauseAndNeverFallsBackToPermanentDelete() {
+    fun folderLimitRefusalOffersPermanentDeleteOnlyAsANewExplicitRequest() {
         val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
         val failure = apiFailure(400, "FileDeleteChildrenLimitError")
         val checking = FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteFinished(
@@ -174,11 +225,47 @@ class FilesDeleteReducerTest {
         ))
         val finished = finishReload(checked(checking, FilesRepositoryResult.Success(item)))
         assertSame(failure, finished.current.deleteOutcome?.failure)
-        assertEquals(FilesDeleteStatus.STILL_PRESENT, finished.current.deleteOutcome?.status)
+        assertEquals(FilesDeleteStatus.TOO_LARGE_FOR_TRASH, finished.current.deleteOutcome?.status)
         assertEquals(listOf(item), finished.current.content.items())
         assertNull(FilesBrowserReducer.reduce(finished, FilesBrowserEvent.Retry).effect)
         val confirmedAgain = FilesBrowserReducer.reduce(finished, event)
         assertEquals(FilesDeleteMode.TRASH, (confirmedAgain.effect as FilesBrowserEffect.Delete).mode)
+
+        val permanent = FilesBrowserReducer.reduce(finished, event.copy(mode = FilesDeleteMode.PERMANENT))
+        assertEquals(FilesDeleteMode.PERMANENT, (permanent.effect as FilesBrowserEffect.Delete).mode)
+        assertEquals(FilesDeleteStatus.CHECKING, permanent.state.current.deleteOutcome?.status)
+        val removed = finishReload(
+            checked(acknowledge(permanent), FilesRepositoryResult.Failure(apiFailure(404))), emptyList(),
+        )
+        assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, removed.current.deleteOutcome?.status)
+    }
+
+    @Test
+    fun otherRejectionsAndAGoneFolderAreNotOfferedPermanentDelete() {
+        for (failure in listOf(apiFailure(400, "FileDeleteParentLimitError"), apiFailure(400))) {
+            val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
+            val checking = FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteFinished(
+                checkNotNull(deleting.effect).requestId, FilesRepositoryResult.Failure(failure),
+            ))
+            val finished = finishReload(checked(checking, FilesRepositoryResult.Success(item)))
+            assertEquals(FilesDeleteStatus.STILL_PRESENT, finished.current.deleteOutcome?.status)
+        }
+        val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
+        val checking = FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteFinished(
+            checkNotNull(deleting.effect).requestId,
+            FilesRepositoryResult.Failure(apiFailure(400, "FileDeleteChildrenLimitError")),
+        ))
+        val gone = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
+        assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, gone.state.current.deleteOutcome?.status)
+
+        // The limit only explains a Trash refusal; a permanent request refused the same way is still present.
+        val permanent = FilesBrowserReducer.reduce(loadedRoot(), event.copy(mode = FilesDeleteMode.PERMANENT))
+        val permanentChecking = FilesBrowserReducer.reduce(permanent.state, FilesBrowserEvent.DeleteFinished(
+            checkNotNull(permanent.effect).requestId,
+            FilesRepositoryResult.Failure(apiFailure(400, "FileDeleteChildrenLimitError")),
+        ))
+        val permanentFinished = finishReload(checked(permanentChecking, FilesRepositoryResult.Success(item)))
+        assertEquals(FilesDeleteStatus.STILL_PRESENT, permanentFinished.current.deleteOutcome?.status)
     }
 
     @Test

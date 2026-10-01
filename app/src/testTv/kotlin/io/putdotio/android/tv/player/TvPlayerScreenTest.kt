@@ -50,8 +50,11 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackReducer
+import io.putdotio.android.playback.PlaybackRequestId
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.tv.TvShell
@@ -529,6 +532,36 @@ class TvPlayerScreenTest {
     }
 
     @Test
+    fun aDurationReadAtResolutionOffersTheChoice() {
+        val pending = PlaybackReducer.reduce(
+            PlaybackReducer.start(readyState().target).state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(1L),
+                PlaybackResolution.Ready(
+                    source(startFromSeconds = SAVED_SECONDS.toDouble()),
+                    useStartFrom = true,
+                    durationSeconds = DURATION_SECONDS.toDouble(),
+                ),
+            ),
+        ).state
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvPlayerScreen(
+                    state = pending,
+                    onBack = {},
+                    onRetry = {},
+                    onResume = { error("The choice is offered") },
+                    onRestart = { error("The choice is offered") },
+                    onPlayerFailure = { _, _ -> },
+                    playerFactory = { _, _ -> error("No player before the choice") },
+                )
+            }
+        }
+        compose.onNodeWithText(CONTINUE_LABEL).assertIsDisplayed()
+        assertResumeProgress(SAVED_SECONDS / DURATION_SECONDS)
+    }
+
+    @Test
     fun theResumeDialogPrefersContinueAndItsBarPreviewsTheFocusedChoice() {
         val player = FakePlayer()
         showResumeRoute(player)
@@ -569,7 +602,7 @@ class TvPlayerScreenTest {
     }
 
     @Test
-    fun backFromTheResumeDialogContinuesFromTheSavedPositionAndStaysInPlayback() {
+    fun backFromTheResumeDialogLeavesPlaybackWithoutAPlayer() {
         val player = FakePlayer()
         var exits = 0
         showResumeRoute(player, onExit = { exits += 1 })
@@ -584,13 +617,9 @@ class TvPlayerScreenTest {
         }
         compose.waitForIdle()
 
-        compose.onNodeWithText(CONTINUE_LABEL).assertDoesNotExist()
-        compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
-        compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertIsDisplayed()
         compose.runOnIdle {
-            assertEquals(0, exits)
-            assertEquals(SAVED_SECONDS.toLong() * 1_000L, player.startPositionMillis)
-            assertTrue(player.playWhenReady)
+            assertEquals(1, exits)
+            assertTrue("No player after leaving", player.mediaItems.isEmpty())
         }
     }
 

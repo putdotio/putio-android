@@ -29,7 +29,7 @@ internal fun TransfersState.updatedFirstPageIds(
     items: List<TransferItem>,
 ): Set<TransferId> =
     when (action) {
-        is TransferAction.Add -> event.item?.id?.let { firstPageIds + it } ?: firstPageIds
+        is TransferAction.Add -> firstPageIds + event.added?.added.orEmpty().map(TransferItem::id)
         is TransferAction.Cancel -> firstPageIds - action.id
         is TransferAction.Retry ->
             if (action.id in firstPageIds) {

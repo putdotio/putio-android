@@ -57,7 +57,9 @@ import io.putdotio.android.playback.SubtitleTrackIdentity
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.playback.AudioTrackIdentity
 import io.putdotio.android.playback.playbackAudioTracks
-import io.putdotio.android.playback.DefaultMobilePlayerFactory
+import androidx.media3.exoplayer.ExoPlayer
+import io.putdotio.android.playback.audioAttributes
+import io.putdotio.android.playback.playbackRenderersFactory
 import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
@@ -171,6 +173,64 @@ class MobileFullscreenVideoProofTest {
         }
     }
 
+    @Test
+    fun portraitVideoKeepsAnUnlockedPortraitWindow() {
+        val fixture = arguments.getString("putio.video.fullscreen.portraitFixture")
+        assumeTrue("Needs a portrait fixture", fixture != null)
+        val factory = FullscreenProofPlayerFactory()
+        val state = localVideoState(checkNotNull(fixture))
+        var showingVideo by mutableStateOf(false)
+        compose.runOnUiThread {
+            compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            val window = compose.activity.window
+            WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
+        }
+        compose.setContent {
+            PutioTheme {
+                Surface(Modifier.fillMaxSize()) {
+                    if (showingVideo) {
+                        MobilePlayerScreen(
+                            state = state,
+                            onRetry = { error("Unexpected local video retry") },
+                            onPlayerFailure = { failure, _ -> error("Local video failed: $failure") },
+                            onBack = { showingVideo = false },
+                            playerFactory = factory,
+                        )
+                    } else {
+                        Text("Local video proof")
+                    }
+                }
+            }
+        }
+        awaitWindow(Configuration.ORIENTATION_PORTRAIT, barsVisible = true)
+        compose.runOnIdle { showingVideo = true }
+        try {
+            awaitPlayer(factory) {
+                it.playbackState == Player.STATE_READY && it.videoSize.height > it.videoSize.width &&
+                    it.currentPosition > 500 && factory.renderedFrame
+            }
+            awaitWindow(Configuration.ORIENTATION_PORTRAIT, barsVisible = false)
+            // Give a landscape request time to land before checking that none did.
+            compose.mainClock.advanceTimeBy(1_000)
+            Thread.sleep(1_000)
+            compose.runOnIdle {
+                assertEquals(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED, compose.activity.requestedOrientation)
+                assertEquals(Configuration.ORIENTATION_PORTRAIT, compose.activity.resources.configuration.orientation)
+            }
+            screenshot("portrait-video-portrait-window")
+            showControls(captions = false)
+            screenshot("portrait-video-controls")
+            compose.onNodeWithContentDescription("Back").performTouchInput { click() }
+            compose.onNodeWithText("Local video proof").assertIsDisplayed()
+            awaitWindow(Configuration.ORIENTATION_PORTRAIT, barsVisible = true)
+            compose.runOnIdle {
+                assertEquals(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED, compose.activity.requestedOrientation)
+            }
+        } finally {
+            compose.runOnUiThread { showingVideo = false }
+        }
+    }
+
     private fun chooseCaption(label: String, captureSheet: Boolean = false) {
         showControls()
         compose.onNodeWithText("Captions").performTouchInput { click() }
@@ -178,12 +238,15 @@ class MobileFullscreenVideoProofTest {
         compose.onNodeWithText(label).performScrollTo().performTouchInput { click() }
     }
 
-    private fun showControls() {
-        if (compose.onAllNodes(hasText("Audio")).fetchSemanticsNodes().isEmpty()) {
+    private fun showControls(captions: Boolean = true) {
+        val probe = if (captions) hasText("Audio") else hasText("Speed (", substring = true)
+        if (compose.onAllNodes(probe).fetchSemanticsNodes().isEmpty()) {
             compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput { click() }
         }
-        compose.onNodeWithText("Audio").assertIsDisplayed()
-        compose.onNodeWithText("Captions").assertIsDisplayed()
+        if (captions) {
+            compose.onNodeWithText("Audio").assertIsDisplayed()
+            compose.onNodeWithText("Captions").assertIsDisplayed()
+        }
         compose.onNodeWithText("Speed (", substring = true).assertIsDisplayed()
     }
 
@@ -231,8 +294,9 @@ class MobileFullscreenVideoProofTest {
         }
     }
 
-    private fun localVideoState(): PlaybackState {
-        val path = requireNotNull(arguments.getString("putio.video.fullscreen.fixture"))
+    private fun localVideoState(
+        path: String = requireNotNull(arguments.getString("putio.video.fullscreen.fixture")),
+    ): PlaybackState {
         val file = File(path).canonicalFile
         require(file.isFile && file.canRead())
         require(file.toPath().startsWith(requireNotNull(context.getExternalFilesDir(null)).canonicalFile.toPath()))
@@ -285,8 +349,12 @@ private class FullscreenProofPlayerFactory : MobilePlayerFactory {
     var renderedFrame = false
         private set
     fun current(): Player = checkNotNull(player)
+    // The production player streams through the download cache's HTTP source, which cannot read
+    // the caller's local file; this one keeps its renderers and audio attributes.
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
-        DefaultMobilePlayerFactory.create(context, mediaType).also {
+        ExoPlayer.Builder(context, playbackRenderersFactory(context))
+            .setAudioAttributes(mediaType.audioAttributes(), true)
+            .build().also {
             player = it
             renderedFrame = false
             it.addListener(object : Player.Listener {

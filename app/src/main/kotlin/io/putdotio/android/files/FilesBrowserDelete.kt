@@ -5,6 +5,7 @@ internal fun FilesBrowserState.reduceDelete(event: FilesBrowserEvent.DeleteEvent
         is FilesBrowserEvent.Delete -> delete(event)
         is FilesBrowserEvent.DeleteFinished -> deleteFinished(event)
         is FilesBrowserEvent.DeleteChecked -> deleteChecked(event)
+        is FilesBrowserEvent.DeleteOutcomeAnnounced -> deleteOutcomeAnnounced(event.outcome)
     }
 
 private fun FilesBrowserState.delete(event: FilesBrowserEvent.Delete): FilesBrowserTransition {
@@ -87,6 +88,15 @@ private fun FilesBrowserState.deleteChecked(event: FilesBrowserEvent.DeleteCheck
     }
 }
 
+private fun FilesBrowserState.deleteOutcomeAnnounced(outcome: FilesDeleteOutcome): FilesBrowserTransition {
+    val index = stack.indexOfFirst {
+        it.deleteOutcome == outcome && !outcome.announced && it.operation.pendingDelete == null
+    }
+    if (index < 0) return FilesBrowserTransition(this, consumed = false)
+    val announced = stack[index].copy(deleteOutcome = outcome.copy(announced = true))
+    return FilesBrowserTransition(copy(stack = stack.replaceAt(index, announced)))
+}
+
 private fun FilesRepositoryResult<FilesItem>.deleteReadFailure(expectedId: FilesItemId): FilesFailure? = when (this) {
     is FilesRepositoryResult.Failure -> failure
     is FilesRepositoryResult.Success -> if (value.id == expectedId) null else
@@ -96,6 +106,7 @@ private fun FilesRepositoryResult<FilesItem>.deleteReadFailure(expectedId: Files
 private fun FilesDeleteOutcome.checkedStatus(unavailable: Boolean): FilesDeleteStatus = when {
     response?.let { it.skipped > 0 || it.cursor != null } == true -> FilesDeleteStatus.SKIPPED
     unavailable -> FilesDeleteStatus.NO_LONGER_AVAILABLE
+    intent.mode == FilesDeleteMode.TRASH && failure.isTrashChildrenLimit -> FilesDeleteStatus.TOO_LARGE_FOR_TRASH
     else -> FilesDeleteStatus.STILL_PRESENT
 }
 

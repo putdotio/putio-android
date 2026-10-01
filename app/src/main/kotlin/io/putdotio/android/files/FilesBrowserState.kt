@@ -117,8 +117,12 @@ data class FilesFolderState(
     val moveOutcome: FilesMoveOutcome? = null,
     /** Set on the folder an outside open pushed; Back from it returns to that origin. */
     val openedFrom: FilesOpenOrigin? = null,
-    /** The file an outside open came for, shown in its parent folder. */
+    /**
+     * The file this folder opens at: the one an outside open came for, or one the folder was asked
+     * to show. Pages past the first are read for it, up to [MAX_REVEAL_PAGES].
+     */
     val revealItemId: FilesItemId? = null,
+    internal val revealSearch: FilesRevealSearch? = null,
     // Cleared when a full read starts so later invalidations survive that read's result.
     internal val needsReload: Boolean = false,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
@@ -128,6 +132,7 @@ data class FilesFolderState(
 data class FilesBrowserState internal constructor(
     val stack: List<FilesFolderState>,
     internal val nextRequestValue: Long,
+    val copyOutcome: FilesCopyOutcome? = null,
 ) {
     init {
         require(stack.isNotEmpty()) { "The Files browser must contain a root folder" }
@@ -157,6 +162,12 @@ sealed interface FilesBrowserEvent {
     data object NavigateBack : FilesBrowserEvent
 
     data object LoadNextPage : FilesBrowserEvent
+
+    /** Shows [itemId] when [folderId] is the current folder, reading later pages for it when needed. */
+    data class RevealItem(
+        val folderId: FilesItemId,
+        val itemId: FilesItemId,
+    ) : FilesBrowserEvent
 
     data object Refresh : FilesBrowserEvent
 
@@ -210,6 +221,14 @@ sealed interface FilesBrowserEvent {
         val result: FilesRepositoryResult<FilesItem>,
     ) : DeleteEvent
 
+    /**
+     * The screen announced this settled outcome on its own, so it is not announced again. An
+     * outcome a later page corrected is no longer the one announced and is left as it is.
+     */
+    data class DeleteOutcomeAnnounced(
+        val outcome: FilesDeleteOutcome,
+    ) : DeleteEvent
+
     sealed interface MoveEvent : ItemMutationEvent
 
     data class Move(
@@ -227,6 +246,29 @@ sealed interface FilesBrowserEvent {
         val requestId: FilesRequestId,
         val result: FilesRepositoryResult<FilesItem>,
     ) : MoveEvent
+
+    /** Copies are put.io's background work, so they live beside the folder stack, not on a folder. */
+    sealed interface CopyEvent : ItemMutationEvent
+
+    /** Copies [itemId], shared with the viewer and listed in [folderId], into [destination]. */
+    data class Copy(
+        val folderId: FilesItemId,
+        val itemId: FilesItemId,
+        val destination: FilesFolder,
+    ) : CopyEvent
+
+    data class CopyStarted(
+        val requestId: FilesRequestId,
+        val result: FilesRepositoryResult<FilesCopyId>,
+    ) : CopyEvent
+
+    data class CopyChecked(
+        val requestId: FilesRequestId,
+        val result: FilesRepositoryResult<FilesCopyProgress>,
+    ) : CopyEvent
+
+    /** Clears a settled copy's status line; a running copy keeps it. */
+    data object DismissCopyOutcome : CopyEvent
 
     data object Retry : FilesBrowserEvent
 
@@ -299,6 +341,20 @@ sealed interface FilesBrowserEffect {
         val itemId: FilesItemId,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
+
+    sealed interface CopyEffect : FilesBrowserEffect
+
+    data class StartCopy(
+        val itemId: FilesItemId,
+        val destinationId: FilesItemId,
+        override val requestId: FilesRequestId,
+    ) : CopyEffect
+
+    /** Waits [COPY_CHECK_INTERVAL_MILLIS] before asking, as web does between checks. */
+    data class CheckCopy(
+        val copyId: FilesCopyId,
+        override val requestId: FilesRequestId,
+    ) : CopyEffect
 }
 
 data class FilesBrowserTransition(
@@ -337,6 +393,7 @@ object FilesBrowserReducer {
             is FilesBrowserEvent.OpenExternalItem -> state.openExternalItem(event.item, event.origin)
             FilesBrowserEvent.NavigateBack -> state.navigateBack()
             FilesBrowserEvent.LoadNextPage -> state.loadNextPage()
+            is FilesBrowserEvent.RevealItem -> state.revealItem(event.folderId, event.itemId)
             FilesBrowserEvent.Refresh -> state.refresh()
             is FilesBrowserEvent.InvalidationEvent -> state.invalidation(event)
             is FilesBrowserEvent.SelectSort -> state.selectSort(event.sort)
@@ -362,6 +419,7 @@ object FilesBrowserReducer {
             is FilesBrowserEvent.AbandonRename -> abandonRename(event)
             is FilesBrowserEvent.DeleteEvent -> reduceDelete(event)
             is FilesBrowserEvent.MoveEvent -> reduceMove(event)
+            is FilesBrowserEvent.CopyEvent -> reduceCopy(event)
         }
 
     private fun FilesBrowserState.loadResult(event: FilesBrowserEvent.LoadResult): FilesBrowserTransition =
@@ -383,6 +441,7 @@ suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesBrowserEve
             FilesBrowserEvent.DeleteFinished(effect.requestId, delete(effect.itemId, effect.mode))
         is FilesBrowserEffect.CheckDelete ->
             FilesBrowserEvent.DeleteChecked(effect.requestId, resolveItem(effect.itemId))
+        is FilesBrowserEffect.CopyEffect -> executeCopy(effect)
         is FilesBrowserEffect.Rename ->
             when (val renamed = rename(effect.itemId, effect.name)) {
                 is FilesRepositoryResult.Success -> FilesBrowserEvent.MutationSucceeded(effect.requestId)

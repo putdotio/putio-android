@@ -60,7 +60,6 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAccount
-import io.putdotio.android.auth.MobileAccountStorage
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.downloads.description
 import io.putdotio.android.files.labelResource
@@ -86,6 +85,7 @@ import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.apiReason
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
@@ -309,12 +309,16 @@ internal fun MobileAccountScreen(
 @Composable
 private fun MobileAccountIdentity(account: MobileAccount) {
     val context = LocalContext.current
+    val storage = account.storage
+    val size = Formatter.formatShortFileSize(context, storage.sizeBytes.coerceAtLeast(0L))
     val storageCopy =
-        stringResource(
-            R.string.mobile_account_storage,
-            Formatter.formatShortFileSize(context, account.storage.usedBytes.coerceAtLeast(0L)),
-            Formatter.formatShortFileSize(context, account.storage.availableBytes.coerceAtLeast(0L)),
-        )
+        if (storage.showOptimisticUsage) {
+            val available = Formatter.formatShortFileSize(context, storage.availableBytes.coerceAtLeast(0L))
+            stringResource(R.string.mobile_account_storage_free, available, size)
+        } else {
+            val used = Formatter.formatShortFileSize(context, storage.usedBytes.coerceAtLeast(0L))
+            stringResource(R.string.mobile_account_storage_used, used, size)
+        }
     ListItem(
         headlineContent = { Text(account.username) },
         supportingContent = {
@@ -326,7 +330,7 @@ private fun MobileAccountIdentity(account: MobileAccount) {
                     style = MaterialTheme.typography.bodySmall,
                 )
                 LinearProgressIndicator(
-                    progress = { account.storage.usedFraction() },
+                    progress = { storage.usedFraction },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 8.dp)
@@ -377,11 +381,6 @@ private fun MobileAccountAvatarFallback(modifier: Modifier) {
             modifier = Modifier.size(28.dp),
         )
     }
-}
-
-private fun MobileAccountStorage.usedFraction(): Float {
-    if (sizeBytes <= 0L) return 0f
-    return (usedBytes.toDouble() / sizeBytes.toDouble()).coerceIn(0.0, 1.0).toFloat()
 }
 
 private fun LazyListScope.accountSettingsItems(
@@ -617,7 +616,7 @@ private fun MobileTunnelRouteDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(stringResource(R.string.mobile_settings_tunnel_route_error))
-                    Text(stringResource(loaded.failure.messageResource()))
+                    Text(loaded.failure.message())
                     if (loaded.failure !is AccountSettingsFailure.AuthenticationRequired) {
                         TextButton(
                             onClick = { attempt += 1 },
@@ -903,7 +902,7 @@ private fun MobileAppConfigLoadError(
         headlineContent = { Text(stringResource(R.string.mobile_settings_playback_error_title)) },
         supportingContent = {
             Column {
-                Text(stringResource(failure.messageResource()))
+                Text(failure.message())
                 if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
@@ -936,7 +935,7 @@ private fun MobileAppConfigMutationError(
         headlineContent = { Text(stringResource(title)) },
         supportingContent = {
             Column {
-                Text(stringResource(failure.messageResource()))
+                Text(failure.message())
                 if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
@@ -946,6 +945,9 @@ private fun MobileAppConfigMutationError(
         },
     )
 }
+
+@Composable
+private fun AndroidAppConfigFailure.message(): String = apiReason ?: stringResource(messageResource())
 
 @StringRes
 private fun AndroidAppConfigFailure.messageResource(): Int =
@@ -1060,7 +1062,7 @@ private fun MobileAccountSettingsError(
         headlineContent = { Text(stringResource(R.string.mobile_settings_error_title)) },
         supportingContent = {
             Column {
-                Text(stringResource(failure.messageResource()))
+                Text(failure.message())
                 if (failure !is AccountSettingsFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
@@ -1093,7 +1095,7 @@ internal fun MobileAccountMutationError(
         headlineContent = { Text(stringResource(title)) },
         supportingContent = {
             Column {
-                Text(stringResource(failure.messageResource()))
+                Text(failure.message())
                 if (failure !is AccountSettingsFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
@@ -1103,6 +1105,9 @@ internal fun MobileAccountMutationError(
         },
     )
 }
+
+@Composable
+private fun AccountSettingsFailure.message(): String = apiReason ?: stringResource(messageResource())
 
 @StringRes
 private fun AccountSettingsFailure.messageResource(): Int =
