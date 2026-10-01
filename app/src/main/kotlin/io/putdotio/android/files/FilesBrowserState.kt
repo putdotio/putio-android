@@ -210,6 +210,14 @@ sealed interface FilesBrowserEvent {
         val result: FilesRepositoryResult<FilesItem>,
     ) : DeleteEvent
 
+    /**
+     * The screen announced this settled outcome on its own, so it is not announced again. An
+     * outcome a later page corrected is no longer the one announced and is left as it is.
+     */
+    data class DeleteOutcomeAnnounced(
+        val outcome: FilesDeleteOutcome,
+    ) : DeleteEvent
+
     sealed interface MoveEvent : ItemMutationEvent
 
     data class Move(

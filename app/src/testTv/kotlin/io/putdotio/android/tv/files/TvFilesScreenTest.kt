@@ -747,7 +747,7 @@ class TvFilesScreenTest {
     private fun networkFailure() = FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))
 
     @Test
-    fun theMenuKeyOpensTheRowActionsAndDeleteConfirmsBeforeDispatching() {
+    fun theMenuKeyOpensTheRowActionsAndMoveToTrashRunsWithoutAConfirmation() {
         val events = mutableListOf<FilesBrowserEvent>()
         val toggled = mutableListOf<Pair<Long, Boolean>>()
         val opened = mutableListOf<Long>()
@@ -784,12 +784,7 @@ class TvFilesScreenTest {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
         }
-        compose.onNodeWithText("Move to trash?").assertIsDisplayed()
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNodeWithText("Move to trash").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
         assertEquals(
             listOf<FilesBrowserEvent>(
                 FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(2), FilesDeleteMode.TRASH),
@@ -798,6 +793,71 @@ class TvFilesScreenTest {
         )
         compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused()
         assertEquals(emptyList<Long>(), opened)
+    }
+
+    @Test
+    fun permanentDeletionConfirmsWithCancelFocusedBeforeDispatching() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                    confirmedTrashEnabled = false,
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
+        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.runOnIdle {
+            assertEquals(
+                listOf<FilesBrowserEvent>(
+                    FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(3), FilesDeleteMode.PERMANENT),
+                ),
+                events,
+            )
+        }
+        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+    }
+
+    @Test
+    fun aTrashPressMadeBeforeTrashTurnedOffReachedTheMenuSendsNothing() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        var trash by mutableStateOf<Boolean?>(true)
+        compose.setContent {
+            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+                TvFilesScreen(
+                    state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                    onEvent = { events += it; true },
+                    onPlayMedia = {},
+                    confirmedTrashEnabled = trash,
+                )
+            }
+        }
+
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
+        compose.onNodeWithText("Move to trash").assertIsFocused()
+        compose.mainClock.autoAdvance = false
+        trash = false
+        compose.onNodeWithText("Move to trash").performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
+        compose.mainClock.autoAdvance = true
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+        compose.onNodeWithText("Delete permanently").assertIsFocused()
     }
 
     @Test

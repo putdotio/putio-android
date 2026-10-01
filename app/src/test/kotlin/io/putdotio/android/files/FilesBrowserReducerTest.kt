@@ -514,6 +514,10 @@ class FilesBrowserReducerTest {
         assertEquals(prior.path, back.state.path)
         assertEquals("changes made above reach the kept location", shows.id,
             (back.effect as FilesBrowserEffect.LoadFolder).folderId)
+        val backToRoot = FilesBrowserReducer.reduce(back.state, FilesBrowserEvent.NavigateBack)
+        assertEquals(listOf(FilesFolder.Root), backToRoot.state.path)
+        assertEquals("every kept frame reloads, not only the top one", FilesFolder.Root.id,
+            (backToRoot.effect as FilesBrowserEffect.LoadFolder).folderId)
     }
 
     @Test
@@ -564,7 +568,7 @@ class FilesBrowserReducerTest {
         )).state
 
         assertEquals(listOf(FilesFolder.Root, FilesFolder.Root), loaded.path)
-        assertEquals(root.current.content, loaded.stack.first().content)
+        assertEquals(root.current.copy(needsReload = true), loaded.stack.first())
         assertEquals(FilesOpenOrigin.LINK, loaded.current.openedFrom)
     }
 

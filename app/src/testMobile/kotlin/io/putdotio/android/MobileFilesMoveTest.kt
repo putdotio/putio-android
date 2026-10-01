@@ -49,7 +49,6 @@ import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.MOBILE_FILES_MOVE_BACK_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
-import io.putdotio.android.files.MOBILE_FILES_MOVE_LOAD_MORE_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_PICKER_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_RETRY_TAG
 import io.putdotio.android.files.MobileFilesRoute
@@ -137,7 +136,7 @@ class MobileFilesMoveTest {
     }
 
     @Test
-    fun emptyDestinationPageCanContinueAndRetryWithoutTouchingSourceFiles() {
+    fun emptyDestinationPageContinuesOnItsOwnAndRetriesWithoutTouchingSourceFiles() {
         var continuations = 0
         val requests = mutableListOf<FilesCursor?>()
         val repository = object : StubFilesRepository() {
@@ -160,8 +159,7 @@ class MobileFilesMoveTest {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, events::add, {}, true, {}) }
         }
         openMove()
-        compose.onNodeWithText("No folders on this page.").assertIsDisplayed()
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).performClick()
+        // The empty first page asks for the next one on its own; only the failed one waits for Retry.
         compose.onNodeWithTag(MOBILE_FILES_MOVE_RETRY_TAG).performClick()
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
@@ -279,7 +277,6 @@ class MobileFilesMoveTest {
         openMove()
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsEnabled()
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).performClick()
         compose.runOnIdle { assertTrue(readStarted.isCompleted) }
         compose.runOnIdle { repository = nextRepository }
         compose.waitForIdle()
@@ -401,7 +398,6 @@ class MobileFilesMoveTest {
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsEnabled()
         val queuedConfirm = clickAction(MOBILE_FILES_MOVE_HERE_TAG)
-        compose.onNodeWithTag(MOBILE_FILES_MOVE_LOAD_MORE_TAG).performClick()
         compose.runOnIdle {
             pageResult.complete(FilesRepositoryResult.Failure(
                 FilesFailure.AuthenticationRequired(PutioConfigurationException("Expired picker session")),
