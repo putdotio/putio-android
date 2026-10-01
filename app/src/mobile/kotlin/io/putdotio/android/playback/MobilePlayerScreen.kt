@@ -1173,7 +1173,7 @@ private fun MobilePlaybackFailureState(
     failure: PlaybackFailure,
     onRetry: () -> Unit,
 ) {
-    val message = stringResource(failure.messageResource())
+    val message = failure.apiReason ?: stringResource(failure.messageResource())
     if (failure.retryable) {
         MobileErrorState(
             title = title,

@@ -56,7 +56,7 @@ import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MobileFilesSortMenu
-import io.putdotio.android.files.mobileMessageResource
+import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.files.pendingDelete
 import io.putdotio.android.files.pendingMove
 import io.putdotio.android.history.HistoryContent
@@ -405,7 +405,7 @@ private fun MobileNavigationAlerts(
         androidx.compose.material3.AlertDialog(
             onDismissRequest = onDismissNavigationFailure,
             title = { Text(stringResource(R.string.mobile_navigation_error_title)) },
-            text = { Text(stringResource(navigationFailure.mobileMessageResource())) },
+            text = { Text(navigationFailure.mobileMessage()) },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = onDismissNavigationFailure) {
                     Text(stringResource(R.string.mobile_action_ok))
@@ -417,7 +417,7 @@ private fun MobileNavigationAlerts(
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { onTransfersEvent(TransfersEvent.DismissNavigationFailure) },
             title = { Text(stringResource(R.string.mobile_navigation_error_title)) },
-            text = { Text(stringResource(failed.failure.mobileMessageResource())) },
+            text = { Text(failed.failure.mobileMessage()) },
             confirmButton = {
                 androidx.compose.material3.TextButton(
                     onClick = { onTransfersEvent(TransfersEvent.DismissNavigationFailure) },

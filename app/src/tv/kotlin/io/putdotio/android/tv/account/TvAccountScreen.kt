@@ -560,7 +560,7 @@ private fun TvAccountSettingsSection(
     when (val content = state.content) {
         is AccountSettingsContent.Loading -> TvAccountStatusText(stringResource(R.string.tv_account_settings_loading))
         is AccountSettingsContent.Failed -> TvAccountNotice(
-            text = stringResource(R.string.tv_account_settings_error, stringResource(content.failure.tvMessage())),
+            text = stringResource(R.string.tv_account_settings_error, content.failure.tvMessageText()),
             action = stringResource(R.string.tv_account_retry).takeUnless {
                 content.failure is AccountSettingsFailure.AuthenticationRequired
             },
@@ -642,7 +642,7 @@ private fun TvSettingsFailureNotice(
         AccountSettingsMutation.Operation.Refresh -> R.string.tv_account_refresh_error
     }
     TvAccountNotice(
-        text = stringResource(message, stringResource(failed.failure.tvMessage())),
+        text = stringResource(message, failed.failure.tvMessageText()),
         action = stringResource(R.string.tv_account_retry).takeUnless {
             failed.failure is AccountSettingsFailure.AuthenticationRequired
         },
@@ -663,7 +663,7 @@ private fun TvAppConfigSection(
     when (val content = state.content) {
         is AndroidAppConfigContent.Loading -> TvAccountStatusText(stringResource(R.string.tv_account_playback_loading))
         is AndroidAppConfigContent.Failed -> TvAccountNotice(
-            text = stringResource(R.string.tv_account_playback_error, stringResource(content.failure.tvMessage())),
+            text = stringResource(R.string.tv_account_playback_error, content.failure.tvMessageText()),
             action = stringResource(R.string.tv_account_retry).takeUnless {
                 content.failure is AndroidAppConfigFailure.AuthenticationRequired
             },
@@ -717,7 +717,7 @@ private fun TvAppConfigFailureNotice(
         AndroidAppConfigMutation.Operation.Refresh -> R.string.tv_account_refresh_error
     }
     TvAccountNotice(
-        text = stringResource(message, stringResource(failed.failure.tvMessage())),
+        text = stringResource(message, failed.failure.tvMessageText()),
         action = stringResource(R.string.tv_account_retry).takeUnless {
             failed.failure is AndroidAppConfigFailure.AuthenticationRequired
         },

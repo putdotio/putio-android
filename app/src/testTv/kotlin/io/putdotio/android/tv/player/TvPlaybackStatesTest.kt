@@ -30,6 +30,9 @@ import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRequestId
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.toPlaybackFailure
+import io.putdotio.android.putioErrorBody
+import io.putdotio.android.putioRefusal
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackConversionState
 import java.io.IOException
@@ -176,6 +179,12 @@ class TvPlaybackStatesTest {
         change(PlaybackContent.Failed(PlaybackFailure.AccessDenied(cause)))
         compose.onNodeWithText("You don’t have access to this file.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
+
+        // A refused request shows put.io's own reason; a bare error code keeps the app's copy.
+        change(PlaybackContent.Failed(putioRefusal(400, putioErrorBody(400, "not a video")).toPlaybackFailure()))
+        compose.onNodeWithText("not a video").assertIsDisplayed()
+        change(PlaybackContent.Failed(putioRefusal(400, putioErrorBody(400, "NOT_A_VIDEO")).toPlaybackFailure()))
+        compose.onNodeWithText("put.io couldn’t prepare this file for playback.").assertIsDisplayed()
     }
 
     private fun change(next: PlaybackContent) {

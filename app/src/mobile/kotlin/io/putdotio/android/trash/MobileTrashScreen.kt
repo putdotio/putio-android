@@ -44,7 +44,7 @@ import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.mobileMessageResource
+import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.parsePutioTimestamp
 import java.time.LocalDate
 import java.time.ZoneId
@@ -209,7 +209,7 @@ private fun MobileTrashRow(item: TrashItem, enabled: Boolean, onActions: () -> U
 @Composable
 private fun TrashReadFailure(failure: FilesFailure, onRetry: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(failure.trashMessageResource()))
+        Text(failure.trashMessage())
         if (failure !is FilesFailure.AuthenticationRequired) {
             TextButton(onClick = onRetry) { Text(stringResource(R.string.mobile_action_retry)) }
         }
@@ -240,11 +240,7 @@ private fun MobileTrashOutcome(
                 val incomplete = failure is FilesFailure.ApiRejected &&
                     failure.statusCode == 400 && failure.httpStatusCode == 400 &&
                         failure.errorType == "TRASH_INCOMPLETE_TRASH"
-                Text(
-                    stringResource(
-                        if (incomplete) R.string.mobile_trash_incomplete else failure.trashMessageResource(),
-                    ),
-                )
+                Text(if (incomplete) stringResource(R.string.mobile_trash_incomplete) else failure.trashMessage())
             }
         }
         when (outcome.check) {
@@ -253,7 +249,7 @@ private fun MobileTrashOutcome(
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
             TrashRestoreCheck.UNAVAILABLE -> Text(stringResource(R.string.mobile_trash_not_available))
-            TrashRestoreCheck.FAILED -> outcome.checkFailure?.let { Text(stringResource(it.trashMessageResource())) }
+            TrashRestoreCheck.FAILED -> outcome.checkFailure?.let { Text(it.trashMessage()) }
             TrashRestoreCheck.NOT_CHECKED, TrashRestoreCheck.AVAILABLE -> Unit
         }
         if (outcome.submission == TrashRestoreSubmission.SUBMITTING) {
@@ -272,8 +268,9 @@ private fun MobileTrashOutcome(
     }
 }
 
-private fun FilesFailure.trashMessageResource(): Int =
-    if (this is FilesFailure.AccessDenied) R.string.mobile_trash_access_denied else mobileMessageResource()
+@Composable
+private fun FilesFailure.trashMessage(): String =
+    if (this is FilesFailure.AccessDenied) stringResource(R.string.mobile_trash_access_denied) else mobileMessage()
 
 // Unknown formats omit the date instead of fabricating a retention deadline.
 internal fun String.trashDisplayDate(context: Context): String? {

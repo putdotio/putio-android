@@ -335,7 +335,8 @@ queue, a percentage, completed, failed, not available, or the server's own value
 the actions under [MP4 conversion](#mp4-conversion).
 
 Failures say what happened: no network, an expired playback link, too many
-requests, put.io unavailable, no access, a request put.io refused, an expired
+requests, put.io unavailable, no access, a request put.io refused (in put.io's
+words when it gives a reason; see [Refused requests](#refused-requests)), an expired
 session (the shell then signs out), or a format this device cannot play. Try
 again shows only where it can succeed; it resolves the file again, which also
 replaces an expired link, and a player error keeps its position for it.
@@ -582,6 +583,24 @@ edges, with its controls inset by the same safe area plus 16dp.
 Tests: `TvSafeAreaTest` (collapsed and expanded drawer; 960x540dp and
 1280x720dp viewports; a 4K xxxhdpi panel), `TvPlayerSafeAreaTest` (player
 controls), `DesignTokenCodegenTest` (overscan ratios, axis and presence checks).
+
+## Refused requests
+
+When put.io refuses a request with a 4xx and its own `error_message`, both
+surfaces show that message, as web does, in place of the app's generic copy:
+Files, Search, History, Transfers, Trash, the move picker, Account settings
+and the player. 401, 403, 408 and 429 keep the app's own copy, and more
+specific app copy (an unavailable move
+destination, an incomplete Trash restore, a transfer with nothing to retry)
+still wins. 5xx, network and unreadable responses keep the existing copy. A
+message that is a bare error code, longer than 300 characters, mentions a URL,
+or carries the SDK's redaction marker is not shown; the copy applies instead.
+The SDK's error envelope reads `message`, so the app reads `error_message`
+from the SDK's redacted response body.
+
+Tests: `ApiRejectionReasonTest`, `MobileFilesScreenTest`,
+`TvPlaybackStatesTest`, `MobileRefusedRequestProofTest` (opt-in device proof;
+see [Harness](./harness.md#refused-request-proof)).
 
 ## Transfer failures and retry
 

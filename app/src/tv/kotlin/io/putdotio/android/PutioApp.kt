@@ -44,7 +44,7 @@ import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.confirmedTrashEnabled
 import io.putdotio.android.tv.files.launchVlc
-import io.putdotio.android.tv.files.tvMessage
+import io.putdotio.android.tv.files.tvMessageText
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
@@ -315,7 +315,7 @@ internal fun TvSessionShell(
                     onSetWatched = session::setWatched,
                     notice = filesNotice?.let { stringResource(it) }
                         ?: fileActionFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
-                            ?.let { stringResource(R.string.tv_files_watched_error, stringResource(it.tvMessage())) },
+                            ?.let { stringResource(R.string.tv_files_watched_error, it.tvMessageText()) },
                     // OK clears only what it was shown; a failure that arrived behind a VLC
                     // notice is shown next.
                     onDismissNotice = {

@@ -72,7 +72,7 @@ import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.mobileMessageResource
+import io.putdotio.android.files.mobileMessage
 import java.text.NumberFormat
 
 internal const val MOBILE_TRANSFERS_LIST_TAG = "mobile-transfers-list"
@@ -198,7 +198,7 @@ internal fun MobileTransfersScreen(
         AlertDialog(
             onDismissRequest = { onEvent(TransfersEvent.DismissMutationFailure) },
             title = { Text(stringResource(R.string.mobile_transfers_action_error_title)) },
-            text = { Text(stringResource(nonAddFailure.failure.mobileMessageResource())) },
+            text = { Text(nonAddFailure.failure.mobileMessage()) },
             confirmButton = {
                 TextButton(onClick = { onEvent(TransfersEvent.DismissMutationFailure) }) {
                     Text(stringResource(R.string.mobile_action_ok))
@@ -268,7 +268,7 @@ private fun MobileTransfersContent(
         is TransfersContent.Failed ->
             MobileErrorState(
                 title = stringResource(R.string.mobile_transfers_error_title),
-                message = stringResource(content.failure.mobileMessageResource()),
+                message = content.failure.mobileMessage(),
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = { onEvent(TransfersEvent.RetryLoad) },
                 retryEnabled = interactionsEnabled,
@@ -626,7 +626,7 @@ private fun MobileAddTransferSheet(
                             MobileShareValidation.MultipleLinks -> R.string.mobile_share_multiple_links
                             MobileShareValidation.TooLong -> R.string.mobile_share_too_long
                         }))
-                        failure != null -> Text(stringResource(failure.failure.mobileMessageResource()))
+                        failure != null -> Text(failure.failure.mobileMessage())
                     }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -707,14 +707,12 @@ private fun retryOutcomeMessage(outcome: TransferRetryOutcome): String =
         is TransferRetryOutcome.Failed ->
             stringResource(
                 R.string.mobile_transfers_retry_failed,
-                stringResource(
-                    // put.io answers 403 when the transfer has no error left to retry.
-                    if (outcome.failure is FilesFailure.AccessDenied) {
-                        R.string.mobile_transfers_retry_not_failed
-                    } else {
-                        outcome.failure.mobileMessageResource()
-                    },
-                ),
+                // put.io answers 403 when the transfer has no error left to retry.
+                if (outcome.failure is FilesFailure.AccessDenied) {
+                    stringResource(R.string.mobile_transfers_retry_not_failed)
+                } else {
+                    outcome.failure.mobileMessage()
+                },
             )
     }
 

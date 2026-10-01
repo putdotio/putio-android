@@ -225,7 +225,7 @@ internal fun TvFilesScreen(
             is FilesContent.Failed ->
                 TvStatusScreen(
                     title = stringResource(R.string.tv_error_title),
-                    message = stringResource(content.failure.tvMessage()),
+                    message = content.failure.tvMessageText(),
                     action = stringResource(R.string.tv_files_retry),
                     onAction = { onEvent(FilesBrowserEvent.Retry) },
                     modifier = Modifier.weight(1f),

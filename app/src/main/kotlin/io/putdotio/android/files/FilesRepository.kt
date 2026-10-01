@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.apiRejectionReason
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioConfigurationException
@@ -75,6 +76,10 @@ sealed interface FilesFailure {
         override val cause: Throwable,
     ) : FilesFailure
 }
+
+/** put.io's own reason for a refused request; the surface's copy applies when it is null. */
+internal val FilesFailure.apiReason: String?
+    get() = (this as? FilesFailure.ApiRejected)?.cause?.apiRejectionReason()
 
 interface FilesRepository {
     suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage>

@@ -1187,6 +1187,24 @@ report it as synthetic proof. Opt in with `putio.transfers.enabled=true` and
 dialog, "Retrying transfer" snackbar), `03-retry-rejected` (snackbar, no error
 dialog).
 
+## Refused request proof
+
+Behaviour: [Refused requests](./behavior.md#refused-requests).
+`MobileRefusedRequestProofTest` mounts mobile Files on a failure built from
+put.io's error body in-process; it makes no API calls, so report it as
+controlled-state proof. Install the mobile debug app and instrumentation APKs,
+then:
+
+```bash
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.MobileRefusedRequestProofTest \
+  -e putio.refused.enabled true -e putio.refused.runId "$(uuidgen)" \
+  io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Require `OK (1 test)`. Screenshots land in `refused-proof-<UUID>/`:
+`01-files-refused` (put.io's 400 reason) and `02-files-server-error` (a 503
+keeps the app's copy). Remove the directory afterwards.
+
 ## Transfers polling CPU benchmark
 
 `TransfersPollingCpuBenchmark` replays the deterministic Transfers histories
