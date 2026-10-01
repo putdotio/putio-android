@@ -12,8 +12,9 @@ The design contract records these Android adapter behaviors:
 - Navigation indicator geometry remains Material-owned. The current Compose
   Material 3 Expressive implementation renders `56x32dp`, not the older
   `64x32dp` preview value.
-- Android TV file-row glyphs use `42px` on the 2x card and `21dp` on the xhdpi
-  emulator.
+- Android TV file-row glyph size remains Compose for TV-owned:
+  `ListItemDefaults.IconSize` renders `32dp`, not the preview's `42px` on the
+  2x card.
 - The phone scheme includes the secondary, container, background and inverse
   roles used by stock navigation, bottom-sheet, FAB and snackbar components.
 - Compose for TV receives the equivalent container and inverse-role projection

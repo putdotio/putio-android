@@ -60,19 +60,21 @@ and are tinted by Compose at the point of use.
 
 # Mobile video
 
-Video opens in immersive fullscreen with sensor landscape on phones. Tablets
-and multiwindow use the available window. Back restores the shell's orientation
-and system bars. Controls auto-hide during playback; tapping reveals them,
-and system navigation remains available by an edge swipe. TalkBack and keyboard
-navigation keep controls visible.
+Video opens in immersive fullscreen. On phones, a landscape video turns the
+window to sensor landscape; a portrait video keeps the window's orientation.
+Tablets and multiwindow use the available window. Back restores the shell's
+orientation and system bars. Controls auto-hide during playback; tapping
+reveals them, and system navigation remains available by an edge swipe.
+TalkBack and keyboard navigation keep controls visible.
 
 The overlay has a back arrow and raw filename, screen-centered play/pause and
 ten-second seek buttons, and a compact timeline with inline timestamps. Audio,
 Speed and Captions share a centered row of 20dp icons and labels. A dimmed overlay
 protects transport contrast without separate decorative button circles.
-Captions are always discoverable: Media3's supported tracks determine the list,
-including embedded tracks absent from API subtitle metadata. Sheets retain the
-existing speed, audio, and caption choices across player recreation.
+Captions are always discoverable unless the account hides subtitles
+(`hide_subtitles`): Media3's supported tracks determine the list, including
+embedded tracks absent from API subtitle metadata. Sheets retain the existing
+speed, audio, and caption choices across player recreation.
 
 Hierarchy references inspected through Mobbin:
 [Netflix](https://mobbin.com/screens/2070ec46-5424-4a50-acf2-9f5f90d39b79) and

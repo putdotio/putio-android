@@ -103,8 +103,9 @@ Friends' shared files (`is_shared`) and the shared folders (`SHARED_ROOT`,
 `SHARED_FRIEND`) accept no owner mutations, so neither surface offers Rename,
 Move, Move to trash/Delete or Mark as watched/unwatched on them. Download and
 Share file (which downloads the original, then opens the share sheet) stay on
-shared files, as web and iOS keep Download. On TV, Menu on a shared folder
-opens nothing.
+shared files, as web and iOS keep Download. On TV, a shared media file offers
+only Open in VLC, as tv-native does, and Menu on any other shared item opens
+nothing.
 
 On mobile, a friend's shared file or folder, and anything inside one, offers
 Make a copy, as web and iOS do; the shared root and each friend's folder
