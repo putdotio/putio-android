@@ -852,6 +852,14 @@ it with the same instrument command, selecting the method with `#` and dropping
 `-e putio.tv.open.fixture`. Screenshots `10`–`21` go to the same
 `tv-open-proof-<UUID>/` directory.
 
+`TvExternalOpenProofTest#aPickOnALaterPageOfItsFolderOpensFocusedOnIt` proves
+the reveal beyond the first page on the same shell, also without a fixture:
+Sample folder lists 3 pages of 50 rows, each later page served after 1.5 s,
+with the picked document on the third. Center shows the folder loading (`23`),
+Back during it returns to the result with the folder gone (`24`), and Center
+again opens the folder focused on the document (`25`) with the row above it
+loaded (`26`).
+
 ## TV History proof
 
 History is the third drawer destination and, as in tv-native, lists only

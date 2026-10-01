@@ -52,10 +52,12 @@ import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
- * Fake account repositories for the controlled-state TV proofs: Files serves [listings],
+ * Fake account repositories for the controlled-state TV proofs: Files serves [listings] and
+ * their later pages [continuations],
  * Search answers every term with [searchResults], History and Trash list one page of
  * [history] and [trash], account settings confirm [historyEnabled], and playback resolves to
  * [playback], read only when something plays.
@@ -64,13 +66,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 internal fun tvProofDependencies(
     listings: Map<FilesItemId, FilesPage>,
     searchResults: List<FilesItem>,
+    continuations: Map<FilesCursor, FilesPage> = emptyMap(),
+    pageDelayMillis: Long = 0L,
     recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
     playback: () -> PlaybackResolution = { error("No playback in this proof") },
     history: List<HistoryItem> = emptyList(),
     trash: List<TrashItem> = emptyList(),
     historyEnabled: Boolean = true,
 ) = TvSessionDependencies(
-    filesRepository = ProofFilesRepository(listings),
+    filesRepository = ProofFilesRepository(listings, continuations, pageDelayMillis),
     searchRepository = object : SearchRepository {
         override suspend fun search(term: SearchTerm) =
             FilesRepositoryResult.Success(SearchPage(searchResults, null, total = searchResults.size))
@@ -166,12 +170,21 @@ internal fun proofItem(id: Long, name: String, type: PutioFileType, parentId: Fi
     createdAt = "2026-09-30T10:00:00Z",
 )
 
-internal class ProofFilesRepository(private val listings: Map<FilesItemId, FilesPage>) : FilesRepository {
+/** Serves [listings] and the later pages [continuations] name, each later page after [pageDelayMillis]. */
+internal class ProofFilesRepository(
+    private val listings: Map<FilesItemId, FilesPage>,
+    private val continuations: Map<FilesCursor, FilesPage> = emptyMap(),
+    private val pageDelayMillis: Long = 0L,
+) : FilesRepository {
     override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
         listings[folderId]?.let { FilesRepositoryResult.Success(it) }
             ?: FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("No listing $folderId")))
 
-    override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
+    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+        val page = continuations[cursor] ?: error("One page")
+        delay(pageDelayMillis)
+        return FilesRepositoryResult.Success(page)
+    }
 
     override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) = error("No moves")
 

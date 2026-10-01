@@ -308,8 +308,9 @@ fresh, so a saved position asks as above; the folder read supplies its
 duration. Back while it is found or loads leaves playback. With the setting
 off, or after the folder's last video, playback leaves as before. Leaving
 after autoplay moved on focuses the row of the video it moved to last, even
-when Back came while that video loaded or asked where to start. Files keeps
-its own paging: a row on a page it has not loaded falls back to the first row.
+when Back came while that video loaded or asked where to start. When that row
+is on a page Files has not loaded, Files reads on to it as for an outside open
+([Timestamps and History opens](#timestamps-and-history-opens)).
 
 TV writes positions back through the same writer and observer as mobile,
 owned by the signed-in session: a 15 s sample while playing plus pause, stop,
@@ -453,7 +454,13 @@ the session first lists the file itself, which put.io answers with the file as
 the parent and its `video_metadata`; if that read fails, playback continues
 without asking. A folder opens in Files under its name. Any other file opens
 its parent folder, titled from that folder's listing, with the file's row
-selected on mobile and focused on TV, scrolled to when it is on the first page.
+selected on mobile and focused on TV, and scrolled to. When the file is not on
+the pages read so far, the folder shows as loading while it reads on, one page
+at a time, until the file appears or the folder ends, then opens once at it;
+leaving the folder cancels the reads. It reads at most 10 pages (500 rows).
+Past that, or when the folder ends without the file, the folder opens at its
+top with the rows read and Load more (TV) or paging (mobile) for the rest, and
+TV focuses the first row. A failed page shows the rows read so far with Retry.
 
 That folder sits on top of the viewer's Files location instead of replacing it;
 the kept location reloads when Back returns to it, since changes made above can
@@ -465,8 +472,8 @@ one rather than stacking, and Files refuses it while a move or deletion settles.
 
 Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
 `MobileSearchHistoryScreenTest`, `MobileFilesScreenTest`, `TvSessionViewModelTest`,
-`FilesBrowserReducerTest`, `FilesBrowserControllerTest`, `MobileShellTest`
-(`MobileShellExternalOpenTest`), `TvPickReturnFocusTest`.
+`FilesBrowserReducerTest`, `FilesRevealReducerTest`, `FilesBrowserControllerTest`,
+`MobileShellTest` (`MobileShellExternalOpenTest`), `TvPickReturnFocusTest`.
 
 ## History events
 
