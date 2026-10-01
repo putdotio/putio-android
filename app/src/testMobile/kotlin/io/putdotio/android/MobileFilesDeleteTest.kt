@@ -66,6 +66,26 @@ class MobileFilesDeleteTest {
     }
 
     @Test
+    fun aTrashTapQueuedBeforeTrashTurnedOffReachedTheSheetSendsNothing() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        var trash by mutableStateOf<Boolean?>(true)
+        compose.setContent {
+            PutioTheme { MobileFilesScreen(loadedRoot(), events::add, {}, confirmedTrashEnabled = trash) }
+        }
+        compose.onNodeWithContentDescription("Actions for été 東京.mkv").performClick()
+        val moveToTrash = checkNotNull(compose.onNodeWithText("Move to trash")
+            .fetchSemanticsNode().config[SemanticsActions.OnClick].action)
+        compose.runOnIdle {
+            trash = false
+            moveToTrash()
+        }
+        compose.runOnIdle {
+            assertEquals(emptyList<FilesBrowserEvent>(), events.filterIsInstance<FilesBrowserEvent.Delete>())
+        }
+        compose.onNodeWithText("Delete").assertIsDisplayed()
+    }
+
+    @Test
     fun permanentConfirmationIsExplicitAndQueuedClicksSubmitOnlyOnce() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.setContent {
@@ -251,9 +271,16 @@ class MobileFilesDeleteTest {
         compose.onNodeWithText("View Trash").performClick()
         compose.runOnIdle {
             assertEquals(1, viewedTrash)
-            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.DismissDeleteOutcome(outcome)), events)
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome)), events)
         }
         compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+
+        // Once announced, the kept outcome is neither announced again nor shown as a line.
+        compose.runOnIdle {
+            state = state.copy(stack = listOf(state.current.copy(deleteOutcome = outcome.copy(announced = true))))
+        }
+        compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+        compose.onAllNodesWithText("“Harbor film.mp4” is no longer available in Files.").assertCountEquals(0)
 
         // Permanent deletion keeps its line in the folder and is not announced as a Trash move.
         compose.runOnIdle {

@@ -67,7 +67,7 @@ class FilesBrowserController(
             is FilesBrowserEvent.DeleteChecked -> requestId
             is FilesBrowserEvent.Move,
             is FilesBrowserEvent.Delete,
-            is FilesBrowserEvent.DismissDeleteOutcome,
+            is FilesBrowserEvent.DeleteOutcomeAnnounced,
             is FilesBrowserEvent.Rename,
             is FilesBrowserEvent.AbandonRename,
             is FilesBrowserEvent.LoadNextPage,

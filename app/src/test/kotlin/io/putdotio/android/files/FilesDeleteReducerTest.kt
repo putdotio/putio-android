@@ -90,24 +90,50 @@ class FilesDeleteReducerTest {
     }
 
     @Test
-    fun anAnnouncedOutcomeLeavesTheFolderOnlyOnceSettledAndOnlyForItsOwnRequest() {
+    fun anOutcomeIsMarkedAnnouncedOnceOnlyWhenSettledAndOnlyForItsOwnRequest() {
         val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
         val pending = checkNotNull(deleting.state.current.deleteOutcome)
         assertFalse(
-            FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DismissDeleteOutcome(pending)).consumed,
+            FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteOutcomeAnnounced(pending)).consumed,
         )
         val finished = finishReload(checked(acknowledge(deleting), FilesRepositoryResult.Failure(apiFailure(404))),
             emptyList())
         val outcome = checkNotNull(finished.current.deleteOutcome)
         assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, outcome.status)
         val otherRequest = outcome.copy(requestId = FilesRequestId(outcome.requestId.value + 1))
-        assertFalse(FilesBrowserReducer.reduce(finished, FilesBrowserEvent.DismissDeleteOutcome(otherRequest)).consumed)
+        assertFalse(
+            FilesBrowserReducer.reduce(finished, FilesBrowserEvent.DeleteOutcomeAnnounced(otherRequest)).consumed,
+        )
 
-        val dismissed = FilesBrowserReducer.reduce(finished, FilesBrowserEvent.DismissDeleteOutcome(outcome))
+        val announced = FilesBrowserReducer.reduce(finished, FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
 
-        assertTrue(dismissed.consumed)
-        assertNull(dismissed.effect)
-        assertEquals(finished.current.copy(deleteOutcome = null), dismissed.state.current)
+        assertTrue(announced.consumed)
+        assertNull(announced.effect)
+        assertEquals(finished.current.copy(deleteOutcome = outcome.copy(announced = true)), announced.state.current)
+        assertFalse(FilesBrowserReducer.reduce(
+            announced.state, FilesBrowserEvent.DeleteOutcomeAnnounced(outcome.copy(announced = true)),
+        ).consumed)
+    }
+
+    @Test
+    fun anAnnouncedNotFoundResultIsStillCorrectedByALaterPage() {
+        val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
+        val reloading = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
+        val firstPage = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(reloading.effect).requestId, FilesPage(listOf(file(8L)), FilesCursor("after-delete")),
+        )).state
+        val outcome = checkNotNull(firstPage.current.deleteOutcome)
+        val announced = FilesBrowserReducer.reduce(firstPage, FilesBrowserEvent.DeleteOutcomeAnnounced(outcome)).state
+        val paging = FilesBrowserReducer.reduce(announced, FilesBrowserEvent.LoadNextPage)
+
+        val appended = FilesBrowserReducer.reduce(paging.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(paging.effect).requestId, FilesPage(listOf(item), null),
+        ))
+
+        assertEquals(
+            outcome.copy(status = FilesDeleteStatus.STILL_PRESENT, announced = true),
+            appended.state.current.deleteOutcome,
+        )
     }
 
     @Test
@@ -145,9 +171,9 @@ class FilesDeleteReducerTest {
         assertEquals(listOf(file(8L), item), appended.state.current.content.items())
         assertEquals(FilesFolderOperation.Idle, appended.state.current.operation)
         assertNull(appended.effect)
-        // Withdrawing the announcement of the earlier result leaves the corrected one in place.
+        // Announcing the earlier result after the correction leaves the corrected one in place.
         assertFalse(FilesBrowserReducer.reduce(
-            appended.state, FilesBrowserEvent.DismissDeleteOutcome(previousOutcome),
+            appended.state, FilesBrowserEvent.DeleteOutcomeAnnounced(previousOutcome),
         ).consumed)
         assertNull(FilesBrowserReducer.reduce(appended.state, FilesBrowserEvent.Retry).effect)
     }

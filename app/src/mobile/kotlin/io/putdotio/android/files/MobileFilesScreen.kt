@@ -251,8 +251,9 @@ private val FilesDeleteOutcome.isConfirmedTrash: Boolean
 
 /**
  * A Trash move the fresh read confirmed is announced once, with a way to Trash and no Undo:
- * restoring is queued server-side and needs its own check. Announced or not, it then leaves
- * the folder, the way a transfer retry result does.
+ * restoring is queued server-side and needs its own check. Shown in full or cut short, it is
+ * then marked announced; the outcome stays, so a later page that still lists the item turns it
+ * into the still-present line.
  */
 @Composable
 private fun MobileFilesTrashedAnnouncement(
@@ -261,7 +262,9 @@ private fun MobileFilesTrashedAnnouncement(
     onEvent: (FilesBrowserEvent) -> Unit,
     onViewTrash: (() -> Unit)?,
 ) {
-    val trashed = current.deleteOutcome?.takeIf { current.operation == FilesFolderOperation.Idle && it.isConfirmedTrash }
+    val trashed = current.deleteOutcome?.takeIf {
+        current.operation == FilesFolderOperation.Idle && it.isConfirmedTrash && !it.announced
+    }
     val message = stringResource(R.string.mobile_files_trash_done)
     val viewTrash = stringResource(R.string.mobile_files_view_trash)
     val currentOnEvent by rememberUpdatedState(onEvent)
@@ -277,7 +280,7 @@ private fun MobileFilesTrashedAnnouncement(
             )
             if (result == SnackbarResult.ActionPerformed) currentOnViewTrash?.invoke()
         } finally {
-            currentOnEvent(FilesBrowserEvent.DismissDeleteOutcome(outcome))
+            currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
         }
     }
 }

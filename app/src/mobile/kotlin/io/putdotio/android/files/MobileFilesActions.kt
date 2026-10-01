@@ -20,6 +20,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,6 +79,10 @@ internal fun MobileFilesActions(
     // Only permanent deletion confirms; Trash keeps the item, as on web and iOS.
     var confirmingPermanentDelete by rememberSaveable { mutableStateOf(false) }
     var deleteSubmitted by rememberSaveable { mutableStateOf(false) }
+    // A Move to trash tap is sent after the next composition, against the latest Trash setting:
+    // a tap made before a change to the setting reached the sheet must not send TRASH, which
+    // the server applies as permanent deletion once Trash is off.
+    var trashTapped by remember { mutableStateOf(false) }
     val currentTrashEnabled by rememberUpdatedState(confirmedTrashEnabled)
     val currentOperation by rememberUpdatedState(operation)
     LaunchedEffect(confirmedTrashEnabled) {
@@ -112,6 +117,12 @@ internal fun MobileFilesActions(
             deleteSubmitted = true
             onEvent(FilesBrowserEvent.Delete(folderId, item.id, mode))
             onDismiss()
+        }
+    }
+    if (trashTapped) {
+        SideEffect {
+            trashTapped = false
+            submitDelete(FilesDeleteMode.TRASH)
         }
     }
     if (confirmingPermanentDelete && confirmedTrashEnabled == false) {
@@ -278,7 +289,7 @@ internal fun MobileFilesActions(
                                 role = Role.Button,
                             ) {
                                 when (currentTrashEnabled) {
-                                    true -> submitDelete(FilesDeleteMode.TRASH)
+                                    true -> trashTapped = true
                                     false -> confirmingPermanentDelete = true
                                     null -> Unit
                                 }

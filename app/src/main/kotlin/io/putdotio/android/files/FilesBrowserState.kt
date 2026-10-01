@@ -211,10 +211,10 @@ sealed interface FilesBrowserEvent {
     ) : DeleteEvent
 
     /**
-     * The screen announced this settled outcome on its own, so the folder stops showing it. An
-     * outcome a later page corrected is no longer the one announced and stays.
+     * The screen announced this settled outcome on its own, so it is not announced again. An
+     * outcome a later page corrected is no longer the one announced and is left as it is.
      */
-    data class DismissDeleteOutcome(
+    data class DeleteOutcomeAnnounced(
         val outcome: FilesDeleteOutcome,
     ) : DeleteEvent
 
