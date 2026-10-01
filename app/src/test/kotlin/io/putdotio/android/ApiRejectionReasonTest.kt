@@ -50,6 +50,9 @@ class ApiRejectionReasonTest {
         assertEquals("A file with this name already exists.", wrapped.apiRejectionReason())
         assertEquals("not a folder", refusal(404, "not a folder").apiRejectionReason())
         assertEquals("invalid sort_by param", refusal(400, "invalid sort_by param").apiRejectionReason())
+        listOf("Read-only", "This file cannot be tokenized.").forEach { prose ->
+            assertEquals(prose, refusal(400, prose).apiRejectionReason())
+        }
     }
 
     @Test
@@ -76,8 +79,12 @@ class ApiRejectionReasonTest {
             "See //example.invalid/help for details",
             "See example.invalid/help for details",
             """See https:\/\/example.invalid\/help for details""",
+            "See example.invalid:8443/help for details",
+            "Write to mailto:help@example.invalid",
             "Invalid value for key: 'next'?access_token=secret-value",
             "Invalid Authorization: Bearer synthetic-secret",
+            "Invalid credential: abc123abc123",
+            "Could not use REDACTED.",
             "   ",
             "x".repeat(301),
         ).forEach { message -> assertNull(message, refusal(400, message).apiRejectionReason()) }
