@@ -12,6 +12,7 @@
     <string name="mobile_files_move_empty">No folders here.</string>
     <string name="mobile_files_move_empty_page">No folders on this page.</string>
     <string name="mobile_files_move_more">More folders</string>
+    <string name="mobile_files_move_remember_target">Remember target folder</string>
     <string name="mobile_files_move_destination_unavailable">This folder is unavailable. Choose another folder.</string>
     <string name="mobile_files_moving">Moving…</string>
     <string name="mobile_files_move_checking">Checking the item’s location…</string>

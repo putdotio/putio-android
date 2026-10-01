@@ -6,6 +6,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -49,6 +52,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.MOBILE_FILES_MOVE_BACK_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_FOLDER_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_REMEMBER_TAG
+import io.putdotio.android.files.FilesMoveTargetMemory
+import io.putdotio.android.files.InMemoryMoveTargetStore
 import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_PICKER_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_RETRY_TAG
@@ -431,6 +438,43 @@ class MobileFilesMoveTest {
         compose.onNodeWithTag(MOBILE_FILES_MOVE_PICKER_TAG).assertIsDisplayed()
         compose.onNodeWithTag(mobileFilesMoveFolderTag(child.id)).assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
+    }
+
+    @Test
+    fun rememberTargetFolderIsOffByDefaultAndOnceOnReopensMoveAtTheChosenFolder() {
+        val store = InMemoryMoveTargetStore()
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileFilesRoute(loadedRoot(), destinationRepository(), events::add, {}, true, {},
+                    moveTargetStore = store)
+            }
+        }
+        openMove()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOff()
+        compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()
+        compose.runOnIdle { assertEquals(FilesMoveTargetMemory(), store.memory) }
+
+        openMove()
+        compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).performClick().assertIsOn()
+        compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()
+        val remembered = FilesMoveTargetMemory(true, listOf(FilesFolder(destination.id, destination.name)))
+        compose.runOnIdle { assertEquals(remembered, store.memory) }
+
+        openMove()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_FOLDER_TAG).assertTextEquals(destination.name)
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOn()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsEnabled()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_BACK_TAG).performClick()
+        compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
+        compose.runOnIdle {
+            assertEquals(2, events.filterIsInstance<FilesBrowserEvent.Move>().size)
+            assertEquals(remembered, store.memory)
+        }
     }
 
     private fun openMove() {

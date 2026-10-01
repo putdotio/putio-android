@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -19,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,6 +49,7 @@ internal const val MOBILE_FILES_MOVE_BACK_TAG = "mobile-files-move-back"
 internal const val MOBILE_FILES_MOVE_RETRY_TAG = "mobile-files-move-retry"
 internal const val MOBILE_FILES_MOVE_LOAD_MORE_TAG = "mobile-files-move-load-more"
 internal const val MOBILE_FILES_MOVE_FOLDER_TAG = "mobile-files-move-folder"
+internal const val MOBILE_FILES_MOVE_REMEMBER_TAG = "mobile-files-move-remember"
 
 internal fun mobileFilesMoveFolderTag(id: FilesItemId): String = "mobile-files-move-folder-${id.value}"
 
@@ -60,6 +63,8 @@ internal fun MobileFilesMoveDestination(
     title: String = stringResource(R.string.mobile_files_move),
     confirmLabel: String = stringResource(R.string.mobile_files_move_here),
     sourceName: String? = state.sourceItem?.name,
+    rememberTarget: Boolean? = null,
+    onRememberTargetChange: (Boolean) -> Unit = {},
 ) {
     val back = {
         if (state.canNavigateBack) onEvent(FilesMoveDestinationEvent.NavigateBack) else onCancel()
@@ -84,6 +89,19 @@ internal fun MobileFilesMoveDestination(
                     MobileMoveFolderContent(state, sourceName, onEvent, back, Modifier.weight(1f))
                 }
                 HorizontalDivider()
+                rememberTarget?.let { checked ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                            .toggleable(checked, role = Role.Switch, onValueChange = onRememberTargetChange)
+                            .padding(start = 16.dp, end = 16.dp, top = 8.dp)
+                            .testTag(MOBILE_FILES_MOVE_REMEMBER_TAG),
+                    ) {
+                        Text(stringResource(R.string.mobile_files_move_remember_target),
+                            style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Switch(checked = checked, onCheckedChange = null)
+                    }
+                }
                 Button(onClick = onConfirm, enabled = canSubmit && state.canMoveHere,
                     modifier = Modifier.padding(16.dp).fillMaxWidth().testTag(MOBILE_FILES_MOVE_HERE_TAG)) {
                     Text(confirmLabel)

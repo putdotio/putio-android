@@ -686,6 +686,21 @@ class MobileAuthControllerTest {
     }
 
     @Test
+    fun `sign-out and a rejected session drop what the device keeps for the account`() = runBlocking {
+        val fixture = Fixture(storedToken = TOKEN)
+        fixture.controller.restoreSession()
+        assertEquals(0, fixture.accountLocalStateClears)
+
+        fixture.controller.logout()
+        assertEquals(1, fixture.accountLocalStateClears)
+
+        val rejected = Fixture(storedToken = TOKEN)
+        rejected.controller.restoreSession()
+        assertTrue(rejected.controller.rejectAuthoritativeSession())
+        assertEquals(1, rejected.accountLocalStateClears)
+    }
+
+    @Test
     fun `failed revocation is retried with backoff until put io confirms it`() = runBlocking {
         val fixture = Fixture(
             storedToken = TOKEN,
@@ -852,6 +867,7 @@ class MobileAuthControllerTest {
         val revocationStore = InMemoryAuthTokenStore(pendingRevocation?.let { checkNotNull(AccessToken.parse(it)) })
         val revoker = ScriptedTokenRevoker(*revocationResults.toTypedArray())
         val revocationScope = TestScope(UnconfinedTestDispatcher())
+        var accountLocalStateClears = 0
         val controller = MobileAuthController(
             oauthConfiguration = configuration,
             tokenStore = tokenStore,
@@ -860,6 +876,7 @@ class MobileAuthControllerTest {
             tokenRevocations = PendingTokenRevocations(revocationStore, tokenStore, revoker, revocationScope),
             stateGenerator = stateGenerator,
             clock = clock,
+            clearAccountLocalState = { accountLocalStateClears += 1 },
         )
     }
 

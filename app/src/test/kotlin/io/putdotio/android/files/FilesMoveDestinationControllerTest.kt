@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
@@ -16,6 +17,7 @@ import org.junit.Test
 class FilesMoveDestinationControllerTest {
     private val source = folder(7L)
     private val target = folder(8L)
+    private val nested = folder(9L)
 
     @Test
     fun rootNavigationEmptyPagingRetryAndCycleGuardsKeepTheirContracts() = runBlocking {
@@ -166,6 +168,178 @@ class FilesMoveDestinationControllerTest {
         }
     }
 
+    @Test
+    fun aRememberedPathOpensAtItsFolderWithItsCurrentNameAndBackReadsEachAncestor() = runBlocking {
+        val calls = mutableListOf<FilesItemId>()
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                error("Unexpected source read")
+            override suspend fun loadMoveDestinations(
+                folderId: FilesItemId,
+                cursor: FilesCursor?,
+            ): FilesRepositoryResult<FilesPage> {
+                calls += folderId
+                val parent = when (folderId) {
+                    nested.id -> nested.copy(parentId = target.id, name = "Renamed folder")
+                    target.id -> target
+                    else -> null
+                }
+                return FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = parent))
+            }
+        }
+        val path = listOf(FilesFolder(target.id, target.name), FilesFolder(nested.id, nested.name))
+        val controller = FilesMoveDestinationController(source, FilesFolder.Root.id, repository, this, path)
+        try {
+            val opened = controller.awaitState { it.current.content is FilesContent.Empty }
+            assertEquals(listOf(FilesFolder.Root.id, target.id, nested.id), opened.path.map { it.id })
+            assertEquals("Renamed folder", opened.current.folder.name)
+            assertTrue(opened.canMoveHere)
+            assertTrue(controller.dispatch(FilesMoveDestinationEvent.NavigateBack))
+            controller.awaitEmpty(target.id)
+            assertTrue(controller.dispatch(FilesMoveDestinationEvent.NavigateBack))
+            controller.awaitEmpty(FilesFolder.Root.id)
+            assertEquals(listOf(nested.id, target.id, FilesFolder.Root.id), calls)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun aRememberedFolderThatCannotBeReadReopensAtRoot() = runBlocking {
+        val calls = mutableListOf<FilesItemId>()
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                error("Unexpected source read")
+            override suspend fun loadMoveDestinations(
+                folderId: FilesItemId,
+                cursor: FilesCursor?,
+            ): FilesRepositoryResult<FilesPage> {
+                calls += folderId
+                return if (folderId == FilesFolder.Root.id) {
+                    FilesRepositoryResult.Success(FilesPage(listOf(target), null))
+                } else {
+                    FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("not found")))
+                }
+            }
+        }
+        val controller = FilesMoveDestinationController(repository, this, listOf(FilesFolder(nested.id, "Gone")))
+        try {
+            val root = controller.awaitState { it.current.content is FilesContent.Ready }
+            assertEquals(listOf(FilesFolder.Root), root.path)
+            assertFalse(root.canNavigateBack)
+            assertEquals(listOf(nested.id, FilesFolder.Root.id), calls)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun aRememberedFolderMovedElsewhereKeepsOnlyRootAboveIt() = runBlocking {
+        val calls = mutableListOf<FilesItemId>()
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                error("Unexpected source read")
+            override suspend fun loadMoveDestinations(
+                folderId: FilesItemId,
+                cursor: FilesCursor?,
+            ): FilesRepositoryResult<FilesPage> {
+                calls += folderId
+                val parent = nested.copy(parentId = FilesItemId(42L)).takeIf { folderId == nested.id }
+                return FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = parent))
+            }
+        }
+        val path = listOf(FilesFolder(target.id, target.name), FilesFolder(nested.id, nested.name))
+        val controller = FilesMoveDestinationController(repository, this, path)
+        try {
+            val opened = controller.awaitState { it.current.content is FilesContent.Empty }
+            assertEquals(listOf(FilesFolder.Root.id, nested.id), opened.path.map { it.id })
+            assertTrue(controller.dispatch(FilesMoveDestinationEvent.NavigateBack))
+            controller.awaitEmpty(FilesFolder.Root.id)
+            assertEquals(listOf(nested.id, FilesFolder.Root.id), calls)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun aRememberedAncestorReadOnBackTakesItsCurrentNameAndPlace() = runBlocking {
+        val deeper = folder(10L)
+        val calls = mutableListOf<FilesItemId>()
+        val repository = destinations(calls) { folderId ->
+            val parent = when (folderId) {
+                deeper.id -> deeper.copy(parentId = nested.id)
+                nested.id -> nested.copy(parentId = FilesItemId(42L), name = "Renamed folder")
+                else -> null
+            }
+            FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = parent))
+        }
+        val path = listOf(target, nested, deeper).map { FilesFolder(it.id, it.name) }
+        val controller = FilesMoveDestinationController(source, FilesFolder.Root.id, repository, this, path)
+        try {
+            controller.awaitEmpty(deeper.id)
+            assertTrue(controller.dispatch(FilesMoveDestinationEvent.NavigateBack))
+            val back = controller.awaitEmpty(nested.id)
+            assertEquals(listOf(FilesFolder.Root.id, nested.id), back.path.map { it.id })
+            assertEquals("Renamed folder", back.current.folder.name)
+            assertTrue(controller.dispatch(FilesMoveDestinationEvent.NavigateBack))
+            controller.awaitEmpty(FilesFolder.Root.id)
+            assertEquals(listOf(deeper.id, nested.id, FilesFolder.Root.id), calls)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun aRememberedFolderNowInsideTheMovedItemReopensAtRoot() = runBlocking {
+        val calls = mutableListOf<FilesItemId>()
+        val repository = destinations(calls) { folderId ->
+            val parent = nested.copy(parentId = source.id).takeIf { folderId == nested.id }
+            FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = parent))
+        }
+        val path = listOf(FilesFolder(target.id, target.name), FilesFolder(nested.id, nested.name))
+        val controller = FilesMoveDestinationController(source, FilesFolder.Root.id, repository, this, path)
+        try {
+            val root = controller.awaitEmpty(FilesFolder.Root.id)
+            assertEquals(listOf(FilesFolder.Root), root.path)
+            assertEquals(listOf(nested.id, FilesFolder.Root.id), calls)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun aRejectedSessionOpeningARememberedFolderStaysVisible() = runBlocking {
+        val rejected = FilesFailure.AuthenticationRequired(PutioConfigurationException("expired"))
+        val calls = mutableListOf<FilesItemId>()
+        val repository = destinations(calls) { FilesRepositoryResult.Failure(rejected) }
+        val controller = FilesMoveDestinationController(repository, this, listOf(FilesFolder(nested.id, nested.name)))
+        try {
+            val failed = controller.awaitState { it.current.content is FilesContent.Failed }
+            assertEquals(nested.id, failed.current.folder.id)
+            assertSame(rejected, failed.current.content.authoritativeSessionFailure())
+            assertEquals(listOf(nested.id), calls)
+        } finally {
+            controller.close()
+        }
+    }
+
+    private fun destinations(
+        calls: MutableList<FilesItemId>,
+        respond: (FilesItemId) -> FilesRepositoryResult<FilesPage>,
+    ) = object : StubFilesRepository() {
+        override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            error("Unexpected source read")
+        override suspend fun loadMoveDestinations(
+            folderId: FilesItemId,
+            cursor: FilesCursor?,
+        ): FilesRepositoryResult<FilesPage> {
+            calls += folderId
+            return respond(folderId)
+        }
+    }
+
+    private suspend fun FilesMoveDestinationController.awaitEmpty(folderId: FilesItemId) =
+        awaitState { it.current.folder.id == folderId && it.current.content is FilesContent.Empty }
     private suspend fun FilesMoveDestinationController.awaitState(predicate: (FilesMoveDestinationState) -> Boolean) =
         withTimeout(5_000) { state.first(predicate) }
     private fun folder(id: Long) = FilesItem(

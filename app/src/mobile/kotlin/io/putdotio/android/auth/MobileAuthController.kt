@@ -82,6 +82,8 @@ class MobileAuthController internal constructor(
     private val tokenRevocations: TokenRevocations,
     private val stateGenerator: OAuthStateGenerator = SecureOAuthStateGenerator(),
     private val clock: OAuthAttemptClock = SystemOAuthAttemptClock,
+    /** Drops what this device keeps for the account, such as the Move picker's remembered folder. */
+    private val clearAccountLocalState: () -> Unit = {},
 ) {
     private val operationMutex = Mutex()
     private val mutableState = MutableStateFlow<MobileAuthState>(MobileAuthState.Initializing)
@@ -330,6 +332,7 @@ class MobileAuthController internal constructor(
         }
 
     private suspend fun clearLocalSession(): Boolean {
+        clearAccountLocalState()
         val storageCleared = try {
             tokenStore.clear()
             true

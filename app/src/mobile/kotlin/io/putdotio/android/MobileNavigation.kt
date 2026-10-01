@@ -4,8 +4,10 @@ import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -30,6 +32,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.MobileFilesRoute
+import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.playback.MobilePlaybackViewModel
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
@@ -99,6 +102,8 @@ internal fun MobileNavHost(
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
     val currentOnTransfersEvent by rememberUpdatedState(onTransfersEvent)
+    val appContext = LocalContext.current.applicationContext
+    val moveTargetStore = remember(appContext, account.userId) { MobileMoveTargetStore(appContext, account.userId) }
     NavHost(
         navController = navController,
         startDestination = MobileDestination.start.route,
@@ -118,6 +123,7 @@ internal fun MobileNavHost(
                 },
                 onShareItem = onShareItem,
                 onViewTrash = trashController?.let { { navController.navigateToTrash() } },
+                moveTargetStore = moveTargetStore,
             )
         }
         composable(MobileDestination.Search.route) {

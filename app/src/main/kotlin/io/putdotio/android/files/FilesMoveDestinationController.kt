@@ -17,33 +17,49 @@ class FilesMoveDestinationController private constructor(
     sourceFolderId: FilesItemId?,
     private val repository: FilesRepository,
     parentScope: CoroutineScope,
+    startPath: List<FilesFolder>,
     @Suppress("UNUSED_PARAMETER") marker: Unit,
 ) : Closeable {
+    /** [startPath] is the folder to open at and its ancestors below root; empty opens at root. */
     constructor(
         sourceItem: FilesItem,
         sourceFolderId: FilesItemId,
         repository: FilesRepository,
         parentScope: CoroutineScope,
-    ) : this(sourceItem, sourceFolderId, repository, parentScope, Unit)
+        startPath: List<FilesFolder> = emptyList(),
+    ) : this(sourceItem, sourceFolderId, repository, parentScope, startPath, Unit)
 
     /** Picks a folder for new content; every folder, root included, is a valid destination. */
-    constructor(repository: FilesRepository, parentScope: CoroutineScope) :
-        this(null, null, repository, parentScope, Unit)
+    constructor(
+        repository: FilesRepository,
+        parentScope: CoroutineScope,
+        startPath: List<FilesFolder> = emptyList(),
+    ) : this(null, null, repository, parentScope, startPath, Unit)
 
     init {
         require(
             sourceItem == null && sourceFolderId == null ||
                 sourceItem != null && sourceItem.id.value > 0L && sourceFolderId != null && sourceFolderId.value >= 0L,
         ) { "Move picker requires a non-root source" }
+        require(startPath.all { it.id.value > 0L }) { "A start path lies below root" }
     }
 
     private val lock = Any()
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
-    private val firstRequest = FilesMoveDestinationRequest(FilesFolder.Root.id, FilesRequestId(1L))
+    private val firstRequest = FilesMoveDestinationRequest(
+        startPath.lastOrNull()?.id ?: FilesFolder.Root.id,
+        FilesRequestId(1L),
+    )
     private val mutableState = MutableStateFlow(FilesMoveDestinationState(
         sourceItem, sourceFolderId,
-        listOf(FilesMoveDestinationFolder(FilesFolder.Root, FilesContent.Loading(firstRequest.requestId))),
+        (listOf(FilesFolder.Root) + startPath).dropLast(1).map(::unreadFolder) +
+            FilesMoveDestinationFolder(
+                startPath.lastOrNull() ?: FilesFolder.Root,
+                FilesContent.Loading(firstRequest.requestId),
+                remembered = startPath.isNotEmpty(),
+            ),
         nextRequestValue = 2L,
+        opensRememberedTarget = startPath.isNotEmpty(),
     ))
     private var job: Job? = null
     private var closed = false
@@ -69,7 +85,11 @@ class FilesMoveDestinationController private constructor(
         val next = scope.launch(start = CoroutineStart.LAZY) {
             val result = load(request)
             synchronized(lock) {
-                if (!closed) mutableState.value = mutableState.value.complete(request, result)
+                if (!closed) {
+                    val transition = mutableState.value.complete(request, result)
+                    mutableState.value = transition.state
+                    transition.request?.let(::startRequest)
+                }
             }
         }
         job = next

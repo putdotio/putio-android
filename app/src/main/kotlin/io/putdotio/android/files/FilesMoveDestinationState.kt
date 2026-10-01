@@ -5,6 +5,8 @@ data class FilesMoveDestinationFolder internal constructor(
     val folder: FilesFolder,
     val content: FilesContent,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
+    /** Taken from a remembered path and not yet read; its first read checks its name and place. */
+    internal val remembered: Boolean = false,
 )
 
 /** A folder picker; without a [sourceItem] it picks a destination for new content, such as a transfer. */
@@ -14,6 +16,8 @@ data class FilesMoveDestinationState internal constructor(
     val sourceFolderId: FilesItemId?,
     internal val stack: List<FilesMoveDestinationFolder>,
     internal val nextRequestValue: Long,
+    /** The picker opened at a remembered folder whose first read is pending; a failed read restarts at root. */
+    internal val opensRememberedTarget: Boolean = false,
 ) {
     val current: FilesMoveDestinationFolder get() = stack.last()
     val path: List<FilesFolder> get() = stack.map { it.folder }
@@ -47,10 +51,13 @@ internal data class FilesMoveDestinationTransition(
 )
 
 internal fun FilesMoveDestinationState.reduce(event: FilesMoveDestinationEvent): FilesMoveDestinationTransition =
+    withoutRememberedTargetCheck().reduceEvent(event).let { if (it.consumed) it else it.copy(state = this) }
+
+private fun FilesMoveDestinationState.reduceEvent(event: FilesMoveDestinationEvent): FilesMoveDestinationTransition =
     when (event) {
         is FilesMoveDestinationEvent.OpenFolder -> openDestination(event.itemId)
         FilesMoveDestinationEvent.NavigateBack -> if (canNavigateBack) {
-            FilesMoveDestinationTransition(copy(stack = stack.dropLast(1)))
+            copy(stack = stack.dropLast(1)).loadUnreadFolder()
         } else {
             FilesMoveDestinationTransition(this, consumed = false)
         }
@@ -66,6 +73,17 @@ internal fun FilesMoveDestinationState.reduce(event: FilesMoveDestinationEvent):
             loadDestinationPage(retry = true)
         }
     }
+
+/** A remembered path's folders above the target are read only when Back reaches them. */
+private fun FilesMoveDestinationState.loadUnreadFolder(): FilesMoveDestinationTransition {
+    if (current.content !is FilesContent.Loading) return FilesMoveDestinationTransition(this)
+    val requestId = FilesRequestId(nextRequestValue)
+    return FilesMoveDestinationTransition(
+        copy(stack = stack.replaceLast(current.copy(content = FilesContent.Loading(requestId))),
+            nextRequestValue = nextRequestValue + 1),
+        FilesMoveDestinationRequest(current.folder.id, requestId),
+    )
+}
 
 private fun FilesMoveDestinationState.openDestination(itemId: FilesItemId): FilesMoveDestinationTransition {
     if (!canOpenFolder(itemId)) return FilesMoveDestinationTransition(this, consumed = false)
@@ -101,8 +119,17 @@ private fun FilesMoveDestinationState.loadDestinationPage(retry: Boolean): Files
 internal fun FilesMoveDestinationState.complete(
     request: FilesMoveDestinationRequest,
     result: FilesRepositoryResult<FilesPage>,
+): FilesMoveDestinationTransition = when {
+    current.folder.id != request.folderId || current.requestId() != request.requestId ->
+        FilesMoveDestinationTransition(this)
+    else -> completeRememberedRead(request, result)
+        ?: FilesMoveDestinationTransition(withoutRememberedTargetCheck().completeListing(request, result))
+}
+
+internal fun FilesMoveDestinationState.completeListing(
+    request: FilesMoveDestinationRequest,
+    result: FilesRepositoryResult<FilesPage>,
 ): FilesMoveDestinationState {
-    if (current.folder.id != request.folderId || current.requestId() != request.requestId) return this
     val consumed = if (request.cursor == null) emptySet() else current.consumedCursors + request.cursor
     val content = when (result) {
         is FilesRepositoryResult.Success -> {

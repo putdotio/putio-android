@@ -143,7 +143,7 @@ class FilesMoveRecoveryUiProofTest {
             assertNull(request.cursor)
             preview.picker = preview.picker.complete(request, FilesRepositoryResult.Success(
                 FilesPage(listOf(preview.source), FilesCursor("synthetic-page-two")),
-            ))
+            )).state
         }
         // A one-folder page ends inside the paging margin, so the picker asks for the next page itself.
         val destination = preview.source.copy(id = FilesItemId(18), name = "Empty destination 東京")
@@ -151,7 +151,7 @@ class FilesMoveRecoveryUiProofTest {
             val request = checkNotNull(preview.pickerRequest)
             assertEquals(FilesCursor("synthetic-page-two"), request.cursor)
             preview.picker = preview.picker.complete(request,
-                FilesRepositoryResult.Success(FilesPage(listOf(destination), null)))
+                FilesRepositoryResult.Success(FilesPage(listOf(destination), null))).state
         }
         assertCurrentParentAndSelfAreDisabled(preview)
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
@@ -159,7 +159,7 @@ class FilesMoveRecoveryUiProofTest {
             val request = checkNotNull(preview.pickerRequest)
             assertEquals(destination.id, request.folderId)
             preview.picker = preview.picker.complete(request,
-                FilesRepositoryResult.Success(FilesPage(emptyList(), null)))
+                FilesRepositoryResult.Success(FilesPage(emptyList(), null))).state
         }
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         compose.onNodeWithText(context.getString(R.string.mobile_files_move_empty)).assertIsDisplayed()
@@ -178,7 +178,7 @@ class FilesMoveRecoveryUiProofTest {
             val request = checkNotNull(preview.pickerRequest)
             assertEquals(preview.folder.id, request.folderId)
             preview.picker = preview.picker.complete(request,
-                FilesRepositoryResult.Success(FilesPage(listOf(preview.item), null)))
+                FilesRepositoryResult.Success(FilesPage(listOf(preview.item), null))).state
         }
         compose.onNodeWithTag(mobileFilesMoveFolderTag(preview.item.id)).assertIsNotEnabled()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsNotEnabled()

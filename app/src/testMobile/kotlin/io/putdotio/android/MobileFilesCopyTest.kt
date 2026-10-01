@@ -5,6 +5,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -34,6 +37,10 @@ import io.putdotio.android.files.MOBILE_FILES_COPY_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_COPY_DISMISS_TAG
 import io.putdotio.android.files.MOBILE_FILES_COPY_STATUS_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_FOLDER_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_REMEMBER_TAG
+import io.putdotio.android.files.FilesMoveTargetMemory
+import io.putdotio.android.files.InMemoryMoveTargetStore
 import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_PICKER_TAG
 import io.putdotio.android.files.MobileFilesRoute
@@ -113,6 +120,70 @@ class MobileFilesCopyTest {
         compose.onNodeWithContentDescription("Actions for ${owned.name}").performClick()
         compose.onNodeWithText("Rename").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun makeACopyOpensAtTheRememberedFolderUntilRememberIsTurnedOff() {
+        val remembered = listOf(FilesFolder(destination.id, destination.name))
+        val store = InMemoryMoveTargetStore(FilesMoveTargetMemory(remember = true, lastTarget = remembered))
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                error("Unexpected source read")
+            override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
+                FilesRepositoryResult.Success(
+                    FilesPage(if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null),
+                )
+        }
+        compose.setContent {
+            PutioTheme {
+                MobileFilesRoute(loaded(listOf(sharedVideo)), repository, { true }, {}, true, {},
+                    moveTargetStore = store)
+            }
+        }
+        compose.onNodeWithContentDescription("Actions for ${sharedVideo.name}").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_FOLDER_TAG).assertTextEquals(destination.name)
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOn().performClick().assertIsOff()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
+        compose.runOnIdle { assertEquals(FilesMoveTargetMemory(remember = false, lastTarget = remembered), store.memory) }
+
+        compose.onNodeWithContentDescription("Actions for ${sharedVideo.name}").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
+        compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOff()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
+    }
+
+    @Test
+    fun copyHereWithRememberOnRecordsTheFolderTheNextPickerOpensAt() {
+        val store = InMemoryMoveTargetStore(FilesMoveTargetMemory(remember = true))
+        val repository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                error("Unexpected source read")
+            override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
+                FilesRepositoryResult.Success(
+                    FilesPage(if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null),
+                )
+        }
+        compose.setContent {
+            PutioTheme {
+                MobileFilesRoute(loaded(listOf(sharedVideo)), repository, { true }, {}, true, {},
+                    moveTargetStore = store)
+            }
+        }
+        compose.onNodeWithContentDescription("Actions for ${sharedVideo.name}").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
+        compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
+        compose.onNodeWithText("No folders here.").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_PICKER_TAG).assertDoesNotExist()
+        val chosen = listOf(FilesFolder(destination.id, destination.name))
+        compose.runOnIdle { assertEquals(FilesMoveTargetMemory(remember = true, lastTarget = chosen), store.memory) }
+
+        compose.onNodeWithContentDescription("Actions for ${sharedVideo.name}").performClick()
+        compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_FOLDER_TAG).assertTextEquals(destination.name)
+        compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
     }
 
     @Test
