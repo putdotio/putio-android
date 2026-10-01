@@ -170,7 +170,7 @@ internal fun proofItem(id: Long, name: String, type: PutioFileType, parentId: Fi
     createdAt = "2026-09-30T10:00:00Z",
 )
 
-/** Serves [listings] and the later pages [continuations] name, each later page after [pageDelayMillis]. */
+/** Serves first pages from [listings] and later pages from [continuations], each after [pageDelayMillis]. */
 internal class ProofFilesRepository(
     private val listings: Map<FilesItemId, FilesPage>,
     private val continuations: Map<FilesCursor, FilesPage> = emptyMap(),
