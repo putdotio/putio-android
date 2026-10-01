@@ -96,7 +96,8 @@ every 1.5 s, as web does, for up to 200 checks. A finished copy reloads the
 destination if it is already open in the stack. A failed copy shows put.io's
 reason under the [refused-request](#refused-requests) rules, or web's copy for
 the concurrency and too-many-files limits. A copy
-whose check fails, or that is still running after the last check, is
+whose start gets no clear answer (a lost or unreadable response, or a server
+fault), whose check fails, or that is still running after the last check, is
 reported as unconfirmed, because it may still land. Only one copy runs at a
 time. Rotation keeps the copy and its checks; process death discards them, so
 the line is gone and another copy can start while put.io may still run the

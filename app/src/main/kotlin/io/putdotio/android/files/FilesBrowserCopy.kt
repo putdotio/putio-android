@@ -31,13 +31,17 @@ private fun FilesBrowserState.copyStarted(event: FilesBrowserEvent.CopyStarted):
     return when (val result = event.result) {
         is FilesRepositoryResult.Success ->
             checkAgain(outcome.copy(status = FilesCopyStatus.COPYING, copyId = result.value))
-        is FilesRepositoryResult.Failure -> FilesBrowserTransition(
-            copy(
-                copyOutcome = outcome.copy(status = FilesCopyStatus.FAILED, failure = result.failure, requestId = null),
-            ),
-        )
+        is FilesRepositoryResult.Failure -> {
+            val status = if (result.failure.mayHaveStartedCopy) FilesCopyStatus.UNCONFIRMED else FilesCopyStatus.FAILED
+            settle(outcome.copy(status = status, failure = result.failure, requestId = null))
+        }
     }
 }
+
+/** A lost or unreadable answer, or a server fault, leaves open whether put.io accepted the copy. */
+private val FilesFailure.mayHaveStartedCopy: Boolean
+    get() = this is FilesFailure.NetworkUnavailable || this is FilesFailure.InvalidResponse ||
+        this is FilesFailure.ServerUnavailable || this is FilesFailure.Unexpected
 
 private fun FilesBrowserState.copyChecked(event: FilesBrowserEvent.CopyChecked): FilesBrowserTransition {
     val outcome = copyOutcome?.takeIf { it.status == FilesCopyStatus.COPYING && it.requestId == event.requestId }

@@ -83,11 +83,18 @@ class FilesCopyTest {
 
     @Test
     fun failuresKeepTheirReasonAndAnUnansweredCheckLeavesTheCopyUnconfirmed() {
-        val rejected = failure()
-        val notStarted = started(FilesRepositoryResult.Failure(rejected)).state.copyOutcome
-        assertEquals(FilesCopyStatus.FAILED, notStarted?.status)
-        assertEquals(rejected, notStarted?.failure)
+        val rejected = FilesFailure.ApiRejected(400, "SharedFileCloneTooManyFiles", PutioConfigurationException("no"))
+        val notStarted = started(FilesRepositoryResult.Failure(rejected)).state
+        assertEquals(FilesCopyStatus.FAILED, notStarted.copyOutcome?.status)
+        assertEquals(rejected, notStarted.copyOutcome?.failure)
+        assertEquals(listOf(false, false), notStarted.stack.map { it.needsReload })
 
+        val unanswered = started(FilesRepositoryResult.Failure(failure())).state
+        assertEquals(FilesCopyStatus.UNCONFIRMED, unanswered.copyOutcome?.status)
+        assertTrue(unanswered.canStartCopy)
+        assertEquals(listOf(true, false), unanswered.stack.map { it.needsReload })
+
+        val offline = failure()
         val copying = started(FilesRepositoryResult.Success(FilesCopyId(42L)))
         val requestId = checkNotNull(copying.effect).requestId
         val failed = FilesBrowserReducer.reduce(
@@ -98,7 +105,7 @@ class FilesCopyTest {
         assertEquals(listOf(false, false), failed.stack.map { it.needsReload })
 
         val lost = FilesBrowserReducer.reduce(
-            copying.state, FilesBrowserEvent.CopyChecked(requestId, FilesRepositoryResult.Failure(rejected)),
+            copying.state, FilesBrowserEvent.CopyChecked(requestId, FilesRepositoryResult.Failure(offline)),
         ).state
         assertEquals(FilesCopyStatus.UNCONFIRMED, lost.copyOutcome?.status)
         assertEquals(listOf(true, false), lost.stack.map { it.needsReload })
@@ -130,7 +137,7 @@ class FilesCopyTest {
                 transition.state, checked(checkNotNull(transition.effect).requestId, FilesCopyProgress.Running),
             )
         }
-        assertEquals(MAX_COPY_CHECKS, checks)
+        assertEquals(200, checks)
         assertEquals(FilesCopyStatus.UNCONFIRMED, transition.state.copyOutcome?.status)
     }
 
@@ -149,7 +156,7 @@ class FilesCopyTest {
         }
         val effect = FilesBrowserEffect.CheckCopy(FilesCopyId(42L), FilesRequestId(3L))
         val event = launch { repository.execute(effect) }
-        advanceTimeBy(COPY_CHECK_INTERVAL_MILLIS - 1)
+        advanceTimeBy(1_499L)
         runCurrent()
         assertEquals(0, asked)
         advanceTimeBy(1)
