@@ -2,6 +2,7 @@ package io.putdotio.android.files
 
 import io.putdotio.android.playback.loadMediaAccount
 import io.putdotio.sdk.PutioClient
+import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.errors.PutioException
 import java.util.concurrent.CancellationException
@@ -64,11 +65,10 @@ sealed interface FilesStreamUrlResult {
 
 class SdkFilesStreamUrls internal constructor(
     private val loadAccount: suspend () -> AccountInfo,
-    private val buildOriginalStreamUrl: (fileId: Long, downloadToken: String) -> String,
+    private val buildOriginalStreamUrl: (fileId: Long, downloadToken: AccountDownloadToken) -> String,
 ) : FilesStreamUrls {
     constructor(client: PutioClient) : this(
         loadAccount = client::loadMediaAccount,
-        // The SDK names this parameter accessToken; put.io accepts the download token on /stream.
         buildOriginalStreamUrl = { fileId, token -> client.files.buildOriginalStreamUrl(fileId, token) },
     )
 
@@ -80,7 +80,7 @@ class SdkFilesStreamUrls internal constructor(
             if (token == null) {
                 FilesStreamUrlResult.DownloadTokenUnavailable
             } else {
-                FilesStreamUrlResult.Ready(buildOriginalStreamUrl(itemId.value, token.value))
+                FilesStreamUrlResult.Ready(buildOriginalStreamUrl(itemId.value, token))
             }
         } catch (error: CancellationException) {
             throw error
