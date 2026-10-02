@@ -18,6 +18,7 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.history.HistoryEventId
@@ -116,7 +117,7 @@ internal fun tvProofDependencies(
 
         override suspend fun clearPosition(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
     },
-    streamUrls = FilesStreamUrls { null },
+    streamUrls = FilesStreamUrls { FilesStreamUrlResult.DownloadTokenUnavailable },
     filesItemResolver = object : FilesItemResolver {
         override suspend fun resolveItem(itemId: FilesItemId) = error("No history rows")
     },

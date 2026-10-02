@@ -895,8 +895,10 @@ state: a centred dialog titled with the file's name, one full-width button per
 action and Cancel last, the first action focused; a row with no actions (a
 shared item that is not media, or a text row before the trash setting is
 confirmed) opens nothing, as in tv-native. Open in VLC hands the
-original `/files/{id}/stream` URL to `org.videolan.vlc` with `ACTION_VIEW`; a
-dialog explains when VLC is not installed. Mark as watched writes the video's
+original `/files/{id}/stream` URL to `org.videolan.vlc` with `ACTION_VIEW`; the
+URL carries the account's download token, never the session's access token, and
+an account without one gets a notice instead of a URL. A dialog explains when
+VLC is not installed. Mark as watched writes the video's
 duration as its position and Mark as unwatched clears it; both appear only
 when the account's `use_start_from` is confirmed on, and marking watched also
 needs a known duration. Move to trash or Delete permanently follows the

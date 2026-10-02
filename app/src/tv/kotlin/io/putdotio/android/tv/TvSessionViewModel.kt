@@ -15,6 +15,7 @@ import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.history.HistoryController
@@ -273,8 +274,15 @@ internal class TvSession internal constructor(
         job.start()
     }
 
-    /** The original file's URL for an external player, or null without a session token. */
-    fun originalStreamUrl(item: FilesItem): String? = streamUrls.originalStreamUrl(item.id)
+    /**
+     * The original file's URL for an external player, carrying the account's download token.
+     * A 401 is recorded as the session verdict; the caller explains every other failure.
+     */
+    suspend fun originalStreamUrl(item: FilesItem): FilesStreamUrlResult =
+        streamUrls.originalStreamUrl(item.id).also { result ->
+            val failure = (result as? FilesStreamUrlResult.Failure)?.failure
+            if (failure is FilesFailure.AuthenticationRequired) mutableFileActionFailure.value = failure
+        }
 
     /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissFileActionFailure() {
