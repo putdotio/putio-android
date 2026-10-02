@@ -75,6 +75,7 @@
     <string name="tv_files_delete_message">%1$s will be removed right away. This cannot be undone.</string>
     <string name="tv_files_vlc_missing">VLC isn’t installed on this device.</string>
     <string name="tv_files_stream_unavailable">Couldn’t prepare the stream. Sign in again.</string>
+    <string name="tv_files_stream_error">Couldn’t prepare the stream. %1$s</string>
     <string name="tv_files_watched_error">Couldn’t update the watched state. %1$s</string>
     <string name="tv_files_deleting">Moving to trash</string>
     <string name="tv_files_deleting_permanently">Deleting</string>

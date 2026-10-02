@@ -157,7 +157,7 @@ class SdkPlaybackRepository internal constructor(
         playbackPreference: () -> PlaybackPreference,
     ) : this(
         playbackPreference = playbackPreference,
-        loadAccount = { client.account.getInfo(AccountInfoQuery(downloadToken = true)) },
+        loadAccount = client::loadMediaAccount,
         resolvePlayback = client.files::resolvePlayback,
         loadFile = { fileId ->
             client.files.get(
@@ -338,6 +338,13 @@ class ConvertingPlaybackRepository internal constructor(
 }
 
 private const val AUTOPLAY_PAGE_SIZE = 200
+
+/**
+ * The account with its download token, the narrow credential put.io accepts on media endpoints.
+ * Every media URL the app builds carries this token, never the session's access token.
+ */
+internal suspend fun PutioClient.loadMediaAccount(): AccountInfo =
+    account.getInfo(AccountInfoQuery(downloadToken = true))
 
 internal class MissingPlaybackCredentialException : IllegalStateException("Playback credential is unavailable")
 

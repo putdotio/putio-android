@@ -12,6 +12,7 @@ import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.files.StubFilesRepository
@@ -128,7 +129,9 @@ class TvSessionViewModelTest {
             override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
         },
         watchedRepository = watched,
-        streamUrls = FilesStreamUrls { "https://api.put.io/v2/files/${it.value}/stream?oauth_token=t" },
+        streamUrls = FilesStreamUrls {
+            FilesStreamUrlResult.Ready("https://api.put.io/v2/files/${it.value}/stream?oauth_token=t")
+        },
         filesItemResolver = object : FilesItemResolver {
             override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Success(
                 FilesItem(
@@ -287,7 +290,10 @@ class TvSessionViewModelTest {
         assertEquals(rejected, session.fileActionFailure.value)
         session.dismissFileActionFailure()
         assertEquals(rejected, session.fileActionFailure.value)
-        assertEquals("https://api.put.io/v2/files/9/stream?oauth_token=t", session.originalStreamUrl(video))
+        assertEquals(
+            "https://api.put.io/v2/files/9/stream?oauth_token=t",
+            (session.originalStreamUrl(video) as FilesStreamUrlResult.Ready).url,
+        )
     }
 
     @Test

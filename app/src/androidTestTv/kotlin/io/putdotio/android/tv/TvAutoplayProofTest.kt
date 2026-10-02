@@ -26,6 +26,7 @@ import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.history.HistoryEventId
@@ -251,7 +252,7 @@ class TvAutoplayProofTest {
 
                 override suspend fun clearPosition(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
             },
-            streamUrls = FilesStreamUrls { null },
+            streamUrls = FilesStreamUrls { FilesStreamUrlResult.DownloadTokenUnavailable },
             filesItemResolver = object : FilesItemResolver {
                 override suspend fun resolveItem(itemId: FilesItemId) = error("No history rows")
             },

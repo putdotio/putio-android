@@ -1,6 +1,8 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.playback.loadMediaAccount
 import io.putdotio.sdk.PutioClient
+import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.errors.PutioException
 import java.util.concurrent.CancellationException
 
@@ -37,15 +39,54 @@ class SdkFilesWatchedRepository(
         }
 }
 
-/** URLs another player can open; they carry the session's token and must never be logged or stored. */
+/**
+ * URLs another player can open. They carry the account's download token, never the session's
+ * access token, and must never be logged or stored.
+ */
 fun interface FilesStreamUrls {
-    /** The original file's stream URL, or null while no session token is set. */
-    fun originalStreamUrl(itemId: FilesItemId): String?
+    suspend fun originalStreamUrl(itemId: FilesItemId): FilesStreamUrlResult
 }
 
-class SdkFilesStreamUrls(
-    private val client: PutioClient,
+sealed interface FilesStreamUrlResult {
+    class Ready(
+        val url: String,
+    ) : FilesStreamUrlResult {
+        override fun toString(): String = "Ready(<redacted stream url>)"
+    }
+
+    /** put.io returned no download token; the session's access token is never a substitute. */
+    data object DownloadTokenUnavailable : FilesStreamUrlResult
+
+    data class Failure(
+        val failure: FilesFailure,
+    ) : FilesStreamUrlResult
+}
+
+class SdkFilesStreamUrls internal constructor(
+    private val loadAccount: suspend () -> AccountInfo,
+    private val buildOriginalStreamUrl: (fileId: Long, downloadToken: String) -> String,
 ) : FilesStreamUrls {
-    override fun originalStreamUrl(itemId: FilesItemId): String? =
-        client.config.accessToken?.let { client.files.buildOriginalStreamUrl(itemId.value, it) }
+    constructor(client: PutioClient) : this(
+        loadAccount = client::loadMediaAccount,
+        // The SDK names this parameter accessToken; put.io accepts the download token on /stream.
+        buildOriginalStreamUrl = { fileId, token -> client.files.buildOriginalStreamUrl(fileId, token) },
+    )
+
+    // This SDK boundary converts unexpected implementation failures into the app's stable failure taxonomy.
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun originalStreamUrl(itemId: FilesItemId): FilesStreamUrlResult =
+        try {
+            val token = loadAccount().downloadToken
+            if (token == null) {
+                FilesStreamUrlResult.DownloadTokenUnavailable
+            } else {
+                FilesStreamUrlResult.Ready(buildOriginalStreamUrl(itemId.value, token.value))
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: PutioException) {
+            FilesStreamUrlResult.Failure(error.toFilesFailure())
+        } catch (unexpected: Exception) {
+            FilesStreamUrlResult.Failure(FilesFailure.Unexpected(unexpected))
+        }
 }

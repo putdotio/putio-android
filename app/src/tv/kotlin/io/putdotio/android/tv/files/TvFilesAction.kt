@@ -110,7 +110,7 @@ internal fun TvFilesDeleteDialog(
 
 /**
  * Hands the original file to VLC. False when VLC is not installed; the URL carries the
- * session token and goes only into the intent, never into a log or a message.
+ * account's download token and goes only into the intent, never into a log or a message.
  */
 internal fun launchVlc(context: Context, streamUrl: String, item: FilesItem): Boolean {
     val intent = Intent(Intent.ACTION_VIEW)

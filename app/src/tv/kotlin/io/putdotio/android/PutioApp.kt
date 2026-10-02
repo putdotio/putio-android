@@ -21,6 +21,7 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesOpenOrigin
+import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.SdkFilesStreamUrls
 import io.putdotio.android.files.SdkFilesWatchedRepository
@@ -292,7 +293,9 @@ internal fun TvSessionShell(
                 // A row's actions: VLC gets the original file; a watched toggle writes the
                 // account's position; deletion runs on the shared browser operation.
                 val context = LocalContext.current
+                val streamScope = rememberCoroutineScope()
                 var filesNotice by remember(session) { mutableStateOf<Int?>(null) }
+                var streamFailure by remember(session) { mutableStateOf<FilesFailure?>(null) }
                 // A requester on the pane lands on its first focusable descendant (Refresh); the
                 // pane's own entry effects then move focus to the row it remembers.
                 TvFilesScreen(
@@ -305,21 +308,34 @@ internal fun TvSessionShell(
                     confirmedTrashEnabled = settingsState.confirmedTrashEnabled(),
                     watchedToggleEnabled = settingsState.confirmedResumePlayback() == true,
                     onOpenInVlc = { item ->
-                        val url = session.originalStreamUrl(item)
-                        filesNotice = when {
-                            url == null -> R.string.tv_files_stream_unavailable
-                            launchVlc(context, url, item) -> null
-                            else -> R.string.tv_files_vlc_missing
+                        streamScope.launch {
+                            val stream = session.originalStreamUrl(item)
+                            filesNotice = null
+                            streamFailure = null
+                            when (stream) {
+                                is FilesStreamUrlResult.Ready ->
+                                    if (!launchVlc(context, stream.url, item)) filesNotice = R.string.tv_files_vlc_missing
+                                FilesStreamUrlResult.DownloadTokenUnavailable ->
+                                    filesNotice = R.string.tv_files_stream_unavailable
+                                // A 401 is the session's verdict, which the session already holds.
+                                is FilesStreamUrlResult.Failure -> streamFailure =
+                                    stream.failure.takeUnless { it is FilesFailure.AuthenticationRequired }
+                            }
                         }
                     },
                     onSetWatched = session::setWatched,
                     notice = filesNotice?.let { stringResource(it) }
+                        ?: streamFailure?.let { stringResource(R.string.tv_files_stream_error, it.tvMessageText()) }
                         ?: fileActionFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
                             ?.let { stringResource(R.string.tv_files_watched_error, it.tvMessageText()) },
                     // OK clears only what it was shown; a failure that arrived behind a VLC
                     // notice is shown next.
                     onDismissNotice = {
-                        if (filesNotice != null) filesNotice = null else session.dismissFileActionFailure()
+                        when {
+                            filesNotice != null -> filesNotice = null
+                            streamFailure != null -> streamFailure = null
+                            else -> session.dismissFileActionFailure()
+                        }
                     },
                 )
             },
