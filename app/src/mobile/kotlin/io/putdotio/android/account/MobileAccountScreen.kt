@@ -61,6 +61,7 @@ import coil3.compose.SubcomposeAsyncImageContent
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.description
 import io.putdotio.android.files.labelResource
 import io.putdotio.android.isSupportedAvatarUrl
@@ -766,7 +767,7 @@ private fun MobilePlaybackTypeRow(
             },
             leadingContent = {
                 Icon(
-                    painter = painterResource(R.drawable.ic_ph_file_video_fill),
+                    painter = painterResource(DesignR.drawable.ic_ph_file_video_fill),
                     contentDescription = null,
                 )
             },

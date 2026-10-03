@@ -26,13 +26,7 @@ class PhosphorIconLockTest(unittest.TestCase):
         self.repo_root = Path(self.temporary_directory.name)
         self.lock_path = self.repo_root / "design" / "phosphor-icons.lock.json"
         self.output_path = (
-            self.repo_root
-            / "app"
-            / "src"
-            / "main"
-            / "res"
-            / "drawable"
-            / "ic_ph_folder.xml"
+            self.repo_root / "core" / "design" / "src" / "main" / "res" / "drawable" / "ic_ph_folder.xml"
         )
         self.output = b"locked drawable\n"
         self.document: dict[str, object] = {
@@ -49,7 +43,7 @@ class PhosphorIconLockTest(unittest.TestCase):
             },
             "icons": [
                 {
-                    "sourceSet": "main",
+                    "resDir": "core/design/src/main/res",
                     "resource": "ic_ph_folder",
                     "asset": "assets/regular/folder.svg",
                     "sourceSha256": hashlib.sha256(b"source").hexdigest(),
@@ -123,7 +117,7 @@ class PhosphorIconLockTest(unittest.TestCase):
         package, icons = self.load()
         self.output_path.unlink()
 
-        with self.assertRaisesRegex(SystemExit, "missing app/src/main/res/drawable/ic_ph_folder.xml"):
+        with self.assertRaisesRegex(SystemExit, "missing core/design/src/main/res/drawable/ic_ph_folder.xml"):
             phosphor_icons.check_outputs(package, icons)
 
     def test_drifted_output_is_rejected(self) -> None:
@@ -131,7 +125,7 @@ class PhosphorIconLockTest(unittest.TestCase):
         package, icons = self.load()
         self.output_path.write_bytes(b"drifted\n")
 
-        with self.assertRaisesRegex(SystemExit, "drifted app/src/main/res/drawable/ic_ph_folder.xml"):
+        with self.assertRaisesRegex(SystemExit, "drifted core/design/src/main/res/drawable/ic_ph_folder.xml"):
             phosphor_icons.check_outputs(package, icons)
 
     def test_stale_generated_output_is_rejected(self) -> None:
@@ -140,7 +134,7 @@ class PhosphorIconLockTest(unittest.TestCase):
         stale_path = self.output_path.with_name("ic_ph_stale.xml")
         stale_path.write_text(phosphor_icons.GENERATED_MARKER, encoding="utf-8")
 
-        with self.assertRaisesRegex(SystemExit, "stale app/src/main/res/drawable/ic_ph_stale.xml"):
+        with self.assertRaisesRegex(SystemExit, "stale core/design/src/main/res/drawable/ic_ph_stale.xml"):
             phosphor_icons.check_outputs(package, icons)
 
 

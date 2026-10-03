@@ -35,6 +35,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.Player as Media3Player
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.files.FilesItemId
 import kotlinx.coroutines.delay
 
@@ -167,7 +168,7 @@ internal fun MobileNowPlayingBar(
                     .padding(start = 16.dp, end = 4.dp),
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_ph_file_audio_fill),
+                    painter = painterResource(DesignR.drawable.ic_ph_file_audio_fill),
                     contentDescription = null,
                     tint = PutioDesignTokens.yellowSolid,
                     modifier = Modifier.size(24.dp),
@@ -187,7 +188,7 @@ internal fun MobileNowPlayingBar(
                 ) {
                     Icon(
                         painter = painterResource(
-                            if (nowPlaying.isPlaying) R.drawable.ic_ph_pause_fill else R.drawable.ic_ph_play_fill,
+                            if (nowPlaying.isPlaying) DesignR.drawable.ic_ph_pause_fill else DesignR.drawable.ic_ph_play_fill,
                         ),
                         contentDescription = stringResource(
                             if (nowPlaying.isPlaying) {

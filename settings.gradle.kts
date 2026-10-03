@@ -20,6 +20,18 @@ dependencyResolutionManagement {
 rootProject.name = "putio-android"
 
 include(":app")
+include(":core:common", ":core:design")
+include(
+    ":domain:account",
+    ":domain:auth",
+    ":domain:downloads",
+    ":domain:files",
+    ":domain:history",
+    ":domain:playback",
+    ":domain:search",
+    ":domain:transfers",
+    ":domain:trash",
+)
 
 val localProperties = Properties().apply {
     rootDir.resolve("local.properties")

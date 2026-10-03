@@ -68,6 +68,8 @@ jobs:
           if-no-files-found: warn
           path: |
             putio-android/app/build/test-results/test*UnitTest/TEST-*.xml
+            putio-android/core/*/build/test-results/test*UnitTest/TEST-*.xml
+            putio-android/domain/*/build/test-results/test*UnitTest/TEST-*.xml
             putio-android/build-logic/build/test-results/test/TEST-*.xml
           retention-days: 3
 

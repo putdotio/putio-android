@@ -1,5 +1,7 @@
 plugins {
     alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.detekt) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
 }
@@ -45,7 +47,11 @@ val checkIcons = tasks.register<Exec>("checkIcons") {
     description = "Verify locked Phosphor drawables without network access"
     cacheableCheck(
         "design/phosphor-icons.lock.json",
-        fileTree("app/src") { include("*/res/drawable/ic_ph_*.xml") },
+        // Every module's drawables: the check fails on stale generated icons anywhere.
+        fileTree(".") {
+            include("*/src/*/res/drawable/ic_ph_*.xml", "*/*/src/*/res/drawable/ic_ph_*.xml")
+            exclude("**/build/**", ".git/**", ".gradle/**")
+        },
     )
     commandLine("bash", "scripts/generate-icons.sh", "--check")
 }
@@ -84,6 +90,8 @@ tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
     dependsOn(
+        // Each core and domain library runs its own lint, detekt and unit tests.
+        subprojects.filter { it.path != ":app" && it.buildFile.isFile }.map { "${it.path}:check" },
         ":app:check",
         // `check` lints only the default mobile variant.
         ":app:lintTvProductionDebug",

@@ -50,8 +50,7 @@ internal fun MobileTransferDestinationRow(
             Text(
                 text = when {
                     destination == null -> stringResource(R.string.mobile_transfers_default_folder)
-                    destination.name == null -> stringResource(R.string.mobile_destination_files)
-                    else -> destination.name
+                    else -> destination.name ?: stringResource(R.string.mobile_destination_files)
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 2,

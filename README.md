@@ -74,7 +74,8 @@ Not started: Chromecast, Picture-in-Picture, and the Play release lane.
 
 ## Direction
 
-- Compose-first app with `mobile` and `tv` flavors
+- Compose-first app with `mobile` and `tv` flavors over shared `domain/*`
+  library modules, one per product domain
 - [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) is the
   API boundary, consumed from Maven Central as `io.put:putio-sdk-kotlin`
 - Mobile-first rollout with touch and tablet-adaptive navigation

@@ -92,13 +92,29 @@ the public listing keeps production. Harness launch proof uses debug builds,
 `io.put.putio.mobile.debug` and `io.put.putio.debug` for production. Nothing in
 the harness needs release credentials.
 
+## Modules
+
+| Module | Owns |
+| --- | --- |
+| `core/common` | API rejection reasons, timestamps, avatar URLs, account storage keys, `SessionScopedHolder` |
+| `core/design` | `PutioTheme`, generated design tokens, file-type and shared Phosphor drawables, `BasePutioActivity` |
+| `domain/<name>` | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `downloads`, `files`, `history`, `playback`, `search`, `transfers`, `trash` |
+| `app` | Mobile UI in `src/mobile`, TV UI in `src/tv`, shells, navigation and session wiring |
+
+Dependencies point from `app` to `domain` to `core`; the other domains build
+on `files`. Kotlin packages did not change with the modules. A library
+declaration stays `internal` unless another module or the app uses it. Each
+library applies `putio.android.library` from `build-logic` (SDK levels, lint
+and detekt gates, JVM test stack) and `verify` runs its `check`. Fakes that
+other modules' tests reuse live in the owning module's `src/testFixtures`.
+
 ## Design system
 
 The theme is a tier-2 binding of putio-design (Material 3 + tokens, dark
 only). `design/putio-design.lock.json` pins the `@putdotio/design` npm release
 by version and SHA-512 SRI; `scripts/sync-design-assets.sh` fetches it and
 writes `design/tokens.dtcg.json` and the nightly launcher icons, and `verify`
-checks both against the lock offline. `:app:generateDesignTokens`
+checks both against the lock offline. `:core:design:generateDesignTokens`
 (`build-logic`) generates `PutioDesignTokens.kt` with the color schemes and TV
 overscan ratios; never hand-write design values. See `design/README.md`.
 Phosphor icon drawables are vendored by `scripts/generate-icons.sh`.
