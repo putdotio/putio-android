@@ -81,10 +81,11 @@ class DesignAssetLockTest(unittest.TestCase):
         }
         self.lock_path.parent.mkdir(parents=True)
         (self.repo_root / design_assets.TOKENS_PATH).write_bytes(self.tokens)
-        for density, data in self.icon_outputs.items():
-            path = self.icon_path(density)
-            path.parent.mkdir(parents=True)
-            path.write_bytes(data)
+        for res in design_assets.NIGHTLY_RES_DIRS:
+            for density, data in self.icon_outputs.items():
+                path = self.icon_path(density, str(res))
+                path.parent.mkdir(parents=True)
+                path.write_bytes(data)
         self.wordmark_path.parent.mkdir(parents=True)
         self.wordmark_path.write_bytes(self.wordmark)
         self.repo_patch = patch.multiple(
@@ -99,8 +100,15 @@ class DesignAssetLockTest(unittest.TestCase):
     def wordmark_path(self) -> Path:
         return self.repo_root / design_assets.WORDMARK_PATH
 
-    def icon_path(self, density: str) -> Path:
-        return self.repo_root / "app/src/nightly/res" / f"drawable-{density}" / "putio_icon.png"
+    def icon_path(self, density: str, res: str = "mobile/src/nightly/res") -> Path:
+        return self.repo_root / res / f"drawable-{density}" / "putio_icon.png"
+
+    def icon_paths(self) -> list[Path]:
+        return [
+            self.icon_path(density, str(res))
+            for res in design_assets.NIGHTLY_RES_DIRS
+            for density in self.icon_outputs
+        ]
 
     def write_lock(self, document: object | None = None) -> None:
         self.lock_path.write_text(
@@ -149,19 +157,25 @@ class DesignAssetLockTest(unittest.TestCase):
     def test_drifted_nightly_icon_is_rejected(self) -> None:
         self.write_lock()
         self.icon_path("xhdpi").write_bytes(b"edited")
-        with self.assertRaisesRegex(SystemExit, "drifted app/src/nightly/res/drawable-xhdpi/putio_icon.png"):
+        with self.assertRaisesRegex(SystemExit, "drifted mobile/src/nightly/res/drawable-xhdpi/putio_icon.png"):
             self.check()
 
     def test_missing_nightly_icon_is_rejected(self) -> None:
         self.write_lock()
         self.icon_path("mdpi").unlink()
-        with self.assertRaisesRegex(SystemExit, "missing app/src/nightly/res/drawable-mdpi/putio_icon.png"):
+        with self.assertRaisesRegex(SystemExit, "missing mobile/src/nightly/res/drawable-mdpi/putio_icon.png"):
+            self.check()
+
+    def test_drifted_tv_nightly_icon_is_rejected(self) -> None:
+        self.write_lock()
+        self.icon_path("xxhdpi", "tv/src/nightly/res").write_bytes(b"edited")
+        with self.assertRaisesRegex(SystemExit, "drifted tv/src/nightly/res/drawable-xxhdpi/putio_icon.png"):
             self.check()
 
     def test_drifted_wordmark_is_rejected(self) -> None:
         self.write_lock()
         self.wordmark_path.write_bytes(b"edited")
-        with self.assertRaisesRegex(SystemExit, "drifted app/src/mobile/res/drawable/putio_wordmark.xml"):
+        with self.assertRaisesRegex(SystemExit, "drifted mobile/src/main/res/drawable/putio_wordmark.xml"):
             self.check()
 
     def test_wordmark_keeps_fills_and_viewbox_offset(self) -> None:
@@ -199,11 +213,8 @@ class DesignAssetLockTest(unittest.TestCase):
             hashlib.sha512(archive).digest()
         ).decode("ascii")
         self.write_lock(document)
-        rendered = {
-            Path("app/src/nightly/res") / f"drawable-{density}" / "putio_icon.png": data
-            for density, data in self.icon_outputs.items()
-        }
-        rendered[Path("app/src/nightly/res/drawable-hdpi/putio_icon.png")] = b"resampled"
+        rendered = self.rendered_icons()
+        rendered[Path("mobile/src/nightly/res/drawable-hdpi/putio_icon.png")] = b"resampled"
 
         with self.fetch(archive), patch.object(design_assets, "render_nightly_icon", return_value=rendered):
             with self.assertRaises(SystemExit) as raised:
@@ -230,14 +241,13 @@ class DesignAssetLockTest(unittest.TestCase):
 
     def rendered_icons(self) -> dict[Path, bytes]:
         return {
-            Path("app/src/nightly/res") / f"drawable-{density}" / "putio_icon.png": data
+            res / f"drawable-{density}" / "putio_icon.png": data
+            for res in design_assets.NIGHTLY_RES_DIRS
             for density, data in self.icon_outputs.items()
         }
 
     def replace_outputs(self, data: bytes) -> list[Path]:
-        paths = [self.repo_root / design_assets.TOKENS_PATH, self.wordmark_path] + [
-            self.icon_path(density) for density in self.icon_outputs
-        ]
+        paths = [self.repo_root / design_assets.TOKENS_PATH, self.wordmark_path] + self.icon_paths()
         for path in paths:
             path.write_bytes(data)
         return paths

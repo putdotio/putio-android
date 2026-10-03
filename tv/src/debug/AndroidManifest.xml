@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Compose tests install content once. API 37 asset-overlay updates otherwise
+             recreate this synthetic host with a blank UI during a running test. -->
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            android:configChanges="assetsPaths" />
+    </application>
+</manifest>

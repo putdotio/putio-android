@@ -1,0 +1,4 @@
+<resources>
+    <!-- Distinct label so nightly and production are tellable apart side by side. -->
+    <string name="app_name">put.io nightly</string>
+</resources>

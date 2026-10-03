@@ -5,7 +5,7 @@
 ## Validation
 
 - [ ] `./gradlew verify`
-- [ ] `./gradlew :app:assembleMobileProductionDebug :app:assembleTvProductionDebug`
+- [ ] `./gradlew :mobile:assembleProductionDebug :tv:assembleProductionDebug`
 - [ ] Behavior exercised on the emulator (`scripts/prove.sh <mobile|tv>` or a feature lane)
 - [ ] Visual proof attached to this PR
 

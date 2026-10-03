@@ -57,8 +57,8 @@ jobs:
         working-directory: putio-android
         run: >-
           ./gradlew verify
-          :app:assembleMobileProductionDebug :app:assembleTvProductionDebug
-          :app:assembleMobileNightlyDebug :app:assembleTvNightlyDebug
+          :mobile:assembleProductionDebug :tv:assembleProductionDebug
+          :mobile:assembleNightlyDebug :tv:assembleNightlyDebug
 
       - name: Upload failed unit test reports
         if: failure()
@@ -67,7 +67,8 @@ jobs:
           name: failed-unit-test-reports
           if-no-files-found: warn
           path: |
-            putio-android/app/build/test-results/test*UnitTest/TEST-*.xml
+            putio-android/mobile/build/test-results/test*UnitTest/TEST-*.xml
+            putio-android/tv/build/test-results/test*UnitTest/TEST-*.xml
             putio-android/core/*/build/test-results/test*UnitTest/TEST-*.xml
             putio-android/domain/*/build/test-results/test*UnitTest/TEST-*.xml
             putio-android/build-logic/build/test-results/test/TEST-*.xml
@@ -80,5 +81,6 @@ jobs:
           name: debug-apks
           if-no-files-found: error
           path: |
-            putio-android/app/build/outputs/apk/*/debug/*.apk
+            putio-android/mobile/build/outputs/apk/*/debug/*.apk
+            putio-android/tv/build/outputs/apk/*/debug/*.apk
           retention-days: 1
