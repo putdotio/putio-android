@@ -14,6 +14,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionToken
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackPositionObserver
 import io.putdotio.android.auth.MobileOAuthRuntime
@@ -56,7 +57,7 @@ class MobilePlaybackService : MediaSessionService() {
                     ),
                 ).build()
         setMediaNotificationProvider(
-            DefaultMediaNotificationProvider(this).apply { setSmallIcon(R.drawable.ic_ph_file_audio_fill) },
+            DefaultMediaNotificationProvider(this).apply { setSmallIcon(DesignR.drawable.ic_ph_file_audio_fill) },
         )
     }
 

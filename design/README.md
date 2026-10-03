@@ -13,7 +13,7 @@ SVG features it does not model.
 `putio-design.lock.json` pins the npm release by version and tarball SHA-512
 SRI, and pins the SHA-256 of every source asset and of every written file.
 The Compose color schemes and the TV overscan ratios (`tv.overscan.x/y`) are
-generated from the JSON at build time by `:app:generateDesignTokens` (task
+generated from the JSON at build time by `:core:design:generateDesignTokens` (task
 class in `build-logic/`), which records the locked version in the generated
 header. Never hand-edit the generated Kotlin, the JSON, or the icons.
 

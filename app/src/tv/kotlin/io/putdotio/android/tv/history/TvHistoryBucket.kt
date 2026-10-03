@@ -4,6 +4,7 @@ import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import io.putdotio.android.R
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
@@ -58,7 +59,7 @@ internal fun HistoryEventKind.tvLabel(): Int =
 internal fun HistoryEventKind.tvIcon(): Int =
     when (this) {
         is HistoryEventKind.Transfer -> R.drawable.ic_ph_arrow_circle_down_fill
-        else -> R.drawable.ic_ph_file_fill
+        else -> DesignR.drawable.ic_ph_file_fill
     }
 
 internal fun HistoryEventKind.navigableFileId(): HistoryFileId? =

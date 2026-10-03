@@ -101,14 +101,7 @@ android {
     lint {
         warningsAsErrors = true
         abortOnError = true
-        lintConfig = file("lint.xml")
-    }
-
-    sourceSets {
-        // Fakes that JVM tests and on-device benchmarks both replay.
-        for (name in listOf("test", "androidTest")) {
-            getByName(name).kotlin.directories.add("src/sharedTest/kotlin")
-        }
+        lintConfig = rootProject.file("lint.xml")
     }
 
     testOptions {
@@ -134,20 +127,6 @@ android {
     buildFeatures {
         buildConfig = true
     }
-}
-
-val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDesignTokens") {
-    tokensFile.set(rootProject.layout.projectDirectory.file("design/tokens.dtcg.json"))
-    designVersion.set(
-        providers.fileContents(rootProject.layout.projectDirectory.file("design/putio-design.lock.json"))
-            .asText
-            .map { lock ->
-                val version = ((groovy.json.JsonSlurper().parseText(lock) as? Map<*, *>)?.get("package") as? Map<*, *>)
-                    ?.get("version") as? String
-                checkNotNull(version) { "design/putio-design.lock.json has no package.version" }
-            },
-    )
-    outputDir.set(layout.buildDirectory.dir("generated/designTokens/kotlin"))
 }
 
 val launchSmokeTest = "io.putdotio.android.LaunchSmokeTest#shellLaunchesStaysResumedAndRenders"
@@ -188,11 +167,6 @@ androidComponents {
     }
 
     onVariants { variant ->
-        variant.sources.kotlin?.addGeneratedSourceDirectory(
-            generateDesignTokens,
-            GenerateDesignTokensTask::outputDir,
-        )
-
         // Launchers find the app with an ACTION_MAIN query; a category without MAIN matches nothing.
         val launcherManifest = tasks.register<VerifyLauncherManifestTask>(
             "verify${variant.name.replaceFirstChar(Char::titlecase)}LauncherManifest",
@@ -216,6 +190,22 @@ detekt {
 }
 
 dependencies {
+    implementation(project(":core:common"))
+    implementation(project(":core:design"))
+    implementation(project(":domain:account"))
+    implementation(project(":domain:auth"))
+    implementation(project(":domain:downloads"))
+    implementation(project(":domain:files"))
+    implementation(project(":domain:history"))
+    implementation(project(":domain:playback"))
+    implementation(project(":domain:search"))
+    implementation(project(":domain:transfers"))
+    implementation(project(":domain:trash"))
+    testImplementation(testFixtures(project(":core:common")))
+    testImplementation(testFixtures(project(":domain:auth")))
+    testImplementation(testFixtures(project(":domain:files")))
+    testImplementation(testFixtures(project(":domain:trash")))
+    androidTestImplementation(testFixtures(project(":domain:transfers")))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.foundation)

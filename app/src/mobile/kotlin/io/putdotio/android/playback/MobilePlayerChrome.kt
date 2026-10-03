@@ -74,6 +74,7 @@ import androidx.media3.ui.compose.material3.indicator.DurationText
 import androidx.media3.ui.compose.material3.indicator.PositionText
 import androidx.media3.ui.compose.state.rememberPlayPauseButtonState
 import io.putdotio.android.R
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.description
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -157,7 +158,7 @@ private fun MobileAudioArtwork(modifier: Modifier) {
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    painterResource(R.drawable.ic_ph_file_audio_fill),
+                    painterResource(DesignR.drawable.ic_ph_file_audio_fill),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(56.dp),
@@ -341,7 +342,7 @@ private fun MobileTransport(
             ) {
                 Icon(
                     painterResource(
-                        if (playPause.showPlay) R.drawable.ic_ph_play_fill else R.drawable.ic_ph_pause_fill,
+                        if (playPause.showPlay) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill,
                     ),
                     contentDescription = stringResource(
                         if (playPause.showPlay) R.string.mobile_now_playing_play else R.string.mobile_now_playing_pause,

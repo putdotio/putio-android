@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 
@@ -15,7 +16,7 @@ internal enum class MobileDestination(
         route = "files",
         labelRes = R.string.mobile_destination_files,
         icon = R.drawable.ic_ph_folder,
-        selectedIcon = R.drawable.ic_ph_folder_fill,
+        selectedIcon = DesignR.drawable.ic_ph_folder_fill,
     ),
     Search(
         route = "search",

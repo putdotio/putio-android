@@ -64,6 +64,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
+import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
@@ -731,7 +732,7 @@ private fun TvPlayerControls(
                     modifier = Modifier.testTag(TV_PLAYER_ELAPSED_TAG),
                 )
                 Icon(
-                    painter = painterResource(if (paused) R.drawable.ic_ph_play_fill else R.drawable.ic_ph_pause_fill),
+                    painter = painterResource(if (paused) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill),
                     contentDescription = stringResource(
                         if (paused) R.string.tv_player_paused else R.string.tv_player_playing,
                     ),

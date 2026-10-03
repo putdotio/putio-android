@@ -351,12 +351,12 @@ private fun TvTrashRestoreOutcome(
     owner: TvPaneFocusOwner,
 ) {
     val name = outcome.resolvedItem?.name ?: outcome.item.name
+    val checkFailure = outcome.checkFailure
     val text = when {
         outcome.check == TrashRestoreCheck.AVAILABLE -> stringResource(R.string.tv_trash_restore_available, name)
         outcome.check == TrashRestoreCheck.CHECKING -> stringResource(R.string.tv_trash_checking)
         outcome.check == TrashRestoreCheck.UNAVAILABLE -> stringResource(R.string.tv_trash_restore_not_available, name)
-        outcome.check == TrashRestoreCheck.FAILED && outcome.checkFailure != null ->
-            outcome.checkFailure.tvMessageText()
+        outcome.check == TrashRestoreCheck.FAILED && checkFailure != null -> checkFailure.tvMessageText()
         else -> when (outcome.submission) {
             TrashRestoreSubmission.SUBMITTING -> stringResource(R.string.tv_trash_submitting)
             TrashRestoreSubmission.ACKNOWLEDGED -> stringResource(R.string.tv_trash_restore_started, name)

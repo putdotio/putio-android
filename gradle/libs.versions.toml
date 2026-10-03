@@ -61,9 +61,12 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 putio-sdk-kotlin = { module = "io.put:putio-sdk-kotlin", version.ref = "putioSdkKotlin" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
+detekt-gradle-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

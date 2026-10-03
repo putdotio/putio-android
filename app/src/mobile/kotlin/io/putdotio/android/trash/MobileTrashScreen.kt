@@ -127,10 +127,10 @@ internal fun MobileTrashScreen(
                     HorizontalDivider(Modifier.padding(start = 72.dp))
                 }
                 item(key = "paging") {
+                    val pageFailure = content.pageFailure
                     when {
                         content.isLoadingMore -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
-                        content.pageFailure != null ->
-                            TrashReadFailure(content.pageFailure) { onEvent(TrashEvent.Retry) }
+                        pageFailure != null -> TrashReadFailure(pageFailure) { onEvent(TrashEvent.Retry) }
                         content.nextCursor != null -> TextButton(
                             onClick = { onEvent(TrashEvent.LoadNextPage) },
                             enabled = !content.isRefreshing,
