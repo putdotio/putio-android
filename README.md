@@ -76,8 +76,7 @@ Not started: Chromecast, Picture-in-Picture, and the Play release lane.
 
 - Compose-first app with `mobile` and `tv` flavors
 - [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) is the
-  API boundary, consumed as a Gradle composite build until it ships on Maven
-  Central
+  API boundary, consumed from Maven Central as `io.put:putio-sdk-kotlin`
 - Mobile-first rollout with touch and tablet-adaptive navigation
 - TV shell built around D-pad focus, Android TV launcher metadata, media
   sessions, and system search
@@ -99,8 +98,8 @@ Requires JDK 21, `python3`, and, on macOS, Homebrew. Everything else is scripted
 ./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof with evidence
 ```
 
-The `putio-sdk-kotlin` sibling checkout that `bootstrap` expects:
-[Toolchain](./AGENTS.md#toolchain). What the gate covers:
+Building against an unreleased SDK checkout:
+[Kotlin SDK](./AGENTS.md#kotlin-sdk). What the gate covers:
 [Build and verify](./AGENTS.md#build-and-verify).
 
 ## Docs

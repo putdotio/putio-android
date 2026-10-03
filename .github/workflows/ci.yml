@@ -30,22 +30,11 @@ jobs:
           path: putio-android
           persist-credentials: false
 
-      # The app consumes putio-sdk-kotlin as a composite build from a sibling
-      # checkout (settings.gradle.kts default ../putio-sdk-kotlin). The SDK is
-      # public, so no credential is needed until it ships as a Maven artifact.
-      - name: Check out putio-sdk-kotlin
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: putdotio/putio-sdk-kotlin
-          path: putio-sdk-kotlin
-          persist-credentials: false
-
       - name: Record source revisions
         run: |
           app_revision=$(git -C putio-android rev-parse HEAD)
-          sdk_revision=$(git -C putio-sdk-kotlin rev-parse HEAD)
           app_parents=$(git -C putio-android log -1 --format=%P | tr ' ' '\n' | sed 's/^/App parent revision: /')
-          printf 'App revision: %s\nKotlin SDK revision: %s\n' "$app_revision" "$sdk_revision" | tee -a "$GITHUB_STEP_SUMMARY"
+          printf 'App revision: %s\n' "$app_revision" | tee -a "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "$app_parents" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Java

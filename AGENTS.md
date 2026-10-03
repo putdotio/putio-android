@@ -16,7 +16,7 @@ evidence for PRs.
 - [Overview](./README.md)
 - [Harness](./docs/harness.md)
 - [Behaviour](./docs/behavior.md): product rules the harness proves
-- Kotlin SDK guide: `../putio-sdk-kotlin/AGENTS.md` (sibling checkout; see Toolchain)
+- Kotlin SDK: [`io.put:putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) from Maven Central, pinned in [`libs.versions.toml`](./gradle/libs.versions.toml)
 
 ## Toolchain
 
@@ -38,10 +38,17 @@ Idempotent. Installs cmdline-tools (via Homebrew if missing) and FFmpeg
 (Homebrew or apt), accepts licenses, installs platform/build-tools for the
 compileSdk, the emulator, the API 37 Google Play phone image and API 36 Android
 TV image, creates the two reusable AVDs (`--google-tv` adds the opt-in Google
-TV image and AVD), and writes `sdk.dir` to `local.properties`. A new
-`local.properties` also gets `putioSdkKotlinPath` when the sibling
-`../putio-sdk-kotlin` checkout exists; without the key Gradle uses that
-sibling, which must be cloned.
+TV image and AVD), and writes `sdk.dir` to `local.properties`.
+
+## Kotlin SDK
+
+The app depends on the released `io.put:putio-sdk-kotlin` from Maven Central;
+bump `putioSdkKotlin` in [`libs.versions.toml`](./gradle/libs.versions.toml)
+to take a new release. To build against unreleased SDK changes, set
+`putioSdkKotlinPath` in `local.properties` to an absolute SDK checkout path;
+Gradle then substitutes that checkout as a composite build. Remove the key to
+return to the pinned release, and land the SDK change as a release before an
+app PR depends on it.
 
 SDK root resolution in the harness scripts: `ANDROID_HOME` →
 `ANDROID_SDK_ROOT` → `local.properties` `sdk.dir` → known install paths.
@@ -101,30 +108,19 @@ unit-test JUnit XML, including assertion diagnostics the job log omits, as the
 `failed-unit-test-reports` artifact; manual dispatches also upload the debug
 APKs. A new push to a pull request cancels its running check; `main` pushes
 and manual dispatches never cancel or replace one another, so every `main`
-commit gets a verdict. CI checks out the public `putio-sdk-kotlin` as a
-sibling without credentials and holds no secrets.
+commit gets a verdict. CI resolves the SDK from Maven Central and holds no
+secrets.
 
-Both CI workflows record the app and SDK checkout SHAs and the app commit's
-parents in the job log and run summary. The SDK follows its default branch, so
-an app SHA alone does not identify the composite build a previous run used.
-For local proof, record both SHAs and worktree status, using the SDK path
-selected by `local.properties` `putioSdkKotlinPath` (or the sibling default):
+Both CI workflows record the app SHA and the app commit's parents in the job
+log and run summary; the pinned SDK version makes the app SHA the whole input.
+Local proof built with `putioSdkKotlinPath` set must also record that SDK
+checkout's SHA and worktree status.
 
-```bash
-SDK_CHECKOUT=/absolute/path/to/the/configured/sdk-checkout
-git rev-parse HEAD
-git status --short
-git -C "$SDK_CHECKOUT" rev-parse HEAD
-git -C "$SDK_CHECKOUT" status --short
-```
-
-To reproduce a CI pair without resetting existing work, create detached
-worktrees at the recorded app and SDK revisions, point the app worktree's
-`putioSdkKotlinPath` at that SDK worktree, and run the same verification lane:
+To reproduce a CI run without resetting existing work, create a detached
+worktree at the recorded app revision and run the same verification lane:
 
 ```bash
 git worktree add --detach ../putio-android-repro <app-sha>
-git -C "$SDK_CHECKOUT" worktree add --detach ../putio-sdk-kotlin-repro <sdk-sha>
 ```
 
 For a pull-request run, the tested app SHA can be a temporary merge commit.
@@ -134,8 +130,8 @@ worktree at the first parent, and merge the second parent there to reconstruct
 the tested source. Resolve a merge conflict explicitly; do not substitute a
 newer base or head and call it the same proof.
 
-Set `sdk.dir` and the absolute `putioSdkKotlinPath` in the reproduction
-worktree's ignored `local.properties` before running Gradle. Include local
+Set `sdk.dir` in the reproduction worktree's ignored `local.properties`, and
+leave `putioSdkKotlinPath` unset, before running Gradle. Include local
 modifications with a failure report; SHA pairs describe only committed source.
 
 [Emulator smoke](./.github/workflows/emulator-smoke.yml) runs weekly and on
@@ -166,15 +162,15 @@ Every change ships with:
 ## Worktrees
 
 `.worktreeinclude` carries `local.properties` into Codex and Claude worktrees.
-Set `sdk.dir` and an absolute `putioSdkKotlinPath` there, then run
-`./gradlew verify`. The optional `putioMobileOAuthClientIdDebugOverride` key
+Set `sdk.dir` there (plus `putioSdkKotlinPath` only for unreleased SDK work),
+then run `./gradlew verify`. The optional `putioMobileOAuthClientIdDebugOverride` key
 is validated on every build; see [Harness](./docs/harness.md#borrowing-another-oauth-client-for-local-proof).
 
 ## Rules
 
 - Keep mobile and TV shared at the data, domain, theme, and component-foundation layers
 - Let UI shells diverge when input model differs: touch for mobile, D-pad/remote for TV
-- Prefer SDK changes in `../putio-sdk-kotlin` over app-local API workarounds
+- Prefer SDK changes in [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) over app-local API workarounds
 - Preserve the current Android TV package/release identity unless product/release owners decide to create a new listing
 - Store tokens in Android platform secure storage; never commit sample secrets or OAuth tokens
 - Keep app-specific build, verification, and architecture notes in this repo
