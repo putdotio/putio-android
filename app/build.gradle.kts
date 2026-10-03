@@ -102,6 +102,10 @@ android {
         warningsAsErrors = true
         abortOnError = true
         lintConfig = rootProject.file("lint.xml")
+        // AGP skips lintVital's report whenever full lint runs, as it does in verify, yet
+        // still runs its analysis on every release variant and library. Full lint with
+        // warnings as errors already covers lintVital's fatal-only checks.
+        checkReleaseBuilds = false
     }
 
     testOptions {

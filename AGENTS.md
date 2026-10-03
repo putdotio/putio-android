@@ -68,9 +68,10 @@ variants are disabled. `check` also runs `verify<Variant>LauncherManifest`
 for every variant: the merged manifest must give `MainActivity` an
 `ACTION_MAIN` filter with `LAUNCHER`, and on TV another with
 `LEANBACK_LAUNCHER`. Unsigned minified `mobileProductionRelease`,
-`tvProductionRelease`, and `tvNightlyRelease` builds prove the composite
-Kotlin SDK, resource shrinking, and `lintVital` against R8 for each surface and
-channel. It also compiles the instrumentation APK, checks the Phosphor icon and
+`tvProductionRelease`, and `tvNightlyRelease` builds prove the SDK, resource
+shrinking, and R8 for each surface and channel. `lintVital` is off
+(`checkReleaseBuilds = false`): AGP skips its report whenever full lint runs, so
+a release lane must run `lint` itself. It also compiles the instrumentation APK, checks the Phosphor icon and
 design asset locks, and runs the shell and Python contract tests; those need
 `python3`, `bash` (3.2 or newer, so macOS `/bin/bash` works), `ffprobe`, and
 `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH. The
