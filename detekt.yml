@@ -17,5 +17,7 @@ complexity:
 style:
   MagicNumber:
     ignoreAnnotated: ['Composable']
+    # The bundled test-path excludes, plus test fixtures shared between modules.
+    excludes: ['**/test/**', '**/testFixtures/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
   UnusedPrivateMember:
     ignoreAnnotated: ['Preview']

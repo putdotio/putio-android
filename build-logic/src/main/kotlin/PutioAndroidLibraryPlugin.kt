@@ -15,12 +15,14 @@ object PutioAndroidSdk {
 
 /**
  * Shared setup for the `core` and `domain` Android libraries: SDK levels, the
- * repository's lint and detekt gates, and the JVM test stack. Each module still
+ * repository's lint and detekt gates, the Compose compiler, and the JVM test stack. Each module still
  * declares its namespace and its own dependencies.
  */
 class PutioAndroidLibraryPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
         pluginManager.apply("com.android.library")
+        // Compose infers stability for every module's models, as it did when they compiled in the app.
+        pluginManager.apply("org.jetbrains.kotlin.plugin.compose")
         pluginManager.apply("io.gitlab.arturbosch.detekt")
 
         extensions.configure<LibraryExtension> {
@@ -38,9 +40,17 @@ class PutioAndroidLibraryPlugin : Plugin<Project> {
         extensions.configure<DetektExtension> {
             config.setFrom(rootProject.file("detekt.yml"))
             buildUponDefaultConfig = true
+            source.setFrom("src/main/kotlin", "src/test/kotlin", "src/testFixtures/kotlin")
         }
 
         val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
+        val composeBom = dependencies.platform(libs.findLibrary("androidx-compose-bom").get())
+        val composeRuntime = libs.findLibrary("androidx-compose-runtime").get()
+        // The Compose compiler runs on every compilation, so each needs the runtime, test fixtures included.
+        configurations.matching { it.name in setOf("implementation", "testFixturesImplementation") }.configureEach {
+            target.dependencies.add(name, composeBom)
+            target.dependencies.add(name, composeRuntime)
+        }
         for (alias in listOf("junit", "kotlinx-coroutines-test", "robolectric", "androidx-test-ext-junit")) {
             dependencies.add("testImplementation", libs.findLibrary(alias).get())
         }

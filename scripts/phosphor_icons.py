@@ -165,6 +165,15 @@ def load_lock() -> tuple[PackageLock, tuple[IconLock, ...]]:
     return package, tuple(icons)
 
 
+def module_drawable_dirs() -> list[Path]:
+    """Every module's drawable directories, so a stale icon left outside the lock's targets still fails."""
+    return sorted(
+        path
+        for pattern in ("*/src/*/res/drawable", "*/*/src/*/res/drawable")
+        for path in REPO_ROOT.glob(pattern)
+    )
+
+
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
@@ -181,8 +190,7 @@ def check_outputs(package: PackageLock, icons: tuple[IconLock, ...]) -> None:
         if not hmac.compare_digest(actual, icon.output_sha256):
             failures.append(f"drifted {icon.output_path.relative_to(REPO_ROOT)}")
 
-    for res_dir in RES_DIRS:
-        drawable_dir = REPO_ROOT / res_dir / "drawable"
+    for drawable_dir in module_drawable_dirs():
         for path in drawable_dir.glob("ic_ph_*.xml"):
             if path in expected_paths:
                 continue
@@ -271,8 +279,7 @@ def generate(package: PackageLock, icons: tuple[IconLock, ...]) -> None:
             icon.output_path.write_bytes(output)
             print(f"wrote {icon.output_path.relative_to(REPO_ROOT)}")
 
-    for res_dir in RES_DIRS:
-        drawable_dir = REPO_ROOT / res_dir / "drawable"
+    for drawable_dir in module_drawable_dirs():
         for path in drawable_dir.glob("ic_ph_*.xml"):
             if path in expected_paths:
                 continue

@@ -47,8 +47,11 @@ val checkIcons = tasks.register<Exec>("checkIcons") {
     description = "Verify locked Phosphor drawables without network access"
     cacheableCheck(
         "design/phosphor-icons.lock.json",
-        fileTree("core/design/src/main/res/drawable") { include("ic_ph_*.xml") },
-        fileTree("app/src") { include("*/res/drawable/ic_ph_*.xml") },
+        // Every module's drawables: the check fails on stale generated icons anywhere.
+        fileTree(".") {
+            include("*/src/*/res/drawable/ic_ph_*.xml", "*/*/src/*/res/drawable/ic_ph_*.xml")
+            exclude("**/build/**", ".git/**", ".gradle/**")
+        },
     )
     commandLine("bash", "scripts/generate-icons.sh", "--check")
 }
