@@ -1270,7 +1270,7 @@ keeps the app's copy). Remove the directory afterwards.
 ## Transfers polling CPU benchmark
 
 `TransfersPollingCpuBenchmark` replays the deterministic Transfers histories
-from `app/src/sharedTest` on a device, with no network or account, and logs the
+from `domain/transfers/src/testFixtures` on a device, with no network or account, and logs the
 median thread CPU and wall time per poll for the pre-by-id list walk and the
 current refresh under the `TransfersPollingCpu` tag. Install the mobile
 production debug app and instrumentation APKs, then:
