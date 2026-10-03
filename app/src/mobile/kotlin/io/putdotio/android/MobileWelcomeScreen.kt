@@ -6,6 +6,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -140,15 +142,17 @@ internal fun MobileWelcomeScreen(
                 modifier = Modifier.width(88.dp).aspectRatio(WORDMARK_ASPECT_RATIO),
             )
         }
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Spacer(Modifier.height(128.dp))
+        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            // 128dp on a phone; short windows (landscape, split screen) keep the copy above the fold.
+            val topSpace = (maxHeight * 0.2f).coerceAtMost(128.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+            Spacer(Modifier.height(topSpace))
             WelcomeHeading(title = stringResource(content.title))
             content.lede?.let { lede ->
                 Text(
@@ -169,6 +173,7 @@ internal fun MobileWelcomeScreen(
                 )
             }
             Spacer(Modifier.height(16.dp))
+            }
         }
         content.action?.let { action ->
             WelcomeAction(
@@ -178,7 +183,7 @@ internal fun MobileWelcomeScreen(
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
                     .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
                     .fillMaxWidth()
-                    .height(56.dp),
+                    .heightIn(min = 56.dp),
             )
         }
     }
