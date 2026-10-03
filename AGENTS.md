@@ -76,7 +76,10 @@ design asset locks, and runs the shell and Python contract tests; those need
 `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH. The
 contract tests fake the SDK and console-port probe and give nested proof builds
 their own temp directory for the serial lock, so they pass beside running
-emulators, real proofs, and parallel checkouts. It also runs the tests of the
+emulators, real proofs, and parallel checkouts. These script checks declare
+`scripts/`, the files they verify, and the host tool versions as inputs, so an
+unchanged check is skipped or restored from the build cache; a new script file
+a check reads must sit under one of those inputs. It also runs the tests of the
 [`build-logic`](./build-logic) included build, which owns the design-token
 codegen, launcher-manifest check, and host proof task classes. Fix findings at the source; suppress only
 with a comment stating the platform constraint.
