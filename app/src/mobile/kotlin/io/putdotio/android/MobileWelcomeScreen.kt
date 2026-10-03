@@ -202,7 +202,7 @@ private fun WelcomeHeading(title: String) {
     )
     Text(
         text = title,
-        style = style.copy(fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em, lineHeight = 1.1.em),
+        style = style.copy(fontWeight = FontWeight.Medium, letterSpacing = (-0.02).em),
         textAlign = TextAlign.Center,
         modifier = Modifier.padding(top = 32.dp).semantics { heading() },
     )
