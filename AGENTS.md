@@ -56,22 +56,25 @@ SDK root resolution in the harness scripts: `ANDROID_HOME` →
 ## Build and Verify
 
 ```bash
-./gradlew verify                              # canonical local gate
-./gradlew :app:assembleMobileProductionDebug  # phone/tablet debug APK
-./gradlew :app:assembleTvProductionDebug      # Android TV debug APK
+./gradlew verify                         # canonical local gate
+./gradlew :mobile:assembleProductionDebug   # phone/tablet debug APK
+./gradlew :tv:assembleProductionDebug       # Android TV debug APK
 ```
 
-The root [`verify` task](./build.gradle.kts) runs Android Lint with warnings
-as errors on `mobileProductionDebug` and `tvProductionDebug`, detekt, and the
-production debug JVM unit tests; nightly adds resources only, so its unit-test
-variants are disabled. `check` also runs `verify<Variant>LauncherManifest`
-for every variant: the merged manifest must give `MainActivity` an
-`ACTION_MAIN` filter with `LAUNCHER`, and on TV another with
-`LEANBACK_LAUNCHER`. Unsigned minified `mobileProductionRelease`,
-`tvProductionRelease`, and `tvNightlyRelease` builds prove the SDK, resource
-shrinking, and R8 for each surface and channel. `lintVital` is off
-(`checkReleaseBuilds = false`): AGP skips its report whenever full lint runs, so
-a release lane must run `lint` itself. It also compiles the instrumentation APK, checks the Phosphor icon and
+The root [`verify` task](./build.gradle.kts) runs every module's `check`:
+Android Lint with warnings as errors on each app's `productionDebug` and each
+library's debug variant, detekt, and the debug JVM unit tests; nightly adds
+resources only, so its unit-test variants are disabled. Each app's
+`detekt-baseline.xml` records findings in code detekt never covered before the
+split; new code must pass, and the baseline only shrinks. Each app's `check`
+also runs `verify<Variant>LauncherManifest` for every variant: the merged
+manifest must give `MainActivity` an `ACTION_MAIN` filter with `LAUNCHER`, and
+on TV another with `LEANBACK_LAUNCHER`. Unsigned minified
+`:mobile:assembleProductionRelease`, `:tv:assembleProductionRelease`, and
+`:tv:assembleNightlyRelease` builds prove the SDK, resource shrinking, and R8
+for each surface and channel. `lintVital` is off (`checkReleaseBuilds = false`):
+AGP skips its report whenever full lint runs, so a release lane must run `lint`
+itself. It also compiles both apps' instrumentation APKs, checks the Phosphor icon and
 design asset locks, and runs the shell and Python contract tests; those need
 `python3`, `bash` (3.2 or newer, so macOS `/bin/bash` works), `ffprobe`, and
 `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH. The
@@ -85,9 +88,10 @@ a check reads must sit under one of those inputs. It also runs the tests of the
 codegen, launcher-manifest check, and host proof task classes. Fix findings at the source; suppress only
 with a comment stating the platform constraint.
 
-Two flavor dimensions: `surface` (`mobile`, `tv`) × `channel` (`production`,
-`nightly`); [app/build.gradle.kts](./app/build.gradle.kts) owns the application
-ids. Nightly carries its own id, label, and the stars launcher icon
+Two application modules, [`mobile`](./mobile/build.gradle.kts) and
+[`tv`](./tv/build.gradle.kts), each with a `channel` flavor dimension
+(`production`, `nightly`) from the `putio.android.application` convention
+plugin; each module owns its application id. Nightly carries its own id, label, and the stars launcher icon
 (`scripts/sync-design-assets.sh`); Play internal/closed tracks ship nightly,
 the public listing keeps production. Harness launch proof uses debug builds,
 `io.put.putio.mobile.debug` and `io.put.putio.debug` for production. Nothing in
@@ -100,11 +104,12 @@ the harness needs release credentials.
 | `core/common` | API rejection reasons, timestamps, avatar URLs, account storage keys, `SessionScopedHolder` |
 | `core/design` | `PutioTheme`, generated design tokens, file-type and shared Phosphor drawables, `BasePutioActivity` |
 | `domain/<name>` | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `downloads`, `files`, `history`, `playback`, `search`, `transfers`, `trash` |
-| `app` | Mobile UI in `src/mobile`, TV UI in `src/tv`, shells, navigation and session wiring |
+| `mobile` | Phone and tablet app: touch UI, shell, navigation, services and session wiring |
+| `tv` | Android TV app: D-pad UI, shell and session wiring |
 
-Dependencies point from `app` to `domain` to `core`; the other domains build
+Dependencies point from the apps to `domain` to `core`; the other domains build
 on `files`. Kotlin packages did not change with the modules. A library
-declaration stays `internal` unless another module or the app uses it. Each
+declaration stays `internal` unless another module or an app uses it. Each
 library applies `putio.android.library` from `build-logic` (SDK levels, lint
 and detekt gates, JVM test stack) and `verify` runs its `check`. Fakes that
 other modules' tests reuse live in the owning module's `src/testFixtures`.

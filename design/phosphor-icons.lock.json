@@ -71,140 +71,140 @@
       "outputSha256": "c520ea1b82c836a845a2abda98a13fa0d624797ece794047900a0e1479e7a456"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_arrow_circle_down",
       "asset": "assets/regular/arrow-circle-down.svg",
       "sourceSha256": "023031c9c7858af9f614b5bc5e8f5f511d59dc4990cfab5ef5c6cd65d1b90f3b",
       "outputSha256": "68c2a0eb3a6f60a3632306fa772a6b8bd2b46d73a71b13052ee355c6be94e9fa"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_arrow_circle_down_fill",
       "asset": "assets/fill/arrow-circle-down-fill.svg",
       "sourceSha256": "55ad201e30ef64bd200bdb261d2f78a64bfac03958fe93994b07606b5dee2927",
       "outputSha256": "196338e5911488d6fe49f8ff70147fdd4c0d8a2edfa4be2bc5baaecdabdf3b23"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_arrow_left",
       "asset": "assets/regular/arrow-left.svg",
       "sourceSha256": "3c2001cf957d182fc54927e4b286cc8cf66dd97830f441ca2650d42a63a9006a",
       "outputSha256": "fbd4030ac270365580ac8035afefbcbf5d010947cf7eed5ac7b807444e71e10f"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_clock_counter_clockwise",
       "asset": "assets/regular/clock-counter-clockwise.svg",
       "sourceSha256": "06aa1cb0d2664789232f4addb1c5932c8ce14e48465c8e8fb09a651b619b44e3",
       "outputSha256": "771062155c549a4b1466bf5dc577fc889c4a28fb232142d4d79c019005dc01aa"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_dots_three_vertical",
       "asset": "assets/regular/dots-three-vertical.svg",
       "sourceSha256": "85fdecd2193efcd7e80a83607b66d2680fef8f3d1e93380c26f9851b24edbd01",
       "outputSha256": "e24b83db74a8f6eeb1969ef6c340763460eeed6c6e5c52f3ace914ca049d1527"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_folder",
       "asset": "assets/regular/folder.svg",
       "sourceSha256": "4a882bcd4a91ae0a01887024f08d358932f183b6b171e87a3e48c5910364d507",
       "outputSha256": "a92b95b4c51e4d49eeef4927c633adef0cc60897b7cf3dc8b9d9f10e467e78f4"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_list_checks",
       "asset": "assets/regular/list-checks.svg",
       "sourceSha256": "b2d11fc95de627d6abe9feeced5f7e0cdce3ccdf8d9f9d2334d596b8b5cc5cc4",
       "outputSha256": "6aa7b867a0246c3ac0179b915f8b9c484b98602bfb2745d8be52d16d389c3703"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_magnifying_glass",
       "asset": "assets/regular/magnifying-glass.svg",
       "sourceSha256": "f9fa2561978a9a3291e8ae0ebfcb651104f5069fade8f84871627bca68889cde",
       "outputSha256": "472bc34c4cc5f9f9eb92934cc05e13356361ea1f37c2479f6e9fe307095c78c4"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_magnifying_glass_fill",
       "asset": "assets/fill/magnifying-glass-fill.svg",
       "sourceSha256": "e7cf953bb787af2a4b11f8a248f35b56aab2f2b44f535d03593f490a4a633244",
       "outputSha256": "416338f45ea5f43b6f83d098eeb9773b64c8267335e2c9394240056810e3b8de"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_sort_ascending",
       "asset": "assets/regular/sort-ascending.svg",
       "sourceSha256": "a9791208ad848f553cc7eb38a6adaf3dedcbb5922841dd05c683d123fd6272f6",
       "outputSha256": "55c11f6b84b5770e3cf17faef89ad0e5fec5fa58e3d2e140f7f349ec5fba1efa"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_subtitles",
       "asset": "assets/regular/subtitles.svg",
       "sourceSha256": "830b60f447804704071506de91ee161dd721813d795968faaa5a42be85e88cf1",
       "outputSha256": "eba6daa271095723bcec51192794b6a758b43039572d4346e05d9b9caf1a0521"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_trash",
       "asset": "assets/regular/trash.svg",
       "sourceSha256": "e6a830c0409f9e101e3695c981eef98427d39fd01f502b9cbd6900930b01f19c",
       "outputSha256": "43cf4b9ae31a1bab692ffbb5ac80f2e09454011dea73006a8ceb7fbaa2cd92e7"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_user_circle",
       "asset": "assets/regular/user-circle.svg",
       "sourceSha256": "5aee25838c1915058940900df322afc36b76f4ea7e48499c33603cf121258b2a",
       "outputSha256": "323cc60328b68258d1d4769385f3072a6b936345e95fce41891d041352074067"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_user_circle_fill",
       "asset": "assets/fill/user-circle-fill.svg",
       "sourceSha256": "4e16cdba116195993e6398bb097e7c4b354fb129fafdf2b56fd4b7c069f440d3",
       "outputSha256": "5a75cd6827f05ea5d9e204ade07ad11b94c6d2c2076f4c4d009f225876263518"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_globe",
       "asset": "assets/regular/globe.svg",
       "sourceSha256": "3b53d207c09fc72de699c8b2149892e065b570b3ae144412ae53244b0a0f7977",
       "outputSha256": "0e9a8909883dcaaeb3d1e5efe4d15e4a5c05c573b6808702370e2b1adb9dad0b"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_info",
       "asset": "assets/regular/info.svg",
       "sourceSha256": "438a1f319d53d86e840af73fb7b1d224c9224a437b9fa449a4e2cb45a82a3552",
       "outputSha256": "c7f7962704d410bfe3435e501da3a58feb5cc954d43ebc6831ef5f8285c87a82"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_bug",
       "asset": "assets/regular/bug.svg",
       "sourceSha256": "05041640c72e5cccc75ffe9b5138ff173c8097ee75183f231deeadcdf108dd0a",
       "outputSha256": "0281c5408c4e9ef2cf7e48c447b0d775066b55defdb8f1553a79247da74a19cb"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_chart_line",
       "asset": "assets/regular/chart-line.svg",
       "sourceSha256": "8a432fac53ae887b1726a96462aa8ea285e714b8e480261751361e4d6b2b226f",
       "outputSha256": "ef55ee652c4ff22f0c61ecb65991dfe2be4486b5441f9f8774f64520af9f7d32"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_lifebuoy",
       "asset": "assets/regular/lifebuoy.svg",
       "sourceSha256": "450ce5b7ec604f37c2d3dfc0f2972d35557121a050e83854135429376c3b95f0",
       "outputSha256": "8cabc249ef22af0239f8b36bf22faa2216f4394e62618299e516b5a7d8fc6333"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_shield_check",
       "asset": "assets/regular/shield-check.svg",
       "sourceSha256": "bb04d552c0baaaabd90f7eb60760cb0c7ddb7e9f47e4b76e9599ddd7dfd8eaa7",
@@ -225,252 +225,252 @@
       "outputSha256": "095334f575ca4ec50c729c82d2d3af97d12090f33e2488bfc8d5b8a761030409"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_x",
       "asset": "assets/regular/x.svg",
       "sourceSha256": "7397b15e1fa66eaf6ff9b59fe91d483cb5c3bcf75b2fe052097ab6f0593b513a",
       "outputSha256": "5e3c56210c48eec3fcf48778bb7e16f167f1076ed3909cfd72128d2bf8a26c9f"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_arrow_counter_clockwise",
       "asset": "assets/regular/arrow-counter-clockwise.svg",
       "sourceSha256": "4eb160d5ae781107c674481ac081962e6bce6281a646129e6c3f960b9dd5dac6",
       "outputSha256": "734d5522f09320e99143627120ec77a95d06e062a0ae2ecf96607c397aa5d498"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_arrow_clockwise",
       "asset": "assets/regular/arrow-clockwise.svg",
       "sourceSha256": "4a78a777b692cb74826e3071ae7049cc0d3927e68a7b8272e7251b1760cd771f",
       "outputSha256": "5af28423594a422a782da1348331ff44edd568d1092d6acb90c8bf753d2d01e3"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_gear",
       "asset": "assets/regular/gear.svg",
       "sourceSha256": "5c0cb3ba307c72babf78d952d9140c682ff30307fedc7fbb87c9a293c1e2fd64",
       "outputSha256": "b617f008b15d1348296e0708c5ff3ebc9bd3e6cf75eea40d128f804f119405d6"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_check",
       "asset": "assets/regular/check.svg",
       "sourceSha256": "cbb89a8c42f283d4f846eb935e05d88c1be04462f16480e068c0f82b9ce40b12",
       "outputSha256": "3883f553f4afa50518f14b47c013d8c816f48299f824b508ffb9a3d3a795e698"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_speaker_high",
       "asset": "assets/regular/speaker-high.svg",
       "sourceSha256": "caca5fc1ee8489ac19232301d2c96f6d4048802491d75d761bbb89d5c98e459d",
       "outputSha256": "a8e8a877a4790de86fc1d51c4928f20cc2d6729308a2cd0c74a858c632e475ec"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_gauge",
       "asset": "assets/regular/gauge.svg",
       "sourceSha256": "053e22a3b54c3baa7997bd0fddbf2cc35cbdd2662842b553d13d9f2a58c67f4a",
       "outputSha256": "2b5c94c8369719eb5f221ad097b74c492f6620cab639100d06315e2a3c8e87fa"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_magnifying_glass_fill",
       "asset": "assets/fill/magnifying-glass-fill.svg",
       "sourceSha256": "e7cf953bb787af2a4b11f8a248f35b56aab2f2b44f535d03593f490a4a633244",
       "outputSha256": "416338f45ea5f43b6f83d098eeb9773b64c8267335e2c9394240056810e3b8de"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_clock_counter_clockwise_fill",
       "asset": "assets/fill/clock-counter-clockwise-fill.svg",
       "sourceSha256": "618d6c238df479c26b40aab3271602a801797338d5521a28a1b254a86edf5398",
       "outputSha256": "13bacf73d16efcf1a1403021d530434ed29c08a9a60aa09563b028bb04316a37"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_user_circle_fill",
       "asset": "assets/fill/user-circle-fill.svg",
       "sourceSha256": "4e16cdba116195993e6398bb097e7c4b354fb129fafdf2b56fd4b7c069f440d3",
       "outputSha256": "5a75cd6827f05ea5d9e204ade07ad11b94c6d2c2076f4c4d009f225876263518"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_arrow_clockwise",
       "asset": "assets/regular/arrow-clockwise.svg",
       "sourceSha256": "4a78a777b692cb74826e3071ae7049cc0d3927e68a7b8272e7251b1760cd771f",
       "outputSha256": "5af28423594a422a782da1348331ff44edd568d1092d6acb90c8bf753d2d01e3"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_sort_ascending",
       "asset": "assets/regular/sort-ascending.svg",
       "sourceSha256": "a9791208ad848f553cc7eb38a6adaf3dedcbb5922841dd05c683d123fd6272f6",
       "outputSha256": "55c11f6b84b5770e3cf17faef89ad0e5fec5fa58e3d2e140f7f349ec5fba1efa"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_x_circle",
       "asset": "assets/regular/x-circle.svg",
       "sourceSha256": "cff9cacbd83ab11a01585dc63af07d289479bdb332708b0de2ad4c953f67d223",
       "outputSha256": "4cdaa2c5c11806b30172de56bcb5677197e2a2fbf28cd730e3d37a459e3ec840"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_caret_right",
       "asset": "assets/regular/caret-right.svg",
       "sourceSha256": "e6dec01e074807965b7f3146b976a9b5e82c31d9c2c88aeb52e77cc2ab16c1d7",
       "outputSha256": "fc0a578ae88e79240491be8fb9c330a1b5074bcdfa4ebf8cc75c242a23f94c63"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_magnifying_glass",
       "asset": "assets/regular/magnifying-glass.svg",
       "sourceSha256": "f9fa2561978a9a3291e8ae0ebfcb651104f5069fade8f84871627bca68889cde",
       "outputSha256": "472bc34c4cc5f9f9eb92934cc05e13356361ea1f37c2479f6e9fe307095c78c4"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_clock_counter_clockwise",
       "asset": "assets/regular/clock-counter-clockwise.svg",
       "sourceSha256": "06aa1cb0d2664789232f4addb1c5932c8ce14e48465c8e8fb09a651b619b44e3",
       "outputSha256": "771062155c549a4b1466bf5dc577fc889c4a28fb232142d4d79c019005dc01aa"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_backspace",
       "asset": "assets/regular/backspace.svg",
       "sourceSha256": "4d0d07f12e8a2e735c9aa0dc843837a5e61bba3792be1196071e2aff6cd46723",
       "outputSha256": "795d40ac47deae8c0cea26c19d4b4b702050be12c5a9ccd863384149d3a5e2ec"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_arrow_circle_down_fill",
       "asset": "assets/fill/arrow-circle-down-fill.svg",
       "sourceSha256": "55ad201e30ef64bd200bdb261d2f78a64bfac03958fe93994b07606b5dee2927",
       "outputSha256": "196338e5911488d6fe49f8ff70147fdd4c0d8a2edfa4be2bc5baaecdabdf3b23"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_trash",
       "asset": "assets/regular/trash.svg",
       "sourceSha256": "e6a830c0409f9e101e3695c981eef98427d39fd01f502b9cbd6900930b01f19c",
       "outputSha256": "43cf4b9ae31a1bab692ffbb5ac80f2e09454011dea73006a8ceb7fbaa2cd92e7"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_tree_structure",
       "asset": "assets/regular/tree-structure.svg",
       "sourceSha256": "b44cc8e3cfb16309ee80aa43bb581427d57796a702ddace498ba41ff0709c461",
       "outputSha256": "d00f6159511ae008b4f50034f23a218ad43f93ea73bd169fea7b04faffa5b8d0"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_bookmark_simple",
       "asset": "assets/regular/bookmark-simple.svg",
       "sourceSha256": "493a836009ab98f8d4ca84f088cc03f2785cdee86daa1643e003865ff3168b41",
       "outputSha256": "5a62eb5fc71b1c8f5a973602d4e3e14abee786996363d50ede30e524c9fda4a7"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_monitor_play",
       "asset": "assets/regular/monitor-play.svg",
       "sourceSha256": "7534556c726dfd4f291fd7fb4ab3b4a9ea6e8c7aaeec39a731dda6eecd0f6258",
       "outputSha256": "99f5b85326c74418becee1f2eba0be8466115b874d953119e2ca000b32719900"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_subtitles",
       "asset": "assets/regular/subtitles.svg",
       "sourceSha256": "830b60f447804704071506de91ee161dd721813d795968faaa5a42be85e88cf1",
       "outputSha256": "eba6daa271095723bcec51192794b6a758b43039572d4346e05d9b9caf1a0521"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_list_checks",
       "asset": "assets/regular/list-checks.svg",
       "sourceSha256": "b2d11fc95de627d6abe9feeced5f7e0cdce3ccdf8d9f9d2334d596b8b5cc5cc4",
       "outputSha256": "6aa7b867a0246c3ac0179b915f8b9c484b98602bfb2745d8be52d16d389c3703"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_recycle",
       "asset": "assets/regular/recycle.svg",
       "sourceSha256": "85e74a2e58dae5cb178dc23e73216edad052da022c401c676a294245c6093965",
       "outputSha256": "72064060dd62d39b0a5020ceddbe9fe5478e6e1d145a8fbc17b531985737e9af"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_android_logo",
       "asset": "assets/regular/android-logo.svg",
       "sourceSha256": "a7913ed07623ade21545cc0d271021e30753a370b2b9e96251cb521b591cc371",
       "outputSha256": "ccfb7fcd7d50f0bfaa36806a97f60764316eb76c8cdbb1092ad9dbf5e53b6408"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_television",
       "asset": "assets/regular/television.svg",
       "sourceSha256": "db6c3b07832e504d5634abfacd740e8aa45358bfc29b884f3ffd6819ec3ed124",
       "outputSha256": "fe9c191ea5235c231086ba503a12f9f0d88ffe7395601aa73c7f4f989dc67db1"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_circles_four",
       "asset": "assets/regular/circles-four.svg",
       "sourceSha256": "f090eb563b7cd379c4d92b8e9332d6614800f3c549d8fc2689a58a3c646fdc0c",
       "outputSha256": "9e82dfb09accf05fd2934318914d07dc1f4322d71f8800e21b37474add98abb4"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_bug",
       "asset": "assets/regular/bug.svg",
       "sourceSha256": "05041640c72e5cccc75ffe9b5138ff173c8097ee75183f231deeadcdf108dd0a",
       "outputSha256": "0281c5408c4e9ef2cf7e48c447b0d775066b55defdb8f1553a79247da74a19cb"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_sign_out",
       "asset": "assets/regular/sign-out.svg",
       "sourceSha256": "511fe7958ef31f8904185631fd7045c11f35c8034a2a64ccb3bdcc4dfa81df77",
       "outputSha256": "949961773b0904f56714dd01919baf46726dca80c6f9c8611bf67305c03bb4c3"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_headphones",
       "asset": "assets/regular/headphones.svg",
       "sourceSha256": "992d04ff6759f1f12d40259298a92589c18556bf5b2ea6f82bc23e74d9c48185",
       "outputSha256": "ab3e4cd46aff1ff1779134c59be76dae4b9e5e434175dacfad25012ec3751dae"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_subtitles_slash",
       "asset": "assets/regular/subtitles-slash.svg",
       "sourceSha256": "21b21248cee12eedfe0ab754c0a350f8a709a0eec2087470b688ef18c0d6f5bb",
       "outputSha256": "a396cf68e2a148ad6d60e83db814a307408c97593a5f8ddc1fac719efc551f85"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_gauge",
       "asset": "assets/regular/gauge.svg",
       "sourceSha256": "053e22a3b54c3baa7997bd0fddbf2cc35cbdd2662842b553d13d9f2a58c67f4a",
       "outputSha256": "2b5c94c8369719eb5f221ad097b74c492f6620cab639100d06315e2a3c8e87fa"
     },
     {
-      "resDir": "app/src/tv/res",
+      "resDir": "tv/src/main/res",
       "resource": "ic_ph_gear",
       "asset": "assets/regular/gear.svg",
       "sourceSha256": "5c0cb3ba307c72babf78d952d9140c682ff30307fedc7fbb87c9a293c1e2fd64",
       "outputSha256": "b617f008b15d1348296e0708c5ff3ebc9bd3e6cf75eea40d128f804f119405d6"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_clock_countdown",
       "asset": "assets/regular/clock-countdown.svg",
       "sourceSha256": "7c244c61bd1dbecc02d89ba2aed311b9ee0b24208ec5d21c8fa38194eba7ba19",
       "outputSha256": "17233b6c93e9af53a78c4cf987ef40b5c15f94c3638df78d626dd8532d17c635"
     },
     {
-      "resDir": "app/src/mobile/res",
+      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_warning_circle",
       "asset": "assets/regular/warning-circle.svg",
       "sourceSha256": "e48a90760a68659fd3f06dd9187e471aead4877c72e915339071b2c7f7bd714c",

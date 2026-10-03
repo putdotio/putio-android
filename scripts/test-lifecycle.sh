@@ -12,7 +12,7 @@ require_sdk_root
 
 PROVE="${REPO_ROOT}/scripts/prove.sh"
 EMU="${REPO_ROOT}/scripts/emulator.sh"
-APK="${REPO_ROOT}/app/build/outputs/apk/mobileProduction/debug/app-mobile-production-debug.apk"
+APK="${REPO_ROOT}/mobile/build/outputs/apk/production/debug/mobile-production-debug.apk"
 
 fail() { log "LIFECYCLE FAIL: $*"; exit 1; }
 
@@ -35,7 +35,7 @@ booted_serial() {
   sed -n 's/^BOOTED //p' "$1" | head -1 | tr -d '\r'
 }
 
-[[ -f "${APK}" ]] || (cd "${REPO_ROOT}" && ./gradlew -q :app:assembleMobileProductionDebug)
+[[ -f "${APK}" ]] || (cd "${REPO_ROOT}" && ./gradlew -q :mobile:assembleProductionDebug)
 
 phone_avd_image="$(avd_image_for_name "${PHONE_AVD}")" || \
   fail "precondition: could not determine ${PHONE_AVD} system image"

@@ -77,7 +77,7 @@ jobs:
         id: launch-smoke
         working-directory: putio-android
         run: >-
-          ./gradlew :app:verifyCiPhoneLaunchProof
+          ./gradlew :mobile:verifyCiPhoneLaunchProof
           -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest
           -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader
 
@@ -87,7 +87,7 @@ jobs:
         with:
           name: launch-smoke-results
           if-no-files-found: warn
-          path: putio-android/app/build/outputs/androidTest-results/**
+          path: putio-android/mobile/build/outputs/androidTest-results/**
 
       # AGP's instrumentation-args map drops comma-separated class selectors.
       # Keep the OAuth regression explicit and retain each run's result files.
@@ -96,7 +96,7 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: putio-android
         run: >-
-          ./gradlew :app:verifyCiPhoneOAuthProof
+          ./gradlew :mobile:verifyCiPhoneOAuthProof
           -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.auth.StaleOAuthCallbackTest
           -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader
 
@@ -106,4 +106,4 @@ jobs:
         with:
           name: oauth-smoke-results
           if-no-files-found: warn
-          path: putio-android/app/build/outputs/androidTest-results/**
+          path: putio-android/mobile/build/outputs/androidTest-results/**

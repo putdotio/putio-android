@@ -19,7 +19,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "putio-android"
 
-include(":app")
+include(":mobile", ":tv")
 include(":core:common", ":core:design")
 include(
     ":domain:account",

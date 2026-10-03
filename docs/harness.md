@@ -339,7 +339,7 @@ After authenticating the mobile production debug app as `devs-auto`, run the
 Files rename flow without `connectedAndroidTest` or `prove.sh`:
 
 ```bash
-./gradlew --no-daemon :app:proveAuthenticatedRename \
+./gradlew --no-daemon :mobile:proveAuthenticatedRename \
   -PputioRenameEnabled=true \
   -PputioRenameSerial=emulator-5554 \
   -PputioRenameFixture=/absolute/path/to/owned-rename-fixture.json
@@ -535,7 +535,7 @@ test identity instead of a browser:
 
 ```bash
 ./scripts/emulator.sh boot tv --headless
-adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
+adb -s emulator-5554 install -r tv/build/outputs/apk/production/debug/tv-production-debug.apk
 adb -s emulator-5554 shell am start -n io.put.putio.debug/io.putdotio.android.MainActivity
 code=$(adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'Activation code [A-Z0-9]+' | awk '{print $3}')
 PUTIO_CLI_PROFILE=devs-auto putio auth approve "$code"
@@ -560,9 +560,9 @@ or focus target leaves the safe area. It needs
 no sign-in, so the existing `putio-tv` session survives:
 
 ```bash
-./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
-adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
-adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+./gradlew :tv:assembleProductionDebug :tv:assembleProductionDebugAndroidTest
+adb -s emulator-5554 install -r tv/build/outputs/apk/production/debug/tv-production-debug.apk
+adb -s emulator-5554 install -r tv/build/outputs/apk/androidTest/production/debug/tv-production-debug-androidTest.apk
 run=$(uuidgen | tr 'A-Z' 'a-z')
 adb -s emulator-5554 shell wm size 1280x720 && adb -s emulator-5554 shell wm density 213   # optional 720p
 adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvSafeAreaProofTest \
@@ -598,7 +598,7 @@ Center on a media row opens the TV player; Back returns to that row. See
 ## TV player proof
 
 Behaviour: [TV playback](./behavior.md#tv-playback). `TvPlayerProofTest`
-(`androidTestTv`) mounts a fixed Files listing, the TV shell and the real TV
+(`tv/src/androidTest`) mounts a fixed Files listing, the TV shell and the real TV
 player screen with the production ExoPlayer factory, then drives it with D-pad
 key events. `selectPlaysTheFixtureAndBackReturnsToItsRow`: Down to the video
 row, Center to play, Center to pause and resume, Back to hide the controls and
@@ -646,9 +646,9 @@ server stand in for a signed-in session, so report it as controlled-state
 proof.
 
 ```bash
-./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
-adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
-adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+./gradlew :tv:assembleProductionDebug :tv:assembleProductionDebugAndroidTest
+adb -s emulator-5554 install -r tv/build/outputs/apk/production/debug/tv-production-debug.apk
+adb -s emulator-5554 install -r tv/build/outputs/apk/androidTest/production/debug/tv-production-debug-androidTest.apk
 # Two audio renditions and a WebVTT subtitle rendition; the picker flow needs them, the others play it too.
 python3 -c 'for i in range(30): t = lambda v: f"00:{v // 60:02d}:{v % 60:02d},000"; print(f"{i + 1}\n{t(i * 3)} --> {t(i * 3 + 3)}\nTV proof subtitle {i + 1}\n")' > captions.srt
 rm -rf hls && ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=90 -f lavfi -i sine=frequency=440:duration=90 \
@@ -704,7 +704,7 @@ screenshot directories afterwards.
 ## TV autoplay proof
 
 Behaviour: [TV playback](./behavior.md#tv-playback). `TvAutoplayProofTest`
-(`androidTestTv`) mounts the production TV session and signed-in shell on fake
+(`tv/src/androidTest`) mounts the production TV session and signed-in shell on fake
 repositories for an account with Autoplay next video and resume on, and plays a
 caller-owned 30 s local video for each Files row (long enough that 00:05 is not
 within 10 s of the end, which would count as finished): Center on the first
@@ -718,9 +718,9 @@ controlled-state proof. Push the fixture to `/data/local/tmp`; the test copies
 it into its own files directory.
 
 ```bash
-./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
-adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
-adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+./gradlew :tv:assembleProductionDebug :tv:assembleProductionDebugAndroidTest
+adb -s emulator-5554 install -r tv/build/outputs/apk/production/debug/tv-production-debug.apk
+adb -s emulator-5554 install -r tv/build/outputs/apk/androidTest/production/debug/tv-production-debug-androidTest.apk
 ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=30 -f lavfi -i sine=frequency=440:duration=30 \
   -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest tv-autoplay-proof.mp4
 adb -s emulator-5554 push tv-autoplay-proof.mp4 /data/local/tmp/tv-autoplay-proof.mp4
@@ -763,7 +763,7 @@ headless proof types; the recorded proof drives Gboard with D-pad keys.
 ## TV Search history proof
 
 Behaviour: [Recent searches](./behavior.md#recent-searches).
-`TvSearchHistoryProofTest` (`androidTestTv`) mounts the production TV session
+`TvSearchHistoryProofTest` (`tv/src/androidTest`) mounts the production TV session
 and signed-in shell on fake repositories, with the production recent-search
 store over an in-memory `/config` that logs every write. It types a query one
 key at a time past the debounce (nothing kept), opens a result (kept), submits
@@ -773,9 +773,9 @@ kept) and turns it back on, then asserts the exact `searchHistory` and
 controlled-state proof.
 
 ```bash
-./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
-adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
-adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+./gradlew :tv:assembleProductionDebug :tv:assembleProductionDebugAndroidTest
+adb -s emulator-5554 install -r tv/build/outputs/apk/production/debug/tv-production-debug.apk
+adb -s emulator-5554 install -r tv/build/outputs/apk/androidTest/production/debug/tv-production-debug-androidTest.apk
 adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.tv.TvSearchHistoryProofTest \
   -e putio.tv.searchHistory.enabled true -e putio.tv.searchHistory.runId "$(uuidgen)" \
   io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
@@ -791,8 +791,8 @@ the screenshot directory afterwards.
 
 Behaviour: [History events](./behavior.md#history-events),
 [Storage quota](./behavior.md#storage-quota), [Trash](./behavior.md#trash).
-`MobileCopyProofTest` (`androidTestMobile`) mounts mobile History, Account and
-Trash on controlled state; `TvCopyProofTest` (`androidTestTv`) mounts the
+`MobileCopyProofTest` (`mobile/src/androidTest`) mounts mobile History, Account and
+Trash on controlled state; `TvCopyProofTest` (`tv/src/androidTest`) mounts the
 production TV session and signed-in shell on fake repositories whose History
 mixes every kind of event. Neither makes API calls, so report them as
 controlled-state proof.
@@ -816,7 +816,7 @@ screenshot directories afterwards.
 ## TV Search and History opens proof
 
 Behaviour: [History opens](./behavior.md#timestamps-and-history-opens).
-`TvExternalOpenProofTest` (`androidTestTv`) mounts the production TV session and
+`TvExternalOpenProofTest` (`tv/src/androidTest`) mounts the production TV session and
 signed-in shell (`TvSessionShell`) on fake repositories and a caller-owned
 local video, then drives them with D-pad keys: open Movies in Files, type a
 query in Search, Center on the video result (resume prompt from 00:45,
@@ -828,9 +828,9 @@ adb creates under `Android/data`, so push the fixture to `/data/local/tmp`; the
 test copies it into its own files directory.
 
 ```bash
-./gradlew :app:assembleTvProductionDebug :app:assembleTvProductionDebugAndroidTest
-adb -s emulator-5554 install -r app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk
-adb -s emulator-5554 install -r app/build/outputs/apk/androidTest/tvProduction/debug/app-tv-production-debug-androidTest.apk
+./gradlew :tv:assembleProductionDebug :tv:assembleProductionDebugAndroidTest
+adb -s emulator-5554 install -r tv/build/outputs/apk/production/debug/tv-production-debug.apk
+adb -s emulator-5554 install -r tv/build/outputs/apk/androidTest/production/debug/tv-production-debug-androidTest.apk
 ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=90 -f lavfi -i sine=frequency=440:duration=90 \
   -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest tv-open-proof.mp4
 adb -s emulator-5554 push tv-open-proof.mp4 /data/local/tmp/tv-open-proof.mp4

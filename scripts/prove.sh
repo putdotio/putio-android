@@ -70,14 +70,14 @@ case "${FLAVOR}" in
   mobile)
     PROFILE="phone"
     APP_ID="io.put.putio.mobile.debug"
-    GRADLE_TASK=":app:assembleMobileProductionDebug"
-    APK="${PUTIO_PROVE_APK:-${REPO_ROOT}/app/build/outputs/apk/mobileProduction/debug/app-mobile-production-debug.apk}"
+    GRADLE_TASK=":mobile:assembleProductionDebug"
+    APK="${PUTIO_PROVE_APK:-${REPO_ROOT}/mobile/build/outputs/apk/production/debug/mobile-production-debug.apk}"
     ;;
   tv)
     PROFILE="tv"
     APP_ID="io.put.putio.debug"
-    GRADLE_TASK=":app:assembleTvProductionDebug"
-    APK="${PUTIO_PROVE_APK:-${REPO_ROOT}/app/build/outputs/apk/tvProduction/debug/app-tv-production-debug.apk}"
+    GRADLE_TASK=":tv:assembleProductionDebug"
+    APK="${PUTIO_PROVE_APK:-${REPO_ROOT}/tv/build/outputs/apk/production/debug/tv-production-debug.apk}"
     ;;
   *) die "unknown flavor '${FLAVOR}' (expected mobile|tv)" ;;
 esac
@@ -241,10 +241,7 @@ rec_out=""
 # platform test APIs instead of dumpsys/pidof parsing. A crash or ANR fails
 # the instrumentation. One retry covers the cold-boot black-render flake,
 # which heals once post-boot churn settles.
-case "${FLAVOR}" in
-  mobile) CONNECTED_TASK=":app:verifyMobileLaunchProof" ;;
-  tv) CONNECTED_TASK=":app:verifyTvLaunchProof" ;;
-esac
+CONNECTED_TASK=":${FLAVOR}:verifyLaunchProof"
 
 smoke_out="$(mktemp)"
 
@@ -257,21 +254,21 @@ run_smoke_test() {
 # launch failures are terminal so a flaky-looking pass cannot hide them.
 black_render_failure() {
   grep -q "screen is effectively black" "${smoke_out}" 2>/dev/null || \
-    grep -rq "screen is effectively black" "${REPO_ROOT}/app/build/outputs/androidTest-results" 2>/dev/null
+    grep -rq "screen is effectively black" "${REPO_ROOT}/${FLAVOR}/build/outputs/androidTest-results" 2>/dev/null
 }
 
 # Stale results from an earlier run must not classify this run's failure.
-rm -rf "${REPO_ROOT}/app/build/outputs/androidTest-results"
+rm -rf "${REPO_ROOT}/${FLAVOR}/build/outputs/androidTest-results"
 
 log "running instrumented launch proof (${CONNECTED_TASK}) on ${SERIAL}"
 if ! run_smoke_test; then
   if black_render_failure; then
     log "black-render assertion failed; settling 10s and retrying once"
     sleep 10
-    run_smoke_test || { tail -30 "${smoke_out}" >&2; die "instrumented launch proof failed twice; see app/build/reports/androidTests"; }
+    run_smoke_test || { tail -30 "${smoke_out}" >&2; die "instrumented launch proof failed twice; see ${FLAVOR}/build/reports/androidTests"; }
   else
     tail -30 "${smoke_out}" >&2
-    die "instrumented launch proof failed (not a render flake); see app/build/reports/androidTests"
+    die "instrumented launch proof failed (not a render flake); see ${FLAVOR}/build/reports/androidTests"
   fi
 fi
 rm -f "${smoke_out}"; smoke_out=""

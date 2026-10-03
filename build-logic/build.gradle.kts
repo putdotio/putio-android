@@ -13,6 +13,10 @@ dependencies {
 
 gradlePlugin {
     plugins {
+        register("androidApplication") {
+            id = "putio.android.application"
+            implementationClass = "PutioAndroidApplicationPlugin"
+        }
         register("androidLibrary") {
             id = "putio.android.library"
             implementationClass = "PutioAndroidLibraryPlugin"

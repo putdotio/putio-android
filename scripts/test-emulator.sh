@@ -542,7 +542,7 @@ cp "${REPO_ROOT}/scripts/"{prove,emulator,lib}.sh "${proof_repo}/scripts/"
 cat > "${proof_repo}/gradlew" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "$#" == 2 && "$1" == ":app:verifyMobileLaunchProof" &&
+[[ "$#" == 2 && "$1" == ":mobile:verifyLaunchProof" &&
   "$2" == "-Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest" ]] || {
   echo "unscoped instrumentation would run opt-in feature suites" >&2
   exit 1

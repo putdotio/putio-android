@@ -67,8 +67,9 @@ val checkDesignAssets = tasks.register<Exec>("checkDesignAssets") {
     description = "Verify locked @putdotio/design assets without network access"
     cacheableCheck(
         fileTree("design"),
-        "app/src/mobile/res/drawable/putio_wordmark.xml",
-        fileTree("app/src/nightly/res"),
+        "mobile/src/main/res/drawable/putio_wordmark.xml",
+        fileTree("mobile/src/nightly/res"),
+        fileTree("tv/src/nightly/res"),
     )
     commandLine("bash", "scripts/sync-design-assets.sh", "--check")
 }
@@ -90,15 +91,13 @@ tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
     dependsOn(
-        // Each core and domain library runs its own lint, detekt and unit tests.
-        subprojects.filter { it.path != ":app" && it.buildFile.isFile }.map { "${it.path}:check" },
-        ":app:check",
-        // `check` lints only the default mobile variant.
-        ":app:lintTvProductionDebug",
-        ":app:assembleMobileProductionRelease",
-        ":app:assembleTvProductionRelease",
-        ":app:assembleTvNightlyRelease",
-        ":app:assembleMobileProductionDebugAndroidTest",
+        // Every app and library runs its own lint, detekt and unit tests.
+        subprojects.filter { it.buildFile.isFile }.map { "${it.path}:check" },
+        ":mobile:assembleProductionRelease",
+        ":tv:assembleProductionRelease",
+        ":tv:assembleNightlyRelease",
+        ":mobile:assembleProductionDebugAndroidTest",
+        ":tv:assembleProductionDebugAndroidTest",
         checkDesignAssets,
         checkIcons,
         testDesignAssetPipeline,

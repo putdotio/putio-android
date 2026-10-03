@@ -26,7 +26,9 @@ from xml.sax.saxutils import escape
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOCK_PATH = REPO_ROOT / "design" / "putio-design.lock.json"
 TOKENS_PATH = Path("design") / "tokens.dtcg.json"
-WORDMARK_PATH = Path("app/src/mobile/res/drawable/putio_wordmark.xml")
+WORDMARK_PATH = Path("mobile/src/main/res/drawable/putio_wordmark.xml")
+# Both apps carry the nightly launcher icon in their own nightly source set.
+NIGHTLY_RES_DIRS = (Path("mobile/src/nightly/res"), Path("tv/src/nightly/res"))
 SVG_NAMESPACE = "{http://www.w3.org/2000/svg}"
 SVG_FILLS = {"white": "#FFFFFFFF"}
 HEX_COLOR_PATTERN = re.compile(r"#([0-9A-Fa-f]{6})")
@@ -57,8 +59,8 @@ class IconOutputLock:
     sha256: str
 
     @property
-    def path(self) -> Path:
-        return Path("app/src/nightly/res") / f"drawable-{self.density}" / "putio_icon.png"
+    def paths(self) -> tuple[Path, ...]:
+        return tuple(res / f"drawable-{self.density}" / "putio_icon.png" for res in NIGHTLY_RES_DIRS)
 
 
 @dataclass(frozen=True)
@@ -185,7 +187,7 @@ def load_lock() -> DesignLock:
 def locked_outputs(lock: DesignLock) -> tuple[tuple[Path, str], ...]:
     return (
         ((TOKENS_PATH, lock.tokens.source_sha256),)
-        + tuple((output.path, output.sha256) for output in lock.nightly_icon_outputs)
+        + tuple((path, output.sha256) for output in lock.nightly_icon_outputs for path in output.paths)
         + ((WORDMARK_PATH, lock.wordmark_output_sha256),)
     )
 
@@ -249,7 +251,9 @@ def render_nightly_icon(source: bytes, outputs: tuple[IconOutputLock, ...]) -> d
                 check=True,
                 stdout=subprocess.DEVNULL,
             )
-            rendered[output.path] = target.read_bytes()
+            data = target.read_bytes()
+            for path in output.paths:
+                rendered[path] = data
     return rendered
 
 
