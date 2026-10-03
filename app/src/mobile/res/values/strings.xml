@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="mobile_playback_options">Playback options</string>
     <string name="mobile_playback_speed">Playback speed</string>
     <string name="mobile_playback_speed_value">%1$s×</string>
@@ -226,20 +226,21 @@
     <string name="mobile_auth_restoring">Restoring your session</string>
     <string name="mobile_auth_validating">Checking your session</string>
     <string name="mobile_auth_signing_out">Signing out</string>
-    <string name="mobile_auth_signed_out_title">Sign in to put.io</string>
-    <string name="mobile_auth_signed_out_message">Open the secure put.io sign-in page in your browser.</string>
-    <string name="mobile_auth_expired_title">Session expired</string>
-    <string name="mobile_auth_expired_message">Sign in again to continue.</string>
-    <string name="mobile_auth_failed_title">Sign-in didn’t finish</string>
-    <string name="mobile_auth_failed_message">Nothing was saved. You can try again.</string>
+    <string name="mobile_welcome_wordmark" translatable="false">put.io</string>
+    <string name="mobile_welcome_kaomoji" translatable="false">┌( ಠ‿ಠ)┘</string>
+    <string name="mobile_welcome_title">Welcome!</string>
+    <string name="mobile_welcome_back_title">Welcome back!</string>
+    <string name="mobile_welcome_lede">Sign in to stream, download and manage your files.</string>
+    <string name="mobile_welcome_expired">Your session expired. Sign in again to continue.</string>
+    <string name="mobile_welcome_failed">Sign-in didn’t finish. Nothing was saved, so you can try again.</string>
+    <string name="mobile_welcome_browser_title">Almost there</string>
+    <!-- "signing in in your browser" is the phrasal verb "sign in" followed by "in", not a repeated word. -->
+    <string name="mobile_welcome_browser_lede" tools:ignore="Typos">Finish signing in in your browser, then come back here.</string>
     <string name="mobile_auth_not_configured_title">Mobile sign-in isn’t configured</string>
     <string name="mobile_auth_not_configured_message">This build needs its own Android sign-in registration before it can open the browser.</string>
-    <string name="mobile_auth_storage_title">Secure storage is unavailable</string>
     <string name="mobile_auth_storage_message">The saved session on this device could not be read or stored safely. Reset clears it so you can sign in again.</string>
     <string name="mobile_auth_storage_reset">Reset and sign in</string>
     <string name="mobile_auth_sign_in">Sign in</string>
-    <string name="mobile_auth_browser_title">Finish signing in</string>
-    <string name="mobile_auth_browser_message">Complete the sign-in flow in your browser, then return to put.io.</string>
     <string name="mobile_auth_cancel">Cancel</string>
     <string name="mobile_auth_unavailable_title">Couldn’t check your session</string>
     <string name="mobile_auth_unavailable_message">Your sign-in is still saved. Check your connection and try again.</string>

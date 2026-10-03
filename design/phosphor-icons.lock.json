@@ -461,6 +461,20 @@
       "asset": "assets/regular/gear.svg",
       "sourceSha256": "5c0cb3ba307c72babf78d952d9140c682ff30307fedc7fbb87c9a293c1e2fd64",
       "outputSha256": "b617f008b15d1348296e0708c5ff3ebc9bd3e6cf75eea40d128f804f119405d6"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_clock_countdown",
+      "asset": "assets/regular/clock-countdown.svg",
+      "sourceSha256": "7c244c61bd1dbecc02d89ba2aed311b9ee0b24208ec5d21c8fa38194eba7ba19",
+      "outputSha256": "17233b6c93e9af53a78c4cf987ef40b5c15f94c3638df78d626dd8532d17c635"
+    },
+    {
+      "sourceSet": "mobile",
+      "resource": "ic_ph_warning_circle",
+      "asset": "assets/regular/warning-circle.svg",
+      "sourceSha256": "e48a90760a68659fd3f06dd9187e471aead4877c72e915339071b2c7f7bd714c",
+      "outputSha256": "49ae85bd9922c0037266d5b996710b5dafb1129502e159fa393e54ebd6634482"
     }
   ]
 }

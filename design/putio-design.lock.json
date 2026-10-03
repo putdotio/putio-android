@@ -20,5 +20,10 @@
       { "density": "xxhdpi", "size": 144, "sha256": "9a00c3398e6cdd6fb24379a74853e8f993fb6fd8242df1e1bc9ee27f8db5fd93" },
       { "density": "xxxhdpi", "size": 192, "sha256": "55586eec7ea76b9c2da8858971fa6643c6502e98a29d11877e5e258bbe3ce2aa" }
     ]
+  },
+  "wordmark": {
+    "asset": "system/assets/logo-retro-dark.svg",
+    "sourceSha256": "81ed5dbe0baa5f18f4d200354894cab07e17b541eea4fa4cdc39397a44be3e46",
+    "outputSha256": "60a31324d861cd30f16303da41fcce75ed0fc29c24ecfa0577fb55b881a5ff3e"
   }
 }

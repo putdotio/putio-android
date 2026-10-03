@@ -16,14 +16,21 @@ import subprocess
 import tarfile
 import tempfile
 import urllib.request
+import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 from pathlib import Path
 from typing import NoReturn
+from xml.sax.saxutils import escape
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOCK_PATH = REPO_ROOT / "design" / "putio-design.lock.json"
 TOKENS_PATH = Path("design") / "tokens.dtcg.json"
+WORDMARK_PATH = Path("app/src/mobile/res/drawable/putio_wordmark.xml")
+SVG_NAMESPACE = "{http://www.w3.org/2000/svg}"
+SVG_FILLS = {"white": "#FFFFFFFF"}
+HEX_COLOR_PATTERN = re.compile(r"#([0-9A-Fa-f]{6})")
+NUMBER_PATTERN = re.compile(r"-?[0-9]+(?:\.[0-9]+)?")
 NIGHTLY_ICON_DENSITIES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 VERSION_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
@@ -60,6 +67,8 @@ class DesignLock:
     tokens: AssetLock
     nightly_icon: AssetLock
     nightly_icon_outputs: tuple[IconOutputLock, ...]
+    wordmark: AssetLock
+    wordmark_output_sha256: str
 
 
 def fail(message: str) -> NoReturn:
@@ -141,11 +150,12 @@ def load_lock() -> DesignLock:
     except (OSError, json.JSONDecodeError) as error:
         fail(f"cannot read {LOCK_PATH.relative_to(REPO_ROOT)}: {error}")
 
-    root = require_object(document, "lock", {"schemaVersion", "package", "tokens", "nightlyIcon"})
+    root = require_object(document, "lock", {"schemaVersion", "package", "tokens", "nightlyIcon", "wordmark"})
     if type(root["schemaVersion"]) is not int or root["schemaVersion"] != 1:
         fail("lock must use schemaVersion 1")
     tokens, _ = load_asset(root["tokens"], "tokens")
-    nightly_icon, raw_icon = load_asset(root["nightlyIcon"], "nightlyIcon", {"outputs"})
+    nightly_icon, raw_icon = load_asset(root["nightlyIcon"], "nightlyIcon", frozenset({"outputs"}))
+    wordmark, raw_wordmark = load_asset(root["wordmark"], "wordmark", frozenset({"outputSha256"}))
 
     raw_outputs = raw_icon["outputs"]
     if not isinstance(raw_outputs, list):
@@ -162,12 +172,21 @@ def load_lock() -> DesignLock:
     if sorted(output.density for output in outputs) != sorted(NIGHTLY_ICON_DENSITIES):
         fail("nightlyIcon.outputs must list each launcher density exactly once")
 
-    return DesignLock(load_package(root["package"]), tokens, nightly_icon, tuple(outputs))
+    return DesignLock(
+        load_package(root["package"]),
+        tokens,
+        nightly_icon,
+        tuple(outputs),
+        wordmark,
+        require_sha256(raw_wordmark["outputSha256"], "wordmark.outputSha256"),
+    )
 
 
 def locked_outputs(lock: DesignLock) -> tuple[tuple[Path, str], ...]:
-    return ((TOKENS_PATH, lock.tokens.source_sha256),) + tuple(
-        (output.path, output.sha256) for output in lock.nightly_icon_outputs
+    return (
+        ((TOKENS_PATH, lock.tokens.source_sha256),)
+        + tuple((output.path, output.sha256) for output in lock.nightly_icon_outputs)
+        + ((WORDMARK_PATH, lock.wordmark_output_sha256),)
     )
 
 
@@ -234,6 +253,62 @@ def render_nightly_icon(source: bytes, outputs: tuple[IconOutputLock, ...]) -> d
     return rendered
 
 
+def android_color(fill: str, asset: str) -> str:
+    if fill in SVG_FILLS:
+        return SVG_FILLS[fill]
+    match = HEX_COLOR_PATTERN.fullmatch(fill)
+    if match is None:
+        fail(f"{asset} uses unsupported fill {fill!r}")
+    return f"#FF{match.group(1).upper()}"
+
+
+def render_wordmark(source: bytes, asset: str, version: str) -> bytes:
+    # Fails on anything the converter does not model (transforms, strokes,
+    # non-path shapes) so a design release cannot silently mis-render.
+    try:
+        root = ElementTree.fromstring(source)
+    except ElementTree.ParseError as error:
+        fail(f"{asset} is invalid XML: {error}")
+    view_box = root.attrib.get("viewBox", "").split()
+    if len(view_box) != 4 or not all(NUMBER_PATTERN.fullmatch(value) for value in view_box):
+        fail(f"{asset} needs a numeric viewBox")
+    min_x, min_y, width, height = view_box
+    paths: list[str] = []
+    for element in root:
+        if element.tag != f"{SVG_NAMESPACE}path":
+            fail(f"{asset} contains unsupported element {element.tag}")
+        unsupported = set(element.attrib) - {"d", "fill", "fill-rule", "clip-rule"}
+        if unsupported or "d" not in element.attrib or "fill" not in element.attrib:
+            fail(f"{asset} has a path the converter cannot model")
+        fill_rule = element.attrib.get("fill-rule", "nonzero")
+        if fill_rule not in {"nonzero", "evenodd"}:
+            fail(f"{asset} uses unsupported fill-rule {fill_rule!r}")
+        fill_type = '\n            android:fillType="evenOdd"' if fill_rule == "evenodd" else ""
+        paths.append(
+            "        <path\n"
+            f'            android:fillColor="{android_color(element.attrib["fill"], asset)}"{fill_type}\n'
+            f'            android:pathData="{escape(element.attrib["d"], {chr(34): "&quot;"})}" />'
+        )
+    if not paths:
+        fail(f"{asset} contains no path data")
+    translate_x = -float(min_x) if float(min_x) else 0.0
+    translate_y = -float(min_y) if float(min_y) else 0.0
+    return (
+        f"<!-- put.io retro wordmark, @putdotio/design v{version} {asset}. "
+        "Generated by scripts/sync-design-assets.sh; do not edit. -->\n"
+        '<vector xmlns:android="http://schemas.android.com/apk/res/android"\n'
+        f'    android:width="{float(width) / 4:g}dp"\n'
+        f'    android:height="{float(height) / 4:g}dp"\n'
+        f'    android:viewportWidth="{width}"\n'
+        f'    android:viewportHeight="{height}">\n'
+        "    <group\n"
+        f'        android:translateX="{translate_x:g}"\n'
+        f'        android:translateY="{translate_y:g}">\n'
+        + "\n".join(paths)
+        + "\n    </group>\n</vector>\n"
+    ).encode("utf-8")
+
+
 def sync(lock: DesignLock) -> None:
     archive = fetch_package(lock.package)
     try:
@@ -243,6 +318,7 @@ def sync(lock: DesignLock) -> None:
     with package_tar:
         tokens = read_asset(package_tar, lock.tokens)
         nightly_icon = read_asset(package_tar, lock.nightly_icon)
+        wordmark = read_asset(package_tar, lock.wordmark)
 
     # Every digest is compared before anything is written, and all mismatches
     # are reported together so a release bump needs one sync to re-pin.
@@ -251,14 +327,19 @@ def sync(lock: DesignLock) -> None:
         for label, data, expected in (
             (lock.tokens.asset, tokens, lock.tokens.source_sha256),
             (lock.nightly_icon.asset, nightly_icon, lock.nightly_icon.source_sha256),
+            (lock.wordmark.asset, wordmark, lock.wordmark.source_sha256),
         )
         if not hmac.compare_digest(sha256(data), expected)
     ]
-    outputs = {TOKENS_PATH: tokens, **render_nightly_icon(nightly_icon, lock.nightly_icon_outputs)}
+    outputs = {
+        TOKENS_PATH: tokens,
+        **render_nightly_icon(nightly_icon, lock.nightly_icon_outputs),
+        WORDMARK_PATH: render_wordmark(wordmark, lock.wordmark.asset, lock.package.version),
+    }
     mismatches += [
-        f"generated {output.path} is {sha256(outputs[output.path])}, locked {output.sha256}"
-        for output in lock.nightly_icon_outputs
-        if not hmac.compare_digest(sha256(outputs[output.path]), output.sha256)
+        f"generated {path} is {sha256(outputs[path])}, locked {expected}"
+        for path, expected in locked_outputs(lock)[1:]
+        if not hmac.compare_digest(sha256(outputs[path]), expected)
     ]
     if mismatches:
         fail("unlocked design assets; nothing written:\n  " + "\n  ".join(mismatches))

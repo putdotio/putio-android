@@ -852,7 +852,7 @@ class MobileShellTest {
             }
         }
 
-        compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
+        compose.onNodeWithText("could not be read or stored safely", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Reset and sign in").performClick()
         assertEquals(1, signInRequests)
     }
