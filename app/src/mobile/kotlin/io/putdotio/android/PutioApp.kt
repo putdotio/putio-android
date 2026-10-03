@@ -3,7 +3,6 @@ package io.putdotio.android
 import android.app.Application
 import android.content.Intent
 import androidx.activity.result.ActivityResultLauncher
-import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -153,10 +152,8 @@ private fun MobileAuthRoot(
             )
 
         MobileAuthState.AwaitingOAuthCallback ->
-            MobileAuthMessageScreen(
-                title = stringResource(R.string.mobile_auth_browser_title),
-                message = stringResource(R.string.mobile_auth_browser_message),
-                actionLabel = stringResource(R.string.mobile_auth_cancel),
+            MobileWelcomeScreen(
+                content = MobileBrowserWelcomeContent,
                 onAction = { rootScope.launch { authController.cancelSignIn() } },
             )
 
@@ -194,53 +191,8 @@ internal fun MobileSignedOutScreen(
     canSignIn: Boolean,
     onSignIn: () -> Unit,
 ) {
-    @StringRes val title: Int
-    @StringRes val message: Int
-    when (reason) {
-        null -> {
-            title = R.string.mobile_auth_signed_out_title
-            message = R.string.mobile_auth_signed_out_message
-        }
-
-        MobileSignedOutReason.SessionExpired -> {
-            title = R.string.mobile_auth_expired_title
-            message = R.string.mobile_auth_expired_message
-        }
-
-        MobileSignedOutReason.SignInFailed -> {
-            title = R.string.mobile_auth_failed_title
-            message = R.string.mobile_auth_failed_message
-        }
-
-        MobileSignedOutReason.OAuthNotConfigured -> {
-            title = R.string.mobile_auth_not_configured_title
-            message = R.string.mobile_auth_not_configured_message
-        }
-
-        MobileSignedOutReason.SecureStorageUnavailable -> {
-            title = R.string.mobile_auth_storage_title
-            message = R.string.mobile_auth_storage_message
-        }
-    }
-
-    if (!canSignIn || reason == MobileSignedOutReason.OAuthNotConfigured) {
-        MobileEmptyState(
-            title = stringResource(title),
-            message = stringResource(message),
-        )
-        return
-    }
-
-    MobileAuthMessageScreen(
-        title = stringResource(title),
-        message = stringResource(message),
-        actionLabel = stringResource(
-            if (reason == MobileSignedOutReason.SecureStorageUnavailable) {
-                R.string.mobile_auth_storage_reset
-            } else {
-                R.string.mobile_auth_sign_in
-            },
-        ),
+    MobileWelcomeScreen(
+        content = mobileWelcomeContent(reason, canSignIn),
         onAction = onSignIn,
     )
 }

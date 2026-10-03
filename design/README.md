@@ -4,10 +4,14 @@
 [`@putdotio/design`](https://github.com/putdotio/putio-design)
 (`dist/tokens.dtcg.json`), vendored verbatim. The nightly launcher icons in
 `app/src/nightly/res/drawable-*/putio_icon.png` are downscaled from the same
-release's `system/assets/app-icon-nightly-stars.png`.
+release's `system/assets/app-icon-nightly-stars.png`. The phone welcome
+wordmark `app/src/mobile/res/drawable/putio_wordmark.xml` is converted from
+`system/assets/logo-retro-dark.svg`: paths keep their fills and even-odd rule,
+and a group translation absorbs the SVG's offset viewBox. The converter rejects
+SVG features it does not model.
 
 `putio-design.lock.json` pins the npm release by version and tarball SHA-512
-SRI, and pins the SHA-256 of both source assets and of every written file.
+SRI, and pins the SHA-256 of every source asset and of every written file.
 The Compose color schemes and the TV overscan ratios (`tv.overscan.x/y`) are
 generated from the JSON at build time by `:app:generateDesignTokens` (task
 class in `build-logic/`), which records the locked version in the generated

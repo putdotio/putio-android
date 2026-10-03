@@ -30,6 +30,15 @@ def tarball(members: dict[str, bytes]) -> bytes:
     return buffer.getvalue()
 
 
+WORDMARK_ASSET = "system/assets/logo-retro-dark.svg"
+WORDMARK_SVG = (
+    b'<svg width="40" height="20" viewBox="0 -4 40 20" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    b'<path fill-rule="evenodd" clip-rule="evenodd" d="M0 0H10V10H0Z" fill="white"></path>'
+    b'<path d="M20 0H30V10H20Z" fill="#FDCE45"></path>'
+    b"</svg>"
+)
+
+
 class DesignAssetLockTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -42,6 +51,7 @@ class DesignAssetLockTest(unittest.TestCase):
             density: f"{density} icon".encode("ascii")
             for density in design_assets.NIGHTLY_ICON_DENSITIES
         }
+        self.wordmark = design_assets.render_wordmark(WORDMARK_SVG, WORDMARK_ASSET, "3.3.0")
         self.document: dict[str, object] = {
             "schemaVersion": 1,
             "package": {
@@ -63,6 +73,11 @@ class DesignAssetLockTest(unittest.TestCase):
                     for density, size in design_assets.NIGHTLY_ICON_DENSITIES.items()
                 ],
             },
+            "wordmark": {
+                "asset": WORDMARK_ASSET,
+                "sourceSha256": hashlib.sha256(WORDMARK_SVG).hexdigest(),
+                "outputSha256": hashlib.sha256(self.wordmark).hexdigest(),
+            },
         }
         self.lock_path.parent.mkdir(parents=True)
         (self.repo_root / design_assets.TOKENS_PATH).write_bytes(self.tokens)
@@ -70,6 +85,8 @@ class DesignAssetLockTest(unittest.TestCase):
             path = self.icon_path(density)
             path.parent.mkdir(parents=True)
             path.write_bytes(data)
+        self.wordmark_path.parent.mkdir(parents=True)
+        self.wordmark_path.write_bytes(self.wordmark)
         self.repo_patch = patch.multiple(
             design_assets,
             REPO_ROOT=self.repo_root,
@@ -77,6 +94,10 @@ class DesignAssetLockTest(unittest.TestCase):
         )
         self.repo_patch.start()
         self.addCleanup(self.repo_patch.stop)
+
+    @property
+    def wordmark_path(self) -> Path:
+        return self.repo_root / design_assets.WORDMARK_PATH
 
     def icon_path(self, density: str) -> Path:
         return self.repo_root / "app/src/nightly/res" / f"drawable-{density}" / "putio_icon.png"
@@ -137,6 +158,26 @@ class DesignAssetLockTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "missing app/src/nightly/res/drawable-mdpi/putio_icon.png"):
             self.check()
 
+    def test_drifted_wordmark_is_rejected(self) -> None:
+        self.write_lock()
+        self.wordmark_path.write_bytes(b"edited")
+        with self.assertRaisesRegex(SystemExit, "drifted app/src/mobile/res/drawable/putio_wordmark.xml"):
+            self.check()
+
+    def test_wordmark_keeps_fills_and_viewbox_offset(self) -> None:
+        drawable = self.wordmark.decode("utf-8")
+        self.assertIn('android:viewportHeight="20"', drawable)
+        self.assertIn('android:translateY="4"', drawable)
+        self.assertIn('android:fillColor="#FFFFFFFF"\n            android:fillType="evenOdd"', drawable)
+        self.assertIn('android:fillColor="#FFFDCE45"\n            android:pathData="M20 0H30V10H20Z"', drawable)
+        self.assertEqual(drawable.count("fillType"), 1)
+        self.assertNotIn("clip", drawable)
+
+    def test_wordmark_rejects_shapes_it_cannot_model(self) -> None:
+        source = WORDMARK_SVG.replace(b"<path d=", b'<path transform="scale(2)" d=')
+        with self.assertRaisesRegex(SystemExit, "path the converter cannot model"):
+            design_assets.render_wordmark(source, WORDMARK_ASSET, "3.3.0")
+
     def fetch(self, archive: bytes) -> object:
         class Response(io.BytesIO):
             def __enter__(self) -> "Response":
@@ -151,6 +192,7 @@ class DesignAssetLockTest(unittest.TestCase):
         archive = tarball({
             "dist/tokens.dtcg.json": b"tampered",
             "system/assets/app-icon-nightly-stars.png": self.icon_source,
+            WORDMARK_ASSET: WORDMARK_SVG,
         })
         document = json.loads(json.dumps(self.document))
         document["package"]["integrity"] = "sha512-" + base64.b64encode(
@@ -177,6 +219,7 @@ class DesignAssetLockTest(unittest.TestCase):
         archive = tarball({
             "dist/tokens.dtcg.json": self.tokens,
             "system/assets/app-icon-nightly-stars.png": icon_source,
+            WORDMARK_ASSET: WORDMARK_SVG,
         })
         document = json.loads(json.dumps(self.document))
         document["package"]["integrity"] = "sha512-" + base64.b64encode(
@@ -192,7 +235,7 @@ class DesignAssetLockTest(unittest.TestCase):
         }
 
     def replace_outputs(self, data: bytes) -> list[Path]:
-        paths = [self.repo_root / design_assets.TOKENS_PATH] + [
+        paths = [self.repo_root / design_assets.TOKENS_PATH, self.wordmark_path] + [
             self.icon_path(density) for density in self.icon_outputs
         ]
         for path in paths:
