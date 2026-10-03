@@ -28,12 +28,13 @@ val localProperties = Properties().apply {
         ?.use { load(it) }
 }
 
-val sdkBuild = rootDir.resolve(
-    localProperties.getProperty("putioSdkKotlinPath", "../putio-sdk-kotlin"),
-)
-
-includeBuild(sdkBuild) {
-    dependencySubstitution {
-        substitute(module("io.putdotio:putio-sdk-kotlin")).using(project(":"))
+// Opt-in: point putioSdkKotlinPath in local.properties at an SDK checkout to
+// build the app against unreleased SDK changes instead of the Maven Central
+// release pinned in gradle/libs.versions.toml.
+localProperties.getProperty("putioSdkKotlinPath")?.let { sdkPath ->
+    includeBuild(rootDir.resolve(sdkPath)) {
+        dependencySubstitution {
+            substitute(module("io.put:putio-sdk-kotlin")).using(project(":"))
+        }
     }
 }

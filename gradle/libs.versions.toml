@@ -11,6 +11,7 @@ lifecycle = "2.11.0"
 navigationCompose = "2.10.2"
 media3 = "1.11.1"
 okhttp = "5.5.0"
+putioSdkKotlin = "1.0.0"
 tvMaterial = "1.1.0"
 androidxTestCore = "1.7.0"
 androidxTestEspresso = "3.7.0"
@@ -58,7 +59,7 @@ junit = { module = "junit:junit", version.ref = "junit" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
-putio-sdk-kotlin = { module = "io.putdotio:putio-sdk-kotlin" }
+putio-sdk-kotlin = { module = "io.put:putio-sdk-kotlin", version.ref = "putioSdkKotlin" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 
 [plugins]

@@ -116,14 +116,8 @@ ffmpeg_encoders="$(ffmpeg -hide_banner -encoders 2>/dev/null)"
 grep -q ' libx264 ' <<<"${ffmpeg_encoders}" || die "ffmpeg is missing the libx264 encoder"
 
 log "writing local.properties"
-SDK_KOTLIN_DEFAULT="$(cd "${REPO_ROOT}/.." 2>/dev/null && pwd)/putio-sdk-kotlin"
 if [[ ! -f "${REPO_ROOT}/local.properties" ]]; then
-  {
-    echo "sdk.dir=${SDK_ROOT}"
-    if [[ -d "${SDK_KOTLIN_DEFAULT}" ]]; then
-      echo "putioSdkKotlinPath=${SDK_KOTLIN_DEFAULT}"
-    fi
-  } > "${REPO_ROOT}/local.properties"
+  echo "sdk.dir=${SDK_ROOT}" > "${REPO_ROOT}/local.properties"
 elif grep -q '^sdk\.dir=' "${REPO_ROOT}/local.properties"; then
   # Refresh a stale sdk.dir (moved SDK, changed ANDROID_HOME) instead of
   # leaving Gradle pointed somewhere bootstrap did not provision.
@@ -133,13 +127,10 @@ elif grep -q '^sdk\.dir=' "${REPO_ROOT}/local.properties"; then
 else
   echo "sdk.dir=${SDK_ROOT}" >> "${REPO_ROOT}/local.properties"
 fi
-# settings.gradle.kts unconditionally includes this composite build; without
-# it every Gradle command fails, so an absent checkout is a bootstrap failure,
-# not a warning.
+# An opt-in SDK checkout that is missing fails every Gradle command.
 SDK_KOTLIN_PATH="$(sed -n 's/^putioSdkKotlinPath=//p' "${REPO_ROOT}/local.properties" | head -1)"
-[[ -n "${SDK_KOTLIN_PATH}" ]] || SDK_KOTLIN_PATH="${SDK_KOTLIN_DEFAULT}"
-if [[ ! -d "${SDK_KOTLIN_PATH}" ]]; then
-  die "putio-sdk-kotlin checkout missing at ${SDK_KOTLIN_PATH}; run: git clone git@github.com:putdotio/putio-sdk-kotlin.git '${SDK_KOTLIN_PATH}' (or point putioSdkKotlinPath in local.properties at an existing checkout), then re-run bootstrap"
+if [[ -n "${SDK_KOTLIN_PATH}" && ! -d "${SDK_KOTLIN_PATH}" ]]; then
+  die "putioSdkKotlinPath in local.properties points at a missing checkout (${SDK_KOTLIN_PATH}); fix the path or remove the key to use the Maven Central SDK, then re-run bootstrap"
 fi
 
 provision_avds "${AVD_PROFILES[@]}" || exit 1
