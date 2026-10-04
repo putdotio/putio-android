@@ -73,7 +73,10 @@ class MobileHomeScreenProofTest {
     @get:Rule val optIn = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {
-                assumeTrue("Home-screen proof requires opt-in", arguments.getString("putio.homescreen.enabled") == "true")
+                assumeTrue(
+                    "Home-screen proof requires opt-in",
+                    arguments.getString("putio.homescreen.enabled") == "true",
+                )
                 require(Build.VERSION.SDK_INT == 37) { "Home-screen proof requires API 37" }
                 runId()
                 // The shade and the launcher are other apps' windows; reading them needs every window.
@@ -126,7 +129,7 @@ class MobileHomeScreenProofTest {
                 awaitCondition("the widget placed") { widgets.getAppWidgetIds(provider).isNotEmpty() }
             }
         }
-        home()
+        showWidgetPage()
         awaitText(SIGNED_OUT)
         screenshot("01-widget-signed-out")
 
@@ -260,6 +263,20 @@ class MobileHomeScreenProofTest {
     private fun awaitNotification(name: String) =
         awaitNode("the notification for $name") { it.text?.toString()?.lines()?.contains(name) == true }
 
+    /** The launcher may have placed the widget on a later home page. */
+    private fun showWidgetPage() {
+        home()
+        repeat(HOME_PAGES) {
+            if (findNode(SIGNED_OUT) != null || findNode(WIDGET_TITLE) != null) return
+            val display = context.resources.displayMetrics
+            val y = display.heightPixels / 2
+            instrumentation.uiAutomation.executeShellCommand(
+                "input swipe ${display.widthPixels * 9 / 10} $y ${display.widthPixels / 10} $y 300",
+            ).use { FileInputStream(it.fileDescriptor).readBytes() }
+            SystemClock.sleep(SETTLE_MS)
+        }
+    }
+
     private fun awaitText(text: String) = awaitNode("'$text' on screen") { it.text?.toString() == text }
 
     private fun findNode(text: String): AccessibilityNodeInfo? = nodes().firstOrNull { it.text?.toString() == text }
@@ -333,6 +350,8 @@ class MobileHomeScreenProofTest {
         const val IDLE_MS = 300L
         const val SETTLE_MS = 1_500L
         const val SIGNED_OUT = "Sign in to put.io to see your transfers."
+        const val WIDGET_TITLE = "Transfers"
+        const val HOME_PAGES = 3
         val ADD_BUTTON = Regex("(?i)add( to home screen)?")
 
         val FIRST_ACCOUNT = listOf(

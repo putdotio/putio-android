@@ -90,9 +90,11 @@ internal class TransfersWidgetUpdater(
     /** What this process last pushed, and for which session; null until it pushes anything. */
     private var shown: Pair<MobileSessionKey?, TransfersWidgetContent>? = null
 
-    private val manager get() = AppWidgetManager.getInstance(appContext)
+    /** Null on a device without home-screen widgets, which then never has one placed. */
+    private val manager: AppWidgetManager? get() = AppWidgetManager.getInstance(appContext)
     private val widgetIds: IntArray
-        get() = manager.getAppWidgetIds(ComponentName(appContext, MobileTransfersWidgetProvider::class.java))
+        get() = manager?.getAppWidgetIds(ComponentName(appContext, MobileTransfersWidgetProvider::class.java))
+            ?: IntArray(0)
 
     /**
      * Reads the account's transfers and shows them, replacing any refresh still running. Does
@@ -177,7 +179,7 @@ internal class TransfersWidgetUpdater(
 
     private fun push(key: MobileSessionKey?, content: TransfersWidgetContent) {
         val ids = widgetIds
-        if (ids.isNotEmpty()) manager.updateAppWidget(ids, transfersWidgetViews(appContext, content))
+        if (ids.isNotEmpty()) manager?.updateAppWidget(ids, transfersWidgetViews(appContext, content))
         shown = key to content
     }
 

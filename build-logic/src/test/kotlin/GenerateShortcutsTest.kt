@@ -6,7 +6,7 @@ import org.junit.Test
 class GenerateShortcutsTest {
     @Test
     fun everyPlaceholderBecomesTheVariantsApplicationId() {
-        val template = """<intent android:targetPackage="${'$'}{applicationId}" /><intent android:targetPackage="${'$'}{applicationId}" />"""
+        val template = """<intent android:targetPackage="${'$'}{applicationId}" />""".repeat(2)
         assertEquals(
             """<intent android:targetPackage="io.put.putio.mobile.nightly.debug" />""".repeat(2),
             renderShortcuts(template, "io.put.putio.mobile.nightly.debug"),

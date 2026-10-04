@@ -1405,7 +1405,8 @@ selector at a time, and require `OK (1 test)` for each. Start
 Screenshots land in `homescreen-proof-<UUID>/`:
 
 - `theTransfersWidgetFollowsTheSessionAndForgetsItOnSignOut` pins the widget
-  through the launcher's dialog the first time, then captures
+  through the launcher's dialog the first time, swipes to the home page the
+  launcher put it on, then captures
   `01-widget-signed-out`, `02-widget-signed-in` (three rows and `1 more`),
   `03-widget-cleared-on-sign-out` (no row name anywhere on screen) and
   `04-widget-next-account`
@@ -1418,6 +1419,9 @@ Screenshots land in `homescreen-proof-<UUID>/`:
   MainActivity holding `putio://downloads/<id>/play?user=<id>`, which waits at
   sign-in on a signed-out install. The receiver's Media3 start is a stand-in;
   routing after sign-in is `MobileShellLinkActionsTest`
+
+`am force-stop` cancels every pending intent the app made, the widget's
+included, so after one the widget's taps do nothing until its next update.
 
 ## Shared-with-me items proof
 
