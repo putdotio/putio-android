@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -57,6 +58,7 @@ import io.putdotio.android.sharing.publicLink
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -111,6 +113,9 @@ class MobilePublicLinksTest {
             assertEquals(listOf(video.id), repository.created)
             assertEquals(created.url.value, clipboardText())
             assertEquals("https://app.put.io/exclusive-access/token-${created.id.value}", clipboardText())
+            // A bearer link: Android 13+ hides it from the clipboard preview.
+            val extras = clipboard().primaryClip?.description?.extras
+            assertTrue(extras?.getBoolean(ClipDescription.EXTRA_IS_SENSITIVE) == true)
         }
     }
 
@@ -270,10 +275,11 @@ class MobilePublicLinksTest {
         compose.onNodeWithTag(MOBILE_PUBLIC_LINK_SHEET_TAG).assertIsDisplayed()
     }
 
-    private fun clipboardText(): String? =
+    private fun clipboard(): ClipboardManager =
         ApplicationProvider.getApplicationContext<android.content.Context>()
             .getSystemService(ClipboardManager::class.java)
-            .primaryClip?.getItemAt(0)?.text?.toString()
+
+    private fun clipboardText(): String? = clipboard().primaryClip?.getItemAt(0)?.text?.toString()
 
     private fun hasAnyAncestorTag(tag: String) = androidx.compose.ui.test.hasAnyAncestor(hasTestTag(tag))
 

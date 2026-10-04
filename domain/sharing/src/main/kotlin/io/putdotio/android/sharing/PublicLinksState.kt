@@ -53,16 +53,18 @@ public data class PublicLinksState(
     val content: PublicLinksContent = PublicLinksContent.Idle,
     val mutation: PublicLinksMutation? = null,
     val outcome: PublicLinksOutcome? = null,
+    /** The links are read again behind the ones shown, after a revoke failed. */
+    val refreshing: Boolean = false,
 ) {
     /**
      * put.io issues a new link on every create, so one waits for the account's links to load:
      * the viewer sees what already exists before making another.
      */
     val canCreate: Boolean
-        get() = content is PublicLinksContent.Ready && mutation == null
+        get() = content is PublicLinksContent.Ready && mutation == null && !refreshing
 
     val canRevoke: Boolean
-        get() = content is PublicLinksContent.Ready && mutation == null
+        get() = canCreate
 
     /** [fileId]'s links, newest first; null until the account's links have loaded. */
     public fun linksFor(fileId: FilesItemId): List<PublicLink>? =
@@ -91,7 +93,8 @@ public sealed interface PublicLinksEvent {
 internal sealed interface PublicLinksRequest {
     val id: Long
 
-    data class Load(override val id: Long) : PublicLinksRequest
+    /** A [refresh] keeps the links shown if it fails. */
+    data class Load(override val id: Long, val refresh: Boolean = false) : PublicLinksRequest
 
     data class Create(override val id: Long, val fileId: FilesItemId) : PublicLinksRequest
 
@@ -138,13 +141,19 @@ internal data class PublicLinksMachine(
         )
     }
 
-    fun completeLoad(result: PutioResult<List<PublicLink>>): PublicLinksMachine =
+    fun completeLoad(request: PublicLinksRequest.Load, result: PutioResult<List<PublicLink>>): PublicLinksMachine =
         copy(
             state = state.copy(
                 content = when (result) {
                     is PutioResult.Success -> PublicLinksContent.Ready(result.value.newestFirst())
-                    is PutioResult.Failure -> PublicLinksContent.Failed(result.failure)
+                    is PutioResult.Failure ->
+                        if (request.refresh && result.failure !is PutioFailure.AuthenticationRequired) {
+                            state.content
+                        } else {
+                            PublicLinksContent.Failed(result.failure)
+                        }
                 },
+                refreshing = false,
             ),
             request = null,
         )
@@ -175,11 +184,22 @@ internal data class PublicLinksMachine(
                 ),
                 request = null,
             )
-            is PutioResult.Failure -> copy(
-                state = state.copy(mutation = null, outcome = PublicLinksOutcome.RevokeFailed(link, result.failure)),
-                request = null,
+            is PutioResult.Failure -> revokeFailed(link, result.failure)
+        }
+
+    // The link may already be gone, revoked elsewhere or expired, so the links are read again.
+    private fun revokeFailed(link: PublicLink, failure: PutioFailure): PublicLinksMachine {
+        val outcome = PublicLinksOutcome.RevokeFailed(link, failure)
+        return if (failure is PutioFailure.AuthenticationRequired) {
+            copy(state = state.copy(mutation = null, outcome = outcome), request = null)
+        } else {
+            copy(
+                state = state.copy(mutation = null, outcome = outcome, refreshing = true),
+                request = PublicLinksRequest.Load(nextRequestId, refresh = true),
+                nextRequestId = nextRequestId + 1L,
             )
         }
+    }
 }
 
 private fun PublicLinksContent.withLinks(change: (List<PublicLink>) -> List<PublicLink>): PublicLinksContent =

@@ -21,9 +21,9 @@ public value class PublicLinkUrl internal constructor(
 ) {
     override fun toString(): String = "PublicLinkUrl(<redacted>)"
 
-    public companion object {
+    internal companion object {
         /** The address of the link put.io issued [token] for. */
-        public fun of(token: String): PublicLinkUrl {
+        fun of(token: String): PublicLinkUrl {
             require(token.isNotBlank()) { "A public link token cannot be blank" }
             return PublicLinkUrl(PUBLIC_LINK_BASE_URL + token.encodePathSegment())
         }
@@ -56,7 +56,7 @@ public enum class PublicLinkRefusal {
  * The refusal behind a failed create, read from put.io's error type wherever the SDK wrapped it:
  * these come back as 403s, which the shared taxonomy files under access denied.
  */
-public val PutioFailure.publicLinkRefusal: PublicLinkRefusal?
+internal val PutioFailure.publicLinkRefusal: PublicLinkRefusal?
     get() = when (cause.findPutioApiException()?.errorType) {
         "PUBLIC_SHARE_NOT_ALLOWED_PLAN" -> PublicLinkRefusal.PLAN_NOT_ALLOWED
         "PUBLIC_SHARE_UNSUPPORTED_FILE_TYPE" -> PublicLinkRefusal.UNSUPPORTED_FILE_TYPE

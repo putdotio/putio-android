@@ -1,8 +1,11 @@
 package io.putdotio.android.sharing
 
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.PersistableBundle
 import android.text.format.DateUtils
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
@@ -132,7 +135,7 @@ internal fun MobilePublicLinkSheet(
                     onEvent(PublicLinksEvent.Load)
                 }
                 is PublicLinksContent.Ready -> {
-                    val links = content.links.filter { it.fileId == item.id }
+                    val links = state.linksFor(item.id).orEmpty()
                     if (links.isEmpty()) {
                         Text(
                             text = stringResource(R.string.mobile_public_links_none_for_item),
@@ -306,7 +309,7 @@ private fun rememberPublicLinkActions(state: PublicLinksState): PublicLinkAction
         confirming = (state.content as? PublicLinksContent.Ready)?.links?.firstOrNull { it.id.value == confirmingId },
         copy = { link ->
             scope.launch {
-                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(label, link.url.value)))
+                clipboard.setClipEntry(ClipEntry(sensitiveClip(label, link.url.value)))
                 copiedId = link.id
             }
         },
@@ -405,6 +408,16 @@ private fun expiryText(link: PublicLink): String {
         ),
     )
 }
+
+/**
+ * The address is a bearer link to the file, so Android 13+ keeps it out of the clipboard preview.
+ */
+private fun sensitiveClip(label: String, url: String): ClipData =
+    ClipData.newPlainText(label, url).apply {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            description.extras = PersistableBundle().apply { putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true) }
+        }
+    }
 
 /** The link alone, as text: the address carries only the share's token, never the session's. */
 private fun Context.sharePublicLink(link: PublicLink) {

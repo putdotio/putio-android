@@ -172,7 +172,8 @@ internal fun MobileShell(
     val isDownloads = backStackEntry?.destination?.route == MOBILE_DOWNLOADS_ROUTE
     val isPublicLinks = backStackEntry?.destination?.route == MOBILE_PUBLIC_LINKS_ROUTE
     val publicLinks = publicLinksController?.let { controller ->
-        MobilePublicLinks(controller.state.collectAsStateWithLifecycle().value, controller::dispatch)
+        val state = controller.state.collectAsStateWithLifecycle().value
+        remember(controller, state) { MobilePublicLinks(state, controller::dispatch) }
     }
     val downloadsState = downloadsController?.state?.collectAsStateWithLifecycle()?.value ?: DownloadsState()
     val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value

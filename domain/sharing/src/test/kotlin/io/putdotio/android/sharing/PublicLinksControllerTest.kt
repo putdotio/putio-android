@@ -109,6 +109,50 @@ class PublicLinksControllerTest {
 
         assertEquals(listOf(link), controller.state.value.linksFor(video))
         assertEquals(PublicLinksOutcome.RevokeFailed(link, failure), controller.state.value.outcome)
+        assertTrue(controller.state.value.canRevoke)
+    }
+
+    @Test
+    fun aFailedRevokeReadsTheLinksAgainSoOneAlreadyGoneLeaves() = runTest {
+        val gone = publicLink(id = 3L, fileId = 7L)
+        val kept = publicLink(id = 2L, fileId = 7L)
+        val repository = FakePublicLinksRepository(listOf(kept, gone))
+        val failure = PutioFailure.ApiRejected(404, "NotFound", refusalException(404, "NotFound"))
+        repository.onRevoke = { PutioResult.Failure(failure) }
+        val controller = loaded(repository)
+        // Revoked on web, or expired, after this list was read.
+        repository.links.remove(gone)
+
+        controller.dispatch(PublicLinksEvent.Revoke(gone.id))
+        runCurrent()
+
+        assertEquals(listOf(kept), controller.state.value.linksFor(video))
+        assertEquals(PublicLinksOutcome.RevokeFailed(gone, failure), controller.state.value.outcome)
+        assertEquals(2, repository.listCount)
+        assertFalse(controller.state.value.refreshing)
+    }
+
+    @Test
+    fun aFailedReadAfterAFailedRevokeKeepsTheLinksShown() = runTest {
+        val link = publicLink(id = 3L, fileId = 7L)
+        val repository = FakePublicLinksRepository(listOf(link))
+        repository.onRevoke = { PutioResult.Failure(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))) }
+        val controller = loaded(repository)
+        val pending = CompletableDeferred<PutioResult<List<PublicLink>>>()
+        repository.onList = { pending.await() }
+
+        controller.dispatch(PublicLinksEvent.Revoke(link.id))
+        runCurrent()
+        assertTrue(controller.state.value.refreshing)
+        assertFalse(controller.state.value.canCreate)
+        assertFalse(controller.dispatch(PublicLinksEvent.Load))
+
+        pending.complete(PutioResult.Failure(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))))
+        runCurrent()
+
+        assertEquals(listOf(link), controller.state.value.linksFor(video))
+        assertTrue(controller.state.value.outcome is PublicLinksOutcome.RevokeFailed)
+        assertTrue(controller.state.value.canRevoke)
     }
 
     @Test
