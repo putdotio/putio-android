@@ -83,7 +83,7 @@ import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
-import io.putdotio.android.settings.AndroidAppConfigFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigState
@@ -157,7 +157,7 @@ class MobileShellTest {
     @Test
     fun appConfigAuthenticationFailureTriggersRootSessionRejection() {
         var rejections = 0
-        val failure = AndroidAppConfigFailure.AuthenticationRequired(
+        val failure = PutioFailure.AuthenticationRequired(
             PutioConfigurationException("expired"),
         )
         val state = androidAppConfigState(
@@ -356,9 +356,9 @@ class MobileShellTest {
                                             AccountSettingsMutation.Failed(
                                                 change = event.change,
                                                 failure =
-                                                    AccountSettingsFailure.Unexpected(
+                                                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(
                                                         IllegalStateException("offline"),
-                                                    ),
+                                                    )),
                                                 previousPreferences = DefaultAccountSettingsPreferences,
                                                 operation = AccountSettingsMutation.Operation.Save,
                                             ),
@@ -1018,7 +1018,8 @@ class MobileShellFilesTest {
             settings = readyAccountSettingsState(
                 preferences = optimistic,
                 mutation = AccountSettingsMutation.Failed(
-                    change, AccountSettingsFailure.Unexpected(IllegalStateException("refresh failed")),
+                    change,
+                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("refresh failed"))),
                     original, AccountSettingsMutation.Operation.Refresh,
                 ),
             )
@@ -1207,7 +1208,7 @@ class MobileShellFilesTest {
                 preferences = applied,
                 mutation = AccountSettingsMutation.Failed(
                     change = change,
-                    failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
                     previousPreferences = DefaultAccountSettingsPreferences,
                     operation = AccountSettingsMutation.Operation.Refresh,
                 ),

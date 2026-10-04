@@ -15,12 +15,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
+import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvChoice
 import io.putdotio.android.tv.TvChoiceDialog
@@ -56,7 +57,7 @@ internal fun TvTunnelRouteDialog(
             onDismiss = onDismiss,
         ) { focus ->
             // A session verdict is final; every other failure is worth one more try.
-            val retryable = loaded.failure !is AccountSettingsFailure.AuthenticationRequired
+            val retryable = loaded.failure.putioFailure !is PutioFailure.AuthenticationRequired
             if (retryable) {
                 TvButton(
                     onClick = { attempt += 1 },

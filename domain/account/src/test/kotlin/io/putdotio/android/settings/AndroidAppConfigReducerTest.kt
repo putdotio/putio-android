@@ -1,5 +1,6 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -80,7 +81,7 @@ class AndroidAppConfigReducerTest {
         val change = AndroidAppConfigChange.AutoplayNextVideo(enabled = true)
         val saving = requestChange(change)
         val requestId = (saving.effect as AndroidAppConfigEffect.Save).requestId
-        val failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed =
             AndroidAppConfigReducer.reduce(
                 saving.state,
@@ -148,7 +149,7 @@ class AndroidAppConfigReducerTest {
                 saving.state,
                 AndroidAppConfigEvent.SaveSucceeded(requestId),
             )
-        val failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed =
             AndroidAppConfigReducer.reduce(
                 refreshing.state,
@@ -170,7 +171,7 @@ class AndroidAppConfigReducerTest {
 
     @Test
     fun laterChangeSupersedesOnlyRetryableMutationFailures() {
-        val failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val replacement = AndroidAppConfigChange.AutoplayNextVideo(enabled = true)
 
         listOf(failedSaveState(failure), failedRefreshState(failure)).forEach { failed ->
@@ -187,7 +188,7 @@ class AndroidAppConfigReducerTest {
         }
 
         val authenticationFailure =
-            AndroidAppConfigFailure.AuthenticationRequired(
+            PutioFailure.AuthenticationRequired(
                 PutioConfigurationException("invalid token"),
             )
         val failedAuth = failedSaveState(authenticationFailure)
@@ -203,7 +204,7 @@ class AndroidAppConfigReducerTest {
 
     @Test
     fun retriesOnlyRetryableFailedLoads() {
-        val failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed = failedLoadState(failure)
         val retry = AndroidAppConfigReducer.reduce(failed, AndroidAppConfigEvent.RetryLoad)
 
@@ -215,7 +216,7 @@ class AndroidAppConfigReducerTest {
         assertSame(retry.state, duplicate.state)
 
         val authenticationFailure =
-            AndroidAppConfigFailure.AuthenticationRequired(
+            PutioFailure.AuthenticationRequired(
                 PutioConfigurationException("invalid token"),
             )
         val failedAuth = failedLoadState(authenticationFailure)
@@ -229,7 +230,7 @@ class AndroidAppConfigReducerTest {
     fun ignoresStaleAndWrongPhaseResults() {
         val start = AndroidAppConfigReducer.start()
         val initialRequestId = (start.effect as AndroidAppConfigEffect.Load).requestId
-        val failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         listOf(
             AndroidAppConfigEvent.LoadSucceeded(AndroidAppConfigRequestId(99L), Preferences),
             AndroidAppConfigEvent.LoadFailed(AndroidAppConfigRequestId(99L), failure),
@@ -283,10 +284,10 @@ class AndroidAppConfigReducerTest {
     @Test
     fun onlyAuthenticationFailuresCrossTheAuthoritativeSessionBoundary() {
         val authenticationFailure =
-            AndroidAppConfigFailure.AuthenticationRequired(
+            PutioFailure.AuthenticationRequired(
                 PutioConfigurationException("invalid token"),
             )
-        val retryableFailure = AndroidAppConfigFailure.Unexpected(IllegalStateException("offline"))
+        val retryableFailure = PutioFailure.Unexpected(IllegalStateException("offline"))
 
         assertSame(authenticationFailure, failedLoadState(authenticationFailure).authoritativeSessionFailure())
         assertSame(authenticationFailure, failedSaveState(authenticationFailure).authoritativeSessionFailure())
@@ -300,7 +301,7 @@ class AndroidAppConfigReducerTest {
             AndroidAppConfigEvent.ChangeRequested(change),
         )
 
-    private fun failedLoadState(failure: AndroidAppConfigFailure): AndroidAppConfigState {
+    private fun failedLoadState(failure: PutioFailure): AndroidAppConfigState {
         val start = AndroidAppConfigReducer.start()
         val requestId = (start.effect as AndroidAppConfigEffect.Load).requestId
         return AndroidAppConfigReducer.reduce(
@@ -309,7 +310,7 @@ class AndroidAppConfigReducerTest {
         ).state
     }
 
-    private fun failedSaveState(failure: AndroidAppConfigFailure): AndroidAppConfigState {
+    private fun failedSaveState(failure: PutioFailure): AndroidAppConfigState {
         val saving = requestChange(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4))
         val requestId = (saving.effect as AndroidAppConfigEffect.Save).requestId
         return AndroidAppConfigReducer.reduce(
@@ -318,7 +319,7 @@ class AndroidAppConfigReducerTest {
         ).state
     }
 
-    private fun failedRefreshState(failure: AndroidAppConfigFailure): AndroidAppConfigState {
+    private fun failedRefreshState(failure: PutioFailure): AndroidAppConfigState {
         val saving = requestChange(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4))
         val requestId = (saving.effect as AndroidAppConfigEffect.Save).requestId
         val refreshing =

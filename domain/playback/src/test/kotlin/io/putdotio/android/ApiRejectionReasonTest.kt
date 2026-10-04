@@ -1,9 +1,9 @@
 package io.putdotio.android
 
+import io.putdotio.android.PutioResult
 import io.putdotio.android.playback.apiReason
 import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
-import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.apiReason
@@ -26,7 +26,7 @@ class ApiRejectionReasonTest {
         val settings = SdkAccountSettingsRepository(getSettings = { throw refusal }, saveSettings = {}).load()
         assertEquals(REASON, (settings as AccountSettingsRepositoryResult.Failure).failure.apiReason)
         val config = SdkAndroidAppConfigRepository(getConfig = { throw refusal }, saveConfig = {}).load()
-        assertEquals(REASON, (config as AndroidAppConfigRepositoryResult.Failure).failure.apiReason)
+        assertEquals(REASON, (config as PutioResult.Failure).failure.apiReason)
     }
 
     @Test

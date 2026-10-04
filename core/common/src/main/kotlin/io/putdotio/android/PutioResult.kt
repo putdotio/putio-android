@@ -14,19 +14,22 @@ sealed interface PutioResult<out T> {
 }
 
 /**
- * [request] at the SDK boundary: its value, or its failure in the shared taxonomy. Cancellation
+ * [request] at the SDK boundary: its value, or its failure as [classify] reads it. Cancellation
  * still propagates.
  */
 // Kotlin/JVM has no typed throws contract, so the SDK boundary converts
 // unknown failures after preserving cancellation.
 @Suppress("TooGenericExceptionCaught")
-suspend fun <T> putioRequest(request: suspend () -> T): PutioResult<T> =
+suspend fun <T> putioRequest(
+    classify: (PutioException) -> PutioFailure = PutioException::toPutioFailure,
+    request: suspend () -> T,
+): PutioResult<T> =
     try {
         PutioResult.Success(request())
     } catch (error: CancellationException) {
         throw error
     } catch (error: PutioException) {
-        PutioResult.Failure(error.toPutioFailure())
+        PutioResult.Failure(classify(error))
     } catch (unexpected: Exception) {
         PutioResult.Failure(PutioFailure.Unexpected(unexpected))
     }

@@ -49,7 +49,6 @@ import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
-import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.tv.auth.TvAccount
@@ -241,9 +240,9 @@ class TvAutoplayProofTest {
             },
             appConfigRepository = object : AndroidAppConfigRepository {
                 override suspend fun load() =
-                    AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences(autoplayNextVideo = autoplay))
+                    PutioResult.Success(AndroidAppConfigPreferences(autoplayNextVideo = autoplay))
 
-                override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
+                override suspend fun save(change: AndroidAppConfigChange) = PutioResult.Success(Unit)
             },
             watchedRepository = object : FilesWatchedRepository {
                 override suspend fun setPosition(itemId: FilesItemId, seconds: Double) =

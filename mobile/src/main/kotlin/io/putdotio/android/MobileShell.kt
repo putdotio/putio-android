@@ -123,7 +123,9 @@ internal fun MobileShell(
     onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+            AccountSettingsFailure.Putio(
+                PutioFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+            ),
         )
     },
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},

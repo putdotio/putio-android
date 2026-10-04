@@ -26,7 +26,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
-import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
+import io.putdotio.android.PutioResult
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.trash.SdkTrashRepository
@@ -89,7 +89,7 @@ class AuthenticatedTrashRestoreTest {
         val repository = TrashRestoreCountingRepository(SdkTrashRepository(runtime.putioClient), fixture.file.id)
         val settings = settings(runtime)
         val config = trashRestoreApiCheck("read app config") {
-            (SdkAndroidAppConfigRepository(runtime.putioClient).load() as? AndroidAppConfigRepositoryResult.Success)
+            (SdkAndroidAppConfigRepository(runtime.putioClient).load() as? PutioResult.Success)
                 ?.value ?: throw AssertionError("App config read failed")
         }
         preflight(fixture, runtime, repository)

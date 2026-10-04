@@ -40,7 +40,6 @@ import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
-import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.trash.TrashBulkSelection
 import io.putdotio.android.trash.TrashItem
@@ -106,9 +105,9 @@ internal fun tvProofDependencies(
             AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>())
     },
     appConfigRepository = object : AndroidAppConfigRepository {
-        override suspend fun load() = AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences())
+        override suspend fun load() = PutioResult.Success(AndroidAppConfigPreferences())
 
-        override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
+        override suspend fun save(change: AndroidAppConfigChange) = PutioResult.Success(Unit)
     },
     watchedRepository = object : FilesWatchedRepository {
         override suspend fun setPosition(itemId: FilesItemId, seconds: Double) =

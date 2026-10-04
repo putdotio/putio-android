@@ -38,7 +38,6 @@ import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.authoritativeSessionFailure
 import io.putdotio.android.settings.AccountSettingsController
-import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigController
@@ -47,6 +46,7 @@ import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
+import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersViewModel
@@ -287,7 +287,7 @@ private fun SignedInMobileSession(
             accountSettingsRepository.loadTunnelRoutes().also { result ->
                 // A 401 here is as authoritative as one from Files or Playback.
                 if (result is AccountSettingsRepositoryResult.Failure &&
-                    result.failure is AccountSettingsFailure.AuthenticationRequired
+                    result.failure.putioFailure is PutioFailure.AuthenticationRequired
                 ) {
                     authController.rejectAuthoritativeSession()
                 }

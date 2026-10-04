@@ -1,5 +1,7 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.TimeUnit
@@ -31,12 +33,12 @@ class AndroidAppConfigControllerTest {
         var preferences = AndroidAppConfigPreferences()
         val repository = object : AndroidAppConfigRepository {
             override suspend fun load() =
-                AndroidAppConfigRepositoryResult.Success(preferences)
+                PutioResult.Success(preferences)
 
-            override suspend fun save(change: AndroidAppConfigChange): AndroidAppConfigRepositoryResult<Unit> {
+            override suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit> {
                 saved += change
                 preferences = preferences.applying(change)
-                return AndroidAppConfigRepositoryResult.Success(Unit)
+                return PutioResult.Success(Unit)
             }
         }
         val controller = AndroidAppConfigController(repository, this)
@@ -168,7 +170,7 @@ class AndroidAppConfigControllerTest {
         val started = CompletableDeferred<Unit>()
         val cancelled = CompletableDeferred<Unit>()
         val repository = object : AndroidAppConfigRepository {
-            override suspend fun load(): AndroidAppConfigRepositoryResult<AndroidAppConfigPreferences> =
+            override suspend fun load(): PutioResult<AndroidAppConfigPreferences> =
                 try {
                     started.complete(Unit)
                     awaitCancellation()
@@ -177,7 +179,7 @@ class AndroidAppConfigControllerTest {
                 }
 
             override suspend fun save(change: AndroidAppConfigChange) =
-                AndroidAppConfigRepositoryResult.Success(Unit)
+                PutioResult.Success(Unit)
         }
         val controller = AndroidAppConfigController(repository, this)
         started.await()
@@ -217,14 +219,14 @@ class AndroidAppConfigControllerTest {
         val release = CompletableDeferred<Unit>()
         private var preferences = AndroidAppConfigPreferences()
 
-        override suspend fun load() = AndroidAppConfigRepositoryResult.Success(preferences)
+        override suspend fun load() = PutioResult.Success(preferences)
 
-        override suspend fun save(change: AndroidAppConfigChange): AndroidAppConfigRepositoryResult<Unit> {
+        override suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit> {
             saved.add(change)
             started.complete(Unit)
             release.await()
             preferences = preferences.applying(change)
-            return AndroidAppConfigRepositoryResult.Success(Unit)
+            return PutioResult.Success(Unit)
         }
     }
 
@@ -232,14 +234,14 @@ class AndroidAppConfigControllerTest {
         val started = CompletableDeferred<Unit>()
         private val lock = Any()
         private var released = false
-        private var pending: Continuation<AndroidAppConfigRepositoryResult<AndroidAppConfigPreferences>>? = null
+        private var pending: Continuation<PutioResult<AndroidAppConfigPreferences>>? = null
 
         // suspendCoroutine deliberately models a callback API that completes after cancellation.
-        override suspend fun load(): AndroidAppConfigRepositoryResult<AndroidAppConfigPreferences> =
+        override suspend fun load(): PutioResult<AndroidAppConfigPreferences> =
             suspendCoroutine { continuation ->
                 synchronized(lock) {
                     if (released) {
-                        continuation.resume(AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences()))
+                        continuation.resume(PutioResult.Success(AndroidAppConfigPreferences()))
                     } else {
                         pending = continuation
                     }
@@ -247,30 +249,30 @@ class AndroidAppConfigControllerTest {
                 }
             }
 
-        override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
+        override suspend fun save(change: AndroidAppConfigChange) = PutioResult.Success(Unit)
 
         fun release() {
             val continuation = synchronized(lock) {
                 released = true
                 pending.also { pending = null }
             }
-            continuation?.resume(AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences()))
+            continuation?.resume(PutioResult.Success(AndroidAppConfigPreferences()))
         }
     }
 
     private class SaveFailureRepository : AndroidAppConfigRepository {
         var saveCount = 0
 
-        override suspend fun load() = AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences())
+        override suspend fun load() = PutioResult.Success(AndroidAppConfigPreferences())
 
-        override suspend fun save(change: AndroidAppConfigChange): AndroidAppConfigRepositoryResult<Unit> {
+        override suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit> {
             saveCount += 1
             return if (saveCount == 1) {
-                AndroidAppConfigRepositoryResult.Failure(
-                    AndroidAppConfigFailure.Unexpected(IllegalStateException("offline")),
+                PutioResult.Failure(
+                    PutioFailure.Unexpected(IllegalStateException("offline")),
                 )
             } else {
-                AndroidAppConfigRepositoryResult.Success(Unit)
+                PutioResult.Success(Unit)
             }
         }
     }
@@ -279,22 +281,22 @@ class AndroidAppConfigControllerTest {
         var loadCount = 0
         var saveCount = 0
 
-        override suspend fun load(): AndroidAppConfigRepositoryResult<AndroidAppConfigPreferences> {
+        override suspend fun load(): PutioResult<AndroidAppConfigPreferences> {
             loadCount += 1
             return when (loadCount) {
-                1 -> AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences())
-                2 -> AndroidAppConfigRepositoryResult.Failure(
-                    AndroidAppConfigFailure.Unexpected(IllegalStateException("offline")),
+                1 -> PutioResult.Success(AndroidAppConfigPreferences())
+                2 -> PutioResult.Failure(
+                    PutioFailure.Unexpected(IllegalStateException("offline")),
                 )
-                else -> AndroidAppConfigRepositoryResult.Success(
+                else -> PutioResult.Success(
                     AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4),
                 )
             }
         }
 
-        override suspend fun save(change: AndroidAppConfigChange): AndroidAppConfigRepositoryResult<Unit> {
+        override suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit> {
             saveCount += 1
-            return AndroidAppConfigRepositoryResult.Success(Unit)
+            return PutioResult.Success(Unit)
         }
     }
 }

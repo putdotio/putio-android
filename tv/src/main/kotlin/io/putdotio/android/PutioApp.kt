@@ -40,7 +40,6 @@ import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.authoritativeSessionFailure
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.subtitleStartupPolicy
-import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigState
@@ -82,6 +81,7 @@ import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.tvSessionViewModelFactory
 import kotlinx.coroutines.launch
+import io.putdotio.android.settings.putioFailure
 
 /** TV root: the generated Compose for TV scheme, then whichever screen the session state names. */
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -519,7 +519,7 @@ private fun TvAccountPane(
         loadTunnelRoutes = {
             loadTunnelRoutes().also { result ->
                 if (result is AccountSettingsRepositoryResult.Failure &&
-                    result.failure is AccountSettingsFailure.AuthenticationRequired
+                    result.failure.putioFailure is PutioFailure.AuthenticationRequired
                 ) {
                     onTunnelRoutesRejected()
                 }

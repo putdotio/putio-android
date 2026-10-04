@@ -60,6 +60,7 @@ import androidx.tv.material3.Switch
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import io.putdotio.android.BuildConfig
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.isSupportedAvatarUrl
@@ -75,12 +76,12 @@ import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
-import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.tv.FULL_WIDTH_FOCUSED_SCALE
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvChoice
@@ -126,7 +127,9 @@ internal fun TvAccountScreen(
     trashPane: (@Composable (paneFocus: FocusRequester) -> Unit)? = null,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+            AccountSettingsFailure.Putio(
+                PutioFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+            ),
         )
     },
     /** Changes with the signed-in session so one account's dialogs never greet the next. */
@@ -562,7 +565,7 @@ private fun TvAccountSettingsSection(
         is AccountSettingsContent.Failed -> TvAccountNotice(
             text = stringResource(R.string.tv_account_settings_error, content.failure.tvMessageText()),
             action = stringResource(R.string.tv_account_retry).takeUnless {
-                content.failure is AccountSettingsFailure.AuthenticationRequired
+                content.failure.putioFailure is PutioFailure.AuthenticationRequired
             },
             onAction = { onEvent(AccountSettingsEvent.RetryLoad) },
             owner = owner,
@@ -644,7 +647,7 @@ private fun TvSettingsFailureNotice(
     TvAccountNotice(
         text = stringResource(message, failed.failure.tvMessageText()),
         action = stringResource(R.string.tv_account_retry).takeUnless {
-            failed.failure is AccountSettingsFailure.AuthenticationRequired
+            failed.failure.putioFailure is PutioFailure.AuthenticationRequired
         },
         onAction = { onEvent(AccountSettingsEvent.RetryChange) },
         owner = owner,
@@ -663,9 +666,9 @@ private fun TvAppConfigSection(
     when (val content = state.content) {
         is AndroidAppConfigContent.Loading -> TvAccountStatusText(stringResource(R.string.tv_account_playback_loading))
         is AndroidAppConfigContent.Failed -> TvAccountNotice(
-            text = stringResource(R.string.tv_account_playback_error, content.failure.tvMessageText()),
+            text = stringResource(R.string.tv_account_playback_error, content.failure.tvAppConfigMessageText()),
             action = stringResource(R.string.tv_account_retry).takeUnless {
-                content.failure is AndroidAppConfigFailure.AuthenticationRequired
+                content.failure is PutioFailure.AuthenticationRequired
             },
             onAction = { onEvent(AndroidAppConfigEvent.RetryLoad) },
             owner = owner,
@@ -717,9 +720,9 @@ private fun TvAppConfigFailureNotice(
         AndroidAppConfigMutation.Operation.Refresh -> R.string.tv_account_refresh_error
     }
     TvAccountNotice(
-        text = stringResource(message, failed.failure.tvMessageText()),
+        text = stringResource(message, failed.failure.tvAppConfigMessageText()),
         action = stringResource(R.string.tv_account_retry).takeUnless {
-            failed.failure is AndroidAppConfigFailure.AuthenticationRequired
+            failed.failure is PutioFailure.AuthenticationRequired
         },
         onAction = { onEvent(AndroidAppConfigEvent.RetryChange) },
         owner = owner,
@@ -974,14 +977,14 @@ private fun AccountSettingsState.controlsEnabled(): Boolean =
     when (val current = mutation) {
         AccountSettingsMutation.Idle -> true
         is AccountSettingsMutation.Saving -> false
-        is AccountSettingsMutation.Failed -> current.failure !is AccountSettingsFailure.AuthenticationRequired
+        is AccountSettingsMutation.Failed -> current.failure.putioFailure !is PutioFailure.AuthenticationRequired
     }
 
 private fun AndroidAppConfigState.controlsEnabled(): Boolean =
     when (val current = mutation) {
         AndroidAppConfigMutation.Idle -> true
         is AndroidAppConfigMutation.Saving -> false
-        is AndroidAppConfigMutation.Failed -> current.failure !is AndroidAppConfigFailure.AuthenticationRequired
+        is AndroidAppConfigMutation.Failed -> current.failure !is PutioFailure.AuthenticationRequired
     }
 
 internal fun tvAppDiagnostics(playbackPreference: PlaybackPreference): AppDiagnostics =

@@ -14,6 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import io.putdotio.android.PutioFailure
 
 class AccountSettingsControllerTest {
 
@@ -147,7 +148,7 @@ class AccountSettingsControllerTest {
             savedChanges += change
             return if (savedChanges.size == 1) {
                 AccountSettingsRepositoryResult.Failure(
-                    AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
                 )
             } else {
                 AccountSettingsRepositoryResult.Success(Unit)
@@ -168,7 +169,7 @@ class AccountSettingsControllerTest {
                 1 -> AccountSettingsRepositoryResult.Success(Preferences)
                 2 ->
                     AccountSettingsRepositoryResult.Failure(
-                        AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                        AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
                     )
                 else -> AccountSettingsRepositoryResult.Success(Preferences.copy(historyEnabled = false))
             }

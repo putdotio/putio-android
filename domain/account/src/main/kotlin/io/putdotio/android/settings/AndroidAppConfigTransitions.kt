@@ -1,10 +1,12 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.PutioFailure
+
 internal fun AndroidAppConfigState.retryLoad(): AndroidAppConfigTransition {
     val failed = content as? AndroidAppConfigContent.Failed
     if (
         failed == null ||
-        failed.failure is AndroidAppConfigFailure.AuthenticationRequired
+        failed.failure is PutioFailure.AuthenticationRequired
     ) {
         return AndroidAppConfigTransition(this, consumed = false)
     }
@@ -27,7 +29,7 @@ internal fun AndroidAppConfigState.requestChange(change: AndroidAppConfigChange)
             AndroidAppConfigMutation.Idle -> false
             is AndroidAppConfigMutation.Saving -> true
             is AndroidAppConfigMutation.Failed ->
-                mutation.failure is AndroidAppConfigFailure.AuthenticationRequired
+                mutation.failure is PutioFailure.AuthenticationRequired
         }
     if (
         ready == null ||
@@ -61,7 +63,7 @@ internal fun AndroidAppConfigState.retryChange(): AndroidAppConfigTransition {
     if (
         failed == null ||
         ready == null ||
-        failed.failure is AndroidAppConfigFailure.AuthenticationRequired
+        failed.failure is PutioFailure.AuthenticationRequired
     ) {
         return AndroidAppConfigTransition(this, consumed = false)
     }

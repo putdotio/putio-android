@@ -380,5 +380,5 @@ private val Preferences = AccountSettingsPreferences(
     autoSelectSubtitles = true,
     resumePlayback = true,
 )
-private val Failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+private val Failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
 private val AuthFailure = PlaybackFailure.AuthenticationRequired(PutioConfigurationException("rejected"))

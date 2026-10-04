@@ -38,7 +38,6 @@ import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
-import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
@@ -126,9 +125,9 @@ class TvSessionViewModelTest {
         trashRepository = StubTrashRepository,
         settingsRepository = StubAccountSettingsRepository,
         appConfigRepository = object : AndroidAppConfigRepository {
-            override suspend fun load() = AndroidAppConfigRepositoryResult.Success(appConfigPreferences)
+            override suspend fun load() = PutioResult.Success(appConfigPreferences)
 
-            override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
+            override suspend fun save(change: AndroidAppConfigChange) = PutioResult.Success(Unit)
         },
         watchedRepository = watched,
         streamUrls = FilesStreamUrls { streamResult(it) },

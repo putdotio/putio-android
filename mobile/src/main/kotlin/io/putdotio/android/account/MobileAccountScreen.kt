@@ -58,7 +58,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.apiReason
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.R as DesignR
@@ -78,7 +80,6 @@ import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
-import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigState
@@ -87,6 +88,7 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.apiReason
+import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
@@ -111,7 +113,9 @@ internal fun MobileAccountScreen(
     onManageDownloads: (() -> Unit)? = null,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+            AccountSettingsFailure.Putio(
+                PutioFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+            ),
         )
     },
     // The shell decides phone vs tablet from the window, not from this screen's content width.
@@ -623,7 +627,7 @@ private fun MobileTunnelRouteDialog(
                 ) {
                     Text(stringResource(R.string.mobile_settings_tunnel_route_error))
                     Text(loaded.failure.message())
-                    if (loaded.failure !is AccountSettingsFailure.AuthenticationRequired) {
+                    if (loaded.failure.putioFailure !is PutioFailure.AuthenticationRequired) {
                         TextButton(
                             onClick = { attempt += 1 },
                             modifier = Modifier.testTag(MOBILE_TUNNEL_ROUTE_RETRY_TAG),
@@ -684,7 +688,7 @@ internal fun AccountSettingsState.accountControlsEnabled(): Boolean =
         AccountSettingsMutation.Idle -> true
         is AccountSettingsMutation.Saving -> false
         is AccountSettingsMutation.Failed ->
-            currentMutation.failure !is AccountSettingsFailure.AuthenticationRequired
+            currentMutation.failure.putioFailure !is PutioFailure.AuthenticationRequired
     }
 
 private fun LazyListScope.appConfigItems(
@@ -752,7 +756,7 @@ private fun AndroidAppConfigState.appConfigControlsEnabled(): Boolean =
         AndroidAppConfigMutation.Idle -> true
         is AndroidAppConfigMutation.Saving -> false
         is AndroidAppConfigMutation.Failed ->
-            currentMutation.failure !is AndroidAppConfigFailure.AuthenticationRequired
+            currentMutation.failure !is PutioFailure.AuthenticationRequired
     }
 
 @Composable
@@ -903,7 +907,7 @@ private fun MobileAppConfigLoading() {
 
 @Composable
 private fun MobileAppConfigLoadError(
-    failure: AndroidAppConfigFailure,
+    failure: PutioFailure,
     onRetry: () -> Unit,
 ) {
     ListItem(
@@ -911,8 +915,8 @@ private fun MobileAppConfigLoadError(
         headlineContent = { Text(stringResource(R.string.mobile_settings_playback_error_title)) },
         supportingContent = {
             Column {
-                Text(failure.message())
-                if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
+                Text(failure.appConfigMessage())
+                if (failure !is PutioFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
                     }
@@ -924,7 +928,7 @@ private fun MobileAppConfigLoadError(
 
 @Composable
 private fun MobileAppConfigMutationError(
-    failure: AndroidAppConfigFailure,
+    failure: PutioFailure,
     operation: AndroidAppConfigMutation.Operation,
     onRetry: () -> Unit,
 ) {
@@ -944,8 +948,8 @@ private fun MobileAppConfigMutationError(
         headlineContent = { Text(stringResource(title)) },
         supportingContent = {
             Column {
-                Text(failure.message())
-                if (failure !is AndroidAppConfigFailure.AuthenticationRequired) {
+                Text(failure.appConfigMessage())
+                if (failure !is PutioFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
                     }
@@ -956,20 +960,20 @@ private fun MobileAppConfigMutationError(
 }
 
 @Composable
-private fun AndroidAppConfigFailure.message(): String = apiReason ?: stringResource(messageResource())
+private fun PutioFailure.appConfigMessage(): String = apiReason ?: stringResource(appConfigMessageResource())
 
 @StringRes
-private fun AndroidAppConfigFailure.messageResource(): Int =
+private fun PutioFailure.appConfigMessageResource(): Int =
     when (this) {
-        is AndroidAppConfigFailure.AuthenticationRequired -> R.string.mobile_state_error_session
-        is AndroidAppConfigFailure.AccessDenied -> R.string.mobile_settings_playback_error_access_denied
-        is AndroidAppConfigFailure.RateLimited -> R.string.mobile_state_error_rate_limited
-        is AndroidAppConfigFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-        is AndroidAppConfigFailure.NetworkUnavailable -> R.string.mobile_state_error_message
-        is AndroidAppConfigFailure.ApiRejected,
-        is AndroidAppConfigFailure.InvalidResponse,
-        is AndroidAppConfigFailure.Misconfigured,
-        is AndroidAppConfigFailure.Unexpected,
+        is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
+        is PutioFailure.AccessDenied -> R.string.mobile_settings_playback_error_access_denied
+        is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
+        is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
+        is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+        is PutioFailure.ApiRejected,
+        is PutioFailure.InvalidResponse,
+        is PutioFailure.Misconfigured,
+        is PutioFailure.Unexpected,
         -> R.string.mobile_state_error_unavailable
     }
 
@@ -997,7 +1001,7 @@ private fun MobileAccountSettingRow(
     val enabled = when (mutation) {
         AccountSettingsMutation.Idle -> true
         is AccountSettingsMutation.Saving -> false
-        is AccountSettingsMutation.Failed -> mutation.failure !is AccountSettingsFailure.AuthenticationRequired
+        is AccountSettingsMutation.Failed -> mutation.failure.putioFailure !is PutioFailure.AuthenticationRequired
     }
     val saving = (mutation as? AccountSettingsMutation.Saving)?.change?.key == key
     val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { it.change.key == key }
@@ -1072,7 +1076,7 @@ private fun MobileAccountSettingsError(
         supportingContent = {
             Column {
                 Text(failure.message())
-                if (failure !is AccountSettingsFailure.AuthenticationRequired) {
+                if (failure.putioFailure !is PutioFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
                     }
@@ -1105,7 +1109,7 @@ internal fun MobileAccountMutationError(
         supportingContent = {
             Column {
                 Text(failure.message())
-                if (failure !is AccountSettingsFailure.AuthenticationRequired) {
+                if (failure.putioFailure !is PutioFailure.AuthenticationRequired) {
                     TextButton(onClick = onRetry) {
                         Text(stringResource(R.string.mobile_action_retry))
                     }
@@ -1121,17 +1125,19 @@ private fun AccountSettingsFailure.message(): String = apiReason ?: stringResour
 @StringRes
 private fun AccountSettingsFailure.messageResource(): Int =
     when (this) {
-        is AccountSettingsFailure.AuthenticationRequired -> R.string.mobile_state_error_session
-        is AccountSettingsFailure.AccessDenied -> R.string.mobile_settings_error_access_denied
         is AccountSettingsFailure.RouteUnavailable -> R.string.mobile_settings_tunnel_route_unavailable
-        is AccountSettingsFailure.RateLimited -> R.string.mobile_state_error_rate_limited
-        is AccountSettingsFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-        is AccountSettingsFailure.NetworkUnavailable -> R.string.mobile_state_error_message
-        is AccountSettingsFailure.ApiRejected,
-        is AccountSettingsFailure.InvalidResponse,
-        is AccountSettingsFailure.Misconfigured,
-        is AccountSettingsFailure.Unexpected,
-        -> R.string.mobile_state_error_unavailable
+        is AccountSettingsFailure.Putio -> when (failure) {
+            is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
+            is PutioFailure.AccessDenied -> R.string.mobile_settings_error_access_denied
+            is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
+            is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
+            is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+            is PutioFailure.ApiRejected,
+            is PutioFailure.InvalidResponse,
+            is PutioFailure.Misconfigured,
+            is PutioFailure.Unexpected,
+            -> R.string.mobile_state_error_unavailable
+        }
     }
 
 private const val ACCOUNT_IDENTITY_KEY = "account-identity"

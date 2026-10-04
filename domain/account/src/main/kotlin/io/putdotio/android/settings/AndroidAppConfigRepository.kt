@@ -1,57 +1,22 @@
 package io.putdotio.android.settings
 
-import io.putdotio.android.apiRejectionReason
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+import io.putdotio.android.findPutioApiException
+import io.putdotio.android.putioRequest
+import io.putdotio.android.toPutioFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.config.AppConfig
 import io.putdotio.sdk.config.AppConfigUpdate
-import io.putdotio.sdk.errors.PutioApiException
-import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.errors.PutioException
-import io.putdotio.sdk.errors.PutioOperationErrorReason
-import io.putdotio.sdk.errors.PutioOperationException
-import io.putdotio.sdk.errors.PutioSerializationException
-import io.putdotio.sdk.errors.PutioTransportException
-import java.util.concurrent.CancellationException
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
-sealed interface AndroidAppConfigRepositoryResult<out T> {
-    data class Success<T>(
-        val value: T,
-    ) : AndroidAppConfigRepositoryResult<T>
-
-    data class Failure(
-        val failure: AndroidAppConfigFailure,
-    ) : AndroidAppConfigRepositoryResult<Nothing>
-}
-
-sealed interface AndroidAppConfigFailure {
-    val cause: Throwable
-
-    data class AuthenticationRequired(override val cause: PutioException) : AndroidAppConfigFailure
-    data class AccessDenied(override val cause: PutioException) : AndroidAppConfigFailure
-    data class RateLimited(override val cause: PutioException) : AndroidAppConfigFailure
-    data class ServerUnavailable(val statusCode: Int, override val cause: PutioException) : AndroidAppConfigFailure
-    data class ApiRejected(
-        val statusCode: Int,
-        val errorType: String?,
-        override val cause: PutioException,
-    ) : AndroidAppConfigFailure
-    data class NetworkUnavailable(override val cause: PutioException) : AndroidAppConfigFailure
-    data class InvalidResponse(override val cause: PutioException) : AndroidAppConfigFailure
-    data class Misconfigured(override val cause: PutioException) : AndroidAppConfigFailure
-    data class Unexpected(override val cause: Throwable) : AndroidAppConfigFailure
-}
-
-/** put.io's own reason for a refused request; the surface's copy applies when it is null. */
-val AndroidAppConfigFailure.apiReason: String?
-    get() = (this as? AndroidAppConfigFailure.ApiRejected)?.cause?.apiRejectionReason()
-
 interface AndroidAppConfigRepository {
-    suspend fun load(): AndroidAppConfigRepositoryResult<AndroidAppConfigPreferences>
+    suspend fun load(): PutioResult<AndroidAppConfigPreferences>
 
-    suspend fun save(change: AndroidAppConfigChange): AndroidAppConfigRepositoryResult<Unit>
+    suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit>
 }
 
 class SdkAndroidAppConfigRepository(
@@ -63,47 +28,34 @@ class SdkAndroidAppConfigRepository(
         saveConfig = { update -> client.appConfig.save(update) },
     )
 
-    override suspend fun load(): AndroidAppConfigRepositoryResult<AndroidAppConfigPreferences> =
-        request { getConfig().toAndroidPreferences() }
+    override suspend fun load(): PutioResult<AndroidAppConfigPreferences> =
+        putioRequest(PutioException::toSettingsFailure) { getConfig().toAndroidPreferences() }
 
-    override suspend fun save(change: AndroidAppConfigChange): AndroidAppConfigRepositoryResult<Unit> =
-        request { saveConfig(change.toUpdate()) }
-
-    // This SDK boundary converts unexpected implementation failures into the app's stable failure taxonomy.
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun <T> request(block: suspend () -> T): AndroidAppConfigRepositoryResult<T> =
-        try {
-            AndroidAppConfigRepositoryResult.Success(block())
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: PutioException) {
-            AndroidAppConfigRepositoryResult.Failure(error.toAndroidAppConfigFailure())
-        } catch (unexpected: Exception) {
-            AndroidAppConfigRepositoryResult.Failure(AndroidAppConfigFailure.Unexpected(unexpected))
-        }
+    override suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit> =
+        putioRequest(PutioException::toSettingsFailure) { saveConfig(change.toUpdate()) }
 }
 
 internal suspend fun AndroidAppConfigRepository.execute(effect: AndroidAppConfigEffect): AndroidAppConfigEvent =
     when (effect) {
         is AndroidAppConfigEffect.Load ->
             when (val result = load()) {
-                is AndroidAppConfigRepositoryResult.Success ->
+                is PutioResult.Success ->
                     AndroidAppConfigEvent.LoadSucceeded(effect.requestId, result.value)
-                is AndroidAppConfigRepositoryResult.Failure ->
+                is PutioResult.Failure ->
                     AndroidAppConfigEvent.LoadFailed(effect.requestId, result.failure)
             }
         is AndroidAppConfigEffect.Save ->
             when (val result = save(effect.change)) {
-                is AndroidAppConfigRepositoryResult.Success ->
+                is PutioResult.Success ->
                     AndroidAppConfigEvent.SaveSucceeded(effect.requestId)
-                is AndroidAppConfigRepositoryResult.Failure ->
+                is PutioResult.Failure ->
                     AndroidAppConfigEvent.SaveFailed(effect.requestId, result.failure)
             }
         is AndroidAppConfigEffect.Refresh ->
             when (val result = load()) {
-                is AndroidAppConfigRepositoryResult.Success ->
+                is PutioResult.Success ->
                     AndroidAppConfigEvent.RefreshSucceeded(effect.requestId, result.value)
-                is AndroidAppConfigRepositoryResult.Failure ->
+                is PutioResult.Failure ->
                     AndroidAppConfigEvent.RefreshFailed(effect.requestId, result.failure)
             }
     }
@@ -142,59 +94,15 @@ internal const val AUTOPLAY_NEXT_VIDEO_KEY = "autoplay_next_video"
 private const val VIDEO_PLAYBACK_TYPE_HLS = "hls"
 private const val VIDEO_PLAYBACK_TYPE_MP4 = "mp4"
 
-fun PutioException.toAndroidAppConfigFailure(): AndroidAppConfigFailure {
+/**
+ * [toPutioFailure], except that an `invalid_scope` refusal anywhere in the chain is AccessDenied
+ * rather than a 401 that expires the session.
+ */
+fun PutioException.toSettingsFailure(): PutioFailure =
     if (findPutioApiException()?.errorType == INVALID_SCOPE_ERROR_TYPE) {
-        return AndroidAppConfigFailure.AccessDenied(this)
-    }
-    var current: PutioException = this
-    var reasonFailure: AndroidAppConfigFailure? = null
-    val visited = mutableSetOf<PutioException>()
-    while (current is PutioOperationException && visited.add(current) && reasonFailure == null) {
-        reasonFailure = current.reasonFailure(context = this)
-        current = current.underlyingError
-    }
-    return reasonFailure ?: current.leafFailure(context = this)
-}
-
-private fun Throwable.findPutioApiException(): PutioApiException? {
-    var current: Throwable? = this
-    val visited = mutableSetOf<Throwable>()
-    while (current != null && visited.add(current)) {
-        if (current is PutioApiException) return current
-        current = if (current is PutioOperationException) current.underlyingError else current.cause
-    }
-    return null
-}
-
-private fun PutioOperationException.reasonFailure(
-    context: PutioException,
-): AndroidAppConfigFailure? =
-    when ((reason as? PutioOperationErrorReason.StatusCode)?.statusCode) {
-        HTTP_UNAUTHORIZED -> AndroidAppConfigFailure.AuthenticationRequired(context)
-        HTTP_FORBIDDEN -> AndroidAppConfigFailure.AccessDenied(context)
-        else -> null
+        PutioFailure.AccessDenied(this)
+    } else {
+        toPutioFailure()
     }
 
-private fun PutioException.leafFailure(context: PutioException): AndroidAppConfigFailure =
-    when (this) {
-        is PutioApiException ->
-            when (statusCode) {
-                HTTP_UNAUTHORIZED -> AndroidAppConfigFailure.AuthenticationRequired(context)
-                HTTP_FORBIDDEN -> AndroidAppConfigFailure.AccessDenied(context)
-                HTTP_TOO_MANY_REQUESTS -> AndroidAppConfigFailure.RateLimited(context)
-                in HTTP_SERVER_ERROR_RANGE -> AndroidAppConfigFailure.ServerUnavailable(statusCode, context)
-                else -> AndroidAppConfigFailure.ApiRejected(statusCode, errorType, context)
-            }
-        is PutioTransportException -> AndroidAppConfigFailure.NetworkUnavailable(context)
-        is PutioSerializationException -> AndroidAppConfigFailure.InvalidResponse(context)
-        is PutioConfigurationException -> AndroidAppConfigFailure.Misconfigured(context)
-        is PutioOperationException -> AndroidAppConfigFailure.Unexpected(context)
-    }
-
-private const val HTTP_UNAUTHORIZED = 401
-private const val HTTP_FORBIDDEN = 403
-private const val HTTP_TOO_MANY_REQUESTS = 429
 private const val INVALID_SCOPE_ERROR_TYPE = "invalid_scope"
-private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
-private const val HTTP_SERVER_ERROR_START = 500
-private const val HTTP_SERVER_ERROR_END = 599
