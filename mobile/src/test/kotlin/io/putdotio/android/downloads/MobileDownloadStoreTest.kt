@@ -29,7 +29,7 @@ class MobileDownloadStoreTest {
             PutioFileType.AUDIO,
             DownloadArtifact.ORIGINAL,
         )
-        val running = entry(3L, DownloadStatus.Downloading(50L, 100L))
+        val running = entry(3L, DownloadStatus.Downloading(50L, 50f))
         store.upsert(completed)
         store.upsert(failed)
         store.upsert(running)
@@ -39,6 +39,37 @@ class MobileDownloadStoreTest {
         assertEquals(completed, reloaded[0])
         assertEquals(failed, reloaded[1])
         assertEquals(running.copy(status = DownloadStatus.Queued), reloaded[2])
+    }
+
+    @Test
+    fun queueTimeDeleteMarkSubtitleSettingAndPositionSurviveAReload() = runBlocking {
+        val store = MobileDownloadStore(preferences, "user-3", Dispatchers.Unconfined)
+        val missing = entry(1L, DownloadStatus.Missing).copy(
+            queuedAt = 77L,
+            removing = true,
+            subtitlesHidden = true,
+            startFromSeconds = 42.5,
+            durationSeconds = 1_800.0,
+        )
+        val paused = entry(2L, DownloadStatus.Paused(DownloadPauseReason.STORAGE, 9L))
+        store.upsert(missing)
+        store.upsert(paused)
+
+        val reloaded = MobileDownloadStore(preferences, "user-3", Dispatchers.Unconfined)
+            .entries.value.sortedBy { it.fileId.value }
+        assertEquals(missing, reloaded[0])
+        // A pause resumes by itself, so the next process starts it from the queue.
+        assertEquals(paused.copy(status = DownloadStatus.Queued), reloaded[1])
+        // A row written before these fields existed: queued when created, setting unknown.
+        preferences.edit().putString(
+            "user-4",
+            """[{"fileId":5,"name":"old","type":"${PutioFileType.VIDEO.raw}","artifact":"HLS","createdAt":50,""" +
+                """"accepted":true,"status":{"kind":"completed","bytes":7}}]""",
+        ).commit()
+        val legacy = MobileDownloadStore(preferences, "user-4", Dispatchers.Unconfined).entries.value.single()
+        val expected = entry(5L, DownloadStatus.Completed(7L))
+            .copy(name = "old", createdAt = 50L, queuedAt = 50L, accepted = true)
+        assertEquals(expected, legacy)
     }
 
     @Test

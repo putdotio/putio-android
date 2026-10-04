@@ -16,9 +16,12 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.downloads.DownloadsController
+import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.OfflinePlaybackRepository
+import io.putdotio.android.downloads.OfflinePositionsResume
+import io.putdotio.android.downloads.OfflineResume
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesItemId
@@ -31,6 +34,7 @@ import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerFactory
+import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.search.ActiveSearchHistorySession
@@ -46,6 +50,7 @@ import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
+import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.sharing.MobilePublicLinksViewModel
@@ -210,19 +215,25 @@ private fun SignedInMobileSession(
     val account = signedIn.account
     val sessionId = signedIn.sessionId
     val appContext = LocalContext.current.applicationContext
-    val playbackRepository = remember(runtime.putioClient, appConfigController, downloadsController, account.userId) {
+    val playbackRepository = remember(
+        runtime,
+        appConfigController,
+        accountSettingsController,
+        downloadsController,
+        account.userId,
+    ) {
         val streaming = ConvertingPlaybackRepository(runtime.putioClient) {
             appConfigController.state.value.playbackPreference()
         }
-        if (downloadsController == null) {
-            streaming
-        } else {
-            val downloads = MobileDownloadCache.get(appContext)
-            OfflinePlaybackRepository(downloadsController.state, streaming, PutioCredentialUrl::of) { fileId ->
-                withContext(Dispatchers.IO) { downloads.requestedUrl(account.userId, fileId) }
-            }
-        }
+        downloadsController?.offlineFirstPlayback(
+            MobileDownloadCache.get(appContext),
+            runtime,
+            account.userId,
+            accountSettingsController,
+            streaming,
+        ) ?: streaming
     }
+    RememberResumeSettingEffect(runtime, account.userId, accountSettingsController)
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
     }
@@ -339,6 +350,43 @@ private fun SignedInMobileSession(
         },
     )
 }
+
+/** Offline playback falls back to the resume setting this device last confirmed. */
+@Composable
+private fun RememberResumeSettingEffect(
+    runtime: MobileOAuthRuntime,
+    userId: Long,
+    accountSettingsController: AccountSettingsController,
+) {
+    val settings by accountSettingsController.state.collectAsStateWithLifecycle()
+    val confirmed = settings.confirmedResumePlayback()
+    LaunchedEffect(runtime, userId, confirmed) {
+        confirmed?.let { runtime.offlinePositions?.store(userId)?.rememberResumeSetting(it) }
+    }
+}
+
+/** Completed downloads play from this device, resuming where this device last left them. */
+private fun DownloadsController.offlineFirstPlayback(
+    downloads: MobileDownloadCache,
+    runtime: MobileOAuthRuntime,
+    userId: Long,
+    accountSettingsController: AccountSettingsController,
+    streaming: PlaybackRepository,
+): PlaybackRepository =
+    OfflinePlaybackRepository(
+        downloads = state,
+        delegate = streaming,
+        credentialUrl = PutioCredentialUrl::of,
+        localCopyAvailable = { fileId ->
+            withContext(Dispatchers.IO) { downloads.hasLocalCopy(userId, fileId) }.also { present ->
+                if (!present) dispatch(DownloadsEvent.LocalCopyMissing(fileId))
+            }
+        },
+        resume = runtime.offlinePositions?.let { positions ->
+            OfflinePositionsResume(positions, userId, accountSettingsController.state)
+        } ?: OfflineResume.Off,
+        requestedUrl = { fileId -> withContext(Dispatchers.IO) { downloads.requestedUrl(userId, fileId) } },
+    )
 
 /**
  * The playback service outlives the signed-in UI, so every way out of a session, sign-out

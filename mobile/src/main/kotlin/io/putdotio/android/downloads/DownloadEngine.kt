@@ -8,7 +8,7 @@ import io.putdotio.android.files.FilesItemId
  * and mirrors reported status into [DownloadStore].
  */
 internal interface DownloadEngine {
-    /** Starts or resumes; a retry after failure is the same call. */
+    /** Starts or resumes; a retry after failure or a missing copy is the same call. */
     fun start(entry: DownloadEntry)
 
     /** Removes cached bytes and any in-flight transfer; the index row goes when the engine confirms. */
@@ -19,4 +19,9 @@ internal interface DownloadEngine {
 
     /** Mirrors live byte progress into the store; the controller calls it while the Downloads screen is visible. */
     fun refreshProgress() = Unit
+
+    /** How many transfers run at once, one of [DOWNLOAD_CONCURRENCY_CHOICES]. */
+    val concurrency: Int get() = DOWNLOAD_CONCURRENCY_DEFAULT
+
+    fun setConcurrency(limit: Int) = Unit
 }

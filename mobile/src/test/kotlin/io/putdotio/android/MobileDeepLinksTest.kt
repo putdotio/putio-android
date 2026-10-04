@@ -26,7 +26,9 @@ class MobileDeepLinksTest {
         assertEquals(MobileDeepLink.Search, parseMobileDeepLink("putio://search".toUri()))
         assertEquals(MobileDeepLink.History, parseMobileDeepLink("https://www.put.io/history".toUri()))
         assertEquals(MobileDeepLink.Trash, parseMobileDeepLink("putio://trash".toUri()))
-        assertEquals(MobileDeepLink.Downloads, parseMobileDeepLink("putio://downloads".toUri()))
+        assertEquals(MobileDeepLink.Downloads(), parseMobileDeepLink("putio://downloads".toUri()))
+        // A download notification opens its own row.
+        assertEquals(MobileDeepLink.Downloads(FilesItemId(42L)), parseMobileDeepLink("putio://downloads/42".toUri()))
     }
 
     @Test
@@ -39,6 +41,8 @@ class MobileDeepLinksTest {
         assertNull(parseMobileDeepLink("https://app.put.io/files/1/2".toUri()))
         assertNull(parseMobileDeepLink("https://app.put.io/sharing".toUri()))
         assertNull(parseMobileDeepLink("http://app.put.io/files".toUri()))
+        assertNull(parseMobileDeepLink("putio://downloads/0".toUri()))
+        assertNull(parseMobileDeepLink("putio://downloads/42/1".toUri()))
     }
 
     @Test
@@ -66,7 +70,8 @@ class MobileDeepLinksTest {
     fun routeUrisRoundTripWithoutQueries() {
         val links = listOf(
             MobileDeepLink.Files, MobileDeepLink.File(FilesItemId(42L)), MobileDeepLink.Transfers,
-            MobileDeepLink.Search, MobileDeepLink.History, MobileDeepLink.Trash, MobileDeepLink.Downloads,
+            MobileDeepLink.Search, MobileDeepLink.History, MobileDeepLink.Trash, MobileDeepLink.Downloads(),
+            MobileDeepLink.Downloads(FilesItemId(42L)),
         )
         for (link in links) assertEquals(link, parseMobileDeepLink(link.toRouteUri()))
     }

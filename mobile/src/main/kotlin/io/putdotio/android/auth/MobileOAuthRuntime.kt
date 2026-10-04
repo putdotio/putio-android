@@ -1,10 +1,17 @@
 package io.putdotio.android.auth
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.util.Log
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.downloads.MobileDownloadCache
+import io.putdotio.android.downloads.OfflinePlaybackPositions
+import io.putdotio.android.downloads.PositionRemote
+import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.sdk.PutioClient
@@ -28,7 +35,27 @@ class MobileOAuthRuntime internal constructor(
     private val applicationScope: CoroutineScope,
     private val failureReporter: OAuthRuntimeFailureReporter = AndroidOAuthRuntimeFailureReporter,
     onSessionLeft: (MobileAuthSessionId?) -> Unit = {},
+    offlinePreferences: SharedPreferences? = null,
 ) {
+    private val positions = SdkPlaybackPositionRepository(putioClient)
+
+    /** Saved positions of downloaded files; null where no preferences back them, as in some tests. */
+    internal val offlinePositions: OfflinePlaybackPositions? = offlinePreferences?.let { preferences ->
+        OfflinePlaybackPositions(
+            preferences = preferences,
+            signedInUser = { (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId },
+            remote = object : PositionRemote {
+                override suspend fun read(fileId: Long) = positions.read(fileId)
+
+                override suspend fun write(fileId: Long, seconds: Double) = positions.write(fileId, seconds)
+
+                override suspend fun resumeEnabled() = positions.resumeEnabled()
+            },
+            scope = applicationScope,
+            onSynced = { fileId, seconds -> playbackReporting.publishSaved(fileId, seconds) },
+        )
+    }
+
     init {
         // Sessions also end without a UI (a background rejection), so the process scope owns this boundary.
         applicationScope.launch {
@@ -45,6 +72,7 @@ class MobileOAuthRuntime internal constructor(
                     restoreEnded -> onSessionLeft(null)
                     previous != null && current != previous -> onSessionLeft(previous)
                 }
+                if (current != null && current != previous) offlinePositions?.requestSync()
                 previous = current
             }
         }
@@ -54,7 +82,8 @@ class MobileOAuthRuntime internal constructor(
         authController.state,
         applicationScope,
         onAuthenticationRequired = { sessionId -> authController.rejectAuthoritativeSession(sessionId) },
-        write = SdkPlaybackPositionRepository(putioClient)::write,
+        write = positions::write,
+        offline = offlinePositions,
     )
 
     /**
@@ -145,6 +174,20 @@ class MobileOAuthRuntime internal constructor(
                 authController = authController,
                 applicationScope = applicationScope,
                 onSessionLeft = { session -> MobileFileShareService.endSession(context, session) },
+                offlinePreferences = downloadPreferences(context),
+            ).also { runtime -> runtime.offlinePositions?.let { syncWhenOnline(context, it) } }
+        }
+
+        /** put.io answers again once a validated network returns; positions saved offline go then. */
+        private fun syncWhenOnline(context: Context, positions: OfflinePlaybackPositions) {
+            context.getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
+                object : ConnectivityManager.NetworkCallback() {
+                    override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                        if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                            positions.requestSync()
+                        }
+                    }
+                },
             )
         }
     }

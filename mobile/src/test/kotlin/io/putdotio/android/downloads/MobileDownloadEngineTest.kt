@@ -2,11 +2,17 @@ package io.putdotio.android.downloads
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Looper
 import androidx.core.content.IntentCompat
+import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.ByteArrayDataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.CacheWriter
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
@@ -58,6 +64,7 @@ class MobileDownloadEngineTest {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val managers = mutableListOf<DownloadManager>()
     private val engines = mutableListOf<MobileDownloadEngine>()
+    private val cachedKeys = mutableListOf<String>()
 
     @After
     fun tearDown() {
@@ -65,19 +72,20 @@ class MobileDownloadEngineTest {
         managers.forEach { it.release() }
         scope.cancel()
         downloaders.releaseAll()
+        downloadPreferences(context).edit().clear().commit()
+        cachedKeys.forEach(downloads.cache::removeResource)
     }
 
     @Test
     fun reconcileMirrorsThisUsersIndexAndParksEveryOtherAccount() {
-        index.putDownload(download("$ALICE:10", Download.STATE_COMPLETED, bytes = TOTAL))
+        index.putDownload(download("$ALICE:10", Download.STATE_COMPLETED, bytes = TOTAL).also(::cacheBytes))
         index.putDownload(download("$ALICE:11", Download.STATE_STOPPED, stopReason = PARKED))
         index.putDownload(download("$BOB:20", Download.STATE_QUEUED))
         val store = store(ALICE)
         runBlocking {
             store.upsert(entry(10L, accepted = true))
             store.upsert(entry(11L, accepted = true))
-            store.upsert(entry(12L, accepted = true))
-            store.upsert(entry(13L, accepted = false))
+            store.upsert(entry(13L, accepted = false).copy(subtitlesHidden = true))
         }
         val manager = manager()
 
@@ -85,17 +93,111 @@ class MobileDownloadEngineTest {
 
         awaitMain { manager.stopReasonOf("$BOB:20") == PARKED && manager.stopReasonOf("$ALICE:11") == 0 }
         awaitMain { store.status(10L) == DownloadStatus.Completed(TOTAL) }
-        // Media3 never saw an accepted row: its bytes are gone. It never saw an unaccepted one: re-issue it.
-        assertNull(store.find(FilesItemId(12L)))
-        val reissued = shadowOf(context).nextStartedService
-        assertEquals(MobileDownloadService::class.java.name, reissued.component?.className)
-        val request = IntentCompat
-            .getParcelableExtra(reissued, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)
-        assertEquals("$ALICE:13", request?.id)
-        // Offline copies keep every subtitle rendition, whatever the account hides (#237).
-        assertEquals("-1", request?.uri?.getQueryParameter("max_subtitle_count"))
+        // Media3 never saw this request: it goes out again, skipping subtitles for a hide_subtitles account.
+        val request = startedRequest()
+        assertEquals("$ALICE:13", request.id)
+        assertEquals("0", request.uri.getQueryParameter("max_subtitle_count"))
         assertTrue(store.entries.value.none { it.fileId.value == 20L })
         assertEquals(PARKED, index.getDownload("$BOB:20")?.stopReason)
+    }
+
+    @Test
+    fun everyRowRecoversToAStateTheViewerCanActOnAndOnlyConfirmedDeletesLeave() {
+        index.putDownload(download("$ALICE:10", Download.STATE_COMPLETED, bytes = TOTAL).also(::cacheBytes))
+        // Media3 still lists it, but its bytes are gone from the cache.
+        index.putDownload(download("$ALICE:11", Download.STATE_COMPLETED, bytes = TOTAL))
+        index.putDownload(download("$ALICE:15", Download.STATE_COMPLETED, bytes = TOTAL).also(::cacheBytes))
+        val store = store(ALICE)
+        runBlocking {
+            store.upsert(entry(10L, accepted = true, status = DownloadStatus.Completed(TOTAL)))
+            store.upsert(entry(11L, accepted = true, status = DownloadStatus.Completed(TOTAL)))
+            // Interrupted mid-transfer, and Media3 lost the request.
+            store.upsert(entry(12L, accepted = true, status = DownloadStatus.Downloading(5L, 1f)))
+            store.upsert(entry(13L, accepted = true, status = DownloadStatus.Failed(DownloadFailureReason.STORAGE, 9L)))
+            // Finished, then Media3's record went with the bytes.
+            store.upsert(entry(14L, accepted = true, status = DownloadStatus.Completed(TOTAL)))
+            // Deletes confirmed before the process died: one Media3 finished, one it never heard of.
+            store.upsert(entry(16L, accepted = true, status = DownloadStatus.Completed(TOTAL)).copy(removing = true))
+            store.upsert(entry(15L, accepted = true, status = DownloadStatus.Completed(TOTAL)).copy(removing = true))
+        }
+        val reloaded = store(ALICE)
+        val manager = manager()
+
+        engine(ALICE, reloaded, manager)
+
+        awaitMain { reloaded.status(11L) == DownloadStatus.Missing }
+        assertEquals(DownloadStatus.Completed(TOTAL), reloaded.status(10L))
+        assertEquals(DownloadStatus.Missing, reloaded.status(14L))
+        assertEquals(DownloadStatus.Failed(DownloadFailureReason.STORAGE, 9L), reloaded.status(13L))
+        assertEquals(DownloadStatus.Queued, reloaded.status(12L))
+        assertNull(reloaded.find(FilesItemId(16L)))
+        assertTrue(reloaded.find(FilesItemId(15L))?.removing == true)
+        val sent = generateSequence { shadowOf(context).nextStartedService }.toList()
+        assertEquals(
+            listOf(
+                "$ALICE:12" to DownloadService.ACTION_ADD_DOWNLOAD,
+                "$ALICE:15" to DownloadService.ACTION_REMOVE_DOWNLOAD,
+            ),
+            sent.map { intent ->
+                val request = IntentCompat
+                    .getParcelableExtra(intent, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)
+                (intent.getStringExtra(DownloadService.KEY_CONTENT_ID) ?: request?.id) to intent.action
+            },
+        )
+    }
+
+    @Test
+    fun queueOrderAndConcurrencySurviveProcessRecreation() {
+        for (id in 10L..13L) index.putDownload(queued("$ALICE:$id", startTimeMs = id))
+        val store = store(ALICE)
+        // Newest-first creation times: only Media3's start times can put these rows in order.
+        runBlocking {
+            for (id in 10L..13L) store.upsert(entry(id, accepted = true).copy(createdAt = 100L - id, queuedAt = 0L))
+        }
+        val first = manager(MobileDownloadSettings(context).concurrency)
+        val engine = engine(ALICE, store, first)
+        awaitMain { first.running() == listOf("$ALICE:10", "$ALICE:11", "$ALICE:12") }
+
+        engine.setConcurrency(2)
+        awaitMain { first.running() == listOf("$ALICE:10", "$ALICE:11") }
+        awaitMain { queueOf(store) == listOf(10L to null, 11L to null, 12L to 1, 13L to 2) }
+
+        // Process death: the manager and every in-memory row go; the index and preferences stay.
+        engine.close()
+        first.release()
+        val restored = store(ALICE)
+        val second = manager(MobileDownloadSettings(context).concurrency)
+        engine(ALICE, restored, second)
+
+        awaitMain { second.running() == listOf("$ALICE:10", "$ALICE:11") }
+        awaitMain { queueOf(restored) == listOf(10L to null, 11L to null, 12L to 1, 13L to 2) }
+        assertEquals(DownloadStatus.Queued, restored.status(12L))
+    }
+
+    // Media3 resumes once storage recovers; Robolectric cannot withdraw a sticky broadcast, so the
+    // emulator lane proves that half.
+    @Test
+    fun lowStorageHoldsTransfersWithItsReason() {
+        index.putDownload(download("$ALICE:10", Download.STATE_QUEUED))
+        val store = store(ALICE)
+        runBlocking { store.upsert(entry(10L, accepted = true)) }
+        val manager = manager().apply { requirements = Requirements(Requirements.DEVICE_STORAGE_NOT_LOW) }
+        engine(ALICE, store, manager)
+        downloaders.await("$ALICE:10")
+        awaitMain { store.status(10L) is DownloadStatus.Downloading }
+
+        context.sendStickyBroadcast(Intent(Intent.ACTION_DEVICE_STORAGE_LOW))
+        awaitMain { store.status(10L) == DownloadStatus.Paused(DownloadPauseReason.STORAGE, 0L) }
+    }
+
+    @Test
+    fun theLocalCopyCheckReadsTheRequestsOwnCacheKey() {
+        val uri = "https://api.put.io/v2/files/77/stream"
+        val owned = download("$ALICE:77", Download.STATE_COMPLETED, bytes = 4L, uri = uri)
+        assertFalse(downloads.holdsLocalCopy(owned))
+        cacheBytes(owned)
+        assertTrue(downloads.holdsLocalCopy(owned))
+        assertFalse(downloads.holdsLocalCopy(download("$BOB:77", Download.STATE_COMPLETED, uri = uri)))
     }
 
     @Test
@@ -154,13 +256,19 @@ class MobileDownloadEngineTest {
         val manager = manager()
         val engine = engine(ALICE, store, manager)
         val transfer = downloaders.await("$ALICE:10")
-        awaitMain { store.status(10L) == DownloadStatus.Downloading(0L, TOTAL) }
+        awaitMain { store.status(10L) == DownloadStatus.Downloading(0L, 0f) }
         val persisted = preferences.getString(storeKey(ALICE), null)
 
+        // Without a denominator the row has bytes and no percentage.
+        transfer.report(bytes = 300L, percent = C.PERCENTAGE_UNSET.toFloat())
+        awaitMain {
+            engine.refreshProgress()
+            store.status(10L) == DownloadStatus.Downloading(300L, null)
+        }
         transfer.report(bytes = 600L)
         awaitMain {
             engine.refreshProgress()
-            store.status(10L) == DownloadStatus.Downloading(600L, TOTAL)
+            store.status(10L) == DownloadStatus.Downloading(600L, 60f)
         }
         assertEquals(persisted, preferences.getString(storeKey(ALICE), null))
 
@@ -181,10 +289,10 @@ class MobileDownloadEngineTest {
         assertNull(index.requestedUrl(ALICE, FilesItemId(11L)))
     }
 
-    private fun manager(): DownloadManager =
+    private fun manager(concurrency: Int = 1): DownloadManager =
         DownloadManager(context, index, downloaders).apply {
             requirements = Requirements(0)
-            maxParallelDownloads = 1
+            maxParallelDownloads = concurrency
             managers += this
         }
 
@@ -195,6 +303,36 @@ class MobileDownloadEngineTest {
         io: CoroutineDispatcher = Dispatchers.Unconfined,
     ): MobileDownloadEngine =
         MobileDownloadEngine(context, store, userId, scope, manager, io).also { engines += it }
+
+    /** Writes a few bytes under the request's own cache key, as a finished download leaves them. */
+    private fun cacheBytes(download: Download) {
+        val keys = UserScopedCacheKeys(checkNotNull(download.request.ownerUserId()))
+        CacheWriter(
+            CacheDataSource.Factory().setCache(downloads.cache).setCacheKeyFactory(keys)
+                .setUpstreamDataSourceFactory { ByteArrayDataSource(ByteArray(CACHED_BYTES)) }.createDataSource(),
+            DataSpec(download.request.uri),
+            null,
+            null,
+        ).cache()
+        cachedKeys += keys.buildCacheKey(DataSpec(download.request.uri))
+    }
+
+    private fun startedRequest(): DownloadRequest {
+        val intent = shadowOf(context).nextStartedService
+        assertEquals(MobileDownloadService::class.java.name, intent.component?.className)
+        return checkNotNull(
+            IntentCompat.getParcelableExtra(intent, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java),
+        )
+    }
+
+    private fun DownloadManager.running(): List<String> =
+        currentDownloads.filter { it.state == Download.STATE_DOWNLOADING }.map { it.request.id }.sorted()
+
+    /** Each row with its place in line, in the order the Downloads screen lists the queue. */
+    private fun queueOf(store: MobileDownloadStore): List<Pair<Long, Int?>> {
+        val state = DownloadsState().withEntries(store.entries.value)
+        return state.queue.map { it.fileId.value to state.queuePosition(it.fileId) }
+    }
 
     private fun store(userId: Long) = MobileDownloadStore(preferences, storeKey(userId), Dispatchers.Unconfined)
 
@@ -218,9 +356,9 @@ class MobileDownloadEngineTest {
         }
     }
 
-    private fun entry(fileId: Long, accepted: Boolean) = DownloadEntry(
+    private fun entry(fileId: Long, accepted: Boolean, status: DownloadStatus = DownloadStatus.Queued) = DownloadEntry(
         FilesItemId(fileId), "file-$fileId", PutioFileType.VIDEO, DownloadArtifact.HLS,
-        DownloadStatus.Queued, createdAt = fileId, accepted = accepted,
+        status, createdAt = fileId, accepted = accepted,
     )
 
     private fun download(
@@ -243,11 +381,22 @@ class MobileDownloadEngineTest {
         },
     )
 
+    private fun queued(id: String, startTimeMs: Long) = Download(
+        DownloadRequest.Builder(id, Uri.parse("https://api.put.io/v2/files/$id/stream")).build(),
+        Download.STATE_QUEUED,
+        startTimeMs,
+        startTimeMs,
+        TOTAL,
+        Download.STOP_REASON_NONE,
+        Download.FAILURE_REASON_NONE,
+    )
+
     private companion object {
         const val ALICE = 1L
         const val BOB = 2L
         const val PARKED = MobileDownloadEngine.STOP_REASON_OTHER_USER
         const val TOTAL = 1_000L
+        const val CACHED_BYTES = 4
         const val PERCENT = 100f
         const val AWAIT_SECONDS = 10L
         const val POLL_MILLIS = 10L
@@ -273,18 +422,19 @@ private class ScriptedDownloaders : DownloaderFactory {
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private class ScriptedTransfer : Downloader {
-    private val steps = LinkedBlockingQueue<Long>()
     private val released = CountDownLatch(1)
 
-    fun report(bytes: Long) = steps.put(bytes)
+    private val steps = LinkedBlockingQueue<Pair<Long, Float>>()
 
-    fun finish() = steps.put(DONE)
+    fun report(bytes: Long, percent: Float = bytes * PERCENT / TOTAL_BYTES) = steps.put(bytes to percent)
+
+    fun finish() = steps.put(DONE to 0f)
 
     override fun download(progressListener: Downloader.ProgressListener?) {
         while (released.count > 0L) {
-            val bytes = steps.poll(POLL_MILLIS, TimeUnit.MILLISECONDS) ?: continue
+            val (bytes, percent) = steps.poll(POLL_MILLIS, TimeUnit.MILLISECONDS) ?: continue
             if (bytes == DONE) return
-            progressListener?.onProgress(TOTAL_BYTES, bytes, bytes * PERCENT / TOTAL_BYTES)
+            progressListener?.onProgress(TOTAL_BYTES, bytes, percent)
         }
         throw InterruptedException("cancelled")
     }

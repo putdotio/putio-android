@@ -79,6 +79,49 @@ class OfflinePlaybackRepositoryTest {
     }
 
     @Test
+    fun offlinePlaybackResumesFromThePositionThisDeviceKeptWhenResumeIsOn() = runBlocking {
+        val entry = completed().copy(startFromSeconds = 100.0, durationSeconds = 1_800.0)
+        val downloads = MutableStateFlow(DownloadsState().withEntries(listOf(entry)))
+        val resume = object : OfflineResume {
+            override fun enabled() = true
+
+            override suspend fun position(entry: DownloadEntry) = 250.0
+        }
+        val repository = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of, resume = resume)
+
+        val ready = (repository.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
+
+        assertTrue(ready.useStartFrom)
+        assertEquals(250.0, ready.source.startFromSeconds, 0.0)
+        // The resume prompt's finished-video rule needs the duration the row kept.
+        assertEquals(1_800.0, ready.durationSeconds)
+        assertTrue(delegateCalls.isEmpty())
+    }
+
+    @Test
+    fun aHideSubtitlesDownloadCarriesNoSubtitlesAndHidesThePickerOnAColdOfflineStart() = runBlocking {
+        val downloads = MutableStateFlow(DownloadsState().withEntries(listOf(completed().copy(subtitlesHidden = true))))
+        val repository = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of)
+
+        val ready = (repository.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
+
+        assertTrue(ready.subtitlesHidden)
+        assertEquals(PlaybackSubtitles.None, ready.source.subtitles)
+        assertTrue(ready.source.url.value.endsWith("max_subtitle_count=0"))
+    }
+
+    @Test
+    fun aCopyWhoseBytesAreGoneStreamsInstead() = runBlocking {
+        val downloads = MutableStateFlow(DownloadsState().withEntries(listOf(completed())))
+        val repository = OfflinePlaybackRepository(
+            downloads, delegate, PutioCredentialUrl::of, localCopyAvailable = { false },
+        )
+
+        assertTrue(repository.resolve(target) is PlaybackRepositoryResult.Failure)
+        assertEquals(listOf(target), delegateCalls)
+    }
+
+    @Test
     fun anythingElseStreamsThroughTheDelegate() = runBlocking {
         val downloads = MutableStateFlow(DownloadsState().withEntries(listOf(
             DownloadEntry(
@@ -86,7 +129,7 @@ class OfflinePlaybackRepositoryTest {
                 target.name,
                 PutioFileType.VIDEO,
                 DownloadArtifact.HLS,
-                DownloadStatus.Downloading(1L, 2L),
+                DownloadStatus.Downloading(1L, 50f),
                 0L,
             ),
         )))
@@ -95,6 +138,10 @@ class OfflinePlaybackRepositoryTest {
         assertTrue(repository.resolve(target.copy(fileId = FilesItemId(8L))) is PlaybackRepositoryResult.Failure)
         assertEquals(2, delegateCalls.size)
     }
+
+    private fun completed() = DownloadEntry(
+        target.fileId, target.name, PutioFileType.VIDEO, DownloadArtifact.HLS, DownloadStatus.Completed(1L), 0L,
+    )
 
     @Test
     fun theViewersConvertStartsThroughTheDelegate() = runBlocking {

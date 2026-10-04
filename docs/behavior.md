@@ -261,7 +261,9 @@ completion reset: a finished item's real final position is written.
 
 Reporting requires an app-issued item lease, the same signed-in session, and a
 confirmed enabled resume setting. Pending/failed resume-setting writes suspend
-reporting; unrelated setting writes do not. Session exit or disabled/unconfirmed
+reporting; unrelated setting writes do not. A downloaded file whose settings
+never loaded this session reports under the last confirmed setting, and keeps a
+position put.io cannot take ([offline resume](#downloads-and-offline-playback)). Session exit or disabled/unconfirmed
 policy cancels requests and discards pending positions without flushing. The
 application owns this policy subscription so task removal does not stop audio
 updates. A source resolved with resume disabled receives no reporting lease.
@@ -576,7 +578,9 @@ against each merged manifest in `check`.
 `https://{app.put.io,put.io,www.put.io}/{files,files/<id>,transfers,search,history,trash}`
 (`autoVerify`; the `assetlinks.json` publication is a release-owner task, so
 unverified installs still open through the app chooser or an explicit package)
-and `putio://{files,transfers,search,history,trash,downloads}`. `putio://auth`
+and `putio://{files,transfers,search,history,trash,downloads}`, plus
+`putio://downloads/<id>`, which a download notification opens to show that
+row's actions. `putio://auth`
 stays with the OAuth receiver. A link is consumed once per Activity intent, any
 put.io URI is removed from the retained intent, and routing waits for sign-in;
 an unrouted link survives process death as its token-free `putio://` form. A file
@@ -673,12 +677,16 @@ Tests: `SearchControllerTest`, `AppConfigRecentSearchStoreTest`,
 Downloads use Media3's `DownloadService` and `SimpleCache` under the app's
 internal files directory (`files/downloads/`), never external storage: cached
 playlist bodies carry the server's token. A video download stores the HLS
-rendition the player streams with every subtitle rendition, whatever the
-account hides, so turning subtitles back on finds them offline; the player
-still hides them for `hide_subtitles` (#237). An audio download
-stores the original file. Media3 owns bytes, resume and the foreground
-notification, which shows a count and progress only. The app's index in private
-SharedPreferences holds file id, name, type, rendition and status per user; it
+rendition the player streams; an audio download stores the original file. HLS
+asks for every subtitle rendition, or for none when the account's confirmed
+`hide_subtitles` is on, as streaming does. The confirmed setting is stored with
+the row, so a cold offline start, which cannot read settings, still hides the
+Captions picker for a download made without subtitles; a row started before
+settings confirmed keeps the old all-subtitles request and the player's usual
+rule (#237). Media3 owns bytes, resume and the foreground notification, which
+shows a count and progress only. The app's index in private SharedPreferences
+holds file id, name, type, rendition, status, queue time, a pending-delete mark,
+the confirmed subtitle setting and the listing's saved position per user; it
 never holds a URL.
 
 Requests carry the token-free API URL, and a resolving data source adds the
@@ -693,21 +701,78 @@ sign-out parks that user's transfers with a stop reason until the owner signs in
 again. Playback reads through the same cache with a null write sink, so
 streaming never fills the download directory. Offline playback replays the URL
 Media3 recorded for the request, so a download keeps playing after the app
-changes the URL it builds for new ones. On start the engine reconciles
-Media3's own index into the app's rows, so a transfer that completed while the
-UI was dead reads On this device after relaunch. Closing the engine cancels that
+changes the URL it builds for new ones. Closing the engine cancels its start-up
 reconcile, so a sign-out right after sign-in cannot un-park the transfers.
-Media3 reports only state transitions to the app; while the Downloads screen is
-started, the controller reads live bytes once a second into memory. Only
-transitions reach the index.
 
-Tests: `DownloadsControllerTest` (intents, progress polling while shown),
-`MobileDownloadsScreenTest` (shown and hidden events), `MobileDownloadStoreTest`,
-`MobileDownloadEngineTest` (reconcile, sign-out parking, account isolation,
-close before reconcile, in-memory progress, the recorded request URL against
-a real Media3 manager),
-`UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
-`OfflinePlaybackRepositoryTest`.
+**Queue.** Media3 runs up to the device-wide concurrency limit at once, 1 to 4,
+default 3 (iOS main's choices), and starts the rest oldest first by its own
+start time, which it persists. The Downloads screen shows the limit and lets the
+viewer change it; a lower limit stops the extra transfers, keeping their bytes,
+and they rejoin the line. Its Queue section lists unfinished rows in Media3's
+start order with each waiting row's place (`Queued · #1 in line`), then Needs
+attention (failed and missing rows), then On this device. A retry or Download
+again joins the back of the line. A row shows a percentage only when Media3
+reports one over a known denominator, the original's content length or the HLS
+segment count once the playlists are read; otherwise it shows bytes and an
+indeterminate bar. Only transitions reach the index; while the Downloads screen
+is started, the controller reads live bytes once a second into memory.
+
+**States and recovery.** A row is queued, downloading, paused (waiting for a
+network, or for the system to stop reporting low storage; both resume by
+themselves), failed (retryable), on this device, missing, or deleting. Transfers
+that fail with `ENOSPC` read as not enough storage, with Retry. On start the
+engine reconciles Media3's index into the rows, so a transfer that finished,
+failed or paused while the UI was dead reads that way after relaunch. A row
+Media3 has no record of is never dropped silently: a finished one reads missing,
+a failed one keeps its reason, and an unfinished one goes back in the queue. A
+finished row whose bytes are gone from the cache, found at reconcile or when
+offline playback opens it, reads missing: it stops counting as on this device
+in Files and Downloads, streams instead, and offers Download again.
+
+**Removal.** Deleting removes only local copies; Downloads has no path to the
+put.io originals. One row's sheet or a multi-select (Select, or a long press,
+then Select all) asks first, saying the files stay in the account. Confirmed
+rows are marked before Media3 deletes their bytes, stop counting as available
+at once, and leave once Media3 confirms; a process death in between finishes
+the delete on the next start.
+
+**Notifications.** When a download finishes or fails, with or without the app
+open, a notification names the file and opens its row in Downloads; the lock
+screen sees the outcome without the name. Each file has one slot, cleared by a
+retry or a delete. Nothing is posted while the app's notifications or the
+Finished downloads channel are off, or, on Android 13 and later, while
+POST_NOTIFICATIONS is not granted. The first download asks for that permission
+once; afterwards Downloads shows a notice whose Turn on asks again while the
+system allows it and otherwise opens the app's notification settings.
+
+**Offline resume.** Offline playback resumes like streaming: with the resume
+setting confirmed this session, else the one this device last confirmed, else
+off. It starts from a position this device played but put.io has not taken,
+else what put.io reports within 3 s, else the last known one, else the
+listing's position at download time. A downloaded file reports positions under
+the same rules as streaming; when settings never loaded this session, as on a
+cold start offline, it reports under the last confirmed setting. A position
+put.io cannot take for a transient reason waits on the device. Once a validated
+network returns, on sign-in, and after an accepted write, a sync pass for the
+signed-in user follows iOS main's `OfflineVideoPlaybackPositionSync`: it drops
+every waiting position if the account has resume off; a position another
+device saved since this one went offline wins; otherwise this device's newest
+position is written, and a write that landed without a reply is recognised.
+
+Tests: `DownloadsControllerTest` (intents, bulk removal, retry order, missing
+copies, concurrency, progress polling while shown), `MobileDownloadsScreenTest`
+(queue order and places, the limit, the notification notice, selection,
+shown and hidden events), `MobileShellDownloadsTest` (bulk delete never reaches
+put.io, notification links, the subtitle setting a Files download carries),
+`MobileDownloadStoreTest`, `MobileDownloadEngineTest` (queue order and limit
+across process recreation, recovery of every row state, low-storage pause,
+reconcile, sign-out parking, account isolation, close before reconcile,
+in-memory progress and its denominator, the recorded request URL and the
+local-copy check against a real Media3 manager and cache),
+`MobileDownloadNotificationsTest` (granted, denied and disabled states),
+`OfflinePlaybackPositionsTest`, `MobilePlaybackReportingTest` (cold offline
+start), `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
+`OfflinePlaybackRepositoryTest`, `MobileDeepLinksTest`.
 
 ## TV Back
 
