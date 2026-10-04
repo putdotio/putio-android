@@ -44,6 +44,11 @@ import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.player.TvPlaybackReporting
+import io.putdotio.android.tv.watchnext.TvWatchNextPlayback
+import io.putdotio.android.tv.watchnext.TvWatchNextRecorder
+import io.putdotio.android.tv.watchnext.toWatchNextMedia
+import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.sdk.files.PlaybackPreference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -55,7 +60,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.getAndUpdate
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -80,6 +87,9 @@ internal data class TvSessionDependencies(
     val playbackRepository: (preference: () -> PlaybackPreference) -> PlaybackRepository,
     /** Saves a media file's playback position (`start_from`), as mobile's reporting does. */
     val writePlaybackPosition: suspend (fileId: Long, seconds: Double) -> PlaybackRepositoryResult<Unit>,
+    /** The launcher's Watch Next row, as one signed-in session reports to it. */
+    val watchNext: (userId: Long, sessionId: TvAuthSessionId) -> TvWatchNextRecorder =
+        { _, _ -> TvWatchNextRecorder.None },
 )
 
 /** What choosing a Search or History row did. */
@@ -103,6 +113,7 @@ internal class TvSession internal constructor(
     historyEnabled: Boolean,
     sessionCurrent: () -> Boolean,
     parentScope: CoroutineScope,
+    private val watchNext: TvWatchNextRecorder = TvWatchNextRecorder.None,
 ) {
     private val recentSearches = dependencies.recentSearchStore(parentScope)
     val files = FilesBrowserController(dependencies.filesRepository, parentScope)
@@ -120,6 +131,7 @@ internal class TvSession internal constructor(
     /** This app's `/config` playback keys; shared with mobile. */
     val appConfig = AndroidAppConfigController(dependencies.appConfigRepository, parentScope)
     private val filesRepository = dependencies.filesRepository
+    private val filesItemResolver = dependencies.filesItemResolver
     private val watchedRepository = dependencies.watchedRepository
     private val streamUrls = dependencies.streamUrls
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
@@ -138,6 +150,10 @@ internal class TvSession internal constructor(
     /** The item that started playback; autoplay stays within its folder. */
     private var playbackStart: FilesItem? = null
     private var durationLookup: Job? = null
+    private var continueSaved: Job? = null
+
+    /** Pairs saved positions with the videos they belong to, for Watch Next. */
+    internal val watchNextPlayback = TvWatchNextPlayback(watchNext, scope)
 
     /** Start-from write-back for this session's playback; see [TvPlaybackReporting]. */
     val playbackReporting = TvPlaybackReporting(
@@ -145,9 +161,10 @@ internal class TvSession internal constructor(
         settings = settings.state,
         sessionCurrent = sessionCurrent,
         write = dependencies.writePlaybackPosition,
-        // The Files row shows the saved position once the server has it.
+        // The Files row shows the saved position once the server has it, and so does Watch Next.
         onSaved = { fileId, seconds ->
             files.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(fileId), seconds))
+            watchNextPlayback.saved(fileId, seconds)
         },
     )
 
@@ -173,6 +190,21 @@ internal class TvSession internal constructor(
     /** Why the last watched toggle failed; cleared by the next attempt or dismissal. */
     val fileActionFailure: StateFlow<PutioFailure?> = mutableFileActionFailure.asStateFlow()
 
+    /** Files that system search and Watch Next cards ask to open. */
+    val links = TvLinkOpener(
+        resolver = filesItemResolver,
+        scope = scope,
+        open = { item, continueWatching -> openExternal(item, FilesOpenOrigin.LINK, continueWatching) },
+        onCardGone = watchNext::fileGone,
+    )
+
+    init {
+        // A card whose file put.io no longer has, or that another device finished, leaves the row.
+        scope.launch {
+            watchNext.reconcile(filesItemResolver::resolveItem)?.let { mutableFileActionFailure.value = it }
+        }
+    }
+
     fun retryRecentSearches() = recentSearches.retry()
 
     /**
@@ -191,15 +223,21 @@ internal class TvSession internal constructor(
      * Opens a Search or History pick: media plays, a folder opens in Files, and any other file
      * opens its folder with focus on it. Back returns to [origin] either way.
      */
-    fun openExternal(item: FilesItem, origin: FilesOpenOrigin): TvExternalOpen {
+    fun openExternal(
+        item: FilesItem,
+        origin: FilesOpenOrigin,
+        continueWatching: Boolean = false,
+    ): TvExternalOpen {
         // A newer pick wins over media still waiting for its duration.
         durationLookup?.cancel()
         return when {
             item.isPlayable -> {
                 if (item.playback?.durationSeconds != null) {
-                    startPlayback(item)
+                    startPlayback(item, continueWatching)
                 } else {
-                    durationLookup = scope.launch { startPlayback(filesRepository.withListedDuration(item)) }
+                    durationLookup = scope.launch {
+                        startPlayback(filesRepository.withListedDuration(item), continueWatching)
+                    }
                 }
                 TvExternalOpen.PLAYING
             }
@@ -211,14 +249,17 @@ internal class TvSession internal constructor(
         }
     }
 
-    private fun startPlayback(item: FilesItem) {
+    private fun startPlayback(item: FilesItem, continueWatching: Boolean = false) {
         val mediaType = PlaybackMediaType.fromFileType(item.type) ?: return
         if (!scope.isActive) return
-        val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds)
+        val target = PlaybackTarget(item.id, item.name, mediaType, item.playback?.durationSeconds, item.screenshotUrl)
         val controller = PlaybackController(target, playbackRepository, scope)
         playbackReporting.startPlayback()
         mutablePlayback.getAndUpdate { controller }?.close()
         playbackStart = item
+        watchNextPlayback.follow(controller)
+        continueSaved?.cancel()
+        continueSaved = if (continueWatching) scope.launch { controller.continueSavedPosition() } else null
     }
 
     /**
@@ -228,6 +269,8 @@ internal class TvSession internal constructor(
      */
     fun stopPlayback() {
         durationLookup?.cancel()
+        continueSaved?.cancel()
+        watchNextPlayback.stopFollowing()
         val stopped = mutablePlayback.getAndUpdate { null } ?: return
         val last = stopped.state.value.target.fileId
         val start = playbackStart
@@ -263,8 +306,10 @@ internal class TvSession internal constructor(
             // settle the row or report, so only the write still registered for the file does.
             if (!isActive || watchedJobs[item.id] !== coroutineContext[Job]) return@launch
             when (result) {
-                is PutioResult.Success ->
+                is PutioResult.Success -> {
                     files.dispatch(FilesBrowserEvent.PlaybackPositionReported(item.id, seconds))
+                    watchNext.positionSaved(item.toWatchNextMedia(), seconds)
+                }
                 is PutioResult.Failure -> mutableFileActionFailure.update { current ->
                     if (current is PutioFailure.AuthenticationRequired) current else result.failure
                 }
@@ -299,6 +344,7 @@ internal class TvSession internal constructor(
         scope.cancel()
         historyOpener.close()
         historyOpenChannel.close()
+        links.close()
         search.close()
         recentSearches.close()
         history.close()
@@ -337,6 +383,7 @@ internal class TvSessionViewModel(
                 historyEnabled = account.historyEnabled,
                 sessionCurrent = { authState.value.sessionKey() == key },
                 parentScope = viewModelScope,
+                watchNext = dependencies.watchNext(account.userId, sessionId),
             )
         }
     }
@@ -347,6 +394,17 @@ internal class TvSessionViewModel(
 
     private fun TvAuthState.sessionKey(): TvSessionKey? =
         (this as? TvAuthState.SignedIn)?.let { TvSessionKey(it.account.userId, it.sessionId) }
+}
+
+/**
+ * A Watch Next card is a choice to continue, so its saved position plays without the resume
+ * prompt; the finished rule still starts a video saved near its end over. Waits through
+ * loading and conversion, then answers only the first prompt: autoplay's next video asks.
+ */
+private suspend fun PlaybackController.continueSavedPosition() {
+    val settled = state.map { it.content }
+        .first { it !is PlaybackContent.Loading && it !is PlaybackContent.Conversion }
+    if (settled is PlaybackContent.AwaitingResume) dispatch(PlaybackEvent.Resume)
 }
 
 // The resume dialog needs the duration, which search results and single-file reads omit;

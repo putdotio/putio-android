@@ -4,19 +4,48 @@ import android.content.Context
 import io.putdotio.android.auth.KeystoreAuthTokenStore
 import io.putdotio.android.auth.PendingTokenRevocations
 import io.putdotio.android.auth.PutioAuthTokenRevoker
+import io.putdotio.android.search.SdkSearchRepository
+import io.putdotio.android.tv.search.TvGlobalSearch
+import io.putdotio.android.tv.search.tvGlobalSearch
+import io.putdotio.android.tv.watchnext.TvProviderWatchNextStore
+import io.putdotio.android.tv.watchnext.TvWatchNext
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 
-/** Process-wide TV session: one SDK client, one controller, one application scope. */
+/**
+ * Process-wide TV session: one SDK client, one controller, one application scope, and the
+ * launcher's Watch Next row, which follows the session even with no screen showing.
+ */
 class TvAuthRuntime internal constructor(
     val putioClient: PutioClient,
     val authController: TvAuthController,
     private val applicationScope: CoroutineScope,
+    internal val watchNext: TvWatchNext,
 ) {
+    private val backgroundRestore = lazy {
+        applicationScope.async { authController.restoreSession(interactive = false) }
+    }
+
+    /**
+     * The signed-in session for a caller with no screen, such as the system search provider:
+     * restores a stored session once per process if the app has not, and never starts a sign-in.
+     */
+    private suspend fun signedInSession(): TvAuthState.SignedIn? {
+        (authController.state.value as? TvAuthState.SignedIn)?.let { return it }
+        backgroundRestore.value.await()
+        return authController.state.value as? TvAuthState.SignedIn
+    }
+
+    /** What the system search provider runs. */
+    internal val globalSearch: TvGlobalSearch by lazy {
+        tvGlobalSearch(authController, ::signedInSession, SdkSearchRepository(putioClient)::search)
+    }
+
     companion object {
         @Volatile
         private var instance: TvAuthRuntime? = null
@@ -40,21 +69,28 @@ class TvAuthRuntime internal constructor(
             )
             val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             val tokenStore = KeystoreAuthTokenStore(context)
+            val authController = TvAuthController(
+                tokenStore = tokenStore,
+                sessionGateway = PutioTvSessionGateway(putioClient),
+                tokenRevocations = PendingTokenRevocations(
+                    store = KeystoreAuthTokenStore.pendingRevocation(context),
+                    sessionStore = tokenStore,
+                    revoker = PutioAuthTokenRevoker(putioClient.config),
+                    scope = applicationScope,
+                ),
+                scope = applicationScope,
+                legacySession = AsyncStorageLegacyTvSession(context),
+            )
             return TvAuthRuntime(
                 putioClient = putioClient,
-                authController = TvAuthController(
-                    tokenStore = tokenStore,
-                    sessionGateway = PutioTvSessionGateway(putioClient),
-                    tokenRevocations = PendingTokenRevocations(
-                        store = KeystoreAuthTokenStore.pendingRevocation(context),
-                        sessionStore = tokenStore,
-                        revoker = PutioAuthTokenRevoker(putioClient.config),
-                        scope = applicationScope,
-                    ),
-                    scope = applicationScope,
-                    legacySession = AsyncStorageLegacyTvSession(context),
-                ),
+                authController = authController,
                 applicationScope = applicationScope,
+                watchNext = TvWatchNext(
+                    store = TvProviderWatchNextStore(context),
+                    authState = authController.state,
+                    quietSignOuts = authController.quietSignOuts,
+                    scope = applicationScope,
+                ),
             )
         }
     }

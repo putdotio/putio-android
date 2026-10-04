@@ -24,6 +24,8 @@ public data class FilesItem(
     /** A friend's file shown under Items shared with you; the viewer can read it but not change it. */
     val isShared: Boolean = false,
     val folderType: PutioFolderType = PutioFolderType.REGULAR,
+    /** put.io's still image of a video, as a token-free URL; null when put.io has none. */
+    val screenshotUrl: String? = null,
 ) {
     val isFolder: Boolean
         get() = type == PutioFileType.FOLDER

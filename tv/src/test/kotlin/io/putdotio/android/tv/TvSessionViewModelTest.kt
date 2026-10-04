@@ -59,6 +59,8 @@ import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.android.tv.watchnext.TvWatchNextMedia
+import io.putdotio.android.tv.watchnext.TvWatchNextRecorder
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
@@ -520,6 +522,117 @@ class TvSessionViewModelTest {
         assertTrue(session.filesFocusMemory.isEmpty())
     }
 
+    @Test
+    fun `a Watch Next card plays its saved position without asking, as a search result does not`() = runTest {
+        playbackRepository.savedSeconds = 45.0
+        val listed = media(55, "resolved-55", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(45.0, 600.0))
+        listedItems[listed.id] = listed
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+        session.links.open(FilesItemId(55), continueWatching = true)
+
+        assertEquals(TvExternalOpen.PLAYING, session.links.opens.first())
+        val continued = checkNotNull(session.playback.value).state.value
+        assertTrue(continued.content is PlaybackContent.Ready)
+        assertEquals(45_000L, continued.resumePositionMillis)
+
+        session.links.open(FilesItemId(55), continueWatching = false)
+
+        assertEquals(TvExternalOpen.PLAYING, session.links.opens.first())
+        assertTrue(checkNotNull(session.playback.value).state.value.content is PlaybackContent.AwaitingResume)
+    }
+
+    @Test
+    fun `a Watch Next card whose file is gone leaves the row and Files explains why`() = runTest {
+        val gone = PutioFailure.ApiRejected(404, "NotFound", PutioConfigurationException("404"))
+        val recorder = FakeWatchNextRecorder()
+        val deps = dependencies.copy(
+            filesItemResolver = object : FilesItemResolver {
+                override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Failure(gone)
+            },
+            watchNext = { _, _ -> recorder },
+        )
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), deps))
+
+        session.links.open(FilesItemId(55), continueWatching = true)
+
+        assertEquals(gone, session.links.failure.value)
+        assertEquals(listOf(55L), recorder.gone)
+        assertNull(session.playback.value)
+        session.links.dismissFailure()
+        assertNull(session.links.failure.value)
+
+        session.links.open(FilesItemId(56), continueWatching = false)
+        assertEquals("A search result is not a card", listOf(55L), recorder.gone)
+    }
+
+    @Test
+    fun `saved positions reach Watch Next with the played video's title, duration and still`() = runTest {
+        val recorder = FakeWatchNextRecorder()
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(watchNext = { _, _ -> recorder }),
+            ),
+        )
+        val video = media(9, "clip.mp4", PutioFileType.VIDEO).copy(
+            playback = FilesPlaybackProgress(0.0, 600.0),
+            screenshotUrl = "https://api.put.io/screenshots/9.jpg",
+        )
+
+        session.play(video)
+        session.stopPlayback()
+        // The exit write lands after playback has gone.
+        session.watchNextPlayback.saved(9L, 120.0)
+        session.watchNextPlayback.saved(10L, 30.0)
+        session.setWatched(video, watched = true)
+
+        val media = TvWatchNextMedia(9L, "clip.mp4", 600.0, "https://api.put.io/screenshots/9.jpg", isVideo = true)
+        assertEquals(listOf(media to 120.0, media to 600.0), recorder.saved)
+    }
+
+    @Test
+    fun `each session reconciles its Watch Next cards and a 401 there is the session's verdict`() = runTest {
+        val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
+        val recorder = FakeWatchNextRecorder(verdict = rejected)
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.copy(watchNext = { userId, _ -> recorder.also { it.userId = userId } }),
+            ),
+        )
+
+        assertEquals(42L, recorder.userId)
+        assertEquals(listOf("resolved-55"), recorder.reconciled)
+        assertEquals(rejected, session.fileActionFailure.value)
+    }
+
+    private class FakeWatchNextRecorder(
+        private val verdict: PutioFailure.AuthenticationRequired? = null,
+    ) : TvWatchNextRecorder {
+        var userId: Long? = null
+        val saved = mutableListOf<Pair<TvWatchNextMedia, Double>>()
+        val gone = mutableListOf<Long>()
+        val reconciled = mutableListOf<String>()
+
+        override fun positionSaved(media: TvWatchNextMedia, positionSeconds: Double) {
+            saved += media to positionSeconds
+        }
+
+        override fun fileGone(fileId: Long) {
+            gone += fileId
+        }
+
+        override suspend fun reconcile(
+            resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
+        ): PutioFailure.AuthenticationRequired? {
+            (resolve(FilesItemId(55)) as? PutioResult.Success)?.let { reconciled += it.value.name }
+            return verdict
+        }
+    }
+
     private fun media(id: Long, name: String, type: PutioFileType) = FilesItem(
         id = FilesItemId(id),
         parentId = FilesItemId(0L),
@@ -579,10 +692,15 @@ class TvSessionViewModelTest {
         var preference: () -> PlaybackPreference = { error("No preference wired") }
         val preferencesSeen = mutableListOf<PlaybackPreference>()
 
+        /** The account's saved position for every file, with resume playback on when positive. */
+        var savedSeconds = 0.0
+
         override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
             resolved += target
             preferencesSeen += preference()
-            return PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source(target.fileId.value)))
+            return PlaybackRepositoryResult.Success(
+                PlaybackResolution.Ready(source(target.fileId.value), useStartFrom = savedSeconds > 0.0),
+            )
         }
 
         /** The video after each one in its folder; anything else is the folder's last. */
@@ -597,7 +715,7 @@ class TvSessionViewModelTest {
             url = PutioCredentialUrl::class.java
                 .getDeclaredConstructor(String::class.java)
                 .newInstance("https://api.put.io/v2/files/$fileId/hls/media.m3u8?token=t"),
-            startFromSeconds = 0.0,
+            startFromSeconds = savedSeconds,
             subtitles = PlaybackSubtitles.None,
         )
     }

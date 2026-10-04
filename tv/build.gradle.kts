@@ -1,3 +1,5 @@
+import com.android.build.api.variant.ResValue
+
 plugins {
     id("putio.android.application")
     id("putio.build-logic")
@@ -10,6 +12,18 @@ android {
         // Device-code OAuth apps from the legacy tv-native lane: one per TV store.
         buildConfigField("String", "PUTIO_TV_OAUTH_CLIENT_ID_ANDROID_TV", "\"6221\"")
         buildConfigField("String", "PUTIO_TV_OAUTH_CLIENT_ID_FIRE_TV", "\"6233\"")
+    }
+    // The system search provider's authority, generated per variant below.
+    buildFeatures.resValues = true
+}
+
+androidComponents {
+    onVariants { variant ->
+        // searchable.xml names the suggestions provider, whose authority follows the variant's id.
+        variant.resValues.put(
+            variant.makeResValueKey("string", "tv_search_authority"),
+            ResValue("${variant.applicationId.get()}.search", "System search suggestions provider"),
+        )
     }
 }
 
@@ -62,6 +76,9 @@ dependencies {
     implementation(libs.coil.network.okhttp)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.putio.sdk.kotlin)
+    // Encodes the sign-in QR code on the device: pure Java, no transitive dependencies, and R8
+    // keeps only the encoder. Its decoder reads the rendered code back in the unit tests.
+    implementation(libs.zxing.core)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
