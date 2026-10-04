@@ -78,6 +78,8 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             buildFeatures.buildConfig = true
         }
 
+        useOfflineRobolectric()
+
         extensions.configure<DetektExtension> {
             config.setFrom(rootProject.file("detekt.yml"))
             buildUponDefaultConfig = true
