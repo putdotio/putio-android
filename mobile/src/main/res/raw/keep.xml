@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Each variant's generated res/xml/shortcuts.xml (GenerateShortcutsTask, from src/main/shortcuts.xml)
+     uses these, and lint does not read generated resources. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/shortcut_*,@string/mobile_shortcut_*" />
