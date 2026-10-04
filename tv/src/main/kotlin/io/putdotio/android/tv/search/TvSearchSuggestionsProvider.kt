@@ -3,6 +3,7 @@ package io.putdotio.android.tv.search
 import android.app.SearchManager
 import android.content.ContentProvider
 import android.content.ContentValues
+import android.content.Context
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
@@ -10,22 +11,27 @@ import android.provider.BaseColumns
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesItem
-import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.tv.auth.TvAuthController
 import io.putdotio.android.tv.auth.TvAuthRuntime
+import io.putdotio.android.tv.auth.TvAuthSessionId
+import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * put.io as an Android TV global search source. The system's search app queries this provider
- * as the viewer types (`searchable.xml`); each query runs the account's file search, the same
- * one the Search pane uses, and a chosen row opens `putio://files/<id>` in [io.putdotio.android.MainActivity].
- * Only callers holding `GLOBAL_SEARCH` (the system search app) may read it, so other apps
- * never see file names. Signed out, it answers nothing and starts no sign-in.
+ * as the viewer types (`searchable.xml`); each query runs [TvGlobalSearch], and a chosen row
+ * opens `putio://files/<id>` in [io.putdotio.android.MainActivity]. Only callers holding
+ * `GLOBAL_SEARCH` (the system search app) may use it, so other apps never see file names.
  */
-internal class TvSearchSuggestionsProvider : ContentProvider() {
+internal class TvSearchSuggestionsProvider internal constructor(
+    private val globalSearch: (Context?) -> TvGlobalSearch?,
+) : ContentProvider() {
+    constructor() : this({ context -> context?.let { TvAuthRuntime.get(it).globalSearch } })
+
     override fun onCreate(): Boolean = true
 
     override fun query(
@@ -38,21 +44,9 @@ internal class TvSearchSuggestionsProvider : ContentProvider() {
         val query = selectionArgs?.firstOrNull()
             ?: uri.lastPathSegment?.takeIf { it != SearchManager.SUGGEST_URI_PATH_QUERY }
         val limit = uri.getQueryParameter(SearchManager.SUGGEST_PARAMETER_LIMIT)?.toIntOrNull()
-        val runtime = context?.let(TvAuthRuntime::get) ?: return tvSearchSuggestions(emptyList(), limit)
+        val search = globalSearch(context) ?: return tvSearchSuggestions(emptyList(), limit)
         // A binder thread: the system search waits on this answer, so it is bounded.
-        val items = runBlocking {
-            withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) {
-                tvGlobalSearch(query) { term ->
-                    val session = runtime.signedInSession() ?: return@tvGlobalSearch null
-                    SdkSearchRepository(runtime.putioClient).search(term).also { result ->
-                        val failure = (result as? PutioResult.Failure)?.failure
-                        if (failure is PutioFailure.AuthenticationRequired) {
-                            runtime.authController.rejectAuthoritativeSession(session.sessionId)
-                        }
-                    }
-                }
-            }
-        }
+        val items = runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
         return tvSearchSuggestions(items.orEmpty(), limit)
     }
 
@@ -72,16 +66,34 @@ internal class TvSearchSuggestionsProvider : ContentProvider() {
 }
 
 /**
- * The files a global search for [query] lists: the first page of the account's search, or
- * nothing for a blank query, no session ([search] answers null) or a failed search.
+ * A system search query: the first page of the account's file search, run in the signed-in
+ * session. Nothing for a blank query, no session or a failed search. Nobody watches this
+ * process, so a 401 goes to [reject], which ends the session without requesting a code.
  */
-internal suspend fun tvGlobalSearch(
-    query: String?,
-    search: suspend (SearchTerm) -> PutioResult<SearchPage>?,
-): List<FilesItem> {
-    val term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm) ?: return emptyList()
-    return (search(term) as? PutioResult.Success)?.value?.items.orEmpty()
+internal class TvGlobalSearch(
+    /** The signed-in session, restored without a screen when the app has not; null for none. */
+    private val session: suspend () -> TvAuthState.SignedIn?,
+    private val search: suspend (SearchTerm) -> PutioResult<SearchPage>,
+    private val reject: suspend (TvAuthSessionId) -> Unit,
+) {
+    suspend fun files(query: String?): List<FilesItem> {
+        val term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm) ?: return emptyList()
+        val signedIn = session()
+        val result = signedIn?.let { search(term) }
+        if (signedIn != null && (result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired) {
+            reject(signedIn.sessionId)
+        }
+        return (result as? PutioResult.Success)?.value?.items.orEmpty()
+    }
 }
+
+/** System search in [controller]'s session; a 401 ends it quietly, with no code polled unseen. */
+internal fun tvGlobalSearch(
+    controller: TvAuthController,
+    session: suspend () -> TvAuthState.SignedIn?,
+    search: suspend (SearchTerm) -> PutioResult<SearchPage>,
+): TvGlobalSearch =
+    TvGlobalSearch(session, search) { controller.rejectAuthoritativeSession(it, quiet = true) }
 
 /**
  * The rows the system search shows: the file's name, its kind, put.io's still when it has one,

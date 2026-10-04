@@ -592,7 +592,8 @@ card with the screenshot and progress. `putio files start-from set <id> <s>`
 places the position for a repeat. Center on the card (or
 `-d putio://continue/<id>`) plays on from the saved position without the
 prompt; playing to the end, Sign out under Account, and trashing the file then
-relaunching the app each remove the card. The shell user cannot read another
+force-stopping and relaunching the app (the check runs once per process) each
+remove the card. The shell user cannot read another
 package's Watch Next rows, so check the launcher (`uiautomator dump`, Resume
 watching) rather than `content query`.
 

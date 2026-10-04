@@ -107,16 +107,20 @@ plays from the saved position without the resume prompt; autoplay's next video
 asks as usual.
 
 A file put.io no longer has (a 404, which includes Trash) leaves the row when
-its card opens it, and each new signed-in session reads its cards' files once:
-gone files leave, a position saved on another device moves the card or removes
-a finished one, other failures keep it, and a 401 rejects the session. One user
-keeps at most 20 cards; the least recently watched makes room. A card the
-viewer removed from the row is updated in place and stays hidden.
+its card opens it. Once per app process and user, when the app's screen first
+opens signed in as that user (a cold start or a sign-in; the system search
+provider alone never triggers it), the app reads each of that user's cards'
+files: gone files leave, a position saved on another device moves the card or
+removes a finished one, other failures keep it, and a 401 rejects the session.
+One user keeps at most 20 cards, so that pass reads at most 20 files; the least
+recently watched card makes room. A card the viewer removed from the row is
+updated in place and stays hidden.
 
 Cards belong to the signed-in user who played them (the provider's internal id
-is `<userId>:<fileId>`). Sign-out and a rejected session remove every card,
-signing in removes any other user's, and a write from a session that is no
-longer signed in is dropped. The TV provider requires
+is `<userId>:<fileId>`). Sign-out, a rejected session, and a session put.io
+rejected with no screen (see [TV system search](#tv-system-search)) remove
+every card; signing in removes any other user's, and a write from a session
+that is no longer signed in is dropped. The TV provider requires
 `com.android.providers.tv.permission.WRITE_EPG_DATA`, a normal permission
 granted at install; a device without the provider (Fire TV) ignores Watch Next.
 The row lists only what this TV played: an account-wide list of in-progress
@@ -133,11 +137,16 @@ system search app queries it as the viewer types. Each query runs the
 account's file search, the Search pane's first page, and returns at most the
 system's limit (20 by default) rows with the name, put.io's screenshot when it
 has one, and the content type and duration for media. Only callers holding
-`GLOBAL_SEARCH`, the system search app, can read the provider. Signed out it
-answers nothing; in a process the app has not started, it restores a stored
+`GLOBAL_SEARCH`, the system search app, can use the provider at all. Signed out
+it answers nothing. In a process the app has not started, it restores a stored
 session once, without importing a tv-native token or requesting a code, and
-leaves a session put.io cannot confirm, or rejects, to the app's own start. A
-401 from a search rejects the session.
+leaves a session put.io cannot confirm right now to the app's own start.
+
+Nobody sees that process, so a session put.io rejects there, at that restore or
+with a 401 to a search, ends quietly: the token leaves the gateway and storage,
+Watch Next empties, and the state returns to the one every start begins in,
+without requesting or polling a code. The app's own start then offers a code,
+and a screen already open in that process restores again and offers one.
 
 A chosen row opens `putio://files/<id>`, which resolves the file and opens it
 as a product link does on mobile: media plays with the resume prompt, a folder
@@ -154,7 +163,8 @@ so results shown in the system UI are unverified (see
 [Harness](./harness.md#tv-platform-integration-proof)).
 
 Tests: `TvSearchSuggestionsTest`, `TvLaunchRequestTest`, `TvAuthControllerTest`,
-`TvSessionViewModelTest`, `TvGlobalSearchProofTest` (opt-in live device proof).
+`TvWatchNextTest`, `TvSessionViewModelTest`, `TvGlobalSearchProofTest` (opt-in
+live device proof).
 
 ## Inactive account
 

@@ -4,6 +4,9 @@ import android.content.Context
 import io.putdotio.android.auth.KeystoreAuthTokenStore
 import io.putdotio.android.auth.PendingTokenRevocations
 import io.putdotio.android.auth.PutioAuthTokenRevoker
+import io.putdotio.android.search.SdkSearchRepository
+import io.putdotio.android.tv.search.TvGlobalSearch
+import io.putdotio.android.tv.search.tvGlobalSearch
 import io.putdotio.android.tv.watchnext.TvProviderWatchNextStore
 import io.putdotio.android.tv.watchnext.TvWatchNext
 import io.putdotio.sdk.PutioClient
@@ -32,10 +35,15 @@ class TvAuthRuntime internal constructor(
      * The signed-in session for a caller with no screen, such as the system search provider:
      * restores a stored session once per process if the app has not, and never starts a sign-in.
      */
-    internal suspend fun signedInSession(): TvAuthState.SignedIn? {
+    private suspend fun signedInSession(): TvAuthState.SignedIn? {
         (authController.state.value as? TvAuthState.SignedIn)?.let { return it }
         backgroundRestore.value.await()
         return authController.state.value as? TvAuthState.SignedIn
+    }
+
+    /** What the system search provider runs. */
+    internal val globalSearch: TvGlobalSearch by lazy {
+        tvGlobalSearch(authController, ::signedInSession, SdkSearchRepository(putioClient)::search)
     }
 
     companion object {
@@ -77,7 +85,12 @@ class TvAuthRuntime internal constructor(
                 putioClient = putioClient,
                 authController = authController,
                 applicationScope = applicationScope,
-                watchNext = TvWatchNext(TvProviderWatchNextStore(context), authController.state, applicationScope),
+                watchNext = TvWatchNext(
+                    store = TvProviderWatchNextStore(context),
+                    authState = authController.state,
+                    quietSignOuts = authController.quietSignOuts,
+                    scope = applicationScope,
+                ),
             )
         }
     }

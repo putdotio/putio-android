@@ -10,6 +10,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -93,15 +94,24 @@ class TvAuthController internal constructor(
     private var sessionSequence = 0L
     private val tokens = TvSessionTokens(tokenStore, sessionGateway)
     private val linking = TvDeviceLinking(mutableState, sessionGateway, tokens, scope, ::persistLinkedSession)
+    private val mutableQuietSignOuts = MutableStateFlow(0)
 
     val state: StateFlow<TvAuthState> = mutableState.asStateFlow()
 
     /**
+     * How many sessions put.io rejected with no screen to say so (a quiet restore or the system
+     * search provider). Each forgot its token and left [TvAuthState.Initializing], which is also
+     * where every process starts, so this is how followers tell a sign-out from a start.
+     */
+    val quietSignOuts: StateFlow<Int> = mutableQuietSignOuts.asStateFlow()
+
+    /**
      * Restores the stored session at start, else imports a tv-native one, else offers a code.
      * A caller with no screen (system search) passes [interactive] false: only a stored session
-     * is restored, nothing is imported and no code is requested, and one put.io cannot confirm
-     * right now, or rejects, goes back to [TvAuthState.Initializing] for the app's own start to
-     * explain. True when this leaves the app signed in.
+     * is restored, nothing is imported and no code is requested. A session put.io cannot confirm
+     * right now goes back to [TvAuthState.Initializing] for the app's own start to explain; one
+     * it rejects is forgotten there too (see [quietSignOuts]). True when this leaves the app
+     * signed in.
      */
     suspend fun restoreSession(interactive: Boolean = true): Boolean = operationMutex.withLock {
         if (mutableState.value != TvAuthState.Initializing) {
@@ -191,13 +201,26 @@ class TvAuthController internal constructor(
         }
     }
 
-    suspend fun rejectAuthoritativeSession(expectedSessionId: TvAuthSessionId? = null): Boolean =
+    /**
+     * Ends a session put.io rejected and offers a new code as expired. A caller with no screen
+     * (the system search provider) passes [quiet]: the token is forgotten and the state goes back
+     * to [TvAuthState.Initializing], so no code is requested and polled where nobody can see it;
+     * the app's own start offers one.
+     */
+    suspend fun rejectAuthoritativeSession(
+        expectedSessionId: TvAuthSessionId? = null,
+        quiet: Boolean = false,
+    ): Boolean =
         operationMutex.withLock {
             val signedIn = mutableState.value as? TvAuthState.SignedIn ?: return@withLock false
             if (expectedSessionId != null && signedIn.sessionId != expectedSessionId) {
                 return@withLock false
             }
-            linking.restart(sessionExpired = true)
+            if (quiet) {
+                withContext(NonCancellable) { tokens.signOutQuietly(mutableState, mutableQuietSignOuts) }
+            } else {
+                linking.restart(sessionExpired = true)
+            }
             true
         }
 
@@ -237,10 +260,11 @@ class TvAuthController internal constructor(
         val result = tokens.validate()
         when {
             result is TvSessionValidation.Valid -> signIn(result.account)
-            quiet -> {
+            quiet && result is TvSessionValidation.Unavailable -> {
                 tokens.clearConfigured()
                 mutableState.value = TvAuthState.Initializing
             }
+            quiet -> withContext(NonCancellable) { tokens.signOutQuietly(mutableState, mutableQuietSignOuts) }
             result is TvSessionValidation.Unavailable -> mutableState.value = TvAuthState.ValidationUnavailable(source)
             else -> linking.restart(sessionExpired = true)
         }
@@ -298,4 +322,19 @@ class TvAuthController internal constructor(
         sessionSequence = Math.incrementExact(sessionSequence)
         mutableState.value = TvAuthState.SignedIn(account, TvAuthSessionId(sessionSequence))
     }
+}
+
+/**
+ * Ends a session put.io rejected while no screen could show it: the token leaves the gateway and
+ * storage, the state goes back to [TvAuthState.Initializing] for the app's own start to offer a
+ * code, and [signOuts] counts it. A store that cannot be cleared keeps the token, which put.io
+ * rejects again at that start.
+ */
+private suspend fun TvSessionTokens.signOutQuietly(
+    state: MutableStateFlow<TvAuthState>,
+    signOuts: MutableStateFlow<Int>,
+) {
+    clear()
+    state.value = TvAuthState.Initializing
+    signOuts.update { it + 1 }
 }

@@ -18,7 +18,11 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvLaunchRequest
+import io.putdotio.android.tv.auth.TvAccount
+import io.putdotio.android.tv.auth.TvAuthSessionId
+import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.toTvLaunchRequest
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -36,11 +40,11 @@ class TvSearchSuggestionsTest {
     @Test
     fun `a global search lists the account's matches and each row opens its file`() = runTest {
         val searched = mutableListOf<SearchTerm>()
-        val items = tvGlobalSearch(" harbor ") { term ->
+        val search = globalSearch { term ->
             searched += term
             PutioResult.Success(SearchPage(listOf(video, folder), nextCursor = null, total = 2))
         }
-        val cursor = tvSearchSuggestions(items, limit = null)
+        val cursor = provider(search).query(suggestUri, null, " ?", arrayOf(" harbor "), null)
 
         assertEquals(listOf(SearchTerm("harbor")), searched)
         val rows = buildList {
@@ -72,14 +76,40 @@ class TvSearchSuggestionsTest {
     }
 
     @Test
-    fun `no query, no session or a failed search lists nothing`() = runTest {
+    fun `signed out, the provider answers an empty cursor without searching`() {
+        val search = TvGlobalSearch(session = { null }, search = { error("not searched") }, reject = { error("no") })
+
+        val cursor = provider(search).query(suggestUri, null, " ?", arrayOf("harbor"), null)
+
+        assertEquals(0, cursor.count)
+    }
+
+    @Test
+    fun `a 401 empties the answer and ends the session that searched`() {
+        val rejected = mutableListOf<TvAuthSessionId>()
+        val failure = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
+        val search = TvGlobalSearch(
+            session = { signedIn },
+            search = { PutioResult.Failure(failure) },
+            reject = { rejected += it },
+        )
+
+        val cursor = provider(search).query(suggestUri, null, " ?", arrayOf("harbor"), null)
+
+        assertEquals(0, cursor.count)
+        assertEquals(listOf(signedIn.sessionId), rejected)
+    }
+
+    @Test
+    fun `no query or another failed search lists nothing and ends no session`() = runTest {
         var calls = 0
-        assertEquals(emptyList<FilesItem>(), tvGlobalSearch("  ") { calls++; error("not searched") })
-        assertEquals(emptyList<FilesItem>(), tvGlobalSearch(null) { calls++; error("not searched") })
+        val noQuery = globalSearch { calls++; error("not searched") }
+        assertEquals(emptyList<FilesItem>(), noQuery.files("  "))
+        assertEquals(emptyList<FilesItem>(), noQuery.files(null))
         assertEquals(0, calls)
-        assertEquals(emptyList<FilesItem>(), tvGlobalSearch("harbor") { null })
         val offline = PutioFailure.NetworkUnavailable(IllegalStateException("offline"))
-        assertEquals(emptyList<FilesItem>(), tvGlobalSearch("harbor") { PutioResult.Failure(offline) })
+        val failing = TvGlobalSearch({ signedIn }, { PutioResult.Failure(offline) }, reject = { error("not ended") })
+        assertEquals(emptyList<FilesItem>(), failing.files("harbor"))
     }
 
     @Test
@@ -91,7 +121,7 @@ class TvSearchSuggestionsTest {
     }
 
     @Test
-    fun `system search reads this variant's provider, which only the search app may read`() {
+    fun `system search reads this variant's provider, which only the search app may use`() {
         assertEquals("true", searchableAttribute("includeInGlobalSearch"))
         val authority = "${context.packageName}.search"
         assertEquals(authority, context.getString(R.string.tv_search_authority))
@@ -103,6 +133,7 @@ class TvSearchSuggestionsTest {
         )
         assertEquals(authority, provider.authority)
         assertEquals("android.permission.GLOBAL_SEARCH", provider.readPermission)
+        assertEquals("android.permission.GLOBAL_SEARCH", provider.writePermission)
         assertTrue(provider.exported)
         @Suppress("DEPRECATION")
         val searchable = context.packageManager.getActivityInfo(
@@ -111,6 +142,18 @@ class TvSearchSuggestionsTest {
         ).metaData.getInt("android.app.searchable")
         assertEquals(R.xml.searchable, searchable)
     }
+
+    private val signedIn = TvAuthState.SignedIn(
+        TvAccount(userId = 42L, username = "u", email = "u@example.com", historyEnabled = true),
+        TvAuthSessionId(1L),
+    )
+
+    private val suggestUri = "content://${context.packageName}.search/${SearchManager.SUGGEST_URI_PATH_QUERY}".toUri()
+
+    private fun globalSearch(search: suspend (SearchTerm) -> PutioResult<SearchPage>) =
+        TvGlobalSearch(session = { signedIn }, search = search, reject = { error("not ended") })
+
+    private fun provider(search: TvGlobalSearch) = TvSearchSuggestionsProvider { search }
 
     /** An attribute of searchable.xml as written, with string references resolved. */
     private fun searchableAttribute(name: String): String? {

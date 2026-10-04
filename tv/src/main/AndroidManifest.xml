@@ -51,12 +51,13 @@
                 android:name="android.app.searchable"
                 android:resource="@xml/searchable" />
         </activity>
-        <!-- Only the system search app holds GLOBAL_SEARCH, so no other app reads file names. -->
+        <!-- Only the system search app holds GLOBAL_SEARCH, so no other app reads file names
+             or reaches the provider any other way. -->
         <provider
             android:name=".tv.search.TvSearchSuggestionsProvider"
             android:authorities="${applicationId}.search"
             android:exported="true"
-            android:readPermission="android.permission.GLOBAL_SEARCH" />
+            android:permission="android.permission.GLOBAL_SEARCH" />
     </application>
 </manifest>
 

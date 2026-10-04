@@ -26,6 +26,7 @@ import org.junit.Test
 class TvWatchNextTest {
     private val store = FakeWatchNextStore()
     private val auth = MutableStateFlow<TvAuthState>(signedIn(userId = 1L, session = 1L))
+    private val quietSignOuts = MutableStateFlow(0)
     private var now = 1_000L
 
     @Test
@@ -82,6 +83,38 @@ class TvWatchNextTest {
         auth.value = TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true)
 
         assertTrue(store.rows.isEmpty())
+    }
+
+    @Test
+    fun `a session put io rejected with no screen removes every card`() = runTest(UnconfinedTestDispatcher()) {
+        val recorder = watchNext().recorder(1L, TvAuthSessionId(1L))
+        recorder.positionSaved(video(7L), 120.0)
+
+        // A quiet sign-out lands where every process starts; only the count tells them apart.
+        auth.value = TvAuthState.Initializing
+        assertEquals(1, store.rows.size)
+        quietSignOuts.value = 1
+
+        assertTrue(store.rows.isEmpty())
+        recorder.positionSaved(video(8L), 120.0)
+        assertTrue("A late write from that session adds none", store.rows.isEmpty())
+    }
+
+    @Test
+    fun `cards are reconciled once per process and user`() = runTest(UnconfinedTestDispatcher()) {
+        val watchNext = watchNext()
+        watchNext.recorder(1L, TvAuthSessionId(1L)).positionSaved(video(7L), 120.0)
+        val reads = mutableListOf<Long>()
+        val resolve: suspend (FilesItemId) -> PutioResult<FilesItem> = {
+            reads += it.value
+            PutioResult.Success(file(it.value, startFrom = 120.0))
+        }
+
+        watchNext.recorder(1L, TvAuthSessionId(1L)).reconcile(resolve)
+        auth.value = signedIn(userId = 1L, session = 2L)
+        watchNext.recorder(1L, TvAuthSessionId(2L)).reconcile(resolve)
+
+        assertEquals("A later session of the same user reads nothing", listOf(7L), reads)
     }
 
     @Test
@@ -173,7 +206,8 @@ class TvWatchNextTest {
         assertTrue(store.rows.isEmpty())
     }
 
-    private fun TestScope.watchNext() = TvWatchNext(store, auth, backgroundScope, clock = { now }).also { runCurrent() }
+    private fun TestScope.watchNext() =
+        TvWatchNext(store, auth, quietSignOuts, backgroundScope, clock = { now }).also { runCurrent() }
 
     private fun video(id: Long) = TvWatchNextMedia(
         fileId = id,

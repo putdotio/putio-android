@@ -93,7 +93,11 @@ internal fun PutioApp(runtime: TvAuthRuntime, launchRequests: TvLaunchRequests) 
     val sessionViewModel: TvSessionViewModel = viewModel(factory = tvSessionViewModelFactory(authController.state))
     val authState by authController.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
-    LaunchedEffect(authController) { authController.restoreSession() }
+    // The app's start, and again after a session ended with no screen (a 401 to system search),
+    // which leaves Initializing: restoring then offers a code when no session is left.
+    LaunchedEffect(authController) {
+        authController.state.collect { if (it == TvAuthState.Initializing) authController.restoreSession() }
+    }
 
     MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
         when (val state = authState) {

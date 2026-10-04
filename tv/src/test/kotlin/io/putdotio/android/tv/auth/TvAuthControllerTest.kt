@@ -7,6 +7,10 @@ import io.putdotio.android.auth.InMemoryAuthTokenStore
 import io.putdotio.android.auth.PendingTokenRevocations
 import io.putdotio.android.auth.ScriptedTokenRevoker
 import io.putdotio.android.auth.TokenRevocationResult
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+import io.putdotio.android.files.FilesItem
+import io.putdotio.android.tv.search.tvGlobalSearch
 import io.putdotio.sdk.account.AccountDisk
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.account.AccountSettings
@@ -168,16 +172,52 @@ class TvAuthControllerTest {
     }
 
     @Test
-    fun `a restore with no screen leaves an unconfirmed or rejected session to the app's own start`() = runTest {
-        listOf(TvSessionValidation.Unavailable(IOException("offline")), TvSessionValidation.Rejected).forEach {
-            val harness = Harness(storedToken = "stored-token", validation = it)
+    fun `a restore with no screen leaves an unconfirmed session to the app's own start`() = runTest {
+        val harness = Harness(
+            storedToken = "stored-token",
+            validation = TvSessionValidation.Unavailable(IOException("offline")),
+        )
 
-            assertFalse(harness.controller.restoreSession(interactive = false))
+        assertFalse(harness.controller.restoreSession(interactive = false))
 
-            assertEquals(TvAuthState.Initializing, harness.controller.state.value)
-            assertEquals("stored-token", harness.tokenStore.stored?.reveal())
-            assertEquals(0, harness.gateway.linkAttempts)
-        }
+        assertEquals(TvAuthState.Initializing, harness.controller.state.value)
+        assertEquals("stored-token", harness.tokenStore.stored?.reveal())
+        assertEquals(0, harness.gateway.linkAttempts)
+        assertEquals("Offline is no sign-out", 0, harness.controller.quietSignOuts.value)
+    }
+
+    @Test
+    fun `a restore with no screen forgets a rejected session and requests no code`() = runTest {
+        val harness = Harness(storedToken = "stored-token", validation = TvSessionValidation.Rejected)
+
+        assertFalse(harness.controller.restoreSession(interactive = false))
+
+        assertEquals(TvAuthState.Initializing, harness.controller.state.value)
+        assertNull(harness.tokenStore.stored)
+        assertEquals(0, harness.gateway.linkAttempts)
+        assertEquals(1, harness.controller.quietSignOuts.value)
+    }
+
+    @Test
+    fun `a 401 to system search ends the session quietly and requests no code`() = runTest {
+        val harness = Harness(storedToken = "stored-token")
+        harness.controller.restoreSession()
+        val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
+        val search = tvGlobalSearch(
+            controller = harness.controller,
+            session = { harness.controller.state.value as? TvAuthState.SignedIn },
+            search = { PutioResult.Failure(rejected) },
+        )
+
+        assertEquals(emptyList<FilesItem>(), search.files("harbor"))
+
+        assertEquals(TvAuthState.Initializing, harness.controller.state.value)
+        assertNull(harness.tokenStore.stored)
+        assertEquals(0, harness.gateway.linkAttempts)
+        assertEquals(1, harness.controller.quietSignOuts.value)
+        // The app's own start then offers the code.
+        harness.controller.restoreSession()
+        assertEquals(1, harness.gateway.linkAttempts)
     }
 
     @Test

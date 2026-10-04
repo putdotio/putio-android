@@ -6,9 +6,12 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.android.tv.isNotFound
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -23,9 +26,10 @@ internal interface TvWatchNextRecorder {
     fun fileGone(fileId: Long)
 
     /**
-     * Reads each of the session's cards' files again: a file put.io no longer has leaves, and a
-     * position saved on another device moves the card or, when finished, removes it. Returns
-     * the 401 that ended the pass, which is the session's verdict; other failures keep the card.
+     * Reads each of the user's cards' files again, once per process and user: a file put.io no
+     * longer has leaves, and a position saved on another device moves the card or, when
+     * finished, removes it. Returns the 401 that ended the pass, which is the session's verdict;
+     * other failures keep the card.
      */
     suspend fun reconcile(
         resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
@@ -45,22 +49,32 @@ internal interface TvWatchNextRecorder {
 /**
  * The app's cards in the launcher's Watch Next row, process-wide. A card belongs to the signed-in
  * user who played the video on this TV; a write from a session that is no longer signed in is
- * dropped, signing out (or a rejected session) removes every card, and signing in removes any
- * other user's. Provider work runs one operation at a time, in order.
+ * dropped, signing out, a rejected session and a quiet sign-out ([quietSignOuts]) remove every
+ * card, and signing in removes any other user's. Provider work runs one operation at a time, in
+ * order.
  */
 internal class TvWatchNext(
     private val store: TvWatchNextStore,
     private val authState: StateFlow<TvAuthState>,
+    /** [io.putdotio.android.tv.auth.TvAuthController.quietSignOuts]. */
+    quietSignOuts: Flow<Int>,
     private val scope: CoroutineScope,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val lock = Mutex()
+
+    /** Users whose cards this process has reconciled; guarded by [lock]. */
+    private val reconciledUsers = mutableSetOf<Long>()
 
     init {
         scope.launch {
             authState.mapNotNull(::ownerOf).distinctUntilChanged().collect { owner ->
                 lock.withLock { removeAllExcept(owner.userId) }
             }
+        }
+        // A quiet sign-out lands in Initializing, where every process also starts.
+        scope.launch {
+            quietSignOuts.filter { it > 0 }.collect { lock.withLock { removeAllExcept(null) } }
         }
     }
 
@@ -83,7 +97,9 @@ internal class TvWatchNext(
         override suspend fun reconcile(
             resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
         ): PutioFailure.AuthenticationRequired? {
-            val cards = whileCurrent { store.programs().filter { it.owner?.userId == userId } }.orEmpty()
+            val cards = whileCurrent {
+                if (reconciledUsers.add(userId)) store.programs().filter { it.owner?.userId == userId } else null
+            }.orEmpty()
             for (card in cards) {
                 val verdict = reconcile(card, resolve(FilesItemId(card.program.fileId)))
                 if (verdict != null) return verdict
@@ -177,10 +193,6 @@ private fun TvStoredWatchNextProgram.media(file: FilesItem): TvWatchNextMedia =
         isVideo = true,
     )
 
-private val PutioFailure.isNotFound: Boolean
-    get() = this is PutioFailure.ApiRejected && statusCode == HTTP_NOT_FOUND && httpStatusCode == HTTP_NOT_FOUND
-
 /** Bounds the cards one user keeps, so each sign-in's reconcile reads at most this many files. */
 private const val MAX_CARDS = 20
-private const val HTTP_NOT_FOUND = 404
 private const val MILLIS_PER_SECOND = 1_000.0
