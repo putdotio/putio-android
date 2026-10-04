@@ -4,6 +4,7 @@ import android.os.Build
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityManager
+import androidx.activity.compose.LocalActivity
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
@@ -42,7 +43,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -63,6 +67,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.util.Util
 import androidx.media3.ui.compose.ContentFrame
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
@@ -101,10 +106,13 @@ internal fun MobilePlayerScreen(
 ) {
     // Like iOS, the window turns only for a landscape video; the last shape holds across autoplay.
     var landscapeVideo by rememberSaveable { mutableStateOf(false) }
+    val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
+    val pictureInPicture = rememberPictureInPictureMode()
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
         MobileVideoWindow(fileId = state.target.fileId.value, landscape = landscapeVideo)
+        // A closed window stopped the video; the next visit finds it paused instead of playing on.
+        PictureInPictureDismissalEffect { preferences.resumeAfterLifecyclePause = false }
     }
-    val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     var keyboardNavigationActive by rememberSaveable(state.target.fileId.value) { mutableStateOf(false) }
     Box(
         modifier = modifier
@@ -164,6 +172,7 @@ internal fun MobilePlayerScreen(
                     onSourceRequired = onSourceRequired,
                     onBack = onBack,
                     onVideoAspectRatio = { landscapeVideo = it > 1f },
+                    pictureInPicture = pictureInPicture,
                 )
                 }
 
@@ -196,9 +205,7 @@ internal fun MobilePlayerScreen(
                 )
         }
 
-        val showSeparateBack =
-            state.target.mediaType == PlaybackMediaType.AUDIO || state.content !is PlaybackContent.Ready
-        if (showSeparateBack) IconButton(
+        if (state.showsSeparateBack() && !pictureInPicture.value) IconButton(
             onClick = onBack,
             modifier = Modifier
                 .align(Alignment.TopStart)
@@ -212,6 +219,9 @@ internal fun MobilePlayerScreen(
         }
     }
 }
+
+private fun PlaybackState.showsSeparateBack(): Boolean =
+    target.mediaType == PlaybackMediaType.AUDIO || content !is PlaybackContent.Ready
 
 @UnstableApi
 @Composable
@@ -243,6 +253,7 @@ private fun MobileReadyPlayer(
     onSourceRequired: (Long?) -> Unit,
     onBack: () -> Unit,
     onVideoAspectRatio: (Float) -> Unit,
+    pictureInPicture: State<Boolean>,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -349,6 +360,7 @@ private fun MobileReadyPlayer(
         onPositionChanged = onPositionChanged,
         currentOnPlaybackRetained = currentOnPlaybackRetained,
         currentOnPositionChanged = currentOnPositionChanged,
+        pictureInPicture = pictureInPicture,
     )
     PlayerListenerEffect(
         playerState = playerState,
@@ -363,7 +375,21 @@ private fun MobileReadyPlayer(
         currentOnPlayerFailure = currentOnPlayerFailure,
         currentOnPlaybackRetained = currentOnPlaybackRetained,
         currentOnPositionChanged = currentOnPositionChanged,
+        pictureInPicture = pictureInPicture,
     )
+    if (!isAudio) {
+        // Whatever holds the screen on is playing; anything else shows Play, as Media3's button does.
+        MobilePictureInPictureEffect(
+            playing = playerState.keepScreenOn,
+            videoSize = playerState.videoSize,
+            videoFrame = playerState.videoFrame,
+            onPlayingRequested = { playing ->
+                if (!playerState.playerReleased) {
+                    if (playing) Util.handlePlayButtonAction(player) else Util.handlePauseButtonAction(player)
+                }
+            },
+        )
+    }
 
     MobileReadyPlayerContent(
         playerState = playerState,
@@ -385,6 +411,7 @@ private fun MobileReadyPlayer(
         onKeyboardNavigation = onKeyboardNavigation,
         onPointerNavigation = onPointerNavigation,
         onBack = onBack,
+        pictureInPicture = pictureInPicture.value,
     )
 }
 
@@ -418,6 +445,9 @@ private class ReadyPlayerState(
     var endedReported by mutableStateOf(false)
     var seekWindow by mutableStateOf(player.currentSeekWindow())
     var nextSeekRequestId by mutableLongStateOf(0L)
+
+    /** The video frame's full-screen bounds in the window, which picture-in-picture animates from. */
+    var videoFrame by mutableStateOf<Rect?>(null)
 }
 
 @UnstableApi
@@ -645,11 +675,16 @@ private fun PlayerLifecycleEffects(
     onPositionChanged: (Long) -> Unit,
     currentOnPlaybackRetained: State<(RetainedPlayback) -> Unit>,
     currentOnPositionChanged: State<(Long) -> Unit>,
+    pictureInPicture: State<Boolean>,
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val activity = LocalActivity.current
     val player = playerState.player
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        if (playerState.ownsPlayer && !playerState.playerReleased) {
+        // Entering picture-in-picture pauses the Activity and the video plays on in the window. The
+        // Activity's own flag is already set when the pause arrives; mode listeners hear it later.
+        val enteringPictureInPicture = pictureInPicture.value || activity?.isInPictureInPictureMode == true
+        if (playerState.ownsPlayer && !playerState.playerReleased && !enteringPictureInPicture) {
             val update =
                 playerRetentionUpdate(
                     event = PlayerRetentionEvent.LifecyclePause,
@@ -664,6 +699,7 @@ private fun PlayerLifecycleEffects(
             player.pause()
         }
     }
+    PictureInPictureResumeEffect(playerState, pictureInPicture.value)
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
         if (playerState.playerReleased) {
             playerGeneration.intValue += 1
@@ -691,6 +727,19 @@ private fun PlayerLifecycleEffects(
     }
 }
 
+/**
+ * In the window the video plays whenever its play intent says so: a player prepared there, such
+ * as autoplay's next video, and one a pause stopped before the Activity's flag was set.
+ */
+@Composable
+private fun PictureInPictureResumeEffect(playerState: ReadyPlayerState, pictureInPicture: Boolean) {
+    val player = playerState.player
+    LaunchedEffect(player, pictureInPicture) {
+        val pausedByLifecycle = playerState.ownsPlayer && playerState.retainedPlayIntent && !player.playWhenReady
+        if (pictureInPicture && !playerState.playerReleased && pausedByLifecycle) player.play()
+    }
+}
+
 @UnstableApi
 @Composable
 private fun PlayerListenerEffect(
@@ -706,10 +755,12 @@ private fun PlayerListenerEffect(
     currentOnPlayerFailure: State<(PlaybackFailure, Long) -> Unit>,
     currentOnPlaybackRetained: State<(RetainedPlayback) -> Unit>,
     currentOnPositionChanged: State<(Long) -> Unit>,
+    pictureInPicture: State<Boolean>,
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val player = playerState.player
     DisposableEffect(player) {
+        fun lifecycleState() = lifecycle.currentState.withPictureInPicture(pictureInPicture.value)
         // A picked track is found again in each new track list, and automatic subtitles find the
         // account's default. The pick is read live: tracks can change before recomposition
         // passes it back as retainedSubtitleSelection.
@@ -734,7 +785,7 @@ private fun PlayerListenerEffect(
                     playerState.failurePositionMillis = errorPositionMillis
                     playerRetentionUpdate(
                         event = PlayerRetentionEvent.PlayerError,
-                        lifecycleState = lifecycle.currentState,
+                        lifecycleState = lifecycleState(),
                         positionMillis = errorPositionMillis,
                         playWhenReady = player.playWhenReady,
                     ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
@@ -807,7 +858,7 @@ private fun PlayerListenerEffect(
                     playerState.keepScreenOn = !isAudio && player.shouldKeepScreenOn()
                     val update = playerRetentionUpdate(
                         event = PlayerRetentionEvent.PlayIntentChanged,
-                        lifecycleState = lifecycle.currentState,
+                        lifecycleState = lifecycleState(),
                         positionMillis = player.currentPosition,
                         playWhenReady = playWhenReady,
                     )
@@ -829,7 +880,7 @@ private fun PlayerListenerEffect(
                 )
             playerRetentionUpdate(
                 event = PlayerRetentionEvent.PlayerDisposed,
-                lifecycleState = lifecycle.currentState,
+                lifecycleState = lifecycleState(),
                 positionMillis = retainedPosition.longValue,
                 playWhenReady = player.playWhenReady,
             ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
@@ -863,6 +914,7 @@ private fun MobileReadyPlayerContent(
     onKeyboardNavigation: () -> Unit,
     onPointerNavigation: () -> Unit,
     onBack: () -> Unit,
+    pictureInPicture: Boolean,
 ) {
     val player = playerState.player
     fun seek(direction: SeekDirection) {
@@ -915,59 +967,63 @@ private fun MobileReadyPlayerContent(
                 controlsVisible = controlsVisible,
                 onSeek = ::seek,
                 onPointerNavigation = onPointerNavigation,
+                pictureInPicture = pictureInPicture,
             )
         }
-        MobilePlayerChrome(
-            player = player,
-            title = title,
-            isAudio = isAudio,
-            visible = controlsVisible.value,
-            seekEnabled = playerState.seekWindow.available,
-            onSeek = ::seek,
-            onScrub = { pendingSeek.value = null },
-            onBack = onBack,
-            modifier = Modifier.zIndex(2f),
-            settings = {
-                MobilePlaybackOptions(
-                    player = player,
-                    onAudioSelectionChanged = { preferences.audioSelection = it },
-                    onMenuVisibilityChanged = { controlsMenuOpen.value = it },
-                    onKeyboardNavigation = onKeyboardNavigation,
-                    onPointerNavigation = onPointerNavigation,
-                    directControls = !isAudio,
-                )
-                // hide_subtitles hides subtitles entirely, as every reference player does (#237).
-                if (!isAudio && subtitleStartupPolicy?.showSubtitles != false) {
-                    MobileSubtitleControls(
+        // The window shows only the video and its subtitles; its own menu carries the controls.
+        if (!pictureInPicture) {
+            MobilePlayerChrome(
+                player = player,
+                title = title,
+                isAudio = isAudio,
+                visible = controlsVisible.value,
+                seekEnabled = playerState.seekWindow.available,
+                onSeek = ::seek,
+                onScrub = { pendingSeek.value = null },
+                onBack = onBack,
+                modifier = Modifier.zIndex(2f),
+                settings = {
+                    MobilePlaybackOptions(
                         player = player,
-                        defaultTrackSelection = playerState.defaultTrackSelection,
-                        onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+                        onAudioSelectionChanged = { preferences.audioSelection = it },
                         onMenuVisibilityChanged = { controlsMenuOpen.value = it },
                         onKeyboardNavigation = onKeyboardNavigation,
                         onPointerNavigation = onPointerNavigation,
-                        showLabel = true,
+                        directControls = !isAudio,
+                    )
+                    // hide_subtitles hides subtitles entirely, as every reference player does (#237).
+                    if (!isAudio && subtitleStartupPolicy?.showSubtitles != false) {
+                        MobileSubtitleControls(
+                            player = player,
+                            defaultTrackSelection = playerState.defaultTrackSelection,
+                            onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+                            onMenuVisibilityChanged = { controlsMenuOpen.value = it },
+                            onKeyboardNavigation = onKeyboardNavigation,
+                            onPointerNavigation = onPointerNavigation,
+                            showLabel = true,
+                        )
+                    }
+                },
+            )
+            pendingSeek.value?.let { request ->
+                // Identical text still needs a fresh accessibility event for each seek.
+                key(request.requestId) {
+                    MobileSeekFeedback(
+                        request = request,
+                        modifier =
+                            Modifier
+                                .align(
+                                    if (request.direction == SeekDirection.Backward) {
+                                        AbsoluteAlignment.CenterLeft
+                                    } else {
+                                        AbsoluteAlignment.CenterRight
+                                    },
+                                )
+                                .zIndex(3f)
+                                .windowInsetsPadding(WindowInsets.safeDrawing)
+                                .padding(horizontal = 32.dp, vertical = 88.dp),
                     )
                 }
-            },
-        )
-        pendingSeek.value?.let { request ->
-            // Identical text still needs a fresh accessibility event for each seek.
-            key(request.requestId) {
-                MobileSeekFeedback(
-                    request = request,
-                    modifier =
-                        Modifier
-                            .align(
-                                if (request.direction == SeekDirection.Backward) {
-                                    AbsoluteAlignment.CenterLeft
-                                } else {
-                                    AbsoluteAlignment.CenterRight
-                                },
-                            )
-                            .zIndex(3f)
-                            .windowInsetsPadding(WindowInsets.safeDrawing)
-                            .padding(horizontal = 32.dp, vertical = 88.dp),
-                )
             }
         }
     }
@@ -982,11 +1038,18 @@ private fun BoxScope.MobileVideoLayers(
     controlsVisible: MutableState<Boolean>,
     onSeek: (SeekDirection) -> Unit,
     onPointerNavigation: () -> Unit,
+    pictureInPicture: Boolean,
 ) {
     val player = playerState.player
+    val currentPictureInPicture by rememberUpdatedState(pictureInPicture)
     ContentFrame(
         player = player,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .onGloballyPositioned {
+                // Inside the window these are its own bounds; the next window still starts from full screen.
+                if (!currentPictureInPicture) playerState.videoFrame = it.boundsInWindow()
+            },
         surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
     )
     Box(

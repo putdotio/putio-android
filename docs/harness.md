@@ -556,6 +556,67 @@ relaunch must land in the shell without a code: that is the Keystore restore.
 Fire TV feature flag, so it always links as the Android TV client (6221);
 Fire TV (6233) needs the physical device set from #51.
 
+## TV platform integration proof
+
+Behaviour: [TV sign-in QR code](./behavior.md#tv-sign-in-qr-code),
+[TV Watch Next](./behavior.md#tv-watch-next) and
+[TV system search](./behavior.md#tv-system-search). The `putio-tv` image's
+launcher shows the Play Next row; use a TV emulator you booted, since the lane
+signs in and changes the launcher's rows.
+
+QR: capture the sign-in screen, decode it with ZXing's reader (the `core` jar
+Gradle already resolved), and compare it with put.io's own QR image for the
+same code; then approve the code read from the QR:
+
+```bash
+./scripts/evidence.sh screenshot --serial emulator-5558 --label tv-link-qr
+jar=$(find ~/.gradle/caches/modules-2/files-2.1/com.google.zxing/core -name 'core-*.jar' | head -1)
+cat > /tmp/Decode.java <<'JAVA'
+import com.google.zxing.*; import com.google.zxing.common.HybridBinarizer; import com.google.zxing.qrcode.QRCodeReader;
+public class Decode { public static void main(String[] a) throws Exception {
+  var i = javax.imageio.ImageIO.read(new java.io.File(a[0])); int w = i.getWidth(), h = i.getHeight();
+  System.out.println(new QRCodeReader().decode(new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(w, h,
+    i.getRGB(0, 0, w, h, null, 0, w)))), java.util.Map.of(DecodeHintType.TRY_HARDER, true)).getText()); } }
+JAVA
+ours=$(java -cp "$jar" /tmp/Decode.java .evidence/<capture>.png); code=${ours##*code=}
+curl -s -o /tmp/server-qr.png "https://api.put.io/v2/oauth2/oob/qr/$code"
+[ "$ours" = "$(java -cp "$jar" /tmp/Decode.java /tmp/server-qr.png)" ] && echo MATCH
+PUTIO_CLI_PROFILE=devs-auto putio auth approve "$code"
+```
+
+Watch Next: upload a uniquely named video of a few minutes to a uniquely named
+folder with the `devs-auto` CLI, open it with
+`adb shell am start -a android.intent.action.VIEW -d putio://files/<id> io.put.putio.debug`,
+let it play past one 15 s sample, then press Home: the Play Next row shows the
+card with the screenshot and progress. `putio files start-from set <id> <s>`
+places the position for a repeat. Center on the card (or
+`-d putio://continue/<id>`) plays on from the saved position without the
+prompt; playing to the end, Sign out under Account, and trashing the file then
+force-stopping and relaunching the app (the check runs once per process) each
+remove the card. The shell user cannot read another
+package's Watch Next rows, so check the launcher (`uiautomator dump`, Resume
+watching) rather than `content query`.
+
+System search: the provider refuses the shell
+(`content query --uri content://io.put.putio.debug.search/search_suggest_query/<q>`
+reports the `GLOBAL_SEARCH` denial). `TvGlobalSearchProofTest` queries it from
+the app's own process against the signed-in session, which also covers the
+quiet restore in a fresh process; it makes one search request:
+
+```bash
+./gradlew :tv:assembleProductionDebugAndroidTest
+adb -s emulator-5558 install -r tv/build/outputs/apk/androidTest/production/debug/tv-production-debug-androidTest.apk
+adb -s emulator-5558 shell am instrument -w -r -e class io.putdotio.android.tv.TvGlobalSearchProofTest \
+  -e putio.tv.globalSearch.query <unique name part> -e putio.tv.globalSearch.fileId <id> \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The system search UI on the `putio-tv` image is Google Assistant: without a
+Google account it starts this app for the provider (logcat: `Start proc ...
+for content provider ... TvSearchSuggestionsProvider`) but shows "Sorry, I
+didn't understand." instead of app results, so a result row in the system UI
+is unproven here. Remove the fixture folder and the trashed video afterwards.
+
 ## TV safe-area proof
 
 `TvSafeAreaProofTest` (TV instrumentation, synthetic account, no API calls)
@@ -1104,6 +1165,54 @@ The local Sintel fixture derives from the Blender Foundation's
 with a cropped and looped excerpt, replacement test tones and synthetic captions.
 Publishing its screenshots or clips requires attribution: “© copyright Blender
 Foundation | durian.blender.org”, with the [CC BY 3.0 sharing terms](https://durian.blender.org/sharing/).
+
+## Picture-in-picture proof
+
+Behaviour: [Picture-in-picture](./behavior.md#picture-in-picture). `MobilePictureInPictureProofTest`
+mounts the real player screen in MainActivity, so the app's manifest declarations are the ones on
+trial, plays a caller-owned local MP4 with automatic captions on the real frame clock, and drives
+the system window with Home and taps on the system's menu. It makes no API calls and never reaches
+authentication; report it as synthetic proof.
+
+- `homeEntersTheWindowWhichKeepsPlayingObeysItsControlsAndExpandsWherePlaybackIs`: Home enters
+  the window, playback advances and the position observer reports from it, the menu's Pause holds
+  the position, Play resumes, and Expand returns to the same Activity and player, playing on past
+  where it expanded, straight to landscape with no portrait configuration on the way.
+- `closingTheWindowStopsTheVideoAndTheNextVisitFindsItPaused`: Close stops the Activity and writes
+  the position; relaunching from the launcher builds a new player that waits, paused, within one
+  second of it.
+
+Opt in with `putio.pip.enabled=true`, `putio.pip.runId=<UUID>` and `putio.pip.fixture=<path>` under
+the app's external files directory. On a fresh install that directory exists only once the app
+creates it, so run the instrumentation once first: it creates the directory and fails on the
+missing fixture. Never create it with `adb shell mkdir`; a shell-owned directory is unreadable to
+the app.
+
+```bash
+./gradlew :mobile:assembleProductionDebug :mobile:assembleProductionDebugAndroidTest
+adb -s emulator-5554 install -r mobile/build/outputs/apk/production/debug/mobile-production-debug.apk
+adb -s emulator-5554 install -r mobile/build/outputs/apk/androidTest/production/debug/mobile-production-debug-androidTest.apk
+python3 -c 'for i in range(40): t = lambda v: f"00:{v // 60:02d}:{v % 60:02d},000"; print(f"{i + 1}\n{t(i * 3)} --> {t(i * 3 + 3)}\nPicture-in-picture proof caption {i + 1}\n")' > captions.srt
+ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=120 -f lavfi -i sine=frequency=440:duration=120 \
+  -i captions.srt -map 0:v -map 1:a -map 2:s -c:v libx264 -pix_fmt yuv420p -g 60 -c:a aac -c:s mov_text \
+  -metadata:s:s:0 language=eng -shortest pip-proof.mp4
+adb -s emulator-5554 push pip-proof.mp4 /sdcard/Android/data/io.put.putio.mobile.debug/files/pip-proof.mp4
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.MobilePictureInPictureProofTest \
+  -e putio.pip.enabled true -e putio.pip.runId "$(uuidgen | tr A-Z a-z)" \
+  -e putio.pip.fixture /sdcard/Android/data/io.put.putio.mobile.debug/files/pip-proof.mp4 \
+  io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Start `scripts/evidence.sh record --allow-dark` just before the instrumentation for the clip, and
+append `#<method>` to the class to record one flow. Screenshots go to `pip-proof-<UUID>/`: `01`
+to `05` for the first flow (playing, the window playing, paused from the window, expanded,
+expanded with the controls showing the position) and `10` to `12` for the second (the window
+playing, closed, reopened and paused). The menu's buttons are found once by their accessibility
+descriptions (Pause, Expand, Close); the accessibility window list drops the menu after its first
+use, so later presses reuse those places and check the player's or the Activity's state. A fresh
+device's one-time immersive-mode hint is acknowledged if it shows. `am instrument` force-stops the
+app first, and Home, the taps and the relaunch act on the whole device, so use an emulator you
+booted with no other proof running. Remove the fixture and the screenshot directories afterwards.
 
 ## Mobile share-in proof
 

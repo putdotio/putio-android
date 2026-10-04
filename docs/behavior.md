@@ -75,6 +75,97 @@ has no buffer setting and always buffers as tv-native's default `medium` (see
 Tests: `TvAuthControllerTest`, `AsyncStorageLegacyTvSessionTest` (a fixture
 AsyncStorage database), `TvNativeConfigMigrationTest` (fixture `/config` blobs).
 
+## TV sign-in QR code
+
+Beside the activation code, TV sign-in draws a QR code of
+`https://app.put.io/link?code=<code>`, put.io's approval page with the code
+filled in, so a phone camera opens it ready to approve. That is the payload of
+put.io's own QR image for the code: the SDK's `qrCodeUrl` is that PNG
+(`/v2/oauth2/oob/qr/<code>`), not the page, so the app encodes the page itself
+on the device (ZXing's encoder, error correction M) instead of downloading the
+image. Dark modules sit on the light surface inside a four-module quiet zone,
+snapped to whole pixels. The code takes no focus: Get new code stays the only
+focus target, and a new code redraws it.
+
+Tests: `TvLinkQrTest` (decodes the drawn pixels with ZXing's reader).
+
+## TV Watch Next
+
+Videos played on this TV appear in the launcher's Watch Next row (Play Next on
+Android TV, Continue watching on Google TV) while they are in progress: put.io
+holds a position above 0 and below 95 % of the duration (#38), and more than
+10 s before the end, which the player would start over (see
+[Resume](#resume-and-position-reporting)). The card follows put.io's saved
+position: it is published whenever a playback position write succeeds (every
+15 s while playing, and on pause, stop and exit) or the watched toggle settles,
+so a finished video, or one marked watched or unwatched, leaves the row. Audio,
+and a video without a known duration, change nothing. Each card is a
+movie-type Continue program with the file name, put.io's screenshot as 16:9
+poster art (a token-free URL), the position and duration, and an intent naming
+`MainActivity` with `putio://continue/<id>`. Opening it resolves the file and
+plays from the saved position without the resume prompt; autoplay's next video
+asks as usual.
+
+A file put.io no longer has (a 404, which includes Trash) leaves the row when
+its card opens it. Once per app process and user, when the app's screen first
+opens signed in as that user (a cold start or a sign-in; the system search
+provider alone never triggers it), the app reads each of that user's cards'
+files: gone files leave, a position saved on another device moves the card or
+removes a finished one, other failures keep it, and a 401 rejects the session.
+One user keeps at most 20 cards, so that pass reads at most 20 files; the least
+recently watched card makes room. A card the viewer removed from the row is
+updated in place and stays hidden.
+
+Cards belong to the signed-in user who played them (the provider's internal id
+is `<userId>:<fileId>`). Sign-out, a rejected session, and a session put.io
+rejected with no screen (see [TV system search](#tv-system-search)) remove
+every card; signing in removes any other user's, and a write from a session
+that is no longer signed in is dropped. The TV provider requires
+`com.android.providers.tv.permission.WRITE_EPG_DATA`, a normal permission
+granted at install; a device without the provider (Fire TV) ignores Watch Next.
+The row lists only what this TV played: an account-wide list of in-progress
+files would need an API the SDK does not expose.
+
+Tests: `TvWatchNextRulesTest`, `TvWatchNextTest`, `TvProviderWatchNextStoreTest`
+(a stand-in provider), `TvSessionViewModelTest`, `TvLaunchRequestTest`.
+
+## TV system search
+
+Android TV's system search lists put.io files. `searchable.xml` registers a
+suggestions provider at `<applicationId>.search` for global search, and the
+system search app queries it as the viewer types. Each query runs the
+account's file search, the Search pane's first page, and returns at most the
+system's limit (20 by default) rows with the name, put.io's screenshot when it
+has one, and the content type and duration for media. Only callers holding
+`GLOBAL_SEARCH`, the system search app, can use the provider at all. Signed out
+it answers nothing. In a process the app has not started, it restores a stored
+session once, without importing a tv-native token or requesting a code, and
+leaves a session put.io cannot confirm right now to the app's own start.
+
+Nobody sees that process, so a session put.io rejects there, at that restore or
+with a 401 to a search, ends quietly: the token leaves the gateway and storage,
+Watch Next empties, and the state returns to the one every start begins in,
+without requesting or polling a code. The app's own start then offers a code,
+and a screen already open in that process restores again and offers one.
+
+A chosen row opens `putio://files/<id>`, which resolves the file and opens it
+as a product link does on mobile: media plays with the resume prompt, a folder
+opens in Files, any other file opens its folder focused on it, and a failure is
+explained in Files. `ACTION_SEARCH` opens Search with the query submitted.
+`putio://files/<id>`, `putio://continue/<id>` and a search received signed out
+wait for sign-in and survive process death as their `putio://` form; recents
+replaying the launch intent opens nothing.
+
+Fire TV's Alexa and Video Skill Kit need Amazon catalog integration outside the
+app and are not covered. Google TV surfaces app content through Google's own
+catalog, and the emulator's Assistant answers nothing without a Google account,
+so results shown in the system UI are unverified (see
+[Harness](./harness.md#tv-platform-integration-proof)).
+
+Tests: `TvSearchSuggestionsTest`, `TvLaunchRequestTest`, `TvAuthControllerTest`,
+`TvWatchNextTest`, `TvSessionViewModelTest`, `TvGlobalSearchProofTest` (opt-in
+live device proof).
+
 ## Inactive account
 
 An account whose `account_status` is `inactive` shows a persistent notice on
@@ -275,6 +366,44 @@ Tests: `PlaybackReducerTest`, `PlaybackControllerTest`, `MobilePlayerScreenTest`
 (the prompt, recreation and Start over), `TvPlayerResumeTest` (Back on the
 prompt), `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
 `SdkPlaybackRepositoryTest`, `MobilePlaybackReportingTest`.
+
+## Picture-in-picture
+
+Mobile video moves into a picture-in-picture window when the viewer leaves the app while it
+plays: Android 12 and later enter on their own, Android 8 to 11 on the leave hint. The window is
+offered only while the video holds the screen on (playing, not ended, idle or suppressed), so
+never for paused, finished or failed video, the resume prompt, the conversion interstitial or
+audio, which keeps playing through its background service. There is no setting; iOS's player has
+none either. The window takes the video's display shape, held between 1:2.38 and 2.38:1 within
+the platform's default limits, and animates from the letterboxed video rather than the whole
+screen. A device that refuses the shape or the window, and an Activity whose manifest does not
+declare `supportsPictureInPicture`, give the video no window instead of failing.
+
+The window shows only the video and its subtitles: the controls, the back button and seek
+feedback leave composition, which also closes an open settings sheet. Its menu carries one
+action, Pause or Play, which drives the screen's own player through Media3's play and pause
+handling. MainActivity handles the orientation, screen size and layout changes the window brings,
+so entering or leaving it never recreates the Activity or its player; rotation anywhere in the
+app no longer recreates it either. Expanding returns a landscape video straight to landscape: the
+phone's landscape lock ignores picture-in-picture's own multi-window mode.
+
+Entering the window pauses the Activity, not the video. On the API 37 emulator the Activity's own
+picture-in-picture flag is already set when the pause arrives, before mode listeners hear it;
+where a pause still beats the flag, the window resumes what it stopped. In the window the started
+Activity counts as the foreground: a pause or play there is what Expand keeps, and autoplay next
+starts the next video playing in the window. When autoplay finds nothing more, the window goes
+blank and the route returns only once the window closes or expands, so the window never shows
+the shell. The screen-on hold follows playback as it does full screen, and position
+reporting is unchanged: the observer samples every 15 seconds while the window plays.
+
+Expand returns to the full-screen player where the window was. Closing the window stops the
+Activity, which releases the player and writes its position as leaving the app does; whichever
+order the stop and the mode change arrive in, the next visit finds the video paused at that
+position instead of playing on.
+
+Tests: `MobilePictureInPictureTest`,
+`MobileShellPlaybackTest.terminalAutoplayInPictureInPictureWaitsForTheWindowToClose`; device
+proof `MobilePictureInPictureProofTest` ([Harness](./harness.md#picture-in-picture-proof)).
 
 ## MP4 conversion
 

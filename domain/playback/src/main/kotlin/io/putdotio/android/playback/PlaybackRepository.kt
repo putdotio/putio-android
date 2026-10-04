@@ -261,6 +261,7 @@ internal class SdkPlaybackRepository internal constructor(
                             fileId = io.putdotio.android.files.FilesItemId(file.id),
                             name = file.name,
                             durationSeconds = file.videoMetadata?.duration?.takeIf { it.isFinite() && it > 0.0 },
+                            posterUrl = file.screenshot?.takeIf(String::isNotBlank),
                         ),
                     )
                 }

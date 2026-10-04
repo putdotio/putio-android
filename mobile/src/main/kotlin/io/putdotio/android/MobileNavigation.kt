@@ -49,6 +49,7 @@ import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.mobilePlaybackViewModelFactory
 import io.putdotio.android.playback.putioFailure
+import io.putdotio.android.playback.rememberPictureInPictureMode
 import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.search.MobileSearchHistoryScreen
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -275,8 +276,10 @@ private fun MobilePlaybackRoute(
             onAuthenticationRequired()
         }
     }
-    LaunchedEffect(state.content) {
-        if (state.content is PlaybackContent.Ended) onBack()
+    // A picture-in-picture window never shows the shell: the finished video waits for the viewer to leave it.
+    val pictureInPicture by rememberPictureInPictureMode()
+    LaunchedEffect(state.content, pictureInPicture) {
+        if (state.content is PlaybackContent.Ended && !pictureInPicture) onBack()
     }
 
     MobilePlayerScreen(
