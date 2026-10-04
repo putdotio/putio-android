@@ -15,12 +15,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class TransfersController internal constructor(
+public class TransfersController internal constructor(
     private val repository: TransfersRepository,
     parentScope: CoroutineScope,
     private val waitForPoll: suspend (Long) -> Unit,
 ) : Closeable {
-    constructor(repository: TransfersRepository, parentScope: CoroutineScope) :
+    public constructor(repository: TransfersRepository, parentScope: CoroutineScope) :
         this(repository, parentScope, waitForPoll = { delay(it) })
 
     private val lock = Any()
@@ -32,13 +32,13 @@ class TransfersController internal constructor(
     private var pollJob: Job? = null
     private var closed = false
 
-    val state: StateFlow<TransfersState> = mutableState.asStateFlow()
+    public val state: StateFlow<TransfersState> = mutableState.asStateFlow()
 
     init {
         launchEffect(TransfersReducer.start().effect as TransfersEffect.Load)
     }
 
-    fun dispatch(event: TransfersEvent): Boolean {
+    public fun dispatch(event: TransfersEvent): Boolean {
         val (transition, readToCancel) =
             synchronized(lock) {
                 if (closed) return false

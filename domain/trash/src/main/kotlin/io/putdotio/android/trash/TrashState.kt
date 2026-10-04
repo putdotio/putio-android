@@ -7,10 +7,10 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.errors.PutioException
 import java.time.Instant
 
-sealed interface TrashContent {
-    data object Loading : TrashContent
-    data class Error(val failure: PutioFailure) : TrashContent
-    data class Loaded(
+public sealed interface TrashContent {
+    public data object Loading : TrashContent
+    public data class Error(val failure: PutioFailure) : TrashContent
+    public data class Loaded(
         val items: List<TrashItem>,
         val nextCursor: FilesCursor?,
         val total: Int?,
@@ -27,18 +27,18 @@ sealed interface TrashContent {
     }
 }
 
-sealed interface TrashAction {
-    data class DeleteItem(val item: TrashItem) : TrashAction
-    data object RestoreAll : TrashAction
-    data object Empty : TrashAction
+public sealed interface TrashAction {
+    public data class DeleteItem(val item: TrashItem) : TrashAction
+    public data object RestoreAll : TrashAction
+    public data object Empty : TrashAction
 }
 
-enum class TrashActionSubmission { SUBMITTING, ACKNOWLEDGED, UNCERTAIN, REJECTED }
+public enum class TrashActionSubmission { SUBMITTING, ACKNOWLEDGED, UNCERTAIN, REJECTED }
 
 /** Verification is one authoritative Trash reload; INCONCLUSIVE keeps read-only recovery open. */
-enum class TrashActionCheck { NOT_CHECKED, CHECKING, VERIFIED, INCONCLUSIVE, FAILED }
+public enum class TrashActionCheck { NOT_CHECKED, CHECKING, VERIFIED, INCONCLUSIVE, FAILED }
 
-data class TrashActionOutcome(
+public data class TrashActionOutcome(
     val action: TrashAction,
     val submission: TrashActionSubmission,
     val check: TrashActionCheck = TrashActionCheck.NOT_CHECKED,
@@ -53,17 +53,17 @@ data class TrashActionOutcome(
             !(check == TrashActionCheck.FAILED && checkFailure == null)
 }
 
-data class TrashRestoreSnapshot(
+public data class TrashRestoreSnapshot(
     val itemIds: Set<FilesItemId>,
     // A cursor covers IDs beyond the loaded ones; anything deleted after the newest loaded row is outside it.
     val coversUnloadedItems: Boolean,
     val newestDeletedAt: Instant?,
 )
 
-enum class TrashRestoreSubmission { SUBMITTING, ACKNOWLEDGED, UNCERTAIN, REJECTED }
-enum class TrashRestoreCheck { NOT_CHECKED, CHECKING, UNAVAILABLE, AVAILABLE, FAILED }
+public enum class TrashRestoreSubmission { SUBMITTING, ACKNOWLEDGED, UNCERTAIN, REJECTED }
+public enum class TrashRestoreCheck { NOT_CHECKED, CHECKING, UNAVAILABLE, AVAILABLE, FAILED }
 
-data class TrashRestoreOutcome(
+public data class TrashRestoreOutcome(
     val item: TrashItem,
     val submission: TrashRestoreSubmission,
     val check: TrashRestoreCheck = TrashRestoreCheck.NOT_CHECKED,
@@ -74,7 +74,7 @@ data class TrashRestoreOutcome(
     val isPending: Boolean get() = submission != TrashRestoreSubmission.REJECTED && check != TrashRestoreCheck.AVAILABLE
 }
 
-data class TrashState(
+public data class TrashState(
     val content: TrashContent = TrashContent.Loading,
     val confirmation: TrashItem? = null,
     val confirmationId: Long? = null,
@@ -96,35 +96,35 @@ data class TrashState(
     private val isIdleLoaded: Boolean
         get() = content is TrashContent.Loaded && !content.isBusy &&
             authenticationFailure == null && !hasPendingMutation
-    fun canRestore(itemId: FilesItemId): Boolean =
+    public fun canRestore(itemId: FilesItemId): Boolean =
         isIdleLoaded && itemId.value > 0L && itemId !in restoredItemIds
-    fun canDelete(itemId: FilesItemId): Boolean = isIdleLoaded && itemId.value > 0L
+    public fun canDelete(itemId: FilesItemId): Boolean = isIdleLoaded && itemId.value > 0L
     // A failed refresh leaves a snapshot the server may have moved past; bulk actions wait for a fresh one.
     val canActOnAll: Boolean
         get() = isIdleLoaded && (content as TrashContent.Loaded).let { !it.isKnownEmpty && it.refreshFailure == null }
 }
 
-sealed interface TrashEvent {
-    sealed interface ReadEvent : TrashEvent
-    sealed interface RestoreEvent : TrashEvent
-    sealed interface ActionEvent : TrashEvent
+public sealed interface TrashEvent {
+    public sealed interface ReadEvent : TrashEvent
+    public sealed interface RestoreEvent : TrashEvent
+    public sealed interface ActionEvent : TrashEvent
 
-    data object Open : ReadEvent
-    data object Refresh : ReadEvent
-    data object Retry : ReadEvent
-    data object LoadNextPage : ReadEvent
-    data class SelectRestore(val itemId: FilesItemId) : RestoreEvent
-    data object CancelRestore : RestoreEvent
-    data class ConfirmRestore(val confirmationId: Long) : RestoreEvent
-    data object CheckRestore : RestoreEvent
-    data object DismissRestoreOutcome : RestoreEvent
-    data class SelectDelete(val itemId: FilesItemId) : ActionEvent
-    data object SelectRestoreAll : ActionEvent
-    data object SelectEmpty : ActionEvent
-    data object CancelAction : ActionEvent
-    data class ConfirmAction(val confirmationId: Long) : ActionEvent
-    data object CheckAction : ActionEvent
-    data object DismissActionOutcome : ActionEvent
+    public data object Open : ReadEvent
+    public data object Refresh : ReadEvent
+    public data object Retry : ReadEvent
+    public data object LoadNextPage : ReadEvent
+    public data class SelectRestore(val itemId: FilesItemId) : RestoreEvent
+    public data object CancelRestore : RestoreEvent
+    public data class ConfirmRestore(val confirmationId: Long) : RestoreEvent
+    public data object CheckRestore : RestoreEvent
+    public data object DismissRestoreOutcome : RestoreEvent
+    public data class SelectDelete(val itemId: FilesItemId) : ActionEvent
+    public data object SelectRestoreAll : ActionEvent
+    public data object SelectEmpty : ActionEvent
+    public data object CancelAction : ActionEvent
+    public data class ConfirmAction(val confirmationId: Long) : ActionEvent
+    public data object CheckAction : ActionEvent
+    public data object DismissActionOutcome : ActionEvent
 }
 
 internal sealed interface TrashRequest {
@@ -140,7 +140,7 @@ internal sealed interface TrashRequest {
 }
 
 /** Restore all targets the listed snapshot: its cursor when the server issued one, else the loaded IDs. */
-data class TrashBulkSelection(val cursor: FilesCursor?, val itemIds: List<FilesItemId>) {
+public data class TrashBulkSelection(val cursor: FilesCursor?, val itemIds: List<FilesItemId>) {
     init {
         require(cursor != null || itemIds.isNotEmpty()) { "Bulk selection needs a cursor or item IDs" }
     }

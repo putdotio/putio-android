@@ -4,11 +4,11 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesSort
 
 @JvmInline
-value class AccountSettingsRequestId(
-    val value: Long,
+public value class AccountSettingsRequestId(
+    internal val value: Long,
 )
 
-data class AccountSettingsPreferences(
+public data class AccountSettingsPreferences(
     val historyEnabled: Boolean,
     val trashEnabled: Boolean,
     val showSubtitles: Boolean,
@@ -28,25 +28,25 @@ data class AccountSettingsPreferences(
 
 /** Server route identifier. `default` is the direct Amsterdam route and what a null setting means. */
 @JvmInline
-value class TunnelRouteName(val value: String) {
+public value class TunnelRouteName(public val value: String) {
     init {
         require(value.isNotBlank() && value == value.trim()) { "Tunnel route names are non-blank and trimmed" }
     }
 
-    companion object {
-        val DEFAULT = TunnelRouteName("default")
+    public companion object {
+        public val DEFAULT: TunnelRouteName = TunnelRouteName("default")
 
-        fun fromServer(raw: String?): TunnelRouteName =
+        internal fun fromServer(raw: String?): TunnelRouteName =
             raw?.trim()?.takeIf { it.isNotEmpty() }?.let(::TunnelRouteName) ?: DEFAULT
     }
 }
 
-data class TunnelRouteOption(
+public data class TunnelRouteOption(
     val name: TunnelRouteName,
     val description: String,
 )
 
-enum class AccountSettingsKey {
+public enum class AccountSettingsKey {
     History,
     Trash,
     ShowSubtitles,
@@ -59,10 +59,10 @@ enum class AccountSettingsKey {
     SupportWidget,
 }
 
-sealed interface AccountSettingsChange {
-    val key: AccountSettingsKey
+public sealed interface AccountSettingsChange {
+    public val key: AccountSettingsKey
 
-    data class Toggle(
+    public data class Toggle(
         override val key: AccountSettingsKey,
         val enabled: Boolean,
     ) : AccountSettingsChange {
@@ -71,54 +71,55 @@ sealed interface AccountSettingsChange {
         }
     }
 
-    data class Route(
+    public data class Route(
         val name: TunnelRouteName,
     ) : AccountSettingsChange {
         override val key: AccountSettingsKey get() = AccountSettingsKey.TunnelRoute
     }
 
-    data class Sort(
+    public data class Sort(
         val sort: FilesSort,
     ) : AccountSettingsChange {
         override val key: AccountSettingsKey get() = AccountSettingsKey.DefaultSort
     }
 
-    companion object {
+    public companion object {
         // Keeps the boolean call sites readable: AccountSettingsChange(key, enabled).
-        operator fun invoke(key: AccountSettingsKey, enabled: Boolean): AccountSettingsChange = Toggle(key, enabled)
+        public operator fun invoke(key: AccountSettingsKey, enabled: Boolean): AccountSettingsChange =
+            Toggle(key, enabled)
     }
 }
 
-sealed interface AccountSettingsContent {
-    data class Loading(
+public sealed interface AccountSettingsContent {
+    public data class Loading(
         val requestId: AccountSettingsRequestId,
     ) : AccountSettingsContent
 
-    data class Ready(
+    public data class Ready(
         val preferences: AccountSettingsPreferences,
     ) : AccountSettingsContent
 
-    data class Failed(
+    public data class Failed(
         val failure: AccountSettingsFailure,
     ) : AccountSettingsContent
 }
 
-sealed interface AccountSettingsMutation {
-    enum class Operation {
+public sealed interface AccountSettingsMutation {
+    public enum class Operation {
         Save,
         Refresh,
     }
 
-    data object Idle : AccountSettingsMutation
+    public data object Idle : AccountSettingsMutation
 
-    data class Saving(
+    public data class Saving(
         val requestId: AccountSettingsRequestId,
         val change: AccountSettingsChange,
         val previousPreferences: AccountSettingsPreferences,
         val operation: Operation,
     ) : AccountSettingsMutation
 
-    data class Failed(
+    public data class Failed(
         val change: AccountSettingsChange,
         val failure: AccountSettingsFailure,
         val previousPreferences: AccountSettingsPreferences,
@@ -127,76 +128,76 @@ sealed interface AccountSettingsMutation {
 }
 
 @ConsistentCopyVisibility
-data class AccountSettingsState internal constructor(
+public data class AccountSettingsState internal constructor(
     val content: AccountSettingsContent,
     val mutation: AccountSettingsMutation,
     internal val nextRequestValue: Long,
 )
 
-sealed interface AccountSettingsEvent {
-    data object RetryLoad : AccountSettingsEvent
+public sealed interface AccountSettingsEvent {
+    public data object RetryLoad : AccountSettingsEvent
 
-    data class ChangeRequested(
+    public data class ChangeRequested(
         val change: AccountSettingsChange,
     ) : AccountSettingsEvent
 
-    data object RetryChange : AccountSettingsEvent
+    public data object RetryChange : AccountSettingsEvent
 
-    data class LoadSucceeded(
+    public data class LoadSucceeded(
         val requestId: AccountSettingsRequestId,
         val preferences: AccountSettingsPreferences,
     ) : AccountSettingsEvent
 
-    data class LoadFailed(
+    public data class LoadFailed(
         val requestId: AccountSettingsRequestId,
         val failure: AccountSettingsFailure,
     ) : AccountSettingsEvent
 
-    data class SaveSucceeded(
+    public data class SaveSucceeded(
         val requestId: AccountSettingsRequestId,
     ) : AccountSettingsEvent
 
-    data class SaveFailed(
+    public data class SaveFailed(
         val requestId: AccountSettingsRequestId,
         val failure: AccountSettingsFailure,
     ) : AccountSettingsEvent
 
-    data class RefreshSucceeded(
+    public data class RefreshSucceeded(
         val requestId: AccountSettingsRequestId,
         val preferences: AccountSettingsPreferences,
     ) : AccountSettingsEvent
 
-    data class RefreshFailed(
+    public data class RefreshFailed(
         val requestId: AccountSettingsRequestId,
         val failure: AccountSettingsFailure,
     ) : AccountSettingsEvent
 }
 
-sealed interface AccountSettingsEffect {
-    val requestId: AccountSettingsRequestId
+public sealed interface AccountSettingsEffect {
+    public val requestId: AccountSettingsRequestId
 
-    data class Load(
+    public data class Load(
         override val requestId: AccountSettingsRequestId,
     ) : AccountSettingsEffect
 
-    data class Save(
+    public data class Save(
         override val requestId: AccountSettingsRequestId,
         val change: AccountSettingsChange,
     ) : AccountSettingsEffect
 
-    data class Refresh(
+    public data class Refresh(
         override val requestId: AccountSettingsRequestId,
     ) : AccountSettingsEffect
 }
 
-data class AccountSettingsTransition(
+public data class AccountSettingsTransition(
     val state: AccountSettingsState,
     val effect: AccountSettingsEffect? = null,
     val consumed: Boolean = true,
 )
 
-object AccountSettingsReducer {
-    fun start(): AccountSettingsTransition {
+public object AccountSettingsReducer {
+    public fun start(): AccountSettingsTransition {
         val requestId = AccountSettingsRequestId(INITIAL_REQUEST_VALUE)
         return AccountSettingsTransition(
             state =
@@ -209,7 +210,7 @@ object AccountSettingsReducer {
         )
     }
 
-    fun reduce(
+    public fun reduce(
         state: AccountSettingsState,
         event: AccountSettingsEvent,
     ): AccountSettingsTransition =
@@ -226,26 +227,26 @@ object AccountSettingsReducer {
         }
 }
 
-fun AccountSettingsState.authoritativeSessionFailure(): AccountSettingsFailure? =
+public fun AccountSettingsState.authoritativeSessionFailure(): AccountSettingsFailure? =
     listOfNotNull(
         (content as? AccountSettingsContent.Failed)?.failure,
         (mutation as? AccountSettingsMutation.Failed)?.failure,
     ).firstOrNull { it.putioFailure is PutioFailure.AuthenticationRequired }
 
-fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
+public fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.History)?.historyEnabled
 
-fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
+public fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.Trash)?.trashEnabled
 
-fun AccountSettingsState.confirmedResumePlayback(): Boolean? =
+public fun AccountSettingsState.confirmedResumePlayback(): Boolean? =
     confirmedPreferences(AccountSettingsKey.ResumePlayback)?.resumePlayback
 
 /**
  * The default sort the server holds, or null while unloaded or while a sort write is unsettled.
  * A refresh failure after an accepted write still counts: the server took the value.
  */
-fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
+public fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
     val ready = content as? AccountSettingsContent.Ready ?: return null
     val unsettledWrite = when (val current = mutation) {
         AccountSettingsMutation.Idle -> false
@@ -261,7 +262,7 @@ fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
 
 // Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed".
 @JvmInline
-value class ConfirmedDefaultSort(val sort: FilesSort?)
+public value class ConfirmedDefaultSort(internal val sort: FilesSort?)
 
 // A pending or failed mutation only makes its own key unconfirmed; the other
 // preferences still reflect the last authoritative read.

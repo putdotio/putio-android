@@ -1,6 +1,6 @@
 package io.putdotio.android.transfers
 
-fun TransfersContent.items(): List<TransferItem> =
+internal fun TransfersContent.items(): List<TransferItem> =
     (this as? TransfersContent.Ready)?.items.orEmpty()
 
 internal fun TransfersContent.withItems(items: List<TransferItem>): TransfersContent =

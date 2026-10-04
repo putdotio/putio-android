@@ -1,48 +1,48 @@
 package io.putdotio.android.history
 
 @JvmInline
-value class HistoryEventId(
-    val value: Long,
+public value class HistoryEventId(
+    public val value: Long,
 )
 
 @JvmInline
-value class HistoryFileId(
-    val value: Long,
+public value class HistoryFileId(
+    internal val value: Long,
 )
 
 @JvmInline
-value class HistoryTransferId(
-    val value: Long,
+public value class HistoryTransferId(
+    internal val value: Long,
 )
 
-sealed interface HistoryEventKind {
+public sealed interface HistoryEventKind {
     /** `file_shared`; an event without [id] opens nothing but still names the file. */
-    data class File(
+    public data class File(
         val id: HistoryFileId?,
         val name: String?,
     ) : HistoryEventKind
 
     /** `transfer_completed`. */
-    data class Transfer(
+    public data class Transfer(
         val transferId: HistoryTransferId?,
         val fileId: HistoryFileId?,
         val name: String?,
     ) : HistoryEventKind
 
     /** An event that opens nothing; [subject] is the name its copy states. */
-    data class Notice(
+    public data class Notice(
         val type: HistoryNoticeType,
         val subject: String,
     ) : HistoryEventKind
 
     /** A type with no copy, or an event missing the field its copy names. */
-    data class Other(
+    public data class Other(
         val type: String,
     ) : HistoryEventKind
 }
 
 /** The event types iOS gives copy, besides shared files and completed transfers. */
-enum class HistoryNoticeType {
+public enum class HistoryNoticeType {
     Upload,
     TransferError,
     RssFileDeleted,
@@ -51,13 +51,13 @@ enum class HistoryNoticeType {
     TransferCallbackError,
 }
 
-data class HistoryItem(
+public data class HistoryItem(
     val id: HistoryEventId,
     val createdAt: String,
     val kind: HistoryEventKind,
 )
 
-data class HistoryPage(
+public data class HistoryPage(
     val items: List<HistoryItem>,
     val hasMore: Boolean,
 )

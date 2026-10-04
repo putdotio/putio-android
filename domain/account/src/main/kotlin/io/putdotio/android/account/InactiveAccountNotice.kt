@@ -15,16 +15,16 @@ import kotlin.math.abs
  * pay, renew or subscribe, so the notice states facts only and has no action.
  * Web's active-account payment warnings and `stranger` notice are not ported.
  */
-sealed interface InactiveAccountNotice {
+public sealed interface InactiveAccountNotice {
     /** [filesDeletedAt] is null when put.io sent no usable deletion date; the notice then has no message. */
-    data class Deactivated(
+    public data class Deactivated(
         val filesDeletedAt: Instant?,
     ) : InactiveAccountNotice
 
-    data object FamilyPlanExpired : InactiveAccountNotice
+    public data object FamilyPlanExpired : InactiveAccountNotice
 }
 
-fun AccountInfo.inactiveAccountNotice(): InactiveAccountNotice? =
+public fun AccountInfo.inactiveAccountNotice(): InactiveAccountNotice? =
     when {
         accountStatus != INACTIVE_STATUS -> null
         isSubAccount -> InactiveAccountNotice.FamilyPlanExpired
@@ -35,7 +35,7 @@ fun AccountInfo.inactiveAccountNotice(): InactiveAccountNotice? =
  * Whole calendar days between today and the deletion day in [zone], as web's `daysDiffFromNow`
  * counts them: absolute, so a date already past still reads as a distance.
  */
-fun InactiveAccountNotice.Deactivated.daysUntilFilesDeleted(
+public fun InactiveAccountNotice.Deactivated.daysUntilFilesDeleted(
     now: Instant = Instant.now(),
     zone: ZoneId = ZoneId.systemDefault(),
 ): Long? =

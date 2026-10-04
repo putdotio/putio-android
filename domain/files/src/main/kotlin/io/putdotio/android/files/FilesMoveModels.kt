@@ -3,7 +3,7 @@ package io.putdotio.android.files
 import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.FileMoveError
 
-enum class FilesMoveStatus {
+public enum class FilesMoveStatus {
     CHECKING,
     MOVED,
     STILL_PRESENT,
@@ -11,7 +11,7 @@ enum class FilesMoveStatus {
     UNKNOWN,
 }
 
-data class FilesMoveOutcome(
+public data class FilesMoveOutcome(
     val requestId: FilesRequestId,
     val intent: FilesFolderOperationIntent.Move,
     val itemName: String,

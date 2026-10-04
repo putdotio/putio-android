@@ -1,7 +1,7 @@
 package io.putdotio.android.search
 
 /** A Search state as the controller would hold it, for tests outside this module. */
-fun searchState(
+public fun searchState(
     query: String,
     content: SearchContent,
     recentTerms: List<SearchTerm>,

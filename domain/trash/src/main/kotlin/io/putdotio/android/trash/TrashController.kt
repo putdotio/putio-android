@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class TrashController(
+public class TrashController(
     private val repository: TrashRepository,
     parentScope: CoroutineScope,
 ) : Closeable {
@@ -25,9 +25,9 @@ class TrashController(
     private val mutableState = MutableStateFlow(machine.state)
     private var job: Job? = null
     private var closed = false
-    val state: StateFlow<TrashState> = mutableState.asStateFlow()
+    public val state: StateFlow<TrashState> = mutableState.asStateFlow()
 
-    fun dispatch(event: TrashEvent): Boolean = synchronized(lock) {
+    public fun dispatch(event: TrashEvent): Boolean = synchronized(lock) {
         if (closed || !controllerJob.isActive) return@synchronized false
         val next = machine.transition(event) ?: return@synchronized false
         update(next)
@@ -101,7 +101,7 @@ class TrashController(
         PutioResult.Failure(PutioFailure.Unexpected(unexpected))
     }
 
-    override fun close() = synchronized(lock) {
+    override fun close(): Unit = synchronized(lock) {
         closed = true
         job?.cancel()
         scope.cancel()

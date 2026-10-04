@@ -113,7 +113,7 @@ private fun FilesDeleteOutcome.checkedStatus(unavailable: Boolean): FilesDeleteS
     else -> FilesDeleteStatus.STILL_PRESENT
 }
 
-val FilesFolderOperation.pendingDelete: FilesFolderOperationIntent.Delete?
+public val FilesFolderOperation.pendingDelete: FilesFolderOperationIntent.Delete?
     get() = pendingIntent()
 
 internal fun FilesBrowserState.isDeleteTargetBlocked(itemId: FilesItemId): Boolean = stack.any {

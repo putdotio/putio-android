@@ -10,7 +10,7 @@ import io.putdotio.sdk.transfers.TransfersListQuery
 import io.putdotio.sdk.transfers.TransfersListResponse
 
 /** An [SdkTransfersRepository] over scripted SDK calls; a call the test leaves unscripted fails it. */
-fun scriptedSdkTransfersRepository(
+public fun scriptedSdkTransfersRepository(
     list: suspend (TransfersListQuery) -> TransfersListResponse = { error("Unexpected transfers list") },
     continueList: suspend (String, TransfersListQuery) -> TransfersListResponse = { _, _ ->
         error("Unexpected transfers page")

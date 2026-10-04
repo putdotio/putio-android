@@ -3,34 +3,34 @@ package io.putdotio.android.history
 import io.putdotio.android.PutioFailure
 
 @JvmInline
-value class HistoryRequestId(val value: Long)
+public value class HistoryRequestId(internal val value: Long)
 
-sealed interface HistoryPaging {
-    data object Complete : HistoryPaging
-    data class Available(val before: HistoryEventId) : HistoryPaging
-    data class Loading(val before: HistoryEventId, val requestId: HistoryRequestId) : HistoryPaging
-    data class Failed(val before: HistoryEventId, val failure: PutioFailure) : HistoryPaging
+public sealed interface HistoryPaging {
+    public data object Complete : HistoryPaging
+    public data class Available(val before: HistoryEventId) : HistoryPaging
+    public data class Loading(val before: HistoryEventId, val requestId: HistoryRequestId) : HistoryPaging
+    public data class Failed(val before: HistoryEventId, val failure: PutioFailure) : HistoryPaging
 }
 
-sealed interface HistoryContent {
-    data object Disabled : HistoryContent
-    data class Loading(val requestId: HistoryRequestId) : HistoryContent
-    data object Empty : HistoryContent
-    data class Ready(val items: List<HistoryItem>, val paging: HistoryPaging) : HistoryContent {
+public sealed interface HistoryContent {
+    public data object Disabled : HistoryContent
+    public data class Loading(val requestId: HistoryRequestId) : HistoryContent
+    public data object Empty : HistoryContent
+    public data class Ready(val items: List<HistoryItem>, val paging: HistoryPaging) : HistoryContent {
         init { require(items.isNotEmpty()) }
     }
-    data class Failed(val failure: PutioFailure) : HistoryContent
+    public data class Failed(val failure: PutioFailure) : HistoryContent
 }
 
-sealed interface HistoryClearing {
-    data object Idle : HistoryClearing
-    data object AwaitingConfirmation : HistoryClearing
-    data class Clearing(val requestId: HistoryRequestId) : HistoryClearing
-    data class Failed(val failure: PutioFailure) : HistoryClearing
+public sealed interface HistoryClearing {
+    public data object Idle : HistoryClearing
+    public data object AwaitingConfirmation : HistoryClearing
+    public data class Clearing(val requestId: HistoryRequestId) : HistoryClearing
+    public data class Failed(val failure: PutioFailure) : HistoryClearing
 }
 
 @ConsistentCopyVisibility
-data class HistoryState internal constructor(
+public data class HistoryState internal constructor(
     val content: HistoryContent,
     val clearing: HistoryClearing = HistoryClearing.Idle,
     internal val authoritativeFailure: PutioFailure.AuthenticationRequired? = null,
@@ -38,34 +38,34 @@ data class HistoryState internal constructor(
     internal val nextRequestValue: Long = 1L,
 )
 
-sealed interface HistoryEvent {
-    data class SetEnabled(val enabled: Boolean) : HistoryEvent
-    data object LoadNextPage : HistoryEvent
-    data object Retry : HistoryEvent
-    data object RequestClear : HistoryEvent
-    data object DismissClear : HistoryEvent
-    data object ConfirmClear : HistoryEvent
-    data class OpenFile(val fileId: HistoryFileId) : HistoryEvent
-    data class LoadSucceeded(val requestId: HistoryRequestId, val page: HistoryPage) : HistoryEvent
-    data class LoadFailed(val requestId: HistoryRequestId, val failure: PutioFailure) : HistoryEvent
-    data class ClearSucceeded(val requestId: HistoryRequestId) : HistoryEvent
-    data class ClearFailed(val requestId: HistoryRequestId, val failure: PutioFailure) : HistoryEvent
+public sealed interface HistoryEvent {
+    public data class SetEnabled(val enabled: Boolean) : HistoryEvent
+    public data object LoadNextPage : HistoryEvent
+    public data object Retry : HistoryEvent
+    public data object RequestClear : HistoryEvent
+    public data object DismissClear : HistoryEvent
+    public data object ConfirmClear : HistoryEvent
+    public data class OpenFile(val fileId: HistoryFileId) : HistoryEvent
+    public data class LoadSucceeded(val requestId: HistoryRequestId, val page: HistoryPage) : HistoryEvent
+    public data class LoadFailed(val requestId: HistoryRequestId, val failure: PutioFailure) : HistoryEvent
+    public data class ClearSucceeded(val requestId: HistoryRequestId) : HistoryEvent
+    public data class ClearFailed(val requestId: HistoryRequestId, val failure: PutioFailure) : HistoryEvent
 }
 
-sealed interface HistoryEffect {
-    data class Load(val before: HistoryEventId?, val requestId: HistoryRequestId) : HistoryEffect
-    data class Clear(val requestId: HistoryRequestId) : HistoryEffect
-    data class NavigateToFile(val fileId: HistoryFileId) : HistoryEffect
+public sealed interface HistoryEffect {
+    public data class Load(val before: HistoryEventId?, val requestId: HistoryRequestId) : HistoryEffect
+    public data class Clear(val requestId: HistoryRequestId) : HistoryEffect
+    public data class NavigateToFile(val fileId: HistoryFileId) : HistoryEffect
 }
 
-data class HistoryTransition(
+public data class HistoryTransition(
     val state: HistoryState,
     val effect: HistoryEffect? = null,
     val consumed: Boolean = true,
 )
 
-object HistoryReducer {
-    fun start(historyEnabled: Boolean): HistoryTransition {
+public object HistoryReducer {
+    public fun start(historyEnabled: Boolean): HistoryTransition {
         if (!historyEnabled) return HistoryTransition(HistoryState(HistoryContent.Disabled), consumed = false)
         val requestId = HistoryRequestId(1L)
         return HistoryTransition(
@@ -74,7 +74,7 @@ object HistoryReducer {
         )
     }
 
-    fun reduce(state: HistoryState, event: HistoryEvent): HistoryTransition =
+    internal fun reduce(state: HistoryState, event: HistoryEvent): HistoryTransition =
         when (event) {
             is HistoryEvent.SetEnabled -> state.setEnabled(event.enabled)
             HistoryEvent.LoadNextPage -> state.loadNextPage()

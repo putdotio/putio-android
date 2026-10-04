@@ -29,6 +29,13 @@ object DesignTokenCodegen {
     )
 
     /**
+     * Token properties the apps read directly, so the generated object makes them `public`. Every
+     * other color reaches the apps only through the color schemes and stays `internal` to
+     * `core/design`. The overscan ratios are always public: the TV shell pads by them.
+     */
+    val APP_TOKENS: Set<String> = setOf("yellowSolid")
+
+    /**
      * M3 role → token property (optionally `property:alpha`). These are the
      * contracted roles from DESIGN.md. The container and background entries
      * keep stock components from falling back to M3 baseline purple:
@@ -213,21 +220,23 @@ object DesignTokenCodegen {
         appendLine("import androidx.compose.ui.graphics.Color")
         appendLine()
         appendLine("/** Dark-mode put.io tokens. Property names mirror the token graph cssNames. */")
-        appendLine("object PutioDesignTokens {")
+        appendLine("public object PutioDesignTokens {")
         for ((property, cssName) in TOKEN_BINDINGS) {
             val argb = resolved.getValue(property)
+            val visibility = if (property in APP_TOKENS) "public" else "internal"
             appendLine("    /** --$cssName */")
-            appendLine("    val $property: Color = Color(0x${"%08X".format(argb)})")
+            appendLine("    $visibility val $property: Color = Color(0x${"%08X".format(argb)})")
         }
         for (binding in VIEWPORT_RATIO_BINDINGS) {
             appendLine()
             appendLine("    /** --${binding.cssName}: fraction of the ${binding.basis.removePrefix("viewport-")} kept clear on each edge. */")
-            appendLine("    const val ${binding.property}: Float = ${ratios.getValue(binding.property)}f")
+            appendLine("    public const val ${binding.property}: Float = ${ratios.getValue(binding.property)}f")
         }
         appendLine("}")
         appendLine()
+        // PutioTheme applies the mobile scheme; the TV app builds its own MaterialTheme from the TV one.
         appendLine("/** The tier-2 binding: one dark scheme, every component stock Material 3. */")
-        appendLine("fun putioDarkColorScheme(): androidx.compose.material3.ColorScheme =")
+        appendLine("internal fun putioDarkColorScheme(): androidx.compose.material3.ColorScheme =")
         appendLine("    androidx.compose.material3.darkColorScheme(")
         for ((role, spec) in M3_ROLES) {
             appendLine("        $role = ${renderSpec(spec)},")
@@ -235,7 +244,7 @@ object DesignTokenCodegen {
         appendLine("    )")
         appendLine()
         appendLine("/** Same contract projected onto the Compose for TV color scheme. */")
-        appendLine("fun putioTvDarkColorScheme(): androidx.tv.material3.ColorScheme =")
+        appendLine("public fun putioTvDarkColorScheme(): androidx.tv.material3.ColorScheme =")
         appendLine("    androidx.tv.material3.darkColorScheme(")
         for ((role, spec) in TV_ROLES) {
             appendLine("        $role = ${renderSpec(spec)},")

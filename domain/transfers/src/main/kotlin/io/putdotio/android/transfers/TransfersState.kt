@@ -4,32 +4,32 @@ import io.putdotio.android.FilesFailure
 import io.putdotio.android.PutioFailure
 
 @JvmInline
-value class TransfersRequestId(val value: Long)
+public value class TransfersRequestId(internal val value: Long)
 
-sealed interface TransfersPaging {
-    data object Complete : TransfersPaging
-    data class Available(val cursor: TransferCursor) : TransfersPaging
-    data class Loading(val cursor: TransferCursor, val requestId: TransfersRequestId) : TransfersPaging
-    data class Failed(val cursor: TransferCursor, val failure: PutioFailure) : TransfersPaging
+public sealed interface TransfersPaging {
+    public data object Complete : TransfersPaging
+    public data class Available(val cursor: TransferCursor) : TransfersPaging
+    public data class Loading(val cursor: TransferCursor, val requestId: TransfersRequestId) : TransfersPaging
+    public data class Failed(val cursor: TransferCursor, val failure: PutioFailure) : TransfersPaging
 }
 
-sealed interface TransfersContent {
-    data class InitialLoading(val requestId: TransfersRequestId) : TransfersContent
-    data object Empty : TransfersContent
-    data class Ready(val items: List<TransferItem>, val paging: TransfersPaging) : TransfersContent {
+public sealed interface TransfersContent {
+    public data class InitialLoading(val requestId: TransfersRequestId) : TransfersContent
+    public data object Empty : TransfersContent
+    public data class Ready(val items: List<TransferItem>, val paging: TransfersPaging) : TransfersContent {
         init { require(items.isNotEmpty()) }
     }
-    data class Failed(val failure: PutioFailure) : TransfersContent
+    public data class Failed(val failure: PutioFailure) : TransfersContent
 }
 
-sealed interface TransfersRefresh {
-    data object Idle : TransfersRefresh
-    data class Refreshing(val requestId: TransfersRequestId) : TransfersRefresh
-    data class Polling(val requestId: TransfersRequestId) : TransfersRefresh
-    data class Failed(val failure: PutioFailure) : TransfersRefresh
+public sealed interface TransfersRefresh {
+    public data object Idle : TransfersRefresh
+    public data class Refreshing(val requestId: TransfersRequestId) : TransfersRefresh
+    public data class Polling(val requestId: TransfersRequestId) : TransfersRefresh
+    public data class Failed(val failure: PutioFailure) : TransfersRefresh
 }
 
-val TransfersRefresh.isRunning: Boolean
+public val TransfersRefresh.isRunning: Boolean
     get() = this is TransfersRefresh.Refreshing || this is TransfersRefresh.Polling
 
 internal fun TransfersRefresh.hasRequest(requestId: TransfersRequestId): Boolean =
@@ -41,54 +41,54 @@ internal fun TransfersRefresh.hasRequest(requestId: TransfersRequestId): Boolean
         -> false
     }
 
-sealed interface TransferAction {
-    data class Add(val request: TransferAddRequest) : TransferAction
-    data class Cancel(val id: TransferId) : TransferAction
-    data class Retry(val id: TransferId) : TransferAction
-    data object Clean : TransferAction
+public sealed interface TransferAction {
+    public data class Add(val request: TransferAddRequest) : TransferAction
+    public data class Cancel(val id: TransferId) : TransferAction
+    public data class Retry(val id: TransferId) : TransferAction
+    public data object Clean : TransferAction
 }
 
-sealed interface TransferMutation {
-    data object Idle : TransferMutation
-    data class Running(val action: TransferAction, val requestId: TransfersRequestId) : TransferMutation
-    data class Failed(val action: TransferAction, val failure: PutioFailure) : TransferMutation
+public sealed interface TransferMutation {
+    public data object Idle : TransferMutation
+    public data class Running(val action: TransferAction, val requestId: TransfersRequestId) : TransferMutation
+    public data class Failed(val action: TransferAction, val failure: PutioFailure) : TransferMutation
 }
 
-sealed interface TransferNavigation {
-    data object Idle : TransferNavigation
-    data class Resolving(
+public sealed interface TransferNavigation {
+    public data object Idle : TransferNavigation
+    public data class Resolving(
         val fileId: TransferFileId,
         val requestId: TransfersRequestId,
     ) : TransferNavigation
-    data class Failed(val failure: FilesFailure) : TransferNavigation
+    public data class Failed(val failure: FilesFailure) : TransferNavigation
 }
 
-sealed interface TransferNotice {
-    val requestId: TransfersRequestId
+public sealed interface TransferNotice {
+    public val requestId: TransfersRequestId
 
-    data class FilePreparing(
+    public data class FilePreparing(
         val transferId: TransferId,
         override val requestId: TransfersRequestId,
     ) : TransferNotice
-    data class FileUnavailable(
+    public data class FileUnavailable(
         val transferId: TransferId,
         override val requestId: TransfersRequestId,
     ) : TransferNotice
 }
 
 /** The last retry's result, held until the screen has reported it. */
-sealed interface TransferRetryOutcome {
-    val requestId: TransfersRequestId
+public sealed interface TransferRetryOutcome {
+    public val requestId: TransfersRequestId
 
-    data class Accepted(override val requestId: TransfersRequestId) : TransferRetryOutcome
-    data class Failed(
+    public data class Accepted(override val requestId: TransfersRequestId) : TransferRetryOutcome
+    public data class Failed(
         override val requestId: TransfersRequestId,
         val failure: PutioFailure,
     ) : TransferRetryOutcome
 }
 
 @ConsistentCopyVisibility
-data class TransfersState internal constructor(
+public data class TransfersState internal constructor(
     val content: TransfersContent,
     val refresh: TransfersRefresh = TransfersRefresh.Idle,
     val mutation: TransferMutation = TransferMutation.Idle,
@@ -105,7 +105,7 @@ data class TransfersState internal constructor(
 }
 
 /** The last accepted add: how many transfers put.io started and which links it refused. */
-data class TransferAddReceipt(
+public data class TransferAddReceipt(
     val requestId: TransfersRequestId,
     val addedCount: Int,
     val rejectedLinks: List<String>,
@@ -114,69 +114,69 @@ data class TransferAddReceipt(
         "TransferAddReceipt(requestId=$requestId, addedCount=$addedCount, rejected=${rejectedLinks.size})"
 }
 
-sealed interface TransfersEvent {
-    data object LoadNextPage : TransfersEvent
-    data object RetryLoad : TransfersEvent
-    data object Refresh : TransfersEvent
-    data object Poll : TransfersEvent
-    data class VisibilityChanged(val visible: Boolean) : TransfersEvent
+public sealed interface TransfersEvent {
+    public data object LoadNextPage : TransfersEvent
+    public data object RetryLoad : TransfersEvent
+    public data object Refresh : TransfersEvent
+    public data object Poll : TransfersEvent
+    public data class VisibilityChanged(val visible: Boolean) : TransfersEvent
     /** Whitespace-separated links; [saveParentId] null saves to the account's default download folder. */
-    data class Add(val input: String, val saveParentId: Long? = null) : TransfersEvent {
+    public data class Add(val input: String, val saveParentId: Long? = null) : TransfersEvent {
         override fun toString(): String = "Add(<redacted>, saveParentId=$saveParentId)"
     }
-    data class AddTorrent(val file: TorrentUpload, val saveParentId: Long? = null) : TransfersEvent
-    data class Cancel(val id: TransferId) : TransfersEvent
-    data class RetryTransfer(val id: TransferId) : TransfersEvent
-    data object CleanCompleted : TransfersEvent
-    data object DismissMutationFailure : TransfersEvent
-    data class DismissRetryOutcome(val requestId: TransfersRequestId) : TransfersEvent
-    data class Open(val id: TransferId) : TransfersEvent
-    data class OpenSucceeded(val requestId: TransfersRequestId) : TransfersEvent
-    data class OpenFailed(val requestId: TransfersRequestId, val failure: FilesFailure) : TransfersEvent
-    data object DismissNavigationFailure : TransfersEvent
-    data class DismissNotice(val requestId: TransfersRequestId) : TransfersEvent
-    data class ListSucceeded(val requestId: TransfersRequestId, val page: TransfersPage) : TransfersEvent
-    data class FirstPageRefreshed(
+    public data class AddTorrent(val file: TorrentUpload, val saveParentId: Long? = null) : TransfersEvent
+    public data class Cancel(val id: TransferId) : TransfersEvent
+    public data class RetryTransfer(val id: TransferId) : TransfersEvent
+    public data object CleanCompleted : TransfersEvent
+    public data object DismissMutationFailure : TransfersEvent
+    public data class DismissRetryOutcome(val requestId: TransfersRequestId) : TransfersEvent
+    public data class Open(val id: TransferId) : TransfersEvent
+    public data class OpenSucceeded(val requestId: TransfersRequestId) : TransfersEvent
+    public data class OpenFailed(val requestId: TransfersRequestId, val failure: FilesFailure) : TransfersEvent
+    public data object DismissNavigationFailure : TransfersEvent
+    public data class DismissNotice(val requestId: TransfersRequestId) : TransfersEvent
+    public data class ListSucceeded(val requestId: TransfersRequestId, val page: TransfersPage) : TransfersEvent
+    public data class FirstPageRefreshed(
         val requestId: TransfersRequestId,
         val page: TransfersPage,
         val reconciledItems: List<TransferItem>,
     ) : TransfersEvent
-    data class RowsRefreshed(
+    public data class RowsRefreshed(
         val requestId: TransfersRequestId,
         val items: List<TransferItem>,
         val missingIds: Set<TransferId>,
     ) : TransfersEvent
-    data class ListFailed(val requestId: TransfersRequestId, val failure: PutioFailure) : TransfersEvent
-    data class MutationSucceeded(
+    public data class ListFailed(val requestId: TransfersRequestId, val failure: PutioFailure) : TransfersEvent
+    public data class MutationSucceeded(
         val requestId: TransfersRequestId,
         val item: TransferItem? = null,
         val affectedIds: Set<TransferId> = emptySet(),
         val added: TransferAddOutcome? = null,
     ) : TransfersEvent
-    data class MutationFailed(val requestId: TransfersRequestId, val failure: PutioFailure) : TransfersEvent
+    public data class MutationFailed(val requestId: TransfersRequestId, val failure: PutioFailure) : TransfersEvent
 }
 
-sealed interface TransfersEffect {
-    data class Load(
+public sealed interface TransfersEffect {
+    public data class Load(
         val cursor: TransferCursor?,
         val requestId: TransfersRequestId,
         val reconcileIds: Set<TransferId> = emptySet(),
     ) : TransfersEffect
-    data class RefreshRows(
+    public data class RefreshRows(
         val ids: List<TransferId>,
         val requestId: TransfersRequestId,
     ) : TransfersEffect
-    data class Mutate(val action: TransferAction, val requestId: TransfersRequestId) : TransfersEffect
+    public data class Mutate(val action: TransferAction, val requestId: TransfersRequestId) : TransfersEffect
 }
 
-data class TransfersTransition(
+public data class TransfersTransition(
     val state: TransfersState,
     val effect: TransfersEffect? = null,
     val consumed: Boolean = true,
 )
 
-object TransfersReducer {
-    fun start(): TransfersTransition {
+public object TransfersReducer {
+    public fun start(): TransfersTransition {
         val requestId = TransfersRequestId(1L)
         return TransfersTransition(
             TransfersState(content = TransfersContent.InitialLoading(requestId), nextRequestValue = 2L),
@@ -184,7 +184,7 @@ object TransfersReducer {
         )
     }
 
-    fun reduce(state: TransfersState, event: TransfersEvent): TransfersTransition =
+    public fun reduce(state: TransfersState, event: TransfersEvent): TransfersTransition =
         when (event) {
             TransfersEvent.LoadNextPage -> state.loadNextPage()
             TransfersEvent.RetryLoad -> state.retryLoad()

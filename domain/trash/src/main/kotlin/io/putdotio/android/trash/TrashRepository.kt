@@ -17,17 +17,17 @@ import io.putdotio.sdk.trash.TrashContinueQuery
 import io.putdotio.sdk.trash.TrashListQuery
 import io.putdotio.sdk.trash.TrashListResponse
 
-interface TrashRepository {
-    suspend fun load(): PutioResult<TrashPage>
-    suspend fun loadNextPage(cursor: FilesCursor): PutioResult<TrashPage>
-    suspend fun restore(itemId: FilesItemId): PutioResult<Unit>
-    suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
-    suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit>
-    suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit>
-    suspend fun empty(): PutioResult<Unit>
+public interface TrashRepository {
+    public suspend fun load(): PutioResult<TrashPage>
+    public suspend fun loadNextPage(cursor: FilesCursor): PutioResult<TrashPage>
+    public suspend fun restore(itemId: FilesItemId): PutioResult<Unit>
+    public suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
+    public suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit>
+    public suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit>
+    public suspend fun empty(): PutioResult<Unit>
 }
 
-class SdkTrashRepository internal constructor(
+public class SdkTrashRepository internal constructor(
     private val list: suspend (TrashListQuery) -> TrashListResponse,
     private val continueList: suspend (String, TrashContinueQuery) -> TrashListResponse,
     private val restoreItem: suspend (TrashBulkInput) -> OkResponse,
@@ -35,7 +35,7 @@ class SdkTrashRepository internal constructor(
     private val deleteItems: suspend (TrashBulkInput) -> OkResponse,
     private val emptyTrash: suspend () -> OkResponse,
 ) : TrashRepository {
-    constructor(client: PutioClient) : this(
+    public constructor(client: PutioClient) : this(
         list = { client.trash.list(it) },
         continueList = { cursor, query -> client.trash.continueList(cursor, query) },
         restoreItem = { client.trash.restore(it) },

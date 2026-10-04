@@ -10,7 +10,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-data class PlaybackAudioTrack(
+public data class PlaybackAudioTrack(
     val group: TrackGroup,
     val trackIndex: Int,
     val identity: AudioTrackIdentity = group.getFormat(trackIndex).toAudioTrackIdentity(),
@@ -18,7 +18,7 @@ data class PlaybackAudioTrack(
     val selected: Boolean,
 )
 
-data class AudioTrackIdentity(
+public data class AudioTrackIdentity(
     val id: String?,
     val language: String?,
     val label: String?,
@@ -29,7 +29,7 @@ data class AudioTrackIdentity(
     val sampleRate: Int,
 ) {
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun exactlyMatches(format: Format): Boolean =
+    internal fun exactlyMatches(format: Format): Boolean =
         id == format.id &&
             language == format.language &&
             label == format.label &&
@@ -47,13 +47,13 @@ internal fun List<PlaybackAudioTrack>.resolve(identity: AudioTrackIdentity): Pla
     return (candidates ?: this).singleOrNull { identity.exactlyMatches(it.group.getFormat(it.trackIndex)) }
 }
 
-sealed interface AudioSelection {
-    data object Automatic : AudioSelection
+public sealed interface AudioSelection {
+    public data object Automatic : AudioSelection
 
-    data class Track(val identity: AudioTrackIdentity) : AudioSelection
+    public data class Track(val identity: AudioTrackIdentity) : AudioSelection
 }
 
-fun Tracks.playbackAudioTracks(): List<PlaybackAudioTrack> =
+public fun Tracks.playbackAudioTracks(): List<PlaybackAudioTrack> =
     groups
         .filter { it.type == C.TRACK_TYPE_AUDIO }
         .flatMap { group ->
@@ -72,7 +72,7 @@ fun Tracks.playbackAudioTracks(): List<PlaybackAudioTrack> =
         }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-fun Format.toAudioTrackIdentity(): AudioTrackIdentity =
+public fun Format.toAudioTrackIdentity(): AudioTrackIdentity =
     AudioTrackIdentity(
         id = id,
         language = language,
@@ -85,7 +85,7 @@ fun Format.toAudioTrackIdentity(): AudioTrackIdentity =
     )
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-fun TrackSelectionParameters.withAudioSelection(
+public fun TrackSelectionParameters.withAudioSelection(
     selection: AudioSelection,
     tracks: List<PlaybackAudioTrack>,
 ): TrackSelectionParameters {
@@ -102,7 +102,7 @@ fun TrackSelectionParameters.withAudioSelection(
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-fun TrackSelectionParameters.withAudioTrack(track: PlaybackAudioTrack): TrackSelectionParameters =
+public fun TrackSelectionParameters.withAudioTrack(track: PlaybackAudioTrack): TrackSelectionParameters =
     buildUpon()
         .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
         .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
@@ -110,7 +110,7 @@ fun TrackSelectionParameters.withAudioTrack(track: PlaybackAudioTrack): TrackSel
         .build()
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-fun TrackSelectionParameters.withRetainedAudioSelection(
+public fun TrackSelectionParameters.withRetainedAudioSelection(
     selection: AudioSelection,
     tracks: List<PlaybackAudioTrack>,
 ): TrackSelectionParameters {
@@ -134,7 +134,7 @@ fun TrackSelectionParameters.withRetainedAudioSelection(
     }
 }
 
-fun AudioSelection.toBundle(): Bundle =
+public fun AudioSelection.toBundle(): Bundle =
     Bundle().apply {
         when (this@toBundle) {
             AudioSelection.Automatic -> putString("kind", "automatic")
@@ -152,7 +152,7 @@ fun AudioSelection.toBundle(): Bundle =
         }
     }
 
-fun Bundle.toAudioSelection(): AudioSelection? =
+public fun Bundle.toAudioSelection(): AudioSelection? =
     when (getString("kind")) {
         "automatic" -> AudioSelection.Automatic
         "track" ->

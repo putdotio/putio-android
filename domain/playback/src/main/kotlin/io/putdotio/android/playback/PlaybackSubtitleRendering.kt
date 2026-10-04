@@ -18,11 +18,11 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.SubtitleView
 import kotlin.math.roundToInt
 
-const val SUBTITLE_CUES_TAG = "subtitle-cues"
+public const val SUBTITLE_CUES_TAG: String = "subtitle-cues"
 
 @Composable
 @UnstableApi
-fun SubtitleCueOverlay(
+public fun SubtitleCueOverlay(
     cues: List<Cue>,
     videoAspectRatio: Float?,
     modifier: Modifier = Modifier,
@@ -93,7 +93,7 @@ internal class SubtitleCueRenderer(
     }
 }
 
-fun VideoSize.displayAspectRatioOrNull(): Float? =
+public fun VideoSize.displayAspectRatioOrNull(): Float? =
     when {
         width <= 0 || height <= 0 -> null
         !pixelWidthHeightRatio.isFinite() || pixelWidthHeightRatio <= 0f -> null

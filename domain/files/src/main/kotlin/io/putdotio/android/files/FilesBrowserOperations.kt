@@ -1,6 +1,6 @@
 package io.putdotio.android.files
 
-val FilesFolderOperation.canStartOperation: Boolean
+public val FilesFolderOperation.canStartOperation: Boolean
     get() = when (this) {
         FilesFolderOperation.Idle -> true
         is FilesFolderOperation.Loading -> false
@@ -19,7 +19,7 @@ internal inline fun <reified I : FilesFolderOperationIntent> FilesBrowserState.r
 }
 
 /** The intent of type [I] still owning this operation, whether loading or failed. */
-inline fun <reified I : FilesFolderOperationIntent> FilesFolderOperation.pendingIntent(): I? = when (this) {
+public inline fun <reified I : FilesFolderOperationIntent> FilesFolderOperation.pendingIntent(): I? = when (this) {
     is FilesFolderOperation.Loading -> intent as? I
     is FilesFolderOperation.Failed -> intent as? I
     FilesFolderOperation.Idle -> null

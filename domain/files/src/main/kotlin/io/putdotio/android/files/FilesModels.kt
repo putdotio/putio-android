@@ -3,17 +3,17 @@ package io.putdotio.android.files
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
 
-data class FilesFolder(
+public data class FilesFolder(
     val id: FilesItemId,
     val name: String?,
     val sort: FilesSort? = null,
 ) {
-    companion object {
-        val Root = FilesFolder(id = FilesItemId(0L), name = null)
+    public companion object {
+        public val Root: FilesFolder = FilesFolder(id = FilesItemId(0L), name = null)
     }
 }
 
-data class FilesItem(
+public data class FilesItem(
     val id: FilesItemId,
     val parentId: FilesItemId?,
     val name: String,
@@ -45,7 +45,7 @@ data class FilesItem(
  * position in seconds; duration comes from video metadata and may be unknown.
  * Web treats any position above zero as watched, so this does too.
  */
-data class FilesPlaybackProgress(
+public data class FilesPlaybackProgress(
     val startFromSeconds: Double,
     val durationSeconds: Double?,
 ) {
@@ -64,7 +64,7 @@ data class FilesPlaybackProgress(
         get() = durationSeconds?.let { (startFromSeconds / it).coerceIn(0.0, 1.0).toFloat() }
 }
 
-data class FilesPage(
+public data class FilesPage(
     val items: List<FilesItem>,
     val nextCursor: FilesCursor?,
     val sort: FilesSort? = null,
@@ -73,7 +73,7 @@ data class FilesPage(
 )
 
 /** Where an item opened from outside the Files browser came from; Back from its folder returns there. */
-enum class FilesOpenOrigin {
+public enum class FilesOpenOrigin {
     SEARCH,
     HISTORY,
     TRANSFERS,
@@ -83,7 +83,7 @@ enum class FilesOpenOrigin {
 }
 
 /** An item to open from outside the Files browser, with where the viewer chose it. */
-data class FilesExternalOpen(
+public data class FilesExternalOpen(
     val item: FilesItem,
     val origin: FilesOpenOrigin,
 )

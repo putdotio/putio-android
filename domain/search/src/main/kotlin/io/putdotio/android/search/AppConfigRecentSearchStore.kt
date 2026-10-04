@@ -22,19 +22,19 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
-interface RecentSearchStoreOwner : RecentSearchStore, Closeable {
-    val failure: StateFlow<PutioFailure?>
+public interface RecentSearchStoreOwner : RecentSearchStore, Closeable {
+    public val failure: StateFlow<PutioFailure?>
 
-    fun retry()
+    public fun retry()
 }
 
-class AppConfigRecentSearchStore(
+public class AppConfigRecentSearchStore(
     private val loadConfig: suspend () -> RecentSearchConfig,
     saveTerms: suspend (List<String>) -> Unit,
     saveEnabled: suspend (Boolean) -> Unit,
     parentScope: CoroutineScope,
 ) : RecentSearchStoreOwner {
-    constructor(client: PutioClient, parentScope: CoroutineScope) : this(
+    public constructor(client: PutioClient, parentScope: CoroutineScope) : this(
         loadConfig = { client.appConfig.get().toRecentSearchConfig() },
         saveTerms = { client.appConfig.save(recentSearchConfigUpdate(it)) },
         saveEnabled = { client.appConfig.save(recentSearchEnabledConfigUpdate(it)) },
@@ -196,7 +196,7 @@ private class RecentSearchWrites(
     }
 }
 
-data class RecentSearchConfig(
+public data class RecentSearchConfig(
     val enabled: Boolean,
     val terms: List<String>,
 )
@@ -245,6 +245,6 @@ private sealed interface RecentSearchCommand {
     data object Retry : RecentSearchCommand
 }
 
-const val SEARCH_HISTORY_KEY = "searchHistory"
-const val SEARCH_HISTORY_ENABLED_KEY = "searchHistoryEnabled"
+public const val SEARCH_HISTORY_KEY: String = "searchHistory"
+public const val SEARCH_HISTORY_ENABLED_KEY: String = "searchHistoryEnabled"
 internal const val MAX_RECENT_SEARCHES = 5

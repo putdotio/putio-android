@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
  * still opens. Only the latest choice counts: a second tap while the first still resolves
  * must not open two folders in turn.
  */
-class HistoryFileOpener(
+public class HistoryFileOpener(
     requests: Flow<HistoryEffect.NavigateToFile>,
     private val resolver: FilesItemResolver,
     private val deliver: suspend (FilesItem, FilesOpenOrigin) -> Unit,
@@ -36,7 +36,7 @@ class HistoryFileOpener(
     private val mutableFailure = MutableStateFlow<PutioFailure?>(null)
 
     /** Why the last file could not be resolved; cleared by the next success or dismissal. */
-    val failure: StateFlow<PutioFailure?> = mutableFailure.asStateFlow()
+    public val failure: StateFlow<PutioFailure?> = mutableFailure.asStateFlow()
 
     init {
         scope.launch {
@@ -45,7 +45,7 @@ class HistoryFileOpener(
     }
 
     /** Resolves and delivers one file; [origin] says whether a history row or a product link named it. */
-    suspend fun open(fileId: FilesItemId, origin: FilesOpenOrigin) {
+    public suspend fun open(fileId: FilesItemId, origin: FilesOpenOrigin) {
         when (val result = resolver.resolveItem(fileId)) {
             is PutioResult.Success -> {
                 mutableFailure.value = null
@@ -56,7 +56,7 @@ class HistoryFileOpener(
     }
 
     /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
-    fun dismissFailure() {
+    public fun dismissFailure() {
         mutableFailure.update { it?.takeIf { failure -> failure is PutioFailure.AuthenticationRequired } }
     }
 

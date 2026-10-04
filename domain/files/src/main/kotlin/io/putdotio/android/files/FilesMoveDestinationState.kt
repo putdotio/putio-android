@@ -3,7 +3,7 @@ package io.putdotio.android.files
 import io.putdotio.android.PutioResult
 
 @ConsistentCopyVisibility
-data class FilesMoveDestinationFolder internal constructor(
+public data class FilesMoveDestinationFolder internal constructor(
     val folder: FilesFolder,
     val content: FilesContent,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
@@ -13,7 +13,7 @@ data class FilesMoveDestinationFolder internal constructor(
 
 /** A folder picker; without a [sourceItem] it picks a destination for new content, such as a transfer. */
 @ConsistentCopyVisibility
-data class FilesMoveDestinationState internal constructor(
+public data class FilesMoveDestinationState internal constructor(
     val sourceItem: FilesItem?,
     val sourceFolderId: FilesItemId?,
     internal val stack: List<FilesMoveDestinationFolder>,
@@ -29,30 +29,30 @@ data class FilesMoveDestinationState internal constructor(
             current.folder.id != sourceItem.parentId && current.folder.id != sourceItem.id) &&
         (current.content is FilesContent.Ready || current.content is FilesContent.Empty)
 
-    fun canOpenFolder(itemId: FilesItemId): Boolean = itemId.value > 0L && itemId != sourceItem?.id &&
+    public fun canOpenFolder(itemId: FilesItemId): Boolean = itemId.value > 0L && itemId != sourceItem?.id &&
         stack.none { it.folder.id == itemId } && current.content.items().any { it.id == itemId && it.isFolder }
 }
 
-sealed interface FilesMoveDestinationEvent {
-    data class OpenFolder(val itemId: FilesItemId) : FilesMoveDestinationEvent
-    data object NavigateBack : FilesMoveDestinationEvent
-    data object LoadNextPage : FilesMoveDestinationEvent
-    data object Retry : FilesMoveDestinationEvent
+public sealed interface FilesMoveDestinationEvent {
+    public data class OpenFolder(val itemId: FilesItemId) : FilesMoveDestinationEvent
+    public data object NavigateBack : FilesMoveDestinationEvent
+    public data object LoadNextPage : FilesMoveDestinationEvent
+    public data object Retry : FilesMoveDestinationEvent
 }
 
-data class FilesMoveDestinationRequest(
+public data class FilesMoveDestinationRequest(
     val folderId: FilesItemId,
     val requestId: FilesRequestId,
     val cursor: FilesCursor? = null,
 )
 
-data class FilesMoveDestinationTransition(
+public data class FilesMoveDestinationTransition(
     val state: FilesMoveDestinationState,
     val request: FilesMoveDestinationRequest? = null,
     val consumed: Boolean = true,
 )
 
-fun FilesMoveDestinationState.reduce(event: FilesMoveDestinationEvent): FilesMoveDestinationTransition =
+public fun FilesMoveDestinationState.reduce(event: FilesMoveDestinationEvent): FilesMoveDestinationTransition =
     withoutRememberedTargetCheck().reduceEvent(event).let { if (it.consumed) it else it.copy(state = this) }
 
 private fun FilesMoveDestinationState.reduceEvent(event: FilesMoveDestinationEvent): FilesMoveDestinationTransition =
@@ -118,7 +118,7 @@ private fun FilesMoveDestinationState.loadDestinationPage(retry: Boolean): Files
     }
 }
 
-fun FilesMoveDestinationState.complete(
+public fun FilesMoveDestinationState.complete(
     request: FilesMoveDestinationRequest,
     result: PutioResult<FilesPage>,
 ): FilesMoveDestinationTransition = when {

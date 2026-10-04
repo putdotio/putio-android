@@ -28,43 +28,43 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import java.util.concurrent.CancellationException
 
-sealed interface PlaybackRepositoryResult<out T> {
-    data class Success<T>(
+public sealed interface PlaybackRepositoryResult<out T> {
+    public data class Success<T>(
         val value: T,
     ) : PlaybackRepositoryResult<T>
 
-    data class Failure(
+    public data class Failure(
         val failure: PlaybackFailure,
     ) : PlaybackRepositoryResult<Nothing>
 }
 
-sealed interface PlaybackFailure {
-    val cause: Throwable
+public sealed interface PlaybackFailure {
+    public val cause: Throwable
 
     /** A failure in the shared taxonomy: from a put.io request ([toPlaybackFailure]) or from the player. */
-    data class Putio(
+    public data class Putio(
         val failure: PutioFailure,
     ) : PlaybackFailure {
         override val cause: Throwable
             get() = failure.cause
     }
 
-    data class MediaCredentialUnavailable(
+    public data class MediaCredentialUnavailable(
         override val cause: Throwable,
     ) : PlaybackFailure
 
     /** The device cannot decode or parse this media; resolving it again plays nothing. */
-    data class MediaUnsupported(
+    public data class MediaUnsupported(
         override val cause: Throwable,
     ) : PlaybackFailure
 }
 
 /** The put.io failure behind this one; null for a media failure only playback explains. */
-val PlaybackFailure.putioFailure: PutioFailure?
+public val PlaybackFailure.putioFailure: PutioFailure?
     get() = (this as? PlaybackFailure.Putio)?.failure
 
 /** put.io's own reason for a refused request; the surface's copy applies when it is null. */
-val PlaybackFailure.apiReason: String?
+public val PlaybackFailure.apiReason: String?
     get() = putioFailure?.apiReason
 
 /**
@@ -72,7 +72,7 @@ val PlaybackFailure.apiReason: String?
  * expired-link failure can, a rejected session, a refused or rejected request, or media the
  * device cannot play cannot.
  */
-val PlaybackFailure.retryable: Boolean
+public val PlaybackFailure.retryable: Boolean
     get() = when (this) {
         is PlaybackFailure.MediaCredentialUnavailable -> true
         is PlaybackFailure.MediaUnsupported -> false
@@ -93,33 +93,33 @@ val PlaybackFailure.retryable: Boolean
         }
     }
 
-interface PlaybackRepository {
-    suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution>
+public interface PlaybackRepository {
+    public suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution>
 
     /** Starts converting [target] to MP4, then resolves it again. */
-    suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
+    public suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
         PlaybackRepositoryResult.Failure(
             PlaybackFailure.Putio(
                 PutioFailure.Unexpected(UnsupportedOperationException("This source cannot start a conversion")),
             ),
         )
 
-    suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
+    public suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
 }
 
-sealed interface PlaybackNextResult {
-    data class Found(
+public sealed interface PlaybackNextResult {
+    public data class Found(
         val target: PlaybackTarget,
     ) : PlaybackNextResult
 
-    data object Ended : PlaybackNextResult
+    public data object Ended : PlaybackNextResult
 
-    data class Failure(
+    public data class Failure(
         val failure: PlaybackFailure,
     ) : PlaybackNextResult
 }
 
-class SdkPlaybackRepository internal constructor(
+internal class SdkPlaybackRepository internal constructor(
     private val playbackPreference: () -> PlaybackPreference,
     private val loadAccount: suspend () -> AccountInfo,
     private val resolvePlayback: suspend (PlaybackRequest) -> io.putdotio.sdk.files.PlaybackResolution,
@@ -278,12 +278,12 @@ class SdkPlaybackRepository internal constructor(
  * [PlaybackContent.Conversion.starting]); the resolver itself never does (putio-sdk-kotlin
  * `docs/ARCHITECTURE.md`, conversion handling).
  */
-class ConvertingPlaybackRepository internal constructor(
+public class ConvertingPlaybackRepository internal constructor(
     private val delegate: PlaybackRepository,
     /** Starts the conversion; true when the server accepted it (any status but not available). */
     private val startMp4Conversion: suspend (Long) -> Boolean,
 ) : PlaybackRepository by delegate {
-    constructor(
+    public constructor(
         client: PutioClient,
         playbackPreference: () -> PlaybackPreference,
     ) : this(
@@ -331,8 +331,8 @@ private fun io.putdotio.sdk.files.PlaybackResolution.toAppResolution(
         is io.putdotio.sdk.files.PlaybackResolution.Unsupported -> PlaybackResolution.Unsupported(fileType)
     }
 
-sealed interface PlaybackResolution {
-    data class Ready(
+public sealed interface PlaybackResolution {
+    public data class Ready(
         val source: io.putdotio.sdk.files.PlaybackSource,
         val useStartFrom: Boolean = false,
         /** Resolved for a `hide_subtitles` account, whose settings the player may not have yet. */
@@ -341,11 +341,11 @@ sealed interface PlaybackResolution {
         val durationSeconds: Double? = null,
     ) : PlaybackResolution
 
-    data class Conversion(
+    public data class Conversion(
         val state: io.putdotio.sdk.files.PlaybackConversionState,
     ) : PlaybackResolution
 
-    data class Unsupported(
+    public data class Unsupported(
         val fileType: io.putdotio.sdk.files.PutioFileType,
     ) : PlaybackResolution
 }
@@ -355,7 +355,7 @@ sealed interface PlaybackResolution {
  * operation wrappers outranks a wrapper's contract status, and the HTTP status, not the
  * envelope's, classifies it.
  */
-fun PutioException.toPlaybackFailure(): PlaybackFailure {
+public fun PutioException.toPlaybackFailure(): PlaybackFailure {
     var current: PutioException = this
     val visited = mutableSetOf<PutioException>()
     val wrappers = mutableListOf<PutioOperationException>()

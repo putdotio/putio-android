@@ -38,7 +38,11 @@ sync, and replace each digest it reports as unlocked. Then run
 
 The M3-role → token map is the binding contract in
 [`platforms/android/DESIGN.md`](https://github.com/putdotio/putio-design/blob/main/platforms/android/DESIGN.md);
-it lives as data in `build-logic/src/main/kotlin/DesignTokenCodegen.kt`.
+it lives as data in `build-logic/src/main/kotlin/DesignTokenCodegen.kt`. The
+generated code is `public` only where the apps read it: `PutioDesignTokens`, the
+tokens listed in `APP_TOKENS`, the overscan ratios and the TV scheme. Every other
+token and the mobile scheme, which `PutioTheme` applies, stay `internal`, so an
+app that needs another raw token adds it to `APP_TOKENS`.
 
 # Icons
 

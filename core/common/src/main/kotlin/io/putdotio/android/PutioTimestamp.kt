@@ -11,7 +11,7 @@ import java.time.temporal.ChronoField
  * A put.io API timestamp, or null when it is not one. The API's JSON encoder strips the
  * zone from UTC datetimes (`2026-09-09T15:25:32`); an explicit offset is honoured when present.
  */
-fun parsePutioTimestamp(value: String): Instant? {
+public fun parsePutioTimestamp(value: String): Instant? {
     val parsed = try {
         DateTimeFormatter.ISO_DATE_TIME.parse(value)
     } catch (_: DateTimeParseException) {

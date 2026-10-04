@@ -55,19 +55,21 @@ class DesignTokenCodegenTest {
         // In the real graph red-solid's dark token is a reference to the light one.
         val dtcg = java.io.File("../design/tokens.dtcg.json").readText()
         val code = DesignTokenCodegen.generate(dtcg, "test")
-        assertTrue(code.contains("val redSolid: Color = Color(0xFFE5484D)"))
+        assertTrue(code.contains("internal val redSolid: Color = Color(0xFFE5484D)"))
         // app-bg has distinct light/dark values; dark (8.5%) must win over light (100%).
-        assertTrue(code.contains("val appBg: Color = Color(0xFF161616)"))
+        assertTrue(code.contains("internal val appBg: Color = Color(0xFF161616)"))
     }
 
     @Test
     fun generatesSchemeFromFullGraph() {
         val dtcg = java.io.File("../design/tokens.dtcg.json").readText()
         val code = DesignTokenCodegen.generate(dtcg, "3.3.0")
-        assertTrue(code.contains("val yellowSolid: Color = Color(0xFFFDCE45)"))
-        assertTrue(code.contains("val yellowTextSecondary: Color = Color(0xFFFFD147)"))
-        assertTrue(code.contains("val appBg: Color = Color(0xFF161616)"))
-        assertTrue(code.contains("val redSolid: Color = Color(0xFFE5484D)"))
+        assertTrue(code.contains("public val yellowSolid: Color = Color(0xFFFDCE45)"))
+        assertTrue(code.contains("internal val yellowTextSecondary: Color = Color(0xFFFFD147)"))
+        assertTrue(code.contains("internal val appBg: Color = Color(0xFF161616)"))
+        assertTrue(code.contains("internal val redSolid: Color = Color(0xFFE5484D)"))
+        assertTrue(code.contains("internal fun putioDarkColorScheme(): androidx.compose.material3.ColorScheme ="))
+        assertTrue(code.contains("public fun putioTvDarkColorScheme(): androidx.tv.material3.ColorScheme ="))
         assertTrue(code.contains("primary = PutioDesignTokens.yellowSolid,"))
         assertTrue(code.contains("inversePrimary = PutioDesignTokens.yellowTextSecondary,"))
         assertTrue(code.contains("inverseSurface = PutioDesignTokens.componentBgActive,"))
@@ -78,8 +80,8 @@ class DesignTokenCodegenTest {
     fun generatesTvOverscanRatiosFromFullGraph() {
         val dtcg = java.io.File("../design/tokens.dtcg.json").readText()
         val code = DesignTokenCodegen.generate(dtcg, "3.3.0")
-        assertTrue(code.contains("const val tvOverscanX: Float = 0.04f"))
-        assertTrue(code.contains("const val tvOverscanY: Float = 0.02f"))
+        assertTrue(code.contains("public const val tvOverscanX: Float = 0.04f"))
+        assertTrue(code.contains("public const val tvOverscanY: Float = 0.02f"))
     }
 
     @Test

@@ -6,8 +6,8 @@ import io.putdotio.android.files.FilesItem
 import kotlinx.coroutines.flow.StateFlow
 
 @JvmInline
-value class SearchTerm(
-    val value: String,
+public value class SearchTerm(
+    public val value: String,
 ) {
     init {
         require(value.isNotBlank() && value == value.trim()) {
@@ -17,53 +17,53 @@ value class SearchTerm(
 }
 
 @JvmInline
-value class SearchRequestId(
-    val value: Long,
+public value class SearchRequestId(
+    internal val value: Long,
 )
 
-data class SearchPage(
+public data class SearchPage(
     val items: List<FilesItem>,
     val nextCursor: FilesCursor?,
     val total: Int,
 )
 
-sealed interface SearchPaging {
-    data object Complete : SearchPaging
+public sealed interface SearchPaging {
+    public data object Complete : SearchPaging
 
-    data class Available(
+    public data class Available(
         val cursor: FilesCursor,
     ) : SearchPaging
 
-    data class Loading(
+    public data class Loading(
         val cursor: FilesCursor,
         val requestId: SearchRequestId,
     ) : SearchPaging
 
-    data class Failed(
+    public data class Failed(
         val cursor: FilesCursor,
         val failure: PutioFailure,
     ) : SearchPaging
 }
 
-sealed interface SearchContent {
-    data object Idle : SearchContent
+public sealed interface SearchContent {
+    public data object Idle : SearchContent
 
-    data class Debouncing(
+    public data class Debouncing(
         val term: SearchTerm,
         val requestId: SearchRequestId,
     ) : SearchContent
 
-    data class Loading(
+    public data class Loading(
         val term: SearchTerm,
         val requestId: SearchRequestId,
     ) : SearchContent
 
-    data class Empty(
+    public data class Empty(
         val term: SearchTerm,
         val paging: SearchPaging,
     ) : SearchContent
 
-    data class Ready(
+    public data class Ready(
         val term: SearchTerm,
         val items: List<FilesItem>,
         val paging: SearchPaging,
@@ -73,14 +73,14 @@ sealed interface SearchContent {
         }
     }
 
-    data class Failed(
+    public data class Failed(
         val term: SearchTerm,
         val failure: PutioFailure,
     ) : SearchContent
 }
 
 @ConsistentCopyVisibility
-data class SearchState internal constructor(
+public data class SearchState internal constructor(
     val query: String,
     val content: SearchContent,
     val recentTerms: List<SearchTerm>,
@@ -90,9 +90,9 @@ data class SearchState internal constructor(
     val recentSearchesEnabled: Boolean? = null,
 )
 
-object SearchReducer {
+public object SearchReducer {
     /** No query yet; recent searches come from the account once its shared config has loaded. */
-    fun start(
+    public fun start(
         recentTerms: List<SearchTerm> = emptyList(),
         recentSearchesEnabled: Boolean? = null,
     ): SearchState =
@@ -106,38 +106,38 @@ object SearchReducer {
         )
 }
 
-sealed interface SearchOutput {
-    data class OpenResult(
+public sealed interface SearchOutput {
+    public data class OpenResult(
         val item: FilesItem,
     ) : SearchOutput
 }
 
-sealed interface RecentSearchEdit {
-    data class Remove(
+public sealed interface RecentSearchEdit {
+    public data class Remove(
         val term: SearchTerm,
     ) : RecentSearchEdit
 
-    data object Clear : RecentSearchEdit
+    public data object Clear : RecentSearchEdit
 
     /** Turning history off also clears it, as tv-native's search settings do. */
-    data class SetEnabled(
+    public data class SetEnabled(
         val enabled: Boolean,
     ) : RecentSearchEdit
 }
 
-interface RecentSearchStore {
-    val terms: StateFlow<List<SearchTerm>>
+public interface RecentSearchStore {
+    public val terms: StateFlow<List<SearchTerm>>
 
     /** The account's `searchHistoryEnabled`; null until it has loaded. */
-    val enabled: StateFlow<Boolean?>
+    public val enabled: StateFlow<Boolean?>
 
-    fun record(term: SearchTerm)
+    public fun record(term: SearchTerm)
 
-    fun remove(term: SearchTerm)
+    public fun remove(term: SearchTerm)
 
-    fun clear()
+    public fun clear()
 
-    fun setEnabled(enabled: Boolean)
+    public fun setEnabled(enabled: Boolean)
 }
 
 private const val INITIAL_REQUEST_VALUE = 1L

@@ -2,14 +2,14 @@ package io.putdotio.android.settings
 
 import io.putdotio.android.PutioFailure
 
-enum class VideoPlaybackType(
-    val wireValue: String,
+public enum class VideoPlaybackType(
+    public val wireValue: String,
 ) {
     Hls("hls"),
     Mp4("mp4"),
 }
 
-data class AndroidAppConfigPreferences(
+public data class AndroidAppConfigPreferences(
     val videoPlaybackType: VideoPlaybackType = VideoPlaybackType.Hls,
     val autoplayNextVideo: Boolean = false,
 )
@@ -22,51 +22,51 @@ internal fun AndroidAppConfigPreferences.applying(
         is AndroidAppConfigChange.AutoplayNextVideo -> copy(autoplayNextVideo = change.enabled)
     }
 
-sealed interface AndroidAppConfigChange {
-    data class VideoPlayback(
+public sealed interface AndroidAppConfigChange {
+    public data class VideoPlayback(
         val value: VideoPlaybackType,
     ) : AndroidAppConfigChange
 
-    data class AutoplayNextVideo(
+    public data class AutoplayNextVideo(
         val enabled: Boolean,
     ) : AndroidAppConfigChange
 }
 
 @JvmInline
-value class AndroidAppConfigRequestId(
-    val value: Long,
+public value class AndroidAppConfigRequestId(
+    internal val value: Long,
 )
 
-sealed interface AndroidAppConfigContent {
-    data class Loading(
+public sealed interface AndroidAppConfigContent {
+    public data class Loading(
         val requestId: AndroidAppConfigRequestId,
     ) : AndroidAppConfigContent
 
-    data class Ready(
+    public data class Ready(
         val preferences: AndroidAppConfigPreferences,
     ) : AndroidAppConfigContent
 
-    data class Failed(
+    public data class Failed(
         val failure: PutioFailure,
     ) : AndroidAppConfigContent
 }
 
-sealed interface AndroidAppConfigMutation {
-    enum class Operation {
+public sealed interface AndroidAppConfigMutation {
+    public enum class Operation {
         Save,
         Refresh,
     }
 
-    data object Idle : AndroidAppConfigMutation
+    public data object Idle : AndroidAppConfigMutation
 
-    data class Saving(
+    public data class Saving(
         val requestId: AndroidAppConfigRequestId,
         val change: AndroidAppConfigChange,
         val previousPreferences: AndroidAppConfigPreferences,
         val operation: Operation,
     ) : AndroidAppConfigMutation
 
-    data class Failed(
+    public data class Failed(
         val change: AndroidAppConfigChange,
         val failure: PutioFailure,
         val previousPreferences: AndroidAppConfigPreferences,
@@ -75,7 +75,7 @@ sealed interface AndroidAppConfigMutation {
 }
 
 @ConsistentCopyVisibility
-data class AndroidAppConfigState internal constructor(
+public data class AndroidAppConfigState internal constructor(
     val content: AndroidAppConfigContent,
     val mutation: AndroidAppConfigMutation,
     internal val nextRequestValue: Long,
@@ -83,70 +83,70 @@ data class AndroidAppConfigState internal constructor(
         (content as? AndroidAppConfigContent.Ready)?.preferences,
 )
 
-sealed interface AndroidAppConfigEvent {
-    data object RetryLoad : AndroidAppConfigEvent
+public sealed interface AndroidAppConfigEvent {
+    public data object RetryLoad : AndroidAppConfigEvent
 
-    data object RetryChange : AndroidAppConfigEvent
+    public data object RetryChange : AndroidAppConfigEvent
 
-    data class ChangeRequested(
+    public data class ChangeRequested(
         val change: AndroidAppConfigChange,
     ) : AndroidAppConfigEvent
 
-    data class LoadSucceeded(
+    public data class LoadSucceeded(
         val requestId: AndroidAppConfigRequestId,
         val preferences: AndroidAppConfigPreferences,
     ) : AndroidAppConfigEvent
 
-    data class LoadFailed(
+    public data class LoadFailed(
         val requestId: AndroidAppConfigRequestId,
         val failure: PutioFailure,
     ) : AndroidAppConfigEvent
 
-    data class SaveSucceeded(
+    public data class SaveSucceeded(
         val requestId: AndroidAppConfigRequestId,
     ) : AndroidAppConfigEvent
 
-    data class SaveFailed(
+    public data class SaveFailed(
         val requestId: AndroidAppConfigRequestId,
         val failure: PutioFailure,
     ) : AndroidAppConfigEvent
 
-    data class RefreshSucceeded(
+    public data class RefreshSucceeded(
         val requestId: AndroidAppConfigRequestId,
         val preferences: AndroidAppConfigPreferences,
     ) : AndroidAppConfigEvent
 
-    data class RefreshFailed(
+    public data class RefreshFailed(
         val requestId: AndroidAppConfigRequestId,
         val failure: PutioFailure,
     ) : AndroidAppConfigEvent
 }
 
-sealed interface AndroidAppConfigEffect {
-    val requestId: AndroidAppConfigRequestId
+public sealed interface AndroidAppConfigEffect {
+    public val requestId: AndroidAppConfigRequestId
 
-    data class Load(
+    public data class Load(
         override val requestId: AndroidAppConfigRequestId,
     ) : AndroidAppConfigEffect
 
-    data class Save(
+    public data class Save(
         override val requestId: AndroidAppConfigRequestId,
         val change: AndroidAppConfigChange,
     ) : AndroidAppConfigEffect
 
-    data class Refresh(
+    public data class Refresh(
         override val requestId: AndroidAppConfigRequestId,
     ) : AndroidAppConfigEffect
 }
 
-data class AndroidAppConfigTransition(
+public data class AndroidAppConfigTransition(
     val state: AndroidAppConfigState,
     val effect: AndroidAppConfigEffect? = null,
     val consumed: Boolean = true,
 )
 
-object AndroidAppConfigReducer {
-    fun start(): AndroidAppConfigTransition {
+public object AndroidAppConfigReducer {
+    public fun start(): AndroidAppConfigTransition {
         val requestId = AndroidAppConfigRequestId(INITIAL_REQUEST_VALUE)
         return AndroidAppConfigTransition(
             state =
@@ -159,7 +159,7 @@ object AndroidAppConfigReducer {
         )
     }
 
-    fun reduce(
+    public fun reduce(
         state: AndroidAppConfigState,
         event: AndroidAppConfigEvent,
     ): AndroidAppConfigTransition =
@@ -176,7 +176,7 @@ object AndroidAppConfigReducer {
         }
 }
 
-fun AndroidAppConfigState.authoritativeSessionFailure(): PutioFailure.AuthenticationRequired? =
+public fun AndroidAppConfigState.authoritativeSessionFailure(): PutioFailure.AuthenticationRequired? =
     listOfNotNull(
         (content as? AndroidAppConfigContent.Failed)?.failure,
         (mutation as? AndroidAppConfigMutation.Failed)?.failure,

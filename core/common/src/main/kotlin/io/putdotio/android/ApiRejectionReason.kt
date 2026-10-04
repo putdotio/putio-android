@@ -6,7 +6,7 @@ package io.putdotio.android
  * failures have none. Text that is a bare error code, names a URL, mentions a credential, or
  * carries the SDK's redaction marker is not shown either, so callers fall back to their own copy.
  */
-fun Throwable.apiRejectionReason(): String? =
+internal fun Throwable.apiRejectionReason(): String? =
     findPutioApiException()
         ?.takeIf { api -> listOf(api.statusCode, api.httpStatusCode).all(::isShownStatus) }
         ?.errorMessage
@@ -16,7 +16,7 @@ private fun isShownStatus(status: Int): Boolean =
     status in HTTP_CLIENT_ERROR_START..HTTP_CLIENT_ERROR_END && status !in APP_EXPLAINED_STATUSES
 
 /** [raw], put.io's free text, if the app may show it under the rules above; otherwise null. */
-fun displayableApiReason(raw: String): String? {
+public fun displayableApiReason(raw: String): String? {
     val text = WHITESPACE.replace(raw, " ").trim()
     return text.takeUnless {
         it.isEmpty() ||

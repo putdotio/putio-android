@@ -6,14 +6,14 @@ import androidx.compose.ui.res.stringResource
 import io.putdotio.android.design.R
 
 /** The inactive-account notice's words on both surfaces; [message] is null where web shows none. */
-data class InactiveAccountNoticeText(
+public data class InactiveAccountNoticeText(
     val title: String,
     val message: String?,
 )
 
 /** A deactivated account's words; without [daysUntilFilesDeleted] there is no message. */
 @Composable
-fun deactivatedAccountNoticeText(daysUntilFilesDeleted: Long?): InactiveAccountNoticeText =
+public fun deactivatedAccountNoticeText(daysUntilFilesDeleted: Long?): InactiveAccountNoticeText =
     InactiveAccountNoticeText(
         title = stringResource(R.string.account_inactive_title),
         message = daysUntilFilesDeleted?.toInt()?.let { days ->
@@ -22,7 +22,7 @@ fun deactivatedAccountNoticeText(daysUntilFilesDeleted: Long?): InactiveAccountN
     )
 
 @Composable
-fun familyPlanExpiredNoticeText(): InactiveAccountNoticeText =
+public fun familyPlanExpiredNoticeText(): InactiveAccountNoticeText =
     InactiveAccountNoticeText(
         title = stringResource(R.string.account_family_expired_title),
         message = null,

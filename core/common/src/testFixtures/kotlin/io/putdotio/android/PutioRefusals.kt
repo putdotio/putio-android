@@ -8,7 +8,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /** A put.io error response as the SDK's transport decodes it. */
-fun putioRefusal(status: Int, body: String, httpStatusCode: Int = status): PutioApiException {
+public fun putioRefusal(status: Int, body: String, httpStatusCode: Int = status): PutioApiException {
     val envelope = runCatching { lenientJson.decodeFromString(PutioApiErrorEnvelope.serializer(), body) }
         .getOrElse { PutioApiErrorEnvelope(statusCode = status) }
     return PutioApiException(
@@ -23,7 +23,7 @@ fun putioRefusal(status: Int, body: String, httpStatusCode: Int = status): Putio
 }
 
 /** The body put.io's API sends for a refused request. */
-fun putioErrorBody(status: Int, message: String): String =
+public fun putioErrorBody(status: Int, message: String): String =
     buildJsonObject {
         put("error_id", null as String?)
         put("error_message", message)

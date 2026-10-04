@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 
-class HistoryController(
+public class HistoryController(
     private val repository: HistoryRepository,
     historyEnabled: Boolean,
     parentScope: CoroutineScope,
@@ -30,12 +30,12 @@ class HistoryController(
     private val navigationChannel = Channel<HistoryEffect.NavigateToFile>(Channel.BUFFERED)
     private var closed = false
 
-    val state: StateFlow<HistoryState> = mutableState.asStateFlow()
-    val navigation: Flow<HistoryEffect.NavigateToFile> = navigationChannel.receiveAsFlow()
+    public val state: StateFlow<HistoryState> = mutableState.asStateFlow()
+    public val navigation: Flow<HistoryEffect.NavigateToFile> = navigationChannel.receiveAsFlow()
 
     init { initial.effect?.let(::launchEffect) }
 
-    fun dispatch(event: HistoryEvent): Boolean {
+    public fun dispatch(event: HistoryEvent): Boolean {
         val transition = synchronized(lock) {
             if (closed) return false
             HistoryReducer.reduce(mutableState.value, event).also { mutableState.value = it.state }

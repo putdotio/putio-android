@@ -4,7 +4,7 @@ import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
 
-data class TrashItem(
+public data class TrashItem(
     val id: FilesItemId,
     val parentId: FilesItemId?,
     val name: String,
@@ -16,7 +16,7 @@ data class TrashItem(
     val isFolder: Boolean get() = type == PutioFileType.FOLDER
 }
 
-data class TrashPage(
+public data class TrashPage(
     val items: List<TrashItem>,
     val nextCursor: FilesCursor?,
     val total: Int? = null,

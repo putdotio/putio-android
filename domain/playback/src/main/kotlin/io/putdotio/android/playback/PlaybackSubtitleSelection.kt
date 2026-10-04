@@ -8,13 +8,13 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 
-data class SubtitleStartupPolicy(
+public data class SubtitleStartupPolicy(
     val showSubtitles: Boolean,
     val autoSelectSubtitles: Boolean,
 )
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-data class PlaybackSubtitleTrack(
+public data class PlaybackSubtitleTrack(
     val group: TrackGroup,
     val trackIndex: Int,
     val identity: SubtitleTrackIdentity = group.getFormat(trackIndex).toSubtitleTrackIdentity(),
@@ -22,7 +22,7 @@ data class PlaybackSubtitleTrack(
     val selected: Boolean,
 )
 
-data class SubtitleTrackIdentity(
+public data class SubtitleTrackIdentity(
     val id: String?,
     val language: String?,
     val label: String?,
@@ -32,7 +32,7 @@ data class SubtitleTrackIdentity(
     val accessibilityChannel: Int,
 ) {
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun exactlyMatches(format: androidx.media3.common.Format): Boolean =
+    internal fun exactlyMatches(format: androidx.media3.common.Format): Boolean =
         id == format.id &&
             language == format.language &&
             label == format.label &&
@@ -49,15 +49,15 @@ internal fun List<PlaybackSubtitleTrack>.resolve(identity: SubtitleTrackIdentity
     return (candidates ?: this).singleOrNull { identity.exactlyMatches(it.group.getFormat(it.trackIndex)) }
 }
 
-sealed interface SubtitleSelection {
-    data object Off : SubtitleSelection
+public sealed interface SubtitleSelection {
+    public data object Off : SubtitleSelection
 
-    data object Automatic : SubtitleSelection
+    public data object Automatic : SubtitleSelection
 
-    data class Track(val identity: SubtitleTrackIdentity) : SubtitleSelection
+    public data class Track(val identity: SubtitleTrackIdentity) : SubtitleSelection
 }
 
-fun Tracks.playbackSubtitleTracks(): List<PlaybackSubtitleTrack> =
+public fun Tracks.playbackSubtitleTracks(): List<PlaybackSubtitleTrack> =
     groups
         .filter { it.type == C.TRACK_TYPE_TEXT }
         .flatMap { group ->
@@ -76,7 +76,7 @@ fun Tracks.playbackSubtitleTracks(): List<PlaybackSubtitleTrack> =
         }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-fun androidx.media3.common.Format.toSubtitleTrackIdentity(): SubtitleTrackIdentity =
+public fun androidx.media3.common.Format.toSubtitleTrackIdentity(): SubtitleTrackIdentity =
     SubtitleTrackIdentity(
         id = id,
         language = language,
@@ -88,7 +88,7 @@ fun androidx.media3.common.Format.toSubtitleTrackIdentity(): SubtitleTrackIdenti
     )
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-fun TrackSelectionParameters.withSubtitleSelection(
+public fun TrackSelectionParameters.withSubtitleSelection(
     selection: SubtitleSelection,
     tracks: List<PlaybackSubtitleTrack>,
     textDefaults: TrackSelectionParameters? = null,
@@ -164,7 +164,7 @@ internal val PlaybackSubtitleTrack.isServerDefault: Boolean
  * subtitles, whatever was picked (#237), else the viewer's pick, else automatic selection when the
  * account auto-selects. Off and forced-only need no tracks.
  */
-fun TrackSelectionParameters.withSubtitleTracks(
+public fun TrackSelectionParameters.withSubtitleTracks(
     retained: SubtitleSelection?,
     startupPolicy: SubtitleStartupPolicy?,
     tracks: List<PlaybackSubtitleTrack>,
@@ -180,11 +180,11 @@ fun TrackSelectionParameters.withSubtitleTracks(
     }
 }
 
-fun TrackSelectionParameters.subtitlesEnabled(tracks: List<PlaybackSubtitleTrack>): Boolean =
+public fun TrackSelectionParameters.subtitlesEnabled(tracks: List<PlaybackSubtitleTrack>): Boolean =
     C.TRACK_TYPE_TEXT !in disabledTrackTypes &&
         (selectTextByDefault || tracks.any(PlaybackSubtitleTrack::selected))
 
-fun restoreSubtitleSelection(
+public fun restoreSubtitleSelection(
     defaults: TrackSelectionParameters,
     retained: SubtitleSelection?,
     startupPolicy: SubtitleStartupPolicy?,
@@ -213,7 +213,7 @@ private fun TrackSelectionParameters.withForcedSubtitlesOnly(): TrackSelectionPa
         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
         .build()
 
-fun SubtitleSelection.toBundle(): Bundle =
+public fun SubtitleSelection.toBundle(): Bundle =
     Bundle().apply {
         when (this@toBundle) {
             SubtitleSelection.Off -> putString("kind", "off")
@@ -231,7 +231,7 @@ fun SubtitleSelection.toBundle(): Bundle =
         }
     }
 
-fun Bundle.toSubtitleSelection(): SubtitleSelection? =
+public fun Bundle.toSubtitleSelection(): SubtitleSelection? =
     when (getString("kind")) {
         "off" -> SubtitleSelection.Off
         "automatic" -> SubtitleSelection.Automatic

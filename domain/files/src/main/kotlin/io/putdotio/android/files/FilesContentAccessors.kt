@@ -1,6 +1,6 @@
 package io.putdotio.android.files
 
-fun FilesContent.items(): List<FilesItem> =
+public fun FilesContent.items(): List<FilesItem> =
     when (this) {
         is FilesContent.Ready -> items
         is FilesContent.Empty,

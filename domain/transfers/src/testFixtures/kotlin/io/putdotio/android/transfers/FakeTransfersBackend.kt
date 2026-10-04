@@ -20,7 +20,7 @@ import kotlinx.serialization.json.Json
  * response is JSON-encoded once and decoded per request, as the SDK transport would.
  * JVM tests count its requests and rows; device benchmarks replay it for CPU time.
  */
-class FakeTransfersBackend(historySize: Int, activePositions: Set<Int>) {
+internal class FakeTransfersBackend(historySize: Int, activePositions: Set<Int>) {
     val history: List<Transfer> =
         (0 until historySize).map { position ->
             historicalTransfer(id = (historySize - position).toLong(), active = position in activePositions)

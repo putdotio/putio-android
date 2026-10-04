@@ -22,13 +22,13 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
-class SearchController internal constructor(
+public class SearchController internal constructor(
     private val repository: SearchRepository,
     private val recentSearchStore: RecentSearchStore,
     parentScope: CoroutineScope,
     private val delaySearch: suspend (Long) -> Unit,
 ) : Closeable {
-    constructor(
+    public constructor(
         repository: SearchRepository,
         recentSearchStore: RecentSearchStore,
         parentScope: CoroutineScope,
@@ -44,8 +44,8 @@ class SearchController internal constructor(
     private var activeJob: Job? = null
     private var closed = false
 
-    val state: StateFlow<SearchState> = mutableState.asStateFlow()
-    val outputs: Flow<SearchOutput> = outputChannel.receiveAsFlow()
+    public val state: StateFlow<SearchState> = mutableState.asStateFlow()
+    public val outputs: Flow<SearchOutput> = outputChannel.receiveAsFlow()
 
     init {
         controllerScope.launch {
@@ -64,7 +64,7 @@ class SearchController internal constructor(
         }
     }
 
-    fun updateQuery(query: String): Boolean {
+    public fun updateQuery(query: String): Boolean {
         val term = query.trim().takeIf(String::isNotBlank)?.let(::SearchTerm)
         val requestId: SearchRequestId?
         val previousJob: Job?
@@ -90,7 +90,7 @@ class SearchController internal constructor(
         return true
     }
 
-    fun submit(): Boolean {
+    public fun submit(): Boolean {
         val term: SearchTerm
         val requestId: SearchRequestId
         val previousJob: Job?
@@ -115,7 +115,7 @@ class SearchController internal constructor(
     }
 
     @Suppress("TooGenericExceptionCaught")
-    fun loadNextPage(): Boolean {
+    public fun loadNextPage(): Boolean {
         val request =
             synchronized(lock) {
                 if (closed || activeJob != null) {
@@ -145,7 +145,7 @@ class SearchController internal constructor(
         return true
     }
 
-    fun retry(): Boolean {
+    public fun retry(): Boolean {
         val content = state.value.content
         return when (content) {
             is SearchContent.Failed -> retryInitial(content.term)
@@ -156,7 +156,7 @@ class SearchController internal constructor(
     }
 
     /** Opening a result is what makes its search worth remembering, as in tv-native. */
-    fun openResult(itemId: FilesItemId): Boolean {
+    public fun openResult(itemId: FilesItemId): Boolean {
         val (term, item) =
             synchronized(lock) {
                 val content = mutableState.value.content as? SearchContent.Ready
@@ -171,7 +171,7 @@ class SearchController internal constructor(
         return sent
     }
 
-    fun editRecentSearches(edit: RecentSearchEdit): Boolean {
+    public fun editRecentSearches(edit: RecentSearchEdit): Boolean {
         val canEdit =
             synchronized(lock) {
                 when (edit) {
