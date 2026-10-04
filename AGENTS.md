@@ -31,8 +31,8 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
   Phosphor drawables; [design/README.md](design/README.md) owns both pipelines.
   Never hand-write design values or edit generated output.
 - Each app has `production` and `nightly` channel flavors. Nightly differs
-  only in its id suffix, label, and stars launcher icon, so its unit-test
-  variants are disabled.
+  only in its id and version-name suffixes, label, and stars launcher icon, so
+  its unit-test variants are disabled.
 
 ## Hazards
 
@@ -70,8 +70,9 @@ macOS, Homebrew. Then run:
 It installs the Android SDK packages and FFmpeg, creates the `putio-phone`
 (API 37) and `putio-tv` (API 36) AVDs, and writes `sdk.dir` to the ignored
 `local.properties`; the first run downloads several GB. `.worktreeinclude`
-copies `local.properties` into Codex and Claude worktrees. Nothing in
-bootstrap, build, CI, or proof needs credentials.
+copies `local.properties` into Codex and Claude worktrees. Bootstrap, build,
+CI, and launch proof need no credentials; only live and authenticated lanes use
+the `devs-auto` profile.
 
 ## Kotlin SDK
 
@@ -128,8 +129,9 @@ names the tests that pin it; a new device lane gets a section in
 ## Delivery and CI
 
 Open pull requests against `main`; the repository squash-merges. A push to
-`main` runs [CI](.github/workflows/ci.yml) and nothing else: no release build,
-signing, or Play upload. CI runs `./gradlew verify` plus all four debug
+`main` runs [CI](.github/workflows/ci.yml) and nothing else: `verify` compiles
+the release variants unsigned, and nothing signs, publishes, or uploads to
+Play. CI runs `./gradlew verify` plus all four debug
 assembles on every pull request and `main` push, holds no secrets, and keeps
 failed unit-test XML as the `failed-unit-test-reports` artifact. A new push to
 a pull request cancels its running check; `main` runs never replace each other.
