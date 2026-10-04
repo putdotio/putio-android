@@ -77,7 +77,7 @@ jobs:
         id: launch-smoke
         working-directory: putio-android
         run: >-
-          ./gradlew :mobile:verifyCiPhoneLaunchProof
+          ./gradlew --stacktrace :mobile:verifyCiPhoneLaunchProof
           -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest
           -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader
 
@@ -96,7 +96,7 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: putio-android
         run: >-
-          ./gradlew :mobile:verifyCiPhoneOAuthProof
+          ./gradlew --stacktrace :mobile:verifyCiPhoneOAuthProof
           -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.auth.StaleOAuthCallbackTest
           -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader
 
