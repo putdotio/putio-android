@@ -113,7 +113,7 @@ that matches. Report skipped or unavailable proof.
 
 | Change | Proof |
 | --- | --- |
-| Docs only | None; check the links and commands you touched. CI still runs the full gate |
+| Docs only | None; check the links and commands you touched. Pull-request CI skips `verify` for these paths |
 | Domain or core logic | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module |
 | App view models or services | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest` |
 | UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md) |
@@ -132,7 +132,9 @@ Open pull requests against `main`; the repository squash-merges. A push to
 `main` runs [CI](.github/workflows/ci.yml) and nothing else: `verify` compiles
 the release variants unsigned, and nothing signs, publishes, or uploads to
 Play. CI runs `./gradlew verify` plus all four debug
-assembles on every pull request and `main` push, holds no secrets, and keeps
+assembles on every `main` push and on pull requests that change more than
+Markdown, `docs/`, issue templates, or `LICENSE`; a docs-only pull request
+reports the job as skipped. CI holds no secrets and keeps
 failed unit-test XML as the `failed-unit-test-reports` artifact. A new push to
 a pull request cancels its running check; `main` runs never replace each other.
 
