@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Looper
 import androidx.core.content.IntentCompat
 import androidx.media3.common.C
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.ByteArrayDataSource
@@ -147,23 +148,52 @@ class MobileDownloadEngineTest {
     }
 
     @Test
-    fun downloadsAnUnreadableIndexLostAreRemovedRatherThanLeftInvisible() {
-        index.putDownload(download("$ALICE:30", Download.STATE_COMPLETED, bytes = TOTAL).also(::cacheBytes))
-        index.putDownload(download("$ALICE:31", Download.STATE_QUEUED))
+    fun downloadsAnUnreadableIndexLostComeBackAsRowsTheViewerCanPlayAndDelete() {
+        val hls = Download(
+            DownloadRequest.Builder(
+                "$ALICE:30",
+                Uri.parse("https://api.put.io/v2/files/30/hls/media.m3u8?subtitle_key=all&max_subtitle_count=0"),
+            ).setMimeType(MimeTypes.APPLICATION_M3U8).setData("Sintel.mkv".encodeToByteArray()).build(),
+            Download.STATE_COMPLETED, 5L, 5L, TOTAL, Download.STOP_REASON_NONE, Download.FAILURE_REASON_NONE,
+            DownloadProgress().apply { bytesDownloaded = TOTAL },
+        )
+        index.putDownload(hls.also(::cacheBytes))
+        index.putDownload(download("$ALICE:31", Download.STATE_STOPPED, stopReason = PARKED))
         index.putDownload(download("$BOB:40", Download.STATE_QUEUED))
         preferences.edit().putString(storeKey(ALICE), "[{not json").commit()
         val store = store(ALICE)
         assertTrue(store.entries.value.isEmpty())
+        val manager = manager()
 
-        engine(ALICE, store, manager())
+        val engine = engine(ALICE, store, manager)
 
-        val sent = generateSequence { shadowOf(context).nextStartedService }.toList()
-        assertEquals(
-            setOf("$ALICE:30", "$ALICE:31"),
-            sent.filter { it.action == DownloadService.ACTION_REMOVE_DOWNLOAD }
-                .mapTo(mutableSetOf()) { it.getStringExtra(DownloadService.KEY_CONTENT_ID) },
-        )
-        assertTrue(store.entries.value.isEmpty())
+        awaitMain { store.entries.value.size == 2 }
+        val video = checkNotNull(store.find(FilesItemId(30L)))
+        assertEquals("Sintel.mkv", video.name)
+        assertEquals(PutioFileType.VIDEO to DownloadArtifact.HLS, video.type to video.artifact)
+        assertEquals(DownloadStatus.Completed(TOTAL), video.status)
+        assertEquals(true, video.subtitlesHidden)
+        assertTrue(video.recovered)
+        val audio = checkNotNull(store.find(FilesItemId(31L)))
+        assertEquals("Downloaded file", audio.name)
+        assertEquals(PutioFileType.AUDIO to DownloadArtifact.ORIGINAL, audio.type to audio.artifact)
+        assertTrue(audio.isActive)
+        assertTrue(store.entries.value.none { it.fileId.value == 40L })
+        // Nothing is deleted on the way: bytes leave only through a confirmed delete.
+        val removals = generateSequence { shadowOf(context).nextStartedService }
+            .filter { it.action == DownloadService.ACTION_REMOVE_DOWNLOAD }.toList()
+        assertTrue(removals.isEmpty())
+
+        val controller = DownloadsController(store, engine, scope)
+        assertTrue(controller.dispatch(DownloadsEvent.RequestRemoval(setOf(FilesItemId(30L)))))
+        assertTrue(controller.dispatch(DownloadsEvent.ConfirmRemoval))
+        awaitMain {
+            shadowOf(context).nextStartedService?.getStringExtra(DownloadService.KEY_CONTENT_ID) == "$ALICE:30"
+        }
+        // The service hands the remove to Media3; the row leaves once Media3 confirms.
+        manager.removeDownload("$ALICE:30")
+        awaitMain { store.find(FilesItemId(30L)) == null }
+        controller.close()
     }
 
     @Test

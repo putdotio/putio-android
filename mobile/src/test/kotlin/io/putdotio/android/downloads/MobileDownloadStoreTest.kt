@@ -73,6 +73,39 @@ class MobileDownloadStoreTest {
     }
 
     @Test
+    fun aRowThisBuildCannotReadCostsOnlyThatRowAndSurvivesTheNextWrite() = runBlocking {
+        val good = """{"fileId":5,"name":"good","type":"VIDEO","artifact":"HLS","createdAt":50,""" +
+            """"accepted":true,"status":{"kind":"completed","bytes":7}}"""
+        // A newer build's rendition and a damaged row.
+        val newer = """{"fileId":6,"name":"newer","type":"VIDEO","artifact":"DASH","createdAt":60,""" +
+            """"status":{"kind":"completed","bytes":8}}"""
+        preferences.edit().putString("user-5", "[$good,$newer,\"damaged\"]").commit()
+
+        val store = MobileDownloadStore(preferences, "user-5", Dispatchers.Unconfined)
+        assertEquals(listOf(5L), store.entries.value.map { it.fileId.value })
+
+        store.upsert(entry(7L, DownloadStatus.Queued))
+        store.remove(FilesItemId(5L))
+        val written = preferences.getString("user-5", "").orEmpty()
+        assertTrue(written.contains("\"DASH\"") && written.contains("damaged"))
+        assertEquals(listOf(7L), MobileDownloadStore(preferences, "user-5", Dispatchers.Unconfined)
+            .entries.value.map { it.fileId.value })
+
+        // Deleting that file drops its unreadable row too, so a later build cannot bring it back.
+        store.remove(FilesItemId(6L))
+        assertTrue(!preferences.getString("user-5", "").orEmpty().contains("DASH"))
+    }
+
+    @Test
+    fun aDocumentThatIsNotAListIsSetAsideBeforeItIsReplaced() = runBlocking {
+        preferences.edit().putString("user-6", "[{not json").commit()
+        val store = MobileDownloadStore(preferences, "user-6", Dispatchers.Unconfined)
+        assertTrue(store.entries.value.isEmpty())
+        store.upsert(entry(8L, DownloadStatus.Queued))
+        assertEquals("[{not json", preferences.getString("user-6.unreadable", null))
+    }
+
+    @Test
     fun usersAreIsolatedAndStatusUpdatesAreVisibleImmediately() = runBlocking {
         val first = MobileDownloadStore(preferences, "user-1", Dispatchers.Unconfined)
         val second = MobileDownloadStore(preferences, "user-2", Dispatchers.Unconfined)

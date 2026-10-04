@@ -12,8 +12,10 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.Requirements
+import io.putdotio.android.R
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.HLS_ALL_SUBTITLES
+import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
 import java.net.SocketException
 import java.net.UnknownHostException
@@ -43,6 +45,7 @@ internal class MobileDownloadEngine(
     private val appContext = context.applicationContext
     private val downloads = MobileDownloadCache.get(appContext)
     private val settings = MobileDownloadSettings(appContext)
+    private val standInName = appContext.getString(R.string.mobile_downloads_recovered_name)
     private val removing = mutableSetOf<FilesItemId>()
     private val parkOnTokenClearing: () -> Unit = { park() }
 
@@ -119,6 +122,11 @@ internal class MobileDownloadEngine(
             }
             known[fileId] = download
             if (download.state == Download.STATE_REMOVING) synchronized(removing) { removing += fileId }
+            // A download whose row was lost stays visible, playable and deletable; only a
+            // confirmed delete removes bytes.
+            if (download.state != Download.STATE_REMOVING) {
+                store.addBlocking(download.recoveredEntry(fileId, standInName))
+            }
             if (download.stopReason == STOP_REASON_OTHER_USER) {
                 downloadManager.setStopReason(download.request.id, Download.STOP_REASON_NONE)
             }
@@ -127,17 +135,9 @@ internal class MobileDownloadEngine(
         return known
     }
 
-    /**
-     * Every app row ends in a state the viewer can act on; only a confirmed delete drops one. A
-     * download of this user with no row, left by an index that could not be read, could never be
-     * seen, played or deleted, so its bytes are removed and Files offers Download again.
-     */
+    /** Every app row ends in a state the viewer can act on; only a confirmed delete drops one. */
     private fun recover(known: Map<FilesItemId, Download>) {
         if (closed) return
-        val rows = store.entries.value.mapTo(mutableSetOf()) { it.fileId }
-        for ((fileId, download) in known) {
-            if (fileId !in rows && download.state != Download.STATE_REMOVING) remove(fileId)
-        }
         for (entry in store.entries.value) {
             val download = known[entry.fileId]
             when {
@@ -159,6 +159,8 @@ internal class MobileDownloadEngine(
         val url = entry.artifact.apiUrl(entry.fileId, subtitlesHidden = entry.subtitlesHidden == true)
         val request = DownloadRequest.Builder(downloadContentId(userId, entry.fileId), url.toUri())
             .setMimeType(if (entry.artifact == DownloadArtifact.HLS) MimeTypes.APPLICATION_M3U8 else null)
+            // The name rides along so a row lost from the app's index can be rebuilt with it.
+            .setData(entry.name.encodeToByteArray())
             .build()
         MobileDownloadNotifications.cancel(appContext, userId, entry.fileId)
         DownloadService.sendAddDownload(appContext, MobileDownloadService::class.java, request, true)
@@ -252,6 +254,30 @@ internal class MobileDownloadEngine(
 private fun fileIdOf(userId: Long, contentId: String): FilesItemId? {
     if (contentId.substringBefore(':', missingDelimiterValue = "").toLongOrNull() != userId) return null
     return contentId.substringAfter(':').toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
+}
+
+/**
+ * A row rebuilt from Media3's record when the app's own row is gone. The rendition comes from the
+ * request: an HLS playlist is a video, an original is audio, as only audio downloads the original.
+ * The name is the one the request carried, else a neutral stand-in; the status follows Media3.
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun Download.recoveredEntry(fileId: FilesItemId, standInName: String): DownloadEntry {
+    val hls = request.mimeType == MimeTypes.APPLICATION_M3U8 || request.uri.path.orEmpty().endsWith(".m3u8")
+    val subtitleCount = request.uri.getQueryParameter("max_subtitle_count")
+    val time = startTimeMs.takeIf { it > 0L } ?: updateTimeMs
+    return DownloadEntry(
+        fileId = fileId,
+        name = request.data.decodeToString().ifBlank { standInName },
+        type = if (hls) PutioFileType.VIDEO else PutioFileType.AUDIO,
+        artifact = if (hls) DownloadArtifact.HLS else DownloadArtifact.ORIGINAL,
+        status = DownloadStatus.Queued,
+        createdAt = time,
+        accepted = true,
+        queuedAt = time,
+        recovered = true,
+        subtitlesHidden = if (hls) subtitleCount?.let { it == "0" } else null,
+    )
 }
 
 private fun MobileDownloadStore.markMissing(fileId: FilesItemId) =

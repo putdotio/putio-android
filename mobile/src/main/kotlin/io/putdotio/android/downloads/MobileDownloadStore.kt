@@ -33,7 +33,14 @@ internal class MobileDownloadStore internal constructor(
     )
 
     private val lock = Any()
-    private val mutableEntries = MutableStateFlow(readAll())
+    private val document = preferences.readDocument(key)
+    private val mutableEntries = MutableStateFlow(document.entries)
+
+    /**
+     * Raw rows this build cannot read, such as a newer build's or a damaged one. They are written
+     * back untouched, so a downgrade or one bad row never erases what the next build can read.
+     */
+    private var unreadable = document.unreadable
 
     override val entries: StateFlow<List<DownloadEntry>> = mutableEntries.asStateFlow()
 
@@ -42,6 +49,7 @@ internal class MobileDownloadStore internal constructor(
     }
 
     override suspend fun remove(fileId: FilesItemId) = write { current ->
+        forgetUnreadable(fileId)
         current.filterNot { it.fileId == fileId }
     }
 
@@ -59,7 +67,17 @@ internal class MobileDownloadStore internal constructor(
             val next = current.map { if (it.fileId == fileId) updated else it }
             val terminal = updated.status is DownloadStatus.Completed || updated.status is DownloadStatus.Failed ||
                 updated.status is DownloadStatus.Missing
-            preferences.edit(commit = terminal) { putString(key, next.toJson()) }
+            preferences.edit(commit = terminal) { putString(key, next.toJson(unreadable)) }
+            mutableEntries.value = next
+        }
+    }
+
+    /** A row recovered from Media3's index on the main thread; an existing row for the file wins. */
+    fun addBlocking(entry: DownloadEntry) {
+        synchronized(lock) {
+            if (mutableEntries.value.any { it.fileId == entry.fileId }) return
+            val next = mutableEntries.value + entry
+            preferences.edit(commit = true) { putString(key, next.toJson(unreadable)) }
             mutableEntries.value = next
         }
     }
@@ -78,22 +96,26 @@ internal class MobileDownloadStore internal constructor(
 
     fun removeBlocking(fileId: FilesItemId) {
         synchronized(lock) {
+            forgetUnreadable(fileId)
             val next = mutableEntries.value.filterNot { it.fileId == fileId }
-            preferences.edit(commit = true) { putString(key, next.toJson()) }
+            preferences.edit(commit = true) { putString(key, next.toJson(unreadable)) }
             mutableEntries.value = next
         }
+    }
+
+    // A deleted file's unreadable row must not come back as a row in a build that can read it.
+    private fun forgetUnreadable(fileId: FilesItemId) {
+        unreadable = unreadable.filterNot { (it as? JSONObject)?.optLong("fileId") == fileId.value }
     }
 
     private suspend fun write(transform: (List<DownloadEntry>) -> List<DownloadEntry>) =
         withContext(ioDispatcher) {
             synchronized(lock) {
                 val next = transform(mutableEntries.value)
-                preferences.edit(commit = true) { putString(key, next.toJson()) }
+                preferences.edit(commit = true) { putString(key, next.toJson(unreadable)) }
                 mutableEntries.value = next
             }
         }
-
-    private fun readAll(): List<DownloadEntry> = preferences.readEntries(key)
 
     companion object {
         /**
@@ -101,7 +123,7 @@ internal class MobileDownloadStore internal constructor(
          * without this user's store. Never writes.
          */
         fun peek(context: Context, userId: Long, fileId: FilesItemId): DownloadEntry? =
-            downloadPreferences(context).readEntries(storeKey(userId)).firstOrNull { it.fileId == fileId }
+            downloadPreferences(context).readDocument(storeKey(userId)).entries.firstOrNull { it.fileId == fileId }
     }
 }
 
@@ -113,13 +135,35 @@ private const val DOWNLOAD_PREFERENCES_NAME = "io.putdotio.android.downloads"
 
 private fun storeKey(userId: Long): String = "user-$userId"
 
-private fun SharedPreferences.readEntries(key: String): List<DownloadEntry> =
-    getString(key, null)?.let { raw ->
-        runCatching { JSONArray(raw).toEntries() }.getOrDefault(emptyList())
-    }.orEmpty()
+private class StoredRows(val entries: List<DownloadEntry>, val unreadable: List<Any>)
 
-private fun List<DownloadEntry>.toJson(): String =
-    JSONArray().also { array -> forEach { array.put(it.toJson()) } }.toString()
+/**
+ * Rows are read one by one, so a row this build cannot read costs only that row. A document
+ * that is not a list at all is copied aside once, under `<key>.unreadable`, before the next
+ * write replaces it.
+ */
+private fun SharedPreferences.readDocument(key: String): StoredRows {
+    val raw = getString(key, null)
+    val parsed = raw?.let { runCatching { JSONArray(it) }.getOrNull() }
+    if (raw != null && parsed == null && !contains("$key.unreadable")) edit { putString("$key.unreadable", raw) }
+    val array = parsed ?: JSONArray()
+    val entries = mutableListOf<DownloadEntry>()
+    val unreadable = mutableListOf<Any>()
+    for (index in 0 until array.length()) {
+        val item = array.opt(index)
+        val entry = runCatching { (item as? JSONObject)?.toEntryOrNull() }.getOrNull()
+        if (entry == null) item?.let(unreadable::add) else entries += entry
+    }
+    // Two rows for one file: keep the one with the viewer's own name over a recovered one.
+    val rows = entries.groupBy { it.fileId }.values.map { rows -> rows.firstOrNull { !it.recovered } ?: rows.first() }
+    return StoredRows(rows, unreadable)
+}
+
+private fun List<DownloadEntry>.toJson(unreadable: List<Any>): String =
+    JSONArray().also { array ->
+        forEach { array.put(it.toJson()) }
+        unreadable.forEach(array::put)
+    }.toString()
 
 private fun DownloadEntry.toJson(): JSONObject =
     JSONObject()
@@ -131,6 +175,7 @@ private fun DownloadEntry.toJson(): JSONObject =
         .put("queuedAt", queuedAt)
         .put("accepted", accepted)
         .put("removing", removing)
+        .put("recovered", recovered)
         .put("startFrom", startFromSeconds)
         .put("status", status.toJson())
         .also { json ->
@@ -149,9 +194,6 @@ private fun DownloadStatus.toJson(): JSONObject =
         is DownloadStatus.Completed -> JSONObject().put("kind", "completed").put("bytes", bytes)
         DownloadStatus.Missing -> JSONObject().put("kind", "missing")
     }
-
-private fun JSONArray.toEntries(): List<DownloadEntry> =
-    (0 until length()).mapNotNull { index -> optJSONObject(index)?.toEntryOrNull() }
 
 private fun JSONObject.toEntryOrNull(): DownloadEntry? {
     val fileId = optLong("fileId", -1L).takeIf { it > 0L } ?: return null
@@ -172,6 +214,7 @@ private fun JSONObject.toEntryOrNull(): DownloadEntry? {
             accepted = optBoolean("accepted", false),
             queuedAt = optLong("queuedAt", createdAt),
             removing = optBoolean("removing", false),
+            recovered = optBoolean("recovered", false),
             subtitlesHidden = if (has("subtitlesHidden")) optBoolean("subtitlesHidden") else null,
             startFromSeconds = optDouble("startFrom", 0.0).takeIf { it.isFinite() && it >= 0.0 } ?: 0.0,
             durationSeconds = optDouble("duration", Double.NaN).takeIf { it.isFinite() && it > 0.0 },

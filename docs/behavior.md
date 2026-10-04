@@ -686,11 +686,11 @@ settings confirmed keeps the old all-subtitles request and the player's usual
 rule (#237). Media3 owns bytes, resume and the foreground notification, which
 shows a count and progress only. The app's index in private SharedPreferences
 holds file id, name, type, rendition, status, queue time, a pending-delete mark,
-the confirmed subtitle setting and the listing's saved position per user; it
-never holds a URL.
+the confirmed subtitle setting, the listing's saved position and whether the
+row was rebuilt per user; it never holds a URL.
 
-Requests carry the token-free API URL, and a resolving data source adds the
-session header for `api.put.io` hosts. The app builds that URL itself: the
+Requests carry the token-free API URL and the file's name, and a resolving
+data source adds the session header for `api.put.io` hosts. The app builds that URL itself: the
 SDK's URL builders always embed `oauth_token`, which Media3 would persist; it
 takes the subtitle count from the SDK's `HLS_ALL_SUBTITLES`. Playlist bodies from the server embed
 `oauth_token` in their child URLs; the cache key factory strips that query and
@@ -728,9 +728,15 @@ a failed one keeps its reason, and an unfinished one goes back in the queue. A
 finished row whose bytes are gone from the cache, found at reconcile or when
 offline playback opens it, reads missing: it stops counting as on this device
 in Files and Downloads, streams instead, and offers Download again. The
-reverse, a download of this user that Media3 lists but the index does not (an
-index that could not be read), could never be seen, played or deleted, so
-reconcile removes its bytes and Files offers Download again.
+reverse, a download of this user that Media3 lists but the index does not,
+comes back as a row: video for an HLS request, audio for an original, the name
+the request carried (requests carry the file name from #53 on) or "Downloaded
+file", the subtitle setting its URL asked for, and Media3's state. It plays and
+deletes like any row. The index reads rows one by one: a row this build cannot
+read, such as a newer build's, costs only that row and is written back
+untouched, and a document that is not a list is copied aside under
+`<key>.unreadable` before the next write. Bytes leave the device only through a
+confirmed delete.
 
 **Removal.** Deleting removes only local copies; Downloads has no path to the
 put.io originals. One row's sheet or a multi-select asks first, saying the
@@ -773,9 +779,9 @@ copies, concurrency, progress polling while shown), `MobileDownloadsScreenTest`
 (queue order and places, the limit, the notification notice, selection,
 shown and hidden events), `MobileShellDownloadsTest` (bulk delete never reaches
 put.io, notification links, the subtitle setting a Files download carries),
-`MobileDownloadStoreTest`, `MobileDownloadEngineTest` (queue order and limit
-across process recreation, recovery of every row state, downloads an
-unreadable index lost, low-storage pause, reconcile, sign-out parking, account
+`MobileDownloadStoreTest` (unreadable rows kept), `MobileDownloadEngineTest` (queue order and limit
+across process recreation, recovery of every row state, rows rebuilt for
+downloads an unreadable index lost, low-storage pause, reconcile, sign-out parking, account
 isolation, close before reconcile, in-memory progress and its denominator, the
 recorded request URL and the local-copy check against a real Media3 manager and
 cache), `MobileDownloadNotificationsTest` (granted, denied and disabled states,

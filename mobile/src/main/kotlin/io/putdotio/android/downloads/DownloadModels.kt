@@ -75,6 +75,8 @@ internal data class DownloadEntry(
     val queuedAt: Long = createdAt,
     /** Set when the viewer confirmed Delete; the row leaves once Media3 has removed the bytes. */
     val removing: Boolean = false,
+    /** Rebuilt from Media3's index after this row was lost; its name may be a stand-in. */
+    val recovered: Boolean = false,
     /**
      * The account's `hide_subtitles` as confirmed when the download started; null when it was
      * not known. An HLS download made while it was true holds no subtitle rendition.

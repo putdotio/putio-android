@@ -405,6 +405,8 @@
     </plurals>
     <string name="mobile_downloads_remove_many_message">The files stay in your put.io account. Only the copies on this device are removed.</string>
     <string name="mobile_downloads_download_again">Download again</string>
+    <!-- Stands in for the name of a download whose row the app had to rebuild. -->
+    <string name="mobile_downloads_recovered_name">Downloaded file</string>
     <string name="mobile_downloads_select">Select</string>
     <string name="mobile_downloads_select_all">Select all</string>
     <string name="mobile_downloads_selection_clear">Cancel selection</string>
