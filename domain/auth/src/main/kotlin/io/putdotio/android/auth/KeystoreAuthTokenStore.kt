@@ -41,7 +41,7 @@ class AuthTokenStorageException(
 // Platform commit is intentionally used so validation waits for durability and
 // can fail when the Boolean result says the write did not reach storage.
 @SuppressLint("ApplySharedPref", "UseKtx")
-class KeystoreAuthTokenStore(
+class KeystoreAuthTokenStore internal constructor(
     private val preferences: SharedPreferences,
     private val tokenCipher: AuthTokenCipher,
     private val ioDispatcher: CoroutineDispatcher,
@@ -131,7 +131,7 @@ class KeystoreAuthTokenStore(
     }
 }
 
-interface AuthTokenCipher {
+internal interface AuthTokenCipher {
     fun encrypt(plaintext: ByteArray): EncryptedAuthTokenValue
 
     fun decrypt(value: EncryptedAuthTokenValue): ByteArray
@@ -139,7 +139,7 @@ interface AuthTokenCipher {
     fun destroyKey()
 }
 
-data class EncryptedAuthTokenValue(
+internal data class EncryptedAuthTokenValue(
     val initializationVector: ByteArray,
     val ciphertext: ByteArray,
 ) {
@@ -241,7 +241,7 @@ private inline fun <T> storageOperation(
         throw AuthTokenStorageException(operation, error)
     }
 
-class MissingAuthTokenKeyException : GeneralSecurityException("Android Keystore access-token key is missing")
+internal class MissingAuthTokenKeyException : GeneralSecurityException("Android Keystore access-token key is missing")
 
 private fun Throwable.isUndecryptableRecord(): Boolean =
     this is MissingAuthTokenKeyException ||
@@ -257,9 +257,9 @@ private fun String.decodeBase64Url(): ByteArray =
     Base64.getUrlDecoder().decode(this)
 
 const val AUTH_PREFERENCES_NAME = "putio_auth"
-const val ENCRYPTED_ACCESS_TOKEN_KEY = "access_token_v1"
+internal const val ENCRYPTED_ACCESS_TOKEN_KEY = "access_token_v1"
 internal const val PENDING_REVOCATION_TOKEN_KEY = "pending_revocation_token_v1"
-fun authTokenKeyAlias(packageName: String): String = "$packageName.$AUTH_KEY_ALIAS_SUFFIX"
+internal fun authTokenKeyAlias(packageName: String): String = "$packageName.$AUTH_KEY_ALIAS_SUFFIX"
 internal fun pendingRevocationKeyAlias(packageName: String): String =
     "$packageName.$PENDING_REVOCATION_KEY_ALIAS_SUFFIX"
 

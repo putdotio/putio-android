@@ -29,7 +29,7 @@ interface TransfersRepository {
     suspend fun clean(ids: List<TransferId>): FilesRepositoryResult<Set<TransferId>>
 }
 
-class TransfersAddOperations(
+internal class TransfersAddOperations(
     val add: suspend (TransferAddInput) -> Transfer,
     val addMany: suspend (List<TransferAddInput>) -> TransfersAddManyResponse,
     val upload: suspend (FileUploadInput) -> FileUploadResult,
@@ -70,13 +70,13 @@ class TransfersAddOperations(
     }
 }
 
-class TransfersReadOperations(
+internal class TransfersReadOperations(
     val list: suspend (TransfersListQuery) -> TransfersListResponse,
     val continueList: suspend (String, TransfersListQuery) -> TransfersListResponse,
     val get: suspend (Long) -> Transfer,
 )
 
-class SdkTransfersRepository(
+class SdkTransfersRepository internal constructor(
     private val reads: TransfersReadOperations,
     private val adds: TransfersAddOperations,
     private val cancelTransfers: suspend (List<Long>) -> Unit,
@@ -200,7 +200,7 @@ class SdkTransfersRepository(
     }
 }
 
-fun Transfer.toTransferItem(): TransferItem =
+internal fun Transfer.toTransferItem(): TransferItem =
     TransferItem(
         id = TransferId(id),
         name = name,

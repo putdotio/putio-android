@@ -82,6 +82,12 @@ checks, and do not run `connectedAndroidTest` or `prove.sh` between authenticate
 steps. The device auth tests use separate preferences and Keystore aliases so
 their own setup and cleanup do not touch an existing session.
 
+`domain/auth` and `domain/transfers` keep their device tests in their own test
+APKs (`KeystoreAuthTokenStoreInstrumentedTest`, `TransfersPollingCpuBenchmark`).
+`ANDROID_SERIAL=<serial> ./gradlew :domain:auth:connectedDebugAndroidTest`
+installs and removes only that test APK, so it is safe beside an authenticated
+app.
+
 Flags: `--keep` (leave emulator running), `--ephemeral` (throwaway AVD,
 deleted on exit; conflicts with `--keep`), `--window` (headed), `--skip-build`,
 `--record`, `--seconds N` (recording length, 3 to 180).
@@ -1272,16 +1278,19 @@ keeps the app's copy). Remove the directory afterwards.
 `TransfersPollingCpuBenchmark` replays the deterministic Transfers histories
 from `domain/transfers/src/testFixtures` on a device, with no network or account, and logs the
 median thread CPU and wall time per poll for the pre-by-id list walk and the
-current refresh under the `TransfersPollingCpu` tag. Install the mobile
-production debug app and instrumentation APKs, then:
+current refresh under the `TransfersPollingCpu` tag. It lives in the
+`domain/transfers` test APK, so no app is installed or removed:
 
 ```bash
+./gradlew :domain:transfers:assembleDebugAndroidTest
+adb -s <serial> install -r -t domain/transfers/build/outputs/apk/androidTest/debug/transfers-debug-androidTest.apk
 adb -s <serial> logcat -c
 adb -s <serial> shell am instrument -w \
   -e class io.putdotio.android.transfers.TransfersPollingCpuBenchmark \
   -e putio.transfers.benchmark.enabled true \
-  io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
+  io.putdotio.android.transfers.test/androidx.test.runner.AndroidJUnitRunner
 adb -s <serial> logcat -d -s TransfersPollingCpu:I
+adb -s <serial> uninstall io.putdotio.android.transfers.test
 ```
 
 Label results with the device and build; emulator numbers depend on host load.

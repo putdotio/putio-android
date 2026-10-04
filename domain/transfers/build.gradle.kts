@@ -16,4 +16,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     testFixturesImplementation(libs.putio.sdk.kotlin)
     testFixturesImplementation(libs.kotlinx.coroutines.android)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

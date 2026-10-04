@@ -167,6 +167,7 @@ dependencies {
     testImplementation(libs.androidx.test.ext.junit)
 
     androidTestImplementation(testFixtures(project(":domain:account")))
+    androidTestImplementation(testFixtures(project(":domain:auth")))
     androidTestImplementation(testFixtures(project(":domain:files")))
     androidTestImplementation(testFixtures(project(":domain:history")))
     androidTestImplementation(testFixtures(project(":domain:playback")))

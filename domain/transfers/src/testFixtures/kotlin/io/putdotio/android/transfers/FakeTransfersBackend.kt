@@ -34,7 +34,7 @@ class FakeTransfersBackend(historySize: Int, activePositions: Set<Int>) {
     var rowsDecoded = 0
         private set
 
-    fun reads(): TransfersReadOperations =
+    internal fun reads(): TransfersReadOperations =
         TransfersReadOperations(
             list = { query -> page(0, requireNotNull(query.perPage)) },
             continueList = { cursor, query -> page(cursor.toInt(), requireNotNull(query.perPage)) },

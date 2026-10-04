@@ -15,8 +15,8 @@ object PutioAndroidSdk {
 
 /**
  * Shared setup for the `core` and `domain` Android libraries: SDK levels, the
- * repository's lint and detekt gates, the Compose compiler, and the JVM test stack. Each module still
- * declares its namespace and its own dependencies.
+ * repository's lint and detekt gates, the Compose compiler, the JVM test stack and the
+ * instrumentation runner. Each module still declares its namespace and its own dependencies.
  */
 class PutioAndroidLibraryPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
@@ -28,6 +28,7 @@ class PutioAndroidLibraryPlugin : Plugin<Project> {
         extensions.configure<LibraryExtension> {
             compileSdk = PutioAndroidSdk.COMPILE
             defaultConfig.minSdk = PutioAndroidSdk.MIN
+            defaultConfig.testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
             lint {
                 warningsAsErrors = true
                 abortOnError = true

@@ -40,11 +40,9 @@ import io.putdotio.android.transfers.MOBILE_TRANSFER_DESTINATION_TAG
 import io.putdotio.android.transfers.MOBILE_TRANSFER_TORRENT_TAG
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersScreen
-import io.putdotio.android.transfers.SdkTransfersRepository
-import io.putdotio.android.transfers.TransfersAddOperations
 import io.putdotio.android.transfers.TransfersController
-import io.putdotio.android.transfers.TransfersReadOperations
 import io.putdotio.android.transfers.readMobileTorrent
+import io.putdotio.android.transfers.scriptedSdkTransfersRepository
 import io.putdotio.sdk.files.FileUploadInput
 import io.putdotio.sdk.files.FileUploadResult
 import io.putdotio.sdk.files.PutioFileType
@@ -97,26 +95,18 @@ class MobileTransferIntakeProofTest {
         val added = CopyOnWriteArrayList<TransferAddInput>()
         val addedMany = CopyOnWriteArrayList<List<TransferAddInput>>()
         val uploaded = CopyOnWriteArrayList<FileUploadInput>()
-        val repository = SdkTransfersRepository(
-            reads = TransfersReadOperations(
-                list = { TransfersListResponse(cursor = null, transfers = emptyList(), status = "OK") },
-                continueList = { _, _ -> error("No second page") },
-                get = { id -> error("No refresh of $id") },
-            ),
-            adds = TransfersAddOperations(
-                add = { input -> added += input; transfer(31L, "Harbor film") },
-                addMany = { inputs ->
-                    addedMany += inputs
-                    TransfersAddManyResponse(
-                        errors = listOf(TransfersAddManyError("UNKNOWN_SCHEME", 400, REFUSED_LINK)),
-                        transfers = listOf(transfer(32L, "Archive été 東京")),
-                        status = "OK",
-                    )
-                },
-                upload = { input -> uploaded += input; FileUploadResult.Transfer(transfer(33L, "Sample torrent")) },
-            ),
-            cancelTransfers = { error("No cancel in this proof") },
-            retryTransfer = { error("No retry in this proof") },
+        val repository = scriptedSdkTransfersRepository(
+            list = { TransfersListResponse(cursor = null, transfers = emptyList(), status = "OK") },
+            add = { input -> added += input; transfer(31L, "Harbor film") },
+            addMany = { inputs ->
+                addedMany += inputs
+                TransfersAddManyResponse(
+                    errors = listOf(TransfersAddManyError("UNKNOWN_SCHEME", 400, REFUSED_LINK)),
+                    transfers = listOf(transfer(32L, "Archive été 東京")),
+                    status = "OK",
+                )
+            },
+            upload = { input -> uploaded += input; FileUploadResult.Transfer(transfer(33L, "Sample torrent")) },
             cleanTransfers = { TransfersCleanResponse(deletedIds = emptyList(), status = "OK") },
         )
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

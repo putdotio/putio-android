@@ -23,22 +23,20 @@ class MobileAuthStorageRecoveryTest {
     fun `undecryptable stored token wipes storage and offers a normal sign in`() = runBlocking {
         val cases = listOf(
             "malformed record" to null,
-            "missing key" to MissingAuthTokenKeyException(),
+            "missing key" to ScriptedKeystoreTokenStorage.missingKey(),
             "bad GCM tag" to AEADBadTagException("tag mismatch"),
         )
         for ((case, decryptFailure) in cases) {
             val fixture = Fixture()
             fixture.storeToken()
-            if (decryptFailure == null) {
-                fixture.preferences.edit().putString(ENCRYPTED_ACCESS_TOKEN_KEY, "v1:not-a-record").commit()
-            }
-            fixture.cipher.decryptFailure = decryptFailure
+            if (decryptFailure == null) fixture.storage.corruptRecord()
+            fixture.storage.decryptFailure = decryptFailure
 
             fixture.controller.restoreSession()
 
             assertEquals(case, MobileAuthState.SignedOut(), fixture.controller.state.value)
-            assertNull(case, fixture.preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null))
-            assertEquals(case, 1, fixture.cipher.destroyKeyCalls)
+            assertNull(case, fixture.storage.record)
+            assertEquals(case, 1, fixture.storage.destroyKeyCalls)
             assertEquals(case, OAuthLaunchResult.Ready(AUTHORIZATION_URL), fixture.controller.beginSignIn())
         }
     }
@@ -47,7 +45,7 @@ class MobileAuthStorageRecoveryTest {
     fun `transient read failure stays retryable and reset signs in again`() = runBlocking {
         val fixture = Fixture()
         fixture.storeToken()
-        fixture.cipher.decryptFailure = ProviderException("keystore busy")
+        fixture.storage.decryptFailure = ProviderException("keystore busy")
 
         fixture.controller.restoreSession()
 
@@ -55,13 +53,13 @@ class MobileAuthStorageRecoveryTest {
             MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
             fixture.controller.state.value,
         )
-        assertNotNull(fixture.preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null))
+        assertNotNull(fixture.storage.record)
 
         assertEquals(OAuthLaunchResult.Ready(AUTHORIZATION_URL), fixture.controller.beginSignIn())
-        assertNull(fixture.preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null))
-        assertEquals(1, fixture.cipher.destroyKeyCalls)
+        assertNull(fixture.storage.record)
+        assertEquals(1, fixture.storage.destroyKeyCalls)
 
-        fixture.cipher.decryptFailure = null
+        fixture.storage.decryptFailure = null
         assertEquals(OAuthCallbackHandlingResult.ACCEPTED, fixture.controller.handleOAuthCallback(VALID_CALLBACK))
         assertEquals(SIGNED_IN, fixture.controller.state.value)
         assertEquals(TOKEN, fixture.store.read()?.reveal())
@@ -72,7 +70,7 @@ class MobileAuthStorageRecoveryTest {
         val fixture = Fixture()
         fixture.storeToken()
         fixture.controller.restoreSession()
-        fixture.cipher.destroyFailure = ProviderException("keystore busy")
+        fixture.storage.destroyFailure = ProviderException("keystore busy")
 
         fixture.controller.logout()
 
@@ -88,8 +86,8 @@ class MobileAuthStorageRecoveryTest {
         val preferences: SharedPreferences = ApplicationProvider.getApplicationContext<Context>()
             .getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE)
             .also { it.edit().clear().commit() }
-        val cipher = ScriptedTokenCipher()
-        val store = KeystoreAuthTokenStore(preferences, cipher, Dispatchers.Unconfined)
+        val storage = ScriptedKeystoreTokenStorage(preferences)
+        val store = storage.store
         val controller = MobileAuthController(
             oauthConfiguration = MobileOAuthConfiguration.Configured("9001"),
             tokenStore = store,
@@ -102,26 +100,6 @@ class MobileAuthStorageRecoveryTest {
 
         suspend fun storeToken() {
             store.write(checkNotNull(AccessToken.parse(TOKEN)))
-        }
-    }
-
-    private class ScriptedTokenCipher : AuthTokenCipher {
-        var decryptFailure: Exception? = null
-        var destroyFailure: Exception? = null
-        var destroyKeyCalls = 0
-            private set
-
-        override fun encrypt(plaintext: ByteArray): EncryptedAuthTokenValue =
-            EncryptedAuthTokenValue(ByteArray(INITIALIZATION_VECTOR_SIZE), plaintext.reversedArray())
-
-        override fun decrypt(value: EncryptedAuthTokenValue): ByteArray {
-            decryptFailure?.let { throw it }
-            return value.ciphertext.reversedArray()
-        }
-
-        override fun destroyKey() {
-            destroyKeyCalls += 1
-            destroyFailure?.let { throw it }
         }
     }
 
@@ -142,7 +120,6 @@ class MobileAuthStorageRecoveryTest {
         const val AUTHORIZATION_URL = "https://app.put.io/authenticate?state=fixed-oauth-state"
         const val VALID_CALLBACK = "putio://auth?state=$OAUTH_STATE#access_token=$TOKEN&state=$OAUTH_STATE"
         const val NOW_EPOCH_MILLIS = 1_788_000_000_000L
-        const val INITIALIZATION_VECTOR_SIZE = 12
         val ACCOUNT = MobileAccount(userId = 42, username = "user", email = "user@example.com")
         val SIGNED_IN = MobileAuthState.SignedIn(account = ACCOUNT, sessionId = MobileAuthSessionId(1L))
     }
