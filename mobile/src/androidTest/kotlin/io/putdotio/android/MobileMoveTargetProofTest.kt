@@ -15,6 +15,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -40,10 +41,14 @@ import io.putdotio.android.files.MOBILE_FILES_MOVE_BACK_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_FOLDER_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
+import io.putdotio.android.files.MOBILE_FILES_MOVE_PICKER_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_REMEMBER_TAG
 import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.files.mobileFilesMoveFolderTag
+import io.putdotio.sdk.errors.PutioApiErrorEnvelope
+import io.putdotio.sdk.errors.PutioApiException
+import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
@@ -158,6 +163,21 @@ class MobileMoveTargetProofTest {
             check(REMOVED_ID in repository.listed) { "Never read the removed folder" }
             screenshot("07-missing-folder-root")
             compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
+
+            // Remembered before it ended up two levels inside the folder being moved.
+            store.write(FilesMoveTargetMemory(true, listOf(FilesFolder(NESTED.id, NESTED.name))))
+            openPicker(SAMPLE_FOLDER.name, "Move")
+            awaitEmptyFolder()
+            compose.onNodeWithTag(MOBILE_FILES_MOVE_FOLDER_TAG).assertTextEquals(NESTED.name)
+            screenshot("08-move-opens-inside-moved-folder")
+            compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()
+            compose.waitUntil(5_000) {
+                compose.onAllNodesWithText(INTO_ITSELF).fetchSemanticsNodes().isNotEmpty() &&
+                    compose.onAllNodesWithTag(MOBILE_FILES_MOVE_PICKER_TAG).fetchSemanticsNodes().isEmpty()
+            }
+            check(repository.moves.last() == SAMPLE_FOLDER.id to NESTED.id) { "Moved ${repository.moves}" }
+            Thread.sleep(DIALOG_EXIT_MILLIS) // The picker dialog's window fades after its semantics leave.
+            screenshot("09-move-into-itself-refused")
         } finally {
             controller.close()
             scope.cancel()
@@ -210,6 +230,7 @@ private fun item(id: Long, name: String, type: PutioFileType, parent: Long = 0L)
 
 private val SAMPLE_FOLDER = item(20, "Sample folder", PutioFileType.FOLDER)
 private val ARCHIVE = item(21, "Archive été 東京", PutioFileType.FOLDER, parent = 20)
+private val NESTED = item(22, "Nested in archive", PutioFileType.FOLDER, parent = 21)
 private val CLIP = item(14, "Sample clip.mp4", PutioFileType.VIDEO)
 private val NOTES = item(15, "Sample notes.txt", PutioFileType.TEXT)
 private val SHARED_VIDEO = item(13, "Harbor film.mp4", PutioFileType.VIDEO).copy(isShared = true)
@@ -229,6 +250,7 @@ private class MoveTargetRepository : FilesRepository {
             FilesFolder.Root.id -> PutioResult.Success(FilesPage(listOf(SAMPLE_FOLDER), null))
             SAMPLE_FOLDER.id -> PutioResult.Success(FilesPage(listOf(ARCHIVE), null, parent = SAMPLE_FOLDER))
             ARCHIVE.id -> PutioResult.Success(FilesPage(emptyList(), null, parent = ARCHIVE))
+            NESTED.id -> PutioResult.Success(FilesPage(emptyList(), null, parent = NESTED))
             else -> PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("No such folder")))
         }
     }
@@ -238,11 +260,20 @@ private class MoveTargetRepository : FilesRepository {
         destinationId: FilesItemId,
     ): PutioResult<List<FileMoveError>> {
         moves += itemId to destinationId
-        return PutioResult.Success(emptyList())
+        return if (destinationId == NESTED.id) {
+            PutioResult.Failure(intoItselfRefusal().toPutioFailure())
+        } else {
+            PutioResult.Success(emptyList())
+        }
     }
 
-    override suspend fun resolveItem(itemId: FilesItemId) =
-        PutioResult.Success(CLIP.copy(parentId = moves.last { it.first == itemId }.second))
+    override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(
+        if (itemId == SAMPLE_FOLDER.id) {
+            SAMPLE_FOLDER
+        } else {
+            CLIP.copy(parentId = moves.last { it.first == itemId }.second)
+        },
+    )
 
     override suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId): PutioResult<FilesCopyId> =
         error("No copy")
@@ -251,4 +282,23 @@ private class MoveTargetRepository : FilesRepository {
     override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort) = error("No sort")
     override suspend fun rename(itemId: FilesItemId, name: String) = error("No rename")
     override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode) = error("No delete")
+}
+
+private const val DIALOG_EXIT_MILLIS = 1_000L
+private const val INTO_ITSELF = "A folder can’t be moved into itself or a folder inside it."
+
+/** put.io's answer to moving a folder into a folder inside it. */
+private fun intoItselfRefusal(): PutioApiException {
+    val message = "You don't have the permission to access the requested resource. " +
+        "It is either read-protected or not readable by the server."
+    return PutioApiException(
+        request = PutioRequestData("POST", "https://api.put.io/v2/files/move"),
+        resolvedStatusCode = 403,
+        resolvedErrorType = "Forbidden",
+        envelope = PutioApiErrorEnvelope(
+            status = "ERROR", statusCode = 403, errorType = "Forbidden", errorMessage = message,
+        ),
+        responseBody = """{"error_message":"$message","error_type":"Forbidden","status":"ERROR","status_code":403}""",
+        message = message,
+    )
 }

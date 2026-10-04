@@ -1241,6 +1241,10 @@ in `move-target-proof-<UUID>/`:
 - `05-copy-reopens-at-remembered`: Make a copy opens there too
 - `06-after-sign-out-root`: after the sign-out cleanup, root with the toggle off
 - `07-missing-folder-root`: a remembered folder that can't be read opens at root
+- `08-move-opens-inside-moved-folder`: a folder remembered before it ended up
+  two levels inside the folder being moved still opens there
+- `09-move-into-itself-refused`: Move here gets put.io's 403, and the outcome
+  says a folder can't be moved into itself
 
 ## Transfer retry proof
 
