@@ -66,11 +66,11 @@ internal class MobileDownloadStore internal constructor(
     fun updateProgressInMemory(fileId: FilesItemId, bytesDownloaded: Long, totalBytes: Long?) {
         synchronized(lock) {
             val current = mutableEntries.value
-            val entry = current.firstOrNull { it.fileId == fileId } ?: return
-            if (entry.status !is DownloadStatus.Downloading) return
+            val entry = current.firstOrNull { it.fileId == fileId }
             val status = DownloadStatus.Downloading(bytesDownloaded, totalBytes)
-            if (entry.status == status) return
-            mutableEntries.value = current.map { if (it.fileId == fileId) it.copy(status = status) else it }
+            if (entry?.status is DownloadStatus.Downloading && entry.status != status) {
+                mutableEntries.value = current.map { if (it.fileId == fileId) it.copy(status = status) else it }
+            }
         }
     }
 
@@ -130,19 +130,23 @@ private fun JSONArray.toEntries(): List<DownloadEntry> =
     (0 until length()).mapNotNull { index -> optJSONObject(index)?.toEntryOrNull() }
 
 private fun JSONObject.toEntryOrNull(): DownloadEntry? {
-    val type = optString("type").takeIf { it.isNotBlank() }?.let(PutioFileType::fromRaw) ?: return null
-    val artifact = DownloadArtifact.entries.firstOrNull { it.name == optString("artifact") } ?: return null
-    val status = optJSONObject("status")?.toStatusOrNull() ?: return null
     val fileId = optLong("fileId", -1L).takeIf { it > 0L } ?: return null
-    return DownloadEntry(
-        fileId = FilesItemId(fileId),
-        name = optString("name"),
-        type = type,
-        artifact = artifact,
-        status = status,
-        createdAt = optLong("createdAt"),
-        accepted = optBoolean("accepted", false),
-    )
+    val type = optString("type").takeIf { it.isNotBlank() }?.let(PutioFileType::fromRaw)
+    val artifact = DownloadArtifact.entries.firstOrNull { it.name == optString("artifact") }
+    val status = optJSONObject("status")?.toStatusOrNull()
+    return if (type == null || artifact == null || status == null) {
+        null
+    } else {
+        DownloadEntry(
+            fileId = FilesItemId(fileId),
+            name = optString("name"),
+            type = type,
+            artifact = artifact,
+            status = status,
+            createdAt = optLong("createdAt"),
+            accepted = optBoolean("accepted", false),
+        )
+    }
 }
 
 private fun JSONObject.toStatusOrNull(): DownloadStatus? =

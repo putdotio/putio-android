@@ -98,8 +98,9 @@ icon and design-asset lock checks, the script contract tests, and the
 `build-logic` tests. The script checks need `bash` 3.2+, `python3`, `ffprobe`,
 and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
 
-- Fix lint and detekt findings at the source; suppress only with a comment
-  naming the platform constraint. Each app's `detekt-baseline.xml` only shrinks.
+- Fix lint and detekt findings at the source; suppress only the narrowest
+  declaration, with a comment naming the constraint. No module has a detekt
+  baseline; don't add one.
 - Script checks are cached on `scripts/`, the files they verify, and host tool
   versions. A new file a check reads must sit under those inputs, or the check
   will not rerun when it changes.

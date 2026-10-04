@@ -3,19 +3,14 @@ package io.putdotio.android.share
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
-import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.FileProvider
-import io.putdotio.android.MainActivity
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
@@ -27,10 +22,8 @@ import java.util.UUID
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -43,11 +36,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 
 /**
  * Exports one original file into private storage, then hands a content URI to the
@@ -68,6 +59,8 @@ import okhttp3.Response
 class MobileFileShareService : Service() {
     private val dependencies by lazy { dependenciesForTest ?: MobileShareDependencies.from(this) }
     private val scope by lazy { CoroutineScope(SupervisorJob() + dependencies.main) }
+    private val exporter by lazy { MobileShareExporter(this, dependencies) }
+    private val notifications = MobileShareNotifications(this)
     private var job: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -78,7 +71,7 @@ class MobileFileShareService : Service() {
         if (fileId == null || name == null || intent.action == ACTION_CANCEL) {
             // Every start arrives through startForegroundService; the promise must be kept before stopping.
             val label = name ?: getString(R.string.mobile_files_share)
-            show(progressNotification(label, indeterminate = true, progress = 0))
+            show(notifications.progress(label, indeterminate = true, progress = 0))
             val previous = job
             job = scope.launch {
                 // Join so no progress update from the cancelled export lands after this stop.
@@ -88,35 +81,46 @@ class MobileFileShareService : Service() {
             }
             return START_NOT_STICKY
         }
-        show(progressNotification(name, indeterminate = true, progress = 0))
+        show(notifications.progress(name, indeterminate = true, progress = 0))
         val session = dependencies.authState.value.sessionId
         val previous = job
         job = scope.launch {
             previous?.cancelAndJoin()
             try {
-                if (session == null) throw IOException("No session")
-                boundTo(session) {
-                    val file = export(FilesItemId(fileId), name, session)
-                    deliver(name, session) { chooser(file) }
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: SessionEndedException) {
-                discard()
-            } catch (error: IOException) {
-                // A cancelled call surfaces as IOException; cancellation is not a failure to report.
-                ensureActive()
-                fail(name)
-            } catch (error: RuntimeException) {
-                // FileProvider, notification posting and Activity launch report failure as runtime errors.
-                ensureActive()
-                fail(name)
+                share(FilesItemId(fileId), name, session)
             } finally {
                 // A newer start keeps the service alive; only the latest startId stops it.
                 stopSelf(startId)
             }
         }
         return START_NOT_STICKY
+    }
+
+    // The share flow's boundary: every failure ends as the cause-free notice, an ended session as a silent drop.
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    private suspend fun share(fileId: FilesItemId, name: String, session: MobileAuthSessionId?) {
+        try {
+            if (session == null) throw IOException("No session")
+            boundTo(session) {
+                val file = exporter.export(fileId, name, session) { percent ->
+                    show(notifications.progress(name, indeterminate = false, progress = percent))
+                }
+                deliver(name, session) { shareChooser(file) }
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: SessionEndedException) {
+            shareRoot(this).deleteRecursively()
+            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        } catch (error: IOException) {
+            // A cancelled call surfaces as IOException; cancellation is not a failure to report.
+            currentCoroutineContext().ensureActive()
+            fail(name)
+        } catch (error: RuntimeException) {
+            // FileProvider, notification posting and Activity launch report failure as runtime errors.
+            currentCoroutineContext().ensureActive()
+            fail(name)
+        }
     }
 
     /** Runs [block] while [session] stays current; leaving it cancels [block] and throws [SessionEndedException]. */
@@ -132,36 +136,9 @@ class MobileFileShareService : Service() {
         }
     }
 
-    private fun discard() {
-        shareRoot(this).deleteRecursively()
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-    }
-
-    private suspend fun export(fileId: FilesItemId, name: String, session: MobileAuthSessionId): File =
-        withContext(dependencies.io) {
-            // Unlinking an open file is safe on Android; a recipient still reading keeps its descriptor.
-            shareRoot(this@MobileFileShareService).deleteRecursively()
-            val directory = File(sessionShares(this@MobileFileShareService, session), fileId.value.toString())
-            directory.mkdirs()
-            var complete = false
-            try {
-                val target = File(directory, name.sanitizedFileName())
-                val token = dependencies.accessToken() ?: throw IOException("No session")
-                dependencies.http.newCall(downloadRequest(fileId, token)).executeCancellable { response ->
-                    if (!response.isSuccessful) throw IOException("Download failed with ${response.code}")
-                    val body = response.body ?: throw IOException("Empty body")
-                    copyWithProgress(body.byteStream(), target, body.contentLength(), name)
-                }
-                complete = true
-                target
-            } finally {
-                if (!complete) directory.deleteRecursively()
-            }
-        }
-
     /** Foreground updates need no POST_NOTIFICATIONS grant; detaching keeps the result visible. */
     private fun fail(name: String) {
-        show(failedNotification(name))
+        show(notifications.failed(name))
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
     }
 
@@ -174,7 +151,7 @@ class MobileFileShareService : Service() {
      * The session is checked again at launch, so a resume that races a sign-out never shows the export.
      */
     private suspend fun deliver(name: String, session: MobileAuthSessionId, chooser: () -> Intent) {
-        if (MobileResumedActivity.current == null) show(readyNotification(name))
+        if (MobileResumedActivity.current == null) show(notifications.ready(name))
         val resumed: Activity? = try {
             withTimeoutOrNull(dependencies.readyTimeout) { MobileResumedActivity.await() }
         } catch (error: CancellationException) {
@@ -191,30 +168,6 @@ class MobileFileShareService : Service() {
         resumed.startActivity(chooser())
     }
 
-    private suspend fun copyWithProgress(input: java.io.InputStream, target: File, total: Long, name: String) {
-        var copied = 0L
-        var lastPercent = -1
-        input.use {
-            target.outputStream().use { output ->
-                val buffer = ByteArray(BUFFER_SIZE)
-                while (true) {
-                    currentCoroutineContextActive()
-                    val read = input.read(buffer)
-                    if (read < 0) break
-                    output.write(buffer, 0, read)
-                    copied += read
-                    if (total <= 0L) continue
-                    val percent = (copied * PERCENT / total).toInt()
-                    if (percent != lastPercent) {
-                        lastPercent = percent
-                        currentCoroutineContextActive()
-                        show(progressNotification(name, false, percent))
-                    }
-                }
-            }
-        }
-    }
-
     // The type constant is inlined and ServiceCompat drops it below API 29, where the manifest type suffices.
     @SuppressLint("InlinedApi")
     private fun show(notification: Notification) {
@@ -226,66 +179,8 @@ class MobileFileShareService : Service() {
         )
     }
 
-    private suspend fun currentCoroutineContextActive() = currentCoroutineContext().ensureActive()
-
     @androidx.annotation.VisibleForTesting
-    internal fun chooserForTest(file: File): Intent = chooser(file)
-
-    /** Stream only. Recipients receive a read grant on the content URI and nothing else. */
-    private fun chooser(file: File): Intent {
-        val uri = FileProvider.getUriForFile(this, "$packageName.share", file)
-        val send = Intent(Intent.ACTION_SEND)
-            .setType(contentResolver.getType(uri) ?: "application/octet-stream")
-            .putExtra(Intent.EXTRA_STREAM, uri)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        send.clipData = ClipData.newRawUri(null, uri)
-        return Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-
-    private fun progressNotification(name: String, indeterminate: Boolean, progress: Int): Notification =
-        baseNotification(getString(R.string.mobile_share_preparing, name))
-            .setProgress(PERCENT.toInt(), progress, indeterminate)
-            .setOngoing(true)
-            .addAction(
-                0,
-                getString(R.string.mobile_action_cancel),
-                PendingIntent.getService(
-                    this,
-                    0,
-                    Intent(this, MobileFileShareService::class.java).setAction(ACTION_CANCEL),
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-                ),
-            )
-            .build()
-
-    /** Tapping returns to the app, whose resume opens the chooser; the payload stays out of the notification. */
-    private fun readyNotification(name: String): Notification =
-        baseNotification(getString(R.string.mobile_share_ready, name)).setAutoCancel(true).build()
-
-    private fun failedNotification(name: String): Notification =
-        baseNotification(getString(R.string.mobile_share_failed, name)).setAutoCancel(true).build()
-
-    private fun baseNotification(text: String): NotificationCompat.Builder {
-        getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.mobile_share_channel_name),
-                NotificationManager.IMPORTANCE_LOW,
-            ),
-        )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_ph_arrow_circle_down)
-            .setContentTitle(getString(R.string.mobile_files_share))
-            .setContentText(text)
-            .setContentIntent(
-                PendingIntent.getActivity(
-                    this,
-                    0,
-                    Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-                ),
-            )
-    }
+    internal fun chooserForTest(file: File): Intent = shareChooser(file)
 
     override fun onDestroy() {
         scope.cancel()
@@ -295,12 +190,9 @@ class MobileFileShareService : Service() {
     companion object {
         private const val EXTRA_FILE_ID = "fileId"
         private const val EXTRA_NAME = "name"
-        private const val ACTION_CANCEL = "io.putdotio.android.action.CANCEL_SHARE"
-        private const val CHANNEL_ID = "share"
+        internal const val ACTION_CANCEL = "io.putdotio.android.action.CANCEL_SHARE"
         private const val NOTIFICATION_ID = 3001
         private const val STALE_EXPORT_MS = 24L * 60L * 60L * 1000L
-        private const val BUFFER_SIZE = 64 * 1024
-        private const val PERCENT = 100L
 
         /** Replaces the network, session and clock for services created afterwards; tests reset it. */
         @androidx.annotation.VisibleForTesting
@@ -375,26 +267,15 @@ internal class MobileShareDependencies(
 
 private val sharedHttp: OkHttpClient by lazy { OkHttpClient() }
 
-/**
- * Runs the blocking [Call] and [block] on its response; cancelling the coroutine cancels the call at once,
- * even while it blocks in `execute()` or a body read. A completion handler would wait for that block to end.
- * The watcher resumes on another thread of the caller's dispatcher, so that dispatcher must not be single-threaded.
- */
-private suspend fun <T> Call.executeCancellable(block: suspend (Response) -> T): T = coroutineScope {
-    val call = this@executeCancellable
-    val canceller = launch(start = CoroutineStart.UNDISPATCHED) {
-        // Cancelling a call that already finished is a no-op.
-        try {
-            awaitCancellation()
-        } finally {
-            call.cancel()
-        }
-    }
-    try {
-        call.execute().use { block(it) }
-    } finally {
-        canceller.cancel()
-    }
+/** Stream only. Recipients receive a read grant on the content URI and nothing else. */
+private fun Context.shareChooser(file: File): Intent {
+    val uri = FileProvider.getUriForFile(this, "$packageName.share", file)
+    val send = Intent(Intent.ACTION_SEND)
+        .setType(contentResolver.getType(uri) ?: "application/octet-stream")
+        .putExtra(Intent.EXTRA_STREAM, uri)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    send.clipData = ClipData.newRawUri(null, uri)
+    return Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 }
 
 private val MobileAuthState.sessionId: MobileAuthSessionId?
@@ -419,14 +300,20 @@ internal fun String.sanitizedFileName(): String {
         }
     }
     val cleaned = visible.trim().replace(UNSAFE_NAME_CHARACTERS, "_")
-    if (cleaned.isEmpty() || cleaned == "." || cleaned == "..") return "file"
-    if (cleaned.utf8Size() <= MAX_NAME_BYTES) return cleaned
-    // Truncation keeps a short extension so the chooser still sees the file type.
-    val extension = cleaned.substringAfterLast('.', "")
+    return when {
+        cleaned.isEmpty() || cleaned == "." || cleaned == ".." -> "file"
+        cleaned.utf8Size() <= MAX_NAME_BYTES -> cleaned
+        else -> cleaned.truncatedName()
+    }
+}
+
+/** Truncation keeps a short extension so the chooser still sees the file type. */
+private fun String.truncatedName(): String {
+    val extension = substringAfterLast('.', "")
         .takeIf { it.isNotEmpty() && it.utf8Size() < MAX_EXTENSION_BYTES }
         ?.let { ".$it" }
         .orEmpty()
-    val stem = cleaned.removeSuffix(extension).takeUtf8Bytes(MAX_NAME_BYTES - extension.utf8Size())
+    val stem = removeSuffix(extension).takeUtf8Bytes(MAX_NAME_BYTES - extension.utf8Size())
     return (stem + extension).ifEmpty { "file" }
 }
 
@@ -437,16 +324,11 @@ private fun String.takeUtf8Bytes(limit: Int): String {
     var bytes = 0
     var end = 0
     while (end < length) {
-        val codePoint = codePointAt(end)
-        val size = when {
-            codePoint < 0x80 -> 1
-            codePoint < 0x800 -> 2
-            codePoint < 0x10000 -> 3
-            else -> 4
-        }
+        val next = end + Character.charCount(codePointAt(end))
+        val size = substring(end, next).utf8Size()
         if (bytes + size > limit) break
         bytes += size
-        end += Character.charCount(codePoint)
+        end = next
     }
     return substring(0, end)
 }

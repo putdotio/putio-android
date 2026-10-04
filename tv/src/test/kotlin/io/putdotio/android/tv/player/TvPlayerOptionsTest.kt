@@ -69,6 +69,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowDialog
+import io.putdotio.android.playback.PlaybackState
 
 /** Language, Subtitles and Speed on the TV player, over a fake Media3 player with tracks. */
 @OptIn(ExperimentalTestApi::class)
@@ -98,7 +99,7 @@ class TvPlayerOptionsTest {
     @Test
     fun upReachesTheButtonsLeftAndRightWalkThemAndDownReturnsToScrubbing() {
         val player = TrackPlayer()
-        show(player, resumePositionMillis = 60_000L)
+        show(player, readyState(resumePositionMillis = 60_000L))
 
         key(Key.DirectionUp)
         compose.onNodeWithContentDescription(LANGUAGE).assertIsSelected()
@@ -120,7 +121,7 @@ class TvPlayerOptionsTest {
     @Test
     fun rewindOnAButtonPullsFocusBackToTheSeekBarAndScrubs() {
         val player = TrackPlayer()
-        show(player, resumePositionMillis = 60_000L)
+        show(player, readyState(resumePositionMillis = 60_000L))
         key(Key.DirectionUp)
         compose.onNodeWithContentDescription(LANGUAGE).assertIsSelected()
 
@@ -241,7 +242,9 @@ class TvPlayerOptionsTest {
     @Test
     fun theAccountsSubtitleSettingsDecideUntilTheViewerPicks() {
         val player = TrackPlayer()
-        var policy by mutableStateOf<SubtitleStartupPolicy?>(SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true))
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(
+            SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
+        )
         show(player, policyProvider = { policy })
         compose.runOnIdle {
             assertTrue("hide_subtitles", C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
@@ -251,7 +254,10 @@ class TvPlayerOptionsTest {
         settle()
         compose.runOnIdle {
             val parameters = player.trackSelectionParameters
-            assertTrue("dont_autoselect_subtitles keeps text on for forced tracks", C.TRACK_TYPE_TEXT !in parameters.disabledTrackTypes)
+            assertTrue(
+                "dont_autoselect_subtitles keeps text on for forced tracks",
+                C.TRACK_TYPE_TEXT !in parameters.disabledTrackTypes,
+            )
             assertFalse(parameters.selectTextByDefault)
             assertNull(player.selectedTextIndex())
         }
@@ -308,7 +314,7 @@ class TvPlayerOptionsTest {
     @Test
     fun playbackResolvedForHiddenSubtitlesLeavesTheButtonOutBeforeTheSettingsLoad() {
         val player = TrackPlayer()
-        show(player, policy = null, subtitlesHidden = true)
+        show(player, readyState(subtitlesHidden = true), policy = null)
 
         compose.onNodeWithContentDescription(LANGUAGE).assertIsDisplayed()
         compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
@@ -401,7 +407,7 @@ class TvPlayerOptionsTest {
     @Test
     fun theSeekBarStartsAtTheResumePositionBeforeTheStreamReportsItsDuration() {
         val player = TrackPlayer(durationKnown = false)
-        show(player, resumePositionMillis = 420_000L, durationSeconds = 840.0)
+        show(player, readyState(resumePositionMillis = 420_000L, durationSeconds = 840.0))
         // No poll has run yet; the listing's duration places the bar where playback starts.
         assertSeekBar(0.5f)
         compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("07:00")
@@ -414,22 +420,16 @@ class TvPlayerOptionsTest {
 
     private fun show(
         player: TrackPlayer,
-        resumePositionMillis: Long? = null,
-        durationSeconds: Double? = null,
+        state: PlaybackState = readyState(),
         policy: SubtitleStartupPolicy? = null,
         policyProvider: () -> SubtitleStartupPolicy? = { policy },
         onBack: () -> Unit = {},
-        subtitlesHidden: Boolean = false,
     ) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvPlayerScreen(
-                    state = readyState(
-                        resumePositionMillis = resumePositionMillis,
-                        durationSeconds = durationSeconds,
-                        subtitlesHidden = subtitlesHidden,
-                    ),
+                    state = state,
                     onBack = onBack,
                     onRetry = {},
                     onResume = {},
@@ -543,7 +543,8 @@ private fun textFormat(id: String, language: String, label: String?, selectionFl
 private fun oneAudio() = TrackGroup(audioFormat("a-it", "it"))
 
 /** Each [period] gets distinct track groups carrying the same formats, as a new HLS period does. */
-private fun twoAudio(period: Int = 1) = TrackGroup("audio-$period", audioFormat("a-it", "it"), audioFormat("a-en", "en"))
+private fun twoAudio(period: Int = 1) =
+    TrackGroup("audio-$period", audioFormat("a-it", "it"), audioFormat("a-en", "en"))
 
 private fun twoText(period: Int = 1) =
     TrackGroup("text-$period", textFormat("t-en", "en", "English SDH"), textFormat("t-de", "de", null))
@@ -673,8 +674,12 @@ internal class TrackPlayer(
         } ?: indices.firstOrNull { (getFormat(it).selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0 } ?: 0
     }
 
-    private fun group(group: TrackGroup, chosen: Int?) =
-        Tracks.Group(group, false, IntArray(group.length) { C.FORMAT_HANDLED }, BooleanArray(group.length) { it == chosen })
+    private fun group(group: TrackGroup, chosen: Int?) = Tracks.Group(
+        group,
+        false,
+        IntArray(group.length) { C.FORMAT_HANDLED },
+        BooleanArray(group.length) { it == chosen },
+    )
 
     private companion object {
         const val DURATION_US = 14L * 60L * 1_000_000L

@@ -55,9 +55,9 @@ internal data class NowPlaying(
 
 // The bar shows only prepared audio. A cleared or ended session leaves nothing to resume.
 internal fun Media3Player.nowPlayingOrNull(): NowPlaying? {
-    val fileId = activeSessionFileId() ?: return null
-    if (playbackState == Media3Player.STATE_ENDED) return null
-    val item = currentMediaItem ?: return null
+    val fileId = resumableSessionFileId()
+    val item = currentMediaItem
+    if (fileId == null || item == null) return null
     val durationMillis = duration.takeIf { it > 0L }
     return NowPlaying(
         fileId = FilesItemId(fileId),
@@ -188,7 +188,11 @@ internal fun MobileNowPlayingBar(
                 ) {
                     Icon(
                         painter = painterResource(
-                            if (nowPlaying.isPlaying) DesignR.drawable.ic_ph_pause_fill else DesignR.drawable.ic_ph_play_fill,
+                            if (nowPlaying.isPlaying) {
+                                DesignR.drawable.ic_ph_pause_fill
+                            } else {
+                                DesignR.drawable.ic_ph_play_fill
+                            },
                         ),
                         contentDescription = stringResource(
                             if (nowPlaying.isPlaying) {

@@ -233,6 +233,7 @@ class TvPlaybackStatesTest {
     private companion object {
         const val TITLE = "Big Buck Bunny.avi"
         const val STARTED_MESSAGE =
-            "This video isn’t in a format this app can play yet, so its conversion has started. It plays here once it finishes."
+            "This video isn’t in a format this app can play yet, so its conversion has started. " +
+                "It plays here once it finishes."
     }
 }

@@ -45,7 +45,12 @@ internal fun MobileTransferDestinationRow(
     onReset: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(modifier = Modifier.weight(1f).semantics(mergeDescendants = true) {}.testTag(MOBILE_TRANSFER_DESTINATION_TAG)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .semantics(mergeDescendants = true) {}
+                .testTag(MOBILE_TRANSFER_DESTINATION_TAG),
+        ) {
             Text(stringResource(R.string.mobile_transfers_save_to), style = MaterialTheme.typography.labelMedium)
             Text(
                 text = when {

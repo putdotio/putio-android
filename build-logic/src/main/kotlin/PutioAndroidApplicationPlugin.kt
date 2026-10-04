@@ -83,7 +83,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
         extensions.configure<DetektExtension> {
             config.setFrom(rootProject.file("detekt.yml"))
             buildUponDefaultConfig = true
-            baseline = file("detekt-baseline.xml")
         }
 
         extensions.configure<ApplicationAndroidComponentsExtension> {

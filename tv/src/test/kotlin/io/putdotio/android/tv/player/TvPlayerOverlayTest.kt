@@ -114,18 +114,18 @@ class TvPlayerOverlayTest {
     @Test
     fun scrubbingStaysWithinTheMedia() {
         val start = TvPlayerOverlay().scrub(
-            TvScrubDirection.Backward, positionMillis = 5_000L, durationMillis = DURATION,
-            playing = true, nowMillis = 0L, repeat = false,
+            TvScrubPress(TvScrubDirection.Backward, atMillis = 0L, repeat = false),
+            positionMillis = 5_000L, durationMillis = DURATION, playing = true,
         )
         assertEquals(0L, start.overlay.scrub?.targetMillis)
         val end = TvPlayerOverlay().scrub(
-            TvScrubDirection.Forward, positionMillis = DURATION - 1_000L, durationMillis = DURATION,
-            playing = true, nowMillis = 0L, repeat = false,
+            TvScrubPress(TvScrubDirection.Forward, atMillis = 0L, repeat = false),
+            positionMillis = DURATION - 1_000L, durationMillis = DURATION, playing = true,
         )
         assertEquals(DURATION, end.overlay.scrub?.targetMillis)
         val unknown = TvPlayerOverlay().scrub(
-            TvScrubDirection.Forward, positionMillis = 0L, durationMillis = 0L,
-            playing = true, nowMillis = 0L, repeat = false,
+            TvScrubPress(TvScrubDirection.Forward, atMillis = 0L, repeat = false),
+            positionMillis = 0L, durationMillis = 0L, playing = true,
         )
         assertNull(unknown.overlay.scrub)
         assertEquals(emptyList<TvPlayerCommand>(), unknown.commands)
@@ -185,7 +185,11 @@ class TvPlayerOverlayTest {
         val buttons = listOf(TvPlayerControl.Language, TvPlayerControl.Subtitles, TvPlayerControl.Speed)
         val up = TvPlayerOverlay().moveFocus(TvFocusMove.Up, buttons).overlay
         assertEquals(TvPlayerControl.Language, up.focus)
-        assertEquals("Left stops at the first button", up, up.moveFocus(TvFocusMove.Left, buttons).overlay.copy(activity = up.activity))
+        assertEquals(
+            "Left stops at the first button",
+            up,
+            up.moveFocus(TvFocusMove.Left, buttons).overlay.copy(activity = up.activity),
+        )
         val right = up.moveFocus(TvFocusMove.Right, buttons).overlay.moveFocus(TvFocusMove.Right, buttons).overlay
         assertEquals(TvPlayerControl.Speed, right.focus)
         assertEquals(TvPlayerControl.Speed, right.moveFocus(TvFocusMove.Right, buttons).overlay.focus)
@@ -210,7 +214,7 @@ class TvPlayerOverlayTest {
     }
 
     private fun TvPlayerOverlay.scrubForward(nowMillis: Long, playing: Boolean = true, repeat: Boolean = false) =
-        scrub(TvScrubDirection.Forward, POSITION, DURATION, playing, nowMillis, repeat)
+        scrub(TvScrubPress(TvScrubDirection.Forward, nowMillis, repeat), POSITION, DURATION, playing)
 
     private companion object {
         const val POSITION = 60_000L

@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.InputMode
@@ -115,16 +116,7 @@ class MobilePlayerChromeTest {
             compose.onNodeWithText("Speed (1×)"),
             compose.onNodeWithText("Captions"),
         )
-        val bounds = controls.map { it.getUnclippedBoundsInRoot() }
-        bounds.forEachIndexed { index, first ->
-            bounds.drop(index + 1).forEach { second ->
-                assertTrue(
-                    "Controls must not overlap: $first and $second",
-                    first.right <= second.left || second.right <= first.left ||
-                        first.bottom <= second.top || second.bottom <= first.top,
-                )
-            }
-        }
+        assertNoneOverlap(controls.map { it.getUnclippedBoundsInRoot() })
         controls.forEach { control ->
             control.performScrollTo().assertIsDisplayed()
             val node = control.fetchSemanticsNode()
@@ -280,6 +272,18 @@ class MobilePlayerChromeTest {
             prepare()
             movePositionTo(30_000L)
         }
+
+    private fun assertNoneOverlap(bounds: List<DpRect>) {
+        bounds.forEachIndexed { index, first ->
+            bounds.drop(index + 1).forEach { second ->
+                assertTrue(
+                    "Controls must not overlap: $first and $second",
+                    first.right <= second.left || second.right <= first.left ||
+                        first.bottom <= second.top || second.bottom <= first.top,
+                )
+            }
+        }
+    }
 
     private fun focusTimeline(inputMode: () -> InputModeManager) {
         compose.runOnIdle { assertTrue(inputMode().requestInputMode(InputMode.Keyboard)) }

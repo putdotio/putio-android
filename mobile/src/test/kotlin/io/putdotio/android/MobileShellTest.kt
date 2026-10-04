@@ -3,6 +3,7 @@ package io.putdotio.android
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -87,7 +88,6 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
-import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.DefaultAccountSettingsPreferences
 import io.putdotio.android.settings.androidAppConfigState
@@ -153,445 +153,8 @@ import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35])
 class MobileShellTest {
-
     @get:Rule
     val compose = createComposeRule()
-
-    @Test
-    fun incomingShareWaitsForFilesRecoveryThenOpensTransfersWithoutSubmitting() {
-        val draft = MobileTransferDraft()
-        draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
-        var files by mutableStateOf(pendingShellDeleteState())
-        val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    transferDraft = draft,
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = files,
-                    accountSettingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = { true },
-                    onAccountSettingsEvent = {},
-                    onTransfersEvent = events::add,
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
-        }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
-        compose.runOnIdle {
-            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
-            files = emptyFilesState()
-        }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle {
-            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
-            assertTrue(events.none { it is TransfersEvent.Add })
-        }
-    }
-
-    @Test
-    fun incomingShareWaitsForTransferResolutionBeforeOpeningItsDraft() {
-        val draft = MobileTransferDraft()
-        var transfers by mutableStateOf(resolvingTransfersState())
-        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
-        val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    transferDraft = draft,
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
-                    accountSettingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfers,
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = { true },
-                    onTransfersEvent = { event ->
-                        events.add(event)
-                        transfers = TransfersReducer.reduce(transfers, event).state
-                    },
-                    resolveTransferFile = { resolved.await() },
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
-        }
-        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
-        compose.runOnIdle {
-            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
-            resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder()))
-        }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle {
-            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
-            assertTrue(events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L))))
-            assertTrue(events.none { it is TransfersEvent.Add })
-        }
-    }
-
-    @Test
-    fun acceptingAReplacementShareWaitsForTransferResolution() {
-        val draft = MobileTransferDraft()
-        var transfers by mutableStateOf(resolvingTransfersState())
-        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
-        val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    transferDraft = draft,
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
-                    accountSettingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfers,
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = { true },
-                    onTransfersEvent = { event ->
-                        events.add(event)
-                        transfers = TransfersReducer.reduce(transfers, event).state
-                    },
-                    resolveTransferFile = { resolved.await() },
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
-        }
-        compose.onNodeWithText("Transfers").performClick()
-        compose.runOnIdle {
-            draft.edit("https://example.invalid/previous")
-            draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
-        }
-        compose.onNodeWithText("Use shared link").performClick()
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle {
-            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
-            resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder()))
-        }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle {
-            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
-            assertTrue(events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L))))
-            assertTrue(events.none { it is TransfersEvent.Add })
-        }
-    }
-
-    @Test
-    fun dismissingAShareDuringTransferResolutionPreservesTheRequestedFilesNavigation() {
-        val draft = MobileTransferDraft()
-        var transfers by mutableStateOf(resolvingTransfersState())
-        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
-        val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    transferDraft = draft,
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
-                    accountSettingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfers,
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = { true },
-                    onTransfersEvent = { event ->
-                        events.add(event)
-                        transfers = TransfersReducer.reduce(transfers, event).state
-                    },
-                    resolveTransferFile = { resolved.await() },
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
-        }
-        compose.onNodeWithText("Transfers").performClick()
-        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.onNodeWithText("Cancel").performClick()
-        compose.runOnIdle { resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder())) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
-        compose.onNodeWithText("Add transfer").assertDoesNotExist()
-        compose.runOnIdle {
-            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
-            assertEquals("https://example.invalid/shared", draft.state.value.input)
-            assertTrue(events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L))))
-            assertTrue(events.none { it is TransfersEvent.Add })
-        }
-    }
-
-    @Test
-    fun shareNavigationWaitsForARunningTransferMutationToSettle() {
-        val draft = MobileTransferDraft()
-        var transfers by mutableStateOf(transfersState(
-            content = TransfersContent.Empty,
-            mutation = io.putdotio.android.transfers.TransferMutation.Running(
-                io.putdotio.android.transfers.TransferAction.Clean, TransfersRequestId(2L),
-            ),
-        ))
-        val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    transferDraft = draft,
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
-                    accountSettingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfers,
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = { true },
-                    onTransfersEvent = events::add,
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
-        }
-        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
-        compose.runOnIdle {
-            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
-            transfers = transfers.copyForTest(mutation = io.putdotio.android.transfers.TransferMutation.Idle)
-        }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle {
-            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
-            assertTrue(events.none { it is TransfersEvent.Add })
-        }
-    }
-
-    @Test
-    fun aDelayedHistoryResultDoesNotHideTheSharedDraft() {
-        val draft = MobileTransferDraft()
-        val results = Channel<FilesExternalOpen>(Channel.BUFFERED)
-        val filesEvents = mutableListOf<FilesBrowserEvent>()
-        compose.setShell(
-            transferDraft = draft,
-            contentNavigation = results.receiveAsFlow(),
-            onFilesEvent = { filesEvents += it; true },
-        )
-        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle { results.trySend(FilesExternalOpen(shellResolvedFolder(), FilesOpenOrigin.HISTORY)) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle {
-            assertTrue(filesEvents.contains(historyOpen()))
-            assertEquals("https://example.invalid/shared", draft.state.value.input)
-        }
-    }
-
-    @Test
-    fun aDelayedHistoryResultOpensFilesAfterTheSharedDraftIsDismissed() {
-        val draft = MobileTransferDraft()
-        val results = Channel<FilesExternalOpen>(Channel.BUFFERED)
-        compose.setShell(transferDraft = draft, contentNavigation = results.receiveAsFlow())
-        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.onNodeWithText("Cancel").performClick()
-        compose.runOnIdle { results.trySend(FilesExternalOpen(shellResolvedFolder(), FilesOpenOrigin.HISTORY)) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
-        compose.onNodeWithText("Add transfer").assertDoesNotExist()
-    }
-
-    @Test
-    fun aRejectedHistoryResultKeepsTheSharedDraftAndReportsNavigationRecovery() {
-        val draft = MobileTransferDraft()
-        val results = Channel<FilesExternalOpen>(Channel.BUFFERED)
-        val filesEvents = mutableListOf<FilesBrowserEvent>()
-        compose.setShell(
-            transferDraft = draft,
-            contentNavigation = results.receiveAsFlow(),
-            onFilesEvent = { filesEvents += it; false },
-        )
-        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle { results.trySend(FilesExternalOpen(shellResolvedFolder(), FilesOpenOrigin.HISTORY)) }
-        compose.onNodeWithText("Couldn’t open this file").assertIsDisplayed()
-        compose.onNodeWithText("OK").performClick()
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle {
-            assertTrue(filesEvents.contains(historyOpen()))
-            assertEquals("https://example.invalid/shared", draft.state.value.input)
-        }
-    }
-
-    @Test
-    fun aSharedDraftWaitsForTheEarlierNowPlayingLookup() = verifyShareAfterNowPlayingLookup(
-        ActiveAudio(FilesItemId(9L), "song.mp3"),
-    )
-
-    @Test
-    fun aSharedDraftOpensWhenTheEarlierNowPlayingLookupFindsNoSession() = verifyShareAfterNowPlayingLookup(null)
-
-    @Test
-    fun acceptingAReplacementShareWaitsForTheEarlierNowPlayingLookup() = verifyShareAfterNowPlayingLookup(
-        ActiveAudio(FilesItemId(9L), "song.mp3"),
-        replaceDraft = true,
-    )
-
-    private fun verifyShareAfterNowPlayingLookup(result: ActiveAudio?, replaceDraft: Boolean = false) {
-        val draft = MobileTransferDraft()
-        val pending = kotlinx.coroutines.flow.MutableStateFlow(true)
-        val resolved = CompletableDeferred<ActiveAudio?>()
-        val requests = NowPlayingRequests(pending) { pending.value = false }
-        val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
-            override suspend fun activeAudio(context: android.content.Context): ActiveAudio? = resolved.await()
-        }
-        val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    transferDraft = draft,
-                    nowPlayingRequests = requests,
-                    playbackPlayerFactory = factory,
-                    filesState = emptyFilesState(),
-                    accountSettingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = { true },
-                    onTransfersEvent = events::add,
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
-        }
-        if (replaceDraft) {
-            compose.onNodeWithText("Transfers").performClick()
-            compose.runOnIdle { draft.edit("https://example.invalid/previous") }
-        }
-        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
-        if (replaceDraft) {
-            compose.onNodeWithText("Use shared link").performClick()
-        } else {
-            compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
-        }
-        compose.runOnIdle {
-            assertTrue(pending.value)
-            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
-            resolved.complete(result)
-        }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-        compose.runOnIdle {
-            assertFalse(pending.value)
-            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
-            assertTrue(events.none { it is TransfersEvent.Add })
-        }
-    }
-
-    @Test
-    fun aShareOpensTransfersWhenPlaybackWasOpenedAboveThatTab() {
-        val draft = MobileTransferDraft()
-        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
-        val requests = NowPlayingRequests(pending) { pending.value = false }
-        val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
-            override suspend fun activeAudio(context: android.content.Context) =
-                ActiveAudio(FilesItemId(9L), "song.mp3")
-        }
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    transferDraft = draft,
-                    nowPlayingRequests = requests,
-                    playbackPlayerFactory = factory,
-                    filesState = emptyFilesState(),
-                    accountSettingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = { true },
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
-        }
-        compose.onNodeWithText("Transfers").performClick()
-        compose.onNodeWithText("Add transfer").assertIsDisplayed()
-        compose.runOnIdle { pending.value = true }
-        compose.onNodeWithText("Add transfer").assertDoesNotExist()
-        compose.runOnIdle {
-            assertFalse(pending.value)
-            draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
-        }
-        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
-    }
-
-    @Test
-    fun filesDeleteRequiresConfirmedSettingsThroughSaveAndRefreshFailure() {
-        val original = DefaultAccountSettingsPreferences.copy(trashEnabled = true)
-        val optimistic = original.copy(trashEnabled = false)
-        val change = AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)
-        var settings by mutableStateOf(readyAccountSettingsState(preferences = original))
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = videoFilesState(),
-                    accountSettingsState = settings,
-                    appConfigState = readyAndroidAppConfigState(),
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = { events += it; true },
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
-        }
-        compose.onNodeWithContentDescription("Actions for episode.mkv").performClick()
-        compose.onNodeWithText("Move to trash").assertIsEnabled()
-        compose.runOnIdle {
-            settings = readyAccountSettingsState(
-                preferences = optimistic,
-                mutation = AccountSettingsMutation.Saving(
-                    AccountSettingsRequestId(3L), change, original, AccountSettingsMutation.Operation.Refresh,
-                ),
-            )
-        }
-        compose.onNodeWithText("Delete").assertIsNotEnabled()
-        compose.runOnIdle {
-            settings = readyAccountSettingsState(
-                preferences = optimistic,
-                mutation = AccountSettingsMutation.Failed(
-                    change, AccountSettingsFailure.Unexpected(IllegalStateException("refresh failed")),
-                    original, AccountSettingsMutation.Operation.Refresh,
-                ),
-            )
-        }
-        compose.onNodeWithText("Delete").assertIsNotEnabled()
-        compose.runOnIdle { settings = readyAccountSettingsState(preferences = optimistic) }
-        compose.onNodeWithText("Delete").assertIsEnabled().performClick()
-        compose.onNodeWithText("Permanently delete “episode.mkv”? This cannot be undone.").assertIsDisplayed()
-        // Trash turning back on withdraws the permanent confirmation instead of rewording it.
-        compose.runOnIdle { settings = readyAccountSettingsState(preferences = original) }
-        compose.onNodeWithText("Confirm").assertDoesNotExist()
-        compose.onNodeWithText("Move to trash").assertIsEnabled()
-        compose.runOnIdle { assertTrue(events.none { it is FilesBrowserEvent.Delete }) }
-    }
 
     @Test
     fun appConfigAuthenticationFailureTriggersRootSessionRejection() {
@@ -719,134 +282,6 @@ class MobileShellTest {
         compose.onNodeWithTag(MOBILE_FILES_SHARE_ACTION_TAG).assertIsDisplayed().performClick()
 
         compose.runOnIdle { assertEquals(listOf(FilesItemId(9L)), shared.map(FilesItem::id)) }
-    }
-
-    @Test
-    fun filesTopBarSelectsSortAndOtherDestinationsHideIt() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setShell(
-            filesState = readyFilesState(FilesSort.NAME_ASCENDING),
-            onFilesEvent = events::add,
-        )
-
-        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG)
-            .assertIsEnabled()
-            .assert(
-                SemanticsMatcher.expectValue(
-                    SemanticsProperties.StateDescription,
-                    "Name, A–Z",
-                ),
-            )
-            .performClick()
-        val sortOptions = listOf(
-            "Name, A–Z",
-            "Name, Z–A",
-            "Size, smallest first",
-            "Size, largest first",
-            "Date added, oldest first",
-            "Date added, newest first",
-            "Date modified, oldest first",
-            "Date modified, newest first",
-            "Type, A–Z",
-            "Type, Z–A",
-            "Unwatched first",
-            "Watched first",
-        )
-        sortOptions.forEachIndexed { index, label ->
-            val option = compose.onNodeWithText(label)
-                .assertExists()
-                .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
-            if (index == 0) {
-                option.assertIsSelected()
-            } else {
-                option.assertIsNotSelected()
-            }
-        }
-        compose.onNodeWithText("Size, largest first").performClick()
-
-        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING), events.last())
-
-        compose.onNodeWithText("Transfers").performClick()
-        compose.onAllNodesWithTag(MOBILE_FILES_SORT_TAG).assertCountEquals(0)
-    }
-
-    @Test
-    fun filesSortIsDisabledWhileARefreshIsRunning() {
-        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
-        val refreshing = ready.copyForTest(
-            stack = ready.stack.dropLast(1) + ready.current.copy(
-                operation = FilesFolderOperation.Loading(
-                    requestId = FilesRequestId(12L),
-                    intent = FilesFolderOperationIntent.Refresh,
-                    phase = FilesFolderOperationPhase.RELOADING,
-                ),
-            ),
-        )
-        compose.setShell(filesState = refreshing)
-
-        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
-    }
-
-    @Test
-    fun failedSortReloadCanSelectTheDisplayedSort() {
-        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
-        val failed = ready.copyForTest(
-            stack = ready.stack.dropLast(1) + ready.current.copy(
-                operation = FilesFolderOperation.Failed(
-                    failure = FilesFailure.Unexpected(IllegalStateException("reload failed")),
-                    intent = FilesFolderOperationIntent.Sort(FilesSort.SIZE_DESCENDING),
-                    phase = FilesFolderOperationPhase.RELOADING,
-                ),
-            ),
-        )
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setShell(filesState = failed, onFilesEvent = events::add)
-
-        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsEnabled().performClick()
-        compose.onNodeWithText("Name, A–Z").assertIsSelected().performClick()
-
-        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING), events.last())
-    }
-
-    @Test
-    fun openFilesSortMenuClosesWhenLoadingStarts() {
-        var filesState by mutableStateOf(readyFilesState(FilesSort.NAME_ASCENDING))
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = filesState,
-                    accountSettingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = events::add,
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
-        }
-
-        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
-        compose.onNodeWithText("Size, largest first").assertIsDisplayed()
-
-        compose.runOnIdle {
-            filesState = filesState.copyForTest(
-                stack = filesState.stack.dropLast(1) + filesState.current.copy(
-                    operation = FilesFolderOperation.Loading(
-                        requestId = FilesRequestId(13L),
-                        intent = FilesFolderOperationIntent.Refresh,
-                        phase = FilesFolderOperationPhase.RELOADING,
-                    ),
-                ),
-            )
-        }
-
-        compose.onAllNodesWithText("Size, largest first").assertCountEquals(0)
-        assertTrue(events.isEmpty())
     }
 
     @Test
@@ -1123,6 +558,613 @@ class MobileShellTest {
     }
 
     @Test
+    fun deepLinksRouteOnceAfterNavigationIsReadyAndFileLinksAcknowledgeAfterResolving() {
+        val requests = MobileDeepLinkRequests.None
+        val opened = mutableListOf<FilesItemId>()
+        val resolveGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        compose.setShell(
+            inputs = ShellInputs(
+                deepLinkRequests = requests,
+                onOpenFile = { id -> opened += id; resolveGate.await() },
+            ),
+        )
+        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.runOnIdle { requests.receive(MobileDeepLink.Transfers) }
+        compose.onNodeWithText("Add transfer").assertIsDisplayed()
+        compose.runOnIdle { assertNull(requests.pending.value) }
+
+        compose.runOnIdle { requests.receive(MobileDeepLink.File(FilesItemId(7L))) }
+        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(listOf(FilesItemId(7L)), opened)
+            assertEquals(MobileDeepLink.File(FilesItemId(7L)), requests.pending.value)
+            resolveGate.complete(Unit)
+        }
+        compose.runOnIdle {
+            assertNull(requests.pending.value)
+            assertEquals(listOf(FilesItemId(7L)), opened)
+        }
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35])
+class MobileShellShareTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
+    fun incomingShareWaitsForFilesRecoveryThenOpensTransfersWithoutSubmitting() {
+        val draft = MobileTransferDraft()
+        draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
+        var files by mutableStateOf(pendingShellDeleteState())
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = files,
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onTransfersEvent = events::add,
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
+            files = emptyFilesState()
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
+    fun incomingShareWaitsForTransferResolutionBeforeOpeningItsDraft() {
+        val draft = MobileTransferDraft()
+        var transfers by mutableStateOf(resolvingTransfersState())
+        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfers,
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onTransfersEvent = { event ->
+                        events.add(event)
+                        transfers = TransfersReducer.reduce(transfers, event).state
+                    },
+                    resolveTransferFile = { resolved.await() },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
+            resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder()))
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertTrue(events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L))))
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
+    fun acceptingAReplacementShareWaitsForTransferResolution() {
+        val draft = MobileTransferDraft()
+        var transfers by mutableStateOf(resolvingTransfersState())
+        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfers,
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onTransfersEvent = { event ->
+                        events.add(event)
+                        transfers = TransfersReducer.reduce(transfers, event).state
+                    },
+                    resolveTransferFile = { resolved.await() },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Transfers").performClick()
+        compose.runOnIdle {
+            draft.edit("https://example.invalid/previous")
+            draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
+        }
+        compose.onNodeWithText("Use shared link").performClick()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
+            resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder()))
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertTrue(events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L))))
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
+    fun dismissingAShareDuringTransferResolutionPreservesTheRequestedFilesNavigation() {
+        val draft = MobileTransferDraft()
+        var transfers by mutableStateOf(resolvingTransfersState())
+        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfers,
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onTransfersEvent = { event ->
+                        events.add(event)
+                        transfers = TransfersReducer.reduce(transfers, event).state
+                    },
+                    resolveTransferFile = { resolved.await() },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Transfers").performClick()
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.runOnIdle { resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder())) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertEquals("https://example.invalid/shared", draft.state.value.input)
+            assertTrue(events.contains(TransfersEvent.OpenSucceeded(TransfersRequestId(3L))))
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
+    fun shareNavigationWaitsForARunningTransferMutationToSettle() {
+        val draft = MobileTransferDraft()
+        var transfers by mutableStateOf(transfersState(
+            content = TransfersContent.Empty,
+            mutation = io.putdotio.android.transfers.TransferMutation.Running(
+                io.putdotio.android.transfers.TransferAction.Clean, TransfersRequestId(2L),
+            ),
+        ))
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfers,
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onTransfersEvent = events::add,
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.runOnIdle {
+            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
+            transfers = transfers.copyForTest(mutation = io.putdotio.android.transfers.TransferMutation.Idle)
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
+    fun aDelayedHistoryResultDoesNotHideTheSharedDraft() {
+        val draft = MobileTransferDraft()
+        val results = Channel<FilesExternalOpen>(Channel.BUFFERED)
+        val filesEvents = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(
+            onFilesEvent = { filesEvents += it; true },
+            inputs = ShellInputs(transferDraft = draft, contentNavigation = results.receiveAsFlow()),
+        )
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle { results.trySend(FilesExternalOpen(shellResolvedFolder(), FilesOpenOrigin.HISTORY)) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertTrue(filesEvents.contains(historyOpen()))
+            assertEquals("https://example.invalid/shared", draft.state.value.input)
+        }
+    }
+
+    @Test
+    fun aDelayedHistoryResultOpensFilesAfterTheSharedDraftIsDismissed() {
+        val draft = MobileTransferDraft()
+        val results = Channel<FilesExternalOpen>(Channel.BUFFERED)
+        compose.setShell(inputs = ShellInputs(transferDraft = draft, contentNavigation = results.receiveAsFlow()))
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        compose.runOnIdle { results.trySend(FilesExternalOpen(shellResolvedFolder(), FilesOpenOrigin.HISTORY)) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+    }
+
+    @Test
+    fun aRejectedHistoryResultKeepsTheSharedDraftAndReportsNavigationRecovery() {
+        val draft = MobileTransferDraft()
+        val results = Channel<FilesExternalOpen>(Channel.BUFFERED)
+        val filesEvents = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(
+            onFilesEvent = { filesEvents += it; false },
+            inputs = ShellInputs(transferDraft = draft, contentNavigation = results.receiveAsFlow()),
+        )
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle { results.trySend(FilesExternalOpen(shellResolvedFolder(), FilesOpenOrigin.HISTORY)) }
+        compose.onNodeWithText("Couldn’t open this file").assertIsDisplayed()
+        compose.onNodeWithText("OK").performClick()
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertTrue(filesEvents.contains(historyOpen()))
+            assertEquals("https://example.invalid/shared", draft.state.value.input)
+        }
+    }
+
+    @Test
+    fun aSharedDraftWaitsForTheEarlierNowPlayingLookup() = verifyShareAfterNowPlayingLookup(
+        ActiveAudio(FilesItemId(9L), "song.mp3"),
+    )
+
+    @Test
+    fun aSharedDraftOpensWhenTheEarlierNowPlayingLookupFindsNoSession() = verifyShareAfterNowPlayingLookup(null)
+
+    @Test
+    fun acceptingAReplacementShareWaitsForTheEarlierNowPlayingLookup() = verifyShareAfterNowPlayingLookup(
+        ActiveAudio(FilesItemId(9L), "song.mp3"),
+        replaceDraft = true,
+    )
+
+    private fun verifyShareAfterNowPlayingLookup(result: ActiveAudio?, replaceDraft: Boolean = false) {
+        val draft = MobileTransferDraft()
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(true)
+        val resolved = CompletableDeferred<ActiveAudio?>()
+        val requests = NowPlayingRequests(pending) { pending.value = false }
+        val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
+            override suspend fun activeAudio(context: android.content.Context): ActiveAudio? = resolved.await()
+        }
+        val events = mutableListOf<TransfersEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    nowPlayingRequests = requests,
+                    playbackPlayerFactory = factory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onTransfersEvent = events::add,
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        if (replaceDraft) {
+            compose.onNodeWithText("Transfers").performClick()
+            compose.runOnIdle { draft.edit("https://example.invalid/previous") }
+        }
+        compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
+        if (replaceDraft) {
+            compose.onNodeWithText("Use shared link").performClick()
+        } else {
+            compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
+        }
+        compose.runOnIdle {
+            assertTrue(pending.value)
+            org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
+            resolved.complete(result)
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            assertFalse(pending.value)
+            org.junit.Assert.assertNull(draft.state.value.incomingRequestId)
+            assertTrue(events.none { it is TransfersEvent.Add })
+        }
+    }
+
+    @Test
+    fun aShareOpensTransfersWhenPlaybackWasOpenedAboveThatTab() {
+        val draft = MobileTransferDraft()
+        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val requests = NowPlayingRequests(pending) { pending.value = false }
+        val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
+            override suspend fun activeAudio(context: android.content.Context) =
+                ActiveAudio(FilesItemId(9L), "song.mp3")
+        }
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    transferDraft = draft,
+                    nowPlayingRequests = requests,
+                    playbackPlayerFactory = factory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithText("Transfers").performClick()
+        compose.onNodeWithText("Add transfer").assertIsDisplayed()
+        compose.runOnIdle { pending.value = true }
+        compose.onNodeWithText("Add transfer").assertDoesNotExist()
+        compose.runOnIdle {
+            assertFalse(pending.value)
+            draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
+        }
+        compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35])
+class MobileShellFilesTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
+    fun filesDeleteRequiresConfirmedSettingsThroughSaveAndRefreshFailure() {
+        val original = DefaultAccountSettingsPreferences.copy(trashEnabled = true)
+        val optimistic = original.copy(trashEnabled = false)
+        val change = AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)
+        var settings by mutableStateOf(readyAccountSettingsState(preferences = original))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = videoFilesState(),
+                    accountSettingsState = settings,
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { events += it; true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("Actions for episode.mkv").performClick()
+        compose.onNodeWithText("Move to trash").assertIsEnabled()
+        compose.runOnIdle {
+            settings = readyAccountSettingsState(
+                preferences = optimistic,
+                mutation = AccountSettingsMutation.Saving(
+                    AccountSettingsRequestId(3L), change, original, AccountSettingsMutation.Operation.Refresh,
+                ),
+            )
+        }
+        compose.onNodeWithText("Delete").assertIsNotEnabled()
+        compose.runOnIdle {
+            settings = readyAccountSettingsState(
+                preferences = optimistic,
+                mutation = AccountSettingsMutation.Failed(
+                    change, AccountSettingsFailure.Unexpected(IllegalStateException("refresh failed")),
+                    original, AccountSettingsMutation.Operation.Refresh,
+                ),
+            )
+        }
+        compose.onNodeWithText("Delete").assertIsNotEnabled()
+        compose.runOnIdle { settings = readyAccountSettingsState(preferences = optimistic) }
+        compose.onNodeWithText("Delete").assertIsEnabled().performClick()
+        compose.onNodeWithText("Permanently delete “episode.mkv”? This cannot be undone.").assertIsDisplayed()
+        // Trash turning back on withdraws the permanent confirmation instead of rewording it.
+        compose.runOnIdle { settings = readyAccountSettingsState(preferences = original) }
+        compose.onNodeWithText("Confirm").assertDoesNotExist()
+        compose.onNodeWithText("Move to trash").assertIsEnabled()
+        compose.runOnIdle { assertTrue(events.none { it is FilesBrowserEvent.Delete }) }
+    }
+
+    @Test
+    fun filesTopBarSelectsSortAndOtherDestinationsHideIt() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(
+            filesState = readyFilesState(FilesSort.NAME_ASCENDING),
+            onFilesEvent = events::add,
+        )
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG)
+            .assertIsEnabled()
+            .assert(
+                SemanticsMatcher.expectValue(
+                    SemanticsProperties.StateDescription,
+                    "Name, A–Z",
+                ),
+            )
+            .performClick()
+        val sortOptions = listOf(
+            "Name, A–Z",
+            "Name, Z–A",
+            "Size, smallest first",
+            "Size, largest first",
+            "Date added, oldest first",
+            "Date added, newest first",
+            "Date modified, oldest first",
+            "Date modified, newest first",
+            "Type, A–Z",
+            "Type, Z–A",
+            "Unwatched first",
+            "Watched first",
+        )
+        sortOptions.forEachIndexed { index, label ->
+            val option = compose.onNodeWithText(label)
+                .assertExists()
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+            if (index == 0) {
+                option.assertIsSelected()
+            } else {
+                option.assertIsNotSelected()
+            }
+        }
+        compose.onNodeWithText("Size, largest first").performClick()
+
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.SIZE_DESCENDING), events.last())
+
+        compose.onNodeWithText("Transfers").performClick()
+        compose.onAllNodesWithTag(MOBILE_FILES_SORT_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun filesSortIsDisabledWhileARefreshIsRunning() {
+        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
+        val refreshing = ready.copyForTest(
+            stack = ready.stack.dropLast(1) + ready.current.copy(
+                operation = FilesFolderOperation.Loading(
+                    requestId = FilesRequestId(12L),
+                    intent = FilesFolderOperationIntent.Refresh,
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            ),
+        )
+        compose.setShell(filesState = refreshing)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun failedSortReloadCanSelectTheDisplayedSort() {
+        val ready = readyFilesState(FilesSort.NAME_ASCENDING)
+        val failed = ready.copyForTest(
+            stack = ready.stack.dropLast(1) + ready.current.copy(
+                operation = FilesFolderOperation.Failed(
+                    failure = FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                    intent = FilesFolderOperationIntent.Sort(FilesSort.SIZE_DESCENDING),
+                    phase = FilesFolderOperationPhase.RELOADING,
+                ),
+            ),
+        )
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setShell(filesState = failed, onFilesEvent = events::add)
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsEnabled().performClick()
+        compose.onNodeWithText("Name, A–Z").assertIsSelected().performClick()
+
+        assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_ASCENDING), events.last())
+    }
+
+    @Test
+    fun openFilesSortMenuClosesWhenLoadingStarts() {
+        var filesState by mutableStateOf(readyFilesState(FilesSort.NAME_ASCENDING))
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = filesState,
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = events::add,
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
+        compose.onNodeWithText("Size, largest first").assertIsDisplayed()
+
+        compose.runOnIdle {
+            filesState = filesState.copyForTest(
+                stack = filesState.stack.dropLast(1) + filesState.current.copy(
+                    operation = FilesFolderOperation.Loading(
+                        requestId = FilesRequestId(13L),
+                        intent = FilesFolderOperationIntent.Refresh,
+                        phase = FilesFolderOperationPhase.RELOADING,
+                    ),
+                ),
+            )
+        }
+
+        compose.onAllNodesWithText("Size, largest first").assertCountEquals(0)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
     fun acceptedDefaultSortChangeInvalidatesSortOrderOnceAndNotOnFirstLoad() {
         val events = mutableListOf<FilesBrowserEvent>()
         // Starts as a server value this app does not know; saving a known sort must still invalidate.
@@ -1180,68 +1222,6 @@ class MobileShellTest {
         compose.runOnIdle { settingsState = readyAccountSettingsState(preferences = applied) }
         compose.runOnIdle {
             assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
-        }
-    }
-
-    @Test
-    fun deepLinksRouteOnceAfterNavigationIsReadyAndFileLinksAcknowledgeAfterResolving() {
-        val requests = MobileDeepLinkRequests.None
-        val opened = mutableListOf<FilesItemId>()
-        val resolveGate = kotlinx.coroutines.CompletableDeferred<Unit>()
-        compose.setShell(
-            deepLinkRequests = requests,
-            onOpenFile = { id -> opened += id; resolveGate.await() },
-        )
-        compose.onNodeWithText("Add transfer").assertDoesNotExist()
-        compose.runOnIdle { requests.receive(MobileDeepLink.Transfers) }
-        compose.onNodeWithText("Add transfer").assertIsDisplayed()
-        compose.runOnIdle { assertNull(requests.pending.value) }
-
-        compose.runOnIdle { requests.receive(MobileDeepLink.File(FilesItemId(7L))) }
-        compose.onNodeWithText("Add transfer").assertDoesNotExist()
-        compose.runOnIdle {
-            assertEquals(listOf(FilesItemId(7L)), opened)
-            assertEquals(MobileDeepLink.File(FilesItemId(7L)), requests.pending.value)
-            resolveGate.complete(Unit)
-        }
-        compose.runOnIdle {
-            assertNull(requests.pending.value)
-            assertEquals(listOf(FilesItemId(7L)), opened)
-        }
-    }
-
-    private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
-        transferDraft: MobileTransferDraft = MobileTransferDraft(),
-        contentNavigation: kotlinx.coroutines.flow.Flow<FilesExternalOpen> = kotlinx.coroutines.flow.emptyFlow(),
-        filesState: FilesBrowserState = emptyFilesState(),
-        onFilesEvent: (FilesBrowserEvent) -> Boolean = { true },
-        onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
-        onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
-        deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
-        onOpenFile: suspend (FilesItemId) -> Unit = {},
-    ) {
-        setContent {
-            PutioTheme {
-                MobileShell(
-                    transferDraft = transferDraft,
-                    contentNavigation = contentNavigation,
-                    deepLinkRequests = deepLinkRequests,
-                    onOpenFile = onOpenFile,
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = filesState,
-                    accountSettingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = onFilesEvent,
-                    onAccountSettingsEvent = onAccountSettingsEvent,
-                    onAppConfigEvent = onAppConfigEvent,
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
         }
     }
 }
@@ -1429,38 +1409,13 @@ class MobileShellTransfersTest {
 
     @Test
     fun rejectedTransferNavigationKeepsTransfersVisibleAndCanRetryAfterDeleteReconciles() {
-        var files by mutableStateOf(pendingShellDeleteState())
+        val filesState = mutableStateOf(pendingShellDeleteState())
+        var files by filesState
         val retained = files
-        var transfers by mutableStateOf(shellOpenableTransferState())
+        val transfersState = mutableStateOf(shellOpenableTransferState())
+        val transfers by transfersState
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
-            PutioTheme {
-                MobileShell(
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = files,
-                    accountSettingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfers,
-                    transfersSessionId = Session,
-                    account = Account,
-                    playbackRepository = ConversionRepository,
-                    sessionId = Session,
-                    onFilesEvent = { event ->
-                        val transition = FilesBrowserReducer.reduce(files, event)
-                        files = transition.state
-                        transition.consumed
-                    },
-                    onTransfersEvent = { event ->
-                        events.add(event)
-                        transfers = TransfersReducer.reduce(transfers, event).state
-                    },
-                    resolveTransferFile = { FilesRepositoryResult.Success(shellResolvedFolder()) },
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
-            }
-        }
+        setReconcilingShell(filesState, transfersState, events)
         compose.onNodeWithText("Transfers").performClick()
         compose.onNodeWithContentDescription("Open Completed transfer").assertIsEnabled().performClick()
         compose.runOnIdle {
@@ -1490,6 +1445,41 @@ class MobileShellTransfersTest {
             assertEquals(1, events.count { it is TransfersEvent.OpenSucceeded })
             assertEquals(2, events.count { it is TransfersEvent.Open })
             assertEquals(TransferNavigation.Idle, transfers.navigation)
+        }
+    }
+
+    private fun setReconcilingShell(
+        files: MutableState<FilesBrowserState>,
+        transfers: MutableState<TransfersState>,
+        events: MutableList<TransfersEvent>,
+    ) {
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = files.value,
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfers.value,
+                    transfersSessionId = Session,
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { event ->
+                        val transition = FilesBrowserReducer.reduce(files.value, event)
+                        files.value = transition.state
+                        transition.consumed
+                    },
+                    onTransfersEvent = { event ->
+                        events.add(event)
+                        transfers.value = TransfersReducer.reduce(transfers.value, event).state
+                    },
+                    resolveTransferFile = { FilesRepositoryResult.Success(shellResolvedFolder()) },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
         }
     }
 
@@ -1710,7 +1700,7 @@ class MobileShellPlaybackTest {
             }
         }
         compose.setPlaybackShell(
-            playbackRepository = repository,
+            playback = ShellPlayback(repository),
             filesState = videoFilesState(FilesPlaybackProgress(startFromSeconds = 30.0, durationSeconds = 1_200.5)),
         )
 
@@ -1734,7 +1724,8 @@ class MobileShellPlaybackTest {
         val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
         val requests = NowPlayingRequests(pending) { pending.value = false }
         val factory = object : MobilePlayerFactory by NoAudioSessionFactory {
-            override suspend fun activeAudio(context: android.content.Context) = ActiveAudio(FilesItemId(9L), "song.mp3")
+            override suspend fun activeAudio(context: android.content.Context) =
+                ActiveAudio(FilesItemId(9L), "song.mp3")
         }
         compose.setContent {
             PutioTheme {
@@ -1772,11 +1763,13 @@ class MobileShellPlaybackTest {
         val requestedTypes = mutableListOf<PlaybackMediaType>()
         compose.setPlaybackShell(
             filesState = mediaFilesState(),
-            playbackRepository = EndingPlaybackRepository,
-            playbackPlayerFactory = MobilePlayerFactory { _, mediaType ->
-                requestedTypes += mediaType
-                RecordingPlayer()
-            },
+            playback = ShellPlayback(
+                EndingPlaybackRepository,
+                MobilePlayerFactory { _, mediaType ->
+                    requestedTypes += mediaType
+                    RecordingPlayer()
+                },
+            ),
         )
 
         compose.onNodeWithText("song.mp3").performClick()
@@ -1932,8 +1925,7 @@ class MobileShellPlaybackTest {
         val factory = ShellSessionFactory(session) {}
         compose.setPlaybackShell(
             filesState = mediaFilesState(),
-            playbackRepository = EndingPlaybackRepository,
-            playbackPlayerFactory = factory,
+            playback = ShellPlayback(EndingPlaybackRepository, factory),
         )
 
         compose.onAllNodesWithTag(MOBILE_NOW_PLAYING_TAG).assertCountEquals(0)
@@ -2003,8 +1995,7 @@ class MobileShellPlaybackTest {
         val requests = NowPlayingRequests(pending) { pending.value = false }
         compose.setPlaybackShell(
             filesState = mediaFilesState(),
-            playbackRepository = unavailableRepository,
-            playbackPlayerFactory = ShellSessionFactory(session) {},
+            playback = ShellPlayback(unavailableRepository, ShellSessionFactory(session) {}),
             nowPlayingRequests = requests,
         )
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
@@ -2050,8 +2041,7 @@ class MobileShellPlaybackTest {
         }
         compose.setPlaybackShell(
             filesState = mediaFilesState(),
-            playbackRepository = repository,
-            playbackPlayerFactory = factory,
+            playback = ShellPlayback(repository, factory),
             nowPlayingRequests = NowPlayingRequests(pending) { pending.value = false },
         )
         // Lookup found file 9, but the session is empty when the route actually connects.
@@ -2080,8 +2070,7 @@ class MobileShellPlaybackTest {
         val requests = NowPlayingRequests(pending) { pending.value = false }
         compose.setPlaybackShell(
             filesState = videoAndAudioFilesState(),
-            playbackRepository = VideoConvertsAudioReadyRepository,
-            playbackPlayerFactory = ShellSessionFactory(session) {},
+            playback = ShellPlayback(VideoConvertsAudioReadyRepository, ShellSessionFactory(session) {}),
             nowPlayingRequests = requests,
         )
         compose.onNodeWithText("episode.mkv").performClick()
@@ -2115,7 +2104,7 @@ class MobileShellPlaybackTest {
                 return java.io.Closeable { closes += 1 }
             }
         }
-        compose.setPlaybackShell(playbackPlayerFactory = factory)
+        compose.setPlaybackShell(playback = ShellPlayback(playerFactory = factory))
 
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
         // The now-playing observer is the shell's binding; it stays attached while composed.
@@ -2133,8 +2122,10 @@ class MobileShellPlaybackTest {
                 readyAndroidAppConfigState(
                     AndroidAppConfigPreferences(autoplayNextVideo = true),
                 ),
-            playbackRepository = EndingPlaybackRepository,
-            playbackPlayerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
+            playback = ShellPlayback(
+                EndingPlaybackRepository,
+                MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
+            ),
         )
 
         compose.onNodeWithText("episode.mkv").performClick()
@@ -2150,8 +2141,7 @@ class MobileShellPlaybackTest {
     fun authoritativePlaybackFailureRejectsTheSessionOnce() {
         var rejections = 0
         compose.setPlaybackShell(
-            playbackRepository = AuthenticationFailureRepository,
-            onPlaybackAuthenticationRequired = { rejections += 1 },
+            playback = ShellPlayback(AuthenticationFailureRepository, onAuthenticationRequired = { rejections += 1 }),
         )
 
         compose.onNodeWithText("episode.mkv").performClick()
@@ -2162,9 +2152,7 @@ class MobileShellPlaybackTest {
 
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setPlaybackShell(
         appConfigState: AndroidAppConfigState = readyAndroidAppConfigState(),
-        playbackRepository: PlaybackRepository = ConversionRepository,
-        playbackPlayerFactory: MobilePlayerFactory = NoAudioSessionFactory,
-        onPlaybackAuthenticationRequired: suspend () -> Unit = {},
+        playback: ShellPlayback = ShellPlayback(),
         filesState: FilesBrowserState = videoFilesState(),
         nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     ) {
@@ -2176,18 +2164,63 @@ class MobileShellPlaybackTest {
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = appConfigState,
                     account = Account,
-                    playbackRepository = playbackRepository,
-                    playbackPlayerFactory = playbackPlayerFactory,
+                    playbackRepository = playback.repository,
+                    playbackPlayerFactory = playback.playerFactory,
                     sessionId = Session,
                     onFilesEvent = { true },
                     onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
+                    onPlaybackAuthenticationRequired = playback.onAuthenticationRequired,
                     onSignOut = {},
                 )
             }
         }
     }
 }
+
+private class ShellInputs(
+    val transferDraft: MobileTransferDraft = MobileTransferDraft(),
+    val contentNavigation: kotlinx.coroutines.flow.Flow<FilesExternalOpen> = kotlinx.coroutines.flow.emptyFlow(),
+    val deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
+    val onOpenFile: suspend (FilesItemId) -> Unit = {},
+)
+
+private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.setShell(
+    filesState: FilesBrowserState = emptyFilesState(),
+    onFilesEvent: (FilesBrowserEvent) -> Boolean = { true },
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit = {},
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
+    inputs: ShellInputs = ShellInputs(),
+) {
+    setContent {
+        PutioTheme {
+            MobileShell(
+                transferDraft = inputs.transferDraft,
+                contentNavigation = inputs.contentNavigation,
+                deepLinkRequests = inputs.deepLinkRequests,
+                onOpenFile = inputs.onOpenFile,
+                playbackPlayerFactory = NoAudioSessionFactory,
+                filesState = filesState,
+                accountSettingsState = readyAccountSettingsState(),
+                appConfigState = readyAndroidAppConfigState(),
+                transfersState = transfersState(TransfersContent.Empty),
+                account = Account,
+                playbackRepository = ConversionRepository,
+                sessionId = Session,
+                onFilesEvent = onFilesEvent,
+                onAccountSettingsEvent = onAccountSettingsEvent,
+                onAppConfigEvent = onAppConfigEvent,
+                onPlaybackAuthenticationRequired = {},
+                onSignOut = {},
+            )
+        }
+    }
+}
+
+private class ShellPlayback(
+    val repository: PlaybackRepository = ConversionRepository,
+    val playerFactory: MobilePlayerFactory = NoAudioSessionFactory,
+    val onAuthenticationRequired: suspend () -> Unit = {},
+)
 
 private class ShellSessionFactory(
     private val session: Media3Player,

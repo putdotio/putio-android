@@ -69,7 +69,10 @@ import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
+import io.putdotio.android.tv.bringIntoComposition
+import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.paneSection
+import io.putdotio.android.tv.refocusAfterDialog
 import io.putdotio.android.tv.files.tvMessageText
 import java.time.LocalDate
 import java.time.ZoneId
@@ -97,7 +100,7 @@ internal fun TvTrashScreen(
     val content = state.content
     val loaded = content as? TrashContent.Loaded
     // A page can be empty and still carry a cursor; only a known-empty trash shows the empty state.
-    val hasRows = loaded != null && !loaded.isKnownEmpty
+    val hasRows = loaded?.isKnownEmpty == false
     val refreshFocus = remember { FocusRequester() }
     val restoreAllFocus = remember { FocusRequester() }
     val emptyFocus = remember { FocusRequester() }
@@ -111,24 +114,18 @@ internal fun TvTrashScreen(
     }
     // Refresh is the one node that outlives every content change; it takes focus when the
     // rows go (an emptied trash, a reload) and a failed read focuses its own Try again.
-    val headerOwnsFocus = content is TrashContent.Loading || (loaded != null && !hasRows)
+    val headerOwnsFocus = content.isLoadingOrKnownEmpty
     var chosenItemId by remember { mutableStateOf<Long?>(null) }
     val chosenItem = loaded?.items?.firstOrNull { it.id.value == chosenItemId }
     // A confirmation lives on the controller and can greet a recreated pane together with
     // the rows; the pane's own placement must not take focus from it.
-    val dialogOpen = chosenItem != null || state.confirmation != null || state.actionConfirmation != null
+    val dialogOpen = chosenItem != null || state.isConfirming
     val dialogShowing = rememberUpdatedState(dialogOpen)
     LaunchedEffect(headerOwnsFocus) {
-        if (headerOwnsFocus && paneHasFocus.value && !dialogShowing.value) refreshFocus.requestFocus()
+        if (headerOwnsFocus && mayPlaceFocus(paneHasFocus, dialogShowing)) refreshFocus.requestFocus()
     }
     val dialogWasOpen = remember { mutableStateOf(false) }
-    LaunchedEffect(dialogOpen) {
-        val closing = dialogWasOpen.value && !dialogOpen
-        dialogWasOpen.value = dialogOpen
-        if (!closing || !paneHasFocus.value) return@LaunchedEffect
-        withFrameNanos {}
-        if (paneHasFocus.value) entryTarget.value.requestFocus()
-    }
+    LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -152,17 +149,7 @@ internal fun TvTrashScreen(
             restoreAllModifier = Modifier.paneSection(owner, restoreAllFocus).focusRequester(restoreAllFocus),
             emptyModifier = Modifier.paneSection(owner, emptyFocus).focusRequester(emptyFocus),
         )
-        val enabled = state.authenticationFailure == null
-        state.restoreOutcome?.let { TvTrashRestoreOutcome(it, enabled, onEvent, owner) }
-        state.actionOutcome?.let { TvTrashActionOutcome(it, enabled, onEvent, owner) }
-        loaded?.refreshFailure?.let { failure ->
-            TvTrashNotice(
-                text = stringResource(R.string.tv_trash_refresh_error, failure.tvMessageText()),
-                action = stringResource(R.string.tv_files_retry),
-                onAction = { onEvent(TrashEvent.Refresh) },
-                owner = owner,
-            )
-        }
+        TvTrashNotices(state, onEvent, owner)
         when (content) {
             TrashContent.Loading -> {
                 DisposableEffect(Unit) {
@@ -207,9 +194,7 @@ internal fun TvTrashScreen(
                     TvTrashList(
                         content = content,
                         // A row with nothing the controller allows right now has no dialog to offer.
-                        onChoose = {
-                            if (state.canRestore(it.id) || state.canDelete(it.id)) chosenItemId = it.id.value
-                        },
+                        onChoose = { if (state.offersActionsOn(it)) chosenItemId = it.id.value },
                         onNextPage = { onEvent(TrashEvent.LoadNextPage) },
                         onRetry = { onEvent(TrashEvent.Retry) },
                         owner = owner,
@@ -224,6 +209,18 @@ internal fun TvTrashScreen(
     chosenItem?.let { TvTrashItemDialog(it, state, onEvent, onDismiss = { chosenItemId = null }) }
     TvTrashConfirmations(state, onEvent)
 }
+
+private val TrashContent.isLoadingOrKnownEmpty: Boolean
+    get() = this is TrashContent.Loading || (this is TrashContent.Loaded && isKnownEmpty)
+
+private val TrashState.isConfirming: Boolean
+    get() = confirmation != null || actionConfirmation != null
+
+private fun TrashState.offersActionsOn(item: TrashItem): Boolean = canRestore(item.id) || canDelete(item.id)
+
+/** The pane places focus itself only while it holds focus and no dialog has taken it. */
+private fun mayPlaceFocus(paneHasFocus: State<Boolean>, dialogShowing: State<Boolean>): Boolean =
+    paneHasFocus.value && !dialogShowing.value
 
 @Composable
 private fun TvTrashHeader(
@@ -300,6 +297,26 @@ private fun TvTrashEmpty(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 16.dp),
+        )
+    }
+}
+
+/** The restore and mutation outcomes and a failed refresh, one line each above the list. */
+@Composable
+private fun TvTrashNotices(
+    state: TrashState,
+    onEvent: (TrashEvent) -> Boolean,
+    owner: TvPaneFocusOwner,
+) {
+    val enabled = state.authenticationFailure == null
+    state.restoreOutcome?.let { TvTrashRestoreOutcome(it, enabled, onEvent, owner) }
+    state.actionOutcome?.let { TvTrashActionOutcome(it, enabled, onEvent, owner) }
+    (state.content as? TrashContent.Loaded)?.refreshFailure?.let { failure ->
+        TvTrashNotice(
+            text = stringResource(R.string.tv_trash_refresh_error, failure.tvMessageText()),
+            action = stringResource(R.string.tv_files_retry),
+            onAction = { onEvent(TrashEvent.Refresh) },
+            owner = owner,
         )
     }
 }
@@ -399,37 +416,48 @@ private fun TvTrashActionOutcome(
 }
 
 @Composable
-private fun TrashActionOutcome.tvText(): String {
-    val name = (action as? TrashAction.DeleteItem)?.item?.name.orEmpty()
-    return when {
-        check == TrashActionCheck.CHECKING -> stringResource(R.string.tv_trash_checking)
-        check == TrashActionCheck.VERIFIED -> when (action) {
-            is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_verified, name)
-            TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_verified)
-            TrashAction.Empty -> stringResource(R.string.tv_trash_empty_verified)
-        }
-        check == TrashActionCheck.INCONCLUSIVE -> when (action) {
-            is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_inconclusive, name)
-            TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_inconclusive)
-            TrashAction.Empty -> stringResource(R.string.tv_trash_empty_inconclusive)
-        }
-        check == TrashActionCheck.FAILED -> checkFailure?.let { it.tvMessageText() }
-            ?: when (action) {
-                is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_still_present, name)
-                else -> stringResource(R.string.tv_trash_empty_still_present)
-            }
-        else -> when (submission) {
-            TrashActionSubmission.SUBMITTING -> stringResource(R.string.tv_trash_submitting)
-            TrashActionSubmission.ACKNOWLEDGED -> when (action) {
-                is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_started, name)
-                TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_started)
-                TrashAction.Empty -> stringResource(R.string.tv_trash_empty_started)
-            }
-            TrashActionSubmission.UNCERTAIN -> stringResource(R.string.tv_trash_action_uncertain)
-            TrashActionSubmission.REJECTED -> stringResource(R.string.tv_trash_action_rejected) +
-                (submissionFailure?.let { " " + it.tvMessageText() } ?: "")
-        }
-    }
+private fun TrashActionOutcome.tvText(): String = when (check) {
+    TrashActionCheck.CHECKING -> stringResource(R.string.tv_trash_checking)
+    TrashActionCheck.VERIFIED -> action.verifiedText()
+    TrashActionCheck.INCONCLUSIVE -> action.inconclusiveText()
+    TrashActionCheck.FAILED -> checkFailure?.tvMessageText() ?: action.stillPresentText()
+    TrashActionCheck.NOT_CHECKED -> submissionText()
+}
+
+@Composable
+private fun TrashActionOutcome.submissionText(): String = when (submission) {
+    TrashActionSubmission.SUBMITTING -> stringResource(R.string.tv_trash_submitting)
+    TrashActionSubmission.ACKNOWLEDGED -> action.startedText()
+    TrashActionSubmission.UNCERTAIN -> stringResource(R.string.tv_trash_action_uncertain)
+    TrashActionSubmission.REJECTED -> stringResource(R.string.tv_trash_action_rejected) +
+        (submissionFailure?.let { " " + it.tvMessageText() } ?: "")
+}
+
+@Composable
+private fun TrashAction.startedText(): String = when (this) {
+    is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_started, item.name)
+    TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_started)
+    TrashAction.Empty -> stringResource(R.string.tv_trash_empty_started)
+}
+
+@Composable
+private fun TrashAction.verifiedText(): String = when (this) {
+    is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_verified, item.name)
+    TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_verified)
+    TrashAction.Empty -> stringResource(R.string.tv_trash_empty_verified)
+}
+
+@Composable
+private fun TrashAction.inconclusiveText(): String = when (this) {
+    is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_inconclusive, item.name)
+    TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_inconclusive)
+    TrashAction.Empty -> stringResource(R.string.tv_trash_empty_inconclusive)
+}
+
+@Composable
+private fun TrashAction.stillPresentText(): String = when (this) {
+    is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_still_present, item.name)
+    else -> stringResource(R.string.tv_trash_empty_still_present)
 }
 
 /**
@@ -485,7 +513,7 @@ private fun TvTrashList(
     val pagingFocus = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
-    val pagingShown = content.nextCursor != null || content.isLoadingMore || content.pageFailure != null
+    val pagingShown = content.showsPaging
     if (!pagingShown && pagingHeldFocus.value) {
         pagingHeldFocus.value = false
         handOffToLastRow.value = true
@@ -498,13 +526,12 @@ private fun TvTrashList(
             ?: return@LaunchedEffect
         snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == targetKey } }.first { it }
         withFrameNanos {}
-        if (paneHasFocus.value && !dialogShowing.value) listFocus.requestFocus()
+        if (mayPlaceFocus(paneHasFocus, dialogShowing)) listFocus.requestFocus()
     }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
         val lastId = items.lastOrNull()?.id?.value ?: return@LaunchedEffect
-        if (listState.layoutInfo.visibleItemsInfo.none { it.key == lastId }) listState.scrollToItem(items.lastIndex)
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == lastId } }.first { it }
+        listState.bringIntoComposition(lastId, items.lastIndex)
         withFrameNanos {}
         if (owner.owns(listFocus)) lastRow.requestFocus()
         handOffToLastRow.value = false
@@ -529,8 +556,8 @@ private fun TvTrashList(
                 item = item,
                 onClick = { onChoose(item) },
                 modifier = Modifier
-                    .then(if (index == anchorIndex) Modifier.focusRequester(anchorRow) else Modifier)
-                    .then(if (index == items.lastIndex) Modifier.focusRequester(lastRow) else Modifier),
+                    .focusRequesterIf(index == anchorIndex, anchorRow)
+                    .focusRequesterIf(index == items.lastIndex, lastRow),
             )
         }
         if (pagingShown) {
@@ -547,6 +574,9 @@ private fun TvTrashList(
         }
     }
 }
+
+private val TrashContent.Loaded.showsPaging: Boolean
+    get() = nextCursor != null || isLoadingMore || pageFailure != null
 
 @Composable
 private fun TvTrashRow(

@@ -4,7 +4,6 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
-import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
@@ -24,26 +23,19 @@ import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import android.view.accessibility.AccessibilityEvent
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.toPixelMap
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.InputMode
-import androidx.compose.ui.input.InputModeManager
 import androidx.compose.ui.platform.AccessibilityManager
 import androidx.compose.ui.platform.LocalAccessibilityManager
-import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -51,19 +43,14 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.percentOffset
-import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -72,13 +59,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performKeyInput
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.zIndex
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaMetadata
@@ -481,7 +464,9 @@ class MobilePlayerScreenTest {
         compose.setContent {
             PutioTheme {
                 MobilePlayerScreen(
-                    state = state(PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec")))),
+                    state = state(
+                        PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
+                    ),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
                     onBack = { backs += 1 },
@@ -537,6 +522,14 @@ class MobilePlayerScreenTest {
         compose.onNodeWithText("Couldn’t find the next video").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
     }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobilePlayerLifecycleTest {
+    @get:Rule
+    val compose = createComposeRule()
 
     @Test
     fun retainedPreferencesSurviveReadyRemovalAndStateRestoration() {
@@ -578,27 +571,9 @@ class MobilePlayerScreenTest {
     @Test
     fun readyPlayerSubtreeCanBeRemovedAndRecreated() {
         val players = mutableListOf<RecordingPlayer>()
-        val playerFactory = MobilePlayerFactory { _, _ ->
-            RecordingPlayer().also(players::add)
-        }
-        var content by mutableStateOf<PlaybackContent>(
-            PlaybackContent.Ready(
-                videoSource(),
-            ),
-        )
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(content).copyForTest(resumePositionMillis = 12_345L),
-                    onRetry = {},
-                    onPlayerFailure = { failure, _ -> content = PlaybackContent.Failed(failure) },
-                    onBack = {},
-                    playerFactory = playerFactory,
-                    subtitleStartupPolicy =
-                        SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
-                )
-            }
-        }
+        val contentState = mutableStateOf<PlaybackContent>(PlaybackContent.Ready(videoSource()))
+        var content by contentState
+        setRecreatablePlayer(contentState, players)
         compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(1, players.size)
@@ -611,29 +586,15 @@ class MobilePlayerScreenTest {
         }
 
         compose.runOnIdle {
-            content =
-                PlaybackContent.Ready(
-                    videoSource().copy(
-                        url = credentialUrl("https://example.com/replaced-video.mp4"),
-                        startFromSeconds = 0.0,
-                    ),
-                )
+            val replaced = credentialUrl("https://example.com/replaced-video.mp4")
+            content = PlaybackContent.Ready(videoSource().copy(url = replaced, startFromSeconds = 0.0))
         }
         compose.runOnIdle {
             assertEquals(1, players.size)
             assertEquals(2, players.single().mediaItemUpdates)
         }
 
-        compose.runOnIdle {
-            players.single().movePositionTo(54_321L)
-            players.single().fail(
-                PlaybackException(
-                    "decoder failed",
-                    null,
-                    PlaybackException.ERROR_CODE_DECODING_FAILED,
-                ),
-            )
-        }
+        compose.runOnIdle { players.single().failDecodingAt(54_321L) }
         compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
         compose.runOnIdle { assertTrue(players.single().released) }
 
@@ -642,12 +603,7 @@ class MobilePlayerScreenTest {
         }
         compose.onNodeWithText("Check your connection and try again.").assertIsDisplayed()
 
-        compose.runOnIdle {
-            content =
-                PlaybackContent.Ready(
-                    videoSource(),
-                )
-        }
+        compose.runOnIdle { content = PlaybackContent.Ready(videoSource()) }
         compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(2, players.size)
@@ -656,10 +612,7 @@ class MobilePlayerScreenTest {
             assertEquals(54_321L, players.last().currentPosition)
         }
         val readyContent = content
-        compose.runOnIdle {
-            players.last().movePositionTo(0L)
-            players.last().fail(PlaybackException("decoder failed", null, PlaybackException.ERROR_CODE_DECODING_FAILED))
-        }
+        compose.runOnIdle { players.last().failDecodingAt(0L) }
         compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
         compose.runOnIdle { content = readyContent }
         compose.runOnIdle {
@@ -668,114 +621,31 @@ class MobilePlayerScreenTest {
         }
     }
 
-    @Test
-    fun accountSubtitlePolicyAppliesWhenSettingsBecomeReady() {
-        val player = RecordingPlayer()
-        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
+    private fun setRecreatablePlayer(
+        content: MutableState<PlaybackContent>,
+        players: MutableList<RecordingPlayer>,
+    ) {
+        val playerFactory = MobilePlayerFactory { _, _ ->
+            RecordingPlayer().also(players::add)
+        }
         compose.setContent {
             PutioTheme {
                 MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(videoSource())),
+                    state = state(content.value).copyForTest(resumePositionMillis = 12_345L),
                     onRetry = {},
-                    onPlayerFailure = { _, _ -> },
+                    onPlayerFailure = { failure, _ -> content.value = PlaybackContent.Failed(failure) },
                     onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> player },
-                    subtitleStartupPolicy = policy,
+                    playerFactory = playerFactory,
+                    subtitleStartupPolicy =
+                        SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
                 )
             }
-        }
-        compose.runOnIdle {
-            // Settings still loading: off, whatever the system caption setting (#229).
-            assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
-            policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true)
-        }
-        compose.runOnIdle {
-            assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
-            assertTrue(player.trackSelectionParameters.selectTextByDefault)
         }
     }
 
-    @Test
-    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun automaticSubtitlesLetTheAccountsDefaultTrackOutrankTheDeviceLanguage() {
-        val player = RecordingPlayer()
-        compose.runOnUiThread {
-            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                .setPreferredTextLanguages("de").build()
-        }
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(videoSource())),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> player },
-                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
-                )
-            }
-        }
-        compose.runOnIdle { assertEquals(listOf("de"), player.trackSelectionParameters.preferredTextLanguages) }
-
-        // Arriving tracks mark English as the account's default; no language preference may outrank it (#237).
-        val text = TrackGroup(
-            Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT)
-                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build(),
-            Format.Builder().setId("de").setLanguage("de").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
-        )
-        compose.runOnIdle {
-            player.updateTracks(Tracks(listOf(Tracks.Group(text, false, IntArray(2) { C.FORMAT_HANDLED }, BooleanArray(2)))))
-        }
-        compose.runOnIdle {
-            val parameters = player.trackSelectionParameters
-            assertTrue(parameters.selectTextByDefault)
-            assertEquals(emptyList<String>(), parameters.preferredTextLanguages)
-            assertFalse(parameters.usePreferredTextLanguagesAndRoleFlagsFromCaptioningManager)
-        }
-    }
-
-    @Test
-    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun lateSubtitlePoliciesPreserveExplicitAudioSelectionWithoutTrackEvents() {
-        val player = RecordingPlayer()
-        val group = TrackGroup(Format.Builder().setId("audio-en").setSampleMimeType(MimeTypes.AUDIO_AAC).build())
-        val audioOverride = TrackSelectionOverride(group, 0)
-        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
-        compose.runOnUiThread {
-            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                .setPreferredTextLanguage("en").build()
-        }
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(videoSource())),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> player },
-                    subtitleStartupPolicy = policy,
-                )
-            }
-        }
-        compose.runOnIdle {
-            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                .setOverrideForType(audioOverride).setPreferredAudioLanguage("de").build()
-        }
-        for (nextPolicy in listOf(
-            SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
-            SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false),
-            SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
-        )) {
-            compose.runOnIdle { policy = nextPolicy }
-            compose.runOnIdle {
-                val parameters = player.trackSelectionParameters
-                assertEquals(audioOverride, parameters.overrides[group])
-                assertEquals(listOf("de"), parameters.preferredAudioLanguages)
-                assertEquals(!nextPolicy.showSubtitles, C.TRACK_TYPE_TEXT in parameters.disabledTrackTypes)
-                assertEquals(nextPolicy.autoSelectSubtitles, parameters.selectTextByDefault)
-                if (nextPolicy.autoSelectSubtitles) assertEquals(listOf("en"), parameters.preferredTextLanguages)
-            }
-        }
+    private fun RecordingPlayer.failDecodingAt(positionMillis: Long) {
+        movePositionTo(positionMillis)
+        fail(PlaybackException("decoder failed", null, PlaybackException.ERROR_CODE_DECODING_FAILED))
     }
 
     @Test
@@ -918,42 +788,354 @@ class MobilePlayerScreenTest {
         compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
         compose.runOnIdle { assertEquals(1, endedCalls) }
     }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobilePlayerSubtitleTest {
+    @get:Rule
+    val compose = createComposeRule()
 
     @Test
-    fun visibleSeekControlsAccumulateAndClampAtTheDuration() {
-        lateinit var player: RecordingPlayer
+    fun accountSubtitlePolicyAppliesWhenSettingsBecomeReady() {
+        val player = RecordingPlayer()
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
         compose.setContent {
             PutioTheme {
                 MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 12.345),
+                    state = state(PlaybackContent.Ready(videoSource())),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
                     onBack = {},
-                    playerFactory =
-                        MobilePlayerFactory { _, _ ->
-                            RecordingPlayer(durationMillis = 30_000L).also { player = it }
-                        },
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = policy,
                 )
             }
         }
-        compose.waitForIdle()
-        compose.mainClock.autoAdvance = false
         compose.runOnIdle {
-            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
-            player.updatePlaybackState(Media3Player.STATE_READY)
-            assertTrue(
-                "duration=${player.duration}, seekable=${player.isCurrentMediaItemSeekable}, " +
-                    "live=${player.isCurrentMediaItemLive}, commands=${player.availableCommands}",
-                player.currentSeekWindow().available,
+            // Settings still loading: off, whatever the system caption setting (#229).
+            assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+            policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true)
+        }
+        compose.runOnIdle {
+            assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
+            assertTrue(player.trackSelectionParameters.selectTextByDefault)
+        }
+    }
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun automaticSubtitlesLetTheAccountsDefaultTrackOutrankTheDeviceLanguage() {
+        val player = RecordingPlayer()
+        compose.runOnUiThread {
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .setPreferredTextLanguages("de").build()
+        }
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+                )
+            }
+        }
+        compose.runOnIdle { assertEquals(listOf("de"), player.trackSelectionParameters.preferredTextLanguages) }
+
+        // Arriving tracks mark English as the account's default; no language preference may outrank it (#237).
+        val text = TrackGroup(
+            Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT)
+                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build(),
+            Format.Builder().setId("de").setLanguage("de").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+        )
+        compose.runOnIdle {
+            player.updateTracks(
+                Tracks(listOf(Tracks.Group(text, false, IntArray(2) { C.FORMAT_HANDLED }, BooleanArray(2)))),
             )
         }
-        compose.onNodeWithContentDescription("Forward 10 seconds")
-            .assertIsEnabled()
-            .performClick()
-        compose.onNodeWithContentDescription("Forward 10 seconds").performClick()
-
-        compose.runOnIdle { assertEquals(listOf(22_345L, 30_000L), player.seekPositions) }
+        compose.runOnIdle {
+            val parameters = player.trackSelectionParameters
+            assertTrue(parameters.selectTextByDefault)
+            assertEquals(emptyList<String>(), parameters.preferredTextLanguages)
+            assertFalse(parameters.usePreferredTextLanguagesAndRoleFlagsFromCaptioningManager)
+        }
     }
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun lateSubtitlePoliciesPreserveExplicitAudioSelectionWithoutTrackEvents() {
+        val player = RecordingPlayer()
+        val group = TrackGroup(Format.Builder().setId("audio-en").setSampleMimeType(MimeTypes.AUDIO_AAC).build())
+        val audioOverride = TrackSelectionOverride(group, 0)
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
+        compose.runOnUiThread {
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .setPreferredTextLanguage("en").build()
+        }
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = policy,
+                )
+            }
+        }
+        compose.runOnIdle {
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .setOverrideForType(audioOverride).setPreferredAudioLanguage("de").build()
+        }
+        for (nextPolicy in listOf(
+            SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
+            SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false),
+            SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+        )) {
+            compose.runOnIdle { policy = nextPolicy }
+            compose.runOnIdle {
+                val parameters = player.trackSelectionParameters
+                assertEquals(audioOverride, parameters.overrides[group])
+                assertEquals(listOf("de"), parameters.preferredAudioLanguages)
+                assertEquals(!nextPolicy.showSubtitles, C.TRACK_TYPE_TEXT in parameters.disabledTrackTypes)
+                assertEquals(nextPolicy.autoSelectSubtitles, parameters.selectTextByDefault)
+                if (nextPolicy.autoSelectSubtitles) assertEquals(listOf("en"), parameters.preferredTextLanguages)
+            }
+        }
+    }
+
+    @Test
+    fun videoOffersDirectOptionsWithoutSubtitleMetadataAndHidesBackWithControls() {
+        lateinit var player: RecordingPlayer
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(0.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
+                )
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("Audio").assertIsDisplayed()
+        compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
+        compose.onNodeWithText("Captions").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Back").assertIsDisplayed()
+
+        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_READY) }
+        compose.mainClock.advanceTimeBy(5_000L)
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithContentDescription("Back").assertDoesNotExist()
+        compose.onNodeWithText("Audio").assertDoesNotExist()
+        compose.onNodeWithText("Captions").assertDoesNotExist()
+    }
+
+    @Test
+    fun hideSubtitlesLeavesTheCaptionsPickerOut() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(0.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
+                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
+                )
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("Audio").assertIsDisplayed()
+        compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
+        compose.onNodeWithText("Captions").assertDoesNotExist()
+    }
+
+    @Test
+    fun playbackResolvedForHiddenSubtitlesLeavesTheCaptionsPickerOutBeforeTheSettingsLoad() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource(), subtitlesHidden = true)),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
+                    subtitleStartupPolicy = null,
+                )
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("Audio").assertIsDisplayed()
+        compose.onNodeWithText("Captions").assertDoesNotExist()
+    }
+
+    @Test
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun offStaysOffWhenTheTracksChangeBeforeThePickRecomposes() {
+        val player = RecordingPlayer()
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+                )
+            }
+        }
+        compose.runOnIdle { assertTrue(player.trackSelectionParameters.selectTextByDefault) }
+        val text = TrackGroup(
+            Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
+        )
+        compose.runOnIdle {
+            player.tracksOnNextSelection =
+                Tracks(listOf(Tracks.Group(text, false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(false))))
+        }
+
+        compose.onNodeWithText("Captions").performClick()
+        compose.onNodeWithText("Off").performClick()
+        // Automatic must not come back from a track change that beat the pick's recomposition.
+        compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+    }
+
+    @Test
+    fun hidingThatArrivesAfterAPickTurnsSubtitlesOffAndRemovesTheCaptionsPicker() {
+        val player = RecordingPlayer()
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                    subtitleStartupPolicy = policy,
+                )
+            }
+        }
+        // Settings still loading: the viewer turns subtitles on.
+        compose.onNodeWithText("Captions").performClick()
+        compose.onNodeWithText("Automatic").performClick()
+        compose.runOnIdle { assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+
+        compose.runOnIdle { policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true) }
+        // hide_subtitles outranks the pick: no picker is left to turn them off with (#237).
+        compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
+        compose.onNodeWithText("Captions").assertDoesNotExist()
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobilePlayerMediaItemTest {
+    @Test
+    @UnstableApi
+    fun mediaItemPreservesHlsMetadataAndKnownSidecarSubtitles() {
+        val source = PlaybackSource(
+            fileId = Target.fileId.value,
+            kind = PlaybackSourceKind.HLS,
+            url = credentialUrl("https://api.put.io/v2/files/42/hls/media.m3u8?token=credential"),
+            startFromSeconds = 12.5,
+            subtitles =
+                PlaybackSubtitles.Sidecar(
+                    listOf(
+                        subtitle("English", "en", "srt"),
+                        subtitle("German", "de", "vtt"),
+                        subtitle("Inferred", "tr", null, "subtitle.vtt"),
+                        subtitle("Unknown", "und", "future-format"),
+                        subtitle("Declared unknown", "es", "future-format", "subtitle.vtt"),
+                        subtitle("Missing", "fr", null),
+                    ),
+                ),
+        )
+
+        val preparedPlayback = source.preparePlayback(Target.name)
+        val item = preparedPlayback.mediaItem
+        val local = requireNotNull(item.localConfiguration)
+
+        assertEquals(12_500L, preparedPlayback.startPositionMillis)
+        assertEquals(MimeTypes.APPLICATION_M3U8, local.mimeType)
+        assertEquals("episode.mkv", item.mediaMetadata.title)
+        assertEquals("42", item.mediaId)
+        assertEquals(MediaMetadata.MEDIA_TYPE_VIDEO, item.mediaMetadata.mediaType)
+        assertEquals(3, local.subtitleConfigurations.size)
+        assertEquals(MimeTypes.APPLICATION_SUBRIP, local.subtitleConfigurations.first().mimeType)
+        assertEquals("en", local.subtitleConfigurations.first().language)
+        assertEquals(MimeTypes.TEXT_VTT, local.subtitleConfigurations[2].mimeType)
+        assertEquals("tr", local.subtitleConfigurations[2].language)
+        // put.io's list names its first subtitle `default`; only that one carries the flag (#237).
+        assertEquals(
+            listOf(C.SELECTION_FLAG_DEFAULT, 0, 0),
+            local.subtitleConfigurations.map { it.selectionFlags },
+        )
+        assertEquals(54_321L, source.preparePlayback(Target.name, resumePositionMillis = 54_321L).startPositionMillis)
+        assertTrue(source.hasSelectableSubtitles())
+        assertFalse(
+            source
+                .copy(
+                    subtitles = PlaybackSubtitles.Sidecar(listOf(subtitle("Unknown", "und", "future-format"))),
+                ).hasSelectableSubtitles(),
+        )
+    }
+
+    @Test
+    fun mp4MediaItemLetsMedia3InferTheContainer() {
+        val source = PlaybackSource(
+            fileId = Target.fileId.value,
+            kind = PlaybackSourceKind.MP4,
+            url = credentialUrl("https://api.put.io/v2/files/42/mp4/download?token=credential"),
+            startFromSeconds = 0.0,
+            subtitles = PlaybackSubtitles.None,
+        )
+
+        assertNull(source.toMediaItem(Target.name).localConfiguration?.mimeType)
+    }
+
+    @Test
+    fun audioMediaItemIsTaggedAsMusicForSystemMediaControls() {
+        val item = audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO)
+
+        assertEquals(MediaMetadata.MEDIA_TYPE_MUSIC, item.mediaMetadata.mediaType)
+        assertEquals("song.mp3", item.mediaMetadata.title)
+    }
+
+    private fun subtitle(
+        name: String,
+        languageCode: String,
+        format: String?,
+        path: String = languageCode,
+    ): PlaybackSubtitle =
+        PlaybackSubtitle(
+            format = format,
+            key = languageCode,
+            language = name,
+            languageCode = languageCode,
+            name = name,
+            source = "put.io",
+            url = credentialUrl("https://api.put.io/v2/subtitles/$path?token=credential"),
+        )
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobilePlayerDoubleTapTest {
+    @get:Rule
+    val compose = createComposeRule()
 
     @Test
     fun doubleTapSeeksBySideAndSingleTapStillTogglesControls() {
@@ -1063,6 +1245,284 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    fun doubleTapStillAccumulatesWhenPlaybackBuffersBetweenTaps() {
+        lateinit var player: RecordingPlayer
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(startFromSeconds = 20.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory =
+                        MobilePlayerFactory { _, _ ->
+                            RecordingPlayer(durationMillis = 60_000L).also { player = it }
+                        },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        val seekWindow = player.currentSeekWindow()
+        assertTrue(seekWindow.available)
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            click(percentOffset(0.5f, 0.25f))
+        }
+        compose.mainClock.advanceTimeBy(1_000L)
+        compose.onAllNodesWithTag(MOBILE_SEEK_FORWARD_TAG).assertCountEquals(0)
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle { assertEquals(listOf(30_000L), player.seekPositions) }
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            click(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_BUFFERING) }
+        compose.mainClock.advanceTimeByFrame()
+        compose.runOnIdle {
+            assertEquals(Media3Player.STATE_BUFFERING, player.playbackState)
+            assertEquals(seekWindow, player.currentSeekWindow())
+        }
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            advanceEventTime(64L)
+            click(percentOffset(0.75f, 0.25f))
+        }
+
+        compose.runOnIdle { assertEquals(listOf(30_000L, 40_000L), player.seekPositions) }
+        compose.mainClock.autoAdvance = true
+        compose.onNodeWithText("Forward 20 seconds").assertIsDisplayed()
+    }
+
+    @Test
+    fun nonSeekableMediaDisablesControlsAndIgnoresDoubleTap() {
+        lateinit var player: RecordingPlayer
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(startFromSeconds = 12.345),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory =
+                        MobilePlayerFactory { _, _ ->
+                            RecordingPlayer(seekable = false).also { player = it }
+                        },
+                )
+            }
+        }
+
+        compose.waitForIdle()
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+            assertFalse(player.currentSeekWindow().available)
+            assertEquals(60_000L, player.duration)
+            assertFalse(player.isCurrentMediaItemSeekable)
+        }
+        compose.onNodeWithTag(MOBILE_SEEK_BACK_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle { assertTrue(player.seekPositions.isEmpty()) }
+    }
+
+    @Test
+    fun doubleTapUsesNewlyAvailableWindowBeforeBatchedEvents() {
+        val player = RecordingPlayer(seekable = false)
+        var timelineEventDelivered = false
+        var updatedBeforeDoubleTap = false
+        compose.setContent {
+            PutioTheme {
+                Box(Modifier.fillMaxSize().pointerInput(Unit) {
+                    var releases = 0
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.changes.any { it.changedToUpIgnoreConsumed() } && ++releases == 2) {
+                                player.updateSeekWindow(durationMillis = 60_000L, seekable = true)
+                                updatedBeforeDoubleTap = true
+                                assertTrue(player.currentSeekWindow().available)
+                                assertFalse(timelineEventDelivered)
+                            }
+                        }
+                    }
+                }) {
+                    MobilePlayerScreen(
+                        state = readyState(startFromSeconds = 20.0),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory { _, _ -> player },
+                    )
+                }
+            }
+        }
+        compose.runOnIdle {
+            player.pause()
+            player.movePositionTo(20_000L)
+            player.addListener(object : Media3Player.Listener {
+                override fun onEvents(player: Media3Player, events: Media3Player.Events) {
+                    if (events.contains(Media3Player.EVENT_TIMELINE_CHANGED)) timelineEventDelivered = true
+                }
+            })
+        }
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle {
+            assertTrue(updatedBeforeDoubleTap)
+            assertTrue(timelineEventDelivered)
+            assertEquals(listOf(30_000L), player.seekPositions)
+        }
+    }
+
+    @Test
+    fun asymmetricSafeGestureInsetsKeepThePhysicalMidpoint() {
+        val player = RecordingPlayer()
+        lateinit var host: View
+        var leftInset = 0
+        var rightInset = 0
+        compose.setContent {
+            host = LocalView.current
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            leftInset = WindowInsets.safeGestures.getLeft(density, LayoutDirection.Ltr)
+            rightInset = WindowInsets.safeGestures.getRight(density, LayoutDirection.Ltr)
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(startFromSeconds = 20.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                )
+            }
+        }
+        compose.runOnIdle {
+            player.pause()
+            player.movePositionTo(20_000L)
+        }
+        for ((left, right) in listOf(80 to 0, 0 to 80)) {
+            compose.runOnIdle {
+                ViewCompat.dispatchApplyWindowInsets(
+                    host,
+                    WindowInsetsCompat.Builder()
+                        .setInsets(
+                            WindowInsetsCompat.Type.systemGestures() or
+                                WindowInsetsCompat.Type.mandatorySystemGestures() or
+                                WindowInsetsCompat.Type.tappableElement(),
+                            Insets.of(left, 0, right, 0),
+                        )
+                        .build(),
+                )
+            }
+            compose.runOnIdle {
+                assertEquals(left, leftInset)
+                assertEquals(right, rightInset)
+            }
+            compose.onNodeWithTag(MOBILE_PLAYER_TAG).performTouchInput {
+                doubleClick(Offset(center.x + if (left > 0) 20f else -20f, height * 0.25f))
+            }
+        }
+        compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L), player.seekPositions) }
+    }
+
+    @Test
+    fun rtlSeekFeedbackStaysOnThePhysicalTappedSide() {
+        val player = RecordingPlayer()
+        compose.setContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+                PutioTheme {
+                    MobilePlayerScreen(
+                        state = readyState(startFromSeconds = 20.0),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory { _, _ -> player },
+                    )
+                }
+            }
+        }
+        compose.runOnIdle {
+            player.pause()
+            player.movePositionTo(20_000L)
+        }
+        compose.waitForIdle()
+        val centerX = compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG)
+            .fetchSemanticsNode().boundsInRoot.center.x
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.25f, 0.25f))
+        }
+        compose.runOnIdle { assertEquals(listOf(10_000L), player.seekPositions) }
+        assertTrue(
+            compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG)
+                .fetchSemanticsNode().boundsInRoot.center.x < centerX,
+        )
+
+        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
+            doubleClick(percentOffset(0.75f, 0.25f))
+        }
+        compose.runOnIdle { assertEquals(listOf(10_000L, 20_000L), player.seekPositions) }
+        assertTrue(
+            compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG)
+                .fetchSemanticsNode().boundsInRoot.center.x > centerX,
+        )
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobilePlayerSeekTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
+    fun visibleSeekControlsAccumulateAndClampAtTheDuration() {
+        lateinit var player: RecordingPlayer
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(startFromSeconds = 12.345),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory =
+                        MobilePlayerFactory { _, _ ->
+                            RecordingPlayer(durationMillis = 30_000L).also { player = it }
+                        },
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.mainClock.autoAdvance = false
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+            assertTrue(
+                "duration=${player.duration}, seekable=${player.isCurrentMediaItemSeekable}, " +
+                    "live=${player.isCurrentMediaItemLive}, commands=${player.availableCommands}",
+                player.currentSeekWindow().available,
+            )
+        }
+        compose.onNodeWithContentDescription("Forward 10 seconds")
+            .assertIsEnabled()
+            .performClick()
+        compose.onNodeWithContentDescription("Forward 10 seconds").performClick()
+
+        compose.runOnIdle { assertEquals(listOf(22_345L, 30_000L), player.seekPositions) }
+    }
+
+    @Test
     fun accumulationExpiresFromTheRequestTimeEvenWhenTheFeedbackTimerStartsLate() {
         lateinit var player: RecordingPlayer
         var now = 10_000L
@@ -1122,63 +1582,6 @@ class MobilePlayerScreenTest {
             assertEquals(3, player.seekPositions.size)
             assertEquals(player.seekPositions[1] + 10_000L, player.seekPositions.last())
         }
-        compose.mainClock.autoAdvance = true
-        compose.onNodeWithText("Forward 20 seconds").assertIsDisplayed()
-    }
-
-    @Test
-    fun doubleTapStillAccumulatesWhenPlaybackBuffersBetweenTaps() {
-        lateinit var player: RecordingPlayer
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 20.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory =
-                        MobilePlayerFactory { _, _ ->
-                            RecordingPlayer(durationMillis = 60_000L).also { player = it }
-                        },
-                )
-            }
-        }
-        compose.waitForIdle()
-        compose.runOnIdle {
-            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
-            player.updatePlaybackState(Media3Player.STATE_READY)
-        }
-        compose.waitForIdle()
-        compose.mainClock.autoAdvance = false
-        val seekWindow = player.currentSeekWindow()
-        assertTrue(seekWindow.available)
-
-        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
-            click(percentOffset(0.5f, 0.25f))
-        }
-        compose.mainClock.advanceTimeBy(1_000L)
-        compose.onAllNodesWithTag(MOBILE_SEEK_FORWARD_TAG).assertCountEquals(0)
-
-        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
-            doubleClick(percentOffset(0.75f, 0.25f))
-        }
-        compose.runOnIdle { assertEquals(listOf(30_000L), player.seekPositions) }
-
-        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
-            click(percentOffset(0.75f, 0.25f))
-        }
-        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_BUFFERING) }
-        compose.mainClock.advanceTimeByFrame()
-        compose.runOnIdle {
-            assertEquals(Media3Player.STATE_BUFFERING, player.playbackState)
-            assertEquals(seekWindow, player.currentSeekWindow())
-        }
-        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
-            advanceEventTime(64L)
-            click(percentOffset(0.75f, 0.25f))
-        }
-
-        compose.runOnIdle { assertEquals(listOf(30_000L, 40_000L), player.seekPositions) }
         compose.mainClock.autoAdvance = true
         compose.onNodeWithText("Forward 20 seconds").assertIsDisplayed()
     }
@@ -1357,199 +1760,6 @@ class MobilePlayerScreenTest {
         compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals("Forward 10 seconds")
     }
 
-    private val seekRequestTimes = mutableListOf<Long>()
-
-    // With autoAdvance off, each frame is explicit; the feedback text lands within a few frames.
-    private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.awaitSeekFeedback(text: String) {
-        repeat(5) {
-            mainClock.advanceTimeByFrame()
-            val nodes = onAllNodesWithTag(MOBILE_SEEK_FEEDBACK_TAG).fetchSemanticsNodes()
-            if (nodes.any { it.config.getOrNull(SemanticsProperties.Text)?.joinToString() == text }) return
-        }
-        onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals(text)
-    }
-
-    private fun withAccessibleSeekPlayer(block: (RecordingPlayer, List<Long>, () -> Boolean) -> Unit) {
-        lateinit var player: RecordingPlayer
-        val feedbackStarts = mutableListOf<Long>()
-        seekRequestTimes.clear()
-        val accessibility = object : AccessibilityManager {
-            override fun calculateRecommendedTimeoutMillis(
-                originalTimeoutMillis: Long,
-                containsIcons: Boolean,
-                containsText: Boolean,
-                containsControls: Boolean,
-            ): Long {
-                if (containsText && !containsIcons && !containsControls) feedbackStarts += compose.mainClock.currentTime
-                return 5_000L
-            }
-        }
-        compose.setContent {
-            CompositionLocalProvider(LocalAccessibilityManager provides accessibility) {
-                PutioTheme {
-                    MobilePlayerScreen(
-                        state = readyState(startFromSeconds = 20.0),
-                        onRetry = {},
-                        onPlayerFailure = { _, _ -> },
-                        onBack = {},
-                        playerFactory = MobilePlayerFactory { _, _ ->
-                            RecordingPlayer(durationMillis = 60_000L).also { player = it }
-                        },
-                        seekClock = { compose.mainClock.currentTime.also { seekRequestTimes += it } },
-                    )
-                }
-            }
-        }
-        compose.waitForIdle()
-        compose.runOnIdle {
-            player.pause()
-            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
-            player.updatePlaybackState(Media3Player.STATE_READY)
-            player.seekTo(20_000L)
-            player.seekPositions.clear()
-        }
-        val seek = requireNotNull(
-            compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).fetchSemanticsNode().config[SemanticsActions.OnClick].action,
-        )
-        compose.mainClock.autoAdvance = false
-        block(player, feedbackStarts, seek)
-    }
-
-    @Test
-    fun nonSeekableMediaDisablesControlsAndIgnoresDoubleTap() {
-        lateinit var player: RecordingPlayer
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 12.345),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory =
-                        MobilePlayerFactory { _, _ ->
-                            RecordingPlayer(seekable = false).also { player = it }
-                        },
-                )
-            }
-        }
-
-        compose.waitForIdle()
-        compose.runOnIdle {
-            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
-            player.updatePlaybackState(Media3Player.STATE_READY)
-            assertFalse(player.currentSeekWindow().available)
-            assertEquals(60_000L, player.duration)
-            assertFalse(player.isCurrentMediaItemSeekable)
-        }
-        compose.onNodeWithTag(MOBILE_SEEK_BACK_TAG).assertIsNotEnabled()
-        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsNotEnabled()
-        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
-            doubleClick(percentOffset(0.75f, 0.25f))
-        }
-        compose.runOnIdle { assertTrue(player.seekPositions.isEmpty()) }
-    }
-
-    @Test
-    fun doubleTapUsesNewlyAvailableWindowBeforeBatchedEvents() {
-        val player = RecordingPlayer(seekable = false)
-        var timelineEventDelivered = false
-        var updatedBeforeDoubleTap = false
-        compose.setContent {
-            PutioTheme {
-                Box(Modifier.fillMaxSize().pointerInput(Unit) {
-                    var releases = 0
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                            if (event.changes.any { it.changedToUpIgnoreConsumed() } && ++releases == 2) {
-                                player.updateSeekWindow(durationMillis = 60_000L, seekable = true)
-                                updatedBeforeDoubleTap = true
-                                assertTrue(player.currentSeekWindow().available)
-                                assertFalse(timelineEventDelivered)
-                            }
-                        }
-                    }
-                }) {
-                    MobilePlayerScreen(
-                        state = readyState(startFromSeconds = 20.0),
-                        onRetry = {},
-                        onPlayerFailure = { _, _ -> },
-                        onBack = {},
-                        playerFactory = MobilePlayerFactory { _, _ -> player },
-                    )
-                }
-            }
-        }
-        compose.runOnIdle {
-            player.pause()
-            player.movePositionTo(20_000L)
-            player.addListener(object : Media3Player.Listener {
-                override fun onEvents(player: Media3Player, events: Media3Player.Events) {
-                    if (events.contains(Media3Player.EVENT_TIMELINE_CHANGED)) timelineEventDelivered = true
-                }
-            })
-        }
-        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsNotEnabled()
-        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
-            doubleClick(percentOffset(0.75f, 0.25f))
-        }
-        compose.runOnIdle {
-            assertTrue(updatedBeforeDoubleTap)
-            assertTrue(timelineEventDelivered)
-            assertEquals(listOf(30_000L), player.seekPositions)
-        }
-    }
-
-    @Test
-    fun asymmetricSafeGestureInsetsKeepThePhysicalMidpoint() {
-        val player = RecordingPlayer()
-        lateinit var host: View
-        var leftInset = 0
-        var rightInset = 0
-        compose.setContent {
-            host = LocalView.current
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            leftInset = WindowInsets.safeGestures.getLeft(density, LayoutDirection.Ltr)
-            rightInset = WindowInsets.safeGestures.getRight(density, LayoutDirection.Ltr)
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 20.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> player },
-                )
-            }
-        }
-        compose.runOnIdle {
-            player.pause()
-            player.movePositionTo(20_000L)
-        }
-        for ((left, right) in listOf(80 to 0, 0 to 80)) {
-            compose.runOnIdle {
-                ViewCompat.dispatchApplyWindowInsets(
-                    host,
-                    WindowInsetsCompat.Builder()
-                        .setInsets(
-                            WindowInsetsCompat.Type.systemGestures() or
-                                WindowInsetsCompat.Type.mandatorySystemGestures() or
-                                WindowInsetsCompat.Type.tappableElement(),
-                            Insets.of(left, 0, right, 0),
-                        )
-                        .build(),
-                )
-            }
-            compose.runOnIdle {
-                assertEquals(left, leftInset)
-                assertEquals(right, rightInset)
-            }
-            compose.onNodeWithTag(MOBILE_PLAYER_TAG).performTouchInput {
-                doubleClick(Offset(center.x + if (left > 0) 20f else -20f, height * 0.25f))
-            }
-        }
-        compose.runOnIdle { assertEquals(listOf(30_000L, 20_000L), player.seekPositions) }
-    }
-
     @Test
     fun seekRefreshesPendingFeedbackBeforeBatchedWindowEvents() {
         val player = RecordingPlayer()
@@ -1631,160 +1841,71 @@ class MobilePlayerScreenTest {
         compose.runOnIdle { assertEquals(listOf(30_000L, 40_000L), player.seekPositions) }
     }
 
-    @Test
-    fun rtlSeekFeedbackStaysOnThePhysicalTappedSide() {
-        val player = RecordingPlayer()
+    private val seekRequestTimes = mutableListOf<Long>()
+
+    // With autoAdvance off, each frame is explicit; the feedback text lands within a few frames.
+    private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.awaitSeekFeedback(text: String) {
+        repeat(5) {
+            mainClock.advanceTimeByFrame()
+            val nodes = onAllNodesWithTag(MOBILE_SEEK_FEEDBACK_TAG).fetchSemanticsNodes()
+            if (nodes.any { it.config.getOrNull(SemanticsProperties.Text)?.joinToString() == text }) return
+        }
+        onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertTextEquals(text)
+    }
+
+    private fun withAccessibleSeekPlayer(block: (RecordingPlayer, List<Long>, () -> Boolean) -> Unit) {
+        lateinit var player: RecordingPlayer
+        val feedbackStarts = mutableListOf<Long>()
+        seekRequestTimes.clear()
+        val accessibility = object : AccessibilityManager {
+            override fun calculateRecommendedTimeoutMillis(
+                originalTimeoutMillis: Long,
+                containsIcons: Boolean,
+                containsText: Boolean,
+                containsControls: Boolean,
+            ): Long {
+                if (containsText && !containsIcons && !containsControls) feedbackStarts += compose.mainClock.currentTime
+                return 5_000L
+            }
+        }
         compose.setContent {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            CompositionLocalProvider(LocalAccessibilityManager provides accessibility) {
                 PutioTheme {
                     MobilePlayerScreen(
                         state = readyState(startFromSeconds = 20.0),
                         onRetry = {},
                         onPlayerFailure = { _, _ -> },
                         onBack = {},
-                        playerFactory = MobilePlayerFactory { _, _ -> player },
+                        playerFactory = MobilePlayerFactory { _, _ ->
+                            RecordingPlayer(durationMillis = 60_000L).also { player = it }
+                        },
+                        seekClock = { compose.mainClock.currentTime.also { seekRequestTimes += it } },
                     )
                 }
             }
         }
-        compose.runOnIdle {
-            player.pause()
-            player.movePositionTo(20_000L)
-        }
         compose.waitForIdle()
-        val centerX = compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG)
-            .fetchSemanticsNode().boundsInRoot.center.x
-        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
-            doubleClick(percentOffset(0.25f, 0.25f))
-        }
-        compose.runOnIdle { assertEquals(listOf(10_000L), player.seekPositions) }
-        assertTrue(
-            compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG)
-                .fetchSemanticsNode().boundsInRoot.center.x < centerX,
-        )
-
-        compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput {
-            doubleClick(percentOffset(0.75f, 0.25f))
-        }
-        compose.runOnIdle { assertEquals(listOf(10_000L, 20_000L), player.seekPositions) }
-        assertTrue(
-            compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG)
-                .fetchSemanticsNode().boundsInRoot.center.x > centerX,
-        )
-    }
-
-    @Test
-    @UnstableApi
-    fun mediaItemPreservesHlsMetadataAndKnownSidecarSubtitles() {
-        val source = PlaybackSource(
-            fileId = Target.fileId.value,
-            kind = PlaybackSourceKind.HLS,
-            url = credentialUrl("https://api.put.io/v2/files/42/hls/media.m3u8?token=credential"),
-            startFromSeconds = 12.5,
-            subtitles =
-                PlaybackSubtitles.Sidecar(
-                    listOf(
-                        subtitle("English", "en", "srt"),
-                        subtitle("German", "de", "vtt"),
-                        subtitle("Inferred", "tr", null, "subtitle.vtt"),
-                        subtitle("Unknown", "und", "future-format"),
-                        subtitle("Declared unknown", "es", "future-format", "subtitle.vtt"),
-                        subtitle("Missing", "fr", null),
-                    ),
-                ),
-        )
-
-        val preparedPlayback = source.preparePlayback(Target.name)
-        val item = preparedPlayback.mediaItem
-        val local = requireNotNull(item.localConfiguration)
-
-        assertEquals(12_500L, preparedPlayback.startPositionMillis)
-        assertEquals(MimeTypes.APPLICATION_M3U8, local.mimeType)
-        assertEquals("episode.mkv", item.mediaMetadata.title)
-        assertEquals("42", item.mediaId)
-        assertEquals(MediaMetadata.MEDIA_TYPE_VIDEO, item.mediaMetadata.mediaType)
-        assertEquals(3, local.subtitleConfigurations.size)
-        assertEquals(MimeTypes.APPLICATION_SUBRIP, local.subtitleConfigurations.first().mimeType)
-        assertEquals("en", local.subtitleConfigurations.first().language)
-        assertEquals(MimeTypes.TEXT_VTT, local.subtitleConfigurations[2].mimeType)
-        assertEquals("tr", local.subtitleConfigurations[2].language)
-        // put.io's list names its first subtitle `default`; only that one carries the flag (#237).
-        assertEquals(
-            listOf(C.SELECTION_FLAG_DEFAULT, 0, 0),
-            local.subtitleConfigurations.map { it.selectionFlags },
-        )
-        assertEquals(54_321L, source.preparePlayback(Target.name, resumePositionMillis = 54_321L).startPositionMillis)
-        assertTrue(source.hasSelectableSubtitles())
-        assertFalse(
-            source
-                .copy(
-                    subtitles = PlaybackSubtitles.Sidecar(listOf(subtitle("Unknown", "und", "future-format"))),
-                ).hasSelectableSubtitles(),
-        )
-    }
-
-    @Test
-    fun mp4MediaItemLetsMedia3InferTheContainer() {
-        val source = PlaybackSource(
-            fileId = Target.fileId.value,
-            kind = PlaybackSourceKind.MP4,
-            url = credentialUrl("https://api.put.io/v2/files/42/mp4/download?token=credential"),
-            startFromSeconds = 0.0,
-            subtitles = PlaybackSubtitles.None,
-        )
-
-        assertNull(source.toMediaItem(Target.name).localConfiguration?.mimeType)
-    }
-
-    @Test
-    fun audioMediaItemIsTaggedAsMusicForSystemMediaControls() {
-        val item = audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO)
-
-        assertEquals(MediaMetadata.MEDIA_TYPE_MUSIC, item.mediaMetadata.mediaType)
-        assertEquals("song.mp3", item.mediaMetadata.title)
-    }
-
-    @Test
-    fun audioPlaybackShowsACoverWithPersistentControlsAndNoVideoSurface() {
-        lateinit var player: RecordingPlayer
-        compose.mainClock.autoAdvance = false
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, mediaType ->
-                        assertEquals(PlaybackMediaType.AUDIO, mediaType)
-                        RecordingPlayer().also { player = it }
-                    },
-                )
-            }
-        }
-        compose.mainClock.advanceTimeByFrame()
-
-        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
-        compose.onNodeWithText("song.mp3").assertIsDisplayed()
-        compose.onAllNodesWithTag(MOBILE_PLAYER_GESTURE_TAG).assertCountEquals(0)
-        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
-
-        compose.runOnIdle {
-            player.updatePlaybackState(Media3Player.STATE_READY)
-            assertTrue(player.playWhenReady)
-        }
-        compose.mainClock.advanceTimeBy(5_000L)
-        compose.mainClock.advanceTimeByFrame()
-
-        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
         compose.runOnIdle {
             player.pause()
-            player.movePositionTo(30_000L)
+            player.updatePlaybackState(Media3Player.STATE_BUFFERING)
+            player.updatePlaybackState(Media3Player.STATE_READY)
+            player.seekTo(20_000L)
+            player.seekPositions.clear()
         }
-        compose.onNodeWithTag(MOBILE_SEEK_BACK_TAG).performClick()
-        compose.mainClock.advanceTimeByFrame()
-        compose.runOnIdle { assertEquals(listOf(20_000L), player.seekPositions) }
+        val seek = requireNotNull(
+            compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).fetchSemanticsNode().config[SemanticsActions.OnClick].action,
+        )
+        compose.mainClock.autoAdvance = false
+        block(player, feedbackStarts, seek)
     }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobilePlayerSourceFreeSessionTest {
+    @get:Rule
+    val compose = createComposeRule()
 
     @Test
     fun sourceFreeAudioAdoptsPlayingSessionWithoutPreparingOrRequestingSource() {
@@ -1939,16 +2060,7 @@ class MobilePlayerScreenTest {
 
     @Test
     fun sourceFreePreexistingErrorRetainsPositionForRetryAndLaterFailures() {
-        val session = RecordingPlayer()
-        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO), 41_000L)
-        session.prepare()
-        session.play()
-        session.setPlaybackSpeed(1.25f)
-        session.fail(PlaybackException(
-            "expired",
-            IllegalStateException("Response code: 401"),
-            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
-        ))
+        val session = sessionFailedWithExpiredAccess()
         var content by mutableStateOf<PlaybackContent>(PlaybackContent.Session)
         val failures = mutableListOf<Pair<PlaybackFailure, Long>>()
         var sourceRequests = 0
@@ -1998,6 +2110,70 @@ class MobilePlayerScreenTest {
             assertEquals(46_000L, failures.last().second)
             assertEquals(0, sourceRequests)
         }
+    }
+
+    private fun sessionFailedWithExpiredAccess(): RecordingPlayer {
+        val session = RecordingPlayer()
+        session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO), 41_000L)
+        session.prepare()
+        session.play()
+        session.setPlaybackSpeed(1.25f)
+        session.fail(PlaybackException(
+            "expired",
+            IllegalStateException("Response code: 401"),
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+        ))
+        return session
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobilePlayerAudioTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
+    fun audioPlaybackShowsACoverWithPersistentControlsAndNoVideoSurface() {
+        lateinit var player: RecordingPlayer
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, mediaType ->
+                        assertEquals(PlaybackMediaType.AUDIO, mediaType)
+                        RecordingPlayer().also { player = it }
+                    },
+                )
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+
+        compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
+        compose.onNodeWithText("song.mp3").assertIsDisplayed()
+        compose.onAllNodesWithTag(MOBILE_PLAYER_GESTURE_TAG).assertCountEquals(0)
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+
+        compose.runOnIdle {
+            player.updatePlaybackState(Media3Player.STATE_READY)
+            assertTrue(player.playWhenReady)
+        }
+        compose.mainClock.advanceTimeBy(5_000L)
+        compose.mainClock.advanceTimeByFrame()
+
+        compose.onNodeWithTag(MOBILE_SEEK_FORWARD_TAG).assertIsDisplayed()
+        compose.runOnIdle {
+            player.pause()
+            player.movePositionTo(30_000L)
+        }
+        compose.onNodeWithTag(MOBILE_SEEK_BACK_TAG).performClick()
+        compose.mainClock.advanceTimeByFrame()
+        compose.runOnIdle { assertEquals(listOf(20_000L), player.seekPositions) }
     }
 
     @Test
@@ -2335,201 +2511,57 @@ class MobilePlayerScreenTest {
         }
         compose.onNodeWithText("Couldn’t play this audio").assertIsDisplayed()
     }
-
-    @Test
-    fun videoOffersDirectOptionsWithoutSubtitleMetadataAndHidesBackWithControls() {
-        lateinit var player: RecordingPlayer
-        compose.mainClock.autoAdvance = false
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(0.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
-                )
-            }
-        }
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithText("Audio").assertIsDisplayed()
-        compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
-        compose.onNodeWithText("Captions").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Back").assertIsDisplayed()
-
-        compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_READY) }
-        compose.mainClock.advanceTimeBy(5_000L)
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithContentDescription("Back").assertDoesNotExist()
-        compose.onNodeWithText("Audio").assertDoesNotExist()
-        compose.onNodeWithText("Captions").assertDoesNotExist()
-    }
-
-    @Test
-    fun hideSubtitlesLeavesTheCaptionsPickerOut() {
-        compose.mainClock.autoAdvance = false
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(0.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
-                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
-                )
-            }
-        }
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithText("Audio").assertIsDisplayed()
-        compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
-        compose.onNodeWithText("Captions").assertDoesNotExist()
-    }
-
-    @Test
-    fun playbackResolvedForHiddenSubtitlesLeavesTheCaptionsPickerOutBeforeTheSettingsLoad() {
-        compose.mainClock.autoAdvance = false
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(videoSource(), subtitlesHidden = true)),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
-                    subtitleStartupPolicy = null,
-                )
-            }
-        }
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithText("Audio").assertIsDisplayed()
-        compose.onNodeWithText("Captions").assertDoesNotExist()
-    }
-
-    @Test
-    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    fun offStaysOffWhenTheTracksChangeBeforeThePickRecomposes() {
-        val player = RecordingPlayer()
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(videoSource())),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> player },
-                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
-                )
-            }
-        }
-        compose.runOnIdle { assertTrue(player.trackSelectionParameters.selectTextByDefault) }
-        val text = TrackGroup(Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT).build())
-        compose.runOnIdle {
-            player.tracksOnNextSelection =
-                Tracks(listOf(Tracks.Group(text, false, intArrayOf(C.FORMAT_HANDLED), booleanArrayOf(false))))
-        }
-
-        compose.onNodeWithText("Captions").performClick()
-        compose.onNodeWithText("Off").performClick()
-        // Automatic must not come back from a track change that beat the pick's recomposition.
-        compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
-    }
-
-    @Test
-    fun hidingThatArrivesAfterAPickTurnsSubtitlesOffAndRemovesTheCaptionsPicker() {
-        val player = RecordingPlayer()
-        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(videoSource())),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> player },
-                    subtitleStartupPolicy = policy,
-                )
-            }
-        }
-        // Settings still loading: the viewer turns subtitles on.
-        compose.onNodeWithText("Captions").performClick()
-        compose.onNodeWithText("Automatic").performClick()
-        compose.runOnIdle { assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
-
-        compose.runOnIdle { policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true) }
-        // hide_subtitles outranks the pick: no picker is left to turn them off with (#237).
-        compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
-        compose.onNodeWithText("Captions").assertDoesNotExist()
-    }
-
-    private fun state(
-        content: PlaybackContent,
-        target: PlaybackTarget = Target,
-    ): PlaybackState =
-        playbackState(
-            target = target,
-            content = content,
-            nextRequestValue = 2L,
-        )
-
-    private fun audioSource(): PlaybackSource =
-        PlaybackSource(
-            fileId = AudioTarget.fileId.value,
-            kind = PlaybackSourceKind.ORIGINAL,
-            url = credentialUrl("https://example.com/song.mp3"),
-            startFromSeconds = 0.0,
-            subtitles = PlaybackSubtitles.None,
-        )
-
-    private fun readyState(startFromSeconds: Double): PlaybackState =
-        state(
-            PlaybackContent.Ready(
-                PlaybackSource(
-                    fileId = Target.fileId.value,
-                    kind = PlaybackSourceKind.MP4,
-                    url = credentialUrl("https://example.com/video.mp4"),
-                    startFromSeconds = startFromSeconds,
-                    subtitles = PlaybackSubtitles.None,
-                ),
-            ),
-        )
-
-    private fun subtitle(
-        name: String,
-        languageCode: String,
-        format: String?,
-        path: String = languageCode,
-    ): PlaybackSubtitle =
-        PlaybackSubtitle(
-            format = format,
-            key = languageCode,
-            language = name,
-            languageCode = languageCode,
-            name = name,
-            source = "put.io",
-            url = credentialUrl("https://api.put.io/v2/subtitles/$path?token=credential"),
-        )
-
-    // Credential URLs can only be minted by the SDK resolver in production.
-    private fun credentialUrl(value: String): PutioCredentialUrl =
-        PutioCredentialUrl::class.java
-            .getDeclaredConstructor(String::class.java)
-            .newInstance(value)
-
-    private fun videoSource(): PlaybackSource =
-        PlaybackSource(
-            fileId = Target.fileId.value,
-            kind = PlaybackSourceKind.MP4,
-            url = credentialUrl("https://example.com/video.mp4"),
-            startFromSeconds = 12.345,
-            subtitles = PlaybackSubtitles.None,
-        )
-
-    private companion object {
-        val Target = PlaybackTarget(FilesItemId(42L), "episode.mkv")
-        val AudioTarget = PlaybackTarget(FilesItemId(43L), "song.mp3", PlaybackMediaType.AUDIO)
-    }
 }
+
+private fun state(
+    content: PlaybackContent,
+    target: PlaybackTarget = Target,
+): PlaybackState =
+    playbackState(
+        target = target,
+        content = content,
+        nextRequestValue = 2L,
+    )
+
+private fun audioSource(): PlaybackSource =
+    PlaybackSource(
+        fileId = AudioTarget.fileId.value,
+        kind = PlaybackSourceKind.ORIGINAL,
+        url = credentialUrl("https://example.com/song.mp3"),
+        startFromSeconds = 0.0,
+        subtitles = PlaybackSubtitles.None,
+    )
+
+private fun readyState(startFromSeconds: Double): PlaybackState =
+    state(
+        PlaybackContent.Ready(
+            PlaybackSource(
+                fileId = Target.fileId.value,
+                kind = PlaybackSourceKind.MP4,
+                url = credentialUrl("https://example.com/video.mp4"),
+                startFromSeconds = startFromSeconds,
+                subtitles = PlaybackSubtitles.None,
+            ),
+        ),
+    )
+
+// Credential URLs can only be minted by the SDK resolver in production.
+private fun credentialUrl(value: String): PutioCredentialUrl =
+    PutioCredentialUrl::class.java
+        .getDeclaredConstructor(String::class.java)
+        .newInstance(value)
+
+private fun videoSource(): PlaybackSource =
+    PlaybackSource(
+        fileId = Target.fileId.value,
+        kind = PlaybackSourceKind.MP4,
+        url = credentialUrl("https://example.com/video.mp4"),
+        startFromSeconds = 12.345,
+        subtitles = PlaybackSubtitles.None,
+    )
+
+private val Target = PlaybackTarget(FilesItemId(42L), "episode.mkv")
+private val AudioTarget = PlaybackTarget(FilesItemId(43L), "song.mp3", PlaybackMediaType.AUDIO)
 
 private class SessionPlayerFactory(
     private val session: Media3Player,
@@ -2754,62 +2786,54 @@ internal class RecordingPlayer(
 class MobilePlayerCodecTest {
     @Test
     fun pendingSeekAccumulatesRequestedStepsFromThePendingTargetAndClamps() {
-        val first =
-            requireNotNull(
-                nextPendingSeek(
-                    previous = null,
-                    currentPositionMillis = 95_000L,
-                    durationMillis = 100_000L,
-                    direction = SeekDirection.Forward,
-                    requestId = 1L,
-                    nowMillis = 0L,
-                ),
+        val first = requireNotNull(
+            PlayerSeekWindow(available = true, durationMillis = 100_000L).nextPendingSeek(
+                previous = null,
+                currentPositionMillis = 95_000L,
+                direction = SeekDirection.Forward,
+                requestId = 1L,
+                nowMillis = 0L,
+            ),
         )
         assertEquals(100_000L, first.targetPositionMillis)
         assertEquals(5_000L, first.accumulatedMillis)
 
         assertNull(
-            nextPendingSeek(
+            PlayerSeekWindow(available = true, durationMillis = 100_000L).nextPendingSeek(
                 previous = first,
                 currentPositionMillis = 95_000L,
-                durationMillis = 100_000L,
                 direction = SeekDirection.Forward,
                 requestId = 2L,
                 nowMillis = 0L,
             ),
         )
 
-        val reversed =
-            requireNotNull(
-                nextPendingSeek(
-                    previous = first,
-                    currentPositionMillis = 95_000L,
-                    durationMillis = 100_000L,
-                    direction = SeekDirection.Backward,
-                    requestId = 3L,
-                    nowMillis = 0L,
-                ),
-            )
+        val reversed = requireNotNull(
+            PlayerSeekWindow(available = true, durationMillis = 100_000L).nextPendingSeek(
+                previous = first,
+                currentPositionMillis = 95_000L,
+                direction = SeekDirection.Backward,
+                requestId = 3L,
+                nowMillis = 0L,
+            ),
+        )
         assertEquals(90_000L, reversed.targetPositionMillis)
         assertEquals(10_000L, reversed.accumulatedMillis)
-        val clampedBackward =
-            requireNotNull(
-                nextPendingSeek(
-                    previous = null,
-                    currentPositionMillis = 5_000L,
-                    durationMillis = 100_000L,
-                    direction = SeekDirection.Backward,
-                    requestId = 4L,
-                    nowMillis = 0L,
-                ),
+        val clampedBackward = requireNotNull(
+            PlayerSeekWindow(available = true, durationMillis = 100_000L).nextPendingSeek(
+                previous = null,
+                currentPositionMillis = 5_000L,
+                direction = SeekDirection.Backward,
+                requestId = 4L,
+                nowMillis = 0L,
+            ),
         )
         assertEquals(0L, clampedBackward.targetPositionMillis)
         assertEquals(5_000L, clampedBackward.accumulatedMillis)
         assertNull(
-            nextPendingSeek(
+            PlayerSeekWindow(available = false, durationMillis = 0L).nextPendingSeek(
                 previous = null,
                 currentPositionMillis = 1L,
-                durationMillis = 0L,
                 direction = SeekDirection.Backward,
                 requestId = 5L,
                 nowMillis = 0L,
@@ -2843,10 +2867,9 @@ class MobilePlayerCodecTest {
     fun pendingSeekStacksOnlyBeforeItsDeadline() {
         val first =
             requireNotNull(
-                nextPendingSeek(
+                PlayerSeekWindow(available = true, durationMillis = 100_000L).nextPendingSeek(
                     previous = null,
                     currentPositionMillis = 20_000L,
-                    durationMillis = 100_000L,
                     direction = SeekDirection.Forward,
                     requestId = 1L,
                     nowMillis = 5_000L,
@@ -2855,10 +2878,9 @@ class MobilePlayerCodecTest {
         assertEquals(5_800L, first.accumulatesUntilMillis)
         val stacked =
             requireNotNull(
-                nextPendingSeek(
+                PlayerSeekWindow(available = true, durationMillis = 100_000L).nextPendingSeek(
                     previous = first,
                     currentPositionMillis = 21_000L,
-                    durationMillis = 100_000L,
                     direction = SeekDirection.Forward,
                     requestId = 2L,
                     nowMillis = 5_799L,
@@ -2870,10 +2892,9 @@ class MobilePlayerCodecTest {
         assertEquals(6_599L, stacked.accumulatesUntilMillis)
         val expired =
             requireNotNull(
-                nextPendingSeek(
+                PlayerSeekWindow(available = true, durationMillis = 100_000L).nextPendingSeek(
                     previous = first,
                     currentPositionMillis = 21_000L,
-                    durationMillis = 100_000L,
                     direction = SeekDirection.Forward,
                     requestId = 3L,
                     nowMillis = 5_800L,
@@ -2934,6 +2955,7 @@ class MobilePlayerCodecTest {
             audio.release()
         }
     }
+
 
     @Test
     fun activeNonTouchInteractionPreventsControlAutoHide() {
@@ -2996,6 +3018,10 @@ class MobilePlayerCodecTest {
         assertTrue(controlsVisibleAfterTap(true, Media3Player.STATE_READY, true))
         assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_READY, true))
     }
+
+
+
+
 
     @Test
     fun nonNetworkDataSourceFailureUsesGenericRecovery() {

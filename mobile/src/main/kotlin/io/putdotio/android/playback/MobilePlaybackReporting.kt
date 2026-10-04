@@ -77,8 +77,12 @@ internal class MobilePlaybackReporting(
         }
         return object : MobilePlayerFactory by delegate {
             override fun reportableItem(item: MediaItem, useStartFrom: Boolean): MediaItem {
-                val fileId = item.mediaId.toLongOrNull()?.takeIf { it > 0L } ?: return item
-                if (!useStartFrom || (auth.value as? MobileAuthState.SignedIn)?.sessionId != sessionId) return item
+                val fileId = item.mediaId.toLongOrNull()?.takeIf { it > 0L }
+                if (fileId == null || !useStartFrom ||
+                    (auth.value as? MobileAuthState.SignedIn)?.sessionId != sessionId
+                ) {
+                    return item
+                }
                 val token = writer.register(fileId) {
                     (auth.value as? MobileAuthState.SignedIn)?.sessionId == sessionId &&
                         settings?.takeIf { it.sessionId == sessionId }?.state?.value?.confirmedResumePlayback() == true

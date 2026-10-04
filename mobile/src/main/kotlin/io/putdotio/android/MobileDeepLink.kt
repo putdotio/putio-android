@@ -28,27 +28,27 @@ internal sealed interface MobileDeepLink {
  * owns. Query strings and fragments are ignored; anything else returns null so the
  * app opens normally. Never log the incoming URI: web links can carry tokens.
  */
-internal fun parseMobileDeepLink(uri: Uri?): MobileDeepLink? {
-    if (uri == null) return null
-    val host = uri.host?.lowercase()
-    val segments = when {
-        uri.scheme == "putio" && host != MOBILE_OAUTH_HOST -> listOfNotNull(host) + uri.pathSegments
-        uri.scheme == "https" && host in WEB_HOSTS -> uri.pathSegments
-        else -> return null
-    }.filter { it.isNotBlank() }
-    return when (segments.firstOrNull()) {
-        null, "files" -> when (segments.size) {
-            0, 1 -> MobileDeepLink.Files
-            2 -> segments[1].toLongOrNull()?.takeIf { it > 0L }?.let { MobileDeepLink.File(FilesItemId(it)) }
-            else -> null
-        }
-        "transfers" -> MobileDeepLink.Transfers.takeIf { segments.size == 1 }
-        "search" -> MobileDeepLink.Search.takeIf { segments.size == 1 }
-        "history" -> MobileDeepLink.History.takeIf { segments.size == 1 }
-        "trash" -> MobileDeepLink.Trash.takeIf { segments.size == 1 }
-        "downloads" -> MobileDeepLink.Downloads.takeIf { segments.size == 1 }
+internal fun parseMobileDeepLink(uri: Uri?): MobileDeepLink? = uri?.productSegments()?.let(::deepLinkFor)
+
+/** Non-blank path segments of a product URI, with the `putio://` host as the first one; null otherwise. */
+private fun Uri.productSegments(): List<String>? {
+    val host = host?.lowercase()
+    return when {
+        scheme == "putio" && host != MOBILE_OAUTH_HOST -> listOfNotNull(host) + pathSegments
+        scheme == "https" && host in WEB_HOSTS -> pathSegments
         else -> null
-    }
+    }?.filter { it.isNotBlank() }
+}
+
+private fun deepLinkFor(segments: List<String>): MobileDeepLink? = when (val section = segments.firstOrNull()) {
+    null, "files" -> filesDeepLink(segments)
+    else -> SECTION_LINKS[section]?.takeIf { segments.size == 1 }
+}
+
+private fun filesDeepLink(segments: List<String>): MobileDeepLink? = when (segments.size) {
+    0, 1 -> MobileDeepLink.Files
+    2 -> segments[1].toLongOrNull()?.takeIf { it > 0L }?.let { MobileDeepLink.File(FilesItemId(it)) }
+    else -> null
 }
 
 /** The token-free `putio://` form of a link, for saved state. */
@@ -68,14 +68,17 @@ internal fun MobileDeepLink.toRouteUri(): Uri = when (this) {
  * foreign URIs are left alone.
  */
 internal fun Intent.consumeMobileDeepLink(): MobileDeepLink? {
-    if (action != Intent.ACTION_VIEW) return null
-    val uri = data ?: return null
-    val host = uri.host?.lowercase()
-    val product = (uri.scheme == "putio" && host != MOBILE_OAUTH_HOST) || (uri.scheme == "https" && host in WEB_HOSTS)
-    if (!product) return null
+    val segments = data?.takeIf { action == Intent.ACTION_VIEW }?.productSegments() ?: return null
     setDataAndType(null, null)
-    return parseMobileDeepLink(uri)
+    return deepLinkFor(segments)
 }
 
-
 private val WEB_HOSTS = setOf("app.put.io", "put.io", "www.put.io")
+
+private val SECTION_LINKS = mapOf(
+    "transfers" to MobileDeepLink.Transfers,
+    "search" to MobileDeepLink.Search,
+    "history" to MobileDeepLink.History,
+    "trash" to MobileDeepLink.Trash,
+    "downloads" to MobileDeepLink.Downloads,
+)

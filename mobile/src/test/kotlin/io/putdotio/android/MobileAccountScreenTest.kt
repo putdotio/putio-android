@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertRangeInfoEquals
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -27,7 +28,6 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import io.putdotio.android.auth.MobileAccount
@@ -87,13 +87,12 @@ import io.putdotio.android.account.MobileAccountScreen
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35])
 class MobileAccountScreenTest {
-
     @get:Rule
     val compose = createComposeRule()
 
     @Test
     fun settingsSectionsSupportHeadingNavigation() {
-        setAccountContent(state = readyAccountSettingsState(), events = mutableListOf())
+        compose.setAccountContent(state = readyAccountSettingsState(), events = mutableListOf())
         listOf("Files", "Playback", "Privacy controls", "About").forEach { title ->
             compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(title))
             compose.onNodeWithText(title).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
@@ -104,10 +103,10 @@ class MobileAccountScreenTest {
     fun accountIdentitySettingsAndSignOutAreAvailable() {
         var signedOut = false
         val events = mutableListOf<AccountSettingsEvent>()
-        setAccountContent(
+        compose.setAccountContent(
             state = readyAccountSettingsState(),
             events = events,
-            onSignOut = { signedOut = true },
+            callbacks = AccountScreenCallbacks(onSignOut = { signedOut = true }),
         )
 
         compose.onNodeWithText("putio-user").assertIsDisplayed()
@@ -141,7 +140,7 @@ class MobileAccountScreenTest {
 
     @Test
     fun quotaStatesWhatIsFreeWhenTheAccountShowsOptimisticUsage() {
-        setAccountContent(
+        compose.setAccountContent(
             state = readyAccountSettingsState(),
             events = mutableListOf(),
             account = Account.copy(storage = Account.storage.copy(showOptimisticUsage = true)),
@@ -158,7 +157,7 @@ class MobileAccountScreenTest {
 
     @Test
     fun malformedHttpsAvatarUsesDeterministicFallback() {
-        setAccountContent(
+        compose.setAccountContent(
             state = readyAccountSettingsState(),
             events = mutableListOf(),
             account = Account.copy(avatarUrl = "https://example.com:invalid/avatar.png"),
@@ -222,7 +221,7 @@ class MobileAccountScreenTest {
     @Test
     @Config(sdk = [35], qualifiers = "w360dp-h240dp")
     fun compactAccountIdentityRemainsVisible() {
-        setAccountContent(
+        compose.setAccountContent(
             state = readyAccountSettingsState(),
             events = mutableListOf(),
         )
@@ -235,7 +234,7 @@ class MobileAccountScreenTest {
     @Test
     fun privacyControlsDiscloseStrictlyNecessaryAndToggleEachAccountKey() {
         val events = mutableListOf<AccountSettingsEvent>()
-        setAccountContent(state = readyAccountSettingsState(), events = events)
+        compose.setAccountContent(state = readyAccountSettingsState(), events = events)
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_STRICTLY_NECESSARY_TAG))
         compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG).assertTextContains("Always on")
@@ -263,7 +262,7 @@ class MobileAccountScreenTest {
     @Test
     fun turningOffTrashRequiresConfirmation() {
         val events = mutableListOf<AccountSettingsEvent>()
-        setAccountContent(
+        compose.setAccountContent(
             state = readyAccountSettingsState(),
             events = events,
         )
@@ -328,7 +327,7 @@ class MobileAccountScreenTest {
     @Test
     fun authenticationLoadFailureHasNoRetryAction() {
         val events = mutableListOf<AccountSettingsEvent>()
-        setAccountContent(
+        compose.setAccountContent(
             state =
                 accountSettingsState(
                     content =
@@ -353,7 +352,7 @@ class MobileAccountScreenTest {
     fun recoverableMutationFailureStaysVisibleWithoutDisablingRows() {
         val events = mutableListOf<AccountSettingsEvent>()
         val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
-        setAccountContent(
+        compose.setAccountContent(
             state =
                 readyAccountSettingsState(
                     mutation =
@@ -396,7 +395,7 @@ class MobileAccountScreenTest {
             AccountSettingsFailure.AuthenticationRequired(
                 PutioConfigurationException("invalid token"),
             )
-        setAccountContent(
+        compose.setAccountContent(
             state =
                 readyAccountSettingsState(
                     mutation =
@@ -423,7 +422,7 @@ class MobileAccountScreenTest {
     fun refreshFailureUsesConfirmationCopyAndRetriesTheRefresh() {
         val events = mutableListOf<AccountSettingsEvent>()
         val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
-        setAccountContent(
+        compose.setAccountContent(
             state =
                 readyAccountSettingsState(
                     preferences = DefaultAccountSettingsPreferences.copy(showSubtitles = false),
@@ -478,12 +477,66 @@ class MobileAccountScreenTest {
     }
 
     @Test
+    fun defaultSortPickerShowsTheCurrentOrderAndDispatchesTheChosenOne() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setAccountContent(
+            state = readyAccountSettingsState(
+                preferences = DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.NAME_ASCENDING),
+            ),
+            events = events,
+        )
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Name, A–Z").performClick()
+        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_DIALOG_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Date added, newest first").performClick()
+        compose.runOnIdle {
+            assertEquals(
+                listOf<AccountSettingsEvent>(
+                    AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(FilesSort.DATE_ADDED_DESCENDING)),
+                ),
+                events,
+            )
+        }
+        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_DIALOG_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun unknownDefaultSortIsShownAsNotSetAndFailedSortSavesRetryOnTheirRow() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setAccountContent(
+            state = readyAccountSettingsState(
+                preferences = DefaultAccountSettingsPreferences,
+                mutation = AccountSettingsMutation.Failed(
+                    change = AccountSettingsChange.Sort(FilesSort.SIZE_DESCENDING),
+                    failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    previousPreferences = DefaultAccountSettingsPreferences,
+                    operation = AccountSettingsMutation.Operation.Save,
+                ),
+            ),
+            events = events,
+        )
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Not set")
+        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
+        compose.onNodeWithText("Try again").performClick()
+        compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35])
+class MobileAccountPlaybackSettingsTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
     fun playbackSettingsChooseFormatAndToggleAutoplay() {
         val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
-        setAccountContent(
+        compose.setAccountContent(
             state = readyAccountSettingsState(),
             events = mutableListOf(),
-            appConfigEvents = appConfigEvents,
+            callbacks = AccountScreenCallbacks(onAppConfigEvent = appConfigEvents::add),
         )
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Video playback"))
@@ -635,24 +688,26 @@ class MobileAccountScreenTest {
     fun tunnelRoutePickerLoadsOnOpenRetriesAndDispatchesTheChosenRoute() {
         val events = mutableListOf<AccountSettingsEvent>()
         var attempts = 0
-        setAccountContent(
+        compose.setAccountContent(
             state = readyAccountSettingsState(),
             events = events,
-            loadTunnelRoutes = {
-                attempts += 1
-                if (attempts == 1) {
-                    AccountSettingsRepositoryResult.Failure(
-                        AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
-                    )
-                } else {
-                    AccountSettingsRepositoryResult.Success(
-                        listOf(
-                            TunnelRouteOption(TunnelRouteName.DEFAULT, "Amsterdam (Direct)"),
-                            TunnelRouteOption(TunnelRouteName("cdn77"), "CDN"),
-                        ),
-                    )
-                }
-            },
+            callbacks = AccountScreenCallbacks(
+                loadTunnelRoutes = {
+                    attempts += 1
+                    if (attempts == 1) {
+                        AccountSettingsRepositoryResult.Failure(
+                            AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                        )
+                    } else {
+                        AccountSettingsRepositoryResult.Success(
+                            listOf(
+                                TunnelRouteOption(TunnelRouteName.DEFAULT, "Amsterdam (Direct)"),
+                                TunnelRouteOption(TunnelRouteName("cdn77"), "CDN"),
+                            ),
+                        )
+                    }
+                },
+            ),
         )
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TUNNEL_ROUTE_ROW_TAG))
         compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).assertTextContains("Direct").performClick()
@@ -673,54 +728,43 @@ class MobileAccountScreenTest {
     }
 
     @Test
-    fun defaultSortPickerShowsTheCurrentOrderAndDispatchesTheChosenOne() {
+    fun rejectedRouteSaveShowsOnTheProxyRowOnlyAndRetriesTheExactRoute() {
         val events = mutableListOf<AccountSettingsEvent>()
-        setAccountContent(
-            state = readyAccountSettingsState(
-                preferences = DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.NAME_ASCENDING),
-            ),
-            events = events,
-        )
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
-        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Name, A–Z").performClick()
-        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_DIALOG_TAG).assertIsDisplayed()
-        compose.onNodeWithText("Date added, newest first").performClick()
-        compose.runOnIdle {
-            assertEquals(
-                listOf<AccountSettingsEvent>(
-                    AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(FilesSort.DATE_ADDED_DESCENDING)),
-                ),
-                events,
-            )
-        }
-        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_DIALOG_TAG).assertDoesNotExist()
-    }
-
-    @Test
-    fun unknownDefaultSortIsShownAsNotSetAndFailedSortSavesRetryOnTheirRow() {
-        val events = mutableListOf<AccountSettingsEvent>()
-        setAccountContent(
+        val failure = AccountSettingsFailure.RouteUnavailable(PutioConfigurationException("UNAVAILABLE_VALUE"))
+        compose.setAccountContent(
             state = readyAccountSettingsState(
                 preferences = DefaultAccountSettingsPreferences,
                 mutation = AccountSettingsMutation.Failed(
-                    change = AccountSettingsChange.Sort(FilesSort.SIZE_DESCENDING),
-                    failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    change = AccountSettingsChange.Route(TunnelRouteName("cdn77")),
+                    failure = failure,
                     previousPreferences = DefaultAccountSettingsPreferences,
                     operation = AccountSettingsMutation.Operation.Save,
                 ),
             ),
             events = events,
         )
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
-        compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).assertTextContains("Not set")
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TUNNEL_ROUTE_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).assertTextContains("Direct")
         compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
+        compose.onNodeWithText("That proxy isn’t available for your account. Choose another one.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
+        compose.onNodeWithText("Show subtitles").assertIsDisplayed()
+        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(0)
         compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
     }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35])
+class MobileAccountAboutTest {
+    @get:Rule
+    val compose = createComposeRule()
 
     @Test
     fun aboutRowOpensAppInfoAndCopiesSupportTextToTheClipboard() {
-        setAccountContent(state = readyAccountSettingsState(), events = mutableListOf())
+        compose.setAccountContent(state = readyAccountSettingsState(), events = mutableListOf())
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).assertTextContains(BuildConfig.VERSION_NAME).performClick()
         compose.onNodeWithTag(MOBILE_ABOUT_DIALOG_TAG).assertIsDisplayed()
@@ -841,76 +885,51 @@ class MobileAccountScreenTest {
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
         compose.onNodeWithText("Tablet").assertIsDisplayed()
     }
+}
 
-    @Test
-    fun rejectedRouteSaveShowsOnTheProxyRowOnlyAndRetriesTheExactRoute() {
-        val events = mutableListOf<AccountSettingsEvent>()
-        val failure = AccountSettingsFailure.RouteUnavailable(PutioConfigurationException("UNAVAILABLE_VALUE"))
-        setAccountContent(
-            state = readyAccountSettingsState(
-                preferences = DefaultAccountSettingsPreferences,
-                mutation = AccountSettingsMutation.Failed(
-                    change = AccountSettingsChange.Route(TunnelRouteName("cdn77")),
-                    failure = failure,
-                    previousPreferences = DefaultAccountSettingsPreferences,
-                    operation = AccountSettingsMutation.Operation.Save,
-                ),
-            ),
-            events = events,
-        )
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TUNNEL_ROUTE_ROW_TAG))
-        compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).assertTextContains("Direct")
-        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
-        compose.onNodeWithText("That proxy isn’t available for your account. Choose another one.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
-        compose.onNodeWithText("Show subtitles").assertIsDisplayed()
-        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(0)
-        compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
-    }
+private class AccountScreenCallbacks(
+    val onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
+    val onSignOut: () -> Unit = {},
+    val loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
+        AccountSettingsRepositoryResult.Success(emptyList())
+    },
+)
 
-    private fun setAccountContent(
-        state: AccountSettingsState,
-        events: MutableList<AccountSettingsEvent>,
-        onSignOut: () -> Unit = {},
-        account: MobileAccount = Account,
-        appConfigEvents: MutableList<AndroidAppConfigEvent> = mutableListOf(),
-        loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
-            AccountSettingsRepositoryResult.Success(emptyList())
-        },
-    ) {
-        compose.setContent {
-            PutioTheme {
-                MobileAccountScreen(
-                    account = account,
-                    sessionId = SessionOne,
-                    settingsState = state,
-                    appConfigState = readyAndroidAppConfigState(),
-                    onSettingsEvent = events::add,
-                    onAppConfigEvent = appConfigEvents::add,
-                    onSignOut = onSignOut,
-                    loadTunnelRoutes = loadTunnelRoutes,
-                )
-            }
+private fun ComposeContentTestRule.setAccountContent(
+    state: AccountSettingsState,
+    events: MutableList<AccountSettingsEvent>,
+    account: MobileAccount = Account,
+    callbacks: AccountScreenCallbacks = AccountScreenCallbacks(),
+) {
+    setContent {
+        PutioTheme {
+            MobileAccountScreen(
+                account = account,
+                sessionId = SessionOne,
+                settingsState = state,
+                appConfigState = readyAndroidAppConfigState(),
+                onSettingsEvent = events::add,
+                onAppConfigEvent = callbacks.onAppConfigEvent,
+                onSignOut = callbacks.onSignOut,
+                loadTunnelRoutes = callbacks.loadTunnelRoutes,
+            )
         }
     }
-
-    private companion object {
-        val Account =
-            MobileAccount(
-                userId = 42L,
-                username = "putio-user",
-                email = "user@example.com",
-                avatarUrl = null,
-                storage =
-                    AccountStorage(
-                        availableBytes = 3 * GIBIBYTE,
-                        sizeBytes = 4 * GIBIBYTE,
-                        usedBytes = GIBIBYTE,
-                    ),
-            )
-        val SessionOne = MobileAuthSessionId(1L)
-        val SessionTwo = MobileAuthSessionId(2L)
-        const val GIBIBYTE = 1_073_741_824L
-    }
 }
+
+private val Account =
+    MobileAccount(
+        userId = 42L,
+        username = "putio-user",
+        email = "user@example.com",
+        avatarUrl = null,
+        storage =
+            AccountStorage(
+                availableBytes = 3 * GIBIBYTE,
+                sizeBytes = 4 * GIBIBYTE,
+                usedBytes = GIBIBYTE,
+            ),
+    )
+private val SessionOne = MobileAuthSessionId(1L)
+private val SessionTwo = MobileAuthSessionId(2L)
+private const val GIBIBYTE = 1_073_741_824L

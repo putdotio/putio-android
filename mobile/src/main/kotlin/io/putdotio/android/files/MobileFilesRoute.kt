@@ -118,9 +118,7 @@ private fun MobileFilesCopySession(
         },
         onConfirm = {
             val current = controller.state.value
-            if (!finished && canSubmit && current.canMoveHere &&
-                current.current.content.authoritativeSessionFailure() == null
-            ) {
+            if (!finished && canSubmit && current.confirmable) {
                 finished = true
                 if (onEvent(FilesBrowserEvent.Copy(folderId, item.id, current.current.folder))) {
                     memory.choose(targetStore, current.path)
@@ -177,8 +175,7 @@ private fun MobileFilesMoveSession(
         canSubmit = canSubmit && !finished && destination.current.content.authoritativeSessionFailure() == null,
         onConfirm = {
             val current = controller.state.value
-            if (!finished && canSubmit && current.canMoveHere &&
-                current.current.content.authoritativeSessionFailure() == null) {
+            if (!finished && canSubmit && current.confirmable) {
                 finished = true
                 if (onEvent(FilesBrowserEvent.Move(sourceFolderId, item.id, current.current.folder.id))) {
                     memory.choose(targetStore, current.path)
@@ -193,6 +190,9 @@ private fun MobileFilesMoveSession(
         onRememberTargetChange = { memory.setRemember(targetStore, it) },
     )
 }
+
+private val FilesMoveDestinationState.confirmable: Boolean
+    get() = canMoveHere && current.content.authoritativeSessionFailure() == null
 
 /** Read once per picker, so a toggle changes where the next picker opens, as on web. */
 @Composable

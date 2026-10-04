@@ -37,9 +37,7 @@ internal fun tvAppConfigRepository(
  * read writes again.
  */
 internal suspend fun AppConfig.withTvNativePlaybackType(save: suspend (AppConfigUpdate) -> Unit): AppConfig {
-    if (values.containsKey(VIDEO_PLAYBACK_TYPE_KEY)) return this
-    val legacy = (this[TV_NATIVE_PLAYBACK_TYPE_KEY] as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content
-    val playbackType = VideoPlaybackType.entries.firstOrNull { it.wireValue == legacy } ?: return this
+    val playbackType = tvNativePlaybackType() ?: return this
     val update = AndroidAppConfigChange.VideoPlayback(playbackType).toUpdate()
     try {
         save(update)
@@ -48,6 +46,13 @@ internal suspend fun AppConfig.withTvNativePlaybackType(save: suspend (AppConfig
         // The key stays absent, so the next read writes again.
     }
     return AppConfig(values + (update.key to update.value))
+}
+
+/** tv-native's playback type, unless a `video_playback_type` already exists. */
+private fun AppConfig.tvNativePlaybackType(): VideoPlaybackType? {
+    if (values.containsKey(VIDEO_PLAYBACK_TYPE_KEY)) return null
+    val legacy = (this[TV_NATIVE_PLAYBACK_TYPE_KEY] as? JsonPrimitive)?.takeIf(JsonPrimitive::isString)?.content
+    return VideoPlaybackType.entries.firstOrNull { it.wireValue == legacy }
 }
 
 internal const val TV_NATIVE_PLAYBACK_TYPE_KEY = "playbackType"

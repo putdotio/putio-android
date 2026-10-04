@@ -2,15 +2,41 @@ package io.putdotio.android.tv.player
 
 import android.os.Bundle
 import androidx.compose.runtime.saveable.Saver
+import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.Tracks
 import io.putdotio.android.playback.AudioSelection
 import io.putdotio.android.playback.SubtitleSelection
+import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.playbackAudioTracks
+import io.putdotio.android.playback.playbackSubtitleTracks
+import io.putdotio.android.playback.restoreSubtitleSelection
 import io.putdotio.android.playback.toAudioSelection
 import io.putdotio.android.playback.toBundle
 import io.putdotio.android.playback.toSubtitleSelection
+import io.putdotio.android.playback.withRetainedAudioSelection
+import io.putdotio.android.playback.withSubtitleSelection
+import io.putdotio.android.playback.withSubtitleTracks
 import java.util.Locale
 
 /** The Speed picker's choices, as the RN player offered them (tv-native `VideoPlayer.android.tsx`). */
-internal val TV_PLAYBACK_SPEEDS = listOf(0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+internal val TV_PLAYBACK_SPEEDS = listOf(
+    QUARTER_SPEED,
+    HALF_SPEED,
+    THREE_QUARTERS_SPEED,
+    1f,
+    ONE_AND_A_QUARTER_SPEED,
+    ONE_AND_A_HALF_SPEED,
+    ONE_AND_THREE_QUARTERS_SPEED,
+    2f,
+)
+
+private const val QUARTER_SPEED = 0.25f
+private const val HALF_SPEED = 0.5f
+private const val THREE_QUARTERS_SPEED = 0.75f
+private const val ONE_AND_A_QUARTER_SPEED = 1.25f
+private const val ONE_AND_A_HALF_SPEED = 1.5f
+private const val ONE_AND_THREE_QUARTERS_SPEED = 1.75f
 
 /**
  * The option buttons above the seek bar, left to right, as the RN player showed them:
@@ -89,6 +115,47 @@ internal val TvPlaybackOptionsSaver: Saver<TvPlaybackOptions, Bundle> = Saver(
         )
     },
 )
+
+/** Applies the viewer's [options] to [current], a new track list, keeping its choices. */
+internal fun Player.keepChoices(
+    current: Tracks,
+    options: TvPlaybackOptions,
+    startupPolicy: SubtitleStartupPolicy?,
+    textDefaults: TrackSelectionParameters,
+) {
+    // A picked subtitle track is found again in each new track list, and automatic
+    // subtitles find the account's default; Off stays off because the text type stays
+    // disabled whatever the tracks do (#45).
+    val withSubtitles = trackSelectionParameters.withSubtitleTracks(
+        retained = options.subtitles,
+        startupPolicy = startupPolicy,
+        tracks = current.playbackSubtitleTracks(),
+        textDefaults = textDefaults,
+    )
+    val withAudio = withSubtitles.withRetainedAudioSelection(options.audio, current.playbackAudioTracks())
+    if (withAudio != trackSelectionParameters) trackSelectionParameters = withAudio
+}
+
+/** Applies the account's subtitle [policy] unless the viewer [picked] while subtitles show. */
+internal fun Player.followSubtitlePolicy(
+    policy: SubtitleStartupPolicy?,
+    picked: SubtitleSelection?,
+    textDefaults: TrackSelectionParameters,
+) {
+    if (policy == null) return
+    if (picked != null && policy.showSubtitles) return
+    val current = trackSelectionParameters
+    val updated = if (policy.showSubtitles && policy.autoSelectSubtitles) {
+        current.withSubtitleSelection(
+            SubtitleSelection.Automatic,
+            currentTracks.playbackSubtitleTracks(),
+            textDefaults,
+        )
+    } else {
+        restoreSubtitleSelection(current, null, policy)
+    }
+    if (updated != current) trackSelectionParameters = updated
+}
 
 private const val SPEED_KEY = "speed"
 private const val AUDIO_KEY = "audio"

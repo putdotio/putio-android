@@ -17,7 +17,7 @@ returns to the same screen. A failed clear during logout or session expiry
 lands there too, so no storage state blocks sign-in.
 
 Tests: `KeystoreAuthTokenStoreTest`, `MobileAuthStorageRecoveryTest`,
-`MobileAuthControllerTest`, `MobileShellTest`.
+`MobileAuthControllerTest`, `MobileAuthControllerSessionTest`, `MobileShellTest`.
 
 ## Sign-out revocation
 
@@ -38,7 +38,7 @@ revokes the token the live session holds, so an unreadable session record still
 gets revoked. Nothing in the path logs the token.
 
 Tests: `PendingTokenRevocationsTest`, `KeystoreAuthTokenStoreTest`,
-`MobileAuthControllerTest`, `TvAuthControllerTest`.
+`MobileAuthControllerSessionTest`, `TvAuthControllerTest`.
 
 ## Upgrade from tv-native
 
@@ -126,7 +126,7 @@ time. Rotation keeps the copy and its checks; process death discards them, so
 the line is gone and another copy can start while put.io may still run the
 first. TV doesn't offer Make a copy, because tv-native and tv-vite don't.
 
-Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesScreenTest`,
+Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesRowActionsTest`,
 `FilesCopyTest`, `MobileFilesCopyTest`, `MobileSharedItemsProofTest` (opt-in
 synthetic device proof; see [Harness](./harness.md#shared-with-me-items-proof)).
 
@@ -152,7 +152,7 @@ SharedPreferences. Sign-out and an expired session clear them for every
 account. Android TV has no Move picker.
 
 Tests: `FilesMoveTargetMemoryTest`, `FilesMoveDestinationControllerTest`,
-`MobileMoveTargetStoreTest`, `MobileAuthControllerTest`, `MobileFilesMoveTest`,
+`MobileMoveTargetStoreTest`, `MobileAuthControllerSessionTest`, `MobileFilesMoveTest`,
 `MobileFilesCopyTest`, `MobileMoveTargetProofTest` (opt-in synthetic device
 proof; see [Harness](./harness.md#move-and-copy-target-folder-proof)).
 
@@ -184,8 +184,9 @@ at the end of the list, one node that keeps focus from Load more through
 loading to Retry.
 
 Tests: `FilesDeleteReducerTest`, `SdkFilesDeleteRepositoryTest`,
-`MobileFilesDeleteTest`, `MobileFilesScreenTest`,
+`MobileFilesDeleteTest`, `MobileFilesListTest`,
 `MobileSearchHistoryScreenTest`, `MobileFilesMoveTest`, `TvFilesScreenTest`,
+`TvFilesPagingTest`, `TvFilesRowActionsTest`,
 `FilesDeleteRecoveryUiProofTest` (opt-in synthetic device proof),
 `MobileFilesTrashPagingProofTest` (opt-in device proof; see
 [Harness](./harness.md#files-trash-and-paging-proof)).
@@ -265,7 +266,7 @@ session that issued it. Rejection runs outside the cancellable reporting job,
 and checks the session identity again under the authentication controller's lock.
 
 Tests: `PlaybackReducerTest`, `PlaybackControllerTest`, `MobilePlayerScreenTest`
-(the prompt, recreation and Start over), `TvPlayerScreenTest` (Back on the
+(the prompt, recreation and Start over), `TvPlayerResumeTest` (Back on the
 prompt), `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
 `SdkPlaybackRepositoryTest`, `MobilePlaybackReportingTest`.
 
@@ -418,8 +419,10 @@ again shows only where it can succeed; it resolves the file again, which also
 replaces an expired link, and a player error keeps its position for it.
 Unsupported file types get a plain status screen as on mobile.
 
-Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlaybackStatesTest`,
-`TvPlayerOptionsTest`, `TvChoiceDialogTest`, `TvPlayerTracksTest`,
+Tests: `TvPlayerOverlayTest`, `TvPlayerScreenTest`, `TvPlayerMediaSessionTest`,
+`TvPlayerConversionTest`, `TvPlayerResumeTest`, `TvPlayerAutoplayTest`,
+`TvPlaybackLayerTest`, `TvPlaybackStatesTest`, `TvPlayerOptionsTest`,
+`TvChoiceDialogTest`, `TvPlayerTracksTest`,
 `TvPlaybackReportingTest`, `TvSessionViewModelTest`, `PlaybackReducerTest`,
 `PlaybackControllerTest`, `SdkPlaybackRepositoryTest`, `PlaybackFailureTest`,
 `PlaybackPositionObserverTest`, `PlaybackSubtitleSelectionTest`,
@@ -472,7 +475,7 @@ contains only consumed request metadata, and received share extras, data URIs
 and ClipData are removed from the retained Activity intent.
 
 Tests: `MobileShareIntentsTest`, `MobileTransferDraftTest`,
-`MainActivityShareTest`, `MobileTransfersScreenTest`, `TransfersReducerTest`,
+`MainActivityShareTest`, `MobileTransfersAddSheetTest`, `TransfersReducerTest`,
 `SdkTransfersRepositoryTest`, `FilesMoveDestinationControllerTest`.
 
 ## Share-out
@@ -678,7 +681,7 @@ that last held focus there, with any folder stack kept; Back on Files leaves a
 folder, and on the Files root it falls through to the system and leaves the app
 without a confirmation, per Google's TV navigation guidance.
 
-Tests: `TvShellTest`, and on an emulator
+Tests: `TvShellBackTest`, `TvShellFocusTest`, and on an emulator
 `TvExternalOpenProofTest#backOnTheDrawerReturnsToThePaneThenThePaneRulesApply`.
 
 ## TV overscan safe area

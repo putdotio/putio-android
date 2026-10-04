@@ -3,6 +3,7 @@ package io.putdotio.android.tv.player
 import android.os.Build
 import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -36,11 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
@@ -56,6 +53,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -86,12 +84,15 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.stateDescription
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import io.putdotio.android.playback.AudioSelection
+import io.putdotio.android.playback.PlaybackAudioTrack
+import io.putdotio.android.playback.PlaybackSubtitleTrack
 import io.putdotio.android.playback.SubtitleCueOverlay
 import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
@@ -103,12 +104,11 @@ import io.putdotio.android.playback.restoreSubtitleSelection
 import io.putdotio.android.playback.toPlaybackMillis
 import io.putdotio.android.playback.withAudioSelection
 import io.putdotio.android.playback.withAudioTrack
-import io.putdotio.android.playback.withRetainedAudioSelection
 import io.putdotio.android.playback.withSubtitleSelection
-import io.putdotio.android.playback.withSubtitleTracks
 import io.putdotio.android.tv.TvChoice
 import io.putdotio.android.tv.TvChoiceDialog
 import io.putdotio.sdk.files.PlaybackSourceKind
+import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.delay
 
@@ -252,13 +252,7 @@ private fun TvReadyPlayer(
         { transition ->
             overlay = transition.overlay
             transition.commands.forEach { command ->
-                when (command) {
-                    TvPlayerCommand.Play -> player.play()
-                    TvPlayerCommand.Pause -> player.pause()
-                    is TvPlayerCommand.SeekTo -> player.seekTo(command.positionMillis)
-                    TvPlayerCommand.Exit -> currentOnExit()
-                    TvPlayerCommand.PlayNext -> if (!currentOnPlaybackEnded()) currentOnExit()
-                }
+                player.perform(command, exit = { currentOnExit() }, playNext = { currentOnPlaybackEnded() })
             }
         }
     }
@@ -271,19 +265,6 @@ private fun TvReadyPlayer(
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     val currentSubtitlePolicy by rememberUpdatedState(subtitleStartupPolicy)
     DisposableEffect(player) {
-        fun keepChoices(current: Tracks) {
-            // A picked subtitle track is found again in each new track list, and automatic
-            // subtitles find the account's default; Off stays off because the text type stays
-            // disabled whatever the tracks do (#45).
-            val withSubtitles = player.trackSelectionParameters.withSubtitleTracks(
-                retained = options.subtitles,
-                startupPolicy = currentSubtitlePolicy,
-                tracks = current.playbackSubtitleTracks(),
-                textDefaults = defaultTrackSelection,
-            )
-            val withAudio = withSubtitles.withRetainedAudioSelection(options.audio, current.playbackAudioTracks())
-            if (withAudio != player.trackSelectionParameters) player.trackSelectionParameters = withAudio
-        }
         val listener = object : Player.Listener {
             override fun onPlayWhenReadyChanged(value: Boolean, reason: Int) {
                 playWhenReady = value
@@ -310,7 +291,7 @@ private fun TvReadyPlayer(
 
             override fun onTracksChanged(value: Tracks) {
                 tracks = value
-                keepChoices(value)
+                player.keepChoices(value, options, currentSubtitlePolicy, defaultTrackSelection)
             }
 
             override fun onTrackSelectionParametersChanged(value: TrackSelectionParameters) {
@@ -339,10 +320,10 @@ private fun TvReadyPlayer(
                 startupPolicy = subtitleStartupPolicy,
             ).withAudioSelection(options.audio, emptyList())
         player.setPlaybackSpeed(options.speed)
-        // A source resolved with the resume setting off carries no lease and writes nothing.
-        val lease = if (useStartFrom) reporter.lease(target.fileId.value) else null
-        val item = lease?.let(prepared.mediaItem::withReportingLease) ?: prepared.mediaItem
-        player.setMediaItem(item, prepared.startPositionMillis)
+        player.setMediaItem(
+            prepared.mediaItem.leasedBy(reporter, target.fileId.value, useStartFrom),
+            prepared.startPositionMillis,
+        )
         player.playWhenReady = stoppedAtMillis == null
         player.prepare()
         val positions = reporter.observe(player)
@@ -368,19 +349,7 @@ private fun TvReadyPlayer(
     // Account settings that arrive after playback started still decide until the viewer picks;
     // hiding overrides a pick too (#237).
     LaunchedEffect(player, subtitleStartupPolicy, options.subtitles == null) {
-        val policy = subtitleStartupPolicy ?: return@LaunchedEffect
-        if (options.subtitles != null && policy.showSubtitles) return@LaunchedEffect
-        val current = player.trackSelectionParameters
-        val updated = if (policy.showSubtitles && policy.autoSelectSubtitles) {
-            current.withSubtitleSelection(
-                SubtitleSelection.Automatic,
-                player.currentTracks.playbackSubtitleTracks(),
-                defaultTrackSelection,
-            )
-        } else {
-            restoreSubtitleSelection(current, null, policy)
-        }
-        if (updated != current) player.trackSelectionParameters = updated
+        player.followSubtitlePolicy(subtitleStartupPolicy, options.subtitles, defaultTrackSelection)
     }
     // Back walks the overlay stack before it leaves; see TvPlayerOverlay.back.
     BackHandler { apply(overlay.back()) }
@@ -392,29 +361,22 @@ private fun TvReadyPlayer(
     // ON_PAUSE precedes saving instance state on every API level; ON_STOP follows it before API 28.
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { stoppedAtMillis = player.currentPosition.coerceAtLeast(0L) }
     val view = LocalView.current
-    val keepScreenOn = playWhenReady && playbackState != Player.STATE_ENDED && playbackState != Player.STATE_IDLE
+    val keepScreenOn = keepsScreenOn(playWhenReady, playbackState)
     DisposableEffect(view, keepScreenOn) {
         view.keepScreenOn = keepScreenOn
         onDispose { view.keepScreenOn = false }
     }
 
-    val audioTracks = tracks.playbackAudioTracks()
-    val subtitleTracks = tracks.playbackSubtitleTracks()
-    // hide_subtitles hides subtitles entirely, as every reference player does (#237).
-    val subtitlesHidden = subtitleStartupPolicy?.showSubtitles == false
-    val buttons = tvOptionButtons(audioTracks.size, if (subtitlesHidden) 0 else subtitleTracks.size)
+    val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
+    val subtitlesHidden = choices.subtitlesHidden
     // A Subtitles picker opened before the settings arrived closes once they hide subtitles.
     LaunchedEffect(subtitlesHidden, overlay.picker) {
         if (subtitlesHidden && overlay.picker == TvPlayerControl.Subtitles) apply(overlay.closePicker())
     }
-    // Off is authoritative: nothing is drawn while the text type is disabled, whatever cues the
-    // renderer last delivered (#45: subtitles that stayed on screen after being turned off).
-    val subtitlesOn = C.TRACK_TYPE_TEXT !in parameters.disabledTrackTypes
-    val shownSubtitle = if (subtitlesOn) subtitleTracks.indexOfFirst { it.selected } else -1
 
     // Playing controls hide after three seconds without a key; paused, scrubbing or picking ones stay.
     LaunchedEffect(overlay.controlsVisible, overlay.activity, playWhenReady, overlay.scrub == null, overlay.picker) {
-        if (overlay.controlsVisible && playWhenReady && overlay.scrub == null && overlay.picker == null) {
+        if (overlay.autoHides && playWhenReady) {
             delay(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS)
             apply(overlay.hideTimedOut())
         }
@@ -427,46 +389,7 @@ private fun TvReadyPlayer(
             .fillMaxSize()
             .testTag(TV_PLAYER_TAG)
             .focusRequester(focus)
-            .onKeyEvent { event ->
-                // Back belongs to the BackHandler; everything else is the player's.
-                if (event.key == Key.Back || event.key !in TV_PLAYER_KEYS) return@onKeyEvent false
-                val focused = if (overlay.controlsVisible) overlay.focusIn(buttons) else TvPlayerControl.SeekBar
-                if (event.type == KeyEventType.KeyDown) {
-                    val direction = event.key.scrubDirection(onSeekBar = focused == TvPlayerControl.SeekBar)
-                    val move = event.key.focusMove()
-                    apply(
-                        when {
-                            direction != null && player.canScrub() ->
-                                overlay.scrub(
-                                    direction = direction,
-                                    positionMillis = player.currentPosition.coerceAtLeast(0L),
-                                    durationMillis = player.duration,
-                                    playing = player.playWhenReady,
-                                    nowMillis = event.nativeKeyEvent.eventTime,
-                                    repeat = event.nativeKeyEvent.repeatCount > 0,
-                                )
-                            move != null -> overlay.moveFocus(move, buttons)
-                            else -> overlay.reveal()
-                        },
-                    )
-                } else if (event.type == KeyEventType.KeyUp) {
-                    when (event.key) {
-                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter ->
-                            apply(
-                                if (focused == TvPlayerControl.SeekBar) {
-                                    overlay.select(player.playWhenReady)
-                                } else {
-                                    overlay.openPicker(focused)
-                                },
-                            )
-                        Key.MediaPlayPause -> apply(overlay.select(player.playWhenReady))
-                        Key.MediaPlay -> apply(overlay.setPlaying(play = true))
-                        Key.MediaPause -> apply(overlay.setPlaying(play = false))
-                        else -> Unit
-                    }
-                }
-                true
-            }
+            .onKeyEvent { event -> overlay.onPlayerKey(event, player, choices.buttons, apply) }
             .focusable(),
     ) {
         if (target.mediaType == PlaybackMediaType.VIDEO) {
@@ -475,7 +398,7 @@ private fun TvReadyPlayer(
                 modifier = Modifier.fillMaxSize(),
                 surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
             )
-            if (subtitlesOn) {
+            if (choices.subtitlesOn) {
                 SubtitleCueOverlay(
                     cues = cues,
                     videoAspectRatio = videoSize.displayAspectRatioOrNull(),
@@ -491,9 +414,9 @@ private fun TvReadyPlayer(
                 scrubTargetMillis = overlay.scrub?.targetMillis,
                 startPositionMillis = prepared.startPositionMillis,
                 listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
-                buttons = buttons,
-                focused = overlay.focusIn(buttons),
-                subtitlesShown = shownSubtitle >= 0,
+                buttons = choices.buttons,
+                focused = overlay.focusIn(choices.buttons),
+                subtitlesShown = choices.shownSubtitle >= 0,
                 speed = speed,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
@@ -501,60 +424,88 @@ private fun TvReadyPlayer(
     }
 
     val closePicker = { apply(overlay.closePicker()) }
-    val dismissPicker = { apply(overlay.back()) }
-    val locale = LocalConfiguration.current.locales[0]
-    when (overlay.picker) {
-        TvPlayerControl.Language -> {
-            val labels = pickerLabels(
-                tvTrackLabels(
-                    tracks = audioTracks.map { it.group.getFormat(it.trackIndex).let { format -> TvTrackName(format.label, format.language) } },
-                    languageFirst = false,
-                    locale = locale,
-                    numbered = audioTracks.indices.map { stringResource(R.string.tv_player_audio_track_number, it + 1) },
-                ),
+    TvPlayerPicker(
+        picker = overlay.picker,
+        choices = choices,
+        languageFirst = source.kind == PlaybackSourceKind.MP4,
+        speed = speed,
+        onAudio = { track ->
+            options = options.copy(audio = AudioSelection.Track(track.identity))
+            player.trackSelectionParameters = player.trackSelectionParameters.withAudioTrack(track)
+            closePicker()
+        },
+        onSubtitles = { selection ->
+            options = options.copy(subtitles = selection)
+            player.trackSelectionParameters = player.trackSelectionParameters.withSubtitleSelection(
+                selection = selection,
+                tracks = choices.subtitles,
+                textDefaults = defaultTrackSelection,
             )
-            TvChoiceDialog(
-                title = stringResource(R.string.tv_player_audio_tracks),
-                choices = audioTracks.indices.map { TvChoice(it, labels[it]) },
-                selected = audioTracks.indexOfFirst { it.selected }.takeIf { it >= 0 },
-                onSelect = { index ->
-                    val track = audioTracks[index]
-                    options = options.copy(audio = AudioSelection.Track(track.identity))
-                    player.trackSelectionParameters = player.trackSelectionParameters.withAudioTrack(track)
-                    closePicker()
-                },
-                onDismiss = dismissPicker,
-            )
-        }
+            closePicker()
+        },
+        onSpeed = { choice ->
+            options = options.copy(speed = choice)
+            player.setPlaybackSpeed(choice)
+            closePicker()
+        },
+        onDismiss = { apply(overlay.back()) },
+    )
+}
 
-        TvPlayerControl.Subtitles -> if (!subtitlesHidden) {
-            val labels = pickerLabels(
-                tvTrackLabels(
-                    tracks = subtitleTracks.map { it.group.getFormat(it.trackIndex).let { format -> TvTrackName(format.label, format.language) } },
-                    languageFirst = source.kind == PlaybackSourceKind.MP4,
-                    locale = locale,
-                    numbered = subtitleTracks.indices.map { stringResource(R.string.tv_player_subtitle_number, it + 1) },
-                ),
-            )
-            TvChoiceDialog(
-                title = stringResource(R.string.tv_player_subtitles),
-                choices = listOf(TvChoice(SUBTITLES_OFF, stringResource(R.string.tv_player_subtitles_off))) +
-                    subtitleTracks.indices.map { TvChoice(it, labels[it]) },
-                selected = shownSubtitle.takeIf { it >= 0 } ?: SUBTITLES_OFF,
-                onSelect = { index ->
-                    val selection = subtitleTracks.getOrNull(index)
-                        ?.let { SubtitleSelection.Track(it.identity) }
-                        ?: SubtitleSelection.Off
-                    options = options.copy(subtitles = selection)
-                    player.trackSelectionParameters = player.trackSelectionParameters.withSubtitleSelection(
-                        selection = selection,
-                        tracks = subtitleTracks,
-                        textDefaults = defaultTrackSelection,
-                    )
-                    closePicker()
-                },
-                onDismiss = dismissPicker,
-            )
+/**
+ * The tracks the player offers and shows. hide_subtitles hides subtitles entirely, as every
+ * reference player does (#237). Off is authoritative: nothing is drawn while the text type is
+ * disabled, whatever cues the renderer last delivered (#45: subtitles that stayed on screen after
+ * being turned off).
+ */
+private class TvTrackChoices(tracks: Tracks, parameters: TrackSelectionParameters, policy: SubtitleStartupPolicy?) {
+    val audio = tracks.playbackAudioTracks()
+    val subtitles = tracks.playbackSubtitleTracks()
+    val subtitlesHidden = policy?.showSubtitles == false
+    val buttons = tvOptionButtons(audio.size, if (subtitlesHidden) 0 else subtitles.size)
+    val subtitlesOn = C.TRACK_TYPE_TEXT !in parameters.disabledTrackTypes
+
+    /** The shown subtitle track's index, or -1 when none is. */
+    val shownSubtitle = if (subtitlesOn) subtitles.indexOfFirst { it.selected } else -1
+}
+
+private fun Player.perform(command: TvPlayerCommand, exit: () -> Unit, playNext: () -> Boolean) {
+    when (command) {
+        TvPlayerCommand.Play -> play()
+        TvPlayerCommand.Pause -> pause()
+        is TvPlayerCommand.SeekTo -> seekTo(command.positionMillis)
+        TvPlayerCommand.Exit -> exit()
+        TvPlayerCommand.PlayNext -> if (!playNext()) exit()
+    }
+}
+
+/** A source resolved with the resume setting off carries no lease and writes nothing. */
+private fun MediaItem.leasedBy(reporter: TvPlaybackReporter, fileId: Long, useStartFrom: Boolean): MediaItem {
+    val lease = if (useStartFrom) reporter.lease(fileId) else null
+    return lease?.let(this::withReportingLease) ?: this
+}
+
+private fun keepsScreenOn(playWhenReady: Boolean, playbackState: Int): Boolean =
+    playWhenReady && playbackState != Player.STATE_ENDED && playbackState != Player.STATE_IDLE
+
+/** The open option button's picker; Subtitles has none while the account hides subtitles. */
+@Composable
+private fun TvPlayerPicker(
+    picker: TvPlayerControl?,
+    choices: TvTrackChoices,
+    languageFirst: Boolean,
+    speed: Float,
+    onAudio: (PlaybackAudioTrack) -> Unit,
+    onSubtitles: (SubtitleSelection) -> Unit,
+    onSpeed: (Float) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val locale = LocalConfiguration.current.locales[0]
+    when (picker) {
+        TvPlayerControl.Language -> TvAudioPicker(choices.audio, locale, onAudio, onDismiss)
+
+        TvPlayerControl.Subtitles -> if (!choices.subtitlesHidden) {
+            TvSubtitlePicker(choices.subtitles, choices.shownSubtitle, languageFirst, locale, onSubtitles, onDismiss)
         }
 
         TvPlayerControl.Speed ->
@@ -564,17 +515,70 @@ private fun TvReadyPlayer(
                     TvChoice(it, stringResource(R.string.tv_player_speed_value, tvSpeedValue(it)))
                 },
                 selected = speed,
-                onSelect = { choice ->
-                    options = options.copy(speed = choice)
-                    player.setPlaybackSpeed(choice)
-                    closePicker()
-                },
-                onDismiss = dismissPicker,
+                onSelect = onSpeed,
+                onDismiss = onDismiss,
             )
 
         TvPlayerControl.SeekBar, null -> Unit
     }
 }
+
+@Composable
+private fun TvAudioPicker(
+    tracks: List<PlaybackAudioTrack>,
+    locale: Locale,
+    onSelect: (PlaybackAudioTrack) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val labels = pickerLabels(
+        tvTrackLabels(
+            tracks = tracks.map { it.group.trackName(it.trackIndex) },
+            languageFirst = false,
+            locale = locale,
+            numbered = tracks.indices.map { stringResource(R.string.tv_player_audio_track_number, it + 1) },
+        ),
+    )
+    TvChoiceDialog(
+        title = stringResource(R.string.tv_player_audio_tracks),
+        choices = tracks.indices.map { TvChoice(it, labels[it]) },
+        selected = tracks.indexOfFirst { it.selected }.takeIf { it >= 0 },
+        onSelect = { index -> onSelect(tracks[index]) },
+        onDismiss = onDismiss,
+    )
+}
+
+@Composable
+private fun TvSubtitlePicker(
+    tracks: List<PlaybackSubtitleTrack>,
+    shown: Int,
+    languageFirst: Boolean,
+    locale: Locale,
+    onSelect: (SubtitleSelection) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val labels = pickerLabels(
+        tvTrackLabels(
+            tracks = tracks.map { it.group.trackName(it.trackIndex) },
+            languageFirst = languageFirst,
+            locale = locale,
+            numbered = tracks.indices.map { stringResource(R.string.tv_player_subtitle_number, it + 1) },
+        ),
+    )
+    TvChoiceDialog(
+        title = stringResource(R.string.tv_player_subtitles),
+        choices = listOf(TvChoice(SUBTITLES_OFF, stringResource(R.string.tv_player_subtitles_off))) +
+            tracks.indices.map { TvChoice(it, labels[it]) },
+        selected = shown.takeIf { it >= 0 } ?: SUBTITLES_OFF,
+        onSelect = { index ->
+            onSelect(tracks.getOrNull(index)?.let { SubtitleSelection.Track(it.identity) } ?: SubtitleSelection.Off)
+        },
+        onDismiss = onDismiss,
+    )
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun TrackGroup.trackName(index: Int): TvTrackName =
+    getFormat(index).let { format -> TvTrackName(format.label, format.language) }
 
 @Composable
 private fun pickerLabels(labels: List<String>): List<String> {
@@ -584,51 +588,7 @@ private fun pickerLabels(labels: List<String>): List<String> {
     }
 }
 
-/** Keys the player handles itself: the D-pad (so focus stays put), play/pause and scrubbing. */
-private val TV_PLAYER_KEYS = setOf(
-    Key.DirectionCenter,
-    Key.Enter,
-    Key.NumPadEnter,
-    Key.DirectionUp,
-    Key.DirectionDown,
-    Key.DirectionLeft,
-    Key.DirectionRight,
-    Key.MediaPlayPause,
-    Key.MediaPlay,
-    Key.MediaPause,
-    Key.MediaFastForward,
-    Key.MediaRewind,
-)
-
 private const val SUBTITLES_OFF = -1
-
-/**
- * Rewind and fast-forward scrub from anywhere, pulling focus back to the seek bar, as the RN
- * player's did; Left and Right scrub only on the seek bar and move between buttons otherwise.
- */
-private fun Key.scrubDirection(onSeekBar: Boolean): TvScrubDirection? =
-    when (this) {
-        Key.MediaRewind -> TvScrubDirection.Backward
-        Key.MediaFastForward -> TvScrubDirection.Forward
-        Key.DirectionLeft -> TvScrubDirection.Backward.takeIf { onSeekBar }
-        Key.DirectionRight -> TvScrubDirection.Forward.takeIf { onSeekBar }
-        else -> null
-    }
-
-private fun Key.focusMove(): TvFocusMove? =
-    when (this) {
-        Key.DirectionUp -> TvFocusMove.Up
-        Key.DirectionDown -> TvFocusMove.Down
-        Key.DirectionLeft -> TvFocusMove.Left
-        Key.DirectionRight -> TvFocusMove.Right
-        else -> null
-    }
-
-private fun Player.canScrub(): Boolean =
-    isCommandAvailable(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM) &&
-        isCurrentMediaItemSeekable &&
-        duration != C.TIME_UNSET &&
-        duration > 0L
 
 @Composable
 private fun TvPlayerControls(
@@ -646,7 +606,9 @@ private fun TvPlayerControls(
 ) {
     // Until the player has its item the bar starts where playback will, not at zero.
     var positionMillis by remember(player) {
-        mutableLongStateOf(if (player.currentMediaItem == null) startPositionMillis else player.currentPosition.coerceAtLeast(0L))
+        mutableLongStateOf(
+            if (player.currentMediaItem == null) startPositionMillis else player.currentPosition.coerceAtLeast(0L),
+        )
     }
     var durationMillis by remember(player) { mutableLongStateOf(player.duration) }
     // The timeline and seeks update the bar at once; the poll covers steady playback.
@@ -673,9 +635,7 @@ private fun TvPlayerControls(
     }
     // A pending scrub shows its target until it is committed or dismissed.
     val shownMillis = scrubTargetMillis ?: positionMillis
-    // A stream reports its duration once loaded; the listing's stands in until then.
-    val knownDuration = durationMillis.takeIf { it != C.TIME_UNSET && it > 0L }
-        ?: listingDurationMillis?.takeIf { it > 0L }
+    val knownDuration = knownDurationMillis(durationMillis, listingDurationMillis)
     val elapsed = shownMillis.elapsedLabel()
     val seekBarDescription = knownDuration?.let {
         stringResource(R.string.tv_player_seek_bar, elapsed, it.elapsedLabel())
@@ -719,34 +679,46 @@ private fun TvPlayerControls(
             scrubbing = scrubTargetMillis != null,
             focused = focused == TvPlayerControl.SeekBar,
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = elapsed,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.testTag(TV_PLAYER_ELAPSED_TAG),
-                )
-                Icon(
-                    painter = painterResource(if (paused) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill),
-                    contentDescription = stringResource(
-                        if (paused) R.string.tv_player_paused else R.string.tv_player_playing,
-                    ),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-            if (knownDuration != null) {
-                Text(
-                    text = knownDuration.elapsedLabel(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-            }
+        TvPlayerTimes(elapsed = elapsed, paused = paused, knownDurationMillis = knownDuration)
+    }
+}
+
+/** A stream reports its duration once loaded; the listing's stands in until then. */
+private fun knownDurationMillis(playerMillis: Long, listingMillis: Long?): Long? =
+    playerMillis.takeIf { it != C.TIME_UNSET && it > 0L } ?: listingMillis?.takeIf { it > 0L }
+
+/** The elapsed time with the play state's icon, and the duration once it is known. */
+@Composable
+private fun TvPlayerTimes(elapsed: String, paused: Boolean, knownDurationMillis: Long?) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = elapsed,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.testTag(TV_PLAYER_ELAPSED_TAG),
+            )
+            Icon(
+                painter = painterResource(
+                    if (paused) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill,
+                ),
+                contentDescription = stringResource(
+                    if (paused) R.string.tv_player_paused else R.string.tv_player_playing,
+                ),
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        if (knownDurationMillis != null) {
+            Text(
+                text = knownDurationMillis.elapsedLabel(),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 }
@@ -768,11 +740,7 @@ private fun TvPlayerOptionButton(
         TvPlayerControl.Subtitles -> stringResource(R.string.tv_player_subtitles)
         else -> stringResource(R.string.tv_player_speed)
     }
-    val icon = when (control) {
-        TvPlayerControl.Language -> R.drawable.ic_ph_headphones
-        TvPlayerControl.Subtitles -> if (subtitlesShown) R.drawable.ic_ph_subtitles else R.drawable.ic_ph_subtitles_slash
-        else -> R.drawable.ic_ph_gauge
-    }
+    val icon = control.optionIcon(subtitlesShown)
     val state = when (control) {
         TvPlayerControl.Subtitles -> stringResource(
             if (subtitlesShown) R.string.tv_player_subtitles_on_state else R.string.tv_player_subtitles_off_state,
@@ -809,6 +777,15 @@ private fun TvPlayerOptionButton(
         }
     }
 }
+
+@DrawableRes
+private fun TvPlayerControl.optionIcon(subtitlesShown: Boolean): Int =
+    when (this) {
+        TvPlayerControl.Language -> R.drawable.ic_ph_headphones
+        TvPlayerControl.Subtitles ->
+            if (subtitlesShown) R.drawable.ic_ph_subtitles else R.drawable.ic_ph_subtitles_slash
+        else -> R.drawable.ic_ph_gauge
+    }
 
 /**
  * The played part in `primary` over `surfaceVariant`. The thumb at the playhead shows while the

@@ -43,6 +43,7 @@ import io.putdotio.android.search.searchState
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.player.TvPlaybackLayer
+import io.putdotio.android.tv.search.TvRecentSearchActions
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.sdk.files.PutioFileType
@@ -79,7 +80,7 @@ class TvPickReturnFocusTest {
                         recentTerms = emptyList(),
                         nextRequestValue = 2L,
                     ),
-                    actions = TvSearchActions({}, {}, { playing = true }, {}, {}, {}, {}, {}),
+                    actions = TvSearchActions({}, {}, { playing = true }, {}, {}, TvRecentSearchActions({}, {}, {})),
                     modifier = Modifier.focusRequester(paneFocus),
                     pickedRow = picked,
                 )
@@ -113,7 +114,7 @@ class TvPickReturnFocusTest {
                         recentTerms = emptyList(),
                         nextRequestValue = 2L,
                     ),
-                    actions = TvSearchActions({}, {}, { playing = true }, {}, {}, {}, {}, {}),
+                    actions = TvSearchActions({}, {}, { playing = true }, {}, {}, TvRecentSearchActions({}, {}, {})),
                     modifier = Modifier.focusRequester(paneFocus),
                     pickedRow = picked,
                 )

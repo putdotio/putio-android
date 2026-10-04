@@ -36,7 +36,7 @@ class StaleOAuthCallbackTest {
         val controller = MobileAuthController(
             oauthConfiguration = configuration,
             tokenStore = tokenStore,
-            pendingOAuthAttemptStore = pendingStore,
+            oauthAttempts = OAuthAttempts(pendingStore),
             sessionGateway = PutioAuthSessionGateway(client),
             tokenRevocations = UnusedTokenRevocations,
         )

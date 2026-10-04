@@ -145,7 +145,9 @@ class MobileFilesCopyTest {
         compose.onNodeWithTag(MOBILE_FILES_MOVE_FOLDER_TAG).assertTextEquals(destination.name)
         compose.onNodeWithTag(MOBILE_FILES_MOVE_REMEMBER_TAG).assertIsOn().performClick().assertIsOff()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
-        compose.runOnIdle { assertEquals(FilesMoveTargetMemory(remember = false, lastTarget = remembered), store.memory) }
+        compose.runOnIdle {
+            assertEquals(FilesMoveTargetMemory(remember = false, lastTarget = remembered), store.memory)
+        }
 
         compose.onNodeWithContentDescription("Actions for ${sharedVideo.name}").performClick()
         compose.onNodeWithTag(MOBILE_FILES_COPY_ACTION_TAG).performClick()
@@ -325,6 +327,13 @@ class MobileFilesCopyTest {
         folderType: PutioFolderType = PutioFolderType.REGULAR,
         isShared: Boolean = false,
     ) = FilesItem(
-        FilesItemId(id), FilesFolder.Root.id, name, type, 1L, "2026-09-06", isShared = isShared, folderType = folderType,
+        FilesItemId(id),
+        FilesFolder.Root.id,
+        name,
+        type,
+        1L,
+        "2026-09-06",
+        isShared = isShared,
+        folderType = folderType,
     )
 }

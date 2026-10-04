@@ -29,7 +29,12 @@ class PutioAuthSessionGatewayTest {
                     email = "user@example.com",
                     historyEnabled = true,
                     avatarUrl = "https://example.com/avatar.png",
-                    storage = AccountStorage(availableBytes = 1, sizeBytes = 2, usedBytes = 1, showOptimisticUsage = true),
+                    storage = AccountStorage(
+                        availableBytes = 1,
+                        sizeBytes = 2,
+                        usedBytes = 1,
+                        showOptimisticUsage = true,
+                    ),
                 ),
             ),
             result,

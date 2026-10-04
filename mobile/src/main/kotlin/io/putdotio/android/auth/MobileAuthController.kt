@@ -74,14 +74,15 @@ enum class OAuthCallbackHandlingResult {
     REJECTED,
 }
 
+// One mutex and one state flow serialize every auth transition; splitting the operations
+// across classes would share that mutable state between them.
+@Suppress("TooManyFunctions")
 class MobileAuthController internal constructor(
     private val oauthConfiguration: MobileOAuthConfiguration,
     private val tokenStore: AuthTokenStore,
-    private val pendingOAuthAttemptStore: PendingOAuthAttemptStore,
+    private val oauthAttempts: OAuthAttempts,
     private val sessionGateway: AuthSessionGateway,
     private val tokenRevocations: TokenRevocations,
-    private val stateGenerator: OAuthStateGenerator = SecureOAuthStateGenerator(),
-    private val clock: OAuthAttemptClock = SystemOAuthAttemptClock,
     /** Drops what this device keeps for the account, such as the Move picker's remembered folder. */
     private val clearAccountLocalState: () -> Unit = {},
 ) {
@@ -130,15 +131,10 @@ class MobileAuthController internal constructor(
             return@withLock OAuthLaunchResult.NotConfigured
         }
 
-        val oauthState = stateGenerator.generate()
+        val oauthState = oauthAttempts.newState()
         val authorizationUrl = sessionGateway.buildLoginUrl(configuration.redirectUri, oauthState)
         try {
-            pendingOAuthAttemptStore.write(
-                PendingOAuthAttempt(
-                    state = oauthState,
-                    createdAtEpochMillis = clock.nowEpochMillis(),
-                ),
-            )
+            oauthAttempts.record(oauthState)
         } catch (_: PendingOAuthAttemptStorageException) {
             mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
             return@withLock OAuthLaunchResult.StorageUnavailable
@@ -163,14 +159,14 @@ class MobileAuthController internal constructor(
             }
 
             val pendingAttempt = try {
-                pendingOAuthAttemptStore.read()
+                oauthAttempts.readUnexpired()
             } catch (_: PendingOAuthAttemptStorageException) {
-                clearPendingOAuthAttempt()
+                oauthAttempts.clear()
                 mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
                 return@withLock OAuthCallbackHandlingResult.REJECTED
             }
-            if (pendingAttempt == null || pendingAttempt.isExpired(clock.nowEpochMillis())) {
-                if (!clearPendingOAuthAttempt()) {
+            if (pendingAttempt == null) {
+                if (!oauthAttempts.clear()) {
                     mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
                     return@withLock OAuthCallbackHandlingResult.REJECTED
                 }
@@ -186,7 +182,7 @@ class MobileAuthController internal constructor(
                 mutableState.value = MobileAuthState.AwaitingOAuthCallback
                 return@withLock OAuthCallbackHandlingResult.REJECTED
             }
-            if (!clearPendingOAuthAttempt()) {
+            if (!oauthAttempts.clear()) {
                 mutableState.value = MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
                 return@withLock OAuthCallbackHandlingResult.REJECTED
             }
@@ -339,7 +335,7 @@ class MobileAuthController internal constructor(
         } catch (_: AuthTokenStorageException) {
             false
         }
-        val pendingAttemptCleared = clearPendingOAuthAttempt()
+        val pendingAttemptCleared = oauthAttempts.clear()
         clearConfiguredSession()
         return storageCleared && pendingAttemptCleared
     }
@@ -352,9 +348,9 @@ class MobileAuthController internal constructor(
 
         return try {
             val hasPendingAttempt = currentState == MobileAuthState.AwaitingOAuthCallback ||
-                pendingOAuthAttemptStore.read() != null
+                oauthAttempts.exists()
             if (hasPendingAttempt) {
-                mutableState.value = if (clearPendingOAuthAttempt()) {
+                mutableState.value = if (oauthAttempts.clear()) {
                     MobileAuthState.SignedOut(reason)
                 } else {
                     MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
@@ -366,14 +362,6 @@ class MobileAuthController internal constructor(
             true
         }
     }
-
-    private suspend fun clearPendingOAuthAttempt(): Boolean =
-        try {
-            pendingOAuthAttemptStore.clear()
-            true
-        } catch (_: PendingOAuthAttemptStorageException) {
-            false
-        }
 
     private fun rejectCallbackWithoutPendingAttempt() {
         val currentState = mutableState.value
@@ -401,9 +389,3 @@ private fun MobileAuthState.canHandleOAuthAttempt(): Boolean =
         this == MobileAuthState.AwaitingOAuthCallback ||
         this is MobileAuthState.SignedOut && reason != MobileSignedOutReason.SecureStorageUnavailable
 
-private fun PendingOAuthAttempt.isExpired(nowEpochMillis: Long): Boolean {
-    val age = nowEpochMillis - createdAtEpochMillis
-    return age < 0 || age > OAUTH_ATTEMPT_MAX_AGE_MILLIS
-}
-
-private const val OAUTH_ATTEMPT_MAX_AGE_MILLIS = 15 * 60 * 1_000L

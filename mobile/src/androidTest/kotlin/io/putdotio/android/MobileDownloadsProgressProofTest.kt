@@ -38,7 +38,6 @@ import io.putdotio.android.downloads.DownloadArtifact
 import io.putdotio.android.downloads.DownloadEntry
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsController
-import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.downloads.MobileDownloadEngine
 import io.putdotio.android.downloads.MobileDownloadStore
 import io.putdotio.android.downloads.MobileDownloadsScreen
@@ -134,9 +133,7 @@ class MobileDownloadsProgressProofTest {
                     executor,
                 ),
             ).apply { requirements = Requirements(0) }
-            val engine = MobileDownloadEngine(
-                context, store, USER_ID, scope, MobileDownloadCache.get(context), manager,
-            )
+            val engine = MobileDownloadEngine(context, store, USER_ID, scope, manager)
             controller = DownloadsController(store, engine, scope)
             cleanup = {
                 instrumentation.runOnMainSync {

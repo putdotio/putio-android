@@ -26,6 +26,7 @@ import io.putdotio.android.auth.MobileOAuthConfiguration
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.auth.NoTokenRevocations
+import io.putdotio.android.auth.OAuthAttempts
 import io.putdotio.android.auth.PendingOAuthAttempt
 import io.putdotio.android.auth.PendingOAuthAttemptStore
 import io.putdotio.android.auth.PutioAuthSessionGateway
@@ -143,17 +144,23 @@ class MobileTrashSessionIntegrationTest {
                 TrashSessionRootFixture(client).use { fixture ->
                     runBlocking { withTimeout(5_000L) { fixture.authController.restoreSession() } }
                     assertTrue(fixture.authController.state.value is MobileAuthState.SignedIn)
-                    var mounted by mutableStateOf(true)
-                    try {
-                        compose.setContent { if (mounted) fixture.Content() }
+                    whileMounted(fixture) {
                         block(fixture, checkStatus)
                         assertEquals(emptyList<String>(), server.unexpectedRequests.toList())
-                    } finally {
-                        compose.runOnIdle { mounted = false }
-                        compose.waitForIdle()
                     }
                 }
             }
+        }
+    }
+
+    private fun whileMounted(fixture: TrashSessionRootFixture, block: () -> Unit) {
+        var mounted by mutableStateOf(true)
+        try {
+            compose.setContent { if (mounted) fixture.Content() }
+            block()
+        } finally {
+            compose.runOnIdle { mounted = false }
+            compose.waitForIdle()
         }
     }
 
@@ -178,11 +185,13 @@ private class TrashSessionRootFixture(client: PutioClient) : Closeable {
     val authController = MobileAuthController(
         oauthConfiguration = MobileOAuthConfiguration.fromClientId("9677"),
         tokenStore = tokenStore,
-        pendingOAuthAttemptStore = object : PendingOAuthAttemptStore {
-            override suspend fun read(): PendingOAuthAttempt? = null
-            override suspend fun write(attempt: PendingOAuthAttempt) = error("No OAuth launch expected")
-            override suspend fun clear() = Unit
-        },
+        oauthAttempts = OAuthAttempts(
+            object : PendingOAuthAttemptStore {
+                override suspend fun read(): PendingOAuthAttempt? = null
+                override suspend fun write(attempt: PendingOAuthAttempt) = error("No OAuth launch expected")
+                override suspend fun clear() = Unit
+            },
+        ),
         sessionGateway = PutioAuthSessionGateway(client),
         tokenRevocations = NoTokenRevocations,
     )

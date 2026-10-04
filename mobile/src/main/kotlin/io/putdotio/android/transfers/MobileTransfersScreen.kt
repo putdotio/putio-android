@@ -127,21 +127,7 @@ internal fun MobileTransfersScreen(
         }
     }
 
-    val controlsEnabled =
-        state.mutation !is TransferMutation.Running &&
-            state.navigation !is TransferNavigation.Resolving &&
-            state.content !is TransfersContent.InitialLoading
-    val rowInteractionsEnabled =
-        controlsEnabled &&
-            state.refresh !is TransfersRefresh.Refreshing &&
-            !state.content.isPaging
-    val pagingInteractionsEnabled =
-        rowInteractionsEnabled && state.refresh !is TransfersRefresh.Polling
-    val refreshEnabled =
-        controlsEnabled &&
-            (state.content is TransfersContent.Empty || state.content is TransfersContent.Ready) &&
-            !state.refresh.isRunning &&
-            !state.content.isPaging
+    val enabled = state.enabledInteractions()
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -156,14 +142,14 @@ internal fun MobileTransfersScreen(
                         draft = draft,
                         state = state,
                         onEvent = onEvent,
-                        enabled = controlsEnabled,
+                        enabled = enabled.controls,
                         filesRepository = filesRepository,
                         onFilesAuthenticationRequired = onFilesAuthenticationRequired,
                     )
                 }
                 MobileTransferActionsMenu(
-                    refreshEnabled = refreshEnabled,
-                    cleanEnabled = controlsEnabled,
+                    refreshEnabled = enabled.refresh,
+                    cleanEnabled = enabled.controls,
                     showClean = state.content is TransfersContent.Ready,
                     sessionId = sessionId,
                     onRefresh = { onEvent(TransfersEvent.Refresh) },
@@ -171,17 +157,17 @@ internal fun MobileTransfersScreen(
                 )
             }
 
-            MobileTransfersRefreshFailure(state.refresh, controlsEnabled, onEvent)
+            MobileTransfersRefreshFailure(state.refresh, enabled.controls, onEvent)
             PullToRefreshBox(
                 isRefreshing = state.refresh is TransfersRefresh.Refreshing,
-                onRefresh = { if (refreshEnabled) onEvent(TransfersEvent.Refresh) },
+                onRefresh = { if (enabled.refresh) onEvent(TransfersEvent.Refresh) },
                 modifier = Modifier.weight(1f),
             ) {
                 MobileTransfersContent(
                     content = state.content,
                     mutation = state.mutation,
-                    interactionsEnabled = rowInteractionsEnabled,
-                    pagingEnabled = pagingInteractionsEnabled,
+                    interactionsEnabled = enabled.rows,
+                    pagingEnabled = enabled.paging,
                     onEvent = onEvent,
                     onConfirmation = { confirmation = it },
                 )
@@ -536,6 +522,7 @@ private fun MobileAddTransfer(
     }
     if (input.open) {
         val addFailure = (state.mutation as? TransferMutation.Failed)?.takeIf { it.action is TransferAction.Add }
+        val dismissAddFailure = { if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure) }
         MobileAddTransferSheet(
             input = input.input,
             torrent = input.torrent,
@@ -544,7 +531,7 @@ private fun MobileAddTransfer(
             onResetDestination = { draft.chooseDestination(null) },
             onRemoveTorrent = {
                 draft.removeTorrent()
-                if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
+                dismissAddFailure()
             },
             validation = input.validation,
             failure = addFailure,
@@ -552,17 +539,17 @@ private fun MobileAddTransfer(
             submitEnabled = enabled && input.validation != MobileShareValidation.TooLong,
             onInputChanged = {
                 draft.edit(it)
-                if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
+                dismissAddFailure()
             },
             onDismiss = {
                 if (!adding) {
                     draft.dismiss()
-                    if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
+                    dismissAddFailure()
                 }
             },
             onSubmit = {
                 if (enabled) draft.validate()?.let { add ->
-                    if (addFailure != null) onEvent(TransfersEvent.DismissMutationFailure)
+                    dismissAddFailure()
                     onEvent(add)
                 }
             },
@@ -580,39 +567,48 @@ private fun MobileAddTransfer(
         )
     }
     if (input.pendingReplacement) {
-        val mutationRunning = state.mutation is TransferMutation.Running
-        val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-        AlertDialog(
-            modifier = if (landscape) {
-                Modifier.padding(horizontal = 24.dp).widthIn(max = 560.dp).fillMaxWidth()
-            } else {
-                Modifier
-            },
-            properties = DialogProperties(usePlatformDefaultWidth = !landscape),
-            onDismissRequest = { if (!mutationRunning) draft.keepDraft() },
-            title = { Text(stringResource(R.string.mobile_share_replace_title)) },
-            text = {
-                Text(
-                    stringResource(R.string.mobile_share_replace_message),
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    draft.useSharedLink()
-                    val failedAction = (state.mutation as? TransferMutation.Failed)?.action
-                    if (failedAction is TransferAction.Add) onEvent(TransfersEvent.DismissMutationFailure)
-                }, enabled = !mutationRunning) {
-                    Text(stringResource(R.string.mobile_share_use_link))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = draft::keepDraft, enabled = !mutationRunning) {
-                    Text(stringResource(R.string.mobile_share_keep_draft))
-                }
-            },
-        )
+        MobileShareReplacementDialog(draft = draft, mutation = state.mutation, onEvent = onEvent)
     }
+}
+
+@Composable
+private fun MobileShareReplacementDialog(
+    draft: MobileTransferDraft,
+    mutation: TransferMutation,
+    onEvent: (TransfersEvent) -> Unit,
+) {
+    val mutationRunning = mutation is TransferMutation.Running
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    AlertDialog(
+        modifier = if (landscape) {
+            Modifier.padding(horizontal = 24.dp).widthIn(max = 560.dp).fillMaxWidth()
+        } else {
+            Modifier
+        },
+        properties = DialogProperties(usePlatformDefaultWidth = !landscape),
+        onDismissRequest = { if (!mutationRunning) draft.keepDraft() },
+        title = { Text(stringResource(R.string.mobile_share_replace_title)) },
+        text = {
+            Text(
+                stringResource(R.string.mobile_share_replace_message),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                draft.useSharedLink()
+                val failedAction = (mutation as? TransferMutation.Failed)?.action
+                if (failedAction is TransferAction.Add) onEvent(TransfersEvent.DismissMutationFailure)
+            }, enabled = !mutationRunning) {
+                Text(stringResource(R.string.mobile_share_use_link))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = draft::keepDraft, enabled = !mutationRunning) {
+                Text(stringResource(R.string.mobile_share_keep_draft))
+            }
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -651,7 +647,8 @@ private fun MobileAddTransferSheet(
             MobileTransferDestinationRow(destination, enabled = !adding, onChooseDestination, onResetDestination)
             if (torrent != null) {
                 MobileTransferTorrentRow(torrent, enabled = !adding, onRemove = onRemoveTorrent)
-                val message = validation?.messageResource()?.let { stringResource(it) } ?: failure?.failure?.mobileMessage()
+                val message = validation?.messageResource()?.let { stringResource(it) }
+                    ?: failure?.failure?.mobileMessage()
                 if (message != null) {
                     Text(message, color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall)
@@ -775,16 +772,18 @@ private fun TransferItem.statusLabel(): String =
             AppTransferStatus.Stopping -> R.string.mobile_transfer_status_stopping
             AppTransferStatus.Seeding -> R.string.mobile_transfer_status_seeding
             AppTransferStatus.PreparingSeed -> R.string.mobile_transfer_status_preparing_seed
-            AppTransferStatus.Completed ->
-                when {
-                    userFileExists == false -> R.string.mobile_transfer_file_unavailable
-                    fileId == null -> R.string.mobile_transfer_file_preparing
-                    else -> R.string.mobile_transfer_status_completed
-                }
+            AppTransferStatus.Completed -> completedStatusResource()
             AppTransferStatus.Failed -> R.string.mobile_transfer_status_failed
             is AppTransferStatus.Unknown -> R.string.mobile_transfer_status_updating
         },
     )
+
+private fun TransferItem.completedStatusResource(): Int =
+    when {
+        userFileExists == false -> R.string.mobile_transfer_file_unavailable
+        fileId == null -> R.string.mobile_transfer_file_preparing
+        else -> R.string.mobile_transfer_status_completed
+    }
 
 private fun TransferItem.details(context: Context): String =
     buildList {
@@ -815,6 +814,30 @@ private fun TransferItem.details(context: Context): String =
             add(context.getString(R.string.mobile_transfer_availability, percentage))
         }
     }.joinToString(" · ")
+
+private data class TransfersInteractions(
+    val controls: Boolean,
+    val rows: Boolean,
+    val paging: Boolean,
+    val refresh: Boolean,
+)
+
+private fun TransfersState.enabledInteractions(): TransfersInteractions {
+    val controls =
+        mutation !is TransferMutation.Running &&
+            navigation !is TransferNavigation.Resolving &&
+            content !is TransfersContent.InitialLoading
+    val rows = controls && refresh !is TransfersRefresh.Refreshing && !content.isPaging
+    return TransfersInteractions(
+        controls = controls,
+        rows = rows,
+        paging = rows && refresh !is TransfersRefresh.Polling,
+        refresh = controls &&
+            (content is TransfersContent.Empty || content is TransfersContent.Ready) &&
+            !refresh.isRunning &&
+            !content.isPaging,
+    )
+}
 
 private fun TransferAction.targets(id: TransferId): Boolean =
     when (this) {
