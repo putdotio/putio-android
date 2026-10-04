@@ -87,7 +87,7 @@ class SdkFilesRepositoryTest {
                                         id = 4L,
                                         name = "  raw name.mkv  ",
                                         type = PutioFileType.VIDEO,
-                                    ),
+                                    ).copy(updatedAt = "2026-09-30T15:41:33"),
                                 ),
                             cursor = "next",
                             parent = sdkFile(
@@ -115,6 +115,7 @@ class SdkFilesRepositoryTest {
             assertTrue(requestedVideoMetadata)
             assertEquals("  raw name.mkv  ", result.value.items.single().name)
             assertEquals(PutioFileType.VIDEO, result.value.items.single().type)
+            assertEquals("2026-09-30T15:41:33", result.value.items.single().updatedAt)
             assertEquals(FilesCursor("next"), result.value.nextCursor)
             assertEquals(FilesSort.NAME_DESCENDING, result.value.sort)
         }

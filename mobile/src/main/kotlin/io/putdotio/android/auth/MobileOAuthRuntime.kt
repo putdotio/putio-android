@@ -8,6 +8,7 @@ import android.net.NetworkCapabilities
 import android.util.Log
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
+import io.putdotio.android.documents.MobileDocumentsProvider
 import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.downloads.OfflinePlaybackPositions
 import io.putdotio.android.downloads.PositionRemote
@@ -35,6 +36,7 @@ class MobileOAuthRuntime internal constructor(
     private val applicationScope: CoroutineScope,
     private val failureReporter: OAuthRuntimeFailureReporter = AndroidOAuthRuntimeFailureReporter,
     onSessionLeft: (MobileAuthSessionId?) -> Unit = {},
+    onSessionStarted: (MobileAuthSessionId) -> Unit = {},
     offlinePreferences: SharedPreferences? = null,
 ) {
     private val positions = SdkPlaybackPositionRepository(putioClient)
@@ -72,7 +74,10 @@ class MobileOAuthRuntime internal constructor(
                     restoreEnded -> onSessionLeft(null)
                     previous != null && current != previous -> onSessionLeft(previous)
                 }
-                if (current != null && current != previous) offlinePositions?.requestSync()
+                if (current != null && current != previous) {
+                    onSessionStarted(current)
+                    offlinePositions?.requestSync()
+                }
                 previous = current
             }
         }
@@ -98,6 +103,11 @@ class MobileOAuthRuntime internal constructor(
                 onSessionSettled()
             }
         }
+    }
+
+    /** put.io rejected [sessionId] outside any screen; signs it out unless another session replaced it. */
+    internal fun rejectSession(sessionId: MobileAuthSessionId) {
+        applicationScope.launch { authController.rejectAuthoritativeSession(sessionId) }
     }
 
     fun dispatchAuthTabResult(
@@ -173,7 +183,11 @@ class MobileOAuthRuntime internal constructor(
                 putioClient = putioClient,
                 authController = authController,
                 applicationScope = applicationScope,
-                onSessionLeft = { session -> MobileFileShareService.endSession(context, session) },
+                onSessionLeft = { session ->
+                    MobileFileShareService.endSession(context, session)
+                    MobileDocumentsProvider.sessionLeft(context)
+                },
+                onSessionStarted = { MobileDocumentsProvider.sessionStarted(context) },
                 offlinePreferences = downloadPreferences(context),
             ).also { runtime -> runtime.offlinePositions?.let { syncWhenOnline(context, it) } }
         }

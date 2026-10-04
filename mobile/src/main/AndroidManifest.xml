@@ -107,6 +107,17 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/share_paths" />
         </provider>
+        <!-- put.io Files in the system file picker, read-only; only the system picker may query it. -->
+        <provider
+            android:name=".documents.MobileDocumentsProvider"
+            android:authorities="${applicationId}.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
         <service
             android:name=".downloads.MobileDownloadService"
             android:exported="false"

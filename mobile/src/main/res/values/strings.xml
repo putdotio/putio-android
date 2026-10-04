@@ -365,6 +365,8 @@
     <string name="mobile_downloads_channel_name">Downloads</string>
     <string name="mobile_files_download">Download to this device</string>
     <string name="mobile_files_share">Share file</string>
+    <!-- System file picker: a folder or search page that failed to load. -->
+    <string name="mobile_documents_load_failed">Couldn’t load from put.io. Open it again to retry.</string>
     <string name="mobile_files_share_description">Copies the original to this device, then opens the share sheet.</string>
     <string name="mobile_share_preparing">Preparing %1$s</string>
     <string name="mobile_share_ready">%1$s is ready to share</string>
