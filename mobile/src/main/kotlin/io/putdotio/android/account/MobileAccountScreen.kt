@@ -89,10 +89,10 @@ import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
-import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 
 internal const val MOBILE_ACCOUNT_LIST_TAG = "mobile-account-list"
 internal const val MOBILE_MANAGE_DOWNLOADS_TAG = "mobile-manage-downloads"
+internal const val MOBILE_MANAGE_PUBLIC_LINKS_TAG = "mobile-manage-public-links"
 internal const val MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG = "mobile-account-avatar-fallback"
 internal const val MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG = "mobile-account-storage-progress"
 internal const val MOBILE_STRICTLY_NECESSARY_TAG = "mobile-strictly-necessary"
@@ -111,6 +111,7 @@ internal fun MobileAccountScreen(
     modifier: Modifier = Modifier,
     onManageTrash: () -> Unit = {},
     onManageDownloads: (() -> Unit)? = null,
+    onManagePublicLinks: (() -> Unit)? = null,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Failure(
             AccountSettingsFailure.Putio(
@@ -138,30 +139,7 @@ internal fun MobileAccountScreen(
         item(key = ACCOUNT_IDENTITY_DIVIDER_KEY) {
             HorizontalDivider()
         }
-        if (onManageDownloads != null) {
-            item(key = "manage-downloads") {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.mobile_downloads_manage)) },
-                    supportingContent = { Text(stringResource(R.string.mobile_downloads_manage_description)) },
-                    leadingContent = {
-                        Icon(painterResource(R.drawable.ic_ph_arrow_circle_down), contentDescription = null)
-                    },
-                    modifier = Modifier.clickable(onClick = onManageDownloads, role = Role.Button)
-                        .testTag(MOBILE_MANAGE_DOWNLOADS_TAG),
-                )
-            }
-        }
-        item(key = "manage-trash") {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.mobile_trash_manage)) },
-                supportingContent = { Text(stringResource(R.string.mobile_trash_manage_description)) },
-                leadingContent = {
-                    Icon(painterResource(R.drawable.ic_ph_trash), contentDescription = null)
-                },
-                modifier = Modifier.clickable(onClick = onManageTrash, role = Role.Button)
-                    .testTag(MOBILE_MANAGE_TRASH_TAG),
-            )
-        }
+        manageItems(onManageDownloads, onManagePublicLinks, onManageTrash)
         when (val content = settingsState.content) {
             is AccountSettingsContent.Loading ->
                 item(key = SETTINGS_LOADING_KEY) {
@@ -1165,3 +1143,4 @@ internal fun MobileAccountValueDescription(value: String, description: String) {
         Text(description)
     }
 }
+

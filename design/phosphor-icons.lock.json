@@ -475,6 +475,13 @@
       "asset": "assets/regular/warning-circle.svg",
       "sourceSha256": "e48a90760a68659fd3f06dd9187e471aead4877c72e915339071b2c7f7bd714c",
       "outputSha256": "49ae85bd9922c0037266d5b996710b5dafb1129502e159fa393e54ebd6634482"
+    },
+    {
+      "resDir": "mobile/src/main/res",
+      "resource": "ic_ph_link",
+      "asset": "assets/regular/link.svg",
+      "sourceSha256": "526d89480e3064c614b7d46a93888c187696d7776f684527d48eb94e2d7cd5d4",
+      "outputSha256": "f5b7e4ec3376a10f252b2a05b00711578008710124b0cef8e5aa655620d17a39"
     }
   ]
 }

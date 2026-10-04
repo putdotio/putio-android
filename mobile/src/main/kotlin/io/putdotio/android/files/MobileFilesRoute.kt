@@ -17,6 +17,8 @@ import io.putdotio.android.AuthoritativeSessionFailureEffect
 import io.putdotio.android.authoritativeSessionFailure
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.playback.dispatch
+import io.putdotio.android.sharing.MobilePublicLinkSheet
+import io.putdotio.android.sharing.MobilePublicLinks
 
 @Composable
 internal fun MobileFilesRoute(
@@ -31,6 +33,7 @@ internal fun MobileFilesRoute(
     onShareItem: ((FilesItem) -> Unit)? = null,
     onViewTrash: (() -> Unit)? = null,
     moveTargetStore: FilesMoveTargetStore? = null,
+    publicLinks: MobilePublicLinks? = null,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -39,6 +42,9 @@ internal fun MobileFilesRoute(
         var copyingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
         val copyingItem = (state.current.content as? FilesContent.Ready)?.items
             ?.firstOrNull { it.id.value == copyingItemId && it.canMakeCopy }
+        var publicLinkItemId by rememberSaveable { mutableStateOf<Long?>(null) }
+        val publicLinkItem = (state.current.content as? FilesContent.Ready)?.items
+            ?.firstOrNull { it.id.value == publicLinkItemId && it.acceptsOwnerActions }
         MobileFilesScreen(
             state = state,
             onEvent = { onEvent(it) },
@@ -51,6 +57,7 @@ internal fun MobileFilesRoute(
             onShareItem = onShareItem,
             onViewTrash = onViewTrash,
             onCopyItem = if (repository == null) null else { item -> copyingItemId = item.id.value },
+            onPublicLinkItem = publicLinks?.let { { item -> publicLinkItemId = item.id.value } },
         )
         if (movingItem != null && repository != null) {
             MobileFilesMoveSession(
@@ -75,6 +82,9 @@ internal fun MobileFilesRoute(
                 onEvent = onEvent,
                 onDismiss = { copyingItemId = null },
             )
+        }
+        if (publicLinkItem != null && publicLinks != null) {
+            MobilePublicLinkSheet(publicLinkItem, publicLinks, onDismiss = { publicLinkItemId = null })
         }
     }
 }

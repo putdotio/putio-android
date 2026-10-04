@@ -43,6 +43,9 @@ Mobile, on the emulator harness against the live API:
 - Share out: Share file exports the original through a scoped content URI; the
   chooser never sees a token. Product deep links open Files, a folder,
   Transfers, Search, History, Trash and Downloads
+- Exclusive access: create, copy, share and revoke public links to your own
+  files and folders from their action sheet; Account lists every link with
+  revoke
 
 TV:
 

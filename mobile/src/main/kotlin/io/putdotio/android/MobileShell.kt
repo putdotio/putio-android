@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -83,6 +84,9 @@ import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.ConfirmedDefaultSort
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedDefaultSort
+import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
+import io.putdotio.android.sharing.MobilePublicLinks
+import io.putdotio.android.sharing.PublicLinksController
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferMutation
@@ -110,6 +114,7 @@ internal fun MobileShell(
     filesRepository: FilesRepository? = null,
     trashController: TrashController? = null,
     downloadsController: DownloadsController? = null,
+    publicLinksController: PublicLinksController? = null,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
@@ -165,6 +170,10 @@ internal fun MobileShell(
     val isPlayback = backStackEntry?.destination?.route == MOBILE_PLAYBACK_ROUTE
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
     val isDownloads = backStackEntry?.destination?.route == MOBILE_DOWNLOADS_ROUTE
+    val isPublicLinks = backStackEntry?.destination?.route == MOBILE_PUBLIC_LINKS_ROUTE
+    val publicLinks = publicLinksController?.let { controller ->
+        MobilePublicLinks(controller.state.collectAsStateWithLifecycle().value, controller::dispatch)
+    }
     val downloadsState = downloadsController?.state?.collectAsStateWithLifecycle()?.value ?: DownloadsState()
     val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
     TrashRestoreEffects(trashState, onFilesEvent)
@@ -220,7 +229,7 @@ internal fun MobileShell(
     BackHandler(enabled = !isPlayback && filesOwnsBack, onBack = onFilesBack)
     SubpageBackHandler(
         enabled = !isPlayback,
-        onSubpage = isTrash || isDownloads,
+        onSubpage = isTrash || isDownloads || isPublicLinks,
         protectTrashRecovery = trashState?.hasPendingMutation == true && !filesOwnsBack,
         navController = navController,
     )
@@ -277,6 +286,7 @@ internal fun MobileShell(
                         onTransfersEvent = onTransfersEvent,
                         onSignOut = onSignOut,
                         modifier = contentModifier,
+                        publicLinks = publicLinks,
                     )
                 }
             }
@@ -527,7 +537,7 @@ private fun filesOwnsBack(
 ): Boolean = filesState.stack.any { it.operation.pendingMove != null } ||
     selectedDestination == MobileDestination.Files && filesState.canNavigateBack
 
-/** Back leaves Trash or Downloads; elsewhere it returns to Trash while a Trash change is pending. */
+/** Back leaves an Account subpage; elsewhere it returns to Trash while a Trash change is pending. */
 @Composable
 private fun SubpageBackHandler(
     enabled: Boolean,
@@ -639,9 +649,8 @@ private fun MobileChrome(
                         MobileTopBar(
                             openNavigation = openNavigation,
                             destination = selectedDestination,
-                            isTrash = route == MOBILE_TRASH_ROUTE,
-                            isDownloads = route == MOBILE_DOWNLOADS_ROUTE,
-                            onTrashBack = { navController.popBackStack() },
+                            subpageTitle = accountSubpageTitle(route),
+                            onSubpageBack = { navController.popBackStack() },
                             filesState = filesState,
                             onFilesBack = onFilesBack,
                             onFilesEvent = onFilesEvent,
@@ -695,10 +704,9 @@ private fun MobileChrome(
 @Composable
 private fun MobileTopBar(
     destination: MobileDestination,
-    isTrash: Boolean,
-    onTrashBack: () -> Unit,
+    @StringRes subpageTitle: Int?,
+    onSubpageBack: () -> Unit,
     filesState: FilesBrowserState,
-    isDownloads: Boolean = false,
     onFilesBack: () -> Unit,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     openNavigation: (() -> Unit)? = null,
@@ -707,10 +715,8 @@ private fun MobileTopBar(
     TopAppBar(
         title = {
             Text(
-                if (isTrash) {
-                    stringResource(R.string.mobile_trash_title)
-                } else if (isDownloads) {
-                    stringResource(R.string.mobile_downloads_title)
+                if (subpageTitle != null) {
+                    stringResource(subpageTitle)
                 } else if (destination == MobileDestination.Files && filesFolderName != null) {
                     filesFolderName
                 } else {
@@ -721,8 +727,8 @@ private fun MobileTopBar(
             )
         },
         navigationIcon = {
-            if (isTrash || isDownloads) {
-                IconButton(onClick = onTrashBack) {
+            if (subpageTitle != null) {
+                IconButton(onClick = onSubpageBack) {
                     Icon(painterResource(R.drawable.ic_ph_arrow_left),
                         contentDescription = stringResource(R.string.mobile_action_back))
                 }
@@ -752,6 +758,15 @@ private fun MobileTopBar(
         },
     )
 }
+
+@StringRes
+private fun accountSubpageTitle(route: String?): Int? =
+    when (route) {
+        MOBILE_TRASH_ROUTE -> R.string.mobile_trash_title
+        MOBILE_DOWNLOADS_ROUTE -> R.string.mobile_downloads_title
+        MOBILE_PUBLIC_LINKS_ROUTE -> R.string.mobile_public_links_manage
+        else -> null
+    }
 
 @Composable
 private fun MobileNowPlayingSlot(

@@ -48,6 +48,9 @@ import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.share.MobileFileShareService
+import io.putdotio.android.sharing.MobilePublicLinksViewModel
+import io.putdotio.android.sharing.PublicLinksController
+import io.putdotio.android.sharing.SdkPublicLinksRepository
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersViewModel
 import io.putdotio.android.transfers.SdkTransfersRepository
@@ -80,6 +83,7 @@ internal fun SignedInMobileRoot(
     authController: MobileAuthController,
     rootScope: CoroutineScope,
     downloadsViewModel: MobileDownloadsViewModel? = null,
+    publicLinksViewModel: MobilePublicLinksViewModel? = null,
     playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
@@ -147,6 +151,11 @@ internal fun SignedInMobileRoot(
     val downloadsController = remember(downloadsViewModel, downloadsContext, account.userId, sessionId) {
         downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId)
     }
+    val publicLinksRepository = remember(runtime.putioClient) { SdkPublicLinksRepository(runtime.putioClient) }
+    val publicLinksController =
+        remember(publicLinksViewModel, publicLinksRepository, account.userId, sessionId) {
+            publicLinksViewModel?.controllerFor(account.userId, sessionId, publicLinksRepository)
+        }
     // Each view model hands out null once its session is no longer current.
     val controllersReady = trashController != null && filesController != null &&
         accountSettingsController != null && appConfigController != null &&
@@ -167,6 +176,7 @@ internal fun SignedInMobileRoot(
         transfersController = transfersController,
         trashController = trashController,
         downloadsController = downloadsController,
+        publicLinksController = publicLinksController,
         authController = authController,
         rootScope = rootScope,
         playbackPlayerFactory = playbackPlayerFactory,
@@ -189,6 +199,7 @@ private fun SignedInMobileSession(
     transfersController: TransfersController,
     trashController: TrashController,
     downloadsController: DownloadsController?,
+    publicLinksController: PublicLinksController?,
     authController: MobileAuthController,
     rootScope: CoroutineScope,
     playbackPlayerFactory: MobilePlayerFactory,
@@ -229,6 +240,7 @@ private fun SignedInMobileSession(
     val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
     val historyState by searchHistorySession.history.state.collectAsStateWithLifecycle()
     val transfersState by transfersController.state.collectAsStateWithLifecycle()
+    val publicLinksState = publicLinksController?.state?.collectAsStateWithLifecycle()?.value
     val navigationFailure by searchHistorySession.navigationFailure.collectAsStateWithLifecycle()
     val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
     val confirmedHistoryEnabled = accountSettingsState.confirmedHistoryEnabled()
@@ -237,6 +249,7 @@ private fun SignedInMobileSession(
             ?: searchState.authoritativeSessionFailure()
             ?: historyState.authoritativeSessionFailure()
             ?: transfersState.authoritativeSessionFailure()
+            ?: publicLinksState?.authenticationFailure
             ?: recentSearchFailure?.takeIf { it is PutioFailure.AuthenticationRequired }
             ?: navigationFailure?.takeIf { it is PutioFailure.AuthenticationRequired }
 
@@ -280,6 +293,7 @@ private fun SignedInMobileSession(
         onOpenFile = searchHistorySession::openFile,
         onShareItem = { item -> MobileFileShareService.start(appContext, item.id, item.name) },
         downloadsController = downloadsController,
+        publicLinksController = publicLinksController,
         sessionId = sessionId,
         onFilesEvent = filesController::dispatch,
         onAccountSettingsEvent = accountSettingsController::dispatch,
