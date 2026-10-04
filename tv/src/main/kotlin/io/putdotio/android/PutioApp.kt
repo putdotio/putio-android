@@ -61,6 +61,8 @@ import io.putdotio.android.tv.player.TvPlaybackRoute
 import io.putdotio.android.tv.account.TvAccountScreen
 import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvExternalOpen
+import io.putdotio.android.tv.TvLaunchRequest
+import io.putdotio.android.tv.TvLaunchRequests
 import io.putdotio.android.tv.TvLinkScreen
 import io.putdotio.android.tv.TvSession
 import io.putdotio.android.tv.TvSessionDependencies
@@ -86,7 +88,7 @@ import io.putdotio.android.settings.putioFailure
 /** TV root: the generated Compose for TV scheme, then whichever screen the session state names. */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun PutioApp(runtime: TvAuthRuntime) {
+internal fun PutioApp(runtime: TvAuthRuntime, launchRequests: TvLaunchRequests) {
     val authController = runtime.authController
     val sessionViewModel: TvSessionViewModel = viewModel(factory = tvSessionViewModelFactory(authController.state))
     val authState by authController.state.collectAsStateWithLifecycle()
@@ -117,6 +119,7 @@ fun PutioApp(runtime: TvAuthRuntime) {
                     signedIn = state,
                     runtime = runtime,
                     sessionViewModel = sessionViewModel,
+                    launchRequests = launchRequests,
                     onSignOut = { scope.launch { authController.logout() } },
                     onSessionRejected = { authController.rejectAuthoritativeSession(state.sessionId) },
                 )
@@ -129,6 +132,7 @@ private fun TvSignedInApp(
     signedIn: TvAuthState.SignedIn,
     runtime: TvAuthRuntime,
     sessionViewModel: TvSessionViewModel,
+    launchRequests: TvLaunchRequests,
     onSignOut: () -> Unit,
     onSessionRejected: suspend () -> Unit,
 ) {
@@ -147,8 +151,10 @@ private fun TvSignedInApp(
             recentSearchStore = { scope -> AppConfigRecentSearchStore(runtime.putioClient, scope) },
             playbackRepository = { preference -> ConvertingPlaybackRepository(runtime.putioClient, preference) },
             writePlaybackPosition = SdkPlaybackPositionRepository(runtime.putioClient)::write,
+            watchNext = runtime.watchNext::recorder,
         )
     }
+    val pendingLaunch by launchRequests.pending.collectAsStateWithLifecycle()
     // Looked up every composition, not remembered: the view model closes the session on its
     // own auth collector, and a cached closed controller would silently swallow events.
     val session = sessionViewModel.sessionFor(signedIn.account, signedIn.sessionId, dependencies)
@@ -163,6 +169,8 @@ private fun TvSignedInApp(
         onSignOut = onSignOut,
         onSessionRejected = onSessionRejected,
         loadTunnelRoutes = dependencies.settingsRepository::loadTunnelRoutes,
+        pendingLaunch = pendingLaunch,
+        onLaunchHandled = launchRequests::acknowledge,
     )
 }
 
@@ -176,12 +184,16 @@ internal fun TvSessionShell(
     onSignOut: () -> Unit,
     onSessionRejected: suspend () -> Unit,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
+    /** A file or search the system asked for; it is handled once the shell exists. */
+    pendingLaunch: TvLaunchRequest? = null,
+    onLaunchHandled: (TvLaunchRequest) -> Unit = {},
 ) {
     val filesState by session.files.state.collectAsStateWithLifecycle()
     val searchState by session.search.state.collectAsStateWithLifecycle()
     val historyState by session.history.state.collectAsStateWithLifecycle()
     val recentSearchFailure by session.recentSearchFailure.collectAsStateWithLifecycle()
     val historyOpenFailure by session.historyOpenFailure.collectAsStateWithLifecycle()
+    val linkOpenFailure by session.links.failure.collectAsStateWithLifecycle()
     val fileActionFailure by session.fileActionFailure.collectAsStateWithLifecycle()
     val trashState by session.trash.state.collectAsStateWithLifecycle()
     val settingsState by session.settings.state.collectAsStateWithLifecycle()
@@ -197,7 +209,7 @@ internal fun TvSessionShell(
         searchState.authoritativeSessionFailure(),
         historyState.authoritativeSessionFailure(),
     ).any { it != null }
-    val sideActionRejected = listOf(recentSearchFailure, fileActionFailure, historyOpenFailure)
+    val sideActionRejected = listOf(recentSearchFailure, fileActionFailure, historyOpenFailure, linkOpenFailure)
         .any { it is PutioFailure.AuthenticationRequired }
     val sessionRejected = controllerRejected || tunnelRoutesRejected || positionWriteRejected || sideActionRejected
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
@@ -227,6 +239,14 @@ internal fun TvSessionShell(
     LaunchedEffect(session) {
         session.historyOpens.collect { item -> historyOpenRejected = !openExternal(item, FilesOpenOrigin.HISTORY) }
     }
+    val linkNotice = rememberTvLaunchHandling(
+        session = session,
+        pendingLaunch = pendingLaunch,
+        onLaunchHandled = onLaunchHandled,
+        linkOpenFailure = linkOpenFailure,
+        onDestination = { requestedDestination = it },
+        onSearchLaunched = { openRejected = false },
+    )
     // A restore changes Files behind the browser's cache: one item's folder, or every folder.
     LaunchedEffect(session, trashState.restoredVersion) {
         trashState.lastRestoredItem?.let { session.files.dispatch(FilesBrowserEvent.InvalidateRestoredItem(it)) }
@@ -273,6 +293,7 @@ internal fun TvSessionShell(
                     filesState = filesState,
                     settingsState = settingsState,
                     fileActionFailure = fileActionFailure,
+                    linkNotice = linkNotice,
                     sessionKey = sessionKey,
                     paneFocus = paneFocus,
                 )
@@ -342,6 +363,7 @@ private fun TvFilesPane(
     filesState: FilesBrowserState,
     settingsState: AccountSettingsState,
     fileActionFailure: PutioFailure?,
+    linkNotice: TvLinkNotice,
     sessionKey: Any,
     paneFocus: FocusRequester,
 ) {
@@ -391,17 +413,93 @@ private fun TvFilesPane(
             }
         },
         onSetWatched = session::setWatched,
-        notice = filesNoticeText(filesNotice, streamFailure, fileActionFailure),
+        notice = linkNotice.text() ?: filesNoticeText(filesNotice, streamFailure, fileActionFailure),
         // OK clears only what it was shown; a failure that arrived behind a VLC
         // notice is shown next.
         onDismissNotice = {
             when {
+                linkNotice.shown -> linkNotice.onDismiss()
                 filesNotice != null -> filesNotice = null
                 streamFailure != null -> streamFailure = null
                 else -> session.dismissFileActionFailure()
             }
         },
     )
+}
+
+/**
+ * Acts on what system search or a Watch Next card asked for: a file resolves, then plays or
+ * opens in Files; a query opens Search with it. Returns what Files explains when a file did not
+ * open; a 401 is left to the shell, which signs out.
+ */
+@Composable
+private fun rememberTvLaunchHandling(
+    session: TvSession,
+    pendingLaunch: TvLaunchRequest?,
+    onLaunchHandled: (TvLaunchRequest) -> Unit,
+    linkOpenFailure: PutioFailure?,
+    onDestination: (TvDestination) -> Unit,
+    onSearchLaunched: () -> Unit,
+): TvLinkNotice {
+    var rejected by remember(session) { mutableStateOf(false) }
+    LaunchedEffect(session) {
+        session.links.opens.collect { opened ->
+            rejected = opened == TvExternalOpen.REFUSED
+            if (opened != TvExternalOpen.PLAYING) {
+                session.stopPlayback()
+                onDestination(TvDestination.Files)
+            }
+        }
+    }
+    LaunchedEffect(session, pendingLaunch) {
+        val request = pendingLaunch ?: return@LaunchedEffect
+        when (request) {
+            is TvLaunchRequest.OpenFile -> {
+                rejected = false
+                session.links.dismissFailure()
+                session.links.open(request.id, request.continueWatching)
+            }
+            is TvLaunchRequest.Search -> {
+                session.stopPlayback()
+                onSearchLaunched()
+                session.search.updateQuery(request.term.value)
+                session.search.submit()
+                onDestination(TvDestination.Search)
+            }
+        }
+        onLaunchHandled(request)
+    }
+    LaunchedEffect(linkOpenFailure) {
+        if (linkOpenFailure != null) {
+            session.stopPlayback()
+            onDestination(TvDestination.Files)
+        }
+    }
+    return TvLinkNotice(
+        rejected = rejected,
+        failure = linkOpenFailure,
+        onDismiss = {
+            rejected = false
+            session.links.dismissFailure()
+        },
+    )
+}
+
+/** Why a file from system search or Watch Next did not open; Files shows it. */
+private class TvLinkNotice(
+    rejected: Boolean,
+    failure: PutioFailure?,
+    val onDismiss: () -> Unit,
+) {
+    // A 401 is the session's verdict, which the shell already acts on.
+    private val shownFailure: FilesFailure? = when {
+        rejected -> FilesFailure.NavigationBlocked
+        else -> failure?.takeUnless { it is PutioFailure.AuthenticationRequired }
+    }
+    val shown: Boolean get() = shownFailure != null
+
+    @Composable
+    fun text(): String? = shownFailure?.let { stringResource(R.string.tv_link_open_error, it.tvMessageText()) }
 }
 
 /** Hands a ready stream to VLC; the notice to show instead, if any. */

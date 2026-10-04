@@ -11,6 +11,8 @@ public data class PlaybackTarget(
     val mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
     /** The listing's media duration, when known; TV offers resume only with one. */
     val durationSeconds: Double? = null,
+    /** put.io's token-free still of the video, from the listing; TV's Watch Next row shows it. */
+    val posterUrl: String? = null,
 )
 
 public enum class PlaybackMediaType {

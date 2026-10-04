@@ -15,6 +15,9 @@
     <string name="tv_link_failed_storage">Secure storage is unavailable on this device, so the sign-in can’t be kept.</string>
     <string name="tv_link_new_code">Get new code</string>
     <string name="tv_link_code_description">Activation code %1$s</string>
+    <string name="tv_link_qr_caption">Or scan with your phone</string>
+    <string name="tv_link_qr_description">QR code that opens put.io/link with this code</string>
+    <string name="tv_link_open_error">Couldn’t open that file. %1$s</string>
 
     <string name="tv_session_restoring">Restoring your session</string>
     <string name="tv_session_validating">Checking your session</string>
@@ -98,6 +101,7 @@
     <string name="tv_error_forbidden">You don’t have access to this folder.</string>
     <string name="tv_error_rate_limited">put.io is receiving too many requests. Try again shortly.</string>
     <string name="tv_error_unavailable">put.io is temporarily unavailable. Try again.</string>
+    <string name="tv_global_search_description">Files in your put.io account</string>
     <string name="tv_search_placeholder">Tap to start typing</string>
     <string name="tv_search_field">Search files</string>
     <string name="tv_search_recent_term">Search again for %1$s</string>

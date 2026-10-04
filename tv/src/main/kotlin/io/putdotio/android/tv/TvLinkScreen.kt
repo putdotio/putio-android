@@ -1,5 +1,6 @@
 package io.putdotio.android.tv
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,10 +16,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -34,7 +37,8 @@ import io.putdotio.android.tv.auth.TvLinkStop
 /**
  * Device-code sign-in, after the tv-native oracle (01-auth-code, 02-auth-logging-in):
  * code tiles, put.io/link, and a single "Get new code" action that is the only
- * focusable thing on screen. The only chrome is the copy.
+ * focusable thing on screen. The only chrome is the copy. Beside the code, a QR code
+ * of put.io's `/link?code=` page lets a phone open the approval with the code filled in.
  */
 @Composable
 internal fun TvLinkScreen(
@@ -64,7 +68,7 @@ internal fun TvLinkScreen(
             textAlign = TextAlign.Center,
         )
         Column(
-            modifier = Modifier.padding(top = 56.dp),
+            modifier = Modifier.padding(top = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -82,7 +86,7 @@ internal fun TvLinkScreen(
             TvButton(
                 onClick = onRequestNewCode,
                 modifier = Modifier
-                    .padding(top = 56.dp)
+                    .padding(top = 40.dp)
                     .focusRequester(newCodeFocus),
             ) {
                 Text(stringResource(R.string.tv_link_new_code))
@@ -93,6 +97,47 @@ internal fun TvLinkScreen(
 
 @Composable
 private fun AwaitingLinkBody(code: String) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(64.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            CodeInstructions(code)
+        }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            TvQrCode(
+                text = tvLinkPageUrl(code),
+                description = stringResource(R.string.tv_link_qr_description),
+                dark = MaterialTheme.colorScheme.background,
+                light = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier
+                    .size(184.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .testTag(TV_LINK_QR_TAG),
+            )
+            Text(
+                text = stringResource(R.string.tv_link_qr_caption),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
+ * put.io's approval page with [code] filled in: what put.io's own QR image for the code (the
+ * SDK's `qrCodeUrl`, a PNG) encodes, drawn here instead of downloaded.
+ */
+internal fun tvLinkPageUrl(code: String): String = "https://app.put.io/link?code=${Uri.encode(code)}"
+
+@Composable
+private fun CodeInstructions(code: String) {
     Text(
         text = stringResource(R.string.tv_link_instruction),
         style = MaterialTheme.typography.titleLarge,
@@ -123,7 +168,7 @@ private fun AwaitingLinkBody(code: String) {
         text = stringResource(R.string.tv_link_follow),
         style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.onBackground,
-        modifier = Modifier.padding(top = 40.dp),
+        modifier = Modifier.padding(top = 24.dp),
     )
     Text(
         text = stringResource(R.string.tv_link_url),
@@ -158,3 +203,5 @@ private fun StatusLine(text: String) {
         modifier = Modifier.width(720.dp),
     )
 }
+
+internal const val TV_LINK_QR_TAG = "tv-link-qr"

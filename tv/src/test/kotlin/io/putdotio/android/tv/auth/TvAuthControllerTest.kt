@@ -144,6 +144,43 @@ class TvAuthControllerTest {
     }
 
     @Test
+    fun `a restore with no screen signs a stored session in`() = runTest {
+        val harness = Harness(storedToken = "stored-token")
+
+        assertTrue(harness.controller.restoreSession(interactive = false))
+
+        assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
+        assertTrue("The app's own start keeps the session", harness.controller.restoreSession())
+    }
+
+    @Test
+    fun `a restore with no screen never imports a tv-native token or requests a code`() = runTest {
+        val harness = Harness(legacyToken = "fake-legacy-token")
+
+        assertFalse(harness.controller.restoreSession(interactive = false))
+
+        assertEquals(TvAuthState.Initializing, harness.controller.state.value)
+        assertEquals(0, harness.gateway.linkAttempts)
+        assertEquals(0, harness.legacySession.reads)
+        // The app's own start still runs the full restore.
+        harness.controller.restoreSession()
+        assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
+    }
+
+    @Test
+    fun `a restore with no screen leaves an unconfirmed or rejected session to the app's own start`() = runTest {
+        listOf(TvSessionValidation.Unavailable(IOException("offline")), TvSessionValidation.Rejected).forEach {
+            val harness = Harness(storedToken = "stored-token", validation = it)
+
+            assertFalse(harness.controller.restoreSession(interactive = false))
+
+            assertEquals(TvAuthState.Initializing, harness.controller.state.value)
+            assertEquals("stored-token", harness.tokenStore.stored?.reveal())
+            assertEquals(0, harness.gateway.linkAttempts)
+        }
+    }
+
+    @Test
     fun `no stored token starts a link attempt and shows the code`() = runTest {
         val harness = Harness()
 

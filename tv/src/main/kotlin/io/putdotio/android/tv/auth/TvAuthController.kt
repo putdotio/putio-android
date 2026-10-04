@@ -96,15 +96,23 @@ class TvAuthController internal constructor(
 
     val state: StateFlow<TvAuthState> = mutableState.asStateFlow()
 
-    suspend fun restoreSession() = operationMutex.withLock {
+    /**
+     * Restores the stored session at start, else imports a tv-native one, else offers a code.
+     * A caller with no screen (system search) passes [interactive] false: only a stored session
+     * is restored, nothing is imported and no code is requested, and one put.io cannot confirm
+     * right now, or rejects, goes back to [TvAuthState.Initializing] for the app's own start to
+     * explain. True when this leaves the app signed in.
+     */
+    suspend fun restoreSession(interactive: Boolean = true): Boolean = operationMutex.withLock {
         if (mutableState.value != TvAuthState.Initializing) {
-            return@withLock
+            return@withLock mutableState.value is TvAuthState.SignedIn
         }
+        val quietToken = if (interactive) null else tokens.read() as? StoredToken.Present ?: return@withLock false
 
         mutableState.value = TvAuthState.RestoringSession
         tokenRevocations.resume()
         try {
-            val accessToken = when (val stored = tokens.read()) {
+            val accessToken = when (val stored = quietToken ?: tokens.read()) {
                 is StoredToken.Present -> {
                     // Unread: a Keystore session supersedes it. Deleting here retries a
                     // cleanup that failed after import.
@@ -113,19 +121,20 @@ class TvAuthController internal constructor(
                 }
                 StoredToken.Absent -> {
                     importLegacySession(TvSessionValidationSource.RESTORE)
-                    return@withLock
+                    return@withLock mutableState.value is TvAuthState.SignedIn
                 }
                 StoredToken.Unreadable -> {
                     linking.stop(TvLinkStop.StorageUnavailable, sessionExpired = false)
-                    return@withLock
+                    return@withLock false
                 }
             }
             tokens.configure(accessToken)
-            validateStoredSession(TvSessionValidationSource.RESTORE)
+            validateStoredSession(TvSessionValidationSource.RESTORE, quiet = !interactive)
         } catch (error: CancellationException) {
             rollBackInterruptedValidation(TvAuthState.Initializing)
             throw error
         }
+        mutableState.value is TvAuthState.SignedIn
     }
 
     /**
@@ -222,12 +231,18 @@ class TvAuthController internal constructor(
         }
     }
 
-    private suspend fun validateStoredSession(source: TvSessionValidationSource) {
+    /** [quiet] has no screen to explain a failure on; the app's own start validates again. */
+    private suspend fun validateStoredSession(source: TvSessionValidationSource, quiet: Boolean = false) {
         mutableState.value = TvAuthState.ValidatingSession(source)
-        when (val result = tokens.validate()) {
-            is TvSessionValidation.Valid -> signIn(result.account)
-            is TvSessionValidation.Unavailable -> mutableState.value = TvAuthState.ValidationUnavailable(source)
-            TvSessionValidation.Rejected -> linking.restart(sessionExpired = true)
+        val result = tokens.validate()
+        when {
+            result is TvSessionValidation.Valid -> signIn(result.account)
+            quiet -> {
+                tokens.clearConfigured()
+                mutableState.value = TvAuthState.Initializing
+            }
+            result is TvSessionValidation.Unavailable -> mutableState.value = TvAuthState.ValidationUnavailable(source)
+            else -> linking.restart(sessionExpired = true)
         }
     }
 
