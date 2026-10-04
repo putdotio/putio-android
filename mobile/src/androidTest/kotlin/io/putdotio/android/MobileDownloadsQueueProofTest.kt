@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -44,6 +45,7 @@ import io.putdotio.android.downloads.DownloadArtifact
 import io.putdotio.android.downloads.DownloadEngine
 import io.putdotio.android.downloads.DownloadEntry
 import io.putdotio.android.downloads.DownloadFailureReason
+import io.putdotio.android.downloads.DownloadPauseReason
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsState
@@ -84,7 +86,8 @@ import org.junit.runners.model.Statement
 /**
  * The production Downloads screen, controller, engine and notifications over a real Media3
  * manager reading generated local files, so no API call, account or session is involved. Five
- * files queue at a limit of 2; the third fails for storage until it is retried.
+ * files queue at a limit of 2, wait while the system reports low storage, and the third fails
+ * for storage until it is retried.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @RunWith(AndroidJUnit4::class)
@@ -115,6 +118,7 @@ class MobileDownloadsQueueProofTest {
 
     @After
     fun tearDown() {
+        shell("cmd devicestoragemonitor reset")
         cleanup()
         scope.cancel()
         settings.concurrency = previousConcurrency
@@ -161,7 +165,7 @@ class MobileDownloadsQueueProofTest {
                     executor,
                 ),
             ).apply {
-                requirements = Requirements(0)
+                requirements = Requirements(Requirements.DEVICE_STORAGE_NOT_LOW)
                 minRetryCount = 0
                 addListener(MobileDownloadNotifications(context))
             }
@@ -202,6 +206,15 @@ class MobileDownloadsQueueProofTest {
         assertEquals(listOf(1, 2, 3), waiting.map { controller.state.value.queuePosition(it.fileId) })
         screenshot("queue-at-limit-2")
 
+        // The system reports low storage: every transfer waits, keeps its bytes and says why.
+        shell("cmd devicestoragemonitor force-low -f")
+        awaitState { state -> state.queue.all { it.status is DownloadStatus.Paused } }
+        val paused = controller.state.value.queue.map { it.status }
+        assertTrue(paused.all { (it as DownloadStatus.Paused).reason == DownloadPauseReason.STORAGE })
+        screenshot("waiting-for-storage")
+        shell("cmd devicestoragemonitor reset")
+        awaitState { it.running() == 2 }
+
         awaitState { it.entry(FailingId)?.status is DownloadStatus.Failed }
         val failed = controller.state.value.entry(FailingId)?.status as DownloadStatus.Failed
         assertEquals(DownloadFailureReason.STORAGE, failed.reason)
@@ -231,8 +244,13 @@ class MobileDownloadsQueueProofTest {
         compose.onNodeWithTag(MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG).performClick()
         awaitState { it.entries.isEmpty() }
         assertTrue(manager.currentDownloads.isEmpty())
+        // Let the dialog's exit animation finish before the capture.
+        awaitCondition { compose.onAllNodesWithTag(MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG).fetchSemanticsNodes().isEmpty() }
+        SystemClock.sleep(SHADE_SETTLE_MILLIS)
         screenshot("after-bulk-delete")
     }
+
+    private fun shell(command: String) = instrumentation.uiAutomation.executeShellCommand(command).close()
 
     private fun DownloadsState.running(): Int = entries.count { it.status is DownloadStatus.Downloading }
 

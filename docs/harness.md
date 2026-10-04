@@ -1229,13 +1229,16 @@ synthetic proof. Follow the [Evidence](#evidence) contract.
 - `MobileDownloadsQueueProofTest` queues five files at a limit of 2, one of
   which fails for storage until retried. Run it after
   `adb shell pm revoke <package> android.permission.POST_NOTIFICATIONS`, with
-  `putio.downloads.queue.enabled=true` and `putio.downloads.queue.runId=<UUID>`.
-  It requires two running and three waiting rows in order, the failure with no
-  notification while the permission is denied, a finished-download
-  notification after the test grants it and retries through the row sheet, and
-  a bulk delete through Select all. It restores the concurrency setting and
-  removes only its own index rows. Screenshots land in
-  `downloads-queue-proof-<UUID>/`.
+  `putio.downloads.queue.enabled=true` and `putio.downloads.queue.runId=<UUID>`,
+  on an emulator you booted: it forces low storage with
+  `cmd devicestoragemonitor force-low -f` and resets it, also on failure. It
+  requires two running and three waiting rows in order, every row waiting for
+  storage and resuming once it clears (the platform rechecks about once a
+  minute), the failure with no notification while the permission is denied, a
+  finished-download notification after the test grants it and retries through
+  the row sheet, and a bulk delete through Select all. It leaves the permission
+  granted, restores the concurrency setting and removes only its own index
+  rows. Screenshots land in `downloads-queue-proof-<UUID>/`.
 
 ## Shared-with-me items proof
 
