@@ -749,16 +749,16 @@ same fake 10k and 50k histories on the `putio-phone` emulator (API 37,
 arm64-v8a, debuggable build) and took the median thread CPU time of 15 polls
 after 5 warmup polls. Before is the list walk this path replaced.
 
-| History, polled rows | Before, CPU ms | After, CPU ms |
-| --- | --- | --- |
-| 10k, 1 recent running | 27.3 | 0.37 |
-| 10k, 1 old running (position 9,500) | 239 | 0.36 |
-| 10k, 1 deleted | 223 | 0.65 |
-| 10k, 3 recent + 1 old | 236 | 0.59 |
-| 10k, 11 recent (list walk both) | 24.1 | 31.2 |
-| 50k, 1 recent running | 25.1 | 0.38 |
-| 50k, 1 running past the cap (position 20,000) | 228, reported missing | 0.33 |
-| 50k, 1 deleted | 239 | 0.68 |
+| History, polled rows                          | Before, CPU ms        | After, CPU ms |
+| --------------------------------------------- | --------------------- | ------------- |
+| 10k, 1 recent running                         | 27.3                  | 0.37          |
+| 10k, 1 old running (position 9,500)           | 239                   | 0.36          |
+| 10k, 1 deleted                                | 223                   | 0.65          |
+| 10k, 3 recent + 1 old                         | 236                   | 0.59          |
+| 10k, 11 recent (list walk both)               | 24.1                  | 31.2          |
+| 50k, 1 recent running                         | 25.1                  | 0.38          |
+| 50k, 1 running past the cap (position 20,000) | 228, reported missing | 0.33          |
+| 50k, 1 deleted                                | 239                   | 0.68          |
 
 The host was shared with other emulators, so absolute times vary by about 2x
 between runs; a second run measured the 11-row list walk at 16.6 ms before and

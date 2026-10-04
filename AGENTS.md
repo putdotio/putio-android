@@ -9,14 +9,14 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
 
 ## Where code lives
 
-| Module | Owns |
-| --- | --- |
-| `core/common` | The put.io failure and result kernel (`PutioFailure`, `PutioResult`, `putioRequest`, API rejection reasons), Files ids, cursors and sort order, the download-token account read, timestamps, avatar URLs, account storage keys, `SessionScopedHolder` |
-| `core/design` | `PutioTheme`, generated design tokens, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words |
-| `domain/<name>` | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `transfers`, `trash` |
-| `mobile` | Phone and tablet app: touch UI, shell, navigation, offline downloads, services and session wiring |
-| `tv` | Android TV app: D-pad UI, shell and session wiring |
-| `build-logic` | Convention plugins (`putio.android.application`, `putio.android.library`), design-token codegen, launcher-manifest check, proof tasks |
+| Module          | Owns                                                                                                                                                                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core/common`   | The put.io failure and result kernel (`PutioFailure`, `PutioResult`, `putioRequest`, API rejection reasons), Files ids, cursors and sort order, the download-token account read, timestamps, avatar URLs, account storage keys, `SessionScopedHolder` |
+| `core/design`   | `PutioTheme`, generated design tokens, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words                                                                                                              |
+| `domain/<name>` | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `transfers`, `trash`                       |
+| `mobile`        | Phone and tablet app: touch UI, shell, navigation, offline downloads, services and session wiring                                                                                                                                                     |
+| `tv`            | Android TV app: D-pad UI, shell and session wiring                                                                                                                                                                                                    |
+| `build-logic`   | Convention plugins (`putio.android.application`, `putio.android.library`), design-token codegen, launcher-manifest check, proof tasks                                                                                                                 |
 
 - Dependencies point from the apps to `domain` to `core`; `history`, `search`
   and `trash` also build on `files` for `FilesItem`. A domain failure with
@@ -117,15 +117,15 @@ and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
 Code changes pass `./gradlew verify` and the debug assembles, plus the row
 that matches. Report skipped or unavailable proof.
 
-| Change | Proof |
-| --- | --- |
-| Docs only | None; check the links and commands you touched. Pull-request CI skips `verify` for these paths |
-| Domain or core logic | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module |
-| App view models or services | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest` |
-| UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md) |
-| Live API behavior | The lane's `devs-auto` steps in [Harness](docs/harness.md#live-api-proof-putio-cli) |
-| Design tokens or icons | The sync in [design/README.md](design/README.md), then `./gradlew verify` |
-| Visible change | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>` |
+| Change                              | Proof                                                                                                             |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Docs only                           | None; check the links and commands you touched. Pull-request CI skips `verify` for these paths                    |
+| Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module |
+| App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                              |
+| UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md)    |
+| Live API behavior                   | The lane's `devs-auto` steps in [Harness](docs/harness.md#live-api-proof-putio-cli)                               |
+| Design tokens or icons              | The sync in [design/README.md](design/README.md), then `./gradlew verify`                                         |
+| Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                            |
 
 A changed product rule updates its [Behaviour](docs/behavior.md) section and
 names the tests that pin it; a new device lane gets a section in
