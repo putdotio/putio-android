@@ -613,10 +613,11 @@ private fun HostViewEffects(
 ) {
     val hostView = LocalView.current
     DisposableEffect(hostView, playerState.keepScreenOn) {
-        val inheritedKeepScreenOn = hostView.keepScreenOn
-        if (playerState.keepScreenOn && !inheritedKeepScreenOn) hostView.keepScreenOn = true
+        // Captured, not re-read: by onDispose the state already holds the next value.
+        val holdsScreen = playerState.keepScreenOn && !hostView.keepScreenOn
+        if (holdsScreen) hostView.keepScreenOn = true
         onDispose {
-            if (playerState.keepScreenOn && !inheritedKeepScreenOn) hostView.keepScreenOn = false
+            if (holdsScreen) hostView.keepScreenOn = false
         }
     }
 

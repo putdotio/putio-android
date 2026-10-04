@@ -788,6 +788,34 @@ class MobilePlayerLifecycleTest {
         compose.runOnIdle { player.updatePlaybackState(Media3Player.STATE_ENDED) }
         compose.runOnIdle { assertEquals(1, endedCalls) }
     }
+
+    @Test
+    fun pausingVideoLetsTheScreenSleep() {
+        lateinit var player: RecordingPlayer
+        var hostView: View? = null
+        compose.setContent {
+            PutioTheme {
+                hostView = LocalView.current
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
+                )
+            }
+        }
+
+        compose.runOnIdle { player.pause() }
+        compose.runOnIdle { player.play() }
+        compose.runOnIdle { assertTrue(requireNotNull(hostView).keepScreenOn) }
+
+        compose.runOnIdle { player.pause() }
+        compose.runOnIdle { assertFalse(requireNotNull(hostView).keepScreenOn) }
+
+        compose.runOnIdle { player.play() }
+        compose.runOnIdle { assertTrue(requireNotNull(hostView).keepScreenOn) }
+    }
 }
 
 @RunWith(AndroidJUnit4::class)
