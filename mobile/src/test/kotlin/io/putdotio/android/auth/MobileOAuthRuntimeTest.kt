@@ -122,6 +122,25 @@ class MobileOAuthRuntimeTest {
         assertFalse(restored.exists())
     }
 
+    @Test
+    fun `the system file picker hears when each session starts and ends`() = runBlocking {
+        val events = mutableListOf<String>()
+        val fixture = SessionExitFixture(
+            SessionValidationResult.Valid(ACCOUNT),
+            onSessionLeft = { session -> events += "left ${session?.value}" },
+            onSessionStarted = { session -> events += "started ${session.value}" },
+        )
+
+        fixture.controller.restoreSession()
+        val first = fixture.signedInSession()
+        fixture.controller.logout()
+        fixture.controller.beginSignIn()
+        assertEquals(OAuthCallbackHandlingResult.ACCEPTED, fixture.controller.handleOAuthCallback(CALLBACK))
+        val next = fixture.signedInSession()
+
+        assertEquals(listOf("started ${first.value}", "left ${first.value}", "started ${next.value}"), events)
+    }
+
     private fun writeExport(context: Context, session: MobileAuthSessionId): File =
         File(MobileFileShareService.sessionShares(context, session), "9/poster.jpg").apply {
             parentFile?.mkdirs()
@@ -132,6 +151,7 @@ class MobileOAuthRuntimeTest {
         validation: SessionValidationResult,
         dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
         onSessionLeft: ((MobileAuthSessionId?) -> Unit)? = null,
+        onSessionStarted: (MobileAuthSessionId) -> Unit = {},
     ) {
         var sessionsLeft = 0
         val controller = MobileAuthController(
@@ -151,6 +171,7 @@ class MobileOAuthRuntimeTest {
                 authController = controller,
                 applicationScope = CoroutineScope(SupervisorJob() + dispatcher),
                 onSessionLeft = onSessionLeft ?: { sessionsLeft += 1 },
+                onSessionStarted = onSessionStarted,
             )
         }
 

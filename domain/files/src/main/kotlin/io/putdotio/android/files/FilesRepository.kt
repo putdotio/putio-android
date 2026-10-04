@@ -196,6 +196,7 @@ public fun PutioFile.toFilesItem(): FilesItem =
         isShared = isShared,
         folderType = folderType,
         screenshotUrl = screenshot?.takeIf(String::isNotBlank),
+        updatedAt = updatedAt,
     )
 
 // Only media rows carry a position. Malformed server values drop the indicator instead of

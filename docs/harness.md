@@ -1236,6 +1236,31 @@ Screenshots `control-chooser-opens.png`, `export-running.png` and
 `signed-out-no-chooser.png` go to `share-session-proof-<UUID>/`. Describe them as
 synthetic session proof, not a live sign-out.
 
+## Documents provider proof
+
+Behaviour: [Documents provider](./behavior.md#documents-provider).
+`MobileDocumentsPickerProofTest` sends `ACTION_OPEN_DOCUMENT` from a test
+activity and drives the real system picker through UiAutomation against the
+production provider over a faked session and Files repository. The remote file
+comes through the share-out request served in-process, the local one from a
+stand-in for a completed download. It makes no API calls; report it as
+synthetic proof. Follow the [Evidence](#evidence) contract with
+`putio.documents.enabled=true` and `putio.documents.runId=<UUID>`, require
+`OK (1 test)`, and start `scripts/evidence.sh record --seconds 60` just
+before the instrumentation. Screenshots land in `documents-proof-<UUID>/`:
+
+- `01-picker-lists-putio`: the put.io root with the account name
+- `02-putio-root` to `04-folder-every-page`: a three-page folder paging in
+- `05-picked-remote-poster`: the picked image, streamed with ranged requests
+- `06-picked-local-copy`: the local copy, read without a request
+- `07-signed-out-documents-refused` and `08-signed-out-no-root`: after the
+  session-exit hook, picked documents no longer open and the root is gone
+
+The picker reopens at its last root, so a second run starts in put.io rather
+than the roots drawer. The test activity shares the app's uid, which always
+reads its own provider, so revocation of another app's grant is pinned by
+`MobileDocumentsProviderTest`, not this lane.
+
 ## Downloads and offline playback proof
 
 Behaviour: [Downloads and offline playback](./behavior.md#downloads-and-offline-playback);
