@@ -1,11 +1,18 @@
 package io.putdotio.android.auth
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.util.Log
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.documents.MobileDocumentsProvider
 import io.putdotio.android.downloads.MobileDownloadCache
+import io.putdotio.android.downloads.OfflinePlaybackPositions
+import io.putdotio.android.downloads.PositionRemote
+import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.sdk.PutioClient
@@ -31,6 +38,12 @@ class MobileOAuthRuntime internal constructor(
     onSessionLeft: (MobileAuthSessionId?) -> Unit = {},
     onSessionStarted: (MobileAuthSessionId) -> Unit = {},
 ) {
+    private val positions = SdkPlaybackPositionRepository(putioClient)
+
+    /** Saved positions of downloaded files; attached by [create], absent in runtimes tests build. */
+    internal var offlinePositions: OfflinePlaybackPositions? = null
+        private set
+
     init {
         // Sessions also end without a UI (a background rejection), so the process scope owns this boundary.
         applicationScope.launch {
@@ -47,7 +60,10 @@ class MobileOAuthRuntime internal constructor(
                     restoreEnded -> onSessionLeft(null)
                     previous != null && current != previous -> onSessionLeft(previous)
                 }
-                if (current != null && current != previous) onSessionStarted(current)
+                if (current != null && current != previous) {
+                    onSessionStarted(current)
+                    offlinePositions?.requestSync()
+                }
                 previous = current
             }
         }
@@ -57,8 +73,28 @@ class MobileOAuthRuntime internal constructor(
         authController.state,
         applicationScope,
         onAuthenticationRequired = { sessionId -> authController.rejectAuthoritativeSession(sessionId) },
-        write = SdkPlaybackPositionRepository(putioClient)::write,
+        write = positions::write,
+        offline = { offlinePositions },
     )
+
+    private fun keepOfflinePositions(preferences: SharedPreferences): OfflinePlaybackPositions =
+        OfflinePlaybackPositions(
+            preferences = preferences,
+            signedInUser = { (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId },
+            remote = object : PositionRemote {
+                override suspend fun read(fileId: Long) = positions.read(fileId)
+
+                override suspend fun write(fileId: Long, seconds: Double) = positions.write(fileId, seconds)
+
+                override suspend fun resumeEnabled() = positions.resumeEnabled()
+            },
+            scope = applicationScope,
+            onSynced = { fileId, seconds -> playbackReporting.publishSaved(fileId, seconds) },
+        ).also {
+            offlinePositions = it
+            // A session restored before this attached still has its waiting positions sent.
+            it.requestSync()
+        }
 
     /**
      * Background components that outlive the UI restore the session so the download
@@ -157,6 +193,21 @@ class MobileOAuthRuntime internal constructor(
                     MobileDocumentsProvider.sessionLeft(context)
                 },
                 onSessionStarted = { MobileDocumentsProvider.sessionStarted(context) },
+            ).also { runtime ->
+                syncWhenOnline(context, runtime.keepOfflinePositions(downloadPreferences(context)))
+            }
+        }
+
+        /** put.io answers again once a validated network returns; positions saved offline go then. */
+        private fun syncWhenOnline(context: Context, positions: OfflinePlaybackPositions) {
+            context.getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(
+                object : ConnectivityManager.NetworkCallback() {
+                    override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                        if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                            positions.requestSync()
+                        }
+                    }
+                },
             )
         }
     }

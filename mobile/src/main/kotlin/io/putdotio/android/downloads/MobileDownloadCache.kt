@@ -10,16 +10,21 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheKeyFactory
+import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.offline.DefaultDownloadIndex
 import androidx.media3.exoplayer.offline.DefaultDownloaderFactory
+import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadIndex
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.Downloader
 import androidx.media3.exoplayer.offline.DownloaderFactory
+import androidx.media3.exoplayer.scheduler.Requirements
+import io.putdotio.android.auth.MobileAuthState
+import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -95,16 +100,39 @@ internal class MobileDownloadCache private constructor(context: Context) {
      * Media3's DownloadService binds the first manager it sees for the whole
      * process, so there is exactly one. Request ids are `userId:fileId`; each
      * request gets a downloader writing under that user's cache keys, and the
-     * engine stops requests that belong to a user who is not signed in.
+     * engine stops requests that belong to a user who is not signed in. Transfers
+     * wait for a network and for the system to stop reporting low storage.
      */
     val downloadManager: DownloadManager = DownloadManager(
         appContext,
         DefaultDownloadIndex(databaseProvider),
         UserScopedDownloaderFactory(::cacheFactory, Executors.newFixedThreadPool(DOWNLOAD_THREADS)),
     ).apply {
-        maxParallelDownloads = 1
+        maxParallelDownloads = MobileDownloadSettings(appContext).concurrency
         minRetryCount = MIN_RETRIES
+        requirements = DOWNLOAD_REQUIREMENTS
+        addListener(MobileDownloadNotifications(appContext) {
+            (MobileOAuthRuntime.get(appContext).authController.state.value as? MobileAuthState.SignedIn)
+                ?.account?.userId
+        })
     }
+
+    /**
+     * Whether a completed download's bytes are still here. The request URL keys the HLS
+     * master playlist or the original file; a cleared cache directory loses both.
+     */
+    fun holdsLocalCopy(download: Download): Boolean {
+        val userId = download.request.ownerUserId() ?: return false
+        val key = UserScopedCacheKeys(userId).buildCacheKey(DataSpec(download.request.uri))
+        val length = ContentMetadata.getContentLength(cache.getContentMetadata(key))
+        return if (length > 0L) cache.isCached(key, 0L, length) else cache.getCachedSpans(key).isNotEmpty()
+    }
+
+    /** Blocking index and cache read: whether this user's completed download still has its bytes. */
+    fun hasLocalCopy(userId: Long, fileId: FilesItemId): Boolean =
+        runCatching { downloadManager.downloadIndex.getDownload(downloadContentId(userId, fileId)) }.getOrNull()
+            ?.takeIf { it.state == Download.STATE_COMPLETED }
+            ?.let(::holdsLocalCopy) == true
 
     /** Blocking index read; see [DownloadIndex.requestedUrl]. */
     fun requestedUrl(userId: Long, fileId: FilesItemId): String? =
@@ -125,6 +153,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
         private const val CACHE_DIRECTORY = "downloads"
         private const val DOWNLOAD_THREADS = 4
         private const val MIN_RETRIES = 3
+        private val DOWNLOAD_REQUIREMENTS = Requirements(Requirements.NETWORK or Requirements.DEVICE_STORAGE_NOT_LOW)
         private const val SESSION_SETTLE_TIMEOUT_SECONDS = 30L
 
         @Volatile

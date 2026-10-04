@@ -84,12 +84,12 @@ class DownloadsControllerTest {
             assertEquals(900L, ready.storageBytes)
 
             assertFalse(controller.dispatch(DownloadsEvent.ConfirmRemoval))
-            assertTrue(controller.dispatch(DownloadsEvent.RequestRemoval(video.fileId)))
-            assertEquals(DownloadRemoval(video.fileId, video.name), controller.state.value.removal)
+            assertTrue(controller.dispatch(DownloadsEvent.RequestRemoval(setOf(video.fileId))))
+            assertEquals(DownloadRemoval(setOf(video.fileId), video.name), controller.state.value.removal)
             assertTrue(controller.dispatch(DownloadsEvent.CancelRemoval))
             assertNull(controller.state.value.removal)
 
-            assertTrue(controller.dispatch(DownloadsEvent.RequestRemoval(video.fileId)))
+            assertTrue(controller.dispatch(DownloadsEvent.RequestRemoval(setOf(video.fileId))))
             assertTrue(controller.dispatch(DownloadsEvent.ConfirmRemoval))
             engine.await { it.removed == listOf(video.fileId) }
             assertNull(controller.state.value.removal)
@@ -105,6 +105,104 @@ class DownloadsControllerTest {
             assertEquals(0L, cleared.storageBytes)
             assertTrue(cleared.removing.isEmpty())
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+        }
+    }
+
+    @Test
+    fun bulkRemovalDeletesOnlyTheLocalCopiesAndMarksThemBeforeTheEngineRuns() = runBlocking<Unit> {
+        val store = FakeDownloadStore()
+        val engine = FakeDownloadEngine()
+        val third = video.copy(fileId = FilesItemId(9L), name = "Tears.mkv")
+        DownloadsController(store, engine, this).use { controller ->
+            for (request in listOf(video, audio, third)) assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
+            store.await { it.size == 3 }
+            store.complete(video.fileId, 10L)
+            store.complete(audio.fileId, 20L)
+            controller.awaitState { it.isAvailableOffline(video.fileId) && it.isAvailableOffline(audio.fileId) }
+            val all = setOf(video.fileId, audio.fileId, third.fileId)
+
+            assertTrue(controller.dispatch(DownloadsEvent.RequestRemoval(all + FilesItemId(404L))))
+            // Several rows have no single name to show; an unknown id is not part of the question.
+            assertEquals(DownloadRemoval(all, null), controller.state.value.removal)
+            assertTrue(controller.dispatch(DownloadsEvent.ConfirmRemoval))
+
+            // The local copies stop counting at once, before Media3 confirms.
+            val removing = controller.state.value
+            assertTrue(all.none { removing.isAvailableOffline(it) || removing.rowStatus(it) != null })
+            engine.await { it.removed.toSet() == all }
+            assertTrue(store.entries.value.all { it.removing })
+            for (fileId in all) engine.finishRemoval(fileId, store)
+            controller.awaitState { it.entries.isEmpty() && it.removing.isEmpty() }
+        }
+    }
+
+    @Test
+    fun retriedAndMissingRowsJoinTheBackOfTheQueue() = runBlocking {
+        val store = FakeDownloadStore()
+        val engine = FakeDownloadEngine()
+        var now = 100L
+        DownloadsController(store, engine, this) { now++ }.use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            assertTrue(controller.dispatch(DownloadsEvent.Start(audio)))
+            store.await { it.size == 2 }
+            store.fail(video.fileId)
+            controller.awaitState { it.queue.map { entry -> entry.fileId } == listOf(audio.fileId) }
+
+            assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
+            val requeued = controller.awaitState { it.queue.size == 2 }
+            assertEquals(listOf(audio.fileId, video.fileId), requeued.queue.map { it.fileId })
+            assertEquals(1, requeued.queuePosition(audio.fileId))
+            assertEquals(2, requeued.queuePosition(video.fileId))
+        }
+    }
+
+    @Test
+    fun aMissingCopyStopsCountingAsOfflineAndCanBeDownloadedAgain() = runBlocking {
+        val store = FakeDownloadStore()
+        val engine = FakeDownloadEngine()
+        DownloadsController(store, engine, this).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            store.await { it.size == 1 }
+            store.complete(video.fileId, 10L)
+            controller.awaitState { it.isAvailableOffline(video.fileId) }
+
+            assertTrue(controller.dispatch(DownloadsEvent.LocalCopyMissing(video.fileId)))
+            val missing = controller.awaitState { it.entry(video.fileId)?.status == DownloadStatus.Missing }
+            assertFalse(missing.isAvailableOffline(video.fileId))
+            assertEquals(listOf(video.fileId), missing.needsAttention.map { it.fileId })
+
+            assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
+            engine.await { it.started.size == 2 }
+            assertEquals(DownloadStatus.Queued, store.entries.value.single().status)
+        }
+    }
+
+    @Test
+    fun theConcurrencyChoiceReachesTheEngineWithinTheOfferedRange() = runBlocking {
+        val engine = FakeDownloadEngine()
+        DownloadsController(FakeDownloadStore(), engine, this).use { controller ->
+            assertEquals(DOWNLOAD_CONCURRENCY_DEFAULT, controller.state.value.concurrency)
+            assertFalse(controller.dispatch(DownloadsEvent.SetConcurrency(0)))
+            assertFalse(controller.dispatch(DownloadsEvent.SetConcurrency(5)))
+            assertFalse(controller.dispatch(DownloadsEvent.SetConcurrency(DOWNLOAD_CONCURRENCY_DEFAULT)))
+            assertTrue(controller.dispatch(DownloadsEvent.SetConcurrency(1)))
+            engine.await { it.concurrency == 1 }
+            assertEquals(1, controller.state.value.concurrency)
+        }
+    }
+
+    @Test
+    fun aStartCarriesTheConfirmedSubtitleSettingAndSavedPosition() = runBlocking {
+        val store = FakeDownloadStore()
+        val engine = FakeDownloadEngine()
+        DownloadsController(store, engine, this).use { controller ->
+            val request = video.copy(subtitlesHidden = true, startFromSeconds = 42.0, durationSeconds = 600.0)
+            assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
+            engine.await { it.started.size == 1 }
+            val started = engine.started.single()
+            assertEquals(true, started.subtitlesHidden)
+            assertEquals(42.0, started.startFromSeconds, 0.0)
+            assertEquals(600.0, started.durationSeconds)
         }
     }
 
@@ -170,6 +268,8 @@ internal class FakeDownloadStore : DownloadStore {
 internal class FakeDownloadEngine : DownloadEngine {
     val started = mutableListOf<DownloadEntry>()
     val removed = mutableListOf<FilesItemId>()
+    override var concurrency: Int = DOWNLOAD_CONCURRENCY_DEFAULT
+        private set
     var progressRefreshes = 0
         private set
     private val removing = mutableSetOf<FilesItemId>()
@@ -187,6 +287,11 @@ internal class FakeDownloadEngine : DownloadEngine {
     }
 
     override fun isRemoving(fileId: FilesItemId): Boolean = fileId in removing
+
+    override fun setConcurrency(limit: Int) {
+        concurrency = limit
+        version.value += 1
+    }
 
     override fun refreshProgress() {
         progressRefreshes += 1

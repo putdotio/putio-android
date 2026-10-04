@@ -1313,8 +1313,9 @@ reads its own provider, so revocation of another app's grant is pinned by
 
 Behaviour: [Downloads and offline playback](./behavior.md#downloads-and-offline-playback);
 `DownloadsControllerTest`, `MobileDownloadStoreTest`, `MobileDownloadEngineTest`,
+`MobileDownloadNotificationsTest`, `OfflinePlaybackPositionsTest`,
 `UserScopedCacheKeysTest` and `OfflinePlaybackRepositoryTest` pin the engine,
-cache-key and index rules on the JVM.
+queue, notification, cache-key and index rules on the JVM.
 
 Prove on the API 37 emulator with the shared `devs-auto` account: download a
 small root video from its Files actions sheet, keep the Downloads screen open
@@ -1331,15 +1332,47 @@ and confirm the cache directory shrinks. Clear only `databases/exoplayer_interna
 `shared_prefs/io.putdotio.android.downloads.xml` and the internal
 `files/downloads/` between runs; never wipe app data or the session.
 
-Without a live account, `MobileDownloadsProgressProofTest` mounts the production
-Downloads screen, controller and engine over a real Media3 manager and
-progressive downloader reading a generated 12 MB local file at about 1 MB/s. It
-uses its own index database, cache directory and preferences, makes no API
-calls and leaves the session alone; report it as synthetic proof. Opt in with
-`putio.downloads.progress.enabled=true` and `putio.downloads.progress.runId=<UUID>`,
-record the screen while it runs, and require `OK (1 test)`: it fails unless the
-row shows at least five distinct byte counts before `On this device`.
-Screenshots land in the `downloads-progress-proof-<UUID>/` run directory.
+For the queue, start four or more downloads with the limit at 2 and confirm two
+rows download while the rest read `Queued · #n in line` in the order started;
+raise the limit and confirm more start. Force low storage with
+`adb shell cmd devicestoragemonitor force-low -f`, confirm the rows read
+`Waiting for free storage`, then `adb shell cmd devicestoragemonitor reset` and
+confirm they resume. Select several rows, delete them, and confirm with the CLI
+that the originals are untouched. With `adb shell pm revoke <package>
+android.permission.POST_NOTIFICATIONS` (the app is killed; relaunch it), a
+finished download posts nothing and Downloads shows the notice; after Turn on or
+`pm grant`, the next one posts a notification whose tap opens its row. For a
+missing copy, force-stop the app, remove the internal `files/downloads/`
+content with `run-as`, relaunch, and confirm the row reads missing and offers
+Download again. For offline resume, play a downloaded video online and leave
+it partway, enable airplane mode, reopen it, accept Resume, play further and go
+Back; disable airplane mode and read the saved position back with the CLI.
+
+Without a live account, two opt-in lanes mount the production Downloads screen,
+controller and engine over a real Media3 manager and progressive downloader
+reading generated local files; each uses its own index database and cache
+directory, makes no API calls and leaves the session alone, so report them as
+synthetic proof. Follow the [Evidence](#evidence) contract.
+
+- `MobileDownloadsProgressProofTest` reads one 12 MB file at about 1 MB/s. Opt in
+  with `putio.downloads.progress.enabled=true` and
+  `putio.downloads.progress.runId=<UUID>`, record the screen while it runs, and
+  require `OK (1 test)`: it fails unless the row shows at least five distinct
+  byte counts before `On this device`. Screenshots land in
+  `downloads-progress-proof-<UUID>/`.
+- `MobileDownloadsQueueProofTest` queues five files at a limit of 2, one of
+  which fails for storage until retried. Run it after
+  `adb shell pm revoke <package> android.permission.POST_NOTIFICATIONS`, with
+  `putio.downloads.queue.enabled=true` and `putio.downloads.queue.runId=<UUID>`,
+  on an emulator you booted: it forces low storage with
+  `cmd devicestoragemonitor force-low -f` and resets it, also on failure. It
+  requires two running and three waiting rows in order, every row waiting for
+  storage and resuming once it clears (the platform rechecks about once a
+  minute), the failure with no notification while the permission is denied, a
+  finished-download notification after the test grants it and retries through
+  the row sheet, and a bulk delete through Select all. It leaves the permission
+  granted, restores the concurrency setting and removes only its own index
+  rows. Screenshots land in `downloads-queue-proof-<UUID>/`.
 
 ## Shared-with-me items proof
 

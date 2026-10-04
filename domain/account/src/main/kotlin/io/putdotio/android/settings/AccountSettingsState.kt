@@ -242,6 +242,10 @@ public fun AccountSettingsState.confirmedTrashEnabled(): Boolean? =
 public fun AccountSettingsState.confirmedResumePlayback(): Boolean? =
     confirmedPreferences(AccountSettingsKey.ResumePlayback)?.resumePlayback
 
+/** Whether the account shows subtitles (`!hide_subtitles`), or null while unloaded or while that write is unsettled. */
+public fun AccountSettingsState.confirmedShowSubtitles(): Boolean? =
+    confirmedPreferences(AccountSettingsKey.ShowSubtitles)?.showSubtitles
+
 /**
  * The default sort the server holds, or null while unloaded or while a sort write is unsettled.
  * A refresh failure after an accepted write still counts: the server took the value.

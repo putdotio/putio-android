@@ -73,6 +73,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.design.FileTypeIcon
+import io.putdotio.android.downloads.DownloadPauseReason
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.parsePutioTimestamp
@@ -573,7 +574,7 @@ private fun MobileFilesList(
             MobileFilesRow(
                 item = item,
                 highlighted = item.id == revealItemId,
-                downloadStatus = downloads.entry(item.id)?.status,
+                downloadStatus = downloads.rowStatus(item.id),
                 onActions = if (hasActions(item)) { { onActions(item) } } else null,
                 actionsEnabled = actionsEnabled,
                 onClick = when {
@@ -725,7 +726,13 @@ private fun MobileFilesDownloadIndicator(status: DownloadStatus) {
     val label = when (status) {
         is DownloadStatus.Completed -> stringResource(R.string.mobile_files_downloaded)
         is DownloadStatus.Failed -> stringResource(R.string.mobile_files_download_failed)
-        is DownloadStatus.WaitingForNetwork -> stringResource(R.string.mobile_files_download_waiting)
+        DownloadStatus.Missing -> stringResource(R.string.mobile_files_download_missing)
+        is DownloadStatus.Paused -> stringResource(
+            when (status.reason) {
+                DownloadPauseReason.NETWORK -> R.string.mobile_files_download_waiting
+                DownloadPauseReason.STORAGE -> R.string.mobile_files_download_waiting_storage
+            },
+        )
         DownloadStatus.Queued, is DownloadStatus.Downloading -> stringResource(R.string.mobile_files_downloading)
     }
     Row(
@@ -739,7 +746,7 @@ private fun MobileFilesDownloadIndicator(status: DownloadStatus) {
             ),
             contentDescription = null,
             modifier = Modifier.size(FILES_BADGE_ICON_SIZE),
-            tint = if (status is DownloadStatus.Failed) {
+            tint = if (status is DownloadStatus.Failed || status == DownloadStatus.Missing) {
                 MaterialTheme.colorScheme.error
             } else {
                 MaterialTheme.colorScheme.primary

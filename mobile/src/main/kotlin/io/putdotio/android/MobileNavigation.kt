@@ -26,6 +26,7 @@ import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
 import io.putdotio.android.downloads.MobileDownloadsScreen
+import io.putdotio.android.downloads.rememberFirstDownloadNotificationPrompt
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesItem
@@ -58,6 +59,7 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteOption
+import io.putdotio.android.settings.confirmedShowSubtitles
 import io.putdotio.android.settings.confirmedTrashEnabled
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.sharing.MobilePublicLinks
@@ -116,6 +118,7 @@ internal fun MobileNavHost(
         modifier = modifier,
     ) {
         composable(MobileDestination.Files.route) {
+            val askForDownloadNotifications = rememberFirstDownloadNotificationPrompt()
             MobileFilesRoute(
                 state = filesState,
                 repository = filesRepository,
@@ -125,7 +128,10 @@ internal fun MobileNavHost(
                 confirmedTrashEnabled = accountSettingsState.confirmedTrashEnabled(),
                 downloads = downloadsState,
                 onDownloadItem = downloadsController?.let { controller ->
-                    { item -> controller.dispatch(DownloadsEvent.Start(item.toDownloadRequest())) }
+                    { item ->
+                        val request = item.toDownloadRequest(accountSettingsState.confirmedShowSubtitles())
+                        if (controller.dispatch(DownloadsEvent.Start(request))) askForDownloadNotifications()
+                    }
                 },
                 onShareItem = onShareItem,
                 onViewTrash = trashController?.let { { navController.navigateToTrash() } },
@@ -340,4 +346,13 @@ internal fun NavHostController.navigateToPlayback(
     }
 }
 
-private fun FilesItem.toDownloadRequest(): DownloadRequest = DownloadRequest(id, name, type, sizeBytes)
+/** The confirmed subtitle setting travels with the download, which skips subtitles for it. */
+private fun FilesItem.toDownloadRequest(showSubtitles: Boolean?): DownloadRequest = DownloadRequest(
+    fileId = id,
+    name = name,
+    type = type,
+    sizeBytes = sizeBytes,
+    subtitlesHidden = showSubtitles?.not(),
+    startFromSeconds = playback?.startFromSeconds ?: 0.0,
+    durationSeconds = playback?.durationSeconds,
+)

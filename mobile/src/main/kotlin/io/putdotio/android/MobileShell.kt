@@ -47,6 +47,7 @@ import io.putdotio.android.account.MobileInactiveAccountNotice
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.downloads.DownloadsController
+import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
 import io.putdotio.android.files.FilesBrowserEvent
@@ -185,6 +186,7 @@ internal fun MobileShell(
         navigationBlocked = shareNavigationBlocked,
         navController = navController,
         onOpenFile = onOpenFile,
+        onFocusDownload = { fileId -> downloadsController?.dispatch(DownloadsEvent.Focus(fileId)) },
     )
     IncomingTransferNavigationEffect(
         incomingRequestId = incomingDraft.incomingRequestId,
@@ -339,6 +341,7 @@ private fun DeepLinkNavigationEffect(
     navigationBlocked: Boolean,
     navController: NavHostController,
     onOpenFile: suspend (FilesItemId) -> Unit,
+    onFocusDownload: (FilesItemId) -> Unit,
 ) {
     val pendingDeepLink by deepLinkRequests.pending.collectAsStateWithLifecycle()
     // Keyed on readiness rather than the entry so the navigation a link causes cannot restart it.
@@ -346,7 +349,7 @@ private fun DeepLinkNavigationEffect(
         val link = pendingDeepLink ?: return@LaunchedEffect
         if (!navigationReady || navigationBlocked) return@LaunchedEffect
         // A newer link restarts this effect and cancels an unfinished file resolve.
-        navController.openDeepLink(link, onOpenFile)
+        navController.openDeepLink(link, onOpenFile, onFocusDownload)
         deepLinkRequests.acknowledge(link)
     }
 }
@@ -354,6 +357,7 @@ private fun DeepLinkNavigationEffect(
 private suspend fun NavHostController.openDeepLink(
     link: MobileDeepLink,
     onOpenFile: suspend (FilesItemId) -> Unit,
+    onFocusDownload: (FilesItemId) -> Unit,
 ) {
     when (link) {
         MobileDeepLink.Files -> navigateTo(MobileDestination.Files)
@@ -364,9 +368,10 @@ private suspend fun NavHostController.openDeepLink(
         MobileDeepLink.Transfers -> navigateTo(MobileDestination.Transfers)
         MobileDeepLink.Search, MobileDeepLink.History -> navigateTo(MobileDestination.Search)
         MobileDeepLink.Trash -> navigateToTrash()
-        MobileDeepLink.Downloads -> {
+        is MobileDeepLink.Downloads -> {
             navigateTo(MobileDestination.Account)
             navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true }
+            link.fileId?.let(onFocusDownload)
         }
     }
 }

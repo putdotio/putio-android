@@ -20,7 +20,8 @@ internal sealed interface MobileDeepLink {
 
     data object Trash : MobileDeepLink
 
-    data object Downloads : MobileDeepLink
+    /** The Downloads screen, with one row opened when a notification names it. */
+    data class Downloads(val fileId: FilesItemId? = null) : MobileDeepLink
 }
 
 /**
@@ -42,7 +43,14 @@ private fun Uri.productSegments(): List<String>? {
 
 private fun deepLinkFor(segments: List<String>): MobileDeepLink? = when (val section = segments.firstOrNull()) {
     null, "files" -> filesDeepLink(segments)
+    "downloads" -> downloadsDeepLink(segments)
     else -> SECTION_LINKS[section]?.takeIf { segments.size == 1 }
+}
+
+private fun downloadsDeepLink(segments: List<String>): MobileDeepLink? = when (segments.size) {
+    1 -> MobileDeepLink.Downloads()
+    2 -> segments[1].toLongOrNull()?.takeIf { it > 0L }?.let { MobileDeepLink.Downloads(FilesItemId(it)) }
+    else -> null
 }
 
 private fun filesDeepLink(segments: List<String>): MobileDeepLink? = when (segments.size) {
@@ -59,7 +67,7 @@ internal fun MobileDeepLink.toRouteUri(): Uri = when (this) {
     MobileDeepLink.Search -> "putio://search"
     MobileDeepLink.History -> "putio://history"
     MobileDeepLink.Trash -> "putio://trash"
-    MobileDeepLink.Downloads -> "putio://downloads"
+    is MobileDeepLink.Downloads -> fileId?.let { "putio://downloads/${it.value}" } ?: "putio://downloads"
 }.toUri()
 
 /**
@@ -80,5 +88,4 @@ private val SECTION_LINKS = mapOf(
     "search" to MobileDeepLink.Search,
     "history" to MobileDeepLink.History,
     "trash" to MobileDeepLink.Trash,
-    "downloads" to MobileDeepLink.Downloads,
 )

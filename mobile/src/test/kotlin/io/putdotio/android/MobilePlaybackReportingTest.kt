@@ -45,6 +45,10 @@ import java.util.UUID
 import io.putdotio.android.playback.MobilePlaybackReporting
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.SavedPlaybackPosition
+import io.putdotio.android.downloads.FakePositionRemote
+import io.putdotio.android.downloads.OfflinePlaybackPositions
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -214,6 +218,46 @@ class MobilePlaybackReportingTest {
     }
 
     @Test
+    fun aColdOfflineStartReportsDownloadedFilesUnderTheLastConfirmedSettingAndKeepsWhatPutioCannotTake() = runTest {
+        val preferences = ApplicationProvider.getApplicationContext<Context>()
+            .getSharedPreferences("reporting-offline-test", Context.MODE_PRIVATE)
+        val offline = OfflinePlaybackPositions(preferences, { Account.userId }, FakePositionRemote(), backgroundScope)
+        offline.store(Account.userId).apply {
+            rememberResumeSetting(true)
+            // Offline playback opened file 42 from its local copy; file 43 only streams.
+            remote(42L, 0.0)
+        }
+        val fixture = ReportingFixture(
+            backgroundScope,
+            initiallyLoaded = false,
+            writeResult = PlaybackRepositoryResult.Failure(
+                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
+            ),
+            offline = offline,
+        )
+        fixture.player.show(fixture.item(), 10_000L)
+        fixture.observer.flush()
+        runCurrent()
+        assertEquals(listOf(42L to 10.0), fixture.writes)
+        assertEquals(10.0, offline.store(Account.userId).pending(42L)?.seconds)
+
+        // Without a local copy the unconfirmed setting still suppresses reporting.
+        fixture.player.show(fixture.item("43"), 20_000L)
+        fixture.observer.flush()
+        runCurrent()
+        assertEquals(listOf(42L to 10.0), fixture.writes)
+
+        // A setting this device last saw off keeps downloaded files quiet too.
+        offline.store(Account.userId).rememberResumeSetting(false)
+        fixture.player.show(fixture.item(), 30_000L)
+        fixture.observer.flush()
+        runCurrent()
+        assertEquals(listOf(42L to 10.0), fixture.writes)
+        fixture.close()
+        preferences.edit().clear().commit()
+    }
+
+    @Test
     fun unrelatedPendingAndFailedSettingsDoNotRevokeConfirmedResume() = runTest {
         val fixture = ReportingFixture(backgroundScope)
         fixture.player.show(fixture.item(), 10_000L)
@@ -292,6 +336,8 @@ class MobilePlaybackReportingTest {
     }
 }
 
+// Each parameter switches one scenario of the shared fixture on.
+@Suppress("LongParameterList")
 @UnstableApi
 private class ReportingFixture(
     scope: CoroutineScope,
@@ -300,6 +346,7 @@ private class ReportingFixture(
     writeResult: PlaybackRepositoryResult<Unit> = PlaybackRepositoryResult.Success(Unit),
     beforeWriteResult: () -> Unit = {},
     onAuthenticationRequired: suspend (MobileAuthSessionId) -> Unit = {},
+    offline: OfflinePlaybackPositions? = null,
 ) {
     val auth = MutableStateFlow<MobileAuthState>(MobileAuthState.SignedIn(Account, MobileAuthSessionId(1)))
     val settings = MutableStateFlow(
@@ -310,7 +357,7 @@ private class ReportingFixture(
     )
     val writes = mutableListOf<Pair<Long, Double>>()
     var cancelledWrites = 0
-    val runtime = MobilePlaybackReporting(auth, scope, onAuthenticationRequired) { fileId, seconds ->
+    val runtime = MobilePlaybackReporting(auth, scope, onAuthenticationRequired, { offline }) { fileId, seconds ->
         writes += fileId to seconds
         if (suspendWrites) {
             try {
@@ -327,7 +374,8 @@ private class ReportingFixture(
     val factory = runtime.factoryFor(MobileAuthSessionId(1), settings, delegate)
     val observer = runtime.observe(player)
 
-    fun item(): MediaItem = factory.reportableItem(MediaItem.Builder().setMediaId("42").build(), true)
+    fun item(mediaId: String = "42"): MediaItem =
+        factory.reportableItem(MediaItem.Builder().setMediaId(mediaId).build(), true)
 
     fun event(event: AccountSettingsEvent) {
         settings.value = AccountSettingsReducer.reduce(settings.value, event).state

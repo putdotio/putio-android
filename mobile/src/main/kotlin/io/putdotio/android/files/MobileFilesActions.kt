@@ -349,18 +349,19 @@ private fun MobileFilesDownloadAction(
     downloadStatus: DownloadStatus?,
     onClick: () -> Unit,
 ) {
-    val downloadable = downloadStatus == null || downloadStatus is DownloadStatus.Failed
+    val downloadable = downloadStatus == null || downloadStatus is DownloadStatus.Failed ||
+        downloadStatus == DownloadStatus.Missing
     ListItem(
         headlineContent = {
             Text(stringResource(
                 when (downloadStatus) {
-                    null, is DownloadStatus.Failed -> R.string.mobile_files_download
+                    null, is DownloadStatus.Failed, DownloadStatus.Missing -> R.string.mobile_files_download
                     is DownloadStatus.Completed -> R.string.mobile_files_downloaded
                     else -> R.string.mobile_files_downloading
                 },
             ))
         },
-        supportingContent = (downloadStatus as? DownloadStatus.Failed)?.let {
+        supportingContent = downloadStatus?.takeIf { downloadable }?.let {
             { Text(it.description(LocalContext.current)) }
         },
         modifier = Modifier

@@ -37,9 +37,14 @@ Mobile, on the emulator harness against the live API:
 - Privacy controls for the support chat widget, shared across put.io apps,
   with a strictly-necessary storage disclosure
 - About section with copyable app, Android, device, and player info
-- Downloads: video saves the same HLS rendition it streams, audio saves the
-  original; a Downloads screen under Account lists local copies, storage used,
-  retry and delete; completed downloads play without a connection
+- Downloads: video saves the same HLS rendition it streams (without subtitles
+  for accounts that hide them), audio saves the original. A Downloads screen
+  under Account shows the queue in start order with each row's place, a 1–4
+  concurrency limit (default 3), paused, failed and missing rows with retry,
+  storage used, and multi-select delete of local copies only. Finished and
+  failed downloads notify and open their row when notifications are allowed.
+  Completed downloads play without a connection and resume where this device
+  left off; positions saved offline reach put.io once it answers again
 - Transfer intake: tapped magnet links, opened or shared `.torrent` files, shared
   text and several pasted links open the Add transfer sheet, which saves to the
   default download folder or one picked with the move picker
