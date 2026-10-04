@@ -2,7 +2,7 @@ package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
 
-data class DownloadsState(
+internal data class DownloadsState(
     val entries: List<DownloadEntry> = emptyList(),
     /** Bytes held by completed downloads; the cache reports partial progress per row. */
     val storageBytes: Long = 0L,
@@ -18,12 +18,12 @@ data class DownloadsState(
 }
 
 /** A pending "delete local copy" confirmation. */
-data class DownloadRemoval(
+internal data class DownloadRemoval(
     val fileId: FilesItemId,
     val name: String,
 )
 
-sealed interface DownloadsEvent {
+internal sealed interface DownloadsEvent {
     data class Start(val request: DownloadRequest) : DownloadsEvent
 
     data class Retry(val fileId: FilesItemId) : DownloadsEvent
@@ -40,7 +40,7 @@ sealed interface DownloadsEvent {
     data object Hidden : DownloadsEvent
 }
 
-fun DownloadsState.withEntries(entries: List<DownloadEntry>): DownloadsState =
+internal fun DownloadsState.withEntries(entries: List<DownloadEntry>): DownloadsState =
     copy(
         entries = entries.sortedByDescending { it.createdAt },
         storageBytes = entries.sumOf { (it.status as? DownloadStatus.Completed)?.bytes ?: 0L },

@@ -1,8 +1,5 @@
 package io.putdotio.android.account
 
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.ui.res.stringResource
 import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.sdk.account.AccountInfo
 import java.time.Instant
@@ -38,33 +35,10 @@ fun AccountInfo.inactiveAccountNotice(): InactiveAccountNotice? =
  * Whole calendar days between today and the deletion day in [zone], as web's `daysDiffFromNow`
  * counts them: absolute, so a date already past still reads as a distance.
  */
-fun InactiveAccountNotice.Deactivated.daysUntilFilesDeleted(now: Instant, zone: ZoneId): Long? =
-    filesDeletedAt?.let { abs(ChronoUnit.DAYS.between(now.atZone(zone).toLocalDate(), it.atZone(zone).toLocalDate())) }
-
-/** The notice's words; [message] is null where web shows none. */
-data class InactiveAccountNoticeText(
-    val title: String,
-    val message: String?,
-)
-
-@Composable
-fun InactiveAccountNotice.text(
+fun InactiveAccountNotice.Deactivated.daysUntilFilesDeleted(
     now: Instant = Instant.now(),
     zone: ZoneId = ZoneId.systemDefault(),
-): InactiveAccountNoticeText =
-    when (this) {
-        is InactiveAccountNotice.Deactivated ->
-            InactiveAccountNoticeText(
-                title = stringResource(R.string.account_inactive_title),
-                message = daysUntilFilesDeleted(now, zone)?.toInt()?.let { days ->
-                    pluralStringResource(R.plurals.account_inactive_files_deletion, days, days)
-                },
-            )
-        InactiveAccountNotice.FamilyPlanExpired ->
-            InactiveAccountNoticeText(
-                title = stringResource(R.string.account_family_expired_title),
-                message = null,
-            )
-    }
+): Long? =
+    filesDeletedAt?.let { abs(ChronoUnit.DAYS.between(now.atZone(zone).toLocalDate(), it.atZone(zone).toLocalDate())) }
 
 private const val INACTIVE_STATUS = "inactive"

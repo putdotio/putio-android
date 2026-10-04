@@ -24,7 +24,6 @@ include(":core:common", ":core:design")
 include(
     ":domain:account",
     ":domain:auth",
-    ":domain:downloads",
     ":domain:files",
     ":domain:history",
     ":domain:playback",

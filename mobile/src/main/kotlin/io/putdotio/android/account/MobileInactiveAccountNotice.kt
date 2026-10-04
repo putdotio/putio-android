@@ -19,7 +19,10 @@ internal fun MobileInactiveAccountNotice(
     notice: InactiveAccountNotice,
     modifier: Modifier = Modifier,
 ) {
-    val text = notice.text()
+    val text = when (notice) {
+        is InactiveAccountNotice.Deactivated -> deactivatedAccountNoticeText(notice.daysUntilFilesDeleted())
+        InactiveAccountNotice.FamilyPlanExpired -> familyPlanExpiredNoticeText()
+    }
     Surface(
         modifier = modifier
             .fillMaxWidth()
