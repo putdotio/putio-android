@@ -1,7 +1,7 @@
 package io.putdotio.android.trash
 
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesRepositoryResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -26,13 +26,13 @@ class TrashPaginationTest {
         val original = trashItem()
         val repository = FakeTrashRepository().apply {
             onLoad = {
-                FilesRepositoryResult.Success(TrashPage(listOf(original, original), FilesCursor("a"), 20, 123L))
+                PutioResult.Success(TrashPage(listOf(original, original), FilesCursor("a"), 20, 123L))
             }
             onPage = { cursor ->
                 val items = if (cursor.value == "a") {
                     listOf(original.copy(name = "stale"), trashItem(8L))
                 } else emptyList()
-                FilesRepositoryResult.Success(TrashPage(items, FilesCursor(if (cursor.value == "a") "b" else "a")))
+                PutioResult.Success(TrashPage(items, FilesCursor(if (cursor.value == "a") "b" else "a")))
             }
         }
         TrashController(repository, this).use { controller ->
@@ -55,8 +55,8 @@ class TrashPaginationTest {
     @Test
     fun pageFailureRetriesTheSameCursorAndRefreshReplacesAggregates() = runBlocking {
         val repository = FakeTrashRepository().apply {
-            onLoad = { FilesRepositoryResult.Success(TrashPage(listOf(trashItem()), FilesCursor("a"), 20, 123L)) }
-            onPage = { FilesRepositoryResult.Failure(offlineFailure()) }
+            onLoad = { PutioResult.Success(TrashPage(listOf(trashItem()), FilesCursor("a"), 20, 123L)) }
+            onPage = { PutioResult.Failure(offlineFailure()) }
         }
         TrashController(repository, this).use { controller ->
             controller.openLoaded()
@@ -66,7 +66,7 @@ class TrashPaginationTest {
             assertTrue(controller.dispatch(TrashEvent.Retry))
             controller.awaitState { (it.content as? TrashContent.Loaded)?.items?.size == 2 }
             assertEquals(listOf(FilesCursor("a"), FilesCursor("a")), repository.pageCursors)
-            repository.onLoad = { FilesRepositoryResult.Success(TrashPage(emptyList(), null, 0, 0L)) }
+            repository.onLoad = { PutioResult.Success(TrashPage(emptyList(), null, 0, 0L)) }
             controller.dispatch(TrashEvent.Refresh)
             val state = controller.awaitState { (it.content as? TrashContent.Loaded)?.total == 0 }
             val content = state.content as TrashContent.Loaded
@@ -77,14 +77,14 @@ class TrashPaginationTest {
 
     @Test
     fun initialFailureHasReadOnlyRetryAndARefreshFailurePreservesContent() = runBlocking {
-        val repository = FakeTrashRepository().apply { onLoad = { FilesRepositoryResult.Failure(offlineFailure()) } }
+        val repository = FakeTrashRepository().apply { onLoad = { PutioResult.Failure(offlineFailure()) } }
         TrashController(repository, this).use { controller ->
             controller.dispatch(TrashEvent.Open)
             controller.awaitState { it.content is TrashContent.Error }
             repository.onLoad = { page(trashItem()) }
             controller.dispatch(TrashEvent.Retry)
             controller.awaitState { it.content is TrashContent.Loaded }
-            repository.onLoad = { FilesRepositoryResult.Failure(offlineFailure()) }
+            repository.onLoad = { PutioResult.Failure(offlineFailure()) }
             controller.dispatch(TrashEvent.Refresh)
             val state = controller.awaitState { (it.content as? TrashContent.Loaded)?.refreshFailure != null }
             assertEquals(listOf(trashItem()), (state.content as TrashContent.Loaded).items)

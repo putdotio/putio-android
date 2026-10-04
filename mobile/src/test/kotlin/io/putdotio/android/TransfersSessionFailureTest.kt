@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.transfers.TransferRetryOutcome
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersRequestId
@@ -12,7 +11,7 @@ import org.junit.Test
 class TransfersSessionFailureTest {
     @Test
     fun `a retry rejected for the session expires it`() {
-        val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val failure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
         val state =
             transfersState(
                 content = TransfersContent.Empty,

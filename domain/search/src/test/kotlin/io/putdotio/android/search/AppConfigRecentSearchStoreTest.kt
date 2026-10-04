@@ -1,6 +1,6 @@
 package io.putdotio.android.search
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.config.AppConfig
 import java.util.Collections
 import kotlinx.coroutines.CompletableDeferred
@@ -394,7 +394,7 @@ class AppConfigRecentSearchStoreTest {
                     store.terms.first { it == listOf(SearchTerm("one")) }
                 }
                 assertEquals(listOf(SearchTerm("one")), store.terms.value)
-                assertSame(failure, (store.failure.value as FilesFailure.Unexpected).cause)
+                assertSame(failure, (store.failure.value as PutioFailure.Unexpected).cause)
             } finally {
                 store.close()
             }

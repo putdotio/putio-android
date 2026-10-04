@@ -1,5 +1,8 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+
 internal fun FilesMoveDestinationState.withoutRememberedTargetCheck() =
     if (opensRememberedTarget) copy(opensRememberedTarget = false) else this
 
@@ -9,11 +12,11 @@ internal fun FilesMoveDestinationState.withoutRememberedTargetCheck() =
  */
 internal fun FilesMoveDestinationState.completeRememberedRead(
     request: FilesMoveDestinationRequest,
-    result: FilesRepositoryResult<FilesPage>,
+    result: PutioResult<FilesPage>,
 ): FilesMoveDestinationTransition? = when (result) {
-    is FilesRepositoryResult.Failure ->
-        if (opensRememberedTarget && result.failure !is FilesFailure.AuthenticationRequired) restartAtRoot() else null
-    is FilesRepositoryResult.Success ->
+    is PutioResult.Failure ->
+        if (opensRememberedTarget && result.failure !is PutioFailure.AuthenticationRequired) restartAtRoot() else null
+    is PutioResult.Success ->
         if (current.remembered && request.cursor == null) reconcileRemembered(request, result) else null
 }
 
@@ -23,7 +26,7 @@ internal fun FilesMoveDestinationState.completeRememberedRead(
  */
 private fun FilesMoveDestinationState.reconcileRemembered(
     request: FilesMoveDestinationRequest,
-    result: FilesRepositoryResult.Success<FilesPage>,
+    result: PutioResult.Success<FilesPage>,
 ): FilesMoveDestinationTransition {
     val listed = result.value.parent?.takeIf { it.id == current.folder.id }
     if (sourceItem != null && listed?.parentId == sourceItem.id) return restartAtRoot()

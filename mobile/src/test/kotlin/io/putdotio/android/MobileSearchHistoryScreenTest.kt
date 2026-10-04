@@ -14,7 +14,6 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.history.HistoryClearing
@@ -103,7 +102,7 @@ class MobileSearchHistoryScreenTest {
         var retries = 0
         setScreen(
             search = searchState(SearchContent.Idle, listOf(SearchTerm("documentary"))),
-            recentSearchFailure = FilesFailure.Unexpected(IllegalStateException("offline")),
+            recentSearchFailure = PutioFailure.Unexpected(IllegalStateException("offline")),
             actions = MobileSearchHistoryActions(onRecentRetry = { retries += 1 }),
         )
 
@@ -309,7 +308,7 @@ class MobileSearchHistoryScreenTest {
     private fun setScreen(
         search: SearchState = searchState(SearchContent.Idle),
         history: HistoryState = historyState(HistoryContent.Disabled),
-        recentSearchFailure: FilesFailure? = null,
+        recentSearchFailure: PutioFailure? = null,
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     ) {
         compose.setContent {

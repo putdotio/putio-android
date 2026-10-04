@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -13,7 +14,7 @@ class FilesRestoreInvalidationTest {
     private val child = FilesFolder(FilesItemId(11), "Child")
     private val restored = item(99, parent.id)
     private val viewport = FilesViewportPosition(3, 17)
-    private val readFailure = FilesFailure.Unexpected(IllegalStateException("Read offline"))
+    private val readFailure = PutioFailure.Unexpected(IllegalStateException("Read offline"))
 
     @Test
     fun restorationInvalidatesOnlyTheReturnedParentAndRootWithoutNavigating() {

@@ -21,8 +21,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPlaybackProgress
@@ -407,7 +407,7 @@ class TvExternalOpenProofTest {
 internal class ProofRecentSearchStore : RecentSearchStoreOwner {
     override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
     override val enabled = MutableStateFlow<Boolean?>(true)
-    override val failure = MutableStateFlow<FilesFailure?>(null)
+    override val failure = MutableStateFlow<PutioFailure?>(null)
 
     override fun record(term: SearchTerm) {
         terms.value = listOf(term) + terms.value.filterNot { it == term }

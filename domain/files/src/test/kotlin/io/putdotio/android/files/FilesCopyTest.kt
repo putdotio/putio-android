@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
@@ -55,7 +57,7 @@ class FilesCopyTest {
 
     @Test
     fun aFinishedCopyReloadsOnlyTheDestinationAlreadyInTheStack() {
-        val copying = started(FilesRepositoryResult.Success(FilesCopyId(42L)))
+        val copying = started(PutioResult.Success(FilesCopyId(42L)))
         val check = copying.effect as FilesBrowserEffect.CheckCopy
         assertEquals(FilesCopyId(42L), check.copyId)
         assertEquals(FilesCopyStatus.COPYING, copying.state.copyOutcome?.status)
@@ -83,19 +85,19 @@ class FilesCopyTest {
 
     @Test
     fun failuresKeepTheirReasonAndAnUnansweredCheckLeavesTheCopyUnconfirmed() {
-        val rejected = FilesFailure.ApiRejected(400, "SharedFileCloneTooManyFiles", PutioConfigurationException("no"))
-        val notStarted = started(FilesRepositoryResult.Failure(rejected)).state
+        val rejected = PutioFailure.ApiRejected(400, "SharedFileCloneTooManyFiles", PutioConfigurationException("no"))
+        val notStarted = started(PutioResult.Failure(rejected)).state
         assertEquals(FilesCopyStatus.FAILED, notStarted.copyOutcome?.status)
         assertEquals(rejected, notStarted.copyOutcome?.failure)
         assertEquals(listOf(false, false), notStarted.stack.map { it.needsReload })
 
-        val unanswered = started(FilesRepositoryResult.Failure(failure())).state
+        val unanswered = started(PutioResult.Failure(failure())).state
         assertEquals(FilesCopyStatus.UNCONFIRMED, unanswered.copyOutcome?.status)
         assertTrue(unanswered.canStartCopy)
         assertEquals(listOf(true, false), unanswered.stack.map { it.needsReload })
 
         val offline = failure()
-        val copying = started(FilesRepositoryResult.Success(FilesCopyId(42L)))
+        val copying = started(PutioResult.Success(FilesCopyId(42L)))
         val requestId = checkNotNull(copying.effect).requestId
         val failed = FilesBrowserReducer.reduce(
             copying.state, checked(requestId, FilesCopyProgress.Failed("File(s) size exceed disk limit.")),
@@ -105,7 +107,7 @@ class FilesCopyTest {
         assertEquals(listOf(false, false), failed.stack.map { it.needsReload })
 
         val lost = FilesBrowserReducer.reduce(
-            copying.state, FilesBrowserEvent.CopyChecked(requestId, FilesRepositoryResult.Failure(offline)),
+            copying.state, FilesBrowserEvent.CopyChecked(requestId, PutioResult.Failure(offline)),
         ).state
         assertEquals(FilesCopyStatus.UNCONFIRMED, lost.copyOutcome?.status)
         assertEquals(listOf(true, false), lost.stack.map { it.needsReload })
@@ -114,14 +116,14 @@ class FilesCopyTest {
 
     @Test
     fun aRejectedSessionOnEitherCopyCallIsASessionVerdict() {
-        val expired = FilesFailure.AuthenticationRequired(PutioConfigurationException("expired"))
-        assertEquals(expired, started(FilesRepositoryResult.Failure(expired)).state.authoritativeSessionFailure())
+        val expired = PutioFailure.AuthenticationRequired(PutioConfigurationException("expired"))
+        assertEquals(expired, started(PutioResult.Failure(expired)).state.authoritativeSessionFailure())
 
-        val copying = started(FilesRepositoryResult.Success(FilesCopyId(42L)))
+        val copying = started(PutioResult.Success(FilesCopyId(42L)))
         val checkRejected = FilesBrowserReducer.reduce(
             copying.state,
             FilesBrowserEvent.CopyChecked(
-                checkNotNull(copying.effect).requestId, FilesRepositoryResult.Failure(expired),
+                checkNotNull(copying.effect).requestId, PutioResult.Failure(expired),
             ),
         ).state
         assertEquals(expired, checkRejected.authoritativeSessionFailure())
@@ -129,7 +131,7 @@ class FilesCopyTest {
 
     @Test
     fun checksStopAfterTheBudgetWithTheCopyUnconfirmed() {
-        var transition = started(FilesRepositoryResult.Success(FilesCopyId(42L)))
+        var transition = started(PutioResult.Success(FilesCopyId(42L)))
         var checks = 0
         while (transition.effect is FilesBrowserEffect.CheckCopy) {
             checks += 1
@@ -146,12 +148,12 @@ class FilesCopyTest {
     fun aCheckWaitsTheIntervalBeforeAsking() = runTest {
         var asked = 0
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected listing")
 
-            override suspend fun checkCopy(copyId: FilesCopyId): FilesRepositoryResult<FilesCopyProgress> {
+            override suspend fun checkCopy(copyId: FilesCopyId): PutioResult<FilesCopyProgress> {
                 asked += 1
-                return FilesRepositoryResult.Success(FilesCopyProgress.Done)
+                return PutioResult.Success(FilesCopyProgress.Done)
             }
         }
         val effect = FilesBrowserEffect.CheckCopy(FilesCopyId(42L), FilesRequestId(3L))
@@ -169,21 +171,21 @@ class FilesCopyTest {
     fun theControllerRunsACopyToTheEndWhileTheViewerBrowses() = runBlocking {
         val starts = mutableListOf<Pair<FilesItemId, FilesItemId>>()
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
-                FilesRepositoryResult.Success(
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
+                PutioResult.Success(
                     FilesPage(if (folderId == FilesFolder.Root.id) listOf(sharedFolder) else listOf(sharedFile), null),
                 )
 
             override suspend fun startCopy(
                 itemId: FilesItemId,
                 destinationId: FilesItemId,
-            ): FilesRepositoryResult<FilesCopyId> {
+            ): PutioResult<FilesCopyId> {
                 starts += itemId to destinationId
-                return FilesRepositoryResult.Success(FilesCopyId(42L))
+                return PutioResult.Success(FilesCopyId(42L))
             }
 
-            override suspend fun checkCopy(copyId: FilesCopyId): FilesRepositoryResult<FilesCopyProgress> =
-                FilesRepositoryResult.Success(FilesCopyProgress.Done)
+            override suspend fun checkCopy(copyId: FilesCopyId): PutioResult<FilesCopyProgress> =
+                PutioResult.Success(FilesCopyProgress.Done)
         }
         val controller = FilesBrowserController(repository, this)
         try {
@@ -233,13 +235,13 @@ class FilesCopyTest {
         )
 
         assertEquals(
-            FilesRepositoryResult.Success(FilesCopyId(42L)), repository.startCopy(sharedFile.id, FilesItemId(9L)),
+            PutioResult.Success(FilesCopyId(42L)), repository.startCopy(sharedFile.id, FilesItemId(9L)),
         )
         for ((item, parent) in listOf(0L to 9L, -1L to 9L, 7L to -1L)) {
-            assertTrue(repository.startCopy(FilesItemId(item), FilesItemId(parent)) is FilesRepositoryResult.Failure)
+            assertTrue(repository.startCopy(FilesItemId(item), FilesItemId(parent)) is PutioResult.Failure)
         }
         assertEquals(listOf(7L to 9L), starts)
-        val progress = List(7) { (repository.checkCopy(FilesCopyId(42L)) as FilesRepositoryResult.Success).value }
+        val progress = List(7) { (repository.checkCopy(FilesCopyId(42L)) as PutioResult.Success).value }
         assertEquals(
             listOf(
                 FilesCopyProgress.Running, FilesCopyProgress.Running, FilesCopyProgress.Running,
@@ -250,7 +252,7 @@ class FilesCopyTest {
         )
     }
 
-    private fun started(result: FilesRepositoryResult<FilesCopyId>): FilesBrowserTransition {
+    private fun started(result: PutioResult<FilesCopyId>): FilesBrowserTransition {
         val starting = FilesBrowserReducer.reduce(inSharedFolder(listOf(sharedFile)), copy)
         return FilesBrowserReducer.reduce(
             starting.state, FilesBrowserEvent.CopyStarted(checkNotNull(starting.effect).requestId, result),
@@ -258,7 +260,7 @@ class FilesCopyTest {
     }
 
     private fun checked(requestId: FilesRequestId, progress: FilesCopyProgress) =
-        FilesBrowserEvent.CopyChecked(requestId, FilesRepositoryResult.Success(progress))
+        FilesBrowserEvent.CopyChecked(requestId, PutioResult.Success(progress))
 
     /** Root lists the shared folder, which is open on top with [items]. */
     private fun inSharedFolder(items: List<FilesItem>): FilesBrowserState {
@@ -287,5 +289,5 @@ class FilesCopyTest {
         FilesItemId(id), FilesItemId(1L), name, type, 1L, "2026-09-06", isShared = isShared, folderType = folderType,
     )
 
-    private fun failure() = FilesFailure.Unexpected(IllegalStateException("offline"))
+    private fun failure() = PutioFailure.Unexpected(IllegalStateException("offline"))
 }

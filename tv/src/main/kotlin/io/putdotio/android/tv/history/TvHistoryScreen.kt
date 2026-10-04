@@ -48,7 +48,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryClearing
@@ -70,6 +69,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.flow.first
+import io.putdotio.android.FilesFailure
 
 internal const val TV_HISTORY_LIST_TAG = "tv-history-list"
 internal const val TV_HISTORY_ROW_TAG = "tv-history-row"

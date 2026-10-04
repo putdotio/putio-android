@@ -1,6 +1,6 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -120,7 +120,7 @@ class TransfersRefreshReducerTest {
 
     private fun TransfersTransition.requestId() = (effect as TransfersEffect.Load).requestId
 
-    private fun failure() = FilesFailure.Unexpected(IllegalStateException("offline"))
+    private fun failure() = PutioFailure.Unexpected(IllegalStateException("offline"))
 
     private fun item(
         id: Long,

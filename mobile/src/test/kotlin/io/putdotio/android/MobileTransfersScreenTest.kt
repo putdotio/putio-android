@@ -27,7 +27,6 @@ import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.transfers.AppTransferStatus
 import io.putdotio.android.transfers.TransferAction
 import io.putdotio.android.transfers.TransferFileId
@@ -64,7 +63,6 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_PICKER_TAG
 import io.putdotio.android.files.StubFilesRepository
@@ -159,7 +157,7 @@ class MobileTransfersScreenTest {
                     retryOutcome =
                         TransferRetryOutcome.Failed(
                             TransfersRequestId(4L),
-                            FilesFailure.AccessDenied(PutioConfigurationException("forbidden")),
+                            PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
                         ),
                 )
         }
@@ -312,7 +310,7 @@ class MobileTransfersScreenTest {
         assertEquals(TransfersEvent.Refresh, events.last())
 
         compose.runOnIdle {
-            current = state(TransfersContent.Failed(FilesFailure.Unexpected(IllegalStateException("broken"))))
+            current = state(TransfersContent.Failed(PutioFailure.Unexpected(IllegalStateException("broken"))))
         }
         openActionsMenu()
         compose.onNodeWithText("Refresh").assertIsNotEnabled()
@@ -327,10 +325,10 @@ class MobileTransfersScreenTest {
                         listOf(transfer(9L, AppTransferStatus.Waiting)),
                         TransfersPaging.Failed(
                             io.putdotio.android.transfers.TransferCursor("next"),
-                            FilesFailure.Unexpected(IllegalStateException("paging")),
+                            PutioFailure.Unexpected(IllegalStateException("paging")),
                         ),
                     ),
-                    refresh = TransfersRefresh.Failed(FilesFailure.Unexpected(IllegalStateException("refresh"))),
+                    refresh = TransfersRefresh.Failed(PutioFailure.Unexpected(IllegalStateException("refresh"))),
                 )
         }
         compose.onNodeWithText("Couldn’t refresh transfers.").assertIsDisplayed()
@@ -413,7 +411,7 @@ class MobileTransfersScreenTest {
                             listOf(row),
                             TransfersPaging.Failed(
                                 io.putdotio.android.transfers.TransferCursor("next"),
-                                FilesFailure.Unexpected(IllegalStateException("paging")),
+                                PutioFailure.Unexpected(IllegalStateException("paging")),
                             ),
                         ),
                 )
@@ -498,7 +496,7 @@ class MobileTransfersScreenTest {
     @Test
     fun mutationDisablesLoadRecoveryAndPagingActions() {
         var current by mutableStateOf(
-            state(TransfersContent.Failed(FilesFailure.Unexpected(IllegalStateException("load")))).withRunningAdd(),
+            state(TransfersContent.Failed(PutioFailure.Unexpected(IllegalStateException("load")))).withRunningAdd(),
         )
         setMutableScreen({ current }, onEvent = {})
 
@@ -522,7 +520,7 @@ class MobileTransfersScreenTest {
                         listOf(transfer(1L, AppTransferStatus.Downloading)),
                         TransfersPaging.Failed(
                             io.putdotio.android.transfers.TransferCursor("next"),
-                            FilesFailure.Unexpected(IllegalStateException("paging")),
+                            PutioFailure.Unexpected(IllegalStateException("paging")),
                         ),
                     ),
                 ).withRunningAdd()
@@ -536,7 +534,7 @@ class MobileTransfersScreenTest {
                         listOf(transfer(1L, AppTransferStatus.Downloading)),
                         TransfersPaging.Complete,
                     ),
-                    refresh = TransfersRefresh.Failed(FilesFailure.Unexpected(IllegalStateException("refresh"))),
+                    refresh = TransfersRefresh.Failed(PutioFailure.Unexpected(IllegalStateException("refresh"))),
                 ).withRunningAdd()
         }
         compose.onNodeWithText("Try again").assertIsNotEnabled()
@@ -634,7 +632,7 @@ class MobileTransfersAddSheetTest {
         val repository = object : StubFilesRepository() {
             override suspend fun loadFolder(folderId: FilesItemId) = error("Unexpected folder read")
             override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-                FilesRepositoryResult.Success(
+                PutioResult.Success(
                     FilesPage(if (folderId == FilesFolder.Root.id) listOf(folder) else emptyList(), null),
                 )
         }
@@ -752,7 +750,7 @@ class MobileTransfersAddSheetTest {
         var current by mutableStateOf(state(TransfersContent.Empty).copyForTest(
             mutation = TransferMutation.Failed(
                 TransferAction.Add(linksRequest(original)),
-                FilesFailure.Unexpected(IllegalStateException("rejected")),
+                PutioFailure.Unexpected(IllegalStateException("rejected")),
             ),
         ))
         val events = mutableListOf<TransfersEvent>()
@@ -880,7 +878,7 @@ class MobileTransfersAddSheetTest {
                     mutation =
                         TransferMutation.Failed(
                             running.action,
-                            FilesFailure.Unexpected(IllegalStateException("rejected")),
+                            PutioFailure.Unexpected(IllegalStateException("rejected")),
                         ),
                 )
         }

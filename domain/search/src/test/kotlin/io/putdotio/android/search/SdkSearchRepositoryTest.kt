@@ -1,8 +1,8 @@
 package io.putdotio.android.search
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
@@ -40,8 +40,8 @@ class SdkSearchRepositoryTest {
                     },
                 )
 
-            val first = repository.search(SearchTerm("result")) as FilesRepositoryResult.Success
-            val next = repository.loadNextPage(FilesCursor("next")) as FilesRepositoryResult.Success
+            val first = repository.search(SearchTerm("result")) as PutioResult.Success
+            val next = repository.loadNextPage(FilesCursor("next")) as PutioResult.Success
 
             assertEquals("result", requestedKeyword)
             assertEquals("  raw result.mkv  ", first.value.items.single().name)
@@ -65,9 +65,9 @@ class SdkSearchRepositoryTest {
                 )
             val repository = repositoryThrowing(error)
 
-            val result = repository.search(SearchTerm("movie")) as FilesRepositoryResult.Failure
+            val result = repository.search(SearchTerm("movie")) as PutioResult.Failure
 
-            assertTrue(result.failure is FilesFailure.RateLimited)
+            assertTrue(result.failure is PutioFailure.RateLimited)
             assertSame(error, result.failure.cause)
         }
 

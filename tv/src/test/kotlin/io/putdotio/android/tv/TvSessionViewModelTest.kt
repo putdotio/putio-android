@@ -4,14 +4,14 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
@@ -26,7 +26,6 @@ import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryRepository
-import io.putdotio.android.history.HistoryRepositoryResult
 import io.putdotio.android.history.HistoryTransferId
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchPage
@@ -101,28 +100,28 @@ class TvSessionViewModelTest {
     }
     private val dependencies = TvSessionDependencies(
         filesRepository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> {
                 heldListings[folderId]?.await()
                 rootPages.firstOrNull()?.takeIf { folderId == FilesFolder.Root.id }?.let {
-                    return FilesRepositoryResult.Success(it)
+                    return PutioResult.Success(it)
                 }
-                return FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = listedItems[folderId]))
+                return PutioResult.Success(FilesPage(emptyList(), null, parent = listedItems[folderId]))
             }
 
-            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
-                FilesRepositoryResult.Success(rootPages[cursor.value.removePrefix("page-").toInt()])
+            override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> =
+                PutioResult.Success(rootPages[cursor.value.removePrefix("page-").toInt()])
         },
         searchRepository = object : SearchRepository {
             override suspend fun search(term: SearchTerm) =
-                FilesRepositoryResult.Success(SearchPage(emptyList(), nextCursor = null, total = 0))
+                PutioResult.Success(SearchPage(emptyList(), nextCursor = null, total = 0))
 
             override suspend fun loadNextPage(cursor: FilesCursor) = error("No continuation expected")
         },
         historyRepository = object : HistoryRepository {
             override suspend fun load(before: HistoryEventId?) =
-                HistoryRepositoryResult.Success(HistoryPage(historyItems, hasMore = false))
+                PutioResult.Success(HistoryPage(historyItems, hasMore = false))
 
-            override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
+            override suspend fun clear() = PutioResult.Success(Unit)
         },
         trashRepository = StubTrashRepository,
         settingsRepository = StubAccountSettingsRepository,
@@ -134,7 +133,7 @@ class TvSessionViewModelTest {
         watchedRepository = watched,
         streamUrls = FilesStreamUrls { streamResult(it) },
         filesItemResolver = object : FilesItemResolver {
-            override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Success(
+            override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(
                 FilesItem(
                     id = itemId,
                     parentId = FilesItemId(0L),
@@ -225,7 +224,7 @@ class TvSessionViewModelTest {
 
     @Test
     fun `dismissing a history open failure keeps a session verdict`() = runTest {
-        val rejected = FilesFailure.AuthenticationRequired(PutioConfigurationException("401"))
+        val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
         val deps = TvSessionDependencies(
             filesRepository = dependencies.filesRepository,
             searchRepository = dependencies.searchRepository,
@@ -236,7 +235,7 @@ class TvSessionViewModelTest {
             watchedRepository = dependencies.watchedRepository,
             streamUrls = dependencies.streamUrls,
             filesItemResolver = object : FilesItemResolver {
-                override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Failure(rejected)
+                override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Failure(rejected)
             },
             recentSearchStore = dependencies.recentSearchStore,
             playbackRepository = dependencies.playbackRepository,
@@ -274,7 +273,7 @@ class TvSessionViewModelTest {
 
     @Test
     fun `a failed watched write is reported and a session verdict survives dismissal`() = runTest {
-        val rejected = FilesFailure.AuthenticationRequired(PutioConfigurationException("401"))
+        val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
         watched.failure = rejected
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
         val video = FilesItem(
@@ -299,7 +298,7 @@ class TvSessionViewModelTest {
 
     @Test
     fun `a rejected stream lookup is the session verdict and survives dismissal`() = runTest {
-        val rejected = FilesFailure.AuthenticationRequired(PutioConfigurationException("401"))
+        val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
         streamResult = { FilesStreamUrlResult.Failure(rejected) }
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
@@ -319,7 +318,7 @@ class TvSessionViewModelTest {
         assertEquals(FilesStreamUrlResult.DownloadTokenUnavailable, session.originalStreamUrl(streamItem))
         assertNull(session.fileActionFailure.value)
 
-        val offline = FilesStreamUrlResult.Failure(FilesFailure.Unexpected(IllegalStateException("offline")))
+        val offline = FilesStreamUrlResult.Failure(PutioFailure.Unexpected(IllegalStateException("offline")))
         streamResult = { offline }
         assertEquals(offline, session.originalStreamUrl(streamItem))
         assertNull(session.fileActionFailure.value)
@@ -537,27 +536,27 @@ class TvSessionViewModelTest {
     private fun signedIn(session: Long) = TvAuthState.SignedIn(account(), TvAuthSessionId(session))
 
     private object StubTrashRepository : TrashRepository {
-        override suspend fun load() = FilesRepositoryResult.Success(TrashPage(emptyList(), nextCursor = null))
+        override suspend fun load() = PutioResult.Success(TrashPage(emptyList(), nextCursor = null))
         override suspend fun loadNextPage(cursor: FilesCursor) = error("No continuation expected")
-        override suspend fun restore(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
+        override suspend fun restore(itemId: FilesItemId) = PutioResult.Success(Unit)
         override suspend fun resolveItem(itemId: FilesItemId) = error("No check expected")
-        override suspend fun deleteItem(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
-        override suspend fun restoreAll(selection: TrashBulkSelection) = FilesRepositoryResult.Success(Unit)
-        override suspend fun empty() = FilesRepositoryResult.Success(Unit)
+        override suspend fun deleteItem(itemId: FilesItemId) = PutioResult.Success(Unit)
+        override suspend fun restoreAll(selection: TrashBulkSelection) = PutioResult.Success(Unit)
+        override suspend fun empty() = PutioResult.Success(Unit)
     }
 
     private class FakeWatchedRepository : FilesWatchedRepository {
         val calls = mutableListOf<Pair<FilesItemId, Double?>>()
-        var failure: FilesFailure? = null
+        var failure: PutioFailure? = null
 
-        override suspend fun setPosition(itemId: FilesItemId, seconds: Double): FilesRepositoryResult<Unit> {
+        override suspend fun setPosition(itemId: FilesItemId, seconds: Double): PutioResult<Unit> {
             calls += itemId to seconds
-            return failure?.let { FilesRepositoryResult.Failure(it) } ?: FilesRepositoryResult.Success(Unit)
+            return failure?.let { PutioResult.Failure(it) } ?: PutioResult.Success(Unit)
         }
 
-        override suspend fun clearPosition(itemId: FilesItemId): FilesRepositoryResult<Unit> {
+        override suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit> {
             calls += itemId to null
-            return failure?.let { FilesRepositoryResult.Failure(it) } ?: FilesRepositoryResult.Success(Unit)
+            return failure?.let { PutioResult.Failure(it) } ?: PutioResult.Success(Unit)
         }
     }
 
@@ -607,7 +606,7 @@ class TvSessionViewModelTest {
     private class FakeRecentSearchStore : RecentSearchStoreOwner {
         override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
         override val enabled = MutableStateFlow<Boolean?>(true)
-        override val failure = MutableStateFlow<FilesFailure?>(null)
+        override val failure = MutableStateFlow<PutioFailure?>(null)
         var closed = false
 
         override fun record(term: SearchTerm) {

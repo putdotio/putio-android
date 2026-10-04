@@ -22,7 +22,6 @@ import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.MobileFilesScreen
 import io.putdotio.android.files.copyForTest
-import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
@@ -57,7 +56,7 @@ class MobileRefusedRequestProofTest {
         compose.setContent {
             val initial = FilesBrowserReducer.start().state
             val failed = initial.copyForTest(
-                stack = listOf(initial.current.copy(content = FilesContent.Failed(refusal(status).toFilesFailure()))),
+                stack = listOf(initial.current.copy(content = FilesContent.Failed(refusal(status).toPutioFailure()))),
             )
             PutioTheme {
                 Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {

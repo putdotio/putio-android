@@ -21,7 +21,6 @@ import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.OfflinePlaybackRepository
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.files.SdkFilesRepository
@@ -238,8 +237,8 @@ private fun SignedInMobileSession(
             ?: searchState.authoritativeSessionFailure()
             ?: historyState.authoritativeSessionFailure()
             ?: transfersState.authoritativeSessionFailure()
-            ?: recentSearchFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
-            ?: navigationFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
+            ?: recentSearchFailure?.takeIf { it is PutioFailure.AuthenticationRequired }
+            ?: navigationFailure?.takeIf { it is PutioFailure.AuthenticationRequired }
 
     AuthoritativeSessionFailureEffect(
         shouldReject = trashState.authenticationFailure != null ||
@@ -269,7 +268,7 @@ private fun SignedInMobileSession(
                 search = searchState,
                 history = historyState,
                 recentSearchFailure =
-                    recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired },
+                    recentSearchFailure?.takeUnless { it is PutioFailure.AuthenticationRequired },
             ),
         transfersState = transfersState,
         transfersSessionId = sessionId,
@@ -368,7 +367,7 @@ internal fun AuthoritativeSessionFailureEffect(
     }
 }
 
-internal fun TransfersState.authoritativeSessionFailure(): FilesFailure? =
+internal fun TransfersState.authoritativeSessionFailure(): PutioFailure? =
     listOfNotNull(
         when (val value = content) {
             is TransfersContent.Failed -> value.failure
@@ -380,4 +379,4 @@ internal fun TransfersState.authoritativeSessionFailure(): FilesFailure? =
         (refresh as? TransfersRefresh.Failed)?.failure,
         (mutation as? TransferMutation.Failed)?.failure,
         (retryOutcome as? TransferRetryOutcome.Failed)?.failure,
-    ).firstOrNull { it is FilesFailure.AuthenticationRequired }
+    ).firstOrNull { it is PutioFailure.AuthenticationRequired }

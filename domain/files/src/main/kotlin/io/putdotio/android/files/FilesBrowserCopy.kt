@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import kotlinx.coroutines.delay
 
 internal fun FilesBrowserState.reduceCopy(event: FilesBrowserEvent.CopyEvent): FilesBrowserTransition = when (event) {
@@ -29,9 +31,9 @@ private fun FilesBrowserState.copyStarted(event: FilesBrowserEvent.CopyStarted):
     val outcome = copyOutcome?.takeIf { it.status == FilesCopyStatus.STARTING && it.requestId == event.requestId }
         ?: return FilesBrowserTransition(this, consumed = false)
     return when (val result = event.result) {
-        is FilesRepositoryResult.Success ->
+        is PutioResult.Success ->
             checkAgain(outcome.copy(status = FilesCopyStatus.COPYING, copyId = result.value))
-        is FilesRepositoryResult.Failure -> {
+        is PutioResult.Failure -> {
             val status = if (result.failure.mayHaveStartedCopy) FilesCopyStatus.UNCONFIRMED else FilesCopyStatus.FAILED
             settle(outcome.copy(status = status, failure = result.failure, requestId = null))
         }
@@ -39,18 +41,18 @@ private fun FilesBrowserState.copyStarted(event: FilesBrowserEvent.CopyStarted):
 }
 
 /** A lost or unreadable answer, or a server fault, leaves open whether put.io accepted the copy. */
-private val FilesFailure.mayHaveStartedCopy: Boolean
-    get() = this is FilesFailure.NetworkUnavailable || this is FilesFailure.InvalidResponse ||
-        this is FilesFailure.ServerUnavailable || this is FilesFailure.Unexpected
+private val PutioFailure.mayHaveStartedCopy: Boolean
+    get() = this is PutioFailure.NetworkUnavailable || this is PutioFailure.InvalidResponse ||
+        this is PutioFailure.ServerUnavailable || this is PutioFailure.Unexpected
 
 private fun FilesBrowserState.copyChecked(event: FilesBrowserEvent.CopyChecked): FilesBrowserTransition {
     val outcome = copyOutcome?.takeIf { it.status == FilesCopyStatus.COPYING && it.requestId == event.requestId }
         ?: return FilesBrowserTransition(this, consumed = false)
     val settled = outcome.copy(requestId = null)
     return when (val result = event.result) {
-        is FilesRepositoryResult.Failure ->
+        is PutioResult.Failure ->
             settle(settled.copy(status = FilesCopyStatus.UNCONFIRMED, failure = result.failure))
-        is FilesRepositoryResult.Success -> when (val progress = result.value) {
+        is PutioResult.Success -> when (val progress = result.value) {
             FilesCopyProgress.Done -> settle(settled.copy(status = FilesCopyStatus.COPIED))
             is FilesCopyProgress.Failed ->
                 settle(settled.copy(status = FilesCopyStatus.FAILED, serverMessage = progress.message))

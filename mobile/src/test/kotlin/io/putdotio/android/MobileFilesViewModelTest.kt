@@ -15,7 +15,6 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.StubFilesRepository
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.Dispatchers
@@ -200,9 +199,9 @@ class MobileFilesViewModelTest {
     private class NestedFolderRepository : StubFilesRepository() {
         val loadedFolderIds = mutableListOf<FilesItemId>()
 
-        override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+        override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> {
             loadedFolderIds += folderId
-            return FilesRepositoryResult.Success(
+            return PutioResult.Success(
                 when (folderId) {
                     FilesFolder.Root.id -> FilesPage(listOf(Folder), nextCursor = null)
                     Folder.id -> FilesPage(listOf(Episode), nextCursor = null)
@@ -214,7 +213,7 @@ class MobileFilesViewModelTest {
         override suspend fun persistSort(
             folderId: FilesItemId,
             sort: io.putdotio.android.files.FilesSort,
-        ): FilesRepositoryResult<Unit> = FilesRepositoryResult.Success(Unit)
+        ): PutioResult<Unit> = PutioResult.Success(Unit)
     }
 
     private companion object {

@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModelStore
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.transfers.MobileTransfersViewModel
 import io.putdotio.android.transfers.TransferCursor
@@ -72,22 +71,22 @@ class MobileTransfersViewModelTest {
         ViewModelProvider(store, mobileTransfersViewModelFactory(authState))[MobileTransfersViewModel::class.java]
 
     private object EmptyTransfersRepository : TransfersRepository {
-        override suspend fun load(cursor: TransferCursor?): FilesRepositoryResult<TransfersPage> =
-            FilesRepositoryResult.Success(TransfersPage(emptyList(), null))
+        override suspend fun load(cursor: TransferCursor?): PutioResult<TransfersPage> =
+            PutioResult.Success(TransfersPage(emptyList(), null))
 
-        override suspend fun refresh(ids: List<TransferId>): FilesRepositoryResult<TransfersRowRefresh> =
+        override suspend fun refresh(ids: List<TransferId>): PutioResult<TransfersRowRefresh> =
             error("No refresh expected")
 
-        override suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome> =
+        override suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome> =
             error("No add expected")
 
-        override suspend fun cancel(id: TransferId): FilesRepositoryResult<Unit> =
+        override suspend fun cancel(id: TransferId): PutioResult<Unit> =
             error("No cancel expected")
 
-        override suspend fun retry(id: TransferId): FilesRepositoryResult<TransferItem> =
+        override suspend fun retry(id: TransferId): PutioResult<TransferItem> =
             error("No retry expected")
 
-        override suspend fun clean(ids: List<TransferId>): FilesRepositoryResult<Set<TransferId>> =
+        override suspend fun clean(ids: List<TransferId>): PutioResult<Set<TransferId>> =
             error("No clean expected")
     }
 

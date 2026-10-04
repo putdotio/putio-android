@@ -21,10 +21,8 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.settings.AccountSettingsPreferences
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
@@ -287,17 +285,17 @@ class AuthenticatedTrashRestoreTest {
         assertTrue("exact owned kind", item.type.raw == expected.fileType)
     }
 
-    private fun requireUnavailable(result: FilesRepositoryResult<FilesItem>) {
-        val failure = (result as? FilesRepositoryResult.Failure)?.failure as? FilesFailure.ApiRejected
+    private fun requireUnavailable(result: PutioResult<FilesItem>) {
+        val failure = (result as? PutioResult.Failure)?.failure as? PutioFailure.ApiRejected
         assertTrue(
             "exact Files GET must be HTTP 404",
             failure != null && failure.httpStatusCode == 404 && failure.statusCode == 404,
         )
     }
 
-    private fun <T> success(result: FilesRepositoryResult<T>): T = when (result) {
-        is FilesRepositoryResult.Success -> result.value
-        is FilesRepositoryResult.Failure -> throw AssertionError("Read failed (${result.failure.javaClass.simpleName})")
+    private fun <T> success(result: PutioResult<T>): T = when (result) {
+        is PutioResult.Success -> result.value
+        is PutioResult.Failure -> throw AssertionError("Read failed (${result.failure.javaClass.simpleName})")
     }
     private companion object { const val TIMEOUT = 30_000L }
 }
@@ -316,7 +314,7 @@ private class TrashRestoreCountingRepository(
     // Reserve the fifteenth exact-ID GET for the host's independent final readback.
     private var lastCheckAt = 0L
 
-    override suspend fun restore(itemId: FilesItemId): FilesRepositoryResult<Unit> {
+    override suspend fun restore(itemId: FilesItemId): PutioResult<Unit> {
         restores += 1
         check(itemId.value == ownedRestoreId && restores == 1) { "Unowned or duplicate Restore refused" }
         startedAt = SystemClock.elapsedRealtime()
@@ -326,11 +324,11 @@ private class TrashRestoreCountingRepository(
         )
         val result = delegate.restore(itemId)
         Log.i("TrashRestoreProof", "restore id=${itemId.value} count=$restores state=" +
-            if (result is FilesRepositoryResult.Success) "acknowledged" else "unknown")
+            if (result is PutioResult.Success) "acknowledged" else "unknown")
         return result
     }
 
-    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+    override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
         if (itemId.value == ownedRestoreId && restores > 0) {
             check(checks < 14) { "Restore check budget exhausted; retain fixture" }
             val remainingSpacing = 2_000 - (SystemClock.elapsedRealtime() - lastCheckAt)

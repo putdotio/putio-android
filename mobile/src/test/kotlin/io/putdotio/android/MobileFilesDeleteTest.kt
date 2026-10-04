@@ -21,7 +21,6 @@ import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesDeleteStatus
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -29,7 +28,6 @@ import io.putdotio.android.files.FilesFolderOperationPhase
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.MobileFilesScreen
 import io.putdotio.android.files.copyForTest
@@ -115,7 +113,7 @@ class MobileFilesDeleteTest {
         val root = loadedRoot()
         val failedRename = root.copyForTest(stack = listOf(root.current.copy(
             operation = FilesFolderOperation.Failed(
-                FilesFailure.Unexpected(IllegalStateException("rename failed")),
+                PutioFailure.Unexpected(IllegalStateException("rename failed")),
                 rename, FilesFolderOperationPhase.RENAMING,
             ),
         )))
@@ -219,11 +217,11 @@ class MobileFilesDeleteTest {
         openAction("Move to trash")
         compose.runOnIdle {
             val check = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadFailed(
-                effects.single().requestId, FilesFailure.Unexpected(IllegalStateException("lost response")),
+                effects.single().requestId, PutioFailure.Unexpected(IllegalStateException("lost response")),
             ))
             effects += checkNotNull(check.effect)
             state = FilesBrowserReducer.reduce(check.state, FilesBrowserEvent.LoadFailed(
-                checkNotNull(check.effect).requestId, FilesFailure.Unexpected(IllegalStateException("read failed")),
+                checkNotNull(check.effect).requestId, PutioFailure.Unexpected(IllegalStateException("read failed")),
             )).state
         }
         compose.onNodeWithText("Check status").performClick()
@@ -231,11 +229,11 @@ class MobileFilesDeleteTest {
             assertEquals(1, effects.filterIsInstance<FilesBrowserEffect.Delete>().size)
             assertTrue(effects.last() !is FilesBrowserEffect.Delete)
             val reload = FilesBrowserReducer.reduce(state, FilesBrowserEvent.DeleteChecked(
-                effects.last().requestId, FilesRepositoryResult.Success(item),
+                effects.last().requestId, PutioResult.Success(item),
             ))
             effects += checkNotNull(reload.effect)
             state = FilesBrowserReducer.reduce(reload.state, FilesBrowserEvent.LoadFailed(
-                checkNotNull(reload.effect).requestId, FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                checkNotNull(reload.effect).requestId, PutioFailure.Unexpected(IllegalStateException("reload failed")),
             )).state
         }
         compose.onNodeWithText("Check status").assertDoesNotExist()
@@ -299,7 +297,7 @@ class MobileFilesDeleteTest {
         // A failed Trash request whose item is gone anyway proves no Trash move either.
         compose.runOnIdle {
             state = state.copyForTest(stack = listOf(state.current.copy(deleteOutcome = outcome.copy(
-                requestId = FilesRequestId(6L), failure = FilesFailure.Unexpected(IllegalStateException("rejected")),
+                requestId = FilesRequestId(6L), failure = PutioFailure.Unexpected(IllegalStateException("rejected")),
             ))))
         }
         compose.onNodeWithText("“Harbor film.mp4” is no longer available in Files.").assertIsDisplayed()

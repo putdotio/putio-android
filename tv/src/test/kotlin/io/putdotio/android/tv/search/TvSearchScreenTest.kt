@@ -27,7 +27,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.search.RecentSearchEdit
@@ -169,7 +170,7 @@ class TvSearchScreenTest {
         compose.onNodeWithText("No results found.").assertIsDisplayed()
 
         state = searchState(
-            SearchContent.Failed(SearchTerm("x"), FilesFailure.Misconfigured(PutioConfigurationException("boom"))),
+            SearchContent.Failed(SearchTerm("x"), PutioFailure.Misconfigured(PutioConfigurationException("boom"))),
             query = "x",
         )
         compose.onNodeWithText("Couldn’t search").assertIsDisplayed()
@@ -186,7 +187,7 @@ class TvSearchScreenTest {
 
     @Test
     fun aRecentSearchFailureOffersRetryAndABlockedOpenExplainsItself() {
-        var notice by mutableStateOf<FilesFailure?>(FilesFailure.Misconfigured(PutioConfigurationException("boom")))
+        var notice by mutableStateOf<FilesFailure?>(PutioFailure.Misconfigured(PutioConfigurationException("boom")))
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvSearchScreen(state = searchState(SearchContent.Idle), actions = actions, notice = notice)
@@ -226,7 +227,7 @@ class TvSearchScreenTest {
         compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused()
 
         state = oneRowSearch(
-            SearchPaging.Failed(FilesCursor("c1"), FilesFailure.Misconfigured(PutioConfigurationException("boom"))),
+            SearchPaging.Failed(FilesCursor("c1"), PutioFailure.Misconfigured(PutioConfigurationException("boom"))),
         )
         compose.onNodeWithText("Couldn’t load more results.").assertIsDisplayed()
         compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
@@ -358,7 +359,7 @@ class TvSearchScreenTest {
 
     @Test
     fun aSuccessfulRecentRetryHandsFocusToTheField() {
-        var notice by mutableStateOf<FilesFailure?>(FilesFailure.Misconfigured(PutioConfigurationException("boom")))
+        var notice by mutableStateOf<PutioFailure?>(PutioFailure.Misconfigured(PutioConfigurationException("boom")))
         val retrying = TvSearchActions(
             onQueryChanged = {}, onSubmit = {}, onResult = {}, onNextPage = {}, onRetry = {},
             recent = TvRecentSearchActions(onSearch = {}, onEdit = {}, onRetry = { notice = null }),

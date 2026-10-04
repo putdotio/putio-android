@@ -1,9 +1,9 @@
 package io.putdotio.android.trash
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesRepositoryResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -66,11 +66,11 @@ class TrashActionTest {
         val repository = FakeTrashRepository().apply { onDelete = { error("lost response") } }
         TrashController(repository, this).use { controller ->
             controller.openLoaded()
-            repository.onLoad = { FilesRepositoryResult.Failure(offlineFailure()) }
+            repository.onLoad = { PutioResult.Failure(offlineFailure()) }
             controller.confirmAction(TrashEvent.SelectDelete(trashItem().id))
             val offline = controller.awaitState { it.actionOutcome?.checkFailure != null }
             assertEquals(TrashActionCheck.FAILED, offline.actionOutcome?.check)
-            assertTrue(offline.actionOutcome?.checkFailure is FilesFailure.Unexpected)
+            assertTrue(offline.actionOutcome?.checkFailure is PutioFailure.Unexpected)
             assertTrue((offline.content as TrashContent.Loaded).refreshFailure != null)
             assertTrue(offline.hasPendingAction)
             assertFalse(offline.canRestore(trashItem().id))
@@ -92,8 +92,8 @@ class TrashActionTest {
         // The deleted item lives on page two; after an uncertain submission the fresh first page
         // still has a cursor, so its absence there proves nothing.
         val repository = FakeTrashRepository().apply {
-            onDelete = { FilesRepositoryResult.Failure(offlineFailure()) }
-            onLoad = { FilesRepositoryResult.Success(TrashPage(listOf(trashItem(8L)), FilesCursor("more"), 60, 1L)) }
+            onDelete = { PutioResult.Failure(offlineFailure()) }
+            onLoad = { PutioResult.Success(TrashPage(listOf(trashItem(8L)), FilesCursor("more"), 60, 1L)) }
             onPage = { page(trashItem()) }
         }
         TrashController(repository, this).use { controller ->
@@ -114,7 +114,7 @@ class TrashActionTest {
     fun knownRejectionsStopWithoutAnyVerificationRead() = runBlocking {
         for (status in listOf(400 to "TRASH_FILE_NOT_FOUND", 404 to "TRASH_FILE_NOT_FOUND", 403 to "forbidden")) {
             val repository = FakeTrashRepository().apply {
-                onDelete = { FilesRepositoryResult.Failure(rejection(status.first, status.second)) }
+                onDelete = { PutioResult.Failure(rejection(status.first, status.second)) }
             }
             TrashController(repository, this).use { controller ->
                 controller.openLoaded()
@@ -132,7 +132,7 @@ class TrashActionTest {
     @Test
     fun restoreAllUsesTheInitialSnapshotCursorOrTheLoadedIdsAndInvalidatesFiles() = runBlocking {
         val cursorRepository = FakeTrashRepository().apply {
-            onLoad = { FilesRepositoryResult.Success(TrashPage(listOf(trashItem()), FilesCursor("snapshot"), 80, 5L)) }
+            onLoad = { PutioResult.Success(TrashPage(listOf(trashItem()), FilesCursor("snapshot"), 80, 5L)) }
             onPage = { page(trashItem(8L)) }
         }
         TrashController(cursorRepository, this).use { controller ->
@@ -207,7 +207,7 @@ class TrashActionTest {
         }
         TrashController(actionRepository, this).use { controller ->
             controller.openLoaded()
-            actionRepository.onLoad = { FilesRepositoryResult.Failure(offlineFailure()) }
+            actionRepository.onLoad = { PutioResult.Failure(offlineFailure()) }
             controller.confirmAction(TrashEvent.SelectDelete(trashItem().id))
             controller.awaitState { it.actionOutcome?.check == TrashActionCheck.FAILED }
             assertFalse(controller.dispatch(TrashEvent.SelectRestore(trashItem(8L).id)))
@@ -219,8 +219,8 @@ class TrashActionTest {
     fun authenticationFailureOnTheActionClosesTheSession() = runBlocking {
         val repository = FakeTrashRepository().apply {
             onEmpty = {
-                val expired = FilesFailure.AuthenticationRequired(apiFailure(401, "invalid_token").cause)
-                FilesRepositoryResult.Failure(expired)
+                val expired = PutioFailure.AuthenticationRequired(apiFailure(401, "invalid_token").cause)
+                PutioResult.Failure(expired)
             }
         }
         TrashController(repository, this).use { controller ->
@@ -298,7 +298,7 @@ class TrashActionTest {
         }
         // A cursor covers unloaded IDs too: only rows deleted after the newest loaded one are provably new.
         val cursorRepository = FakeTrashRepository().apply {
-            onLoad = { FilesRepositoryResult.Success(TrashPage(listOf(trashItem()), FilesCursor("snapshot"), 80, 5L)) }
+            onLoad = { PutioResult.Success(TrashPage(listOf(trashItem()), FilesCursor("snapshot"), 80, 5L)) }
         }
         TrashController(cursorRepository, this).use { controller ->
             controller.openLoaded()
@@ -320,7 +320,7 @@ class TrashActionTest {
         }
         // A loaded row without a usable deleted_at leaves the bound unknown, so only empty verifies.
         val unboundedRepository = FakeTrashRepository().apply {
-            onLoad = { FilesRepositoryResult.Success(TrashPage(
+            onLoad = { PutioResult.Success(TrashPage(
                 listOf(trashItem(), trashItem(8L).copy(deletedAt = null)), FilesCursor("snapshot"), 80, 5L)) }
         }
         TrashController(unboundedRepository, this).use { controller ->
@@ -343,7 +343,7 @@ class TrashActionTest {
         val repository = FakeTrashRepository()
         TrashController(repository, this).use { controller ->
             controller.openLoaded()
-            repository.onLoad = { FilesRepositoryResult.Failure(offlineFailure()) }
+            repository.onLoad = { PutioResult.Failure(offlineFailure()) }
             assertTrue(controller.dispatch(TrashEvent.Refresh))
             val stale = controller.awaitState { (it.content as? TrashContent.Loaded)?.refreshFailure != null }
             assertFalse(stale.canActOnAll)
@@ -359,7 +359,7 @@ class TrashActionTest {
         }
     }
 
-    private fun rejection(status: Int, type: String): FilesFailure =
-        if (status == 403) FilesFailure.AccessDenied(apiFailure(status, type).cause) else apiFailure(status, type)
+    private fun rejection(status: Int, type: String): PutioFailure =
+        if (status == 403) PutioFailure.AccessDenied(apiFailure(status, type).cause) else apiFailure(status, type)
 }
 

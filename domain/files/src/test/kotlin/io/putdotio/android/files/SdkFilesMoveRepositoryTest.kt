@@ -13,6 +13,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.concurrent.CancellationException
+import io.putdotio.android.PutioResult
 
 class SdkFilesMoveRepositoryTest {
     @Test
@@ -20,11 +21,11 @@ class SdkFilesMoveRepositoryTest {
         val errors = listOf(FileMoveError("FUTURE_ERROR", 999L, null, 409))
         val calls = mutableListOf<Pair<Long, Long>>()
         val repository = repository(move = { source, destination -> calls += source to destination; errors })
-        val result = repository.move(FilesItemId(7L), FilesFolder.Root.id) as FilesRepositoryResult.Success
+        val result = repository.move(FilesItemId(7L), FilesFolder.Root.id) as PutioResult.Success
         assertSame(errors, result.value)
         assertEquals(listOf(7L to 0L), calls)
         for ((source, destination) in listOf(0L to 9L, -1L to 9L, 7L to -1L, 7L to 7L)) {
-            assertTrue(repository.move(FilesItemId(source), FilesItemId(destination)) is FilesRepositoryResult.Failure)
+            assertTrue(repository.move(FilesItemId(source), FilesItemId(destination)) is PutioResult.Failure)
         }
         assertEquals(1, calls.size)
     }
@@ -48,17 +49,17 @@ class SdkFilesMoveRepositoryTest {
                 FilesListResponse(files = rows, status = "OK")
             },
         )
-        val first = repository.loadMoveDestinations(FilesFolder.Root.id) as FilesRepositoryResult.Success
+        val first = repository.loadMoveDestinations(FilesFolder.Root.id) as PutioResult.Success
         assertEquals(listOf(regular.toFilesItem()), first.value.items)
         assertEquals(PutioFileType.FOLDER, folderQuery?.fileType)
         assertEquals(50, folderQuery?.perPage)
         assertEquals(false, folderQuery?.noCursor)
         val second = repository.loadMoveDestinations(
             FilesFolder.Root.id, first.value.nextCursor,
-        ) as FilesRepositoryResult.Success
+        ) as PutioResult.Success
         assertEquals(listOf(regular.toFilesItem()), second.value.items)
         assertEquals(50, continuationQuery?.perPage)
-        assertTrue(repository.loadMoveDestinations(FilesItemId(-1L)) is FilesRepositoryResult.Failure)
+        assertTrue(repository.loadMoveDestinations(FilesItemId(-1L)) is PutioResult.Failure)
     }
 
     @Test

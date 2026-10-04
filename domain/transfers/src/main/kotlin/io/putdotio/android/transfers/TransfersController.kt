@@ -1,7 +1,7 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import java.io.Closeable
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -116,7 +116,7 @@ class TransfersController internal constructor(
                     } catch (error: CancellationException) {
                         throw error
                     } catch (unexpected: Exception) {
-                        TransfersEvent.ListFailed(requestId, FilesFailure.Unexpected(unexpected))
+                        TransfersEvent.ListFailed(requestId, PutioFailure.Unexpected(unexpected))
                     }
                 synchronized(lock) {
                     if (readJob === job) readJob = null
@@ -172,7 +172,7 @@ class TransfersController internal constructor(
                     } catch (unexpected: Exception) {
                         TransfersEvent.MutationFailed(
                             effect.requestId,
-                            FilesFailure.Unexpected(unexpected),
+                            PutioFailure.Unexpected(unexpected),
                         )
                     }
                 synchronized(lock) {
@@ -259,33 +259,33 @@ private val TransfersEffect?.isReadEffect: Boolean
 
 private suspend fun TransfersRepository.loadEvent(effect: TransfersEffect.Load): TransfersEvent =
     when (val result = load(effect.cursor)) {
-        is FilesRepositoryResult.Failure -> TransfersEvent.ListFailed(effect.requestId, result.failure)
-        is FilesRepositoryResult.Success -> {
+        is PutioResult.Failure -> TransfersEvent.ListFailed(effect.requestId, result.failure)
+        is PutioResult.Success -> {
             val omittedIds = effect.reconcileIds - result.value.items.mapTo(mutableSetOf(), TransferItem::id)
             if (omittedIds.isEmpty()) {
                 TransfersEvent.ListSucceeded(effect.requestId, result.value)
             } else {
                 when (val reconciled = refresh(omittedIds.toList())) {
-                    is FilesRepositoryResult.Success ->
+                    is PutioResult.Success ->
                         TransfersEvent.FirstPageRefreshed(
                             effect.requestId,
                             result.value,
                             reconciled.value.items,
                         )
-                    is FilesRepositoryResult.Failure ->
+                    is PutioResult.Failure ->
                         TransfersEvent.ListFailed(effect.requestId, reconciled.failure)
                 }
             }
         }
     }
 
-private fun FilesRepositoryResult<TransfersRowRefresh>.toRowsEvent(
+private fun PutioResult<TransfersRowRefresh>.toRowsEvent(
     requestId: TransfersRequestId,
 ): TransfersEvent =
     when (this) {
-        is FilesRepositoryResult.Success ->
+        is PutioResult.Success ->
             TransfersEvent.RowsRefreshed(requestId, value.items, value.missingIds)
-        is FilesRepositoryResult.Failure -> TransfersEvent.ListFailed(requestId, failure)
+        is PutioResult.Failure -> TransfersEvent.ListFailed(requestId, failure)
     }
 
 private sealed interface MutationResult {
@@ -294,7 +294,7 @@ private sealed interface MutationResult {
     data class Added(val outcome: TransferAddOutcome) : MutationResult
 }
 
-private suspend fun TransfersRepository.execute(action: TransferAction): FilesRepositoryResult<MutationResult> =
+private suspend fun TransfersRepository.execute(action: TransferAction): PutioResult<MutationResult> =
     when (action) {
         is TransferAction.Add -> add(action.request).mapSuccess(MutationResult::Added)
         is TransferAction.Cancel -> cancel(action.id).mapSuccess { MutationResult.Affected(setOf(action.id)) }
@@ -302,18 +302,18 @@ private suspend fun TransfersRepository.execute(action: TransferAction): FilesRe
         TransferAction.Clean -> clean(emptyList()).mapSuccess(MutationResult::Affected)
     }
 
-private fun <T, R> FilesRepositoryResult<T>.mapSuccess(mapper: (T) -> R): FilesRepositoryResult<R> =
+private fun <T, R> PutioResult<T>.mapSuccess(mapper: (T) -> R): PutioResult<R> =
     when (this) {
-        is FilesRepositoryResult.Success -> FilesRepositoryResult.Success(mapper(value))
-        is FilesRepositoryResult.Failure -> this
+        is PutioResult.Success -> PutioResult.Success(mapper(value))
+        is PutioResult.Failure -> this
     }
 
-private fun FilesRepositoryResult<MutationResult>.toMutationEvent(
+private fun PutioResult<MutationResult>.toMutationEvent(
     requestId: TransfersRequestId,
 ): TransfersEvent =
     when (this) {
-        is FilesRepositoryResult.Failure -> TransfersEvent.MutationFailed(requestId, failure)
-        is FilesRepositoryResult.Success ->
+        is PutioResult.Failure -> TransfersEvent.MutationFailed(requestId, failure)
+        is PutioResult.Success ->
             when (val result = value) {
                 is MutationResult.Item -> TransfersEvent.MutationSucceeded(requestId, item = result.item)
                 is MutationResult.Affected ->

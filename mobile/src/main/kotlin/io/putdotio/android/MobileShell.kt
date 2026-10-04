@@ -52,12 +52,10 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesExternalOpen
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MobileFilesSortMenu
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.files.pendingDelete
@@ -133,8 +131,8 @@ internal fun MobileShell(
     onFilesAuthenticationRequired: suspend () -> Unit = {},
     searchHistoryActions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     onTransfersEvent: (TransfersEvent) -> Unit = {},
-    resolveTransferFile: suspend (TransferFileId) -> FilesRepositoryResult<FilesItem> = {
-        FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("No transfer file resolver")))
+    resolveTransferFile: suspend (TransferFileId) -> PutioResult<FilesItem> = {
+        PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("No transfer file resolver")))
     },
     onTransferAuthenticationRequired: suspend () -> Unit = {},
     contentNavigation: Flow<FilesExternalOpen> = emptyFlow(),
@@ -486,7 +484,7 @@ private fun TransferFileNavigationEffect(
     navController: NavHostController,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onTransfersEvent: (TransfersEvent) -> Unit,
-    resolveTransferFile: suspend (TransferFileId) -> FilesRepositoryResult<FilesItem>,
+    resolveTransferFile: suspend (TransferFileId) -> PutioResult<FilesItem>,
     onTransferAuthenticationRequired: suspend () -> Unit,
 ) {
     LaunchedEffect(resolving?.requestId, transfersSessionId) {
@@ -498,7 +496,7 @@ private fun TransferFileNavigationEffect(
         val resolved = sessionResolveTransferFile(resolvingTransfer.fileId)
         currentCoroutineContext().ensureActive()
         when (resolved) {
-            is FilesRepositoryResult.Success -> {
+            is PutioResult.Success -> {
                 navController.currentBackStackEntryFlow.first()
                 currentCoroutineContext().ensureActive()
                 val open = FilesBrowserEvent.OpenExternalItem(resolved.value, FilesOpenOrigin.TRANSFERS)
@@ -511,8 +509,8 @@ private fun TransferFileNavigationEffect(
                     ))
                 }
             }
-            is FilesRepositoryResult.Failure ->
-                if (resolved.failure is FilesFailure.AuthenticationRequired) {
+            is PutioResult.Failure ->
+                if (resolved.failure is PutioFailure.AuthenticationRequired) {
                     sessionOnTransferAuthenticationRequired()
                 } else {
                     sessionOnTransfersEvent(TransfersEvent.OpenFailed(resolvingTransfer.requestId, resolved.failure))
@@ -551,7 +549,7 @@ private fun MobileNavigationAlerts(
     onDismissNavigationFailure: () -> Unit,
     onTransfersEvent: (TransfersEvent) -> Unit,
 ) {
-    if (navigationFailure != null && navigationFailure !is FilesFailure.AuthenticationRequired) {
+    if (navigationFailure != null && navigationFailure !is PutioFailure.AuthenticationRequired) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = onDismissNavigationFailure,
             title = { Text(stringResource(R.string.mobile_navigation_error_title)) },
@@ -784,7 +782,7 @@ private fun MobileDestinationIcon(
 internal data class MobileSearchHistoryState(
     val search: SearchState,
     val history: HistoryState,
-    val recentSearchFailure: FilesFailure?,
+    val recentSearchFailure: PutioFailure?,
 )
 
 internal data class MobileSearchHistoryActions(

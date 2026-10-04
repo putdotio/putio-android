@@ -1,7 +1,7 @@
 package io.putdotio.android.search
 
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.toFilesFailure
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.toPutioFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.config.AppConfig
 import io.putdotio.sdk.config.AppConfigUpdate
@@ -23,7 +23,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
 interface RecentSearchStoreOwner : RecentSearchStore, Closeable {
-    val failure: StateFlow<FilesFailure?>
+    val failure: StateFlow<PutioFailure?>
 
     fun retry()
 }
@@ -48,7 +48,7 @@ class AppConfigRecentSearchStore(
 
     override val terms: StateFlow<List<SearchTerm>> = writes.terms.asStateFlow()
     override val enabled: StateFlow<Boolean?> = writes.enabled.asStateFlow()
-    override val failure: StateFlow<FilesFailure?> = writes.failure.asStateFlow()
+    override val failure: StateFlow<PutioFailure?> = writes.failure.asStateFlow()
 
     init {
         scope.launch {
@@ -103,10 +103,10 @@ class AppConfigRecentSearchStore(
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
-            writes.failure.value = error.toFilesFailure()
+            writes.failure.value = error.toPutioFailure()
             null
         } catch (unexpected: Exception) {
-            writes.failure.value = FilesFailure.Unexpected(unexpected)
+            writes.failure.value = PutioFailure.Unexpected(unexpected)
             null
         }
 
@@ -138,7 +138,7 @@ private class RecentSearchWrites(
     private var stored = StoredRecentSearches(enabled = true, terms = emptyList())
     val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
     val enabled = MutableStateFlow<Boolean?>(null)
-    val failure = MutableStateFlow<FilesFailure?>(null)
+    val failure = MutableStateFlow<PutioFailure?>(null)
     val storedTerms: List<SearchTerm> get() = stored.terms
 
     fun load(config: RecentSearchConfig) {
@@ -179,11 +179,11 @@ private class RecentSearchWrites(
             throw error
         } catch (error: PutioException) {
             publish(previous)
-            failure.value = error.toFilesFailure()
+            failure.value = error.toPutioFailure()
             false
         } catch (unexpected: Exception) {
             publish(previous)
-            failure.value = FilesFailure.Unexpected(unexpected)
+            failure.value = PutioFailure.Unexpected(unexpected)
             false
         }
     }

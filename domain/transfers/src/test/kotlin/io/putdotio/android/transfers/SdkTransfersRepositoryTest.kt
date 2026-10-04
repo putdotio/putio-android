@@ -1,7 +1,7 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioOperationException
@@ -44,8 +44,8 @@ class SdkTransfersRepositoryTest {
         }
         val repository = repository(reads = reads)
 
-        val first = repository.load() as FilesRepositoryResult.Success
-        val second = repository.load(first.value.nextCursor) as FilesRepositoryResult.Success
+        val first = repository.load() as PutioResult.Success
+        val second = repository.load(first.value.nextCursor) as PutioResult.Success
 
         assertEquals(50, listQueries.single().perPage)
         assertEquals("next", continuationQueries.single().first)
@@ -64,7 +64,7 @@ class SdkTransfersRepositoryTest {
         val result =
             repository.refresh(
                 listOf(TransferId(5L), TransferId(4L), TransferId(3L)),
-            ) as FilesRepositoryResult.Success
+            ) as PutioResult.Success
 
         assertEquals(listOf(TransferId(5L), TransferId(3L)), result.value.items.map(TransferItem::id))
         assertEquals(setOf(TransferId(4L)), result.value.missingIds)
@@ -77,9 +77,9 @@ class SdkTransfersRepositoryTest {
         }
         val repository = repository(reads = reads)
 
-        val result = repository.refresh(listOf(TransferId(3L), TransferId(4L))) as FilesRepositoryResult.Failure
+        val result = repository.refresh(listOf(TransferId(3L), TransferId(4L))) as PutioResult.Failure
 
-        assertTrue(result.failure is FilesFailure.ServerUnavailable)
+        assertTrue(result.failure is PutioFailure.ServerUnavailable)
     }
 
     @Test
@@ -100,7 +100,7 @@ class SdkTransfersRepositoryTest {
         }
         val repository = repository(reads = reads)
 
-        val result = repository.refresh((1L..12L).map(::TransferId)) as FilesRepositoryResult.Success
+        val result = repository.refresh((1L..12L).map(::TransferId)) as PutioResult.Success
 
         assertEquals(listOf(1_000, 1_000), queries.map(TransfersListQuery::perPage))
         assertEquals(listOf("next"), cursors)
@@ -121,7 +121,7 @@ class SdkTransfersRepositoryTest {
         val reads = ReadOperations().apply { list = { response(transfers, null) } }
         val repository = repository(reads = reads)
 
-        val items = (repository.load() as FilesRepositoryResult.Success).value.items
+        val items = (repository.load() as PutioResult.Success).value.items
 
         assertEquals(AppTransferStatus.Downloading, items[0].status)
         assertEquals(AppTransferStatus.Completed, items[1].status)
@@ -142,7 +142,7 @@ class SdkTransfersRepositoryTest {
             )
         val reads = ReadOperations().apply { list = { response(transfers, null) } }
 
-        val items = (repository(reads = reads).load() as FilesRepositoryResult.Success).value.items
+        val items = (repository(reads = reads).load() as PutioResult.Success).value.items
 
         assertEquals(
             listOf("Downloading text/html is not allowed.", null, null),
@@ -175,7 +175,7 @@ class SdkTransfersRepositoryTest {
             )
         val reads = ReadOperations().apply { list = { response(transfers, null) } }
 
-        val items = (repository(reads = reads).load() as FilesRepositoryResult.Success).value.items
+        val items = (repository(reads = reads).load() as PutioResult.Success).value.items
 
         assertEquals(listOf(25.0, 75.0, 40.0), items.map(TransferItem::percentDone))
     }
@@ -206,7 +206,7 @@ class SdkTransfersRepositoryTest {
         repository.add(TransferAddRequest.Links(requireNotNull(TransferSubmission.parseAll("magnet:?xt=urn:test"))))
         repository.cancel(TransferId(8L))
         repository.retry(TransferId(8L))
-        val result = repository.clean(emptyList()) as FilesRepositoryResult.Success
+        val result = repository.clean(emptyList()) as PutioResult.Success
 
         assertEquals("magnet:?xt=urn:test", added?.url)
         assertEquals(listOf(8L), cancelled)
@@ -231,7 +231,7 @@ class SdkTransfersRepositoryTest {
         val links = requireNotNull(TransferSubmission.parseAll("magnet:?xt=urn:first\nhttps://example.invalid/second"))
 
         val result =
-            repository.add(TransferAddRequest.Links(links, saveParentId = 44L)) as FilesRepositoryResult.Success
+            repository.add(TransferAddRequest.Links(links, saveParentId = 44L)) as PutioResult.Success
 
         assertEquals(listOf("magnet:?xt=urn:first", "https://example.invalid/second"), sent?.map { it.url })
         assertEquals(listOf(44L, 44L), sent?.map { it.saveParentId })
@@ -266,7 +266,7 @@ class SdkTransfersRepositoryTest {
         val torrent = TorrentUpload("Harbor film.torrent", byteArrayOf(0x64, 0x65))
 
         val result =
-            repository.add(TransferAddRequest.Torrent(torrent, saveParentId = 7L)) as FilesRepositoryResult.Success
+            repository.add(TransferAddRequest.Torrent(torrent, saveParentId = 7L)) as PutioResult.Success
 
         assertEquals(listOf(TransferId(31L)), result.value.added.map { it.id })
         assertEquals("Harbor film.torrent", sent?.fileName)
@@ -288,14 +288,14 @@ class SdkTransfersRepositoryTest {
 
         val result = repository.add(TransferAddRequest.Torrent(TorrentUpload("a.torrent", byteArrayOf(1))))
 
-        assertTrue((result as FilesRepositoryResult.Failure).failure is FilesFailure.Unexpected)
+        assertTrue((result as PutioResult.Failure).failure is PutioFailure.Unexpected)
     }
 
     @Test
     fun propagatesAuthenticationFailureAndCancellation() {
         val unauthorized = apiFailure("list", 401, errorType = "invalid_scope")
-        val failed = runBlocking { throwingRepository(unauthorized).load() } as FilesRepositoryResult.Failure
-        assertTrue(failed.failure is FilesFailure.AuthenticationRequired)
+        val failed = runBlocking { throwingRepository(unauthorized).load() } as PutioResult.Failure
+        assertTrue(failed.failure is PutioFailure.AuthenticationRequired)
 
         val cancellation = CancellationException("closed")
         try {

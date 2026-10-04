@@ -52,7 +52,7 @@ import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.MobileFilesRow
 import io.putdotio.android.files.mobileMessage
@@ -76,7 +76,7 @@ internal const val MOBILE_HISTORY_LIST_TAG = "mobile-history-list"
 internal fun MobileSearchHistoryScreen(
     searchState: SearchState,
     historyState: HistoryState,
-    recentSearchFailure: FilesFailure?,
+    recentSearchFailure: PutioFailure?,
     onSearchQueryChanged: (String) -> Unit,
     onSearchSubmit: () -> Unit,
     onSearchResult: (FilesItem) -> Unit,
@@ -136,7 +136,7 @@ private fun MobileSearchContent(
     onRetry: () -> Unit,
     onRecentSearch: (SearchTerm) -> Unit,
     onRecentEdit: (RecentSearchEdit) -> Unit,
-    recentSearchFailure: FilesFailure?,
+    recentSearchFailure: PutioFailure?,
     onRecentRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -218,7 +218,7 @@ private fun MobileSearchContent(
 
 @Composable
 private fun MobileRecentSearchFailure(
-    failure: FilesFailure,
+    failure: PutioFailure,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -245,7 +245,7 @@ private fun MobileRecentSearchFailure(
 }
 
 @Composable
-private fun MobileRecentSearchFailureText(failure: FilesFailure, modifier: Modifier = Modifier) {
+private fun MobileRecentSearchFailureText(failure: PutioFailure, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(
             text = stringResource(R.string.mobile_search_recent_error_title),

@@ -24,7 +24,6 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesItem
@@ -76,7 +75,7 @@ class MobileFilesRenameTest {
         compose.runOnIdle {
             assertEquals(listOf(otherVideo), flow.played)
             flow.state = FilesBrowserReducer.reduce(flow.state, FilesBrowserEvent.LoadFailed(
-                reloadRequest, FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                reloadRequest, PutioFailure.Unexpected(IllegalStateException("reload failed")),
             )).state
         }
         compose.onNodeWithText(target.name).assertHasNoClickAction()
@@ -287,7 +286,7 @@ class MobileFilesRenameTest {
             loadedRoot(), FilesBrowserEvent.Rename(FilesFolder.Root.id, file.id, "abandoned.mkv"),
         )
         return FilesBrowserReducer.reduce(rename.state, FilesBrowserEvent.LoadFailed(
-            checkNotNull(rename.effect).requestId, FilesFailure.Unexpected(IllegalStateException("rejected")),
+            checkNotNull(rename.effect).requestId, PutioFailure.Unexpected(IllegalStateException("rejected")),
         )).state
     }
 

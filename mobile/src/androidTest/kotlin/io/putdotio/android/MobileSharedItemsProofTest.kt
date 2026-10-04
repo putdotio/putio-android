@@ -33,7 +33,6 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.MOBILE_FILES_COPY_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_COPY_DISMISS_TAG
@@ -178,7 +177,7 @@ private class SharedItemsRepository : FilesRepository {
     val checking = CompletableDeferred<Unit>()
     val finish = CompletableDeferred<FilesCopyProgress>()
 
-    override suspend fun loadFolder(folderId: FilesItemId) = FilesRepositoryResult.Success(FilesPage(listOf(
+    override suspend fun loadFolder(folderId: FilesItemId) = PutioResult.Success(FilesPage(listOf(
         item(10, SHARED_ROOT, PutioFileType.FOLDER).copy(folderType = PutioFolderType.SHARED_ROOT),
         item(11, FRIEND, PutioFileType.FOLDER).copy(folderType = PutioFolderType.SHARED_FRIEND),
         item(12, SHARED_FOLDER, PutioFileType.FOLDER).copy(isShared = true),
@@ -188,21 +187,21 @@ private class SharedItemsRepository : FilesRepository {
     ), null))
 
     override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-        FilesRepositoryResult.Success(
+        PutioResult.Success(
             FilesPage(if (folderId == FilesFolder.Root.id) listOf(DESTINATION) else emptyList(), null),
         )
 
     override suspend fun startCopy(
         itemId: FilesItemId,
         destinationId: FilesItemId,
-    ): FilesRepositoryResult<FilesCopyId> {
+    ): PutioResult<FilesCopyId> {
         copies += itemId to destinationId
-        return FilesRepositoryResult.Success(FilesCopyId(42L))
+        return PutioResult.Success(FilesCopyId(42L))
     }
 
-    override suspend fun checkCopy(copyId: FilesCopyId): FilesRepositoryResult<FilesCopyProgress> {
+    override suspend fun checkCopy(copyId: FilesCopyId): PutioResult<FilesCopyProgress> {
         checking.complete(Unit)
-        return FilesRepositoryResult.Success(finish.await())
+        return PutioResult.Success(finish.await())
     }
 
     override suspend fun loadNextPage(cursor: FilesCursor) = error("No paging")

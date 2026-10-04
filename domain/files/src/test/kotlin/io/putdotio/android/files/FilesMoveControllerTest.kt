@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
@@ -23,29 +25,29 @@ class FilesMoveControllerTest {
             var moves = 0
             var loads = 0
             val reads = mutableListOf<FilesItemId>()
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> {
                 loads += 1
                 return when (loads) {
-                    1 -> FilesRepositoryResult.Success(FilesPage(listOf(item), FilesCursor("next")))
-                    2 -> FilesRepositoryResult.Failure(failure("reload offline"))
-                    else -> FilesRepositoryResult.Success(FilesPage(emptyList(), null))
+                    1 -> PutioResult.Success(FilesPage(listOf(item), FilesCursor("next")))
+                    2 -> PutioResult.Failure(failure("reload offline"))
+                    else -> PutioResult.Success(FilesPage(emptyList(), null))
                 }
             }
-            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+            override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> {
                 pagingStarted.complete(Unit)
                 try { awaitCancellation() } finally { pagingCancelled.complete(Unit) }
             }
             override suspend fun move(
                 itemId: FilesItemId,
                 destinationId: FilesItemId,
-            ): FilesRepositoryResult<List<FileMoveError>> {
+            ): PutioResult<List<FileMoveError>> {
                 moves += 1
                 error("response lost after submission")
             }
-            override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+            override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
                 reads += itemId
-                return if (reads.size == 1) FilesRepositoryResult.Failure(failure("read offline")) else
-                    FilesRepositoryResult.Success(item.copy(parentId = destinationId))
+                return if (reads.size == 1) PutioResult.Failure(failure("read offline")) else
+                    PutioResult.Success(item.copy(parentId = destinationId))
             }
         }
         val controller = FilesBrowserController(repository, this)
@@ -70,11 +72,11 @@ class FilesMoveControllerTest {
             assertEquals(listOf(item.id, item.id), repository.reads)
             assertEquals(3, repository.loads)
             assertEquals(FilesMoveStatus.MOVED, controller.state.value.current.moveOutcome?.status)
-            assertTrue(controller.state.value.current.moveOutcome?.failure is FilesFailure.Unexpected)
+            assertTrue(controller.state.value.current.moveOutcome?.failure is PutioFailure.Unexpected)
         } finally {
             controller.close()
         }
     }
 
-    private fun failure(message: String) = FilesFailure.Unexpected(IllegalStateException(message))
+    private fun failure(message: String) = PutioFailure.Unexpected(IllegalStateException(message))
 }

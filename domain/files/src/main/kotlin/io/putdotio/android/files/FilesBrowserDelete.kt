@@ -1,5 +1,8 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+
 internal fun FilesBrowserState.reduceDelete(event: FilesBrowserEvent.DeleteEvent): FilesBrowserTransition =
     when (event) {
         is FilesBrowserEvent.Delete -> delete(event)
@@ -35,12 +38,12 @@ internal fun FilesBrowserState.deleteFinished(event: FilesBrowserEvent.DeleteFin
     val folder = stack.getOrNull(index)
     val outcome = folder?.deleteOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
-    val failure = (event.result as? FilesRepositoryResult.Failure)?.failure
+    val failure = (event.result as? PutioResult.Failure)?.failure
     val recorded = outcome.copy(
-        response = (event.result as? FilesRepositoryResult.Success)?.value,
+        response = (event.result as? PutioResult.Success)?.value,
         failure = failure,
     )
-    return if (failure is FilesFailure.AuthenticationRequired) {
+    return if (failure is PutioFailure.AuthenticationRequired) {
         val updated = folder.copy(
             deleteOutcome = recorded.copy(status = FilesDeleteStatus.UNKNOWN),
             operation = FilesFolderOperation.Failed(failure, outcome.intent, FilesFolderOperationPhase.CHECKING_DELETE),
@@ -70,7 +73,7 @@ private fun FilesBrowserState.deleteChecked(event: FilesBrowserEvent.DeleteCheck
     val outcome = folder?.deleteOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
     val failure = event.result.deleteReadFailure(outcome.intent.itemId)
-    val unavailable = failure is FilesFailure.ApiRejected &&
+    val unavailable = failure is PutioFailure.ApiRejected &&
         failure.statusCode == HTTP_NOT_FOUND && failure.httpStatusCode == HTTP_NOT_FOUND
     return if (failure != null && !unavailable) {
         loadFailed(FilesBrowserEvent.LoadFailed(event.requestId, failure))
@@ -97,10 +100,10 @@ private fun FilesBrowserState.deleteOutcomeAnnounced(outcome: FilesDeleteOutcome
     return FilesBrowserTransition(copy(stack = stack.replaceAt(index, announced)))
 }
 
-private fun FilesRepositoryResult<FilesItem>.deleteReadFailure(expectedId: FilesItemId): FilesFailure? = when (this) {
-    is FilesRepositoryResult.Failure -> failure
-    is FilesRepositoryResult.Success -> if (value.id == expectedId) null else
-        FilesFailure.Unexpected(IllegalStateException("File lookup returned a different ID"))
+private fun PutioResult<FilesItem>.deleteReadFailure(expectedId: FilesItemId): PutioFailure? = when (this) {
+    is PutioResult.Failure -> failure
+    is PutioResult.Success -> if (value.id == expectedId) null else
+        PutioFailure.Unexpected(IllegalStateException("File lookup returned a different ID"))
 }
 
 private fun FilesDeleteOutcome.checkedStatus(unavailable: Boolean): FilesDeleteStatus = when {

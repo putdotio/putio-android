@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
@@ -17,23 +19,23 @@ class FilesBrowserControllerTest {
     @Test
     fun renameOwnsItsRequestCancelsPagingAndRetriesOnlyFailedReload() = runBlocking {
         val original = item(7L, "old.mkv", PutioFileType.VIDEO)
-        val renameResult = CompletableDeferred<FilesRepositoryResult<Unit>>()
+        val renameResult = CompletableDeferred<PutioResult<Unit>>()
         val pagingStarted = CompletableDeferred<Unit>()
         val pagingCancelled = CompletableDeferred<Unit>()
         val renamed = mutableListOf<Pair<FilesItemId, String>>()
         var folderLoads = 0
         val repository = object : StubFilesRepository() {
 
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> {
                 folderLoads += 1
                 return when (folderLoads) {
-                    1 -> FilesRepositoryResult.Success(FilesPage(listOf(original), FilesCursor("old")))
-                    2 -> FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("reload failed")))
-                    else -> FilesRepositoryResult.Success(FilesPage(listOf(original.copy(name = "new.mkv")), null))
+                    1 -> PutioResult.Success(FilesPage(listOf(original), FilesCursor("old")))
+                    2 -> PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("reload failed")))
+                    else -> PutioResult.Success(FilesPage(listOf(original.copy(name = "new.mkv")), null))
                 }
             }
 
-            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+            override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> {
                 pagingStarted.complete(Unit)
                 try {
                     awaitCancellation()
@@ -43,7 +45,7 @@ class FilesBrowserControllerTest {
             }
 
 
-            override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> {
+            override suspend fun rename(itemId: FilesItemId, name: String): PutioResult<Unit> {
                 renamed += itemId to name
                 return renameResult.await()
             }
@@ -57,7 +59,7 @@ class FilesBrowserControllerTest {
             assertTrue(controller.dispatch(event))
             assertFalse(controller.dispatch(event))
             withTimeout(TEST_TIMEOUT_MILLIS) { pagingCancelled.await() }
-            renameResult.complete(FilesRepositoryResult.Success(Unit))
+            renameResult.complete(PutioResult.Success(Unit))
             val failed = controller.awaitState { it.current.operation is FilesFolderOperation.Failed }
             assertEquals(
                 FilesFolderOperationPhase.RELOADING,
@@ -81,12 +83,12 @@ class FilesBrowserControllerTest {
         val cancelled = CompletableDeferred<Unit>()
         val repository = object : StubFilesRepository() {
 
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
-                FilesRepositoryResult.Success(FilesPage(listOf(original), null))
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
+                PutioResult.Success(FilesPage(listOf(original), null))
 
 
 
-            override suspend fun rename(itemId: FilesItemId, name: String): FilesRepositoryResult<Unit> {
+            override suspend fun rename(itemId: FilesItemId, name: String): PutioResult<Unit> {
                 started.complete(Unit)
                 try {
                     awaitCancellation()
@@ -110,28 +112,28 @@ class FilesBrowserControllerTest {
     @Test
     fun navigateBackPreservesParentPagingRequest() =
         runBlocking {
-            val pagingResult = CompletableDeferred<FilesRepositoryResult<FilesPage>>()
+            val pagingResult = CompletableDeferred<PutioResult<FilesPage>>()
             val folder = item(7L, "Shows", PutioFileType.FOLDER)
             val repository =
                 object : StubFilesRepository() {
 
-                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                    override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                         if (folderId == FilesFolder.Root.id) {
-                            FilesRepositoryResult.Success(FilesPage(listOf(folder), FilesCursor("next")))
+                            PutioResult.Success(FilesPage(listOf(folder), FilesCursor("next")))
                         } else {
-                            FilesRepositoryResult.Success(
+                            PutioResult.Success(
                                 FilesPage(listOf(item(8L, "episode.mkv", PutioFileType.VIDEO)), null),
                             )
                         }
 
-                    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> =
+                    override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> =
                         pagingResult.await()
 
 
                     override suspend fun persistSort(
                         folderId: FilesItemId,
                         sort: FilesSort,
-                    ): FilesRepositoryResult<Unit> = FilesRepositoryResult.Success(Unit)
+                    ): PutioResult<Unit> = PutioResult.Success(Unit)
                 }
             val controller = FilesBrowserController(repository, this)
 
@@ -151,7 +153,7 @@ class FilesBrowserControllerTest {
                 assertTrue(restoredLoading.paging is FilesPaging.Loading)
 
                 pagingResult.complete(
-                    FilesRepositoryResult.Success(
+                    PutioResult.Success(
                         FilesPage(listOf(item(9L, "movie.mkv", PutioFileType.VIDEO)), null),
                     ),
                 )
@@ -176,9 +178,9 @@ class FilesBrowserControllerTest {
             val repository =
                 object : StubFilesRepository() {
 
-                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                    override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                         if (folderId == FilesFolder.Root.id) {
-                            FilesRepositoryResult.Success(FilesPage(listOf(folder), null))
+                            PutioResult.Success(FilesPage(listOf(folder), null))
                         } else {
                             childStarted.complete(Unit)
                             try {
@@ -193,7 +195,7 @@ class FilesBrowserControllerTest {
                     override suspend fun persistSort(
                         folderId: FilesItemId,
                         sort: FilesSort,
-                    ): FilesRepositoryResult<Unit> = FilesRepositoryResult.Success(Unit)
+                    ): PutioResult<Unit> = PutioResult.Success(Unit)
                 }
             val controller = FilesBrowserController(repository, this)
 
@@ -220,15 +222,15 @@ class FilesBrowserControllerTest {
             val file = item(99L, "Harbor film.mp4", PutioFileType.VIDEO).copy(parentId = FilesItemId(44L))
             val repository =
                 object : StubFilesRepository() {
-                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
-                        FilesRepositoryResult.Success(
+                    override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
+                        PutioResult.Success(
                             FilesPage(
                                 listOf(item(folderId.value + 1, "Sample.txt", PutioFileType.TEXT)),
                                 FilesCursor("next"),
                             ),
                         )
 
-                    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+                    override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> {
                         searchStarted.complete(cursor)
                         try {
                             awaitCancellation()
@@ -263,9 +265,9 @@ class FilesBrowserControllerTest {
             val repository =
                 object : StubFilesRepository() {
 
-                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+                    override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                         when (folderId.value) {
-                            FilesFolder.Root.id.value -> FilesRepositoryResult.Success(FilesPage(listOf(folder), null))
+                            FilesFolder.Root.id.value -> PutioResult.Success(FilesPage(listOf(folder), null))
                             folder.id.value -> {
                                 childStarted.complete(Unit)
                                 try {
@@ -274,7 +276,7 @@ class FilesBrowserControllerTest {
                                     childCancelled.complete(Unit)
                                 }
                             }
-                            44L -> FilesRepositoryResult.Success(FilesPage(emptyList(), null))
+                            44L -> PutioResult.Success(FilesPage(emptyList(), null))
                             else -> error("Unexpected folder $folderId")
                         }
 
@@ -308,15 +310,15 @@ class FilesBrowserControllerTest {
             val repository =
                 object : StubFilesRepository() {
 
-                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
-                        FilesRepositoryResult.Success(FilesPage(emptyList(), null))
+                    override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
+                        PutioResult.Success(FilesPage(emptyList(), null))
 
 
 
                     override suspend fun persistSort(
                         folderId: FilesItemId,
                         sort: FilesSort,
-                    ): FilesRepositoryResult<Unit> = FilesRepositoryResult.Success(Unit)
+                    ): PutioResult<Unit> = PutioResult.Success(Unit)
                 }
             val controller = FilesBrowserController(repository, this)
 
@@ -336,9 +338,9 @@ class FilesBrowserControllerTest {
             val repository =
                 object : StubFilesRepository() {
 
-                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+                    override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> {
                         folderLoads += 1
-                        return FilesRepositoryResult.Success(
+                        return PutioResult.Success(
                             if (folderLoads == 1) {
                                 FilesPage(listOf(item(1L, "old.mkv", PutioFileType.VIDEO)), FilesCursor("next"))
                             } else {
@@ -347,7 +349,7 @@ class FilesBrowserControllerTest {
                         )
                     }
 
-                    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+                    override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> {
                         pagingStarted.complete(Unit)
                         try {
                             awaitCancellation()
@@ -360,7 +362,7 @@ class FilesBrowserControllerTest {
                     override suspend fun persistSort(
                         folderId: FilesItemId,
                         sort: FilesSort,
-                    ): FilesRepositoryResult<Unit> = FilesRepositoryResult.Success(Unit)
+                    ): PutioResult<Unit> = PutioResult.Success(Unit)
                 }
             val controller = FilesBrowserController(repository, this)
 
@@ -391,18 +393,18 @@ class FilesBrowserControllerTest {
             val repository =
                 object : StubFilesRepository() {
 
-                    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+                    override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> {
                         folderLoads += 1
                         return when (folderLoads) {
-                            1 -> FilesRepositoryResult.Success(
+                            1 -> PutioResult.Success(
                                 FilesPage(listOf(original), null, FilesSort.NAME_ASCENDING),
                             )
 
-                            2 -> FilesRepositoryResult.Failure(
-                                FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                            2 -> PutioResult.Failure(
+                                PutioFailure.Unexpected(IllegalStateException("reload failed")),
                             )
 
-                            else -> FilesRepositoryResult.Success(
+                            else -> PutioResult.Success(
                                 FilesPage(listOf(original), null, FilesSort.NAME_ASCENDING),
                             )
                         }
@@ -413,14 +415,14 @@ class FilesBrowserControllerTest {
                     override suspend fun persistSort(
                         folderId: FilesItemId,
                         sort: FilesSort,
-                    ): FilesRepositoryResult<Unit> {
+                    ): PutioResult<Unit> {
                         persistedSorts += sort
                         return if (persistedSorts.size == 1) {
-                            FilesRepositoryResult.Failure(
-                                FilesFailure.Unexpected(IllegalStateException("persist failed")),
+                            PutioResult.Failure(
+                                PutioFailure.Unexpected(IllegalStateException("persist failed")),
                             )
                         } else {
-                            FilesRepositoryResult.Success(Unit)
+                            PutioResult.Success(Unit)
                         }
                     }
                 }

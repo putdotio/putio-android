@@ -27,12 +27,10 @@ import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesCopyId
 import io.putdotio.android.files.FilesCopyProgress
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MOBILE_FILES_COPY_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_COPY_DISMISS_TAG
 import io.putdotio.android.files.MOBILE_FILES_COPY_STATUS_TAG
@@ -74,11 +72,11 @@ class MobileFilesCopyTest {
     fun sharedItemsOfferMakeACopyIntoAFolderPickedFromRoot() {
         val events = mutableListOf<FilesBrowserEvent>()
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
 
             override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-                FilesRepositoryResult.Success(
+                PutioResult.Success(
                     FilesPage(if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null),
                 )
         }
@@ -127,10 +125,10 @@ class MobileFilesCopyTest {
         val remembered = listOf(FilesFolder(destination.id, destination.name))
         val store = InMemoryMoveTargetStore(FilesMoveTargetMemory(remember = true, lastTarget = remembered))
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-                FilesRepositoryResult.Success(
+                PutioResult.Success(
                     FilesPage(if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null),
                 )
         }
@@ -160,10 +158,10 @@ class MobileFilesCopyTest {
     fun copyHereWithRememberOnRecordsTheFolderTheNextPickerOpensAt() {
         val store = InMemoryMoveTargetStore(FilesMoveTargetMemory(remember = true))
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-                FilesRepositoryResult.Success(
+                PutioResult.Success(
                     FilesPage(if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null),
                 )
         }
@@ -196,7 +194,7 @@ class MobileFilesCopyTest {
         val copying = FilesBrowserReducer.reduce(
             start.state,
             FilesBrowserEvent.CopyStarted(
-                checkNotNull(start.effect).requestId, FilesRepositoryResult.Success(FilesCopyId(42L)),
+                checkNotNull(start.effect).requestId, PutioResult.Success(FilesCopyId(42L)),
             ),
         )
         var state by mutableStateOf(copying.state)
@@ -219,7 +217,7 @@ class MobileFilesCopyTest {
             state = FilesBrowserReducer.reduce(
                 state,
                 FilesBrowserEvent.CopyChecked(
-                    checkNotNull(copying.effect).requestId, FilesRepositoryResult.Success(FilesCopyProgress.Done),
+                    checkNotNull(copying.effect).requestId, PutioResult.Success(FilesCopyProgress.Done),
                 ),
             ).state
         }
@@ -246,7 +244,7 @@ class MobileFilesCopyTest {
                 state,
                 FilesBrowserEvent.LoadFailed(
                     checkNotNull(opening.effect).requestId,
-                    FilesFailure.Unexpected(IllegalStateException("offline")),
+                    PutioFailure.Unexpected(IllegalStateException("offline")),
                 ),
             ).state
         }
@@ -277,7 +275,7 @@ class MobileFilesCopyTest {
         val limited = FilesBrowserReducer.reduce(
             start.state,
             FilesBrowserEvent.CopyStarted(
-                requestId, FilesRepositoryResult.Failure(rejected("SharedFileCloneConcurrentLimit")),
+                requestId, PutioResult.Failure(rejected("SharedFileCloneConcurrentLimit")),
             ),
         ).state
         var state by mutableStateOf(limited)
@@ -290,13 +288,13 @@ class MobileFilesCopyTest {
 
         compose.runOnIdle {
             val copying = FilesBrowserReducer.reduce(
-                start.state, FilesBrowserEvent.CopyStarted(requestId, FilesRepositoryResult.Success(FilesCopyId(42L))),
+                start.state, FilesBrowserEvent.CopyStarted(requestId, PutioResult.Success(FilesCopyId(42L))),
             )
             state = FilesBrowserReducer.reduce(
                 copying.state,
                 FilesBrowserEvent.CopyChecked(
                     checkNotNull(copying.effect).requestId,
-                    FilesRepositoryResult.Success(FilesCopyProgress.Failed("File(s) size exceed disk limit.")),
+                    PutioResult.Success(FilesCopyProgress.Failed("File(s) size exceed disk limit.")),
                 ),
             ).state
         }
@@ -311,7 +309,7 @@ class MobileFilesCopyTest {
         ).state
     }
 
-    private fun rejected(errorType: String) = FilesFailure.ApiRejected(
+    private fun rejected(errorType: String) = PutioFailure.ApiRejected(
         400, errorType,
         PutioApiException(
             request = PutioRequestData("POST", "https://api.put.io/v2/sharing/clone"), resolvedStatusCode = 400,

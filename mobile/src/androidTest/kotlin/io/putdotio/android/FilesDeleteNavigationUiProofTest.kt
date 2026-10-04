@@ -32,7 +32,6 @@ import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesExternalOpen
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderState
@@ -41,7 +40,6 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
@@ -111,7 +109,7 @@ class FilesDeleteNavigationUiProofTest {
                         sessionId = preview.session, transfersSessionId = preview.session,
                         playbackRepository = NoNavigationPlayback,
                         onFilesEvent = preview::filesEvent, onTransfersEvent = preview::transfersEvent,
-                        resolveTransferFile = { FilesRepositoryResult.Success(preview.resolved) },
+                        resolveTransferFile = { PutioResult.Success(preview.resolved) },
                         contentNavigation = preview.searchResults,
                         onAccountSettingsEvent = { error("Unexpected settings mutation") },
                         onPlaybackAuthenticationRequired = { error("Unexpected authentication request") },
@@ -216,11 +214,11 @@ private class DeleteNavigationPreview {
 
     init {
         filesEvent(FilesBrowserEvent.Delete(source.id, item.id, FilesDeleteMode.TRASH))
-        val failure = FilesFailure.Unexpected(IllegalStateException("Synthetic unknown delete"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("Synthetic unknown delete"))
         filesEvent(FilesBrowserEvent.DeleteFinished((effects.last() as FilesBrowserEffect.Delete).requestId,
-            FilesRepositoryResult.Failure(failure)))
+            PutioResult.Failure(failure)))
         filesEvent(FilesBrowserEvent.DeleteChecked((effects.last() as FilesBrowserEffect.CheckDelete).requestId,
-            FilesRepositoryResult.Failure(failure)))
+            PutioResult.Failure(failure)))
     }
     fun filesEvent(event: FilesBrowserEvent): Boolean {
         val transition = FilesBrowserReducer.reduce(files, event)
@@ -235,7 +233,7 @@ private class DeleteNavigationPreview {
     fun reconcileDelete() {
         val check = effects.last() as FilesBrowserEffect.CheckDelete
         assertEquals(item.id, check.itemId)
-        filesEvent(FilesBrowserEvent.DeleteChecked(check.requestId, FilesRepositoryResult.Success(item)))
+        filesEvent(FilesBrowserEvent.DeleteChecked(check.requestId, PutioResult.Success(item)))
         val read = effects.last() as FilesBrowserEffect.LoadFolder
         assertEquals(source.id, read.folderId)
         filesEvent(FilesBrowserEvent.LoadSucceeded(read.requestId, FilesPage(listOf(item), null)))

@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioResult
+
 @ConsistentCopyVisibility
 data class FilesMoveDestinationFolder internal constructor(
     val folder: FilesFolder,
@@ -118,7 +120,7 @@ private fun FilesMoveDestinationState.loadDestinationPage(retry: Boolean): Files
 
 fun FilesMoveDestinationState.complete(
     request: FilesMoveDestinationRequest,
-    result: FilesRepositoryResult<FilesPage>,
+    result: PutioResult<FilesPage>,
 ): FilesMoveDestinationTransition = when {
     current.folder.id != request.folderId || current.requestId() != request.requestId ->
         FilesMoveDestinationTransition(this)
@@ -128,16 +130,16 @@ fun FilesMoveDestinationState.complete(
 
 internal fun FilesMoveDestinationState.completeListing(
     request: FilesMoveDestinationRequest,
-    result: FilesRepositoryResult<FilesPage>,
+    result: PutioResult<FilesPage>,
 ): FilesMoveDestinationState {
     val consumed = if (request.cursor == null) emptySet() else current.consumedCursors + request.cursor
     val content = when (result) {
-        is FilesRepositoryResult.Success -> {
+        is PutioResult.Success -> {
             val previous = if (request.cursor == null) emptyList() else current.content.items()
             val folders = result.value.items.filter { it.isFolder && it.id.value > 0L }
             contentFor(previous + folders, result.value.nextCursor.toPaging(consumed), current.content.viewport())
         }
-        is FilesRepositoryResult.Failure -> if (request.cursor == null) {
+        is PutioResult.Failure -> if (request.cursor == null) {
             FilesContent.Failed(result.failure)
         } else {
             current.content.withPaging(FilesPaging.Failed(request.cursor, result.failure)) ?: current.content
@@ -145,7 +147,7 @@ internal fun FilesMoveDestinationState.completeListing(
     }
     return copy(stack = stack.replaceLast(current.copy(
         content = content,
-        consumedCursors = if (result is FilesRepositoryResult.Success) consumed else current.consumedCursors,
+        consumedCursors = if (result is PutioResult.Success) consumed else current.consumedCursors,
     )))
 }
 

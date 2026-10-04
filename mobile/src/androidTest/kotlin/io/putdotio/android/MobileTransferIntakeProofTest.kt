@@ -30,7 +30,6 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
 import io.putdotio.android.files.mobileFilesMoveFolderTag
@@ -219,7 +218,7 @@ class MobileTransferIntakeProofTest {
 
 private object SampleFolders : FilesRepository {
     override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-        FilesRepositoryResult.Success(
+        PutioResult.Success(
             FilesPage(if (folderId == FilesFolder.Root.id) listOf(SAMPLE_FOLDER) else emptyList(), null),
         )
     override suspend fun loadFolder(folderId: FilesItemId): Nothing = error("No Files browsing in this proof")

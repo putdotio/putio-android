@@ -1,9 +1,9 @@
 package io.putdotio.android.trash
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.sdk.OkResponse
 import io.putdotio.sdk.files.FileDetailsQuery
 import io.putdotio.sdk.files.PutioFile
@@ -34,8 +34,8 @@ class SdkTrashRepositoryTest {
                 response().copy(total = null, trashSize = 0L, cursor = null)
             },
         )
-        val first = (repository.load() as FilesRepositoryResult.Success).value
-        val next = (repository.loadNextPage(FilesCursor("next")) as FilesRepositoryResult.Success).value
+        val first = (repository.load() as PutioResult.Success).value
+        val next = (repository.loadNextPage(FilesCursor("next")) as PutioResult.Success).value
         assertEquals(50, firstQuery?.perPage)
         assertEquals(50, nextQuery?.perPage)
         assertEquals(" raw Türkçe.txt ", first.items.single().name)
@@ -62,12 +62,12 @@ class SdkTrashRepositoryTest {
                 )
             },
         )
-        assertEquals(FilesRepositoryResult.Success(Unit), repository.restore(FilesItemId(7L)))
+        assertEquals(PutioResult.Success(Unit), repository.restore(FilesItemId(7L)))
         for (invalid in listOf(0L, -1L)) {
-            assertTrue(repository.restore(FilesItemId(invalid)) is FilesRepositoryResult.Failure)
+            assertTrue(repository.restore(FilesItemId(invalid)) is PutioResult.Failure)
         }
         assertEquals(listOf(TrashBulkInput(ids = listOf(7L))), inputs)
-        val resolved = (repository.resolveItem(FilesItemId(7L)) as FilesRepositoryResult.Success).value
+        val resolved = (repository.resolveItem(FilesItemId(7L)) as PutioResult.Success).value
         assertEquals(FilesItemId(0L), resolved.parentId)
         assertEquals(FileDetailsQuery(false, false, false, false), detailsQuery)
     }
@@ -76,8 +76,8 @@ class SdkTrashRepositoryTest {
     fun sdkErrorsKeepTypedCausesAndCancellationAcrossAllBoundaries() = runBlocking {
         val cause = apiFailure(401, "invalid_token").cause
         val repository = repository(list = { throw cause }, restore = { throw cause })
-        val failure = repository.load() as FilesRepositoryResult.Failure
-        assertTrue(failure.failure is FilesFailure.AuthenticationRequired)
+        val failure = repository.load() as PutioResult.Failure
+        assertTrue(failure.failure is PutioFailure.AuthenticationRequired)
         assertSame(cause, failure.failure.cause)
         val cancellation = CancellationException("cancel session")
         val cancelled = repository(
@@ -102,8 +102,8 @@ class SdkTrashRepositoryTest {
     fun invalidTrashIdsAndSizesFailInsteadOfBecomingActions() = runBlocking {
         for (file in listOf(response().files.single().copy(id = 0L), response().files.single().copy(size = -1L))) {
             val repository = repository(list = { response().copy(files = listOf(file)) })
-            val result = repository.load() as FilesRepositoryResult.Failure
-            assertTrue(result.failure is FilesFailure.InvalidResponse)
+            val result = repository.load() as PutioResult.Failure
+            assertTrue(result.failure is PutioFailure.InvalidResponse)
         }
     }
 
@@ -138,23 +138,23 @@ class SdkTrashRepositoryTest {
             delete = { deletes += it; OkResponse("OK") },
             empty = { empties += 1; OkResponse("OK") },
         ))
-        assertEquals(FilesRepositoryResult.Success(Unit), repository.deleteItem(FilesItemId(7L)))
-        assertTrue(repository.deleteItem(FilesItemId(0L)) is FilesRepositoryResult.Failure)
+        assertEquals(PutioResult.Success(Unit), repository.deleteItem(FilesItemId(7L)))
+        assertTrue(repository.deleteItem(FilesItemId(0L)) is PutioResult.Failure)
         assertEquals(listOf(TrashBulkInput(ids = listOf(7L))), deletes)
-        assertEquals(FilesRepositoryResult.Success(Unit),
+        assertEquals(PutioResult.Success(Unit),
             repository.restoreAll(TrashBulkSelection(FilesCursor("snapshot"), listOf(FilesItemId(7L)))))
-        assertEquals(FilesRepositoryResult.Success(Unit),
+        assertEquals(PutioResult.Success(Unit),
             repository.restoreAll(TrashBulkSelection(null, listOf(FilesItemId(7L), FilesItemId(9L)))))
         val invalid = repository.restoreAll(TrashBulkSelection(null, listOf(FilesItemId(-1L))))
-        assertTrue(invalid is FilesRepositoryResult.Failure)
+        assertTrue(invalid is PutioResult.Failure)
         assertEquals(listOf(TrashBulkInput(cursor = "snapshot"), TrashBulkInput(ids = listOf(7L, 9L))), restores)
-        assertEquals(FilesRepositoryResult.Success(Unit), repository.empty())
+        assertEquals(PutioResult.Success(Unit), repository.empty())
         assertEquals(1, empties)
         val cause = apiFailure(401, "invalid_token").cause
         val failing = repository(Endpoints(delete = { throw cause }, empty = { throw cause }))
-        val deleteFailure = (failing.deleteItem(FilesItemId(7L)) as FilesRepositoryResult.Failure).failure
-        assertTrue(deleteFailure is FilesFailure.AuthenticationRequired)
-        assertTrue((failing.empty() as FilesRepositoryResult.Failure).failure is FilesFailure.AuthenticationRequired)
+        val deleteFailure = (failing.deleteItem(FilesItemId(7L)) as PutioResult.Failure).failure
+        assertTrue(deleteFailure is PutioFailure.AuthenticationRequired)
+        assertTrue((failing.empty() as PutioResult.Failure).failure is PutioFailure.AuthenticationRequired)
     }
 }
 

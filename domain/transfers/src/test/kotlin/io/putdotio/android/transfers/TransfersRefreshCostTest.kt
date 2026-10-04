@@ -1,6 +1,6 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.PutioResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -46,7 +46,7 @@ class TransfersRefreshCostTest {
             val ids =
                 active.map { TransferId(backend.history[it].id) } +
                     (1..missing).map { TransferId(-it.toLong()) }
-            val result = (backend.repository().refresh(ids) as FilesRepositoryResult.Success).value
+            val result = (backend.repository().refresh(ids) as PutioResult.Success).value
             return Cost(backend.requests, backend.rowsDecoded, result.items.size, result.missingIds.size)
         }
     }

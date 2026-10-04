@@ -1,7 +1,6 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.files.FilesRepositoryResult
-import java.util.concurrent.CancellationException
+import io.putdotio.android.PutioResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
@@ -27,11 +26,11 @@ class TransfersControllerTest {
             repository(
                 load = {
                     loads += 1
-                    FilesRepositoryResult.Success(TransfersPage(listOf(item(1L)), null))
+                    PutioResult.Success(TransfersPage(listOf(item(1L)), null))
                 },
                 refresh = { ids ->
                     refreshes += 1
-                    FilesRepositoryResult.Success(
+                    PutioResult.Success(
                         TransfersRowRefresh(ids.map { item(it.value) }, emptySet()),
                     )
                 },
@@ -59,7 +58,7 @@ class TransfersControllerTest {
     fun terminalRowsDoNotStartPolling(): Unit = runBlocking {
         var waits = 0
         val repository = repository {
-            FilesRepositoryResult.Success(
+            PutioResult.Success(
                 TransfersPage(listOf(item(1L, AppTransferStatus.Completed, TransferFileId(11L))), null),
             )
         }
@@ -77,7 +76,7 @@ class TransfersControllerTest {
     fun completedRowsWithoutFilesKeepPollingUntilResolved(): Unit = runBlocking {
         val pollDelay = CompletableDeferred<Long>()
         val repository = repository {
-            FilesRepositoryResult.Success(
+            PutioResult.Success(
                 TransfersPage(listOf(item(1L, AppTransferStatus.Completed)), null),
             )
         }
@@ -103,7 +102,7 @@ class TransfersControllerTest {
         val repository =
             repository(
                 load = {
-                    FilesRepositoryResult.Success(TransfersPage(listOf(item(1L)), null))
+                    PutioResult.Success(TransfersPage(listOf(item(1L)), null))
                 },
                 refresh = {
                     refreshes += 1
@@ -111,7 +110,7 @@ class TransfersControllerTest {
                     if (refreshes == 1) {
                         withContext(NonCancellable) { releaseRefresh.await() }
                     }
-                    FilesRepositoryResult.Success(
+                    PutioResult.Success(
                         TransfersRowRefresh(listOf(item(1L)), emptySet()),
                     )
                 },
@@ -163,7 +162,7 @@ class TransfersControllerTest {
             repository(
                 refresh = { ids ->
                     reconciledIds = ids
-                    FilesRepositoryResult.Success(
+                    PutioResult.Success(
                         TransfersRowRefresh(ids.map { item(it.value) }, emptySet()),
                     )
                 },
@@ -175,7 +174,7 @@ class TransfersControllerTest {
                             cursor != null -> TransfersPage(listOf(item(3L), item(4L)), null)
                             else -> TransfersPage(listOf(item(9L), item(1L)), TransferCursor("next"))
                         }
-                    FilesRepositoryResult.Success(page)
+                    PutioResult.Success(page)
                 },
             )
         val controller = TransfersController(repository, this)
@@ -205,12 +204,12 @@ class TransfersControllerTest {
     @Test
     fun mutationIsSingleFlightAndFailureKeepsSubmittedInput(): Unit = runBlocking {
         val addStarted = CompletableDeferred<Unit>()
-        val addResult = CompletableDeferred<FilesRepositoryResult<TransferAddOutcome>>()
+        val addResult = CompletableDeferred<PutioResult<TransferAddOutcome>>()
         val base = repository {
-            FilesRepositoryResult.Success(TransfersPage(emptyList(), null))
+            PutioResult.Success(TransfersPage(emptyList(), null))
         }
         val repository = object : TransfersRepository by base {
-            override suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome> {
+            override suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome> {
                 addStarted.complete(Unit)
                 return addResult.await()
             }
@@ -221,8 +220,8 @@ class TransfersControllerTest {
             assertTrue(controller.dispatch(TransfersEvent.Add("magnet:?xt=urn:test")))
             withTimeout(TIMEOUT) { addStarted.await() }
             assertFalse(controller.dispatch(TransfersEvent.Add("https://example.com/second")))
-            val failure = io.putdotio.android.files.FilesFailure.Unexpected(IllegalStateException("offline"))
-            addResult.complete(FilesRepositoryResult.Failure(failure))
+            val failure = io.putdotio.android.PutioFailure.Unexpected(IllegalStateException("offline"))
+            addResult.complete(PutioResult.Failure(failure))
             val state = controller.awaitState { it.mutation is TransferMutation.Failed }
             val action = (state.mutation as TransferMutation.Failed).action as TransferAction.Add
             assertEquals("magnet:?xt=urn:test", (action.request as TransferAddRequest.Links).links.single().value)
@@ -262,7 +261,7 @@ class TransfersControllerTest {
     @Test
     fun completedFileNavigationRemainsInStateForTheHost(): Unit = runBlocking {
         val repository = repository {
-            FilesRepositoryResult.Success(
+            PutioResult.Success(
                 TransfersPage(listOf(item(1L, AppTransferStatus.Completed, TransferFileId(11L))), null),
             )
         }
@@ -286,7 +285,7 @@ class TransfersControllerTest {
         val repository =
             repository(
                 load = {
-                    FilesRepositoryResult.Success(
+                    PutioResult.Success(
                         TransfersPage(
                             listOf(item(1L, AppTransferStatus.Seeding, TransferFileId(11L))),
                             null,
@@ -327,7 +326,7 @@ class TransfersControllerTest {
         var loads = 0
         val repository = repository {
             loads += 1
-            FilesRepositoryResult.Success(TransfersPage(listOf(item(loads.toLong())), null))
+            PutioResult.Success(TransfersPage(listOf(item(loads.toLong())), null))
         }
         val controller = TransfersController(repository, this)
         try {
@@ -348,7 +347,7 @@ class TransfersControllerTest {
         val base = repository {
             loads += 1
             if (loads == 1) {
-                FilesRepositoryResult.Success(TransfersPage(listOf(item(1L)), null))
+                PutioResult.Success(TransfersPage(listOf(item(1L)), null))
             } else {
                 refreshStarted.complete(Unit)
                 try {
@@ -360,7 +359,7 @@ class TransfersControllerTest {
         }
         val repository = object : TransfersRepository by base {
             override suspend fun add(request: TransferAddRequest) =
-                FilesRepositoryResult.Success(TransferAddOutcome(listOf(item(2L, AppTransferStatus.Completed))))
+                PutioResult.Success(TransferAddOutcome(listOf(item(2L, AppTransferStatus.Completed))))
         }
         val controller = TransfersController(repository, this)
         try {
@@ -391,19 +390,19 @@ class TransfersControllerTest {
         val base = repository {
             loads += 1
             if (loads == 1) {
-                FilesRepositoryResult.Success(TransfersPage(listOf(item(1L)), null))
+                PutioResult.Success(TransfersPage(listOf(item(1L)), null))
             } else {
                 withContext(NonCancellable) {
                     refreshStarted.complete(Unit)
                     releaseRefresh.await()
                 }
-                FilesRepositoryResult.Success(TransfersPage(listOf(item(1L)), null))
+                PutioResult.Success(TransfersPage(listOf(item(1L)), null))
             }
         }
         val repository = object : TransfersRepository by base {
-            override suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome> {
+            override suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome> {
                 mutationStarted.complete(Unit)
-                return FilesRepositoryResult.Success(TransferAddOutcome(listOf(item(2L))))
+                return PutioResult.Success(TransferAddOutcome(listOf(item(2L))))
             }
         }
         val controller = TransfersController(repository, this)
@@ -432,12 +431,12 @@ class TransfersControllerTest {
         val base = repository {
             loads += 1
             val rows = if (loads == 1) listOf(completed, active) else listOf(active)
-            FilesRepositoryResult.Success(TransfersPage(rows, null))
+            PutioResult.Success(TransfersPage(rows, null))
         }
         val repository = object : TransfersRepository by base {
-            override suspend fun clean(ids: List<TransferId>): FilesRepositoryResult<Set<TransferId>> {
+            override suspend fun clean(ids: List<TransferId>): PutioResult<Set<TransferId>> {
                 cleanedIds = ids
-                return FilesRepositoryResult.Success(emptySet())
+                return PutioResult.Success(emptySet())
             }
         }
         val controller = TransfersController(repository, this)
@@ -459,11 +458,11 @@ class TransfersControllerTest {
     @Test
     fun secondMutationCanStartImmediatelyAfterFirstPublishesIdle(): Unit = runBlocking {
         var adds = 0
-        val base = repository { FilesRepositoryResult.Success(TransfersPage(emptyList(), null)) }
+        val base = repository { PutioResult.Success(TransfersPage(emptyList(), null)) }
         val repository = object : TransfersRepository by base {
-            override suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome> {
+            override suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome> {
                 adds += 1
-                return FilesRepositoryResult.Success(TransferAddOutcome(listOf(item(adds.toLong()))))
+                return PutioResult.Success(TransferAddOutcome(listOf(item(adds.toLong()))))
             }
         }
         val controller = TransfersController(repository, this)
@@ -480,10 +479,10 @@ class TransfersControllerTest {
     }
 
     private fun repository(
-        refresh: suspend (List<TransferId>) -> FilesRepositoryResult<TransfersRowRefresh> = { ids ->
-            FilesRepositoryResult.Success(TransfersRowRefresh(ids.map { item(it.value) }, emptySet()))
+        refresh: suspend (List<TransferId>) -> PutioResult<TransfersRowRefresh> = { ids ->
+            PutioResult.Success(TransfersRowRefresh(ids.map { item(it.value) }, emptySet()))
         },
-        load: suspend (TransferCursor?) -> FilesRepositoryResult<TransfersPage>,
+        load: suspend (TransferCursor?) -> PutioResult<TransfersPage>,
     ): TransfersRepository = object : TransfersRepository {
         override suspend fun load(cursor: TransferCursor?) = load(cursor)
         override suspend fun refresh(ids: List<TransferId>) = refresh(ids)

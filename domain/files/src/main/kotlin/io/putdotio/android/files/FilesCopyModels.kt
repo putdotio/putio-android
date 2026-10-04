@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.PutioFolderType
 
 /** A background copy put.io started for an item shared with the viewer. */
@@ -34,7 +35,7 @@ data class FilesCopyOutcome internal constructor(
     val itemName: String,
     val destination: FilesFolder,
     val status: FilesCopyStatus,
-    val failure: FilesFailure? = null,
+    val failure: PutioFailure? = null,
     val serverMessage: String? = null,
     internal val requestId: FilesRequestId? = null,
     internal val copyId: FilesCopyId? = null,

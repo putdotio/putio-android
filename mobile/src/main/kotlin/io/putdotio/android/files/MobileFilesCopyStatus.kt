@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 
 internal const val MOBILE_FILES_COPY_STATUS_TAG = "mobile-files-copy-status"
@@ -62,7 +63,7 @@ internal fun MobileFilesCopyStatus(outcome: FilesCopyOutcome, onDismiss: () -> U
 
 /** Web's wording for put.io's copy limits wins over put.io's reason, as other specific copy does. */
 @Composable
-private fun FilesFailure.copyMessage(): String = when ((this as? FilesFailure.ApiRejected)?.errorType) {
+private fun PutioFailure.copyMessage(): String = when ((this as? PutioFailure.ApiRejected)?.errorType) {
     "SharedFileCloneConcurrentLimit" -> stringResource(R.string.mobile_files_copy_concurrent_limit)
     "SharedFileCloneTooManyFiles", "SharedFileCloneTooManyChildren" ->
         stringResource(R.string.mobile_files_copy_too_many_files)

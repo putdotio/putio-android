@@ -1,11 +1,11 @@
 package io.putdotio.android.history
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
-import io.putdotio.android.files.FilesRepositoryResult
 import java.io.Closeable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -33,10 +33,10 @@ class HistoryFileOpener(
 ) : Closeable {
     private val openerJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + openerJob)
-    private val mutableFailure = MutableStateFlow<FilesFailure?>(null)
+    private val mutableFailure = MutableStateFlow<PutioFailure?>(null)
 
     /** Why the last file could not be resolved; cleared by the next success or dismissal. */
-    val failure: StateFlow<FilesFailure?> = mutableFailure.asStateFlow()
+    val failure: StateFlow<PutioFailure?> = mutableFailure.asStateFlow()
 
     init {
         scope.launch {
@@ -47,17 +47,17 @@ class HistoryFileOpener(
     /** Resolves and delivers one file; [origin] says whether a history row or a product link named it. */
     suspend fun open(fileId: FilesItemId, origin: FilesOpenOrigin) {
         when (val result = resolver.resolveItem(fileId)) {
-            is FilesRepositoryResult.Success -> {
+            is PutioResult.Success -> {
                 mutableFailure.value = null
                 deliver(result.value, origin)
             }
-            is FilesRepositoryResult.Failure -> mutableFailure.value = result.failure
+            is PutioResult.Failure -> mutableFailure.value = result.failure
         }
     }
 
     /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissFailure() {
-        mutableFailure.update { it?.takeIf { failure -> failure is FilesFailure.AuthenticationRequired } }
+        mutableFailure.update { it?.takeIf { failure -> failure is PutioFailure.AuthenticationRequired } }
     }
 
     override fun close() {

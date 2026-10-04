@@ -16,8 +16,9 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
+import io.putdotio.android.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.design.putioTvDarkColorScheme
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -123,7 +124,7 @@ class TvHistoryScreenTest {
         show(
             historyState(
                 HistoryContent.Ready(items(), HistoryPaging.Complete),
-                HistoryClearing.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
+                HistoryClearing.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
             ),
         )
 
@@ -140,7 +141,7 @@ class TvHistoryScreenTest {
     fun aFailedListFocusesTryAgainAndRowsTakeOverWhenItLoads() {
         var state by mutableStateOf(
             historyState(
-                HistoryContent.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
+                HistoryContent.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
             ),
         )
         show { state }
@@ -208,7 +209,7 @@ class TvHistoryScreenTest {
                     items(),
                     HistoryPaging.Failed(
                         HistoryEventId(3),
-                        FilesFailure.NetworkUnavailable(PutioConfigurationException("x")),
+                        PutioFailure.NetworkUnavailable(PutioConfigurationException("x")),
                     ),
                 ),
             )
@@ -230,7 +231,7 @@ class TvHistoryScreenTest {
     fun aFailedOpenNamesItsCause() {
         show(
             historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)),
-            notice = FilesFailure.NetworkUnavailable(PutioConfigurationException("offline")),
+            notice = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")),
         )
 
         compose.onNodeWithText("Couldn’t open this file. Check the network and try again.").assertIsDisplayed()

@@ -1,10 +1,10 @@
 package io.putdotio.android.search
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.sdk.files.PutioFileType
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -172,16 +172,16 @@ class SearchControllerTest {
     fun retriesPagingAndStopsARepeatedCursor() =
         runBlocking {
             var pagingAttempts = 0
-            val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+            val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
             val repository =
                 object : SearchRepository {
-                    override suspend fun search(term: SearchTerm): FilesRepositoryResult<SearchPage> =
+                    override suspend fun search(term: SearchTerm): PutioResult<SearchPage> =
                         success(item(1L, "one.mkv"), cursor = "next")
 
-                    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<SearchPage> {
+                    override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage> {
                         pagingAttempts += 1
                         return if (pagingAttempts == 1) {
-                            FilesRepositoryResult.Failure(failure)
+                            PutioResult.Failure(failure)
                         } else {
                             success(item(1L, "one.mkv"), item(2L, "two.mkv"), cursor = "next")
                         }
@@ -275,11 +275,11 @@ class SearchControllerTest {
         delaySearch: suspend (Long) -> Unit = {},
     ): SearchController = SearchController(repository, store, this, delaySearch)
 
-    private fun repository(search: suspend (SearchTerm) -> FilesRepositoryResult<SearchPage>): SearchRepository =
+    private fun repository(search: suspend (SearchTerm) -> PutioResult<SearchPage>): SearchRepository =
         object : SearchRepository {
-            override suspend fun search(term: SearchTerm): FilesRepositoryResult<SearchPage> = search(term)
+            override suspend fun search(term: SearchTerm): PutioResult<SearchPage> = search(term)
 
-            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<SearchPage> =
+            override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage> =
                 error("Unexpected continuation")
         }
 
@@ -317,8 +317,8 @@ class SearchControllerTest {
     private fun success(
         vararg items: FilesItem,
         cursor: String? = null,
-    ): FilesRepositoryResult.Success<SearchPage> =
-        FilesRepositoryResult.Success(
+    ): PutioResult.Success<SearchPage> =
+        PutioResult.Success(
             SearchPage(items.toList(), cursor?.let(::FilesCursor), total = items.size),
         )
 

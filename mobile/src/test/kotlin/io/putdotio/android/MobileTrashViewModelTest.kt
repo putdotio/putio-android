@@ -9,7 +9,6 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.trash.FakeTrashRepository
 import io.putdotio.android.trash.MobileTrashViewModel
@@ -73,7 +72,7 @@ class MobileTrashViewModelTest {
             assertEquals(1, repository.loadCount)
 
             val resolved = liveItem().copy(parentId = FilesItemId(0L), name = "collision-2.txt")
-            repository.onResolve = { FilesRepositoryResult.Success(resolved) }
+            repository.onResolve = { PutioResult.Success(resolved) }
             assertTrue(after.dispatch(TrashEvent.CheckRestore))
             shadowOf(Looper.getMainLooper()).idle()
 
@@ -90,7 +89,7 @@ class MobileTrashViewModelTest {
 
     @Test
     fun sameAccountReauthenticationRejectsOldCallbacksAndLateExactReadWithoutChangingNewOutcome() {
-        var lateRead: Continuation<FilesRepositoryResult<FilesItem>>? = null
+        var lateRead: Continuation<PutioResult<FilesItem>>? = null
         val oldRepository = FakeTrashRepository().apply {
             // A noncooperative response must still be rejected after its session closes.
             onResolve = { suspendCoroutine { lateRead = it } }
@@ -127,7 +126,7 @@ class MobileTrashViewModelTest {
             val newPending = second.state.value
             assertEquals(TrashRestoreCheck.UNAVAILABLE, newPending.restoreOutcome?.check)
 
-            checkNotNull(lateRead).resume(FilesRepositoryResult.Success(liveItem().copy(name = "old-session.txt")))
+            checkNotNull(lateRead).resume(PutioResult.Success(liveItem().copy(name = "old-session.txt")))
             shadowOf(Looper.getMainLooper()).idle()
 
             assertEquals(oldPending, first.state.value)
@@ -139,7 +138,7 @@ class MobileTrashViewModelTest {
             assertEquals(1, oldRepository.loadCount)
 
             val currentResult = liveItem().copy(name = "current-session.txt")
-            newRepository.onResolve = { FilesRepositoryResult.Success(currentResult) }
+            newRepository.onResolve = { PutioResult.Success(currentResult) }
             assertTrue(second.dispatch(TrashEvent.CheckRestore))
             shadowOf(Looper.getMainLooper()).idle()
             assertEquals(currentResult, second.state.value.lastRestoredItem)

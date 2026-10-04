@@ -1,10 +1,10 @@
 package io.putdotio.android.search
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesRepositoryResult
 import java.io.Closeable
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -138,7 +138,7 @@ class SearchController internal constructor(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (unexpected: Exception) {
-                    FilesRepositoryResult.Failure(FilesFailure.Unexpected(unexpected))
+                    PutioResult.Failure(PutioFailure.Unexpected(unexpected))
                 }
             applyPageResult(lock, mutableState, request.cursor, request.requestId, result)
         }
@@ -243,7 +243,7 @@ class SearchController internal constructor(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (unexpected: Exception) {
-                    FilesRepositoryResult.Failure(FilesFailure.Unexpected(unexpected))
+                    PutioResult.Failure(PutioFailure.Unexpected(unexpected))
                 }
             applyInitialResult(lock, mutableState, term, requestId, result)
         }
@@ -298,15 +298,15 @@ private fun applyInitialResult(
     mutableState: MutableStateFlow<SearchState>,
     term: SearchTerm,
     requestId: SearchRequestId,
-    result: FilesRepositoryResult<SearchPage>,
+    result: PutioResult<SearchPage>,
 ) {
     synchronized(lock) {
         val content = mutableState.value.content
         if (content !is SearchContent.Loading || content.requestId != requestId || content.term != term) return
         mutableState.value =
             when (result) {
-                is FilesRepositoryResult.Success -> mutableState.value.withInitialPage(term, result.value)
-                is FilesRepositoryResult.Failure ->
+                is PutioResult.Success -> mutableState.value.withInitialPage(term, result.value)
+                is PutioResult.Failure ->
                     mutableState.value.copy(content = SearchContent.Failed(term, result.failure))
             }
     }
@@ -317,15 +317,15 @@ private fun applyPageResult(
     mutableState: MutableStateFlow<SearchState>,
     cursor: FilesCursor,
     requestId: SearchRequestId,
-    result: FilesRepositoryResult<SearchPage>,
+    result: PutioResult<SearchPage>,
 ) {
     synchronized(lock) {
         val state = mutableState.value
         if (!state.content.hasPagingRequest(cursor, requestId)) return
         mutableState.value =
             when (result) {
-                is FilesRepositoryResult.Success -> state.withNextPage(cursor, result.value)
-                is FilesRepositoryResult.Failure -> state.withPaging(SearchPaging.Failed(cursor, result.failure))
+                is PutioResult.Success -> state.withNextPage(cursor, result.value)
+                is PutioResult.Failure -> state.withPaging(SearchPaging.Failed(cursor, result.failure))
             }
     }
 }

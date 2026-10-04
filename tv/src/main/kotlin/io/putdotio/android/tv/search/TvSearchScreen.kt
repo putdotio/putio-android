@@ -78,7 +78,6 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
@@ -95,6 +94,7 @@ import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.android.tv.files.tvMessageText
 import kotlinx.coroutines.flow.first
+import io.putdotio.android.FilesFailure
 
 internal const val TV_SEARCH_FIELD_TAG = "tv-search-field"
 internal const val TV_SEARCH_RESULTS_TAG = "tv-search-results"

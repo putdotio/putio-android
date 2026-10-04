@@ -1,8 +1,8 @@
 package io.putdotio.android.trash
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesRepositoryResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
@@ -80,7 +80,7 @@ class TrashSessionTest {
                         started.complete(Unit)
                         release.await()
                         finished.complete(Unit)
-                        FilesRepositoryResult.Success(Unit)
+                        PutioResult.Success(Unit)
                     }
                 }
             }
@@ -107,16 +107,16 @@ class TrashSessionTest {
 
     @Test
     fun authenticationFailureAtEveryBoundaryIsRetainedAndBlocksNewConfirmation() = runBlocking {
-        val auth = FilesFailure.AuthenticationRequired(apiFailure(401, "invalid_token").cause)
+        val auth = PutioFailure.AuthenticationRequired(apiFailure(401, "invalid_token").cause)
         for (stage in listOf("initial", "page", "restore", "check")) {
             val repository = FakeTrashRepository().apply {
                 onLoad = {
-                    if (stage == "initial") FilesRepositoryResult.Failure(auth) else
-                        FilesRepositoryResult.Success(TrashPage(listOf(trashItem()), FilesCursor("a"), 1, 12L))
+                    if (stage == "initial") PutioResult.Failure(auth) else
+                        PutioResult.Success(TrashPage(listOf(trashItem()), FilesCursor("a"), 1, 12L))
                 }
-                if (stage == "page") onPage = { FilesRepositoryResult.Failure(auth) }
-                if (stage == "restore") onRestore = { FilesRepositoryResult.Failure(auth) }
-                if (stage == "check") onResolve = { FilesRepositoryResult.Failure(auth) }
+                if (stage == "page") onPage = { PutioResult.Failure(auth) }
+                if (stage == "restore") onRestore = { PutioResult.Failure(auth) }
+                if (stage == "check") onResolve = { PutioResult.Failure(auth) }
             }
             TrashController(repository, this).use { controller ->
                 controller.dispatch(TrashEvent.Open)
@@ -137,8 +137,8 @@ class TrashSessionTest {
     @Test
     fun permissionAndRateLimitRejectionsRemainVisibleWithoutSigningOutOrReadingBack() = runBlocking {
         val cause = apiFailure(403, "invalid_scope").cause
-        for (failure in listOf(FilesFailure.AccessDenied(cause), FilesFailure.RateLimited(cause))) {
-            val repository = FakeTrashRepository().apply { onRestore = { FilesRepositoryResult.Failure(failure) } }
+        for (failure in listOf(PutioFailure.AccessDenied(cause), PutioFailure.RateLimited(cause))) {
+            val repository = FakeTrashRepository().apply { onRestore = { PutioResult.Failure(failure) } }
             TrashController(repository, this).use { controller ->
                 controller.openLoaded()
                 controller.confirm()

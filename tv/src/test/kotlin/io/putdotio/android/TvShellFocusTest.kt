@@ -21,7 +21,6 @@ import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesPaging
@@ -349,7 +348,7 @@ class TvShellFocusTest {
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
-                    FilesContent.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))),
+                    FilesContent.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))),
                 ),
             ),
             nextRequestValue = 11L,

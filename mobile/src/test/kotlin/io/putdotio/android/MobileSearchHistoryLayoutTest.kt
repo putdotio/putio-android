@@ -20,7 +20,6 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventId
@@ -118,7 +117,7 @@ class MobileSearchHistoryLayoutTest {
     fun recentSearchErrorUsesFullWidthAndPlacesRetryAfterTheMessage() {
         var retries = 0
         setScreen(
-            recentFailure = FilesFailure.Unexpected(IllegalStateException("offline")),
+            recentFailure = PutioFailure.Unexpected(IllegalStateException("offline")),
             actions = MobileSearchHistoryActions(onRecentRetry = { retries += 1 }),
         )
         val message = "put.io is temporarily unavailable. Try again."
@@ -142,7 +141,7 @@ class MobileSearchHistoryLayoutTest {
 
     private fun setScreen(
         history: HistoryEventKind? = null,
-        recentFailure: FilesFailure? = null,
+        recentFailure: PutioFailure? = null,
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     ) {
         val historyState = if (history == null) historyState(HistoryContent.Disabled) else historyState(

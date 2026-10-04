@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+
 /**
  * The most pages a folder reads to find its [FilesFolderState.revealItemId]: 10 pages of 50 rows.
  * Past it, as when the folder ends first, the folder shows the rows read so far from the top,
@@ -42,7 +44,7 @@ internal fun FilesBrowserState.listingLoaded(
 }
 
 /** A reveal search page failed: the rows read so far show, with a retry for the rest. */
-internal fun FilesFolderState.revealPageFailed(requestId: FilesRequestId, failure: FilesFailure): FilesFolderState? {
+internal fun FilesFolderState.revealPageFailed(requestId: FilesRequestId, failure: PutioFailure): FilesFolderState? {
     val search = revealSearch?.takeIf { it.requestId == requestId } ?: return null
     return copy(content = contentFor(search.items, FilesPaging.Failed(search.cursor, failure)), revealSearch = null)
 }

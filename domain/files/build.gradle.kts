@@ -13,6 +13,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)
+    testFixturesImplementation(project(":core:common"))
     testFixturesImplementation(libs.putio.sdk.kotlin)
     testImplementation(libs.okhttp)
 }

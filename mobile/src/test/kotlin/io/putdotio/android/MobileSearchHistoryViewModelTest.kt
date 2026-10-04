@@ -14,14 +14,11 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
-import io.putdotio.android.history.HistoryRepositoryResult
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
@@ -72,10 +69,10 @@ class MobileSearchHistoryViewModelTest {
                 SearchController(
                     repository =
                         object : SearchRepository {
-                            override suspend fun search(term: SearchTerm): FilesRepositoryResult<SearchPage> =
-                                FilesRepositoryResult.Success(SearchPage(listOf(item), nextCursor = null, total = 1))
+                            override suspend fun search(term: SearchTerm): PutioResult<SearchPage> =
+                                PutioResult.Success(SearchPage(listOf(item), nextCursor = null, total = 1))
 
-                            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<SearchPage> =
+                            override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage> =
                                 error("No continuation expected")
                         },
                     recentSearchStore = recentSearchStore,
@@ -130,10 +127,10 @@ class MobileSearchHistoryViewModelTest {
                     parentScope = this,
                     filesItemResolver =
                         object : FilesItemResolver {
-                            override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+                            override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
                                 resolverCalls += 1
                                 resolved.complete(Unit)
-                                return FilesRepositoryResult.Success(item)
+                                return PutioResult.Success(item)
                             }
                         },
                 )
@@ -178,7 +175,7 @@ class MobileSearchHistoryViewModelTest {
                     parentScope = this,
                     filesItemResolver =
                         object : FilesItemResolver {
-                            override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+                            override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
                                 if (itemId.value == 1L) {
                                     firstStarted.complete(Unit)
                                     releaseFirst.await()
@@ -301,7 +298,7 @@ class MobileSearchHistoryViewModelTest {
     private class FakeRecentSearchStore : RecentSearchStoreOwner {
         override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
         override val enabled = MutableStateFlow<Boolean?>(true)
-        override val failure = MutableStateFlow<FilesFailure?>(null)
+        override val failure = MutableStateFlow<PutioFailure?>(null)
         var closed = false
 
         override fun record(term: SearchTerm) {
@@ -330,27 +327,27 @@ class MobileSearchHistoryViewModelTest {
     private class RecordingSearchRepository : SearchRepository {
         val terms = mutableListOf<SearchTerm>()
 
-        override suspend fun search(term: SearchTerm): FilesRepositoryResult<SearchPage> {
+        override suspend fun search(term: SearchTerm): PutioResult<SearchPage> {
             terms += term
-            return FilesRepositoryResult.Success(SearchPage(emptyList(), nextCursor = null, total = 0))
+            return PutioResult.Success(SearchPage(emptyList(), nextCursor = null, total = 0))
         }
 
-        override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<SearchPage> =
+        override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage> =
             error("No continuation expected")
     }
 
     private object EmptyHistoryRepository : HistoryRepository {
         override suspend fun load(
             before: io.putdotio.android.history.HistoryEventId?,
-        ): HistoryRepositoryResult<HistoryPage> =
-            HistoryRepositoryResult.Success(HistoryPage(emptyList(), hasMore = false))
+        ): PutioResult<HistoryPage> =
+            PutioResult.Success(HistoryPage(emptyList(), hasMore = false))
 
-        override suspend fun clear(): HistoryRepositoryResult<Unit> = HistoryRepositoryResult.Success(Unit)
+        override suspend fun clear(): PutioResult<Unit> = PutioResult.Success(Unit)
     }
 
     private object EmptyFilesItemResolver : FilesItemResolver {
-        override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
-            FilesRepositoryResult.Success(
+        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
+            PutioResult.Success(
                 FilesItem(
                     id = itemId,
                     parentId = FilesItemId(0L),

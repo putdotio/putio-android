@@ -114,7 +114,7 @@ private fun List<HistoryItem>.toContent(
     }
 
 internal fun HistoryState.loadFailed(event: HistoryEvent.LoadFailed): HistoryTransition {
-    (event.failure as? io.putdotio.android.files.FilesFailure.AuthenticationRequired)?.let {
+    (event.failure as? io.putdotio.android.PutioFailure.AuthenticationRequired)?.let {
         return HistoryTransition(copy(authoritativeFailure = it))
     }
     val initial = content as? HistoryContent.Loading

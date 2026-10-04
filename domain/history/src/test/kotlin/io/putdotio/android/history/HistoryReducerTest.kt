@@ -1,6 +1,6 @@
 package io.putdotio.android.history
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -31,7 +31,7 @@ class HistoryReducerTest {
             )
         assertEquals(HistoryContent.Empty, empty.state.content)
 
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed = HistoryReducer.reduce(start.state, HistoryEvent.LoadFailed(request.requestId, failure))
         assertEquals(failure, (failed.state.content as HistoryContent.Failed).failure)
 
@@ -119,7 +119,7 @@ class HistoryReducerTest {
         val start = HistoryReducer.start(historyEnabled = true)
         val request = start.effect as HistoryEffect.Load
         val disabled = HistoryReducer.reduce(start.state, HistoryEvent.SetEnabled(false))
-        val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val failure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
 
         val rejected = HistoryReducer.reduce(disabled.state, HistoryEvent.LoadFailed(request.requestId, failure))
 
@@ -151,7 +151,7 @@ class HistoryReducerTest {
         val initial = loaded(listOf(item(4L)), hasMore = true)
         val loading = HistoryReducer.reduce(initial, HistoryEvent.LoadNextPage)
         val request = loading.effect as HistoryEffect.Load
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed = HistoryReducer.reduce(loading.state, HistoryEvent.LoadFailed(request.requestId, failure))
 
         val content = failed.state.content as HistoryContent.Ready
@@ -175,7 +175,7 @@ class HistoryReducerTest {
         val effect = confirmed.effect as HistoryEffect.Clear
         assertTrue(confirmed.state.clearing is HistoryClearing.Clearing)
 
-        val failure = FilesFailure.Unexpected(IllegalStateException("nope"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("nope"))
         val failed = HistoryReducer.reduce(confirmed.state, HistoryEvent.ClearFailed(effect.requestId, failure))
         assertTrue(failed.state.content is HistoryContent.Ready)
         assertEquals(failure, (failed.state.clearing as HistoryClearing.Failed).failure)

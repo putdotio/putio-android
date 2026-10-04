@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,7 +25,7 @@ class FilesRenameReducerTest {
             FilesBrowserEvent.Rename(FilesFolder.Root.id, original.id, "saved.mkv"),
         )
         val requestId = checkNotNull(saving.effect).requestId
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failedMutation = FilesBrowserReducer.reduce(
             saving.state, FilesBrowserEvent.LoadFailed(requestId, failure),
         ).state
@@ -107,7 +108,7 @@ class FilesRenameReducerTest {
         val event = FilesBrowserEvent.Rename(FilesFolder.Root.id, original.id, "")
         val saving = FilesBrowserReducer.reduce(root, event)
         val request = saving.effect as FilesBrowserEffect.Rename
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed = FilesBrowserReducer.reduce(
             saving.state,
             FilesBrowserEvent.LoadFailed(request.requestId, failure),
@@ -176,7 +177,7 @@ class FilesRenameReducerTest {
         )
         val requestId = checkNotNull(saving.effect).requestId
         assertFalse(FilesBrowserReducer.reduce(saving.state, abandon).consumed)
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed = FilesBrowserReducer.reduce(saving.state, FilesBrowserEvent.LoadFailed(requestId, failure)).state
         assertFalse(FilesBrowserReducer.reduce(failed, abandon.copy(folderId = FilesItemId(99L))).consumed)
         assertFalse(FilesBrowserReducer.reduce(failed, abandon.copy(intent = intent.copy(name = "stale"))).consumed)

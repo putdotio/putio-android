@@ -1,7 +1,5 @@
 package io.putdotio.android
 
-import io.putdotio.android.files.apiReason
-import io.putdotio.android.files.toFilesFailure
 import io.putdotio.android.playback.apiReason
 import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
@@ -23,7 +21,7 @@ class ApiRejectionReasonTest {
     fun `every surface's failure carries put io's message for a refused request`() = runBlocking {
         val refusal = refusal(400, "Folder is full, empty some space first.")
 
-        assertEquals(REASON, refusal.toFilesFailure().apiReason)
+        assertEquals(REASON, refusal.toPutioFailure().apiReason)
         assertEquals(REASON, refusal.toPlaybackFailure().apiReason)
         val settings = SdkAccountSettingsRepository(getSettings = { throw refusal }, saveSettings = {}).load()
         assertEquals(REASON, (settings as AccountSettingsRepositoryResult.Failure).failure.apiReason)
@@ -53,12 +51,12 @@ class ApiRejectionReasonTest {
     fun `statuses the app explains itself, server errors and transport failures keep the app's copy`() {
         listOf(401, 403, 408, 429, 500, 503).forEach { status ->
             assertNull("$status", refusal(status, REASON).apiRejectionReason())
-            assertNull("$status", refusal(status, REASON).toFilesFailure().apiReason)
+            assertNull("$status", refusal(status, REASON).toPutioFailure().apiReason)
         }
         assertNull(refusal(400, REASON, httpStatusCode = 502).apiRejectionReason())
         val transport =
             PutioTransportException(PutioRequestData("GET", "https://api.put.io/v2/files/list"), IOException("reset"))
-        assertNull(transport.toFilesFailure().apiReason)
+        assertNull(transport.toPutioFailure().apiReason)
     }
 
     @Test

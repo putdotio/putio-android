@@ -1,6 +1,7 @@
 package io.putdotio.android.history
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.sdk.history.HistoryEvent
 import io.putdotio.sdk.history.HistoryEventType
 import io.putdotio.sdk.history.HistoryListQuery
@@ -33,7 +34,7 @@ class SdkHistoryRepositoryTest {
             clearEvents = {},
         )
 
-        val result = repository.load(HistoryEventId(4L)) as HistoryRepositoryResult.Success
+        val result = repository.load(HistoryEventId(4L)) as PutioResult.Success
 
         assertEquals(4L, query?.before)
         assertTrue(result.value.hasMore)
@@ -74,7 +75,7 @@ class SdkHistoryRepositoryTest {
         )
         val repository = SdkHistoryRepository({ response(events, hasMore = false) }, {})
 
-        val kinds = (repository.load(null) as HistoryRepositoryResult.Success).value.items.map { it.kind }
+        val kinds = (repository.load(null) as PutioResult.Success).value.items.map { it.kind }
 
         assertEquals(
             listOf(
@@ -107,54 +108,54 @@ class SdkHistoryRepositoryTest {
         val requested = mutableListOf<HistoryEventId?>()
         var clears = 0
         val source = object : HistoryRepository {
-            override suspend fun load(before: HistoryEventId?): HistoryRepositoryResult<HistoryPage> {
+            override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
                 requested += before
-                return HistoryRepositoryResult.Success(pages.getValue(before))
+                return PutioResult.Success(pages.getValue(before))
             }
 
-            override suspend fun clear(): HistoryRepositoryResult<Unit> {
+            override suspend fun clear(): PutioResult<Unit> {
                 clears += 1
-                return HistoryRepositoryResult.Success(Unit)
+                return PutioResult.Success(Unit)
             }
         }
         val repository = source.keeping { it is HistoryEventKind.File }
 
         assertEquals(
-            HistoryRepositoryResult.Success(HistoryPage(listOf(shared(9)), hasMore = true)),
+            PutioResult.Success(HistoryPage(listOf(shared(9)), hasMore = true)),
             repository.load(null),
         )
         assertEquals(
-            HistoryRepositoryResult.Success(HistoryPage(listOf(shared(5)), hasMore = true)),
+            PutioResult.Success(HistoryPage(listOf(shared(5)), hasMore = true)),
             repository.load(HistoryEventId(9)),
         )
         assertEquals(
-            HistoryRepositoryResult.Success(HistoryPage(emptyList(), hasMore = false)),
+            PutioResult.Success(HistoryPage(emptyList(), hasMore = false)),
             repository.load(HistoryEventId(5)),
         )
         assertEquals(listOf(null, HistoryEventId(9), HistoryEventId(7), HistoryEventId(5)), requested)
-        assertEquals(HistoryRepositoryResult.Success(Unit), repository.clear())
+        assertEquals(PutioResult.Success(Unit), repository.clear())
         assertEquals(1, clears)
     }
 
     @Test
     fun keepingStopsWhenAPageDoesNotMoveOlderAndPassesFailuresThrough() = runBlocking {
         val stuck = object : HistoryRepository {
-            override suspend fun load(before: HistoryEventId?) = HistoryRepositoryResult.Success(
+            override suspend fun load(before: HistoryEventId?) = PutioResult.Success(
                 HistoryPage(listOf(item(3, HistoryEventKind.Other("voucher"))), hasMore = true),
             )
 
-            override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
+            override suspend fun clear() = PutioResult.Success(Unit)
         }
         assertEquals(
-            HistoryRepositoryResult.Success(HistoryPage(emptyList(), hasMore = true)),
+            PutioResult.Success(HistoryPage(emptyList(), hasMore = true)),
             stuck.keeping { false }.load(HistoryEventId(3)),
         )
 
-        val failure = HistoryRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("down")))
+        val failure = PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("down")))
         val failing = object : HistoryRepository {
             override suspend fun load(before: HistoryEventId?) = failure
 
-            override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
+            override suspend fun clear() = PutioResult.Success(Unit)
         }
         assertSame(failure, failing.keeping { true }.load(null))
     }
@@ -164,15 +165,15 @@ class SdkHistoryRepositoryTest {
         var clears = 0
         val repository = SdkHistoryRepository({ response(emptyList(), false) }, { clears += 1 })
 
-        assertEquals(HistoryRepositoryResult.Success(Unit), repository.clear())
+        assertEquals(PutioResult.Success(Unit), repository.clear())
         assertEquals(1, clears)
     }
 
     @Test
     fun boundsUnexpectedFailuresAndPreservesCancellation() {
         val unexpected = IllegalStateException("broken")
-        val failed = runBlocking { throwingRepository(unexpected).load(null) } as HistoryRepositoryResult.Failure
-        assertSame(unexpected, (failed.failure as FilesFailure.Unexpected).cause)
+        val failed = runBlocking { throwingRepository(unexpected).load(null) } as PutioResult.Failure
+        assertSame(unexpected, (failed.failure as PutioFailure.Unexpected).cause)
 
         val cancellation = CancellationException("closed")
         try {

@@ -6,11 +6,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.auth.sessionKey
 import io.putdotio.android.files.FilesExternalOpen
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
@@ -93,8 +93,8 @@ internal class ActiveSearchHistorySession(
     )
 
     val navigation: Flow<FilesExternalOpen> = navigationChannel.receiveAsFlow()
-    val navigationFailure: StateFlow<FilesFailure?> = historyOpener.failure
-    val recentSearchFailure: StateFlow<FilesFailure?> = recentSearchStore.failure
+    val navigationFailure: StateFlow<PutioFailure?> = historyOpener.failure
+    val recentSearchFailure: StateFlow<PutioFailure?> = recentSearchStore.failure
 
     init {
         scope.launch {

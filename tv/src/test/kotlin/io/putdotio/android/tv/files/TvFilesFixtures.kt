@@ -2,7 +2,7 @@ package io.putdotio.android.tv.files
 
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderState
@@ -54,4 +54,4 @@ internal fun item(
         playback = playback,
     )
 
-internal fun networkFailure() = FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))
+internal fun networkFailure() = PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))

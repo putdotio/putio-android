@@ -1,6 +1,7 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.FilesFailure
+import io.putdotio.android.PutioFailure
 
 @JvmInline
 value class TransfersRequestId(val value: Long)
@@ -9,7 +10,7 @@ sealed interface TransfersPaging {
     data object Complete : TransfersPaging
     data class Available(val cursor: TransferCursor) : TransfersPaging
     data class Loading(val cursor: TransferCursor, val requestId: TransfersRequestId) : TransfersPaging
-    data class Failed(val cursor: TransferCursor, val failure: FilesFailure) : TransfersPaging
+    data class Failed(val cursor: TransferCursor, val failure: PutioFailure) : TransfersPaging
 }
 
 sealed interface TransfersContent {
@@ -18,14 +19,14 @@ sealed interface TransfersContent {
     data class Ready(val items: List<TransferItem>, val paging: TransfersPaging) : TransfersContent {
         init { require(items.isNotEmpty()) }
     }
-    data class Failed(val failure: FilesFailure) : TransfersContent
+    data class Failed(val failure: PutioFailure) : TransfersContent
 }
 
 sealed interface TransfersRefresh {
     data object Idle : TransfersRefresh
     data class Refreshing(val requestId: TransfersRequestId) : TransfersRefresh
     data class Polling(val requestId: TransfersRequestId) : TransfersRefresh
-    data class Failed(val failure: FilesFailure) : TransfersRefresh
+    data class Failed(val failure: PutioFailure) : TransfersRefresh
 }
 
 val TransfersRefresh.isRunning: Boolean
@@ -50,7 +51,7 @@ sealed interface TransferAction {
 sealed interface TransferMutation {
     data object Idle : TransferMutation
     data class Running(val action: TransferAction, val requestId: TransfersRequestId) : TransferMutation
-    data class Failed(val action: TransferAction, val failure: FilesFailure) : TransferMutation
+    data class Failed(val action: TransferAction, val failure: PutioFailure) : TransferMutation
 }
 
 sealed interface TransferNavigation {
@@ -82,7 +83,7 @@ sealed interface TransferRetryOutcome {
     data class Accepted(override val requestId: TransfersRequestId) : TransferRetryOutcome
     data class Failed(
         override val requestId: TransfersRequestId,
-        val failure: FilesFailure,
+        val failure: PutioFailure,
     ) : TransferRetryOutcome
 }
 
@@ -145,14 +146,14 @@ sealed interface TransfersEvent {
         val items: List<TransferItem>,
         val missingIds: Set<TransferId>,
     ) : TransfersEvent
-    data class ListFailed(val requestId: TransfersRequestId, val failure: FilesFailure) : TransfersEvent
+    data class ListFailed(val requestId: TransfersRequestId, val failure: PutioFailure) : TransfersEvent
     data class MutationSucceeded(
         val requestId: TransfersRequestId,
         val item: TransferItem? = null,
         val affectedIds: Set<TransferId> = emptySet(),
         val added: TransferAddOutcome? = null,
     ) : TransfersEvent
-    data class MutationFailed(val requestId: TransfersRequestId, val failure: FilesFailure) : TransfersEvent
+    data class MutationFailed(val requestId: TransfersRequestId, val failure: PutioFailure) : TransfersEvent
 }
 
 sealed interface TransfersEffect {

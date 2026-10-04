@@ -1,7 +1,7 @@
 package io.putdotio.android.trash
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.errors.PutioException
@@ -9,7 +9,7 @@ import java.time.Instant
 
 sealed interface TrashContent {
     data object Loading : TrashContent
-    data class Error(val failure: FilesFailure) : TrashContent
+    data class Error(val failure: PutioFailure) : TrashContent
     data class Loaded(
         val items: List<TrashItem>,
         val nextCursor: FilesCursor?,
@@ -17,8 +17,8 @@ sealed interface TrashContent {
         val trashSizeBytes: Long?,
         val isRefreshing: Boolean = false,
         val isLoadingMore: Boolean = false,
-        val refreshFailure: FilesFailure? = null,
-        val pageFailure: FilesFailure? = null,
+        val refreshFailure: PutioFailure? = null,
+        val pageFailure: PutioFailure? = null,
         // The initial page's cursor names every Trash ID of that snapshot; bulk Restore all reuses it.
         val snapshotCursor: FilesCursor? = null,
     ) : TrashContent {
@@ -42,8 +42,8 @@ data class TrashActionOutcome(
     val action: TrashAction,
     val submission: TrashActionSubmission,
     val check: TrashActionCheck = TrashActionCheck.NOT_CHECKED,
-    val submissionFailure: FilesFailure? = null,
-    val checkFailure: FilesFailure? = null,
+    val submissionFailure: PutioFailure? = null,
+    val checkFailure: PutioFailure? = null,
     // What Restore all submitted; verification compares the fresh listing against it, not against empty.
     val restoreSnapshot: TrashRestoreSnapshot? = null,
 ) {
@@ -67,8 +67,8 @@ data class TrashRestoreOutcome(
     val item: TrashItem,
     val submission: TrashRestoreSubmission,
     val check: TrashRestoreCheck = TrashRestoreCheck.NOT_CHECKED,
-    val submissionFailure: FilesFailure? = null,
-    val checkFailure: FilesFailure? = null,
+    val submissionFailure: PutioFailure? = null,
+    val checkFailure: PutioFailure? = null,
     val resolvedItem: FilesItem? = null,
 ) {
     val isPending: Boolean get() = submission != TrashRestoreSubmission.REJECTED && check != TrashRestoreCheck.AVAILABLE

@@ -52,7 +52,7 @@ private fun HistoryState.reloadAfterClear(): HistoryTransition {
 }
 
 internal fun HistoryState.clearFailed(event: HistoryEvent.ClearFailed): HistoryTransition {
-    (event.failure as? io.putdotio.android.files.FilesFailure.AuthenticationRequired)?.let {
+    (event.failure as? io.putdotio.android.PutioFailure.AuthenticationRequired)?.let {
         return HistoryTransition(copy(authoritativeFailure = it))
     }
     val active = clearing as? HistoryClearing.Clearing

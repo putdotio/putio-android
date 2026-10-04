@@ -13,6 +13,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.util.concurrent.CancellationException
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 
 class SdkFilesDeleteRepositoryTest {
     @Test
@@ -24,12 +26,12 @@ class SdkFilesDeleteRepositoryTest {
             result
         }
         for (mode in FilesDeleteMode.entries) {
-            val response = repository.delete(FilesItemId(7L), mode) as FilesRepositoryResult.Success
+            val response = repository.delete(FilesItemId(7L), mode) as PutioResult.Success
             assertSame(result, response.value)
         }
         assertEquals(listOf(7L to false, 7L to true), calls)
         for (id in listOf(0L, -1L)) {
-            val response = repository.delete(FilesItemId(id), FilesDeleteMode.TRASH) as FilesRepositoryResult.Failure
+            val response = repository.delete(FilesItemId(id), FilesDeleteMode.TRASH) as PutioResult.Failure
             assertTrue(response.failure.cause is IllegalArgumentException)
         }
         assertEquals(2, calls.size)
@@ -47,12 +49,12 @@ class SdkFilesDeleteRepositoryTest {
             val wrapped = PutioOperationException("files", "delete", null, null, error)
             val failure = (repository { _, _ -> throw wrapped }.delete(
                 FilesItemId(7L), FilesDeleteMode.TRASH,
-            ) as FilesRepositoryResult.Failure).failure
+            ) as PutioResult.Failure).failure
             assertSame(wrapped, failure.cause)
             when (code) {
-                401 -> assertTrue(failure is FilesFailure.AuthenticationRequired)
-                403 -> assertTrue(failure is FilesFailure.AccessDenied)
-                400 -> assertEquals(type, (failure as FilesFailure.ApiRejected).errorType)
+                401 -> assertTrue(failure is PutioFailure.AuthenticationRequired)
+                403 -> assertTrue(failure is PutioFailure.AccessDenied)
+                400 -> assertEquals(type, (failure as PutioFailure.ApiRejected).errorType)
             }
         }
         val invalid = PutioSerializationException(
@@ -61,8 +63,8 @@ class SdkFilesDeleteRepositoryTest {
         val wrapped = PutioOperationException("files", "delete", null, null, invalid)
         val failure = (repository { _, _ -> throw wrapped }.delete(
             FilesItemId(7L), FilesDeleteMode.TRASH,
-        ) as FilesRepositoryResult.Failure).failure
-        assertTrue(failure is FilesFailure.InvalidResponse)
+        ) as PutioResult.Failure).failure
+        assertTrue(failure is PutioFailure.InvalidResponse)
         assertSame(wrapped, failure.cause)
     }
 

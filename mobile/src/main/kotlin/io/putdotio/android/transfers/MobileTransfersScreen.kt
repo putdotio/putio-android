@@ -71,9 +71,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.mobileMessage
@@ -749,7 +749,7 @@ private fun retryOutcomeMessage(outcome: TransferRetryOutcome): String =
             stringResource(
                 R.string.mobile_transfers_retry_failed,
                 // put.io answers 403 when the transfer has no error left to retry.
-                if (outcome.failure is FilesFailure.AccessDenied) {
+                if (outcome.failure is PutioFailure.AccessDenied) {
                     stringResource(R.string.mobile_transfers_retry_not_failed)
                 } else {
                     outcome.failure.mobileMessage()

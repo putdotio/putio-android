@@ -1,8 +1,9 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesRepositoryResult
-import io.putdotio.android.files.toFilesFailure
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.putioRequest
+import io.putdotio.android.PutioResult
+import io.putdotio.android.toPutioFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.errors.PutioException
 import io.putdotio.sdk.transfers.Transfer
@@ -15,18 +16,17 @@ import io.putdotio.sdk.transfers.TransferStatus
 import io.putdotio.sdk.transfers.TransfersCleanResponse
 import io.putdotio.sdk.transfers.TransfersListQuery
 import io.putdotio.sdk.transfers.TransfersListResponse
-import java.util.concurrent.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
 interface TransfersRepository {
-    suspend fun load(cursor: TransferCursor? = null): FilesRepositoryResult<TransfersPage>
-    suspend fun refresh(ids: List<TransferId>): FilesRepositoryResult<TransfersRowRefresh>
-    suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome>
-    suspend fun cancel(id: TransferId): FilesRepositoryResult<Unit>
-    suspend fun retry(id: TransferId): FilesRepositoryResult<TransferItem>
-    suspend fun clean(ids: List<TransferId>): FilesRepositoryResult<Set<TransferId>>
+    suspend fun load(cursor: TransferCursor? = null): PutioResult<TransfersPage>
+    suspend fun refresh(ids: List<TransferId>): PutioResult<TransfersRowRefresh>
+    suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome>
+    suspend fun cancel(id: TransferId): PutioResult<Unit>
+    suspend fun retry(id: TransferId): PutioResult<TransferItem>
+    suspend fun clean(ids: List<TransferId>): PutioResult<Set<TransferId>>
 }
 
 internal class TransfersAddOperations(
@@ -101,20 +101,20 @@ class SdkTransfersRepository internal constructor(
         cleanTransfers = client.transfers::clean,
     )
 
-    override suspend fun load(cursor: TransferCursor?): FilesRepositoryResult<TransfersPage> =
-        request {
+    override suspend fun load(cursor: TransferCursor?): PutioResult<TransfersPage> =
+        putioRequest {
             val query = TransfersListQuery(perPage = PAGE_SIZE)
             val response =
                 if (cursor == null) reads.list(query) else reads.continueList(cursor.value, query)
             response.toTransfersPage()
         }
 
-    override suspend fun refresh(ids: List<TransferId>): FilesRepositoryResult<TransfersRowRefresh> {
+    override suspend fun refresh(ids: List<TransferId>): PutioResult<TransfersRowRefresh> {
         val requestedIds = ids.distinct()
         if (requestedIds.isEmpty()) {
-            return FilesRepositoryResult.Success(TransfersRowRefresh(emptyList(), emptySet()))
+            return PutioResult.Success(TransfersRowRefresh(emptyList(), emptySet()))
         }
-        return request {
+        return putioRequest {
             if (requestedIds.size <= DIRECT_REFRESH_LIMIT) {
                 refreshEach(requestedIds)
             } else {
@@ -169,29 +169,17 @@ class SdkTransfersRepository internal constructor(
         )
     }
 
-    override suspend fun add(request: TransferAddRequest): FilesRepositoryResult<TransferAddOutcome> =
-        request { adds.run(request) }
+    override suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome> =
+        putioRequest { adds.run(request) }
 
-    override suspend fun cancel(id: TransferId): FilesRepositoryResult<Unit> =
-        request { cancelTransfers(listOf(id.value)) }
+    override suspend fun cancel(id: TransferId): PutioResult<Unit> =
+        putioRequest { cancelTransfers(listOf(id.value)) }
 
-    override suspend fun retry(id: TransferId): FilesRepositoryResult<TransferItem> =
-        request { retryTransfer(id.value).toTransferItem() }
+    override suspend fun retry(id: TransferId): PutioResult<TransferItem> =
+        putioRequest { retryTransfer(id.value).toTransferItem() }
 
-    override suspend fun clean(ids: List<TransferId>): FilesRepositoryResult<Set<TransferId>> =
-        request { cleanTransfers(ids.map(TransferId::value)).deletedIds.map(::TransferId).toSet() }
-
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun <T> request(block: suspend () -> T): FilesRepositoryResult<T> =
-        try {
-            FilesRepositoryResult.Success(block())
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: PutioException) {
-            FilesRepositoryResult.Failure(error.toFilesFailure())
-        } catch (unexpected: Exception) {
-            FilesRepositoryResult.Failure(FilesFailure.Unexpected(unexpected))
-        }
+    override suspend fun clean(ids: List<TransferId>): PutioResult<Set<TransferId>> =
+        putioRequest { cleanTransfers(ids.map(TransferId::value)).deletedIds.map(::TransferId).toSet() }
 
     private companion object {
         const val PAGE_SIZE = 50
@@ -218,8 +206,8 @@ internal fun Transfer.toTransferItem(): TransferItem =
     )
 
 private fun PutioException.isTransferNotFound(): Boolean {
-    val failure = toFilesFailure()
-    return failure is FilesFailure.ApiRejected &&
+    val failure = toPutioFailure()
+    return failure is PutioFailure.ApiRejected &&
         failure.statusCode == HTTP_NOT_FOUND &&
         failure.httpStatusCode == HTTP_NOT_FOUND
 }
