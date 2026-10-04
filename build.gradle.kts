@@ -1,3 +1,5 @@
+import groovy.json.JsonSlurper
+
 plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
@@ -87,6 +89,19 @@ val testTalkBackInput = tasks.register<Exec>("testTalkBackInput") {
     commandLine("python3", "-B", "scripts/test_talkback_input.py")
 }
 
+// package.json pins oxfmt so Dependabot can bump it; needs Node on PATH.
+val oxfmtVersion =
+    providers.fileContents(layout.projectDirectory.file("package.json")).asText.map { text ->
+        val devDependencies = (JsonSlurper().parseText(text) as? Map<*, *>)?.get("devDependencies") as? Map<*, *>
+        devDependencies?.get("oxfmt") as? String ?: error("package.json must pin oxfmt in devDependencies")
+    }
+
+val markdownCheck = tasks.register<Exec>("markdownCheck") {
+    group = "verification"
+    description = "Check Markdown formatting with oxfmt"
+    commandLine("npx", "--yes", "oxfmt@${oxfmtVersion.get()}", "--check", "**/*.md")
+}
+
 tasks.register("verify") {
     group = "verification"
     description = "Run the canonical local checks"
@@ -102,6 +117,7 @@ tasks.register("verify") {
         ":domain:transfers:assembleDebugAndroidTest",
         checkDesignAssets,
         checkIcons,
+        markdownCheck,
         testDesignAssetPipeline,
         testEmulatorHarness,
         testEvidence,

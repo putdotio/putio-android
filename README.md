@@ -89,7 +89,7 @@ Not started: Chromecast, Picture-in-Picture, and the Play release lane.
 
 ## Build and verify
 
-Requires JDK 21, `python3`, and, on macOS, Homebrew. Everything else is scripted.
+Requires JDK 21, Node 20.19 or newer, `python3`, and, on macOS, Homebrew. Everything else is scripted.
 
 ```bash
 ./scripts/bootstrap.sh   # once per machine; installs the Android SDK, AVDs, local.properties
