@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import io.putdotio.android.PutioFailure
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -116,7 +117,7 @@ class PlaybackPositionWriterTest {
     @Test
     fun failuresKeepTheirCauseWithoutImmediateOrDuplicateFlushRetries() = runTest {
         val cause = IllegalStateException("offline")
-        val failure = PlaybackFailure.NetworkUnavailable(cause)
+        val failure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(cause))
         var calls = 0
         val writer = PlaybackPositionWriter(backgroundScope) { _, _ ->
             calls++

@@ -30,7 +30,6 @@ import io.putdotio.android.files.FilesBrowserTransition
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesDeleteStatus
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderState
@@ -38,7 +37,6 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
 import io.putdotio.android.files.MobileFilesScreen
 import io.putdotio.android.files.filesBrowserState
@@ -189,7 +187,7 @@ class FilesDeleteRecoveryUiProofTest {
         compose.runOnIdle {
             val read = preview.effects.last() as FilesBrowserEffect.LoadFolder
             preview.dispatch(FilesBrowserEvent.LoadFailed(read.requestId,
-                FilesFailure.Unexpected(IllegalStateException("Synthetic folder reload failure"))))
+                PutioFailure.Unexpected(IllegalStateException("Synthetic folder reload failure"))))
         }
         assertNavigationRetainsRecovery(preview)
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -250,29 +248,29 @@ private class DeleteRecoveryPreview(itemName: String = "A Action été") {
     fun finishMutationWithUnknownResult() {
         val deleting = effects.last() as FilesBrowserEffect.Delete
         dispatch(FilesBrowserEvent.DeleteFinished(deleting.requestId,
-            FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("Synthetic unknown result")))))
+            PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("Synthetic unknown result")))))
         assertTrue(effects.last() is FilesBrowserEffect.CheckDelete)
     }
 
     fun refuseTrashForFolderSize() {
         val deleting = effects.last() as FilesBrowserEffect.Delete
         dispatch(FilesBrowserEvent.DeleteFinished(deleting.requestId,
-            FilesRepositoryResult.Failure(apiRejected(400, "FileDeleteChildrenLimitError"))))
+            PutioResult.Failure(apiRejected(400, "FileDeleteChildrenLimitError"))))
         assertTrue(effects.last() is FilesBrowserEffect.CheckDelete)
     }
 
     fun finishPermanentDelete() {
         val deleting = effects.last() as FilesBrowserEffect.Delete
         dispatch(FilesBrowserEvent.DeleteFinished(deleting.requestId,
-            FilesRepositoryResult.Success(FileDeleteResult(status = "OK"))))
+            PutioResult.Success(FileDeleteResult(status = "OK"))))
         val checking = effects.last() as FilesBrowserEffect.CheckDelete
-        dispatch(FilesBrowserEvent.DeleteChecked(checking.requestId, FilesRepositoryResult.Failure(apiRejected(404))))
+        dispatch(FilesBrowserEvent.DeleteChecked(checking.requestId, PutioResult.Failure(apiRejected(404))))
         val reloading = effects.last() as FilesBrowserEffect.LoadFolder
         dispatch(FilesBrowserEvent.LoadSucceeded(reloading.requestId, FilesPage(emptyList(), null)))
         assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, state.current.deleteOutcome?.status)
     }
 
-    private fun apiRejected(code: Int, type: String? = null) = FilesFailure.ApiRejected(code, type, PutioApiException(
+    private fun apiRejected(code: Int, type: String? = null) = PutioFailure.ApiRejected(code, type, PutioApiException(
         PutioRequestData("POST", "https://api.put.io/v2/files/delete"), code, resolvedErrorType = type,
         envelope = PutioApiErrorEnvelope(errorType = type, statusCode = code), responseBody = "{}",
         message = "Synthetic rejection",
@@ -281,14 +279,14 @@ private class DeleteRecoveryPreview(itemName: String = "A Action été") {
     fun failStatusRead() {
         val checking = effects.last() as FilesBrowserEffect.CheckDelete
         dispatch(FilesBrowserEvent.DeleteChecked(checking.requestId,
-            FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("Synthetic offline read")))))
+            PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("Synthetic offline read")))))
         assertEquals(FilesDeleteStatus.UNKNOWN, state.current.deleteOutcome?.status)
         assertTrue(state.current.operation is FilesFolderOperation.Failed)
     }
 
     fun finishStatusRead() {
         val checking = effects.last() as FilesBrowserEffect.CheckDelete
-        dispatch(FilesBrowserEvent.DeleteChecked(checking.requestId, FilesRepositoryResult.Success(item)))
+        dispatch(FilesBrowserEvent.DeleteChecked(checking.requestId, PutioResult.Success(item)))
         assertEquals(folder.id, (effects.last() as FilesBrowserEffect.LoadFolder).folderId)
     }
 

@@ -29,8 +29,8 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.mobileMessage
 
 internal const val MOBILE_TRASH_ITEM_SHEET_TAG = "mobile-trash-item-sheet"
@@ -238,5 +238,5 @@ private fun TrashAction.confirmResource(): Int = when (this) {
 }
 
 @Composable
-private fun FilesFailure.trashActionMessage(): String =
-    if (this is FilesFailure.AccessDenied) stringResource(R.string.mobile_trash_access_denied) else mobileMessage()
+private fun PutioFailure.trashActionMessage(): String =
+    if (this is PutioFailure.AccessDenied) stringResource(R.string.mobile_trash_access_denied) else mobileMessage()

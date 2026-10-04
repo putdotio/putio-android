@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PlaybackConversionState
 import org.junit.Assert.assertEquals
@@ -190,7 +191,7 @@ class PlaybackConversionReducerTest {
             opened.state,
             PlaybackEvent.ResolveFailed(
                 PlaybackRequestId(2L),
-                PlaybackFailure.Unexpected(IllegalStateException("offline")),
+                PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
             ),
         )
         val retried = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)

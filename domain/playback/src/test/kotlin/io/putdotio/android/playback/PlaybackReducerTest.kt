@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
@@ -27,7 +28,7 @@ class PlaybackReducerTest {
             attached.state,
             PlaybackEvent.ResolveFailed(
                 PlaybackRequestId(1L),
-                PlaybackFailure.Unexpected(IllegalStateException("unavailable")),
+                PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("unavailable"))),
             ),
         )
         assertFalse(stale.consumed)
@@ -53,7 +54,7 @@ class PlaybackReducerTest {
             requested.state,
             PlaybackEvent.ResolveFailed(
                 PlaybackRequestId(1L),
-                PlaybackFailure.Unexpected(IllegalStateException("unavailable")),
+                PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("unavailable"))),
             ),
         )
         assertFalse(PlaybackReducer.reduce(failed.state, PlaybackEvent.SourceRequired()).consumed)
@@ -145,7 +146,7 @@ class PlaybackReducerTest {
             start.state,
             PlaybackEvent.ResolveFailed(
                 PlaybackRequestId(1L),
-                PlaybackFailure.Unexpected(IllegalStateException("offline")),
+                PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
             ),
         )
         val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
@@ -263,7 +264,7 @@ class PlaybackReducerTest {
                 finding.state,
                 PlaybackEvent.NextFound(PlaybackRequestId(2L), next),
             )
-        val failure = PlaybackFailure.NetworkUnavailable(IllegalStateException("offline"))
+        val failure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
         val failed =
             PlaybackReducer.reduce(
                 resolving.state,
@@ -337,7 +338,7 @@ class PlaybackReducerTest {
     @Test
     fun missingNextEndsWhileLookupFailureRetriesLookup() {
         val finding = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerEnded)
-        val failure = PlaybackFailure.NetworkUnavailable(IllegalStateException("offline"))
+        val failure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
         val failed = PlaybackReducer.reduce(
             finding.state,
             PlaybackEvent.NextFailed(PlaybackRequestId(2L), failure),
@@ -414,7 +415,7 @@ class PlaybackReducerTest {
         assertTrue(pending.state.content is PlaybackContent.AwaitingResume)
         assertEquals(Target.copy(durationSeconds = 1_200.0), pending.state.target)
         val resumed = PlaybackReducer.reduce(pending.state, PlaybackEvent.Resume)
-        val failure = PlaybackFailure.Unexpected(IllegalStateException("decoder"))
+        val failure = PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("decoder")))
         val failed = PlaybackReducer.reduce(resumed.state, PlaybackEvent.PlayerFailed(failure, 12_000L))
         val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
         assertEquals(
@@ -496,7 +497,7 @@ class PlaybackReducerTest {
                 PlaybackRequestId(1L), PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
             ),
         ).state
-        val failure = PlaybackFailure.NetworkUnavailable(IllegalStateException("offline"))
+        val failure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
         for (event in listOf(
             PlaybackEvent.Retry,
             PlaybackEvent.PlayerEnded,
@@ -514,7 +515,7 @@ class PlaybackReducerTest {
 
     @Test
     fun recoveryRetryRetainsLocalPositionWithoutAnotherResumePrompt() {
-        val failure = PlaybackFailure.NetworkUnavailable(IllegalStateException("offline"))
+        val failure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
         val failed = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerFailed(failure, 4_321L))
         val retry = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
         val recovered = PlaybackReducer.reduce(

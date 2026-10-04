@@ -42,9 +42,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.parsePutioTimestamp
 import java.time.LocalDate
@@ -221,10 +221,10 @@ private fun MobileTrashRow(item: TrashItem, enabled: Boolean, onActions: () -> U
 }
 
 @Composable
-private fun TrashReadFailure(failure: FilesFailure, onRetry: () -> Unit) {
+private fun TrashReadFailure(failure: PutioFailure, onRetry: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(failure.trashMessage())
-        if (failure !is FilesFailure.AuthenticationRequired) {
+        if (failure !is PutioFailure.AuthenticationRequired) {
             TextButton(onClick = onRetry) { Text(stringResource(R.string.mobile_action_retry)) }
         }
     }
@@ -274,7 +274,7 @@ private fun MobileTrashRestoreSummary(outcome: TrashRestoreOutcome) {
         Text(outcome.item.name, style = MaterialTheme.typography.titleMedium)
         Text(stringResource(outcome.submission.messageResource()))
         outcome.submissionFailure?.let { failure ->
-            val incomplete = failure is FilesFailure.ApiRejected &&
+            val incomplete = failure is PutioFailure.ApiRejected &&
                 failure.statusCode == 400 && failure.httpStatusCode == 400 &&
                     failure.errorType == "TRASH_INCOMPLETE_TRASH"
             Text(if (incomplete) stringResource(R.string.mobile_trash_incomplete) else failure.trashMessage())
@@ -290,8 +290,8 @@ private fun TrashRestoreSubmission.messageResource(): Int = when (this) {
 }
 
 @Composable
-private fun FilesFailure.trashMessage(): String =
-    if (this is FilesFailure.AccessDenied) stringResource(R.string.mobile_trash_access_denied) else mobileMessage()
+private fun PutioFailure.trashMessage(): String =
+    if (this is PutioFailure.AccessDenied) stringResource(R.string.mobile_trash_access_denied) else mobileMessage()
 
 // Unknown formats omit the date instead of fabricating a retention deadline.
 internal fun String.trashDisplayDate(context: Context): String? {

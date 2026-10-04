@@ -86,6 +86,7 @@ import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
+import io.putdotio.android.PutioFailure
 
 /**
  * Controlled-state TV playback proof: a fixed Files listing, the real TV player screen and
@@ -696,7 +697,9 @@ class TvPlayerProofTest {
                         PlaybackRepositoryResult.Success(conversion.removeFirst())
                     target.fileId.value == OFFLINE_FILE_ID && !offlineFailed -> {
                         offlineFailed = true
-                        PlaybackRepositoryResult.Failure(PlaybackFailure.NetworkUnavailable(IOException("proof: offline")))
+                        PlaybackRepositoryResult.Failure(
+                            PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("proof: offline"))),
+                        )
                     }
                     else -> PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source))
                 }

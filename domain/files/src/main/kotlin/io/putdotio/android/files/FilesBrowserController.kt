@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.Closeable
 import java.util.concurrent.CancellationException
+import io.putdotio.android.PutioFailure
 
 class FilesBrowserController(
     private val repository: FilesRepository,
@@ -118,7 +119,7 @@ class FilesBrowserController(
                     } catch (error: CancellationException) {
                         throw error
                     } catch (unexpected: Exception) {
-                        FilesBrowserEvent.LoadFailed(effect.requestId, FilesFailure.Unexpected(unexpected))
+                        FilesBrowserEvent.LoadFailed(effect.requestId, PutioFailure.Unexpected(unexpected))
                     }
                 dispatch(event)
             }

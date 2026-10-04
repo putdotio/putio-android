@@ -32,6 +32,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.util.concurrent.CancellationException
+import io.putdotio.android.PutioFailure
 
 class SdkPlaybackRepositoryTest {
     @Test
@@ -211,8 +212,10 @@ class SdkPlaybackRepositoryTest {
                 resolvePlayback = { throw playbackFailure },
             ).resolve(Target) as PlaybackRepositoryResult.Failure
 
-            assertSame(accountFailure, (accountResult.failure as PlaybackFailure.AuthenticationRequired).cause)
-            assertSame(playbackFailure, (playbackResult.failure as PlaybackFailure.AuthenticationRequired).cause)
+            assertSame(accountFailure, accountResult.failure.cause)
+            assertTrue(accountResult.failure.putioFailure is PutioFailure.AuthenticationRequired)
+            assertSame(playbackFailure, playbackResult.failure.cause)
+            assertTrue(playbackResult.failure.putioFailure is PutioFailure.AuthenticationRequired)
         }
 
     @Test
@@ -229,7 +232,7 @@ class SdkPlaybackRepositoryTest {
                 resolvePlayback = { error("Resolver must not run") },
             ).resolve(Target) as PlaybackRepositoryResult.Failure
 
-            assertTrue(result.failure is PlaybackFailure.AuthenticationRequired)
+            assertTrue(result.failure.putioFailure is PutioFailure.AuthenticationRequired)
             assertSame(failure, result.failure.cause)
         }
 
@@ -265,7 +268,7 @@ class SdkPlaybackRepositoryTest {
                 ),
                 startMp4Conversion = { throw apiFailure(401) },
             ).startConversion(Target) as PlaybackRepositoryResult.Failure
-            assertTrue(rejected.failure is PlaybackFailure.AuthenticationRequired)
+            assertTrue(rejected.failure.putioFailure is PutioFailure.AuthenticationRequired)
         }
 
     @Test
@@ -430,7 +433,7 @@ class SdkPlaybackRepositoryTest {
                 },
             )
             val result = repository.findNextVideo(Target) as PlaybackNextResult.Failure
-            assertTrue(result.failure is PlaybackFailure.Unexpected)
+            assertTrue(result.failure.putioFailure is PutioFailure.Unexpected)
             assertEquals(1, continuations)
         }
 
@@ -499,7 +502,7 @@ class SdkPlaybackRepositoryTest {
             val rejected = nextFailureRepository(contradictory).findNextVideo(Target) as PlaybackNextResult.Failure
 
             assertEquals(PlaybackNextResult.Ended, ended)
-            assertTrue(rejected.failure is PlaybackFailure.AuthenticationRequired)
+            assertTrue(rejected.failure.putioFailure is PutioFailure.AuthenticationRequired)
             assertSame(contradictory, rejected.failure.cause)
         }
 

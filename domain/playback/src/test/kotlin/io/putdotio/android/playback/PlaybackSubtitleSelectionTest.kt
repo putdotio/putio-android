@@ -26,6 +26,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import io.putdotio.android.PutioFailure
 
 private fun rendererCapabilities(trackType: Int): RendererCapabilities =
     object : RendererCapabilities {
@@ -195,7 +196,7 @@ class PlaybackSubtitleSelectionTest {
                 start.state,
                 AccountSettingsEvent.LoadFailed(
                     requireNotNull(start.effect).requestId,
-                    AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
                 ),
             ).state
         val startup = startupParameters(failed)

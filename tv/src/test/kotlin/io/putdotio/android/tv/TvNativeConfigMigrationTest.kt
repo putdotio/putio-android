@@ -1,8 +1,8 @@
 package io.putdotio.android.tv
 
-import io.putdotio.android.settings.AndroidAppConfigFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.settings.AndroidAppConfigPreferences
-import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
+import io.putdotio.android.PutioResult
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.sdk.config.AppConfig
@@ -83,9 +83,9 @@ class TvNativeConfigMigrationTest {
         )
         val server = FakeConfigServer(TV_NATIVE_CONFIG, failSaves = 1, saveError = rejected)
 
-        val result = server.repository.load() as AndroidAppConfigRepositoryResult.Failure
+        val result = server.repository.load() as PutioResult.Failure
 
-        assertTrue(result.failure is AndroidAppConfigFailure.AuthenticationRequired)
+        assertTrue(result.failure is PutioFailure.AuthenticationRequired)
     }
 
     /** `/config` for one user and OAuth app; a save lands like the server's `PUT /config/{key}`. */
@@ -115,6 +115,6 @@ class TvNativeConfigMigrationTest {
             """{"bufferSize": "high", "playbackType": "mp4", "searchHistory": ["dune"], "searchHistoryEnabled": true}"""
 
         suspend fun SdkAndroidAppConfigRepository.loadPreferences(): AndroidAppConfigPreferences =
-            (load() as AndroidAppConfigRepositoryResult.Success).value
+            (load() as PutioResult.Success).value
     }
 }

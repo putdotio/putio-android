@@ -1,10 +1,10 @@
 package io.putdotio.android.trash
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
@@ -20,38 +20,38 @@ class FakeTrashRepository : TrashRepository {
     val deletedIds = mutableListOf<FilesItemId>()
     val bulkRestores = mutableListOf<TrashBulkSelection>()
     var emptyCount = 0
-    var onLoad: suspend () -> FilesRepositoryResult<TrashPage> = { page(trashItem()) }
-    var onPage: suspend (FilesCursor) -> FilesRepositoryResult<TrashPage> = { page() }
-    var onRestore: suspend (FilesItemId) -> FilesRepositoryResult<Unit> = { FilesRepositoryResult.Success(Unit) }
-    var onResolve: suspend (FilesItemId) -> FilesRepositoryResult<FilesItem> = {
-        FilesRepositoryResult.Failure(apiFailure(404, "NOT_FOUND"))
+    var onLoad: suspend () -> PutioResult<TrashPage> = { page(trashItem()) }
+    var onPage: suspend (FilesCursor) -> PutioResult<TrashPage> = { page() }
+    var onRestore: suspend (FilesItemId) -> PutioResult<Unit> = { PutioResult.Success(Unit) }
+    var onResolve: suspend (FilesItemId) -> PutioResult<FilesItem> = {
+        PutioResult.Failure(apiFailure(404, "NOT_FOUND"))
     }
-    var onDelete: suspend (FilesItemId) -> FilesRepositoryResult<Unit> = { FilesRepositoryResult.Success(Unit) }
-    var onRestoreAll: suspend (TrashBulkSelection) -> FilesRepositoryResult<Unit> =
-        { FilesRepositoryResult.Success(Unit) }
-    var onEmpty: suspend () -> FilesRepositoryResult<Unit> = { FilesRepositoryResult.Success(Unit) }
-    override suspend fun load(): FilesRepositoryResult<TrashPage> { loadCount += 1; return onLoad() }
-    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<TrashPage> {
+    var onDelete: suspend (FilesItemId) -> PutioResult<Unit> = { PutioResult.Success(Unit) }
+    var onRestoreAll: suspend (TrashBulkSelection) -> PutioResult<Unit> =
+        { PutioResult.Success(Unit) }
+    var onEmpty: suspend () -> PutioResult<Unit> = { PutioResult.Success(Unit) }
+    override suspend fun load(): PutioResult<TrashPage> { loadCount += 1; return onLoad() }
+    override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<TrashPage> {
         pageCursors += cursor
         return onPage(cursor)
     }
-    override suspend fun restore(itemId: FilesItemId): FilesRepositoryResult<Unit> {
+    override suspend fun restore(itemId: FilesItemId): PutioResult<Unit> {
         restoredIds += itemId
         return onRestore(itemId)
     }
-    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+    override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
         resolvedIds += itemId
         return onResolve(itemId)
     }
-    override suspend fun deleteItem(itemId: FilesItemId): FilesRepositoryResult<Unit> {
+    override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> {
         deletedIds += itemId
         return onDelete(itemId)
     }
-    override suspend fun restoreAll(selection: TrashBulkSelection): FilesRepositoryResult<Unit> {
+    override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> {
         bulkRestores += selection
         return onRestoreAll(selection)
     }
-    override suspend fun empty(): FilesRepositoryResult<Unit> { emptyCount += 1; return onEmpty() }
+    override suspend fun empty(): PutioResult<Unit> { emptyCount += 1; return onEmpty() }
 }
 
 fun trashItem(id: Long = 7L) = TrashItem(
@@ -64,9 +64,9 @@ fun liveItem(item: TrashItem = trashItem()) = FilesItem(
 )
 
 fun page(vararg items: TrashItem) =
-    FilesRepositoryResult.Success(TrashPage(items.toList(), null, items.size, 12L))
+    PutioResult.Success(TrashPage(items.toList(), null, items.size, 12L))
 
-internal fun apiFailure(status: Int, type: String) = FilesFailure.ApiRejected(
+internal fun apiFailure(status: Int, type: String) = PutioFailure.ApiRejected(
     status, type, PutioApiException(
         request = PutioRequestData("POST", "/trash/restore"), resolvedStatusCode = status,
         resolvedErrorType = type, envelope = PutioApiErrorEnvelope(status = "ERROR"),
@@ -74,7 +74,7 @@ internal fun apiFailure(status: Int, type: String) = FilesFailure.ApiRejected(
     ),
 )
 
-internal fun offlineFailure() = FilesFailure.Unexpected(IllegalStateException("offline"))
+internal fun offlineFailure() = PutioFailure.Unexpected(IllegalStateException("offline"))
 
 internal suspend fun TrashController.awaitState(predicate: (TrashState) -> Boolean): TrashState =
     withTimeout(5_000) { state.first(predicate) }

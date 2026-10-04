@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.runBlocking
@@ -42,7 +43,7 @@ class SdkFilesStreamUrlsTest {
         val result = SdkFilesStreamUrls(client(mutableListOf(), downloadToken = null, status = 401))
             .originalStreamUrl(FilesItemId(42L))
 
-        assertTrue((result as FilesStreamUrlResult.Failure).failure is FilesFailure.AuthenticationRequired)
+        assertTrue((result as FilesStreamUrlResult.Failure).failure is PutioFailure.AuthenticationRequired)
     }
 
     private fun client(requests: MutableList<String>, downloadToken: String?, status: Int = 200): PutioClient {

@@ -1,6 +1,7 @@
 package io.putdotio.android.history
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import java.io.Closeable
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -70,9 +71,9 @@ class HistoryController(
             } catch (unexpected: Exception) {
                 when (effect) {
                     is HistoryEffect.Load ->
-                        HistoryEvent.LoadFailed(effect.requestId, FilesFailure.Unexpected(unexpected))
+                        HistoryEvent.LoadFailed(effect.requestId, PutioFailure.Unexpected(unexpected))
                     is HistoryEffect.Clear ->
-                        HistoryEvent.ClearFailed(effect.requestId, FilesFailure.Unexpected(unexpected))
+                        HistoryEvent.ClearFailed(effect.requestId, PutioFailure.Unexpected(unexpected))
                     is HistoryEffect.NavigateToFile -> error("Navigation is handled synchronously")
                 }
             }
@@ -81,14 +82,14 @@ class HistoryController(
     }
 }
 
-private fun HistoryRepositoryResult<HistoryPage>.toLoadEvent(requestId: HistoryRequestId): HistoryEvent =
+private fun PutioResult<HistoryPage>.toLoadEvent(requestId: HistoryRequestId): HistoryEvent =
     when (this) {
-        is HistoryRepositoryResult.Success -> HistoryEvent.LoadSucceeded(requestId, value)
-        is HistoryRepositoryResult.Failure -> HistoryEvent.LoadFailed(requestId, failure)
+        is PutioResult.Success -> HistoryEvent.LoadSucceeded(requestId, value)
+        is PutioResult.Failure -> HistoryEvent.LoadFailed(requestId, failure)
     }
 
-private fun HistoryRepositoryResult<Unit>.toClearEvent(requestId: HistoryRequestId): HistoryEvent =
+private fun PutioResult<Unit>.toClearEvent(requestId: HistoryRequestId): HistoryEvent =
     when (this) {
-        is HistoryRepositoryResult.Success -> HistoryEvent.ClearSucceeded(requestId)
-        is HistoryRepositoryResult.Failure -> HistoryEvent.ClearFailed(requestId, failure)
+        is PutioResult.Success -> HistoryEvent.ClearSucceeded(requestId)
+        is PutioResult.Failure -> HistoryEvent.ClearFailed(requestId, failure)
     }

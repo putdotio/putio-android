@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.description
@@ -414,7 +415,7 @@ private fun FilesFolderOperation.renameReloadStarted(): Boolean =
         FilesFolderOperation.Idle -> false
     }
 
-private fun FilesFolderOperation.renameFailureFor(itemId: FilesItemId): FilesFailure? =
+private fun FilesFolderOperation.renameFailureFor(itemId: FilesItemId): PutioFailure? =
     (this as? FilesFolderOperation.Failed)?.takeIf {
         (it.intent as? FilesFolderOperationIntent.Rename)?.itemId == itemId &&
             it.phase == FilesFolderOperationPhase.RENAMING

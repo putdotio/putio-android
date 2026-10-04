@@ -51,6 +51,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.PutioFailure
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -227,7 +228,8 @@ class TvAccountScreenTest {
 
     @Test
     fun aFailedSaveKeepsTheRowOnTheServerValueAndOffersRetry() {
-        val failure = AccountSettingsFailure.NetworkUnavailable(PutioConfigurationException("offline"))
+        val failure =
+            AccountSettingsFailure.Putio(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")))
         val requested = AccountSettingsReducer.reduce(
             ready(preferences),
             AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.History, false)),
@@ -256,7 +258,8 @@ class TvAccountScreenTest {
 
     @Test
     fun aFailedLoadExplainsAndOffersRetryLoadWhileSignOutHoldsFocus() {
-        val failure = AccountSettingsFailure.NetworkUnavailable(PutioConfigurationException("offline"))
+        val failure =
+            AccountSettingsFailure.Putio(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")))
         val failed = AccountSettingsReducer.reduce(
             AccountSettingsReducer.start().state,
             AccountSettingsEvent.LoadFailed(AccountSettingsRequestId(1), failure),
@@ -336,7 +339,9 @@ class TvAccountScreenTest {
         appConfigState: () -> AndroidAppConfigState = { readyConfig(VideoPlaybackType.Hls) },
         onSignOut: () -> Unit = {},
         loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
-            AccountSettingsRepositoryResult.Failure(AccountSettingsFailure.Unexpected(IllegalStateException("none")))
+            AccountSettingsRepositoryResult.Failure(
+                AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("none"))),
+            )
         },
     ) {
         compose.setContent {

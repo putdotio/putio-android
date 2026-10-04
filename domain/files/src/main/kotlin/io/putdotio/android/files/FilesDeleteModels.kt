@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.FileDeleteResult
 
 enum class FilesDeleteMode {
@@ -23,12 +24,12 @@ data class FilesDeleteOutcome(
     val intent: FilesFolderOperationIntent.Delete,
     val itemName: String,
     val response: FileDeleteResult? = null,
-    val failure: FilesFailure? = null,
+    val failure: PutioFailure? = null,
     val status: FilesDeleteStatus = FilesDeleteStatus.CHECKING,
     /** The screen announced it on its own; it stays for a later page to correct. */
     val announced: Boolean = false,
 )
 
 /** put.io refuses a Trash move of a folder over its item limit with this error type, before changing anything. */
-internal val FilesFailure?.isTrashChildrenLimit: Boolean
-    get() = this is FilesFailure.ApiRejected && errorType == "FileDeleteChildrenLimitError"
+internal val PutioFailure?.isTrashChildrenLimit: Boolean
+    get() = this is PutioFailure.ApiRejected && errorType == "FileDeleteChildrenLimitError"

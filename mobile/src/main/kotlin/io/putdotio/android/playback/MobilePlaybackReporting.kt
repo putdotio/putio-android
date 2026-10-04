@@ -2,6 +2,7 @@ package io.putdotio.android.playback
 
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.settings.AccountSettingsState
@@ -36,7 +37,7 @@ internal class MobilePlaybackReporting(
                 mutableSavedPositions.tryEmit(SavedPlaybackPosition(fileId, seconds))
             }
             if (sessionId != null && result is PlaybackRepositoryResult.Failure &&
-                result.failure is PlaybackFailure.AuthenticationRequired
+                result.failure.putioFailure is PutioFailure.AuthenticationRequired
             ) {
                 // Rejection clears the session and cancels its writer. It must own a separate job.
                 scope.launch {

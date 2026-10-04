@@ -54,7 +54,6 @@ import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesExternalOpen
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -65,7 +64,6 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPlaybackProgress
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.copyForTest
@@ -85,7 +83,7 @@ import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
-import io.putdotio.android.settings.AndroidAppConfigFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigState
@@ -159,7 +157,7 @@ class MobileShellTest {
     @Test
     fun appConfigAuthenticationFailureTriggersRootSessionRejection() {
         var rejections = 0
-        val failure = AndroidAppConfigFailure.AuthenticationRequired(
+        val failure = PutioFailure.AuthenticationRequired(
             PutioConfigurationException("expired"),
         )
         val state = androidAppConfigState(
@@ -358,9 +356,9 @@ class MobileShellTest {
                                             AccountSettingsMutation.Failed(
                                                 change = event.change,
                                                 failure =
-                                                    AccountSettingsFailure.Unexpected(
+                                                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(
                                                         IllegalStateException("offline"),
-                                                    ),
+                                                    )),
                                                 previousPreferences = DefaultAccountSettingsPreferences,
                                                 operation = AccountSettingsMutation.Operation.Save,
                                             ),
@@ -636,7 +634,7 @@ class MobileShellShareTest {
     fun incomingShareWaitsForTransferResolutionBeforeOpeningItsDraft() {
         val draft = MobileTransferDraft()
         var transfers by mutableStateOf(resolvingTransfersState())
-        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
+        val resolved = CompletableDeferred<PutioResult<FilesItem>>()
         val events = mutableListOf<TransfersEvent>()
         compose.setContent {
             PutioTheme {
@@ -666,7 +664,7 @@ class MobileShellShareTest {
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
         compose.runOnIdle {
             org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
-            resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder()))
+            resolved.complete(PutioResult.Success(shellResolvedFolder()))
         }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
         compose.runOnIdle {
@@ -680,7 +678,7 @@ class MobileShellShareTest {
     fun acceptingAReplacementShareWaitsForTransferResolution() {
         val draft = MobileTransferDraft()
         var transfers by mutableStateOf(resolvingTransfersState())
-        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
+        val resolved = CompletableDeferred<PutioResult<FilesItem>>()
         val events = mutableListOf<TransfersEvent>()
         compose.setContent {
             PutioTheme {
@@ -715,7 +713,7 @@ class MobileShellShareTest {
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
         compose.runOnIdle {
             org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
-            resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder()))
+            resolved.complete(PutioResult.Success(shellResolvedFolder()))
         }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
         compose.runOnIdle {
@@ -729,7 +727,7 @@ class MobileShellShareTest {
     fun dismissingAShareDuringTransferResolutionPreservesTheRequestedFilesNavigation() {
         val draft = MobileTransferDraft()
         var transfers by mutableStateOf(resolvingTransfersState())
-        val resolved = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
+        val resolved = CompletableDeferred<PutioResult<FilesItem>>()
         val events = mutableListOf<TransfersEvent>()
         compose.setContent {
             PutioTheme {
@@ -759,7 +757,7 @@ class MobileShellShareTest {
         compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/shared")) }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
-        compose.runOnIdle { resolved.complete(FilesRepositoryResult.Success(shellResolvedFolder())) }
+        compose.runOnIdle { resolved.complete(PutioResult.Success(shellResolvedFolder())) }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
         compose.onNodeWithText("Add transfer").assertDoesNotExist()
         compose.runOnIdle {
@@ -1020,7 +1018,8 @@ class MobileShellFilesTest {
             settings = readyAccountSettingsState(
                 preferences = optimistic,
                 mutation = AccountSettingsMutation.Failed(
-                    change, AccountSettingsFailure.Unexpected(IllegalStateException("refresh failed")),
+                    change,
+                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("refresh failed"))),
                     original, AccountSettingsMutation.Operation.Refresh,
                 ),
             )
@@ -1108,7 +1107,7 @@ class MobileShellFilesTest {
         val failed = ready.copyForTest(
             stack = ready.stack.dropLast(1) + ready.current.copy(
                 operation = FilesFolderOperation.Failed(
-                    failure = FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                    failure = PutioFailure.Unexpected(IllegalStateException("reload failed")),
                     intent = FilesFolderOperationIntent.Sort(FilesSort.SIZE_DESCENDING),
                     phase = FilesFolderOperationPhase.RELOADING,
                 ),
@@ -1209,7 +1208,7 @@ class MobileShellFilesTest {
                 preferences = applied,
                 mutation = AccountSettingsMutation.Failed(
                     change = change,
-                    failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
                     previousPreferences = DefaultAccountSettingsPreferences,
                     operation = AccountSettingsMutation.Operation.Refresh,
                 ),
@@ -1251,8 +1250,8 @@ class MobileShellTransfersTest {
                     onFilesEvent = { true },
                     onTransfersEvent = events::add,
                     resolveTransferFile = {
-                        FilesRepositoryResult.Failure(
-                            FilesFailure.AuthenticationRequired(PutioConfigurationException("expired")),
+                        PutioResult.Failure(
+                            PutioFailure.AuthenticationRequired(PutioConfigurationException("expired")),
                         )
                     },
                     onTransferAuthenticationRequired = { rejections += 1 },
@@ -1306,7 +1305,7 @@ class MobileShellTransfersTest {
                             resolutionStarted.complete(Unit)
                             releaseResolution.await()
                         }
-                        FilesRepositoryResult.Success(resolvedItem)
+                        PutioResult.Success(resolvedItem)
                     },
                     onAccountSettingsEvent = {},
                     onPlaybackAuthenticationRequired = {},
@@ -1393,7 +1392,7 @@ class MobileShellTransfersTest {
                     sessionId = Session,
                     onFilesEvent = filesEvents::add,
                     onTransfersEvent = events::add,
-                    resolveTransferFile = { FilesRepositoryResult.Success(resolvedItem) },
+                    resolveTransferFile = { PutioResult.Success(resolvedItem) },
                     onAccountSettingsEvent = {},
                     onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
@@ -1474,7 +1473,7 @@ class MobileShellTransfersTest {
                         events.add(event)
                         transfers.value = TransfersReducer.reduce(transfers.value, event).state
                     },
-                    resolveTransferFile = { FilesRepositoryResult.Success(shellResolvedFolder()) },
+                    resolveTransferFile = { PutioResult.Success(shellResolvedFolder()) },
                     onAccountSettingsEvent = {},
                     onPlaybackAuthenticationRequired = {},
                     onSignOut = {},
@@ -1976,7 +1975,7 @@ class MobileShellPlaybackTest {
             override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
                 resolves += 1
                 return PlaybackRepositoryResult.Failure(
-                    PlaybackFailure.NetworkUnavailable(IllegalStateException("offline")),
+                    PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
                 )
             }
             override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
@@ -2263,7 +2262,9 @@ private val AuthenticationFailureRepository =
             target: PlaybackTarget,
         ): PlaybackRepositoryResult<PlaybackResolution> =
             PlaybackRepositoryResult.Failure(
-                PlaybackFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
+                PlaybackFailure.Putio(
+                    PutioFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
+                ),
             )
 
         override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended

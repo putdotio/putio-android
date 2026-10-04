@@ -714,9 +714,9 @@ characters, mentions a URL or a credential, or carries the SDK's redaction
 marker is not shown; the copy applies instead. The message comes from the
 SDK's redacted `PutioApiException.errorMessage`.
 
-Tests: `ApiRejectionReasonTest`, `MobileFilesScreenTest`,
-`MobileFilesMoveTest`, `MobileTrashScreenTest`, `TvPlaybackStatesTest`,
-`MobileRefusedRequestProofTest` (opt-in device proof;
+Tests: `ApiRejectionReasonTest`, `ApiReasonAcrossSurfacesTest`,
+`MobileFilesScreenTest`, `MobileFilesMoveTest`, `MobileTrashScreenTest`,
+`TvPlaybackStatesTest`, `MobileRefusedRequestProofTest` (opt-in device proof;
 see [Harness](./harness.md#refused-request-proof)).
 
 ## Transfer failures and retry

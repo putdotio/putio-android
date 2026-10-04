@@ -9,6 +9,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import io.putdotio.android.PutioFailure
 
 class AccountSettingsReducerTest {
 
@@ -104,7 +105,7 @@ class AccountSettingsReducerTest {
                 AccountSettingsEvent.ChangeRequested(change),
             )
         val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
-        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         val failed =
             AccountSettingsReducer.reduce(
                 saving.state,
@@ -152,7 +153,7 @@ class AccountSettingsReducerTest {
             (refreshing.state.mutation as AccountSettingsMutation.Saving).operation,
         )
 
-        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         val failed =
             AccountSettingsReducer.reduce(
                 refreshing.state,
@@ -175,7 +176,7 @@ class AccountSettingsReducerTest {
 
     @Test
     fun laterChangeSupersedesAFailedMutation() {
-        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         val replacement = AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)
 
         listOf(
@@ -199,9 +200,9 @@ class AccountSettingsReducerTest {
     @Test
     fun laterChangeCannotHideAnAuthoritativeSessionFailure() {
         val failure =
-            AccountSettingsFailure.AuthenticationRequired(
+            AccountSettingsFailure.Putio(PutioFailure.AuthenticationRequired(
                 PutioConfigurationException("invalid token"),
-            )
+            ))
         listOf(failedSaveState(failure), failedRefreshState(failure)).forEach { failed ->
             val replacement =
                 AccountSettingsReducer.reduce(
@@ -220,9 +221,9 @@ class AccountSettingsReducerTest {
     @Test
     fun retryCannotHideAnAuthoritativeSessionFailure() {
         val failure =
-            AccountSettingsFailure.AuthenticationRequired(
+            AccountSettingsFailure.Putio(PutioFailure.AuthenticationRequired(
                 PutioConfigurationException("invalid token"),
-            )
+            ))
 
         listOf(failedSaveState(failure), failedRefreshState(failure)).forEach { failed ->
             val retry = AccountSettingsReducer.reduce(failed, AccountSettingsEvent.RetryChange)
@@ -261,7 +262,7 @@ class AccountSettingsReducerTest {
         assertSame(saving.state, staleSave.state)
 
         val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
-        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         val staleSaveFailure =
             AccountSettingsReducer.reduce(
                 saving.state,
@@ -300,7 +301,7 @@ class AccountSettingsReducerTest {
     fun retriesOnlyFailedLoads() {
         val start = AccountSettingsReducer.start()
         val requestId = (start.effect as AccountSettingsEffect.Load).requestId
-        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         val failed =
             AccountSettingsReducer.reduce(
                 start.state,
@@ -319,9 +320,9 @@ class AccountSettingsReducerTest {
     @Test
     fun retryLoadCannotHideAnAuthoritativeSessionFailure() {
         val failure =
-            AccountSettingsFailure.AuthenticationRequired(
+            AccountSettingsFailure.Putio(PutioFailure.AuthenticationRequired(
                 PutioConfigurationException("invalid token"),
-            )
+            ))
         val failed = failedLoadState(failure)
 
         val retry = AccountSettingsReducer.reduce(failed, AccountSettingsEvent.RetryLoad)
@@ -334,13 +335,13 @@ class AccountSettingsReducerTest {
     @Test
     fun onlyAuthenticationFailuresCrossTheAuthoritativeSessionBoundary() {
         val invalidToken =
-            AccountSettingsFailure.AuthenticationRequired(
+            AccountSettingsFailure.Putio(PutioFailure.AuthenticationRequired(
                 PutioConfigurationException("invalid token"),
-            )
+            ))
         val invalidScope =
-            AccountSettingsFailure.AccessDenied(
+            AccountSettingsFailure.Putio(PutioFailure.AccessDenied(
                 PutioConfigurationException("invalid scope"),
-            )
+            ))
 
         assertSame(invalidToken, failedLoadState(invalidToken).authoritativeSessionFailure())
         assertSame(invalidToken, failedSaveState(invalidToken).authoritativeSessionFailure())
@@ -428,7 +429,7 @@ class AccountSettingsReducerTest {
         assertEquals(TunnelRouteName("cdn77"), ready.preferences.tunnelRoute)
         assertEquals(change, (saving.effect as AccountSettingsEffect.Save).change)
 
-        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         val failed = AccountSettingsReducer.reduce(
             saving.state,
             AccountSettingsEvent.SaveFailed((saving.effect as AccountSettingsEffect.Save).requestId, failure),
@@ -461,7 +462,7 @@ class AccountSettingsReducerTest {
         val requestId = (saving.effect as AccountSettingsEffect.Save).requestId
         val refreshing = AccountSettingsReducer.reduce(saving.state, AccountSettingsEvent.SaveSucceeded(requestId))
         assertEquals(ConfirmedDefaultSort(FilesSort.DATE_ADDED_DESCENDING), refreshing.state.confirmedDefaultSort())
-        val refreshFailure = AccountSettingsFailure.Unexpected(IllegalStateException("x"))
+        val refreshFailure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("x")))
         val refreshFailed = AccountSettingsReducer.reduce(
             refreshing.state,
             AccountSettingsEvent.RefreshFailed(requestId, refreshFailure),
@@ -471,7 +472,7 @@ class AccountSettingsReducerTest {
             refreshFailed.state.confirmedDefaultSort(),
         )
 
-        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         val failed = AccountSettingsReducer.reduce(
             saving.state,
             AccountSettingsEvent.SaveFailed((saving.effect as AccountSettingsEffect.Save).requestId, failure),

@@ -270,7 +270,7 @@ private class UnavailableAttachmentRepository : PlaybackRepository {
     override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
         resolveCalls.incrementAndGet()
         return PlaybackRepositoryResult.Failure(
-            PlaybackFailure.NetworkUnavailable(IOException("Controlled offline source")),
+            PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("Controlled offline source"))),
         )
     }
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult {

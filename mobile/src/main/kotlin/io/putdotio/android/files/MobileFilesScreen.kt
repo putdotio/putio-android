@@ -63,12 +63,15 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.FilesFailure
 import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.apiReason
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsState
@@ -873,21 +876,22 @@ private fun String.toDisplayDate(context: Context): String? =
 
 /** put.io's reason for a refused request, else this failure's copy. */
 @Composable
-internal fun FilesFailure.mobileMessage(): String = apiReason ?: stringResource(mobileMessageResource())
+internal fun FilesFailure.mobileMessage(): String =
+    (this as? PutioFailure)?.apiReason ?: stringResource(mobileMessageResource())
 
 @StringRes
 internal fun FilesFailure.mobileMessageResource(): Int =
     when (this) {
         FilesFailure.NavigationBlocked -> R.string.mobile_navigation_blocked
-        is FilesFailure.AuthenticationRequired -> R.string.mobile_state_error_session
-        is FilesFailure.AccessDenied -> R.string.mobile_state_error_forbidden
-        is FilesFailure.RateLimited -> R.string.mobile_state_error_rate_limited
-        is FilesFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-        is FilesFailure.NetworkUnavailable -> R.string.mobile_state_error_message
-        is FilesFailure.ApiRejected,
-        is FilesFailure.InvalidResponse,
-        is FilesFailure.Misconfigured,
-        is FilesFailure.Unexpected,
+        is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
+        is PutioFailure.AccessDenied -> R.string.mobile_state_error_forbidden
+        is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
+        is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
+        is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+        is PutioFailure.ApiRejected,
+        is PutioFailure.InvalidResponse,
+        is PutioFailure.Misconfigured,
+        is PutioFailure.Unexpected,
         -> R.string.mobile_state_error_unavailable
     }
 

@@ -1,8 +1,8 @@
 package io.putdotio.android.trash
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -40,8 +40,8 @@ class TrashRestoreTest {
             val pending = controller.awaitState { it.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
             assertEquals(TrashRestoreSubmission.ACKNOWLEDGED, pending.restoreOutcome?.submission)
             val resolved = liveItem().copy(name = "collision-2.txt", parentId = FilesItemId(0L))
-            repository.onResolve = { FilesRepositoryResult.Success(resolved) }
-            repository.onLoad = { FilesRepositoryResult.Failure(offlineFailure()) }
+            repository.onResolve = { PutioResult.Success(resolved) }
+            repository.onLoad = { PutioResult.Failure(offlineFailure()) }
             assertTrue(controller.dispatch(TrashEvent.CheckRestore))
             val failedRefresh = controller.awaitState { (it.content as? TrashContent.Loaded)?.refreshFailure != null }
             assertEquals(resolved, failedRefresh.restoreOutcome?.resolvedItem)
@@ -68,7 +68,7 @@ class TrashRestoreTest {
             controller.confirm()
             val pending = controller.awaitState { it.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
             assertEquals(TrashRestoreSubmission.UNCERTAIN, pending.restoreOutcome?.submission)
-            assertTrue(pending.restoreOutcome?.submissionFailure is FilesFailure.Unexpected)
+            assertTrue(pending.restoreOutcome?.submissionFailure is PutioFailure.Unexpected)
             repository.onLoad = { page() }
             controller.dispatch(TrashEvent.Refresh)
             val empty = controller.awaitState { (it.content as? TrashContent.Loaded)?.items?.isEmpty() == true }
@@ -88,12 +88,12 @@ class TrashRestoreTest {
             liveItem().copy(parentId = FilesItemId(-1L)), liveItem().copy(type = PutioFileType.FOLDER),
         )
         for (invalid in variants) {
-            val repository = FakeTrashRepository().apply { onResolve = { FilesRepositoryResult.Success(invalid) } }
+            val repository = FakeTrashRepository().apply { onResolve = { PutioResult.Success(invalid) } }
             TrashController(repository, this).use { controller ->
                 controller.openLoaded()
                 controller.confirm()
                 val state = controller.awaitState { it.restoreOutcome?.check == TrashRestoreCheck.FAILED }
-                assertTrue(state.restoreOutcome?.checkFailure is FilesFailure.InvalidResponse)
+                assertTrue(state.restoreOutcome?.checkFailure is PutioFailure.InvalidResponse)
                 assertTrue(state.hasPendingRestore)
                 assertEquals(0L, state.restoredVersion)
             }
@@ -103,7 +103,7 @@ class TrashRestoreTest {
     @Test
     fun incompleteTrashIsRejectedBeforeQueueAndAllowsOnlyANewExplicitConfirmation() = runBlocking {
         val repository = FakeTrashRepository().apply {
-            onRestore = { FilesRepositoryResult.Failure(apiFailure(400, "TRASH_INCOMPLETE_TRASH")) }
+            onRestore = { PutioResult.Failure(apiFailure(400, "TRASH_INCOMPLETE_TRASH")) }
         }
         TrashController(repository, this).use { controller ->
             controller.openLoaded()
@@ -114,7 +114,7 @@ class TrashRestoreTest {
             assertFalse(controller.dispatch(TrashEvent.CheckRestore))
             assertFalse(controller.dispatch(TrashEvent.ConfirmRestore(-1L)))
             assertTrue(repository.resolvedIds.isEmpty())
-            repository.onRestore = { FilesRepositoryResult.Success(Unit) }
+            repository.onRestore = { PutioResult.Success(Unit) }
             controller.confirm()
             controller.awaitState { it.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
             assertEquals(2, repository.restoredIds.size)
@@ -124,7 +124,7 @@ class TrashRestoreTest {
     @Test
     fun trashNotFoundMutationReconcilesInsteadOfClaimingSuccess() = runBlocking {
         val repository = FakeTrashRepository().apply {
-            onRestore = { FilesRepositoryResult.Failure(apiFailure(404, "TRASH_FILE_NOT_FOUND")) }
+            onRestore = { PutioResult.Failure(apiFailure(404, "TRASH_FILE_NOT_FOUND")) }
         }
         TrashController(repository, this).use { controller ->
             controller.openLoaded()

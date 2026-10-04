@@ -1,5 +1,6 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.PutioFailure
 import java.io.Closeable
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -70,17 +71,17 @@ class AccountSettingsController(
                             is AccountSettingsEffect.Load ->
                                 AccountSettingsEvent.LoadFailed(
                                     effect.requestId,
-                                    AccountSettingsFailure.Unexpected(unexpected),
+                                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(unexpected)),
                                 )
                             is AccountSettingsEffect.Save ->
                                 AccountSettingsEvent.SaveFailed(
                                     effect.requestId,
-                                    AccountSettingsFailure.Unexpected(unexpected),
+                                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(unexpected)),
                                 )
                             is AccountSettingsEffect.Refresh ->
                                 AccountSettingsEvent.RefreshFailed(
                                     effect.requestId,
-                                    AccountSettingsFailure.Unexpected(unexpected),
+                                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(unexpected)),
                                 )
                         }
                     }

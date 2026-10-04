@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -89,7 +90,7 @@ class FilesRevealReducerTest {
         val firstPage = FilesBrowserReducer.reduce(
             opening.state, FilesBrowserEvent.LoadSucceeded(opening.effect!!.requestId, pages[0]),
         )
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
 
         val failed = FilesBrowserReducer.reduce(
             firstPage.state, FilesBrowserEvent.LoadFailed(firstPage.effect!!.requestId, failure),

@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.account.MOBILE_STRICTLY_NECESSARY_TAG
 import io.putdotio.android.account.MobileAccountScreen
@@ -34,7 +35,6 @@ import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
-import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.DefaultAccountSettingsPreferences
@@ -134,7 +134,9 @@ class MobileAccountLargeTextTest {
         val events = mutableListOf<AccountSettingsEvent>()
         mount(
             settings = accountSettingsState(
-                content = AccountSettingsContent.Failed(AccountSettingsFailure.Unexpected(IllegalStateException())),
+                content = AccountSettingsContent.Failed(
+                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException())),
+                ),
                 mutation = AccountSettingsMutation.Idle,
                 nextRequestValue = 2L,
             ),
@@ -149,7 +151,7 @@ class MobileAccountLargeTextTest {
         val events = mutableListOf<AndroidAppConfigEvent>()
         mount(
             config = androidAppConfigState(
-                content = AndroidAppConfigContent.Failed(AndroidAppConfigFailure.Unexpected(IllegalStateException())),
+                content = AndroidAppConfigContent.Failed(PutioFailure.Unexpected(IllegalStateException())),
                 mutation = AndroidAppConfigMutation.Idle,
                 nextRequestValue = 2L,
             ),

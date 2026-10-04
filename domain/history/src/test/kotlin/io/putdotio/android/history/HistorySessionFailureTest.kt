@@ -1,6 +1,6 @@
 package io.putdotio.android.history
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -8,8 +8,8 @@ import org.junit.Test
 class HistorySessionFailureTest {
     @Test
     fun `history paging failure does not mask an authoritative clear failure`() {
-        val pagingFailure = FilesFailure.Misconfigured(PutioConfigurationException("missing client"))
-        val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val pagingFailure = PutioFailure.Misconfigured(PutioConfigurationException("missing client"))
+        val authFailure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
         val state =
             HistoryState(
                 content =
@@ -32,7 +32,7 @@ class HistorySessionFailureTest {
 
     @Test
     fun `history preserves an authoritative failure while disabled`() {
-        val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val authFailure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
         val state =
             HistoryState(
                 content = HistoryContent.Disabled,

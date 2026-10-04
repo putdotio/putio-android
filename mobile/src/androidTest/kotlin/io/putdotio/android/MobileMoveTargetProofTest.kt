@@ -28,14 +28,12 @@ import io.putdotio.android.files.FilesCopyId
 import io.putdotio.android.files.FilesCopyProgress
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesDeleteMode
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesMoveTargetMemory
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.MOBILE_FILES_COPY_ACTION_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_BACK_TAG
@@ -220,35 +218,35 @@ private class MoveTargetRepository : FilesRepository {
     val moves = mutableListOf<Pair<FilesItemId, FilesItemId>>()
     val listed = mutableListOf<FilesItemId>()
 
-    override suspend fun loadFolder(folderId: FilesItemId) = FilesRepositoryResult.Success(FilesPage(
+    override suspend fun loadFolder(folderId: FilesItemId) = PutioResult.Success(FilesPage(
         listOf(SAMPLE_FOLDER, SHARED_VIDEO, NOTES) + listOf(CLIP).filter { clip -> moves.none { it.first == clip.id } },
         null,
     ))
 
-    override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?): FilesRepositoryResult<FilesPage> {
+    override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?): PutioResult<FilesPage> {
         listed += folderId
         return when (folderId) {
-            FilesFolder.Root.id -> FilesRepositoryResult.Success(FilesPage(listOf(SAMPLE_FOLDER), null))
-            SAMPLE_FOLDER.id -> FilesRepositoryResult.Success(FilesPage(listOf(ARCHIVE), null, parent = SAMPLE_FOLDER))
-            ARCHIVE.id -> FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = ARCHIVE))
-            else -> FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("No such folder")))
+            FilesFolder.Root.id -> PutioResult.Success(FilesPage(listOf(SAMPLE_FOLDER), null))
+            SAMPLE_FOLDER.id -> PutioResult.Success(FilesPage(listOf(ARCHIVE), null, parent = SAMPLE_FOLDER))
+            ARCHIVE.id -> PutioResult.Success(FilesPage(emptyList(), null, parent = ARCHIVE))
+            else -> PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("No such folder")))
         }
     }
 
     override suspend fun move(
         itemId: FilesItemId,
         destinationId: FilesItemId,
-    ): FilesRepositoryResult<List<FileMoveError>> {
+    ): PutioResult<List<FileMoveError>> {
         moves += itemId to destinationId
-        return FilesRepositoryResult.Success(emptyList())
+        return PutioResult.Success(emptyList())
     }
 
     override suspend fun resolveItem(itemId: FilesItemId) =
-        FilesRepositoryResult.Success(CLIP.copy(parentId = moves.last { it.first == itemId }.second))
+        PutioResult.Success(CLIP.copy(parentId = moves.last { it.first == itemId }.second))
 
-    override suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId): FilesRepositoryResult<FilesCopyId> =
+    override suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId): PutioResult<FilesCopyId> =
         error("No copy")
-    override suspend fun checkCopy(copyId: FilesCopyId): FilesRepositoryResult<FilesCopyProgress> = error("No copy")
+    override suspend fun checkCopy(copyId: FilesCopyId): PutioResult<FilesCopyProgress> = error("No copy")
     override suspend fun loadNextPage(cursor: FilesCursor) = error("No paging")
     override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort) = error("No sort")
     override suspend fun rename(itemId: FilesItemId, name: String) = error("No rename")

@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
@@ -21,24 +23,24 @@ class FilesMoveDestinationControllerTest {
 
     @Test
     fun rootNavigationEmptyPagingRetryAndCycleGuardsKeepTheirContracts() = runBlocking {
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline page"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline page"))
         val calls = mutableListOf<Pair<FilesItemId, FilesCursor?>>()
         var continuations = 0
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Source browser must not load")
             override suspend fun loadMoveDestinations(
                 folderId: FilesItemId,
                 cursor: FilesCursor?,
-            ): FilesRepositoryResult<FilesPage> {
+            ): PutioResult<FilesPage> {
                 calls += folderId to cursor
                 return when {
-                    folderId == FilesFolder.Root.id -> FilesRepositoryResult.Success(
+                    folderId == FilesFolder.Root.id -> PutioResult.Success(
                         FilesPage(listOf(source, target, folder(-1L)), null),
                     )
-                    cursor == null -> FilesRepositoryResult.Success(FilesPage(emptyList(), FilesCursor("next")))
-                    ++continuations == 1 -> FilesRepositoryResult.Failure(failure)
-                    else -> FilesRepositoryResult.Success(FilesPage(listOf(source, target, folder(10L)), cursor))
+                    cursor == null -> PutioResult.Success(FilesPage(emptyList(), FilesCursor("next")))
+                    ++continuations == 1 -> PutioResult.Failure(failure)
+                    else -> PutioResult.Success(FilesPage(listOf(source, target, folder(10L)), cursor))
                 }
             }
         }
@@ -73,13 +75,13 @@ class FilesMoveDestinationControllerTest {
     @Test
     fun aDestinationPickerWithoutASourceAcceptsRootAndEveryFolder() = runBlocking {
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Source browser must not load")
             override suspend fun loadMoveDestinations(
                 folderId: FilesItemId,
                 cursor: FilesCursor?,
-            ): FilesRepositoryResult<FilesPage> =
-                FilesRepositoryResult.Success(
+            ): PutioResult<FilesPage> =
+                PutioResult.Success(
                     FilesPage(if (folderId == FilesFolder.Root.id) listOf(source) else emptyList(), null),
                 )
         }
@@ -102,17 +104,17 @@ class FilesMoveDestinationControllerTest {
     fun rootCanBeChosenFromNestedSourceAndInitialLoadFailureCanRetry() = runBlocking {
         var loads = 0
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(
                 folderId: FilesItemId,
                 cursor: FilesCursor?,
-            ): FilesRepositoryResult<FilesPage> {
+            ): PutioResult<FilesPage> {
                 loads += 1
                 return if (loads == 1) {
-                    FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("offline")))
+                    PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("offline")))
                 } else {
-                    FilesRepositoryResult.Success(FilesPage(emptyList(), null))
+                    PutioResult.Success(FilesPage(emptyList(), null))
                 }
             }
         }
@@ -132,17 +134,17 @@ class FilesMoveDestinationControllerTest {
     @Test
     fun backAndCloseRejectLateReadCompletionsAndNeverStartMutations() = runBlocking {
         val started = CompletableDeferred<Unit>()
-        val childPage = CompletableDeferred<FilesRepositoryResult<FilesPage>>()
+        val childPage = CompletableDeferred<PutioResult<FilesPage>>()
         val finished = CompletableDeferred<Unit>()
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(
                 folderId: FilesItemId,
                 cursor: FilesCursor?,
-            ): FilesRepositoryResult<FilesPage> =
+            ): PutioResult<FilesPage> =
                 if (folderId == FilesFolder.Root.id) {
-                    FilesRepositoryResult.Success(FilesPage(listOf(target), null))
+                    PutioResult.Success(FilesPage(listOf(target), null))
                 } else {
                     started.complete(Unit)
                     withContext(NonCancellable) {
@@ -157,14 +159,14 @@ class FilesMoveDestinationControllerTest {
             withTimeout(5_000) { started.await() }
             controller.dispatch(FilesMoveDestinationEvent.NavigateBack)
             val root = controller.state.value
-            childPage.complete(FilesRepositoryResult.Success(FilesPage(listOf(folder(99L)), null)))
+            childPage.complete(PutioResult.Success(FilesPage(listOf(folder(99L)), null)))
             withTimeout(5_000) { finished.await() }
             assertEquals(root, controller.state.value)
             controller.close()
             assertFalse(controller.dispatch(FilesMoveDestinationEvent.OpenFolder(target.id)))
         } finally {
             controller.close()
-            childPage.complete(FilesRepositoryResult.Success(FilesPage(emptyList(), null)))
+            childPage.complete(PutioResult.Success(FilesPage(emptyList(), null)))
         }
     }
 
@@ -172,19 +174,19 @@ class FilesMoveDestinationControllerTest {
     fun aRememberedPathOpensAtItsFolderWithItsCurrentNameAndBackReadsEachAncestor() = runBlocking {
         val calls = mutableListOf<FilesItemId>()
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(
                 folderId: FilesItemId,
                 cursor: FilesCursor?,
-            ): FilesRepositoryResult<FilesPage> {
+            ): PutioResult<FilesPage> {
                 calls += folderId
                 val parent = when (folderId) {
                     nested.id -> nested.copy(parentId = target.id, name = "Renamed folder")
                     target.id -> target
                     else -> null
                 }
-                return FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = parent))
+                return PutioResult.Success(FilesPage(emptyList(), null, parent = parent))
             }
         }
         val path = listOf(FilesFolder(target.id, target.name), FilesFolder(nested.id, nested.name))
@@ -208,17 +210,17 @@ class FilesMoveDestinationControllerTest {
     fun aRememberedFolderThatCannotBeReadReopensAtRoot() = runBlocking {
         val calls = mutableListOf<FilesItemId>()
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(
                 folderId: FilesItemId,
                 cursor: FilesCursor?,
-            ): FilesRepositoryResult<FilesPage> {
+            ): PutioResult<FilesPage> {
                 calls += folderId
                 return if (folderId == FilesFolder.Root.id) {
-                    FilesRepositoryResult.Success(FilesPage(listOf(target), null))
+                    PutioResult.Success(FilesPage(listOf(target), null))
                 } else {
-                    FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("not found")))
+                    PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("not found")))
                 }
             }
         }
@@ -237,15 +239,15 @@ class FilesMoveDestinationControllerTest {
     fun aRememberedFolderMovedElsewhereKeepsOnlyRootAboveIt() = runBlocking {
         val calls = mutableListOf<FilesItemId>()
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(
                 folderId: FilesItemId,
                 cursor: FilesCursor?,
-            ): FilesRepositoryResult<FilesPage> {
+            ): PutioResult<FilesPage> {
                 calls += folderId
                 val parent = nested.copy(parentId = FilesItemId(42L)).takeIf { folderId == nested.id }
-                return FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = parent))
+                return PutioResult.Success(FilesPage(emptyList(), null, parent = parent))
             }
         }
         val path = listOf(FilesFolder(target.id, target.name), FilesFolder(nested.id, nested.name))
@@ -271,7 +273,7 @@ class FilesMoveDestinationControllerTest {
                 nested.id -> nested.copy(parentId = FilesItemId(42L), name = "Renamed folder")
                 else -> null
             }
-            FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = parent))
+            PutioResult.Success(FilesPage(emptyList(), null, parent = parent))
         }
         val path = listOf(target, nested, deeper).map { FilesFolder(it.id, it.name) }
         val controller = FilesMoveDestinationController(source, FilesFolder.Root.id, repository, this, path)
@@ -294,7 +296,7 @@ class FilesMoveDestinationControllerTest {
         val calls = mutableListOf<FilesItemId>()
         val repository = destinations(calls) { folderId ->
             val parent = nested.copy(parentId = source.id).takeIf { folderId == nested.id }
-            FilesRepositoryResult.Success(FilesPage(emptyList(), null, parent = parent))
+            PutioResult.Success(FilesPage(emptyList(), null, parent = parent))
         }
         val path = listOf(FilesFolder(target.id, target.name), FilesFolder(nested.id, nested.name))
         val controller = FilesMoveDestinationController(source, FilesFolder.Root.id, repository, this, path)
@@ -309,9 +311,9 @@ class FilesMoveDestinationControllerTest {
 
     @Test
     fun aRejectedSessionOpeningARememberedFolderStaysVisible() = runBlocking {
-        val rejected = FilesFailure.AuthenticationRequired(PutioConfigurationException("expired"))
+        val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("expired"))
         val calls = mutableListOf<FilesItemId>()
-        val repository = destinations(calls) { FilesRepositoryResult.Failure(rejected) }
+        val repository = destinations(calls) { PutioResult.Failure(rejected) }
         val controller = FilesMoveDestinationController(repository, this, listOf(FilesFolder(nested.id, nested.name)))
         try {
             val failed = controller.awaitState { it.current.content is FilesContent.Failed }
@@ -325,14 +327,14 @@ class FilesMoveDestinationControllerTest {
 
     private fun destinations(
         calls: MutableList<FilesItemId>,
-        respond: (FilesItemId) -> FilesRepositoryResult<FilesPage>,
+        respond: (FilesItemId) -> PutioResult<FilesPage>,
     ) = object : StubFilesRepository() {
-        override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+        override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
             error("Unexpected source read")
         override suspend fun loadMoveDestinations(
             folderId: FilesItemId,
             cursor: FilesCursor?,
-        ): FilesRepositoryResult<FilesPage> {
+        ): PutioResult<FilesPage> {
             calls += folderId
             return respond(folderId)
         }

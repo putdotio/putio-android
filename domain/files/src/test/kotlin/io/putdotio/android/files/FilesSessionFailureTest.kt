@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -8,7 +9,7 @@ import org.junit.Test
 class FilesSessionFailureTest {
     @Test
     fun `authoritative failure in a hidden parent still expires the session`() {
-        val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val failure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
         val state = browserStateWithParentPagingFailure(failure)
 
         assertSame(failure, state.authoritativeSessionFailure())
@@ -16,7 +17,7 @@ class FilesSessionFailureTest {
 
     @Test
     fun `non-auth failure in a hidden parent does not expire the session`() {
-        val failure = FilesFailure.Misconfigured(PutioConfigurationException("missing client"))
+        val failure = PutioFailure.Misconfigured(PutioConfigurationException("missing client"))
         val state = browserStateWithParentPagingFailure(failure)
 
         assertNull(state.authoritativeSessionFailure())
@@ -24,7 +25,7 @@ class FilesSessionFailureTest {
 
     @Test
     fun `access denied in a hidden parent preserves the session`() {
-        val failure = FilesFailure.AccessDenied(PutioConfigurationException("forbidden"))
+        val failure = PutioFailure.AccessDenied(PutioConfigurationException("forbidden"))
         val state = browserStateWithParentPagingFailure(failure)
 
         assertNull(state.authoritativeSessionFailure())
@@ -32,8 +33,8 @@ class FilesSessionFailureTest {
 
     @Test
     fun `child failure does not mask an authoritative parent failure`() {
-        val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
-        val childFailure = FilesFailure.Misconfigured(PutioConfigurationException("missing client"))
+        val authFailure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val childFailure = PutioFailure.Misconfigured(PutioConfigurationException("missing client"))
         val state = browserStateWithParentPagingFailure(authFailure).let { browserState ->
             browserState.copy(
                 stack = browserState.stack.dropLast(1) + browserState.current.copy(
@@ -47,7 +48,7 @@ class FilesSessionFailureTest {
 
     @Test
     fun `auth failure in a folder operation expires the session`() {
-        val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val failure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
         val state = browserStateWithOperationFailure(failure)
 
         assertSame(failure, state.authoritativeSessionFailure())
@@ -55,7 +56,7 @@ class FilesSessionFailureTest {
 
     @Test
     fun `non-auth failure in a folder operation preserves the session`() {
-        val failure = FilesFailure.Misconfigured(PutioConfigurationException("missing client"))
+        val failure = PutioFailure.Misconfigured(PutioConfigurationException("missing client"))
         val state = browserStateWithOperationFailure(failure)
 
         assertNull(state.authoritativeSessionFailure())
@@ -63,8 +64,8 @@ class FilesSessionFailureTest {
 
     @Test
     fun `non-auth operation failure does not mask authoritative paging failure`() {
-        val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
-        val operationFailure = FilesFailure.Misconfigured(PutioConfigurationException("missing client"))
+        val authFailure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val operationFailure = PutioFailure.Misconfigured(PutioConfigurationException("missing client"))
         val state = FilesBrowserState(
             stack = listOf(
                 FilesFolderState(
@@ -85,7 +86,7 @@ class FilesSessionFailureTest {
         assertSame(authFailure, state.authoritativeSessionFailure())
     }
 
-    private fun browserStateWithOperationFailure(failure: FilesFailure): FilesBrowserState =
+    private fun browserStateWithOperationFailure(failure: PutioFailure): FilesBrowserState =
         FilesBrowserState(
             stack = listOf(
                 FilesFolderState(
@@ -101,7 +102,7 @@ class FilesSessionFailureTest {
             nextRequestValue = 2L,
         )
 
-    private fun browserStateWithParentPagingFailure(failure: FilesFailure): FilesBrowserState =
+    private fun browserStateWithParentPagingFailure(failure: PutioFailure): FilesBrowserState =
         FilesBrowserState(
             stack = listOf(
                 FilesFolderState(

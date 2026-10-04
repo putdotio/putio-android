@@ -5,7 +5,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.PutioResult
 import io.putdotio.sdk.transfers.Transfer
 import io.putdotio.sdk.transfers.TransfersListQuery
 import kotlinx.coroutines.runBlocking
@@ -35,7 +35,7 @@ class TransfersPollingCpuBenchmark {
                     case.active.map { TransferId(backend.history[it].id) } +
                         (1..case.missing).map { TransferId(-it.toLong()) }
                 val before = suspend { listWalkRefresh(backend.reads(), ids) }
-                val after = suspend { (backend.repository().refresh(ids) as FilesRepositoryResult.Success).value }
+                val after = suspend { (backend.repository().refresh(ids) as PutioResult.Success).value }
                 assertEquals(case.label, case.expectBeforeFound, before().items.size)
                 assertEquals(case.label, case.active.size, after().items.size)
                 repeat(WARMUP_POLLS) {

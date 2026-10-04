@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.FileMoveError
 
 enum class FilesMoveStatus {
@@ -15,6 +16,6 @@ data class FilesMoveOutcome(
     val intent: FilesFolderOperationIntent.Move,
     val itemName: String,
     val errors: List<FileMoveError>? = null,
-    val failure: FilesFailure? = null,
+    val failure: PutioFailure? = null,
     val status: FilesMoveStatus = FilesMoveStatus.CHECKING,
 )

@@ -67,6 +67,7 @@ import androidx.media3.ui.compose.ContentFrame
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
@@ -1195,18 +1196,20 @@ private fun PlaybackConversionState.message(): String =
 @StringRes
 private fun PlaybackFailure.messageResource(): Int =
     when (this) {
-        is PlaybackFailure.AuthenticationRequired -> R.string.mobile_state_error_session
-        is PlaybackFailure.AccessDenied -> R.string.mobile_playback_error_forbidden
-        is PlaybackFailure.RateLimited -> R.string.mobile_state_error_rate_limited
-        is PlaybackFailure.NetworkUnavailable -> R.string.mobile_state_error_message
         is PlaybackFailure.MediaCredentialUnavailable -> R.string.mobile_playback_error_credential
         is PlaybackFailure.MediaUnsupported -> R.string.mobile_playback_error_media_unsupported
-        is PlaybackFailure.ApiRejected,
-        is PlaybackFailure.InvalidResponse,
-        is PlaybackFailure.Misconfigured,
-        is PlaybackFailure.ServerUnavailable,
-        is PlaybackFailure.Unexpected,
-        -> R.string.mobile_state_error_unavailable
+        is PlaybackFailure.Putio -> when (failure) {
+            is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
+            is PutioFailure.AccessDenied -> R.string.mobile_playback_error_forbidden
+            is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
+            is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+            is PutioFailure.ApiRejected,
+            is PutioFailure.InvalidResponse,
+            is PutioFailure.Misconfigured,
+            is PutioFailure.ServerUnavailable,
+            is PutioFailure.Unexpected,
+            -> R.string.mobile_state_error_unavailable
+        }
     }
 
 @StringRes

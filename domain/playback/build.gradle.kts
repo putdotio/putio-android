@@ -11,7 +11,6 @@ android {
 
 dependencies {
     implementation(project(":core:common"))
-    implementation(project(":domain:files"))
     implementation(project(":domain:account"))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.foundation)
@@ -26,7 +25,7 @@ dependencies {
     implementation(libs.androidx.media3.ui.compose)
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)
-    testFixturesImplementation(project(":domain:files"))
+    testFixturesImplementation(project(":core:common"))
     testImplementation(testFixtures(project(":core:common")))
     testImplementation(testFixtures(project(":domain:account")))
 }

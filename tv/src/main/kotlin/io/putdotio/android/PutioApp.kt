@@ -21,7 +21,6 @@ import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesStreamUrlResult
@@ -41,7 +40,6 @@ import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.authoritativeSessionFailure
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.subtitleStartupPolicy
-import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigState
@@ -83,6 +81,7 @@ import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.tvSessionViewModelFactory
 import kotlinx.coroutines.launch
+import io.putdotio.android.settings.putioFailure
 
 /** TV root: the generated Compose for TV scheme, then whichever screen the session state names. */
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -199,7 +198,7 @@ internal fun TvSessionShell(
         historyState.authoritativeSessionFailure(),
     ).any { it != null }
     val sideActionRejected = listOf(recentSearchFailure, fileActionFailure, historyOpenFailure)
-        .any { it is FilesFailure.AuthenticationRequired }
+        .any { it is PutioFailure.AuthenticationRequired }
     val sessionRejected = controllerRejected || tunnelRoutesRejected || positionWriteRejected || sideActionRejected
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
     // The controller starts from the setting read at validation; each confirmed value from
@@ -342,7 +341,7 @@ private fun TvFilesPane(
     session: TvSession,
     filesState: FilesBrowserState,
     settingsState: AccountSettingsState,
-    fileActionFailure: FilesFailure?,
+    fileActionFailure: PutioFailure?,
     sessionKey: Any,
     paneFocus: FocusRequester,
 ) {
@@ -370,7 +369,7 @@ private fun TvFilesPane(
     val context = LocalContext.current
     val streamScope = rememberCoroutineScope()
     var filesNotice by remember(session) { mutableStateOf<Int?>(null) }
-    var streamFailure by remember(session) { mutableStateOf<FilesFailure?>(null) }
+    var streamFailure by remember(session) { mutableStateOf<PutioFailure?>(null) }
     // A requester on the pane lands on its first focusable descendant (Refresh); the
     // pane's own entry effects then move focus to the row it remembers.
     TvFilesScreen(
@@ -388,7 +387,7 @@ private fun TvFilesPane(
                 filesNotice = stream.openInVlc(context, item)
                 // A 401 is the session's verdict, which the session already holds.
                 streamFailure = (stream as? FilesStreamUrlResult.Failure)?.failure
-                    ?.takeUnless { it is FilesFailure.AuthenticationRequired }
+                    ?.takeUnless { it is PutioFailure.AuthenticationRequired }
             }
         },
         onSetWatched = session::setWatched,
@@ -416,12 +415,12 @@ private fun FilesStreamUrlResult.openInVlc(context: Context, item: FilesItem): I
 @Composable
 private fun filesNoticeText(
     filesNotice: Int?,
-    streamFailure: FilesFailure?,
-    fileActionFailure: FilesFailure?,
+    streamFailure: PutioFailure?,
+    fileActionFailure: PutioFailure?,
 ): String? =
     filesNotice?.let { stringResource(it) }
         ?: streamFailure?.let { stringResource(R.string.tv_files_stream_error, it.tvMessageText()) }
-        ?: fileActionFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
+        ?: fileActionFailure?.takeUnless { it is PutioFailure.AuthenticationRequired }
             ?.let { stringResource(R.string.tv_files_watched_error, it.tvMessageText()) }
 
 @Composable
@@ -429,7 +428,7 @@ private fun TvSearchPane(
     session: TvSession,
     searchState: SearchState,
     openRejected: Boolean,
-    recentSearchFailure: FilesFailure?,
+    recentSearchFailure: PutioFailure?,
     onQueryEdited: () -> Unit,
     sessionKey: Any,
     paneFocus: FocusRequester,
@@ -439,7 +438,7 @@ private fun TvSearchPane(
         actions = remember(session) { tvSearchActions(session, onQueryEdited = onQueryEdited) },
         notice = when {
             openRejected -> FilesFailure.NavigationBlocked
-            else -> recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
+            else -> recentSearchFailure?.takeUnless { it is PutioFailure.AuthenticationRequired }
         },
         modifier = Modifier.focusRequester(paneFocus),
         sessionKey = sessionKey,
@@ -452,7 +451,7 @@ private fun TvHistoryPane(
     session: TvSession,
     historyState: HistoryState,
     openRejected: Boolean,
-    openFailure: FilesFailure?,
+    openFailure: PutioFailure?,
     onClearOpenRejection: () -> Unit,
     sessionKey: Any,
     paneFocus: FocusRequester,
@@ -475,7 +474,7 @@ private fun TvHistoryPane(
         },
         notice = when {
             openRejected -> FilesFailure.NavigationBlocked
-            else -> openFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
+            else -> openFailure?.takeUnless { it is PutioFailure.AuthenticationRequired }
         },
         modifier = Modifier.focusRequester(paneFocus),
         sessionKey = sessionKey,
@@ -520,7 +519,7 @@ private fun TvAccountPane(
         loadTunnelRoutes = {
             loadTunnelRoutes().also { result ->
                 if (result is AccountSettingsRepositoryResult.Failure &&
-                    result.failure is AccountSettingsFailure.AuthenticationRequired
+                    result.failure.putioFailure is PutioFailure.AuthenticationRequired
                 ) {
                     onTunnelRoutesRejected()
                 }

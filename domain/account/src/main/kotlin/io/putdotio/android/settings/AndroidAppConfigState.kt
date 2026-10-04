@@ -1,5 +1,7 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.PutioFailure
+
 enum class VideoPlaybackType(
     val wireValue: String,
 ) {
@@ -45,7 +47,7 @@ sealed interface AndroidAppConfigContent {
     ) : AndroidAppConfigContent
 
     data class Failed(
-        val failure: AndroidAppConfigFailure,
+        val failure: PutioFailure,
     ) : AndroidAppConfigContent
 }
 
@@ -66,7 +68,7 @@ sealed interface AndroidAppConfigMutation {
 
     data class Failed(
         val change: AndroidAppConfigChange,
-        val failure: AndroidAppConfigFailure,
+        val failure: PutioFailure,
         val previousPreferences: AndroidAppConfigPreferences,
         val operation: Operation,
     ) : AndroidAppConfigMutation
@@ -97,7 +99,7 @@ sealed interface AndroidAppConfigEvent {
 
     data class LoadFailed(
         val requestId: AndroidAppConfigRequestId,
-        val failure: AndroidAppConfigFailure,
+        val failure: PutioFailure,
     ) : AndroidAppConfigEvent
 
     data class SaveSucceeded(
@@ -106,7 +108,7 @@ sealed interface AndroidAppConfigEvent {
 
     data class SaveFailed(
         val requestId: AndroidAppConfigRequestId,
-        val failure: AndroidAppConfigFailure,
+        val failure: PutioFailure,
     ) : AndroidAppConfigEvent
 
     data class RefreshSucceeded(
@@ -116,7 +118,7 @@ sealed interface AndroidAppConfigEvent {
 
     data class RefreshFailed(
         val requestId: AndroidAppConfigRequestId,
-        val failure: AndroidAppConfigFailure,
+        val failure: PutioFailure,
     ) : AndroidAppConfigEvent
 }
 
@@ -174,11 +176,11 @@ object AndroidAppConfigReducer {
         }
 }
 
-fun AndroidAppConfigState.authoritativeSessionFailure(): AndroidAppConfigFailure.AuthenticationRequired? =
+fun AndroidAppConfigState.authoritativeSessionFailure(): PutioFailure.AuthenticationRequired? =
     listOfNotNull(
         (content as? AndroidAppConfigContent.Failed)?.failure,
         (mutation as? AndroidAppConfigMutation.Failed)?.failure,
-    ).filterIsInstance<AndroidAppConfigFailure.AuthenticationRequired>()
+    ).filterIsInstance<PutioFailure.AuthenticationRequired>()
         .firstOrNull()
 
 private const val INITIAL_REQUEST_VALUE = 1L

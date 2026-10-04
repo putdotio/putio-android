@@ -1,5 +1,8 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+import io.putdotio.android.toPutioFailure
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
@@ -42,7 +45,7 @@ class FilesDeleteControllerTest {
                 assertEquals(3, repository.folderLoads)
                 assertEquals(FilesDeleteStatus.STILL_PRESENT, controller.state.value.current.deleteOutcome?.status)
                 if (throwFromDelete) {
-                    assertTrue(controller.state.value.current.deleteOutcome?.failure is FilesFailure.Unexpected)
+                    assertTrue(controller.state.value.current.deleteOutcome?.failure is PutioFailure.Unexpected)
                 }
             } finally {
                 controller.close()
@@ -54,20 +57,20 @@ class FilesDeleteControllerTest {
     fun deletionCancelsPagingAndIgnoresDuplicateConfirmWhilePostIsPending() = runBlocking {
         val pagingStarted = CompletableDeferred<Unit>()
         val pagingCancelled = CompletableDeferred<Unit>()
-        val deleteResult = CompletableDeferred<FilesRepositoryResult<FileDeleteResult>>()
+        val deleteResult = CompletableDeferred<PutioResult<FileDeleteResult>>()
         val repository = object : StubFilesRepository() {
             var deletes = 0
             override suspend fun loadFolder(folderId: FilesItemId) =
-                FilesRepositoryResult.Success(FilesPage(listOf(item), FilesCursor("next")))
-            override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+                PutioResult.Success(FilesPage(listOf(item), FilesCursor("next")))
+            override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> {
                 pagingStarted.complete(Unit)
                 try { awaitCancellation() } finally { pagingCancelled.complete(Unit) }
             }
-            override suspend fun resolveItem(itemId: FilesItemId) = FilesRepositoryResult.Success(item)
+            override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(item)
             override suspend fun delete(
                 itemId: FilesItemId,
                 mode: FilesDeleteMode,
-            ): FilesRepositoryResult<FileDeleteResult> {
+            ): PutioResult<FileDeleteResult> {
                 deletes += 1
                 return deleteResult.await()
             }
@@ -80,7 +83,7 @@ class FilesDeleteControllerTest {
             assertTrue(controller.dispatch(deleteEvent))
             assertFalse(controller.dispatch(deleteEvent))
             withTimeout(5_000) { pagingCancelled.await() }
-            deleteResult.complete(FilesRepositoryResult.Success(FileDeleteResult(status = "OK")))
+            deleteResult.complete(PutioResult.Success(FileDeleteResult(status = "OK")))
             withTimeout(5_000) { controller.state.first { it.current.operation == FilesFolderOperation.Idle } }
             assertEquals(1, repository.deletes)
             assertEquals(FilesDeleteStatus.STILL_PRESENT, controller.state.value.current.deleteOutcome?.status)
@@ -101,12 +104,12 @@ class FilesDeleteControllerTest {
             withTimeout(5_000) { repository.childStarted.await() }
             val childLoading = controller.state.value.current.content as FilesContent.Loading
             val acknowledgement = FileDeleteResult(status = "OK")
-            repository.postResult.complete(FilesRepositoryResult.Success(acknowledgement))
+            repository.postResult.complete(PutioResult.Success(acknowledgement))
             withTimeout(5_000) { repository.reloadStarted.await() }
             assertSame(childLoading, controller.state.value.current.content)
             assertEquals(FilesFolderOperationPhase.RELOADING,
                 (controller.state.value.stack.first().operation as FilesFolderOperation.Loading).phase)
-            repository.parentReload.complete(FilesRepositoryResult.Success(FilesPage(listOf(repository.child), null)))
+            repository.parentReload.complete(PutioResult.Success(FilesPage(listOf(repository.child), null)))
             val reconciled = withTimeout(5_000) {
                 controller.state.first { it.stack.first().operation == FilesFolderOperation.Idle }
             }
@@ -120,7 +123,7 @@ class FilesDeleteControllerTest {
             assertEquals(listOf(item.id), repository.exactReads)
             assertEquals(listOf(FilesFolder.Root.id, repository.child.id, FilesFolder.Root.id), repository.folderReads)
             repository.childResult.complete(
-                FilesRepositoryResult.Success(FilesPage(listOf(repository.grandchild), null)),
+                PutioResult.Success(FilesPage(listOf(repository.grandchild), null)),
             )
             withTimeout(5_000) { controller.state.first { it.current.content is FilesContent.Ready } }
             assertEquals(listOf(repository.grandchild),
@@ -140,13 +143,13 @@ class FilesDeleteControllerTest {
         val postStarted = CompletableDeferred<Unit>()
         val childStarted = CompletableDeferred<Unit>()
         val reloadStarted = CompletableDeferred<Unit>()
-        val postResult = CompletableDeferred<FilesRepositoryResult<FileDeleteResult>>()
-        val childResult = CompletableDeferred<FilesRepositoryResult<FilesPage>>()
-        val parentReload = CompletableDeferred<FilesRepositoryResult<FilesPage>>()
+        val postResult = CompletableDeferred<PutioResult<FileDeleteResult>>()
+        val childResult = CompletableDeferred<PutioResult<FilesPage>>()
+        val parentReload = CompletableDeferred<PutioResult<FilesPage>>()
         val posts = mutableListOf<FilesItemId>()
         val exactReads = mutableListOf<FilesItemId>()
         val folderReads = mutableListOf<FilesItemId>()
-        override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+        override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> {
             folderReads += folderId
             return when {
                 folderId == child.id -> {
@@ -154,7 +157,7 @@ class FilesDeleteControllerTest {
                     childResult.await()
                 }
                 folderId == FilesFolder.Root.id && folderReads.size == 1 ->
-                    FilesRepositoryResult.Success(FilesPage(listOf(item, child), null))
+                    PutioResult.Success(FilesPage(listOf(item, child), null))
                 folderId == FilesFolder.Root.id -> {
                     reloadStarted.complete(Unit)
                     parentReload.await()
@@ -165,21 +168,21 @@ class FilesDeleteControllerTest {
         override suspend fun delete(
             itemId: FilesItemId,
             mode: FilesDeleteMode,
-        ): FilesRepositoryResult<FileDeleteResult> {
+        ): PutioResult<FileDeleteResult> {
             assertEquals(item.id, itemId)
             assertEquals(FilesDeleteMode.TRASH, mode)
             posts += itemId
             postStarted.complete(Unit)
             return postResult.await()
         }
-        override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
             exactReads += itemId
             assertEquals(item.id, itemId)
-            return FilesRepositoryResult.Failure(PutioApiException(
+            return PutioResult.Failure(PutioApiException(
                 request = PutioRequestData("GET", "https://api.put.io/v2/files/7"),
                 resolvedStatusCode = 404, httpStatusCode = 404, resolvedErrorType = null,
                 envelope = PutioApiErrorEnvelope(statusCode = 404), responseBody = "{}", message = "Not found",
-            ).toFilesFailure())
+            ).toPutioFailure())
         }
     }
 
@@ -187,25 +190,25 @@ class FilesDeleteControllerTest {
         var deletes = 0
         var folderLoads = 0
         val reads = mutableListOf<FilesItemId>()
-        override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> {
+        override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> {
             folderLoads += 1
             return if (folderLoads == 2) {
                 failure("reload offline")
             } else {
-                FilesRepositoryResult.Success(FilesPage(listOf(item), null))
+                PutioResult.Success(FilesPage(listOf(item), null))
             }
         }
-        override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
             reads += itemId
-            return if (reads.size == 1) failure("read offline") else FilesRepositoryResult.Success(item)
+            return if (reads.size == 1) failure("read offline") else PutioResult.Success(item)
         }
         override suspend fun delete(
             itemId: FilesItemId,
             mode: FilesDeleteMode,
-        ): FilesRepositoryResult<FileDeleteResult> {
+        ): PutioResult<FileDeleteResult> {
             deletes += 1
             if (throwFromDelete) error("connection lost after submission")
-            return FilesRepositoryResult.Success(FileDeleteResult(status = "OK"))
+            return PutioResult.Success(FileDeleteResult(status = "OK"))
         }
     }
 
@@ -213,6 +216,6 @@ class FilesDeleteControllerTest {
         private val item = FilesItem(FilesItemId(7L), FilesItemId(0L), "folder", PutioFileType.FOLDER, 1L, "2026-09-06")
         private val deleteEvent = FilesBrowserEvent.Delete(FilesFolder.Root.id, item.id, FilesDeleteMode.TRASH)
         private fun failure(message: String) =
-            FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException(message)))
+            PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException(message)))
     }
 }

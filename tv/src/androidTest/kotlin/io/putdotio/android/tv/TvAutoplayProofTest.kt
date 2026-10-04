@@ -25,14 +25,13 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPlaybackProgress
-import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
-import io.putdotio.android.history.HistoryRepositoryResult
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -50,7 +49,6 @@ import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
-import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.tv.auth.TvAccount
@@ -219,9 +217,9 @@ class TvAutoplayProofTest {
             },
             historyRepository = object : HistoryRepository {
                 override suspend fun load(before: HistoryEventId?) =
-                    HistoryRepositoryResult.Success(HistoryPage(emptyList(), hasMore = false))
+                    PutioResult.Success(HistoryPage(emptyList(), hasMore = false))
 
-                override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
+                override suspend fun clear() = PutioResult.Success(Unit)
             },
             trashRepository = ProofTrashRepository(emptyList()),
             settingsRepository = object : AccountSettingsRepository {
@@ -242,15 +240,15 @@ class TvAutoplayProofTest {
             },
             appConfigRepository = object : AndroidAppConfigRepository {
                 override suspend fun load() =
-                    AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences(autoplayNextVideo = autoplay))
+                    PutioResult.Success(AndroidAppConfigPreferences(autoplayNextVideo = autoplay))
 
-                override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
+                override suspend fun save(change: AndroidAppConfigChange) = PutioResult.Success(Unit)
             },
             watchedRepository = object : FilesWatchedRepository {
                 override suspend fun setPosition(itemId: FilesItemId, seconds: Double) =
-                    FilesRepositoryResult.Success(Unit)
+                    PutioResult.Success(Unit)
 
-                override suspend fun clearPosition(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
+                override suspend fun clearPosition(itemId: FilesItemId) = PutioResult.Success(Unit)
             },
             streamUrls = FilesStreamUrls { FilesStreamUrlResult.DownloadTokenUnavailable },
             filesItemResolver = object : FilesItemResolver {

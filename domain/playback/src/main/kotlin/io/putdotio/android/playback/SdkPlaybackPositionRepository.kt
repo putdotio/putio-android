@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.errors.PutioException
 import kotlinx.coroutines.CancellationException
@@ -23,6 +24,6 @@ class SdkPlaybackPositionRepository internal constructor(
         } catch (error: PutioException) {
             PlaybackRepositoryResult.Failure(error.toPlaybackFailure())
         } catch (error: Exception) {
-            PlaybackRepositoryResult.Failure(PlaybackFailure.Unexpected(error))
+            PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(error)))
         }
 }

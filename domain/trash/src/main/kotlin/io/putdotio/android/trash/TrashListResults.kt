@@ -1,19 +1,19 @@
 package io.putdotio.android.trash
 
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.sdk.errors.PutioException
 
 internal fun TrashMachine.completeList(
     completed: TrashRequest.ListPage,
-    result: FilesRepositoryResult<TrashPage>,
+    result: PutioResult<TrashPage>,
 ): TrashMachine {
     if (request != completed) return this
     val next = copy(request = null)
     return when (result) {
-        is FilesRepositoryResult.Success -> next.acceptPage(completed, result.value)
-        is FilesRepositoryResult.Failure -> next.rejectPage(completed, result.failure)
+        is PutioResult.Success -> next.acceptPage(completed, result.value)
+        is PutioResult.Failure -> next.rejectPage(completed, result.failure)
     }
 }
 
@@ -45,7 +45,7 @@ private fun TrashMachine.acceptPage(completed: TrashRequest.ListPage, page: Tras
     return if (completed.verifiesAction) accepted.verifyActionAgainstPage(content) else accepted
 }
 
-private fun TrashMachine.rejectPage(completed: TrashRequest.ListPage, failure: FilesFailure): TrashMachine {
+private fun TrashMachine.rejectPage(completed: TrashRequest.ListPage, failure: PutioFailure): TrashMachine {
     val previous = state.content as? TrashContent.Loaded
     val content = when {
         previous == null -> TrashContent.Error(failure)
@@ -63,7 +63,7 @@ private fun TrashMachine.rejectPage(completed: TrashRequest.ListPage, failure: F
     return if (completed.verifiesAction) rejected.failActionVerification(failure) else rejected
 }
 
-internal fun FilesFailure.authFailure(): PutioException? = when (this) {
-    is FilesFailure.AuthenticationRequired -> cause
+internal fun PutioFailure.authFailure(): PutioException? = when (this) {
+    is PutioFailure.AuthenticationRequired -> cause
     else -> null
 }

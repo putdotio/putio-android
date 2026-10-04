@@ -40,7 +40,6 @@ import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -55,7 +54,6 @@ import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.files.filesBrowserState
-import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
@@ -204,7 +202,7 @@ class MobileFilesScreenTest {
             val rename = effects.single() as FilesBrowserEffect.Rename
             assertEquals("  Türkçe.mp4  ", rename.name)
             state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadFailed(
-                rename.requestId, FilesFailure.Unexpected(IllegalStateException("offline")),
+                rename.requestId, PutioFailure.Unexpected(IllegalStateException("offline")),
             )).state
         }
         field.assertIsEnabled().assertTextContains("  Türkçe.mp4  ")
@@ -218,7 +216,7 @@ class MobileFilesScreenTest {
         field.assertDoesNotExist()
         compose.runOnIdle {
             state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadFailed(
-                effects.last().requestId, FilesFailure.Unexpected(IllegalStateException("reload failed")),
+                effects.last().requestId, PutioFailure.Unexpected(IllegalStateException("reload failed")),
             )).state
         }
         compose.onNodeWithText("Name saved, but couldn’t reload files.").assertIsDisplayed()
@@ -336,7 +334,7 @@ class MobileFilesScreenTest {
 
         compose.runOnIdle {
             state = browserState(
-                FilesContent.Failed(FilesFailure.Unexpected(IllegalStateException("broken"))),
+                FilesContent.Failed(PutioFailure.Unexpected(IllegalStateException("broken"))),
             )
         }
         compose.onNodeWithText("Try again").performClick()
@@ -347,7 +345,7 @@ class MobileFilesScreenTest {
         // later share grant can be picked up without leaving the screen.
         compose.runOnIdle {
             state = browserState(
-                FilesContent.Failed(FilesFailure.AccessDenied(PutioConfigurationException("forbidden"))),
+                FilesContent.Failed(PutioFailure.AccessDenied(PutioConfigurationException("forbidden"))),
             )
         }
         compose.onNodeWithText("You don’t have access to this folder.").assertIsDisplayed()
@@ -357,13 +355,13 @@ class MobileFilesScreenTest {
         // A refused request shows put.io's own reason; a server error keeps the app's copy.
         compose.runOnIdle {
             state = browserState(
-                FilesContent.Failed(putioRefusal(400, putioErrorBody(400, "not a folder")).toFilesFailure()),
+                FilesContent.Failed(putioRefusal(400, putioErrorBody(400, "not a folder")).toPutioFailure()),
             )
         }
         compose.onNodeWithText("not a folder").assertIsDisplayed()
         compose.runOnIdle {
             state = browserState(
-                FilesContent.Failed(putioRefusal(503, putioErrorBody(503, "not a folder")).toFilesFailure()),
+                FilesContent.Failed(putioRefusal(503, putioErrorBody(503, "not a folder")).toPutioFailure()),
             )
         }
         compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
@@ -433,7 +431,7 @@ class MobileFilesListTest {
                 available.copy(
                     paging = FilesPaging.Failed(
                         cursor = FilesCursor("next-page"),
-                        failure = FilesFailure.Unexpected(IllegalStateException("broken")),
+                        failure = PutioFailure.Unexpected(IllegalStateException("broken")),
                     ),
                 ),
             )
@@ -668,8 +666,8 @@ class MobileFilesListTest {
 
     @Test
     fun pagingActionsAreDisabledDuringFolderOperations() {
-        val pagingFailure = FilesFailure.Unexpected(IllegalStateException("paging failed"))
-        val operationFailure = FilesFailure.Unexpected(IllegalStateException("refresh failed"))
+        val pagingFailure = PutioFailure.Unexpected(IllegalStateException("paging failed"))
+        val operationFailure = PutioFailure.Unexpected(IllegalStateException("refresh failed"))
         var state by mutableStateOf(
             browserState(
                 content = FilesContent.Empty(FilesPaging.Available(FilesCursor("next-page"))),
@@ -765,7 +763,7 @@ class MobileFilesListTest {
             state = browserState(
                 content = content,
                 operation = FilesFolderOperation.Failed(
-                    failure = FilesFailure.Unexpected(IllegalStateException("offline")),
+                    failure = PutioFailure.Unexpected(IllegalStateException("offline")),
                     intent = FilesFolderOperationIntent.Refresh,
                     phase = FilesFolderOperationPhase.RELOADING,
                 ),
@@ -807,7 +805,7 @@ class MobileFilesListTest {
             state = browserState(
                 content = content,
                 operation = FilesFolderOperation.Failed(
-                    failure = FilesFailure.Unexpected(IllegalStateException("offline")),
+                    failure = PutioFailure.Unexpected(IllegalStateException("offline")),
                     intent = FilesFolderOperationIntent.Sort(
                         io.putdotio.android.files.FilesSort.NAME_ASCENDING,
                     ),
@@ -821,7 +819,7 @@ class MobileFilesListTest {
             state = browserState(
                 content = content,
                 operation = FilesFolderOperation.Failed(
-                    failure = FilesFailure.Unexpected(IllegalStateException("offline")),
+                    failure = PutioFailure.Unexpected(IllegalStateException("offline")),
                     intent = FilesFolderOperationIntent.Sort(
                         io.putdotio.android.files.FilesSort.NAME_ASCENDING,
                     ),

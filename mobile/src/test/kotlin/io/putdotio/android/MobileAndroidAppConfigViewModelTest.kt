@@ -4,6 +4,7 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.PutioResult
 import io.putdotio.android.account.MobileAndroidAppConfigViewModel
 import io.putdotio.android.account.mobileAndroidAppConfigViewModelFactory
 import io.putdotio.android.auth.MobileAccount
@@ -14,7 +15,6 @@ import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
-import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
@@ -157,21 +157,21 @@ class MobileAndroidAppConfigViewModelTest {
     private class RecordingRepository : AndroidAppConfigRepository {
         var loadCount = 0
 
-        override suspend fun load(): AndroidAppConfigRepositoryResult<AndroidAppConfigPreferences> {
+        override suspend fun load(): PutioResult<AndroidAppConfigPreferences> {
             loadCount += 1
-            return AndroidAppConfigRepositoryResult.Success(Preferences)
+            return PutioResult.Success(Preferences)
         }
 
         override suspend fun save(
             change: io.putdotio.android.settings.AndroidAppConfigChange,
-        ): AndroidAppConfigRepositoryResult<Unit> = AndroidAppConfigRepositoryResult.Success(Unit)
+        ): PutioResult<Unit> = PutioResult.Success(Unit)
     }
 
     private class SuspendingRepository : AndroidAppConfigRepository {
         val started = CompletableDeferred<Unit>()
         val cancelled = CompletableDeferred<Unit>()
 
-        override suspend fun load(): AndroidAppConfigRepositoryResult<AndroidAppConfigPreferences> {
+        override suspend fun load(): PutioResult<AndroidAppConfigPreferences> {
             started.complete(Unit)
             try {
                 awaitCancellation()
@@ -182,7 +182,7 @@ class MobileAndroidAppConfigViewModelTest {
 
         override suspend fun save(
             change: io.putdotio.android.settings.AndroidAppConfigChange,
-        ): AndroidAppConfigRepositoryResult<Unit> = error("Save is not expected")
+        ): PutioResult<Unit> = error("Save is not expected")
     }
 
     private companion object {

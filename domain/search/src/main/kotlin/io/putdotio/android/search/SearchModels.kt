@@ -1,7 +1,7 @@
 package io.putdotio.android.search
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import kotlinx.coroutines.flow.StateFlow
 
@@ -41,7 +41,7 @@ sealed interface SearchPaging {
 
     data class Failed(
         val cursor: FilesCursor,
-        val failure: FilesFailure,
+        val failure: PutioFailure,
     ) : SearchPaging
 }
 
@@ -75,7 +75,7 @@ sealed interface SearchContent {
 
     data class Failed(
         val term: SearchTerm,
-        val failure: FilesFailure,
+        val failure: PutioFailure,
     ) : SearchContent
 }
 

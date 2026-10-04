@@ -47,6 +47,7 @@ import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.mobilePlaybackViewModelFactory
+import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.search.MobileSearchHistoryScreen
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -250,7 +251,7 @@ private fun MobilePlaybackRoute(
             is PlaybackContent.Failed -> content.failure
             is PlaybackContent.NextFailed -> content.failure
             else -> null
-        }?.takeIf { it is PlaybackFailure.AuthenticationRequired }
+        }?.takeIf { it.putioFailure is PutioFailure.AuthenticationRequired }
 
     LaunchedEffect(authenticationFailure) {
         if (authenticationFailure != null) {

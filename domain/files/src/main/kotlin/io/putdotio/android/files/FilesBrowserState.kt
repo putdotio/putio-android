@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FileMoveError
 
@@ -27,7 +29,7 @@ sealed interface FilesPaging {
 
     data class Failed(
         val cursor: FilesCursor,
-        val failure: FilesFailure,
+        val failure: PutioFailure,
     ) : FilesPaging
 }
 
@@ -52,7 +54,7 @@ sealed interface FilesContent {
     }
 
     data class Failed(
-        val failure: FilesFailure,
+        val failure: PutioFailure,
     ) : FilesContent
 }
 
@@ -96,7 +98,7 @@ sealed interface FilesFolderOperation {
     ) : FilesFolderOperation
 
     data class Failed(
-        val failure: FilesFailure,
+        val failure: PutioFailure,
         val intent: FilesFolderOperationIntent,
         val phase: FilesFolderOperationPhase,
     ) : FilesFolderOperation
@@ -213,12 +215,12 @@ sealed interface FilesBrowserEvent {
 
     data class DeleteFinished(
         val requestId: FilesRequestId,
-        val result: FilesRepositoryResult<FileDeleteResult>,
+        val result: PutioResult<FileDeleteResult>,
     ) : DeleteEvent
 
     data class DeleteChecked(
         val requestId: FilesRequestId,
-        val result: FilesRepositoryResult<FilesItem>,
+        val result: PutioResult<FilesItem>,
     ) : DeleteEvent
 
     /**
@@ -239,12 +241,12 @@ sealed interface FilesBrowserEvent {
 
     data class MoveFinished(
         val requestId: FilesRequestId,
-        val result: FilesRepositoryResult<List<FileMoveError>>,
+        val result: PutioResult<List<FileMoveError>>,
     ) : MoveEvent
 
     data class MoveChecked(
         val requestId: FilesRequestId,
-        val result: FilesRepositoryResult<FilesItem>,
+        val result: PutioResult<FilesItem>,
     ) : MoveEvent
 
     /** Copies are put.io's background work, so they live beside the folder stack, not on a folder. */
@@ -259,12 +261,12 @@ sealed interface FilesBrowserEvent {
 
     data class CopyStarted(
         val requestId: FilesRequestId,
-        val result: FilesRepositoryResult<FilesCopyId>,
+        val result: PutioResult<FilesCopyId>,
     ) : CopyEvent
 
     data class CopyChecked(
         val requestId: FilesRequestId,
-        val result: FilesRepositoryResult<FilesCopyProgress>,
+        val result: PutioResult<FilesCopyProgress>,
     ) : CopyEvent
 
     /** Clears a settled copy's status line; a running copy keeps it. */
@@ -287,7 +289,7 @@ sealed interface FilesBrowserEvent {
 
     data class LoadFailed(
         override val requestId: FilesRequestId,
-        val failure: FilesFailure,
+        val failure: PutioFailure,
     ) : LoadResult
 
     data class MutationSucceeded(
@@ -444,20 +446,20 @@ suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesBrowserEve
         is FilesBrowserEffect.CopyEffect -> executeCopy(effect)
         is FilesBrowserEffect.Rename ->
             when (val renamed = rename(effect.itemId, effect.name)) {
-                is FilesRepositoryResult.Success -> FilesBrowserEvent.MutationSucceeded(effect.requestId)
-                is FilesRepositoryResult.Failure -> FilesBrowserEvent.LoadFailed(effect.requestId, renamed.failure)
+                is PutioResult.Success -> FilesBrowserEvent.MutationSucceeded(effect.requestId)
+                is PutioResult.Failure -> FilesBrowserEvent.LoadFailed(effect.requestId, renamed.failure)
             }
         is FilesBrowserEffect.PersistSort ->
             when (val persisted = persistSort(effect.folderId, effect.sort)) {
-                is FilesRepositoryResult.Success -> FilesBrowserEvent.MutationSucceeded(effect.requestId)
-                is FilesRepositoryResult.Failure -> FilesBrowserEvent.LoadFailed(effect.requestId, persisted.failure)
+                is PutioResult.Success -> FilesBrowserEvent.MutationSucceeded(effect.requestId)
+                is PutioResult.Failure -> FilesBrowserEvent.LoadFailed(effect.requestId, persisted.failure)
             }
     }
 
-private fun FilesRepositoryResult<FilesPage>.toLoadEvent(requestId: FilesRequestId): FilesBrowserEvent =
+private fun PutioResult<FilesPage>.toLoadEvent(requestId: FilesRequestId): FilesBrowserEvent =
     when (this) {
-        is FilesRepositoryResult.Success -> FilesBrowserEvent.LoadSucceeded(requestId, value)
-        is FilesRepositoryResult.Failure -> FilesBrowserEvent.LoadFailed(requestId, failure)
+        is PutioResult.Success -> FilesBrowserEvent.LoadSucceeded(requestId, value)
+        is PutioResult.Failure -> FilesBrowserEvent.LoadFailed(requestId, failure)
     }
 
 private const val INITIAL_REQUEST_VALUE = 1L

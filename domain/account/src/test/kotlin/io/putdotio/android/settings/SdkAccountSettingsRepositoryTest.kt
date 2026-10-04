@@ -17,6 +17,7 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import io.putdotio.android.PutioFailure
 
 class SdkAccountSettingsRepositoryTest {
 
@@ -126,7 +127,7 @@ class SdkAccountSettingsRepositoryTest {
             assertEquals(AccountSettingsEvent.SaveSucceeded(requestId), saveEvent)
             assertTrue(refreshEvent is AccountSettingsEvent.RefreshFailed)
             val refreshError =
-                (refreshEvent as AccountSettingsEvent.RefreshFailed).failure as AccountSettingsFailure.Unexpected
+                (refreshEvent as AccountSettingsEvent.RefreshFailed).failure.putioFailure as PutioFailure.Unexpected
             assertSame(
                 refreshFailure,
                 refreshError.cause,
@@ -158,7 +159,7 @@ class SdkAccountSettingsRepositoryTest {
 
             val result = repository.load() as AccountSettingsRepositoryResult.Failure
 
-            assertTrue(result.failure is AccountSettingsFailure.AuthenticationRequired)
+            assertTrue(result.failure.putioFailure is PutioFailure.AuthenticationRequired)
             assertSame(operationError, result.failure.cause)
         }
 
@@ -186,7 +187,7 @@ class SdkAccountSettingsRepositoryTest {
 
             val result = repository.load() as AccountSettingsRepositoryResult.Failure
 
-            assertTrue(result.failure is AccountSettingsFailure.AccessDenied)
+            assertTrue(result.failure.putioFailure is PutioFailure.AccessDenied)
             assertSame(operationError, result.failure.cause)
         }
 
@@ -194,7 +195,7 @@ class SdkAccountSettingsRepositoryTest {
     fun boundsUnexpectedFailuresAndPreservesCancellation() {
         val unexpected = IllegalStateException("broken mapper")
         val result = runBlocking { repository(getError = unexpected).load() } as AccountSettingsRepositoryResult.Failure
-        assertSame(unexpected, (result.failure as AccountSettingsFailure.Unexpected).cause)
+        assertSame(unexpected, (result.failure.putioFailure as PutioFailure.Unexpected).cause)
 
         val cancellation = CancellationException("screen closed")
         try {
@@ -334,7 +335,7 @@ class SdkAccountSettingsRepositoryTest {
 
             // Falls through to the status mapping: a 403 on a non-route write is the generic denial.
             assertFalse(result.failure is AccountSettingsFailure.RouteUnavailable)
-            assertTrue(result.failure is AccountSettingsFailure.AccessDenied)
+            assertTrue(result.failure.putioFailure is PutioFailure.AccessDenied)
             assertSame(operationError, result.failure.cause)
         }
 
@@ -368,7 +369,7 @@ class SdkAccountSettingsRepositoryTest {
             )
             val denied = repository(routes = { throw cause }).loadTunnelRoutes()
                 as AccountSettingsRepositoryResult.Failure
-            assertTrue(denied.failure is AccountSettingsFailure.AuthenticationRequired)
+            assertTrue(denied.failure.putioFailure is PutioFailure.AuthenticationRequired)
         }
 
     private companion object {

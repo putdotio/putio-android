@@ -31,7 +31,6 @@ import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesContent
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderState
@@ -39,7 +38,6 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
@@ -269,7 +267,7 @@ private class RootMoveBackPreview(startMove: Boolean = true) {
     }
 
     fun failReadback() {
-        val failure = FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("Synthetic offline")))
+        val failure = PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("Synthetic offline")))
         dispatch(FilesBrowserEvent.MoveFinished((effects.last() as FilesBrowserEffect.Move).requestId, failure))
         dispatch(FilesBrowserEvent.MoveChecked((effects.last() as FilesBrowserEffect.CheckMove).requestId, failure))
     }
@@ -278,7 +276,7 @@ private class RootMoveBackPreview(startMove: Boolean = true) {
         val checking = effects.last() as FilesBrowserEffect.CheckMove
         assertEquals(item.id, checking.itemId)
         dispatch(FilesBrowserEvent.MoveChecked(checking.requestId,
-            FilesRepositoryResult.Success(item.copy(parentId = FilesItemId(8)))))
+            PutioResult.Success(item.copy(parentId = FilesItemId(8)))))
         val loading = effects.last() as FilesBrowserEffect.LoadFolder
         assertEquals(FilesFolder.Root.id, loading.folderId)
         dispatch(FilesBrowserEvent.LoadSucceeded(loading.requestId, FilesPage(emptyList(), null)))

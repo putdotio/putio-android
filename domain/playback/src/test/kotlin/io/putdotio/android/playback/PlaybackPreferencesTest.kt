@@ -2,7 +2,7 @@ package io.putdotio.android.playback
 
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigChange
-import io.putdotio.android.settings.AndroidAppConfigFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.settings.AndroidAppConfigEffect
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigMutation
@@ -35,7 +35,7 @@ class PlaybackPreferencesTest {
             androidAppConfigState(
                 content =
                     AndroidAppConfigContent.Failed(
-                        AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
+                        PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
                     ),
                 mutation = AndroidAppConfigMutation.Idle,
                 nextRequestValue = 2L,
@@ -54,7 +54,7 @@ class PlaybackPreferencesTest {
             saving.state,
             AndroidAppConfigEvent.SaveFailed(
                 requestId,
-                AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
+                PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
             ),
         )
         val refreshing = AndroidAppConfigReducer.reduce(
@@ -65,7 +65,7 @@ class PlaybackPreferencesTest {
             refreshing.state,
             AndroidAppConfigEvent.RefreshFailed(
                 requestId,
-                AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
+                PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
             ),
         )
         for (state in listOf(saving.state, saveFailed.state, refreshing.state, refreshFailed.state)) {
@@ -93,7 +93,7 @@ class PlaybackPreferencesTest {
             refreshing.state,
             AndroidAppConfigEvent.RefreshFailed(
                 requestId,
-                AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
+                PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
             ),
         )
         val autoplaySaving = AndroidAppConfigReducer.reduce(
@@ -105,7 +105,7 @@ class PlaybackPreferencesTest {
             autoplaySaving.state,
             AndroidAppConfigEvent.SaveFailed(
                 autoplayRequestId,
-                AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
+                PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
             ),
         )
         assertEquals(PlaybackPreference.MP4, autoplaySaving.state.playbackPreference())
@@ -151,7 +151,7 @@ class PlaybackPreferencesTest {
                 mutation =
                     AndroidAppConfigMutation.Failed(
                         change = AndroidAppConfigChange.AutoplayNextVideo(false),
-                        failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("refresh failed")),
+                        failure = PutioFailure.Unexpected(IllegalStateException("refresh failed")),
                         previousPreferences = enabled,
                         operation = AndroidAppConfigMutation.Operation.Refresh,
                     ),
@@ -191,7 +191,7 @@ class PlaybackPreferencesTest {
                 refreshingAutoplay.state,
                 AndroidAppConfigEvent.RefreshFailed(
                     autoplayRequestId,
-                    AndroidAppConfigFailure.Unexpected(IllegalStateException("refresh failed")),
+                    PutioFailure.Unexpected(IllegalStateException("refresh failed")),
                 ),
             )
         val savingPlaybackType =
@@ -208,7 +208,7 @@ class PlaybackPreferencesTest {
                 savingPlaybackType.state,
                 AndroidAppConfigEvent.SaveFailed(
                     playbackTypeRequestId,
-                    AndroidAppConfigFailure.Unexpected(IllegalStateException("save failed")),
+                    PutioFailure.Unexpected(IllegalStateException("save failed")),
                 ),
             )
 

@@ -1,10 +1,12 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.PutioFailure
+
 internal fun AccountSettingsState.retryLoad(): AccountSettingsTransition {
     val failed = content as? AccountSettingsContent.Failed
     if (
         failed == null ||
-        failed.failure is AccountSettingsFailure.AuthenticationRequired
+        failed.failure.putioFailure is PutioFailure.AuthenticationRequired
     ) {
         return AccountSettingsTransition(this, consumed = false)
     }
@@ -27,7 +29,7 @@ internal fun AccountSettingsState.requestChange(change: AccountSettingsChange): 
             AccountSettingsMutation.Idle -> false
             is AccountSettingsMutation.Saving -> true
             is AccountSettingsMutation.Failed ->
-                mutation.failure is AccountSettingsFailure.AuthenticationRequired
+                mutation.failure.putioFailure is PutioFailure.AuthenticationRequired
         }
     return if (
         ready == null ||
@@ -61,7 +63,7 @@ internal fun AccountSettingsState.retryChange(): AccountSettingsTransition {
     if (
         failed == null ||
         ready == null ||
-        failed.failure is AccountSettingsFailure.AuthenticationRequired
+        failed.failure.putioFailure is PutioFailure.AuthenticationRequired
     ) {
         return AccountSettingsTransition(this, consumed = false)
     }

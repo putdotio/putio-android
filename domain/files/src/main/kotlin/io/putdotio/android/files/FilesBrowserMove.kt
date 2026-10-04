@@ -1,5 +1,8 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+
 internal fun FilesBrowserState.reduceMove(event: FilesBrowserEvent.MoveEvent): FilesBrowserTransition = when (event) {
     is FilesBrowserEvent.Move -> move(event)
     is FilesBrowserEvent.MoveFinished -> moveFinished(event)
@@ -45,12 +48,12 @@ internal fun FilesBrowserState.moveFinished(event: FilesBrowserEvent.MoveFinishe
     val folder = stack.getOrNull(index)
     val outcome = folder?.moveOutcome
     if (folder == null || outcome == null) return FilesBrowserTransition(this, consumed = false)
-    val failure = (event.result as? FilesRepositoryResult.Failure)?.failure
+    val failure = (event.result as? PutioResult.Failure)?.failure
     val recorded = outcome.copy(
-        errors = (event.result as? FilesRepositoryResult.Success)?.value,
+        errors = (event.result as? PutioResult.Success)?.value,
         failure = failure,
     )
-    return if (failure is FilesFailure.AuthenticationRequired) {
+    return if (failure is PutioFailure.AuthenticationRequired) {
         val updated = folder.copy(
             moveOutcome = recorded.copy(status = FilesMoveStatus.UNKNOWN),
             operation = FilesFolderOperation.Failed(failure, outcome.intent, FilesFolderOperationPhase.CHECKING_MOVE),
@@ -83,7 +86,7 @@ private fun FilesBrowserState.moveChecked(event: FilesBrowserEvent.MoveChecked):
     return if (failure != null) {
         loadFailed(FilesBrowserEvent.LoadFailed(event.requestId, failure))
     } else {
-        val item = (event.result as? FilesRepositoryResult.Success)?.value
+        val item = (event.result as? PutioResult.Success)?.value
         val status = when {
             !outcome.errors.isNullOrEmpty() -> FilesMoveStatus.REJECTED
             item?.parentId == outcome.intent.destinationId -> FilesMoveStatus.MOVED
@@ -102,12 +105,12 @@ private fun FilesBrowserState.moveChecked(event: FilesBrowserEvent.MoveChecked):
     }
 }
 
-private fun FilesRepositoryResult<FilesItem>.moveReadFailure(expectedId: FilesItemId): FilesFailure? = when (this) {
-    is FilesRepositoryResult.Failure -> failure
-    is FilesRepositoryResult.Success -> if (value.id == expectedId && (value.parentId?.value ?: -1L) >= 0L) {
+private fun PutioResult<FilesItem>.moveReadFailure(expectedId: FilesItemId): PutioFailure? = when (this) {
+    is PutioResult.Failure -> failure
+    is PutioResult.Success -> if (value.id == expectedId && (value.parentId?.value ?: -1L) >= 0L) {
         null
     } else {
-        FilesFailure.Unexpected(IllegalStateException("Move lookup returned a different ID or no valid parent"))
+        PutioFailure.Unexpected(IllegalStateException("Move lookup returned a different ID or no valid parent"))
     }
 }
 

@@ -22,6 +22,8 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.io.IOException
 import java.util.concurrent.CancellationException
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 
 class SdkFilesRepositoryTest {
 
@@ -40,7 +42,7 @@ class SdkFilesRepositoryTest {
             ),
         )
         for (name in listOf("  Türkçe [raw].mkv  ", "", "folder.name")) {
-            assertEquals(FilesRepositoryResult.Success(Unit), repository.rename(FilesItemId(42L), name))
+            assertEquals(PutioResult.Success(Unit), repository.rename(FilesItemId(42L), name))
         }
         assertEquals(listOf(42L to "  Türkçe [raw].mkv  ", 42L to "", 42L to "folder.name"), renamed)
     }
@@ -49,11 +51,11 @@ class SdkFilesRepositoryTest {
     fun renamePreservesTypedRejectionAndCancellation() = runBlocking {
         for (status in listOf(401, 403)) {
             val error = apiFailure(status)
-            val result = repositoryThrowing(error).rename(FilesItemId(42L), "new.mkv") as FilesRepositoryResult.Failure
+            val result = repositoryThrowing(error).rename(FilesItemId(42L), "new.mkv") as PutioResult.Failure
             if (status == 401) {
-                assertTrue(result.failure is FilesFailure.AuthenticationRequired)
+                assertTrue(result.failure is PutioFailure.AuthenticationRequired)
             } else {
-                assertTrue(result.failure is FilesFailure.AccessDenied)
+                assertTrue(result.failure is PutioFailure.AccessDenied)
             }
             assertSame(error, result.failure.cause)
         }
@@ -106,7 +108,7 @@ class SdkFilesRepositoryTest {
                     getFile = { error("Unexpected file resolution") },
                 )
 
-            val result = repository.loadFolder(FilesFolder.Root.id) as FilesRepositoryResult.Success
+            val result = repository.loadFolder(FilesFolder.Root.id) as PutioResult.Success
 
             assertEquals(0L, requestedFolder)
             assertEquals(50, requestedPageSize)
@@ -139,7 +141,7 @@ class SdkFilesRepositoryTest {
                     getFile = { error("Unexpected file resolution") },
                 )
 
-            val result = repository.loadNextPage(FilesCursor("opaque-cursor")) as FilesRepositoryResult.Success
+            val result = repository.loadNextPage(FilesCursor("opaque-cursor")) as PutioResult.Success
 
             assertEquals("opaque-cursor", requestedCursor)
             assertEquals(50, requestedPageSize)
@@ -161,13 +163,13 @@ class SdkFilesRepositoryTest {
                 repositoryThrowing(operationFailure(transport))
                     .persistSort(FilesFolder.Root.id, FilesSort.NAME_ASCENDING)
 
-            assertTrue((unauthorized as FilesRepositoryResult.Failure).failure is FilesFailure.AuthenticationRequired)
+            assertTrue((unauthorized as PutioResult.Failure).failure is PutioFailure.AuthenticationRequired)
             assertEquals(
                 503,
-                ((unavailable as FilesRepositoryResult.Failure).failure as FilesFailure.ServerUnavailable).statusCode,
+                ((unavailable as PutioResult.Failure).failure as PutioFailure.ServerUnavailable).statusCode,
             )
-            assertTrue((network as FilesRepositoryResult.Failure).failure is FilesFailure.NetworkUnavailable)
-            assertTrue((sortFailure as FilesRepositoryResult.Failure).failure is FilesFailure.NetworkUnavailable)
+            assertTrue((network as PutioResult.Failure).failure is PutioFailure.NetworkUnavailable)
+            assertTrue((sortFailure as PutioResult.Failure).failure is PutioFailure.NetworkUnavailable)
         }
 
     @Test
@@ -190,7 +192,7 @@ class SdkFilesRepositoryTest {
                     },
                 )
 
-            val result = repository.resolveItem(FilesItemId(42L)) as FilesRepositoryResult.Success
+            val result = repository.resolveItem(FilesItemId(42L)) as PutioResult.Success
 
             assertEquals(42L, requestedFileId)
             assertEquals(FilesItemId(42L), result.value.id)
@@ -200,8 +202,8 @@ class SdkFilesRepositoryTest {
     @Test
     fun retainsHttpStatusWhenAnErrorEnvelopeOverridesIt() = runBlocking {
         val error = apiFailure(statusCode = 404, httpStatusCode = 500)
-        val result = repositoryThrowing(error).resolveItem(FilesItemId(7L)) as FilesRepositoryResult.Failure
-        val failure = result.failure as FilesFailure.ApiRejected
+        val result = repositoryThrowing(error).resolveItem(FilesItemId(7L)) as PutioResult.Failure
+        val failure = result.failure as PutioFailure.ApiRejected
         assertEquals(404, failure.statusCode)
         assertEquals(500, failure.httpStatusCode)
         assertSame(error, failure.cause)
@@ -221,8 +223,8 @@ class SdkFilesRepositoryTest {
                 )
 
             val result =
-                repositoryThrowing(operationError).loadFolder(FilesFolder.Root.id) as FilesRepositoryResult.Failure
-            val failure = result.failure as FilesFailure.AuthenticationRequired
+                repositoryThrowing(operationError).loadFolder(FilesFolder.Root.id) as PutioResult.Failure
+            val failure = result.failure as PutioFailure.AuthenticationRequired
             val retainedContext = failure.cause as PutioOperationException
 
             assertSame(operationError, retainedContext)
@@ -247,9 +249,9 @@ class SdkFilesRepositoryTest {
                 )
 
             val result =
-                repositoryThrowing(operationError).loadFolder(FilesFolder.Root.id) as FilesRepositoryResult.Failure
+                repositoryThrowing(operationError).loadFolder(FilesFolder.Root.id) as PutioResult.Failure
 
-            assertTrue(result.failure is FilesFailure.AuthenticationRequired)
+            assertTrue(result.failure is PutioFailure.AuthenticationRequired)
             assertSame(operationError, result.failure.cause)
         }
 
@@ -257,9 +259,9 @@ class SdkFilesRepositoryTest {
     fun boundsUnexpectedExceptionsAsTypedFailures() =
         runBlocking {
             val error = IllegalStateException("broken mapper")
-            val result = repositoryThrowing(error).loadFolder(FilesFolder.Root.id) as FilesRepositoryResult.Failure
+            val result = repositoryThrowing(error).loadFolder(FilesFolder.Root.id) as PutioResult.Failure
 
-            assertSame(error, (result.failure as FilesFailure.Unexpected).cause)
+            assertSame(error, (result.failure as PutioFailure.Unexpected).cause)
         }
 
     @Test
@@ -323,7 +325,7 @@ class SdkFilesRepositoryTest {
             assertEquals(12, FilesSort.entries.size)
             expected.forEach { (sort, apiValue) ->
                 assertEquals(sort, FilesSort.fromApiValue(apiValue))
-                assertTrue(repository.persistSort(FilesItemId(42L), sort) is FilesRepositoryResult.Success)
+                assertTrue(repository.persistSort(FilesItemId(42L), sort) is PutioResult.Success)
             }
             assertNull(FilesSort.fromApiValue(null))
             assertNull(FilesSort.fromApiValue("UNKNOWN"))

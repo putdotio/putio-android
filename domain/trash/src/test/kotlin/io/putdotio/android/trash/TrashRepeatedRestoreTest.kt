@@ -1,7 +1,7 @@
 package io.putdotio.android.trash
 
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesRepositoryResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -13,7 +13,7 @@ class TrashRepeatedRestoreTest {
     fun laterDeletionOnInitialRefreshAllowsOneNewRestoreWhileStaleOccurrencesRemainBlocked() = runBlocking {
         val original = trashItem()
         val repository = FakeTrashRepository().apply {
-            onResolve = { FilesRepositoryResult.Success(liveItem(original)) }
+            onResolve = { PutioResult.Success(liveItem(original)) }
         }
         TrashController(repository, this).use { controller ->
             controller.openLoaded()
@@ -45,7 +45,7 @@ class TrashRepeatedRestoreTest {
             assertFalse(controller.state.value.canRestore(original.id))
 
             repository.onLoad = { page(deletedAgain) }
-            repository.onResolve = { FilesRepositoryResult.Failure(apiFailure(404, "NOT_FOUND")) }
+            repository.onResolve = { PutioResult.Failure(apiFailure(404, "NOT_FOUND")) }
             controller.dispatch(TrashEvent.Refresh)
             controller.awaitState { (it.content as? TrashContent.Loaded)?.isRefreshing == false }
             controller.confirm(original.id)
@@ -61,7 +61,7 @@ class TrashRepeatedRestoreTest {
             val original = trashItem().copy(deletedAt = originalDate)
             val repository = FakeTrashRepository().apply {
                 onLoad = { page(original) }
-                onResolve = { FilesRepositoryResult.Success(liveItem(original)) }
+                onResolve = { PutioResult.Success(liveItem(original)) }
             }
             TrashController(repository, this).use { controller ->
                 controller.openLoaded()
@@ -72,7 +72,7 @@ class TrashRepeatedRestoreTest {
                 }
                 val later = original.copy(deletedAt = "2026-09-07T10:00:00Z")
                 repository.onLoad = {
-                    FilesRepositoryResult.Success(TrashPage(emptyList(), FilesCursor("next"), 1, 12))
+                    PutioResult.Success(TrashPage(emptyList(), FilesCursor("next"), 1, 12))
                 }
                 repository.onPage = { page(later) }
                 controller.dispatch(TrashEvent.Refresh)

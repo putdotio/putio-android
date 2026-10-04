@@ -21,7 +21,6 @@ import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.OfflinePlaybackRepository
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.files.SdkFilesRepository
@@ -39,7 +38,6 @@ import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.authoritativeSessionFailure
 import io.putdotio.android.settings.AccountSettingsController
-import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigController
@@ -48,6 +46,7 @@ import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
+import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersViewModel
@@ -238,8 +237,8 @@ private fun SignedInMobileSession(
             ?: searchState.authoritativeSessionFailure()
             ?: historyState.authoritativeSessionFailure()
             ?: transfersState.authoritativeSessionFailure()
-            ?: recentSearchFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
-            ?: navigationFailure?.takeIf { it is FilesFailure.AuthenticationRequired }
+            ?: recentSearchFailure?.takeIf { it is PutioFailure.AuthenticationRequired }
+            ?: navigationFailure?.takeIf { it is PutioFailure.AuthenticationRequired }
 
     AuthoritativeSessionFailureEffect(
         shouldReject = trashState.authenticationFailure != null ||
@@ -269,7 +268,7 @@ private fun SignedInMobileSession(
                 search = searchState,
                 history = historyState,
                 recentSearchFailure =
-                    recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired },
+                    recentSearchFailure?.takeUnless { it is PutioFailure.AuthenticationRequired },
             ),
         transfersState = transfersState,
         transfersSessionId = sessionId,
@@ -288,7 +287,7 @@ private fun SignedInMobileSession(
             accountSettingsRepository.loadTunnelRoutes().also { result ->
                 // A 401 here is as authoritative as one from Files or Playback.
                 if (result is AccountSettingsRepositoryResult.Failure &&
-                    result.failure is AccountSettingsFailure.AuthenticationRequired
+                    result.failure.putioFailure is PutioFailure.AuthenticationRequired
                 ) {
                     authController.rejectAuthoritativeSession()
                 }
@@ -368,7 +367,7 @@ internal fun AuthoritativeSessionFailureEffect(
     }
 }
 
-internal fun TransfersState.authoritativeSessionFailure(): FilesFailure? =
+internal fun TransfersState.authoritativeSessionFailure(): PutioFailure? =
     listOfNotNull(
         when (val value = content) {
             is TransfersContent.Failed -> value.failure
@@ -380,4 +379,4 @@ internal fun TransfersState.authoritativeSessionFailure(): FilesFailure? =
         (refresh as? TransfersRefresh.Failed)?.failure,
         (mutation as? TransferMutation.Failed)?.failure,
         (retryOutcome as? TransferRetryOutcome.Failed)?.failure,
-    ).firstOrNull { it is FilesFailure.AuthenticationRequired }
+    ).firstOrNull { it is PutioFailure.AuthenticationRequired }

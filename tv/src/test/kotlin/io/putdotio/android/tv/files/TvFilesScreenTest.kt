@@ -22,7 +22,7 @@ import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -471,7 +471,7 @@ class TvFilesScreenTest {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvFilesScreen(
                     state = state(
-                        FilesContent.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))),
+                        FilesContent.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))),
                     ),
                     onEvent = { events += it; true },
                     onPlayMedia = {},

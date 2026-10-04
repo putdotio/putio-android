@@ -7,14 +7,14 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesWatchedRepository
@@ -131,7 +131,7 @@ internal class TvSession internal constructor(
         { item, _ -> historyOpenChannel.send(item) },
         scope,
     )
-    private val mutableFileActionFailure = MutableStateFlow<FilesFailure?>(null)
+    private val mutableFileActionFailure = MutableStateFlow<PutioFailure?>(null)
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value.playbackPreference() }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
@@ -168,10 +168,10 @@ internal class TvSession internal constructor(
     val historyOpens: Flow<FilesItem> = historyOpenChannel.receiveAsFlow()
 
     /** Why the last history row could not be resolved; cleared by the next success or dismissal. */
-    val historyOpenFailure: StateFlow<FilesFailure?> = historyOpener.failure
+    val historyOpenFailure: StateFlow<PutioFailure?> = historyOpener.failure
 
     /** Why the last watched toggle failed; cleared by the next attempt or dismissal. */
-    val fileActionFailure: StateFlow<FilesFailure?> = mutableFileActionFailure.asStateFlow()
+    val fileActionFailure: StateFlow<PutioFailure?> = mutableFileActionFailure.asStateFlow()
 
     fun retryRecentSearches() = recentSearches.retry()
 
@@ -253,7 +253,7 @@ internal class TvSession internal constructor(
         // Started lazily so the write is registered before its body can run and compare itself.
         val job = scope.launch(start = CoroutineStart.LAZY) {
             // A session verdict from any write stays until the session is rejected.
-            mutableFileActionFailure.update { it?.takeIf { failure -> failure is FilesFailure.AuthenticationRequired } }
+            mutableFileActionFailure.update { it?.takeIf { failure -> failure is PutioFailure.AuthenticationRequired } }
             val result = if (watched) {
                 watchedRepository.setPosition(item.id, seconds)
             } else {
@@ -263,10 +263,10 @@ internal class TvSession internal constructor(
             // settle the row or report, so only the write still registered for the file does.
             if (!isActive || watchedJobs[item.id] !== coroutineContext[Job]) return@launch
             when (result) {
-                is FilesRepositoryResult.Success ->
+                is PutioResult.Success ->
                     files.dispatch(FilesBrowserEvent.PlaybackPositionReported(item.id, seconds))
-                is FilesRepositoryResult.Failure -> mutableFileActionFailure.update { current ->
-                    if (current is FilesFailure.AuthenticationRequired) current else result.failure
+                is PutioResult.Failure -> mutableFileActionFailure.update { current ->
+                    if (current is PutioFailure.AuthenticationRequired) current else result.failure
                 }
             }
         }
@@ -282,12 +282,12 @@ internal class TvSession internal constructor(
     suspend fun originalStreamUrl(item: FilesItem): FilesStreamUrlResult =
         streamUrls.originalStreamUrl(item.id).also { result ->
             val failure = (result as? FilesStreamUrlResult.Failure)?.failure
-            if (failure is FilesFailure.AuthenticationRequired) mutableFileActionFailure.value = failure
+            if (failure is PutioFailure.AuthenticationRequired) mutableFileActionFailure.value = failure
         }
 
     /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissFileActionFailure() {
-        mutableFileActionFailure.update { it?.takeIf { failure -> failure is FilesFailure.AuthenticationRequired } }
+        mutableFileActionFailure.update { it?.takeIf { failure -> failure is PutioFailure.AuthenticationRequired } }
     }
 
     /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
@@ -353,7 +353,7 @@ internal class TvSessionViewModel(
 // listing the file itself returns it as the parent. Without one, playback continues from
 // the saved position without asking, as for any row without a duration.
 private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesItem {
-    val listed = (loadFolder(item.id) as? FilesRepositoryResult.Success)?.value?.parent
+    val listed = (loadFolder(item.id) as? PutioResult.Success)?.value?.parent
     val duration = listed?.takeIf { it.id == item.id }?.playback?.durationSeconds
     val progress = duration?.let { FilesPlaybackProgress(item.playback?.startFromSeconds ?: 0.0, it) }
     return if (progress == null) item else item.copy(playback = progress)

@@ -1,6 +1,6 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
 
 internal fun TransfersState.loadNextPage(): TransfersTransition {
     val ready = content as? TransfersContent.Ready
@@ -197,7 +197,7 @@ internal fun TransfersState.listFailed(event: TransfersEvent.ListFailed): Transf
             TransfersTransition(
                 copy(
                     refresh =
-                        if (event.failure is FilesFailure.AuthenticationRequired) {
+                        if (event.failure is PutioFailure.AuthenticationRequired) {
                             TransfersRefresh.Failed(event.failure)
                         } else {
                             TransfersRefresh.Idle

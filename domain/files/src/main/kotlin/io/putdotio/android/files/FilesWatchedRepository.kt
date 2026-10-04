@@ -1,43 +1,32 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+import io.putdotio.android.putioRequest
+import io.putdotio.android.toPutioFailure
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.account.AccountInfo
-import io.putdotio.sdk.account.AccountInfoQuery
 import io.putdotio.sdk.errors.PutioException
 import java.util.concurrent.CancellationException
 
 /** The account's saved position for a media file, which is what "watched" means on put.io. */
 interface FilesWatchedRepository {
     /** Saves [seconds] as the file's position; the file's duration marks it watched. */
-    suspend fun setPosition(itemId: FilesItemId, seconds: Double): FilesRepositoryResult<Unit>
+    suspend fun setPosition(itemId: FilesItemId, seconds: Double): PutioResult<Unit>
 
     /** Drops the saved position, so the file reads as unwatched. */
-    suspend fun clearPosition(itemId: FilesItemId): FilesRepositoryResult<Unit>
+    suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit>
 }
 
 class SdkFilesWatchedRepository(
     private val client: PutioClient,
 ) : FilesWatchedRepository {
-    override suspend fun setPosition(itemId: FilesItemId, seconds: Double): FilesRepositoryResult<Unit> =
-        request { client.files.setStartFrom(itemId.value, seconds) }
+    override suspend fun setPosition(itemId: FilesItemId, seconds: Double): PutioResult<Unit> =
+        putioRequest { client.files.setStartFrom(itemId.value, seconds) }
 
-    override suspend fun clearPosition(itemId: FilesItemId): FilesRepositoryResult<Unit> =
-        request { client.files.resetStartFrom(itemId.value) }
-
-    // This SDK boundary converts unexpected implementation failures into the app's stable failure taxonomy.
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun request(block: suspend () -> Unit): FilesRepositoryResult<Unit> =
-        try {
-            block()
-            FilesRepositoryResult.Success(Unit)
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: PutioException) {
-            FilesRepositoryResult.Failure(error.toFilesFailure())
-        } catch (unexpected: Exception) {
-            FilesRepositoryResult.Failure(FilesFailure.Unexpected(unexpected))
-        }
+    override suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit> =
+        putioRequest { client.files.resetStartFrom(itemId.value) }
 }
 
 /**
@@ -59,7 +48,7 @@ sealed interface FilesStreamUrlResult {
     data object DownloadTokenUnavailable : FilesStreamUrlResult
 
     data class Failure(
-        val failure: FilesFailure,
+        val failure: PutioFailure,
     ) : FilesStreamUrlResult
 }
 
@@ -85,15 +74,8 @@ class SdkFilesStreamUrls internal constructor(
         } catch (error: CancellationException) {
             throw error
         } catch (error: PutioException) {
-            FilesStreamUrlResult.Failure(error.toFilesFailure())
+            FilesStreamUrlResult.Failure(error.toPutioFailure())
         } catch (unexpected: Exception) {
-            FilesStreamUrlResult.Failure(FilesFailure.Unexpected(unexpected))
+            FilesStreamUrlResult.Failure(PutioFailure.Unexpected(unexpected))
         }
 }
-
-/**
- * The account with its download token, the narrow credential put.io accepts on media endpoints.
- * Every media URL the app builds carries this token, never the session's access token.
- */
-suspend fun PutioClient.loadMediaAccount(): AccountInfo =
-    account.getInfo(AccountInfoQuery(downloadToken = true))

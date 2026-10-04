@@ -3,10 +3,11 @@ package io.putdotio.android.tv.files
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
+import io.putdotio.android.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.apiReason
 import io.putdotio.android.files.FilesSort
-import io.putdotio.android.files.apiReason
 
 @StringRes
 internal fun FilesSort.tvLabel(): Int =
@@ -27,20 +28,20 @@ internal fun FilesSort.tvLabel(): Int =
 
 /** put.io's reason for a refused request, else this failure's copy. */
 @Composable
-internal fun FilesFailure.tvMessageText(): String = apiReason ?: stringResource(tvMessage())
+internal fun FilesFailure.tvMessageText(): String = (this as? PutioFailure)?.apiReason ?: stringResource(tvMessage())
 
 @StringRes
 internal fun FilesFailure.tvMessage(): Int =
     when (this) {
-        is FilesFailure.AuthenticationRequired -> R.string.tv_error_session
-        is FilesFailure.AccessDenied -> R.string.tv_error_forbidden
-        is FilesFailure.RateLimited -> R.string.tv_error_rate_limited
-        is FilesFailure.NetworkUnavailable -> R.string.tv_error_network
+        is PutioFailure.AuthenticationRequired -> R.string.tv_error_session
+        is PutioFailure.AccessDenied -> R.string.tv_error_forbidden
+        is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
+        is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
         FilesFailure.NavigationBlocked -> R.string.tv_error_navigation_blocked
-        is FilesFailure.ServerUnavailable,
-        is FilesFailure.ApiRejected,
-        is FilesFailure.InvalidResponse,
-        is FilesFailure.Misconfigured,
-        is FilesFailure.Unexpected,
+        is PutioFailure.ServerUnavailable,
+        is PutioFailure.ApiRejected,
+        is PutioFailure.InvalidResponse,
+        is PutioFailure.Misconfigured,
+        is PutioFailure.Unexpected,
         -> R.string.tv_error_unavailable
     }

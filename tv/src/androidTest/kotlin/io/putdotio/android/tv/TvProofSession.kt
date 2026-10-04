@@ -5,18 +5,18 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.tv.material3.MaterialTheme
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.TvSessionShell
 import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesCopyId
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesDeleteMode
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
@@ -25,7 +25,6 @@ import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
-import io.putdotio.android.history.HistoryRepositoryResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
@@ -41,7 +40,6 @@ import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigRepository
-import io.putdotio.android.settings.AndroidAppConfigRepositoryResult
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.trash.TrashBulkSelection
 import io.putdotio.android.trash.TrashItem
@@ -79,15 +77,15 @@ internal fun tvProofDependencies(
     filesRepository = ProofFilesRepository(listings, continuations, pageDelayMillis),
     searchRepository = object : SearchRepository {
         override suspend fun search(term: SearchTerm) =
-            FilesRepositoryResult.Success(SearchPage(searchResults, null, total = searchResults.size))
+            PutioResult.Success(SearchPage(searchResults, null, total = searchResults.size))
 
         override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
     },
     historyRepository = object : HistoryRepository {
         override suspend fun load(before: HistoryEventId?) =
-            HistoryRepositoryResult.Success(HistoryPage(history, hasMore = false))
+            PutioResult.Success(HistoryPage(history, hasMore = false))
 
-        override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
+        override suspend fun clear() = PutioResult.Success(Unit)
     },
     trashRepository = ProofTrashRepository(trash),
     settingsRepository = object : AccountSettingsRepository {
@@ -107,15 +105,15 @@ internal fun tvProofDependencies(
             AccountSettingsRepositoryResult.Success(emptyList<TunnelRouteOption>())
     },
     appConfigRepository = object : AndroidAppConfigRepository {
-        override suspend fun load() = AndroidAppConfigRepositoryResult.Success(AndroidAppConfigPreferences())
+        override suspend fun load() = PutioResult.Success(AndroidAppConfigPreferences())
 
-        override suspend fun save(change: AndroidAppConfigChange) = AndroidAppConfigRepositoryResult.Success(Unit)
+        override suspend fun save(change: AndroidAppConfigChange) = PutioResult.Success(Unit)
     },
     watchedRepository = object : FilesWatchedRepository {
         override suspend fun setPosition(itemId: FilesItemId, seconds: Double) =
-            FilesRepositoryResult.Success(Unit)
+            PutioResult.Success(Unit)
 
-        override suspend fun clearPosition(itemId: FilesItemId) = FilesRepositoryResult.Success(Unit)
+        override suspend fun clearPosition(itemId: FilesItemId) = PutioResult.Success(Unit)
     },
     streamUrls = FilesStreamUrls { FilesStreamUrlResult.DownloadTokenUnavailable },
     filesItemResolver = object : FilesItemResolver {
@@ -178,27 +176,27 @@ internal class ProofFilesRepository(
     private val continuations: Map<FilesCursor, FilesPage> = emptyMap(),
     private val pageDelayMillis: Long = 0L,
 ) : FilesRepository {
-    override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
-        listings[folderId]?.let { FilesRepositoryResult.Success(it) }
-            ?: FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("No listing $folderId")))
+    override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
+        listings[folderId]?.let { PutioResult.Success(it) }
+            ?: PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("No listing $folderId")))
 
-    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+    override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> {
         val page = continuations[cursor] ?: error("One page")
         delay(pageDelayMillis)
-        return FilesRepositoryResult.Success(page)
+        return PutioResult.Success(page)
     }
 
     override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) = error("No moves")
 
     override suspend fun move(itemId: FilesItemId, destinationId: FilesItemId):
-        FilesRepositoryResult<List<FileMoveError>> = error("No moves")
+        PutioResult<List<FileMoveError>> = error("No moves")
 
     override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort) = error("No sorting")
 
     override suspend fun rename(itemId: FilesItemId, name: String) = error("No renames")
 
     override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode):
-        FilesRepositoryResult<FileDeleteResult> = error("No deletes")
+        PutioResult<FileDeleteResult> = error("No deletes")
 
     override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")
 
@@ -208,7 +206,7 @@ internal class ProofFilesRepository(
 }
 
 internal class ProofTrashRepository(private val items: List<TrashItem>) : TrashRepository {
-    override suspend fun load() = FilesRepositoryResult.Success(TrashPage(items, nextCursor = null))
+    override suspend fun load() = PutioResult.Success(TrashPage(items, nextCursor = null))
 
     override suspend fun loadNextPage(cursor: FilesCursor) = error("One page")
 

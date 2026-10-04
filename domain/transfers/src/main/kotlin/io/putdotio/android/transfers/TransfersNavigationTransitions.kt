@@ -1,6 +1,6 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.FilesFailure
 
 internal fun TransfersState.open(id: TransferId): TransfersTransition {
     val readInFlight = refresh is TransfersRefresh.Refreshing || content.isPaging

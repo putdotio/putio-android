@@ -119,7 +119,7 @@ class MobilePlaybackReportingTest {
         val fixture = ReportingFixture(
             backgroundScope,
             writeResult = PlaybackRepositoryResult.Failure(
-                PlaybackFailure.NetworkUnavailable(IllegalStateException("offline")),
+                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
             ),
             onAuthenticationRequired = { rejected += it },
         )
@@ -380,5 +380,6 @@ private val Preferences = AccountSettingsPreferences(
     autoSelectSubtitles = true,
     resumePlayback = true,
 )
-private val Failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
-private val AuthFailure = PlaybackFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+private val Failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
+private val AuthFailure =
+    PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected")))

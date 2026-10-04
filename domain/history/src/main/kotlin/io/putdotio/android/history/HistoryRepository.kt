@@ -1,23 +1,16 @@
 package io.putdotio.android.history
 
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.toFilesFailure
+import io.putdotio.android.PutioResult
+import io.putdotio.android.putioRequest
 import io.putdotio.sdk.PutioClient
-import io.putdotio.sdk.errors.PutioException
 import io.putdotio.sdk.history.HistoryEvent
 import io.putdotio.sdk.history.HistoryEventType
 import io.putdotio.sdk.history.HistoryListQuery
 import io.putdotio.sdk.history.HistoryListResponse
-import java.util.concurrent.CancellationException
-
-sealed interface HistoryRepositoryResult<out T> {
-    data class Success<T>(val value: T) : HistoryRepositoryResult<T>
-    data class Failure(val failure: FilesFailure) : HistoryRepositoryResult<Nothing>
-}
 
 interface HistoryRepository {
-    suspend fun load(before: HistoryEventId?): HistoryRepositoryResult<HistoryPage>
-    suspend fun clear(): HistoryRepositoryResult<Unit>
+    suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage>
+    suspend fun clear(): PutioResult<Unit>
 }
 
 class SdkHistoryRepository internal constructor(
@@ -29,25 +22,13 @@ class SdkHistoryRepository internal constructor(
         clearEvents = { client.history.clear() },
     )
 
-    override suspend fun load(before: HistoryEventId?): HistoryRepositoryResult<HistoryPage> =
-        request {
+    override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> =
+        putioRequest {
             val response = listEvents(HistoryListQuery(before = before?.value))
             HistoryPage(response.events.map(HistoryEvent::toHistoryItem), response.hasMore)
         }
 
-    override suspend fun clear(): HistoryRepositoryResult<Unit> = request { clearEvents() }
-
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun <T> request(block: suspend () -> T): HistoryRepositoryResult<T> =
-        try {
-            HistoryRepositoryResult.Success(block())
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: PutioException) {
-            HistoryRepositoryResult.Failure(error.toFilesFailure())
-        } catch (unexpected: Exception) {
-            HistoryRepositoryResult.Failure(FilesFailure.Unexpected(unexpected))
-        }
+    override suspend fun clear(): PutioResult<Unit> = putioRequest { clearEvents() }
 }
 
 private fun HistoryEvent.toHistoryItem(): HistoryItem =
@@ -91,23 +72,23 @@ private class FilteredHistoryRepository(
     private val source: HistoryRepository,
     private val keep: (HistoryEventKind) -> Boolean,
 ) : HistoryRepository {
-    override suspend fun load(before: HistoryEventId?): HistoryRepositoryResult<HistoryPage> {
+    override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
         var cursor = before
         while (true) {
             val page = when (val result = source.load(cursor)) {
-                is HistoryRepositoryResult.Success -> result.value
-                is HistoryRepositoryResult.Failure -> return result
+                is PutioResult.Success -> result.value
+                is PutioResult.Failure -> return result
             }
             val kept = page.items.filter { keep(it.kind) }
             val next = page.items.lastOrNull()?.id?.takeIf { page.hasMore && it.isOlderThan(cursor) }
             if (kept.isNotEmpty() || next == null) {
-                return HistoryRepositoryResult.Success(HistoryPage(kept, page.hasMore))
+                return PutioResult.Success(HistoryPage(kept, page.hasMore))
             }
             cursor = next
         }
     }
 
-    override suspend fun clear(): HistoryRepositoryResult<Unit> = source.clear()
+    override suspend fun clear(): PutioResult<Unit> = source.clear()
 }
 
 private fun HistoryEventId.isOlderThan(cursor: HistoryEventId?): Boolean = cursor == null || value < cursor.value

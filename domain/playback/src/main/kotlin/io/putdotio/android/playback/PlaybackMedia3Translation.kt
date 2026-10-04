@@ -7,6 +7,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.datasource.HttpDataSource
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitle
@@ -100,11 +101,11 @@ internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
         }
         current = current.cause
     }
-    return networkFailure?.let { PlaybackFailure.NetworkUnavailable(this) }
+    return networkFailure?.let { PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(this)) }
 }
 
 fun PlaybackException.toPlaybackFailure(): PlaybackFailure =
-    toMediaRequestFailureOrNull() ?: errorCodeFailureOrNull() ?: PlaybackFailure.Unexpected(this)
+    toMediaRequestFailureOrNull() ?: errorCodeFailureOrNull() ?: PlaybackFailure.Putio(PutioFailure.Unexpected(this))
 
 // An exception relayed through a MediaController keeps only its error code: the cause is
 // rebuilt from a class name and message, or replaced by a RemoteException, so the
@@ -119,7 +120,7 @@ private fun PlaybackException.errorCodeFailureOrNull(): PlaybackFailure? =
 
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
         PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
-        -> PlaybackFailure.NetworkUnavailable(this)
+        -> PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(this))
 
         in MEDIA_UNSUPPORTED_ERROR_CODES -> PlaybackFailure.MediaUnsupported(this)
 

@@ -1,15 +1,13 @@
 package io.putdotio.android.trash
 
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesRepositoryResult
-import io.putdotio.android.files.toFilesFailure
 import io.putdotio.android.files.toFilesItem
+import io.putdotio.android.putioRequest
 import io.putdotio.sdk.OkResponse
 import io.putdotio.sdk.PutioClient
-import io.putdotio.sdk.errors.PutioException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.files.FileDetailsQuery
@@ -18,16 +16,15 @@ import io.putdotio.sdk.trash.TrashBulkInput
 import io.putdotio.sdk.trash.TrashContinueQuery
 import io.putdotio.sdk.trash.TrashListQuery
 import io.putdotio.sdk.trash.TrashListResponse
-import java.util.concurrent.CancellationException
 
 interface TrashRepository {
-    suspend fun load(): FilesRepositoryResult<TrashPage>
-    suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<TrashPage>
-    suspend fun restore(itemId: FilesItemId): FilesRepositoryResult<Unit>
-    suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem>
-    suspend fun deleteItem(itemId: FilesItemId): FilesRepositoryResult<Unit>
-    suspend fun restoreAll(selection: TrashBulkSelection): FilesRepositoryResult<Unit>
-    suspend fun empty(): FilesRepositoryResult<Unit>
+    suspend fun load(): PutioResult<TrashPage>
+    suspend fun loadNextPage(cursor: FilesCursor): PutioResult<TrashPage>
+    suspend fun restore(itemId: FilesItemId): PutioResult<Unit>
+    suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
+    suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit>
+    suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit>
+    suspend fun empty(): PutioResult<Unit>
 }
 
 class SdkTrashRepository internal constructor(
@@ -47,51 +44,39 @@ class SdkTrashRepository internal constructor(
         emptyTrash = { client.trash.empty() },
     )
 
-    override suspend fun load(): FilesRepositoryResult<TrashPage> = request {
+    override suspend fun load(): PutioResult<TrashPage> = putioRequest {
         list(TrashListQuery(perPage = TRASH_PAGE_SIZE)).toPage(initial = true)
     }
 
-    override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<TrashPage> = request {
+    override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<TrashPage> = putioRequest {
         continueList(cursor.value, TrashContinueQuery(perPage = TRASH_PAGE_SIZE)).toPage(initial = false)
     }
 
-    override suspend fun restore(itemId: FilesItemId): FilesRepositoryResult<Unit> = request {
+    override suspend fun restore(itemId: FilesItemId): PutioResult<Unit> = putioRequest {
         // Zero and cursor inputs are bulk selections; this app operation owns exactly one item.
         require(itemId.value > 0L) { "Restore requires one positive item ID" }
         restoreItem(TrashBulkInput(ids = listOf(itemId.value)))
     }
 
-    override suspend fun deleteItem(itemId: FilesItemId): FilesRepositoryResult<Unit> = request {
+    override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> = putioRequest {
         require(itemId.value > 0L) { "Permanent deletion requires one positive item ID" }
         deleteItems(TrashBulkInput(ids = listOf(itemId.value)))
     }
 
-    override suspend fun restoreAll(selection: TrashBulkSelection): FilesRepositoryResult<Unit> = request {
+    override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> = putioRequest {
         require(selection.itemIds.all { it.value > 0L }) { "Restore all requires positive item IDs" }
         val input = selection.cursor?.let { TrashBulkInput(cursor = it.value) }
             ?: TrashBulkInput(ids = selection.itemIds.map(FilesItemId::value))
         restoreItem(input)
     }
 
-    override suspend fun empty(): FilesRepositoryResult<Unit> = request { emptyTrash() }
+    override suspend fun empty(): PutioResult<Unit> = putioRequest { emptyTrash() }
 
-    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> = request {
+    override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> = putioRequest {
         require(itemId.value > 0L) { "Restore lookup requires one positive item ID" }
         getFile(itemId.value, FileDetailsQuery(
             mp4Size = false, startFrom = false, streamUrl = false, mp4StreamUrl = false,
         )).toFilesItem()
-    }
-
-    // Preserve cancellation and the SDK's typed causes at the application boundary.
-    @Suppress("TooGenericExceptionCaught")
-    private suspend fun <T> request(block: suspend () -> T): FilesRepositoryResult<T> = try {
-        FilesRepositoryResult.Success(block())
-    } catch (cancelled: CancellationException) {
-        throw cancelled
-    } catch (failure: PutioException) {
-        FilesRepositoryResult.Failure(failure.toFilesFailure())
-    } catch (unexpected: Exception) {
-        FilesRepositoryResult.Failure(FilesFailure.Unexpected(unexpected))
     }
 }
 

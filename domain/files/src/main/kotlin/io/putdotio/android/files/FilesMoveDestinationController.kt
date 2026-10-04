@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import java.io.Closeable
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -97,12 +99,12 @@ class FilesMoveDestinationController private constructor(
     }
 
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun load(request: FilesMoveDestinationRequest): FilesRepositoryResult<FilesPage> = try {
+    private suspend fun load(request: FilesMoveDestinationRequest): PutioResult<FilesPage> = try {
         repository.loadMoveDestinations(request.folderId, request.cursor)
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (unexpected: Exception) {
-        FilesRepositoryResult.Failure(FilesFailure.Unexpected(unexpected))
+        PutioResult.Failure(PutioFailure.Unexpected(unexpected))
     }
 
     override fun close() {

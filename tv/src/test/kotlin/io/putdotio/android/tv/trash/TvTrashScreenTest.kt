@@ -19,9 +19,9 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.trash.TrashAction
 import io.putdotio.android.trash.TrashActionCheck
@@ -267,7 +267,7 @@ class TvTrashScreenTest {
     @Test
     fun aFailedReadFocusesTryAgainAndPagingLoadsMore() {
         var state by mutableStateOf(
-            TrashState(content = TrashContent.Error(FilesFailure.NetworkUnavailable(PutioConfigurationException("x")))),
+            TrashState(content = TrashContent.Error(PutioFailure.NetworkUnavailable(PutioConfigurationException("x")))),
         )
         show { state }
 

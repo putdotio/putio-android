@@ -52,7 +52,7 @@ import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
-import io.putdotio.android.settings.AndroidAppConfigFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigRequestId
 import io.putdotio.android.settings.VideoPlaybackType
@@ -312,7 +312,9 @@ class MobileAccountScreenTest {
                 accountSettingsState(
                     content =
                         AccountSettingsContent.Failed(
-                            AccountSettingsFailure.AccessDenied(PutioConfigurationException("restricted")),
+                            AccountSettingsFailure.Putio(
+                                PutioFailure.AccessDenied(PutioConfigurationException("restricted")),
+                            ),
                         ),
                     mutation = AccountSettingsMutation.Idle,
                     nextRequestValue = 2L,
@@ -332,9 +334,9 @@ class MobileAccountScreenTest {
                 accountSettingsState(
                     content =
                         AccountSettingsContent.Failed(
-                            AccountSettingsFailure.AuthenticationRequired(
+                            AccountSettingsFailure.Putio(PutioFailure.AuthenticationRequired(
                                 PutioConfigurationException("invalid token"),
-                            ),
+                            )),
                         ),
                     mutation = AccountSettingsMutation.Idle,
                     nextRequestValue = 2L,
@@ -351,7 +353,7 @@ class MobileAccountScreenTest {
     @Config(sdk = [35], qualifiers = "w360dp-h240dp")
     fun recoverableMutationFailureStaysVisibleWithoutDisablingRows() {
         val events = mutableListOf<AccountSettingsEvent>()
-        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         compose.setAccountContent(
             state =
                 readyAccountSettingsState(
@@ -392,9 +394,9 @@ class MobileAccountScreenTest {
     fun authoritativeMutationFailureDisablesRowsAndHidesRetry() {
         val events = mutableListOf<AccountSettingsEvent>()
         val failure =
-            AccountSettingsFailure.AuthenticationRequired(
+            AccountSettingsFailure.Putio(PutioFailure.AuthenticationRequired(
                 PutioConfigurationException("invalid token"),
-            )
+            ))
         compose.setAccountContent(
             state =
                 readyAccountSettingsState(
@@ -421,7 +423,7 @@ class MobileAccountScreenTest {
     @Test
     fun refreshFailureUsesConfirmationCopyAndRetriesTheRefresh() {
         val events = mutableListOf<AccountSettingsEvent>()
-        val failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline"))
+        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         compose.setAccountContent(
             state =
                 readyAccountSettingsState(
@@ -508,7 +510,7 @@ class MobileAccountScreenTest {
                 preferences = DefaultAccountSettingsPreferences,
                 mutation = AccountSettingsMutation.Failed(
                     change = AccountSettingsChange.Sort(FilesSort.SIZE_DESCENDING),
-                    failure = AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                    failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
                     previousPreferences = DefaultAccountSettingsPreferences,
                     operation = AccountSettingsMutation.Operation.Save,
                 ),
@@ -602,7 +604,7 @@ class MobileAccountPlaybackSettingsTest {
                 androidAppConfigState(
                     content =
                         AndroidAppConfigContent.Failed(
-                            AndroidAppConfigFailure.AccessDenied(
+                            PutioFailure.AccessDenied(
                                 PutioConfigurationException("restricted"),
                             ),
                         ),
@@ -631,7 +633,7 @@ class MobileAccountPlaybackSettingsTest {
         val change = AndroidAppConfigChange.AutoplayNextVideo(enabled = true)
         val saveFailure = AndroidAppConfigMutation.Failed(
             change = change,
-            failure = AndroidAppConfigFailure.Unexpected(IllegalStateException("offline")),
+            failure = PutioFailure.Unexpected(IllegalStateException("offline")),
             previousPreferences = DefaultAndroidAppConfigPreferences,
             operation = AndroidAppConfigMutation.Operation.Save,
         )
@@ -674,7 +676,7 @@ class MobileAccountPlaybackSettingsTest {
                     mutation =
                         saveFailure.copy(
                             failure =
-                                AndroidAppConfigFailure.AuthenticationRequired(
+                                PutioFailure.AuthenticationRequired(
                                     PutioConfigurationException("invalid token"),
                                 ),
                         ),
@@ -696,7 +698,7 @@ class MobileAccountPlaybackSettingsTest {
                     attempts += 1
                     if (attempts == 1) {
                         AccountSettingsRepositoryResult.Failure(
-                            AccountSettingsFailure.Unexpected(IllegalStateException("offline")),
+                            AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
                         )
                     } else {
                         AccountSettingsRepositoryResult.Success(

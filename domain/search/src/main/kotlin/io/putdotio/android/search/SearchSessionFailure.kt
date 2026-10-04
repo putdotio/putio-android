@@ -1,9 +1,9 @@
 package io.putdotio.android.search
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
 
 /** A 401 from a search request; a session verdict that outranks every other failure. */
-fun SearchState.authoritativeSessionFailure(): FilesFailure? =
+fun SearchState.authoritativeSessionFailure(): PutioFailure? =
     when (val value = content) {
         is SearchContent.Failed -> value.failure
         is SearchContent.Empty -> (value.paging as? SearchPaging.Failed)?.failure
@@ -12,4 +12,4 @@ fun SearchState.authoritativeSessionFailure(): FilesFailure? =
         is SearchContent.Debouncing,
         is SearchContent.Loading,
         -> null
-    }?.takeIf { it is FilesFailure.AuthenticationRequired }
+    }?.takeIf { it is PutioFailure.AuthenticationRequired }

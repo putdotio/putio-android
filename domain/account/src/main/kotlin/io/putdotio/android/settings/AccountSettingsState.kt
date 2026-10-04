@@ -1,5 +1,6 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesSort
 
 @JvmInline
@@ -225,12 +226,11 @@ object AccountSettingsReducer {
         }
 }
 
-fun AccountSettingsState.authoritativeSessionFailure(): AccountSettingsFailure.AuthenticationRequired? =
+fun AccountSettingsState.authoritativeSessionFailure(): AccountSettingsFailure? =
     listOfNotNull(
         (content as? AccountSettingsContent.Failed)?.failure,
         (mutation as? AccountSettingsMutation.Failed)?.failure,
-    ).filterIsInstance<AccountSettingsFailure.AuthenticationRequired>()
-        .firstOrNull()
+    ).firstOrNull { it.putioFailure is PutioFailure.AuthenticationRequired }
 
 fun AccountSettingsState.confirmedHistoryEnabled(): Boolean? =
     confirmedPreferences(AccountSettingsKey.History)?.historyEnabled

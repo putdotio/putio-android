@@ -1,5 +1,6 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.PutioFailure
 import java.io.Closeable
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -94,11 +95,11 @@ class AndroidAppConfigController(
 private fun AndroidAppConfigEffect.unexpectedFailure(error: Exception): AndroidAppConfigEvent =
     when (this) {
         is AndroidAppConfigEffect.Load ->
-            AndroidAppConfigEvent.LoadFailed(requestId, AndroidAppConfigFailure.Unexpected(error))
+            AndroidAppConfigEvent.LoadFailed(requestId, PutioFailure.Unexpected(error))
         is AndroidAppConfigEffect.Save ->
-            AndroidAppConfigEvent.SaveFailed(requestId, AndroidAppConfigFailure.Unexpected(error))
+            AndroidAppConfigEvent.SaveFailed(requestId, PutioFailure.Unexpected(error))
         is AndroidAppConfigEffect.Refresh ->
-            AndroidAppConfigEvent.RefreshFailed(requestId, AndroidAppConfigFailure.Unexpected(error))
+            AndroidAppConfigEvent.RefreshFailed(requestId, PutioFailure.Unexpected(error))
     }
 
 private fun AndroidAppConfigState.hasRequest(requestId: AndroidAppConfigRequestId): Boolean =

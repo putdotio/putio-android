@@ -1,5 +1,8 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+import io.putdotio.android.toPutioFailure
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
@@ -61,9 +64,9 @@ class FilesDeleteReducerTest {
             checkNotNull(paging.effect).requestId, FilesPage(listOf(file(8L)), null),
         )).consumed)
         assertFalse(FilesBrowserReducer.reduce(checking.state, FilesBrowserEvent.DeleteFinished(
-            checkNotNull(deleting.effect).requestId, FilesRepositoryResult.Success(accepted),
+            checkNotNull(deleting.effect).requestId, PutioResult.Success(accepted),
         )).consumed)
-        val reloading = checked(checking, FilesRepositoryResult.Success(item))
+        val reloading = checked(checking, PutioResult.Success(item))
         val finished = finishReload(reloading, listOf(file(8L)))
         assertEquals(FilesDeleteStatus.STILL_PRESENT, finished.current.deleteOutcome?.status)
         assertEquals(listOf(file(8L)), finished.current.content.items())
@@ -75,7 +78,7 @@ class FilesDeleteReducerTest {
     @Test
     fun onlyStructuredNotFoundEstablishesUnavailableAndReloadFailureRetriesOnlyFolderRead() {
         val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
-        val reloading = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
+        val reloading = checked(checking, PutioResult.Failure(apiFailure(404)))
         assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, reloading.state.current.deleteOutcome?.status)
         val failed = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadFailed(
             checkNotNull(reloading.effect).requestId, unexpected("offline reload"),
@@ -96,7 +99,7 @@ class FilesDeleteReducerTest {
         assertFalse(
             FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteOutcomeAnnounced(pending)).consumed,
         )
-        val finished = finishReload(checked(acknowledge(deleting), FilesRepositoryResult.Failure(apiFailure(404))),
+        val finished = finishReload(checked(acknowledge(deleting), PutioResult.Failure(apiFailure(404))),
             emptyList())
         val outcome = checkNotNull(finished.current.deleteOutcome)
         assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, outcome.status)
@@ -118,7 +121,7 @@ class FilesDeleteReducerTest {
     @Test
     fun anAnnouncedNotFoundResultIsStillCorrectedByALaterPage() {
         val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
-        val reloading = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
+        val reloading = checked(checking, PutioResult.Failure(apiFailure(404)))
         val firstPage = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadSucceeded(
             checkNotNull(reloading.effect).requestId, FilesPage(listOf(file(8L)), FilesCursor("after-delete")),
         )).state
@@ -139,7 +142,7 @@ class FilesDeleteReducerTest {
     @Test
     fun laterFolderPresenceCorrectsAnEarlierNotFoundResultWithoutRetryingDelete() {
         val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
-        val reloading = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
+        val reloading = checked(checking, PutioResult.Failure(apiFailure(404)))
         assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, reloading.state.current.deleteOutcome?.status)
         val finished = finishReload(reloading)
         val outcome = checkNotNull(finished.current.deleteOutcome)
@@ -153,7 +156,7 @@ class FilesDeleteReducerTest {
     @Test
     fun laterPagePresenceCorrectsAnEarlierNotFoundResultWithoutRetryingDelete() {
         val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
-        val reloading = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
+        val reloading = checked(checking, PutioResult.Failure(apiFailure(404)))
         val firstPage = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadSucceeded(
             checkNotNull(reloading.effect).requestId, FilesPage(listOf(file(8L)), FilesCursor("after-delete")),
         )).state
@@ -189,7 +192,7 @@ class FilesDeleteReducerTest {
         assertTrue(checking.effect is FilesBrowserEffect.CheckDelete)
         assertSame(originalFailure, checking.state.current.deleteOutcome?.failure)
         for (failure in listOf(apiFailure(401), apiFailure(403), unexpected("offline read"))) {
-            val failed = checked(checking, FilesRepositoryResult.Failure(failure)).state
+            val failed = checked(checking, PutioResult.Failure(failure)).state
             assertEquals(FilesDeleteStatus.UNKNOWN, failed.current.deleteOutcome?.status)
             assertSame(failure, (failed.current.operation as FilesFolderOperation.Failed).failure)
             assertSame(originalFailure, failed.current.deleteOutcome?.failure)
@@ -197,7 +200,7 @@ class FilesDeleteReducerTest {
             assertFalse(FilesBrowserReducer.reduce(failed, FilesBrowserEvent.OpenFolder(item.id)).consumed)
             val retry = FilesBrowserReducer.reduce(failed, FilesBrowserEvent.Retry)
             assertTrue(retry.effect is FilesBrowserEffect.CheckDelete)
-            val reloading = checked(retry, FilesRepositoryResult.Success(item))
+            val reloading = checked(retry, PutioResult.Success(item))
             assertEquals(FilesDeleteStatus.STILL_PRESENT, finishReload(reloading).current.deleteOutcome?.status)
         }
     }
@@ -206,7 +209,7 @@ class FilesDeleteReducerTest {
     fun skippedOutcomeRetainsCursorAndCountThroughAuthoritativeReloadWithoutFallback() {
         val response = FileDeleteResult(cursor = "skipped-folder", skipped = 1, status = "OK")
         val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event), response)
-        val reloading = checked(checking, FilesRepositoryResult.Success(item))
+        val reloading = checked(checking, PutioResult.Success(item))
         val finished = finishReload(reloading)
         val outcome = checkNotNull(finished.current.deleteOutcome)
         assertEquals(FilesDeleteStatus.SKIPPED, outcome.status)
@@ -221,9 +224,9 @@ class FilesDeleteReducerTest {
         val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
         val failure = apiFailure(400, "FileDeleteChildrenLimitError")
         val checking = FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteFinished(
-            checkNotNull(deleting.effect).requestId, FilesRepositoryResult.Failure(failure),
+            checkNotNull(deleting.effect).requestId, PutioResult.Failure(failure),
         ))
-        val finished = finishReload(checked(checking, FilesRepositoryResult.Success(item)))
+        val finished = finishReload(checked(checking, PutioResult.Success(item)))
         assertSame(failure, finished.current.deleteOutcome?.failure)
         assertEquals(FilesDeleteStatus.TOO_LARGE_FOR_TRASH, finished.current.deleteOutcome?.status)
         assertEquals(listOf(item), finished.current.content.items())
@@ -235,7 +238,7 @@ class FilesDeleteReducerTest {
         assertEquals(FilesDeleteMode.PERMANENT, (permanent.effect as FilesBrowserEffect.Delete).mode)
         assertEquals(FilesDeleteStatus.CHECKING, permanent.state.current.deleteOutcome?.status)
         val removed = finishReload(
-            checked(acknowledge(permanent), FilesRepositoryResult.Failure(apiFailure(404))), emptyList(),
+            checked(acknowledge(permanent), PutioResult.Failure(apiFailure(404))), emptyList(),
         )
         assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, removed.current.deleteOutcome?.status)
     }
@@ -245,35 +248,35 @@ class FilesDeleteReducerTest {
         for (failure in listOf(apiFailure(400, "FileDeleteParentLimitError"), apiFailure(400))) {
             val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
             val checking = FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteFinished(
-                checkNotNull(deleting.effect).requestId, FilesRepositoryResult.Failure(failure),
+                checkNotNull(deleting.effect).requestId, PutioResult.Failure(failure),
             ))
-            val finished = finishReload(checked(checking, FilesRepositoryResult.Success(item)))
+            val finished = finishReload(checked(checking, PutioResult.Success(item)))
             assertEquals(FilesDeleteStatus.STILL_PRESENT, finished.current.deleteOutcome?.status)
         }
         val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
         val checking = FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteFinished(
             checkNotNull(deleting.effect).requestId,
-            FilesRepositoryResult.Failure(apiFailure(400, "FileDeleteChildrenLimitError")),
+            PutioResult.Failure(apiFailure(400, "FileDeleteChildrenLimitError")),
         ))
-        val gone = checked(checking, FilesRepositoryResult.Failure(apiFailure(404)))
+        val gone = checked(checking, PutioResult.Failure(apiFailure(404)))
         assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, gone.state.current.deleteOutcome?.status)
 
         // The limit only explains a Trash refusal; a permanent request refused the same way is still present.
         val permanent = FilesBrowserReducer.reduce(loadedRoot(), event.copy(mode = FilesDeleteMode.PERMANENT))
         val permanentChecking = FilesBrowserReducer.reduce(permanent.state, FilesBrowserEvent.DeleteFinished(
             checkNotNull(permanent.effect).requestId,
-            FilesRepositoryResult.Failure(apiFailure(400, "FileDeleteChildrenLimitError")),
+            PutioResult.Failure(apiFailure(400, "FileDeleteChildrenLimitError")),
         ))
-        val permanentFinished = finishReload(checked(permanentChecking, FilesRepositoryResult.Success(item)))
+        val permanentFinished = finishReload(checked(permanentChecking, PutioResult.Success(item)))
         assertEquals(FilesDeleteStatus.STILL_PRESENT, permanentFinished.current.deleteOutcome?.status)
     }
 
     @Test
     fun wrongResolvedIdAndUnexpectedReadThrowCannotCompleteTheDeletion() {
         val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
-        val failed = checked(checking, FilesRepositoryResult.Success(file(8L))).state
+        val failed = checked(checking, PutioResult.Success(file(8L))).state
         assertEquals(FilesDeleteStatus.UNKNOWN, failed.current.deleteOutcome?.status)
-        assertTrue((failed.current.operation as FilesFolderOperation.Failed).failure is FilesFailure.Unexpected)
+        assertTrue((failed.current.operation as FilesFolderOperation.Failed).failure is PutioFailure.Unexpected)
         val thrown = FilesBrowserReducer.reduce(checking.state, FilesBrowserEvent.LoadFailed(
             checkNotNull(checking.effect).requestId, unexpected("reader threw"),
         )).state
@@ -285,7 +288,7 @@ class FilesDeleteReducerTest {
     fun serverFailureClaimingNotFoundCannotEstablishItemAbsence() {
         val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), event))
         val failure = apiFailure(404, httpStatusCode = 500)
-        val failed = checked(checking, FilesRepositoryResult.Failure(failure)).state
+        val failed = checked(checking, PutioResult.Failure(failure)).state
         assertEquals(FilesDeleteStatus.UNKNOWN, failed.current.deleteOutcome?.status)
         assertSame(failure, (failed.current.operation as FilesFolderOperation.Failed).failure)
         assertEquals(listOf(item), failed.current.content.items())
@@ -297,7 +300,7 @@ class FilesDeleteReducerTest {
         val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
         val failure = apiFailure(401)
         val rejected = FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteFinished(
-            checkNotNull(deleting.effect).requestId, FilesRepositoryResult.Failure(failure),
+            checkNotNull(deleting.effect).requestId, PutioResult.Failure(failure),
         ))
         assertNull(rejected.effect)
         assertSame(failure, (rejected.state.current.operation as FilesFolderOperation.Failed).failure)
@@ -311,8 +314,8 @@ class FilesDeleteReducerTest {
         )).state
         val childDelete = FilesBrowserReducer.reduce(child, event.copy(folderId = item.id, itemId = FilesItemId(8L)))
         val checking = acknowledge(childDelete)
-        val checkFailed = checked(checking, FilesRepositoryResult.Failure(unexpected("offline")))
-        val reloading = checked(checking, FilesRepositoryResult.Success(file(8L)))
+        val checkFailed = checked(checking, PutioResult.Failure(unexpected("offline")))
+        val reloading = checked(checking, PutioResult.Success(file(8L)))
         val reloadFailed = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadFailed(
             checkNotNull(reloading.effect).requestId, unexpected("reload offline"),
         ))
@@ -331,7 +334,7 @@ class FilesDeleteReducerTest {
         }
         val retry = FilesBrowserReducer.reduce(checkFailed.state, FilesBrowserEvent.Retry)
         assertTrue(retry.effect is FilesBrowserEffect.CheckDelete)
-        val finished = finishReload(checked(retry, FilesRepositoryResult.Success(file(8L))))
+        val finished = finishReload(checked(retry, PutioResult.Success(file(8L))))
         navigation.forEach { assertTrue(FilesBrowserReducer.reduce(finished, it).consumed) }
     }
 
@@ -340,12 +343,12 @@ class FilesDeleteReducerTest {
         response: FileDeleteResult = accepted,
     ): FilesBrowserTransition =
         FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.DeleteFinished(
-            checkNotNull(deleting.effect).requestId, FilesRepositoryResult.Success(response),
+            checkNotNull(deleting.effect).requestId, PutioResult.Success(response),
         ))
 
     private fun checked(
         checking: FilesBrowserTransition,
-        result: FilesRepositoryResult<FilesItem>,
+        result: PutioResult<FilesItem>,
     ): FilesBrowserTransition = FilesBrowserReducer.reduce(
         checking.state, FilesBrowserEvent.DeleteChecked(checkNotNull(checking.effect).requestId, result),
     )
@@ -367,15 +370,15 @@ class FilesDeleteReducerTest {
 
     private fun file(id: Long) =
         FilesItem(FilesItemId(id), FilesItemId(0L), "folder-$id", PutioFileType.FOLDER, 1L, "2026-09-06")
-    private fun unexpected(message: String) = FilesFailure.Unexpected(IllegalStateException(message))
+    private fun unexpected(message: String) = PutioFailure.Unexpected(IllegalStateException(message))
     private fun apiFailure(
         code: Int,
         type: String? = null,
         httpStatusCode: Int = code,
-    ): FilesFailure = PutioApiException(
+    ): PutioFailure = PutioApiException(
         request = PutioRequestData("GET", "https://api.put.io/v2/files/7"),
         resolvedStatusCode = code, httpStatusCode = httpStatusCode, resolvedErrorType = type,
         envelope = PutioApiErrorEnvelope(statusCode = code, errorType = type),
         responseBody = "{}", message = "Rejected",
-    ).toFilesFailure()
+    ).toPutioFailure()
 }

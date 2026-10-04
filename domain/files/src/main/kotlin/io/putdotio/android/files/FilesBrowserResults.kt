@@ -1,5 +1,8 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
+
 internal fun FilesBrowserState.loadSucceeded(event: FilesBrowserEvent.LoadSucceeded): FilesBrowserTransition {
     val index = stack.indexOfFirst { it.hasRequest(event.requestId) }
     val folder = stack.getOrNull(index)
@@ -19,11 +22,11 @@ internal fun FilesBrowserState.loadFailed(event: FilesBrowserEvent.LoadFailed): 
     val operation = stack.getOrNull(index)?.operation as? FilesFolderOperation.Loading
     return when {
         operation?.intent is FilesFolderOperationIntent.Move && operation.phase == FilesFolderOperationPhase.MOVING ->
-            moveFinished(FilesBrowserEvent.MoveFinished(event.requestId, FilesRepositoryResult.Failure(event.failure)))
+            moveFinished(FilesBrowserEvent.MoveFinished(event.requestId, PutioResult.Failure(event.failure)))
         operation?.intent is FilesFolderOperationIntent.Delete &&
             operation.phase == FilesFolderOperationPhase.DELETING ->
             deleteFinished(FilesBrowserEvent.DeleteFinished(
-                event.requestId, FilesRepositoryResult.Failure(event.failure),
+                event.requestId, PutioResult.Failure(event.failure),
             ))
         else -> {
             val updated = stack.getOrNull(index)?.loadFailed(event.requestId, event.failure)
@@ -96,7 +99,7 @@ private fun FilesFolderState.appendPage(
 
 private fun FilesFolderState.loadFailed(
     requestId: FilesRequestId,
-    failure: FilesFailure,
+    failure: PutioFailure,
 ): FilesFolderState? =
     if (operation.requestId() == requestId) {
         val loading = operation as FilesFolderOperation.Loading

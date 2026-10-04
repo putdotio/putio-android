@@ -27,7 +27,6 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderState
@@ -39,7 +38,6 @@ import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.files.FilesMoveStatus
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MOBILE_FILES_MOVE_BACK_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_CANCEL_TAG
 import io.putdotio.android.files.MOBILE_FILES_MOVE_HERE_TAG
@@ -141,7 +139,7 @@ class FilesMoveRecoveryUiProofTest {
             val request = checkNotNull(preview.pickerRequest)
             assertEquals(FilesFolder.Root.id, request.folderId)
             assertNull(request.cursor)
-            preview.picker = preview.picker.complete(request, FilesRepositoryResult.Success(
+            preview.picker = preview.picker.complete(request, PutioResult.Success(
                 FilesPage(listOf(preview.source), FilesCursor("synthetic-page-two")),
             )).state
         }
@@ -151,7 +149,7 @@ class FilesMoveRecoveryUiProofTest {
             val request = checkNotNull(preview.pickerRequest)
             assertEquals(FilesCursor("synthetic-page-two"), request.cursor)
             preview.picker = preview.picker.complete(request,
-                FilesRepositoryResult.Success(FilesPage(listOf(destination), null))).state
+                PutioResult.Success(FilesPage(listOf(destination), null))).state
         }
         assertCurrentParentAndSelfAreDisabled(preview)
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).performClick()
@@ -159,7 +157,7 @@ class FilesMoveRecoveryUiProofTest {
             val request = checkNotNull(preview.pickerRequest)
             assertEquals(destination.id, request.folderId)
             preview.picker = preview.picker.complete(request,
-                FilesRepositoryResult.Success(FilesPage(emptyList(), null))).state
+                PutioResult.Success(FilesPage(emptyList(), null))).state
         }
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         compose.onNodeWithText(context.getString(R.string.mobile_files_move_empty)).assertIsDisplayed()
@@ -178,7 +176,7 @@ class FilesMoveRecoveryUiProofTest {
             val request = checkNotNull(preview.pickerRequest)
             assertEquals(preview.folder.id, request.folderId)
             preview.picker = preview.picker.complete(request,
-                FilesRepositoryResult.Success(FilesPage(listOf(preview.item), null))).state
+                PutioResult.Success(FilesPage(listOf(preview.item), null))).state
         }
         compose.onNodeWithTag(mobileFilesMoveFolderTag(preview.item.id)).assertIsNotEnabled()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsNotEnabled()
@@ -216,14 +214,14 @@ private class MoveRecoveryPreview {
     fun startUnknownMove() {
         dispatch(FilesBrowserEvent.Move(folder.id, item.id, FilesFolder.Root.id))
         dispatch(FilesBrowserEvent.MoveFinished((effects.last() as FilesBrowserEffect.Move).requestId,
-            FilesRepositoryResult.Failure(offline())))
+            PutioResult.Failure(offline())))
         dispatch(FilesBrowserEvent.MoveChecked((effects.last() as FilesBrowserEffect.CheckMove).requestId,
-            FilesRepositoryResult.Failure(offline())))
+            PutioResult.Failure(offline())))
         assertEquals(FilesMoveStatus.UNKNOWN, state.current.moveOutcome?.status)
     }
     fun confirmLocationAndFailReload() {
         dispatch(FilesBrowserEvent.MoveChecked((effects.last() as FilesBrowserEffect.CheckMove).requestId,
-            FilesRepositoryResult.Success(item.copy(parentId = FilesFolder.Root.id))))
+            PutioResult.Success(item.copy(parentId = FilesFolder.Root.id))))
         val read = effects.last() as FilesBrowserEffect.LoadFolder
         assertEquals(folder.id, read.folderId)
         dispatch(FilesBrowserEvent.LoadFailed(read.requestId, offline()))
@@ -243,5 +241,5 @@ private class MoveRecoveryPreview {
         assertEquals(2, effects.count { it is FilesBrowserEffect.CheckMove })
         assertEquals(3, effects.count { it is FilesBrowserEffect.LoadFolder })
     }
-    private fun offline() = FilesFailure.Unexpected(IllegalStateException("Synthetic offline request"))
+    private fun offline() = PutioFailure.Unexpected(IllegalStateException("Synthetic offline request"))
 }

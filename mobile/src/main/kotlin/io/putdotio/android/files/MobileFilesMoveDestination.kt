@@ -37,6 +37,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.sdk.files.PutioFileType
@@ -212,8 +213,8 @@ private fun MobileMovePaging(paging: FilesPaging, onEvent: (FilesMoveDestination
 }
 
 @Composable
-private fun FilesFailure.moveDestinationMessage(): String = when {
-    this is FilesFailure.AccessDenied || this is FilesFailure.ApiRejected && statusCode == HTTP_NOT_FOUND ->
+private fun PutioFailure.moveDestinationMessage(): String = when {
+    this is PutioFailure.AccessDenied || this is PutioFailure.ApiRejected && statusCode == HTTP_NOT_FOUND ->
         stringResource(R.string.mobile_files_move_destination_unavailable)
     else -> mobileMessage()
 }

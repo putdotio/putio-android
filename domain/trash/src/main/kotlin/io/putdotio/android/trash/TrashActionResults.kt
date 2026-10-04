@@ -1,16 +1,16 @@
 package io.putdotio.android.trash
 
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.android.parsePutioTimestamp
 
 internal fun TrashMachine.completeAction(
     completed: TrashRequest.Act,
-    result: FilesRepositoryResult<Unit>,
+    result: PutioResult<Unit>,
 ): TrashMachine {
     val outcome = state.actionOutcome
     if (request != completed || outcome == null) return this
-    val failure = (result as? FilesRepositoryResult.Failure)?.failure
+    val failure = (result as? PutioResult.Failure)?.failure
     val submission = when {
         failure == null -> TrashActionSubmission.ACKNOWLEDGED
         failure.isKnownActionRejection() -> TrashActionSubmission.REJECTED
@@ -64,15 +64,15 @@ private fun TrashActionOutcome.verifyRestoreAll(page: TrashContent.Loaded): Tras
     }
 }
 
-internal fun TrashMachine.failActionVerification(failure: FilesFailure): TrashMachine {
+internal fun TrashMachine.failActionVerification(failure: PutioFailure): TrashMachine {
     val outcome = state.actionOutcome?.takeIf { it.check == TrashActionCheck.CHECKING } ?: return this
     val failed = outcome.copy(check = TrashActionCheck.FAILED, checkFailure = failure)
     return copy(state = state.copy(actionOutcome = failed))
 }
 
-private fun FilesFailure.isKnownActionRejection(): Boolean =
-    authFailure() != null || this is FilesFailure.AccessDenied || this is FilesFailure.RateLimited ||
-        (this is FilesFailure.ApiRejected && httpStatusCode == statusCode &&
+private fun PutioFailure.isKnownActionRejection(): Boolean =
+    authFailure() != null || this is PutioFailure.AccessDenied || this is PutioFailure.RateLimited ||
+        (this is PutioFailure.ApiRejected && httpStatusCode == statusCode &&
             (statusCode == HTTP_BAD_REQUEST || statusCode == HTTP_NOT_FOUND))
 
 private const val HTTP_BAD_REQUEST = 400

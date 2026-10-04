@@ -1,5 +1,7 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
@@ -40,17 +42,17 @@ class FilesMoveReducerTest {
     fun acknowledgementRequiresExactDestinationAndRetainsAllPerItemErrors() {
         val unexpectedError = FileMoveError("FUTURE_ERROR", 99L, null, 409)
         for (errors in listOf(emptyList(), listOf(unexpectedError))) {
-            val checking = finishPost(FilesRepositoryResult.Success(errors))
+            val checking = finishPost(PutioResult.Success(errors))
             assertTrue(checking.effect is FilesBrowserEffect.CheckMove)
             assertEquals(listOf(item), checking.state.current.content.items())
-            val reloading = check(checking, FilesRepositoryResult.Success(item.copy(parentId = move.destinationId)))
+            val reloading = check(checking, PutioResult.Success(item.copy(parentId = move.destinationId)))
             val finished = reload(reloading, FilesPage(emptyList(), null))
             val outcome = checkNotNull(finished.current.moveOutcome)
             assertEquals(if (errors.isEmpty()) FilesMoveStatus.MOVED else FilesMoveStatus.REJECTED, outcome.status)
             assertEquals(errors, outcome.errors)
             assertEquals(FilesFolderOperation.Idle, finished.current.operation)
         }
-        val anotherParent = check(finishPost(), FilesRepositoryResult.Success(item.copy(parentId = FilesItemId(12L))))
+        val anotherParent = check(finishPost(), PutioResult.Success(item.copy(parentId = FilesItemId(12L))))
         assertEquals(
             FilesMoveStatus.STILL_PRESENT,
             reload(anotherParent, FilesPage(emptyList(), null)).current.moveOutcome?.status,
@@ -60,12 +62,12 @@ class FilesMoveReducerTest {
     @Test
     fun uncertainPostAndMissingOrMalformedReadbackOnlyRetryTheExactRead() {
         val originalFailure = failure("connection lost after submission")
-        val checking = finishPost(FilesRepositoryResult.Failure(originalFailure))
+        val checking = finishPost(PutioResult.Failure(originalFailure))
         val invalidReads = listOf(
-            FilesRepositoryResult.Failure(notFound()),
-            FilesRepositoryResult.Failure(failure("offline read")),
-            FilesRepositoryResult.Success(file(999L).copy(parentId = move.destinationId)),
-            FilesRepositoryResult.Success(item.copy(parentId = null)),
+            PutioResult.Failure(notFound()),
+            PutioResult.Failure(failure("offline read")),
+            PutioResult.Success(file(999L).copy(parentId = move.destinationId)),
+            PutioResult.Success(item.copy(parentId = null)),
         )
         invalidReads.forEach { result ->
             val failed = check(checking, result).state
@@ -75,7 +77,7 @@ class FilesMoveReducerTest {
             assertFalse(FilesBrowserReducer.reduce(failed, move).consumed)
             val retry = FilesBrowserReducer.reduce(failed, FilesBrowserEvent.Retry)
             assertEquals(item.id, (retry.effect as FilesBrowserEffect.CheckMove).itemId)
-            val recovered = check(retry, FilesRepositoryResult.Success(item.copy(parentId = move.destinationId)))
+            val recovered = check(retry, PutioResult.Success(item.copy(parentId = move.destinationId)))
             assertEquals(
                 FilesMoveStatus.MOVED,
                 reload(recovered, FilesPage(emptyList(), null)).current.moveOutcome?.status,
@@ -86,12 +88,12 @@ class FilesMoveReducerTest {
     @Test
     fun failedReadPreservesReportedErrorsAndReloadRetryDoesNotRepeatPost() {
         val errors = listOf(FileMoveError("NAME_ALREADY_EXIST", item.id.value, item.name, 400))
-        val checking = finishPost(FilesRepositoryResult.Success(errors))
-        val failedRead = check(checking, FilesRepositoryResult.Failure(failure("offline"))).state
+        val checking = finishPost(PutioResult.Success(errors))
+        val failedRead = check(checking, PutioResult.Failure(failure("offline"))).state
         assertEquals(FilesMoveStatus.REJECTED, failedRead.current.moveOutcome?.status)
         assertEquals(errors, failedRead.current.moveOutcome?.errors)
         val reloading = check(
-            FilesBrowserReducer.reduce(failedRead, FilesBrowserEvent.Retry), FilesRepositoryResult.Success(item),
+            FilesBrowserReducer.reduce(failedRead, FilesBrowserEvent.Retry), PutioResult.Success(item),
         )
         val failedReload = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadFailed(
             checkNotNull(reloading.effect).requestId, failure("reload offline"),
@@ -111,9 +113,9 @@ class FilesMoveReducerTest {
         val child = reload(opening, FilesPage(listOf(item.copy(parentId = source.id), file(8L)), null))
         val moving = FilesBrowserReducer.reduce(child, move.copy(folderId = source.id))
         val checking = FilesBrowserReducer.reduce(moving.state, FilesBrowserEvent.MoveFinished(
-            checkNotNull(moving.effect).requestId, FilesRepositoryResult.Success(emptyList()),
+            checkNotNull(moving.effect).requestId, PutioResult.Success(emptyList()),
         ))
-        val failed = check(checking, FilesRepositoryResult.Failure(failure("offline"))).state
+        val failed = check(checking, PutioResult.Failure(failure("offline"))).state
         for (state in listOf(moving.state, checking.state, failed)) {
             val navigation = listOf(
                 FilesBrowserEvent.NavigateBack, FilesBrowserEvent.OpenFolder(FilesItemId(8L)),
@@ -141,9 +143,9 @@ class FilesMoveReducerTest {
             child, move.copy(folderId = source.id, destinationId = FilesFolder.Root.id),
         )
         val checking = FilesBrowserReducer.reduce(moving.state, FilesBrowserEvent.MoveFinished(
-            checkNotNull(moving.effect).requestId, FilesRepositoryResult.Success(emptyList()),
+            checkNotNull(moving.effect).requestId, PutioResult.Success(emptyList()),
         ))
-        val reloading = check(checking, FilesRepositoryResult.Success(item.copy(parentId = FilesFolder.Root.id)))
+        val reloading = check(checking, PutioResult.Success(item.copy(parentId = FilesFolder.Root.id)))
         val finished = reload(reloading, FilesPage(emptyList(), null))
         val back = FilesBrowserReducer.reduce(finished, FilesBrowserEvent.NavigateBack)
         assertEquals(FilesFolder.Root.id, (back.effect as FilesBrowserEffect.LoadFolder).folderId)
@@ -155,7 +157,7 @@ class FilesMoveReducerTest {
 
     @Test
     fun sourcePresenceOnALaterPageCorrectsTheEarlierDestinationRead() {
-        val reloading = check(finishPost(), FilesRepositoryResult.Success(item.copy(parentId = move.destinationId)))
+        val reloading = check(finishPost(), PutioResult.Success(item.copy(parentId = move.destinationId)))
         val first = reload(reloading, FilesPage(emptyList(), FilesCursor("next")))
         assertEquals(FilesMoveStatus.MOVED, first.current.moveOutcome?.status)
         val paging = FilesBrowserReducer.reduce(first, FilesBrowserEvent.LoadNextPage)
@@ -165,7 +167,7 @@ class FilesMoveReducerTest {
     }
 
     private fun finishPost(
-        result: FilesRepositoryResult<List<FileMoveError>> = FilesRepositoryResult.Success(emptyList()),
+        result: PutioResult<List<FileMoveError>> = PutioResult.Success(emptyList()),
     ): FilesBrowserTransition {
         val moving = FilesBrowserReducer.reduce(loadedRoot(), move)
         return FilesBrowserReducer.reduce(
@@ -173,7 +175,7 @@ class FilesMoveReducerTest {
         )
     }
 
-    private fun check(checking: FilesBrowserTransition, result: FilesRepositoryResult<FilesItem>) =
+    private fun check(checking: FilesBrowserTransition, result: PutioResult<FilesItem>) =
         FilesBrowserReducer.reduce(
             checking.state, FilesBrowserEvent.MoveChecked(checkNotNull(checking.effect).requestId, result),
         )
@@ -187,8 +189,8 @@ class FilesMoveReducerTest {
     private fun file(id: Long) = FilesItem(
         FilesItemId(id), FilesFolder.Root.id, "folder-$id", PutioFileType.FOLDER, 1L, "2026-09-06",
     )
-    private fun failure(message: String) = FilesFailure.Unexpected(IllegalStateException(message))
-    private fun notFound(): FilesFailure = FilesFailure.ApiRejected(404, "FileNotFound", PutioApiException(
+    private fun failure(message: String) = PutioFailure.Unexpected(IllegalStateException(message))
+    private fun notFound(): PutioFailure = PutioFailure.ApiRejected(404, "FileNotFound", PutioApiException(
         request = PutioRequestData("GET", "https://api.put.io/v2/files/7"), resolvedStatusCode = 404,
         resolvedErrorType = "FileNotFound",
         envelope = PutioApiErrorEnvelope(errorType = "FileNotFound", statusCode = 404),

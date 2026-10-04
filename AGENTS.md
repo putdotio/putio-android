@@ -11,17 +11,20 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
 
 | Module | Owns |
 | --- | --- |
-| `core/common` | API rejection reasons, timestamps, avatar URLs, account storage keys, `SessionScopedHolder` |
+| `core/common` | The put.io failure and result kernel (`PutioFailure`, `PutioResult`, `putioRequest`, API rejection reasons), Files ids, cursors and sort order, the download-token account read, timestamps, avatar URLs, account storage keys, `SessionScopedHolder` |
 | `core/design` | `PutioTheme`, generated design tokens, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words |
 | `domain/<name>` | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `transfers`, `trash` |
 | `mobile` | Phone and tablet app: touch UI, shell, navigation, offline downloads, services and session wiring |
 | `tv` | Android TV app: D-pad UI, shell and session wiring |
 | `build-logic` | Convention plugins (`putio.android.application`, `putio.android.library`), design-token codegen, launcher-manifest check, proof tasks |
 
-- Dependencies point from the apps to `domain` to `core`; the other domains
-  build on `files`. Kotlin packages stay `io.putdotio.android.*` whatever the
-  module. A declaration stays `internal` unless another module uses it; fakes
-  other modules' tests reuse live in the owning module's `src/testFixtures`.
+- Dependencies point from the apps to `domain` to `core`; `history`, `search`
+  and `trash` also build on `files` for `FilesItem`. A domain failure with
+  cases of its own wraps a `PutioFailure` (`AccountSettingsFailure`,
+  `PlaybackFailure`) instead of cloning the shared cases. Kotlin packages stay
+  `io.putdotio.android.*` whatever the module. A declaration stays `internal`
+  unless another module uses it; fakes other modules' tests reuse live in the
+  owning module's `src/testFixtures`.
 - Mobile and TV share data, domain, theme, and component foundations; their
   shells diverge where input differs. TV should feel like Android TV: Compose
   for TV, D-pad focus, system media sessions, and platform search.

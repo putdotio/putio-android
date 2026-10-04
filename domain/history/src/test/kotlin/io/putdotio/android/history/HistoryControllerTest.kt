@@ -9,6 +9,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import io.putdotio.android.PutioResult
 
 class HistoryControllerTest {
     @Test
@@ -45,14 +46,14 @@ class HistoryControllerTest {
         var clears = 0
         var loads = 0
         val repository = object : HistoryRepository {
-            override suspend fun load(before: HistoryEventId?): HistoryRepositoryResult<HistoryPage> {
+            override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
                 loads += 1
                 val items = if (loads == 1) listOf(item(2L)) else emptyList()
-                return HistoryRepositoryResult.Success(HistoryPage(items, false))
+                return PutioResult.Success(HistoryPage(items, false))
             }
-            override suspend fun clear(): HistoryRepositoryResult<Unit> {
+            override suspend fun clear(): PutioResult<Unit> {
                 clears += 1
-                return HistoryRepositoryResult.Success(Unit)
+                return PutioResult.Success(Unit)
             }
         }
         val controller = HistoryController(repository, historyEnabled = true, parentScope = this)
@@ -75,11 +76,11 @@ class HistoryControllerTest {
     }
 
     private fun repository(onLoad: () -> Unit) = object : HistoryRepository {
-        override suspend fun load(before: HistoryEventId?): HistoryRepositoryResult<HistoryPage> {
+        override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> {
             onLoad()
-            return HistoryRepositoryResult.Success(HistoryPage(emptyList(), false))
+            return PutioResult.Success(HistoryPage(emptyList(), false))
         }
-        override suspend fun clear() = HistoryRepositoryResult.Success(Unit)
+        override suspend fun clear() = PutioResult.Success(Unit)
     }
 
     private suspend fun HistoryController.awaitState(predicate: (HistoryState) -> Boolean) =

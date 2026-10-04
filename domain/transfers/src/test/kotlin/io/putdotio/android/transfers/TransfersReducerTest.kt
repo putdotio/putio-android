@@ -1,6 +1,6 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.files.FilesFailure
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -425,7 +425,7 @@ class TransfersReducerTest {
             ).copy(visible = true)
         val polling = TransfersReducer.reduce(loaded, TransfersEvent.Poll)
         val request = polling.effect as TransfersEffect.RefreshRows
-        val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("expired"))
+        val failure = PutioFailure.AuthenticationRequired(PutioConfigurationException("expired"))
 
         val failed =
             TransfersReducer.reduce(
@@ -664,7 +664,7 @@ class TransfersReducerTest {
     private fun TransfersState.open(id: Long) =
         TransfersReducer.reduce(this, TransfersEvent.Open(TransferId(id))).state
 
-    private fun failure() = FilesFailure.Unexpected(IllegalStateException("offline"))
+    private fun failure() = PutioFailure.Unexpected(IllegalStateException("offline"))
 
     private fun submission(value: String) = requireNotNull(TransferSubmission.parse(value))
 

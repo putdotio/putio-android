@@ -1,7 +1,7 @@
 package io.putdotio.android.trash
 
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import java.io.Closeable
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -93,12 +93,12 @@ class TrashController(
 
     // Injected repositories must preserve the same cancellation contract as the SDK adapter.
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun <T> safely(block: suspend () -> FilesRepositoryResult<T>): FilesRepositoryResult<T> = try {
+    private suspend fun <T> safely(block: suspend () -> PutioResult<T>): PutioResult<T> = try {
         block()
     } catch (cancelled: CancellationException) {
         throw cancelled
     } catch (unexpected: Exception) {
-        FilesRepositoryResult.Failure(FilesFailure.Unexpected(unexpected))
+        PutioResult.Failure(PutioFailure.Unexpected(unexpected))
     }
 
     override fun close() = synchronized(lock) {

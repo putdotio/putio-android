@@ -26,13 +26,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.trash.TrashBulkSelection
 import io.putdotio.android.trash.TrashContent
@@ -125,21 +123,21 @@ class TrashRestoreUiProofTest {
         compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).performClick()
         await { repository.restores.size == 1 }
         compose.runOnIdle { assertFalse(controller.dispatch(TrashEvent.ConfirmRestore(confirmationId))) }
-        repository.restores[0].complete(FilesRepositoryResult.Success(Unit))
-        repository.completeCheck(0, FilesRepositoryResult.Failure(notFound()))
+        repository.restores[0].complete(PutioResult.Success(Unit))
+        repository.completeCheck(0, PutioResult.Failure(notFound()))
         await { controller.state.value.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
         text(R.string.mobile_trash_started).assertIsDisplayed()
         assertBackRetains(controller)
         text(R.string.mobile_trash_started).assertIsDisplayed()
         trashRestoreScreenshot("synthetic-recovery")
         checkStatus()
-        repository.completeCheck(1, FilesRepositoryResult.Failure(offline()))
+        repository.completeCheck(1, PutioResult.Failure(offline()))
         await { controller.state.value.restoreOutcome?.check == TrashRestoreCheck.FAILED }
         assertEquals(1, repository.restores.size)
         checkStatus()
         val restored = FilesItem(repository.item.id, FilesFolder.Root.id, "Collision renamed été",
             repository.item.type, 40, "2026-09-06")
-        repository.completeCheck(2, FilesRepositoryResult.Success(restored))
+        repository.completeCheck(2, PutioResult.Success(restored))
         repository.failList(5)
         await { (controller.state.value.content as? TrashContent.Loaded)?.refreshFailure != null }
         assertEquals(TrashRestoreCheck.AVAILABLE, controller.state.value.restoreOutcome?.check)
@@ -159,15 +157,15 @@ class TrashRestoreUiProofTest {
         select(repository.item)
         compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).performClick()
         await { repository.restores.size == 1 }
-        repository.restores[0].complete(FilesRepositoryResult.Failure(offline()))
-        repository.completeCheck(0, FilesRepositoryResult.Failure(offline()))
+        repository.restores[0].complete(PutioResult.Failure(offline()))
+        repository.completeCheck(0, PutioResult.Failure(offline()))
         await { controller.state.value.restoreOutcome?.check == TrashRestoreCheck.FAILED }
         assertEquals(TrashRestoreSubmission.UNCERTAIN, controller.state.value.restoreOutcome?.submission)
         text(R.string.mobile_trash_uncertain).assertIsDisplayed()
         assertBackRetains(controller)
         checkStatus()
-        val authentication = FilesFailure.AuthenticationRequired(apiFailure(401))
-        repository.completeCheck(1, FilesRepositoryResult.Failure(authentication))
+        val authentication = PutioFailure.AuthenticationRequired(apiFailure(401))
+        repository.completeCheck(1, PutioResult.Failure(authentication))
         await { controller.state.value.authenticationFailure != null }
         assertNotNull(controller.state.value.restoreOutcome)
         compose.runOnIdle {
@@ -266,8 +264,8 @@ class TrashRestoreUiProofTest {
         return compose.onNodeWithText(label)
     }
     private fun await(condition: () -> Boolean) = compose.waitUntil(10_000, condition)
-    private fun offline() = FilesFailure.Unexpected(IllegalStateException("Synthetic offline"))
-    private fun notFound() = FilesFailure.ApiRejected(404, "FileNotFound", apiFailure(404))
+    private fun offline() = PutioFailure.Unexpected(IllegalStateException("Synthetic offline"))
+    private fun notFound() = PutioFailure.ApiRejected(404, "FileNotFound", apiFailure(404))
     private fun apiFailure(status: Int) = PutioApiException(
         request = PutioRequestData("GET", "/files/7"), resolvedStatusCode = status,
         resolvedErrorType = if (status == 404) "FileNotFound" else "AuthenticationRequired",
@@ -277,47 +275,47 @@ class TrashRestoreUiProofTest {
 
 private class TrashRestoreControlledRepository(private val awaitRequest: (() -> Boolean) -> Unit) : TrashRepository {
     val item = TrashItem(FilesItemId(7), FilesItemId(12), "Restore été 東京 — missing dates", PutioFileType.FILE, 40)
-    val lists = CopyOnWriteArrayList<CompletableDeferred<FilesRepositoryResult<TrashPage>>>()
+    val lists = CopyOnWriteArrayList<CompletableDeferred<PutioResult<TrashPage>>>()
     val listCursors = CopyOnWriteArrayList<FilesCursor?>()
-    val restores = CopyOnWriteArrayList<CompletableDeferred<FilesRepositoryResult<Unit>>>()
+    val restores = CopyOnWriteArrayList<CompletableDeferred<PutioResult<Unit>>>()
     val checkIds = CopyOnWriteArrayList<FilesItemId>()
-    private val checks = CopyOnWriteArrayList<CompletableDeferred<FilesRepositoryResult<FilesItem>>>()
+    private val checks = CopyOnWriteArrayList<CompletableDeferred<PutioResult<FilesItem>>>()
     override suspend fun load() = list(null)
     override suspend fun loadNextPage(cursor: FilesCursor) = list(cursor)
-    private suspend fun list(cursor: FilesCursor?): FilesRepositoryResult<TrashPage> {
+    private suspend fun list(cursor: FilesCursor?): PutioResult<TrashPage> {
         listCursors += cursor
-        val result = CompletableDeferred<FilesRepositoryResult<TrashPage>>()
+        val result = CompletableDeferred<PutioResult<TrashPage>>()
         lists += result
         return result.await()
     }
-    override suspend fun restore(itemId: FilesItemId): FilesRepositoryResult<Unit> {
+    override suspend fun restore(itemId: FilesItemId): PutioResult<Unit> {
         check(itemId == item.id)
-        val result = CompletableDeferred<FilesRepositoryResult<Unit>>()
+        val result = CompletableDeferred<PutioResult<Unit>>()
         restores += result
         return result.await()
     }
-    override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> {
+    override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
         checkIds += itemId
-        val result = CompletableDeferred<FilesRepositoryResult<FilesItem>>()
+        val result = CompletableDeferred<PutioResult<FilesItem>>()
         checks += result
         return result.await()
     }
     // The synthetic Restore proof never exercises bulk actions; refuse them loudly.
-    override suspend fun deleteItem(itemId: FilesItemId): FilesRepositoryResult<Unit> = error("unexpected delete")
-    override suspend fun restoreAll(selection: TrashBulkSelection): FilesRepositoryResult<Unit> =
+    override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> = error("unexpected delete")
+    override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> =
         error("unexpected restore all")
-    override suspend fun empty(): FilesRepositoryResult<Unit> = error("unexpected empty")
+    override suspend fun empty(): PutioResult<Unit> = error("unexpected empty")
     fun completeList(index: Int, page: TrashPage) {
         awaitRequest { lists.size > index }
-        lists[index].complete(FilesRepositoryResult.Success(page))
+        lists[index].complete(PutioResult.Success(page))
     }
     fun failList(index: Int) {
         awaitRequest { lists.size > index }
         lists[index].complete(
-            FilesRepositoryResult.Failure(FilesFailure.Unexpected(IllegalStateException("Synthetic offline"))),
+            PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("Synthetic offline"))),
         )
     }
-    fun completeCheck(index: Int, result: FilesRepositoryResult<FilesItem>) {
+    fun completeCheck(index: Int, result: PutioResult<FilesItem>) {
         awaitRequest { checks.size > index }
         checks[index].complete(result)
     }

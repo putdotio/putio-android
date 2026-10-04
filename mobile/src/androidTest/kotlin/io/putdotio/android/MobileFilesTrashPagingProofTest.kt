@@ -33,11 +33,9 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepository
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.files.MobileFilesScreen
-import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
@@ -157,22 +155,22 @@ class MobileFilesTrashPagingProofTest {
             return FilesPage(items.drop(offset).take(PAGE_SIZE), FilesCursor("offset-$next").takeIf { next < items.size })
         }
 
-        override suspend fun loadFolder(folderId: FilesItemId) = FilesRepositoryResult.Success(page(0))
+        override suspend fun loadFolder(folderId: FilesItemId) = PutioResult.Success(page(0))
 
-        override suspend fun loadNextPage(cursor: FilesCursor): FilesRepositoryResult<FilesPage> {
+        override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> {
             pageReads.incrementAndGet()
-            return FilesRepositoryResult.Success(page(cursor.value.removePrefix("offset-").toInt()))
+            return PutioResult.Success(page(cursor.value.removePrefix("offset-").toInt()))
         }
 
-        override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): FilesRepositoryResult<FileDeleteResult> {
+        override suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): PutioResult<FileDeleteResult> {
             deletes += itemId.value to mode
             items.removeAll { it.id == itemId }
-            return FilesRepositoryResult.Success(FileDeleteResult(status = "OK"))
+            return PutioResult.Success(FileDeleteResult(status = "OK"))
         }
 
-        override suspend fun resolveItem(itemId: FilesItemId): FilesRepositoryResult<FilesItem> =
-            items.firstOrNull { it.id == itemId }?.let { FilesRepositoryResult.Success(it) }
-                ?: FilesRepositoryResult.Failure(notFound(itemId))
+        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
+            items.firstOrNull { it.id == itemId }?.let { PutioResult.Success(it) }
+                ?: PutioResult.Failure(notFound(itemId))
 
         override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) = error("No move")
 
@@ -180,7 +178,7 @@ class MobileFilesTrashPagingProofTest {
 
         override suspend fun checkCopy(copyId: FilesCopyId) = error("No copy")
         override suspend fun move(itemId: FilesItemId, destinationId: FilesItemId):
-            FilesRepositoryResult<List<FileMoveError>> = error("No move")
+            PutioResult<List<FileMoveError>> = error("No move")
         override suspend fun persistSort(folderId: FilesItemId, sort: FilesSort) = error("No sort")
         override suspend fun rename(itemId: FilesItemId, name: String) = error("No rename")
 
@@ -192,7 +190,7 @@ class MobileFilesTrashPagingProofTest {
             envelope = PutioApiErrorEnvelope(statusCode = NOT_FOUND, errorType = "NotFound"),
             responseBody = "{}",
             message = "Synthetic missing item",
-        ).toFilesFailure()
+        ).toPutioFailure()
     }
 
     private fun screenshot(label: String) {

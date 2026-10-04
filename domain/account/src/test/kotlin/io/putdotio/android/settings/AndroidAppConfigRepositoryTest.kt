@@ -1,5 +1,7 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.PutioResult
 import io.putdotio.sdk.config.AppConfig
 import io.putdotio.sdk.config.AppConfigUpdate
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
@@ -82,11 +84,11 @@ class AndroidAppConfigRepositoryTest {
                 saveConfig = updates::add,
             )
 
-        val loaded = repository.load() as AndroidAppConfigRepositoryResult.Success
+        val loaded = repository.load() as PutioResult.Success
         assertEquals(VideoPlaybackType.Mp4, loaded.value.videoPlaybackType)
 
         val change = AndroidAppConfigChange.AutoplayNextVideo(enabled = true)
-        assertTrue(repository.save(change) is AndroidAppConfigRepositoryResult.Success)
+        assertTrue(repository.save(change) is PutioResult.Success)
         assertEquals(listOf(change.toUpdate()), updates)
     }
 
@@ -98,8 +100,8 @@ class AndroidAppConfigRepositoryTest {
                 getConfig = { throw sdkFailure },
                 saveConfig = {},
             )
-        val sdkResult = sdkRepository.load() as AndroidAppConfigRepositoryResult.Failure
-        assertTrue(sdkResult.failure is AndroidAppConfigFailure.Misconfigured)
+        val sdkResult = sdkRepository.load() as PutioResult.Failure
+        assertTrue(sdkResult.failure is PutioFailure.Misconfigured)
 
         val unexpected = IllegalStateException("broken")
         val unexpectedRepository =
@@ -109,8 +111,8 @@ class AndroidAppConfigRepositoryTest {
             )
         val unexpectedResult =
             unexpectedRepository.save(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Hls))
-                as AndroidAppConfigRepositoryResult.Failure
-        assertEquals(AndroidAppConfigFailure.Unexpected(unexpected), unexpectedResult.failure)
+                as PutioResult.Failure
+        assertEquals(PutioFailure.Unexpected(unexpected), unexpectedResult.failure)
     }
 
     @Test
@@ -144,12 +146,12 @@ class AndroidAppConfigRepositoryTest {
         val authentication = operationError(statusCode = 401, errorType = "invalid_token")
         val denied = operationError(statusCode = 401, errorType = "invalid_scope")
 
-        val authResult = failingRepository(authentication).load() as AndroidAppConfigRepositoryResult.Failure
-        assertTrue(authResult.failure is AndroidAppConfigFailure.AuthenticationRequired)
+        val authResult = failingRepository(authentication).load() as PutioResult.Failure
+        assertTrue(authResult.failure is PutioFailure.AuthenticationRequired)
         assertSame(authentication, authResult.failure.cause)
 
-        val deniedResult = failingRepository(denied).load() as AndroidAppConfigRepositoryResult.Failure
-        assertTrue(deniedResult.failure is AndroidAppConfigFailure.AccessDenied)
+        val deniedResult = failingRepository(denied).load() as PutioResult.Failure
+        assertTrue(deniedResult.failure is PutioFailure.AccessDenied)
         assertSame(denied, deniedResult.failure.cause)
     }
 

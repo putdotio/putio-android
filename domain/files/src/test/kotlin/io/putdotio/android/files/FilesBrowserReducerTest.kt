@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -31,7 +32,7 @@ class FilesBrowserReducerTest {
             )
         assertTrue(empty.state.current.content is FilesContent.Empty)
 
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed =
             FilesBrowserReducer.reduce(
                 start.state,
@@ -165,7 +166,7 @@ class FilesBrowserReducerTest {
         val root = loadedRoot(items = listOf(item(1L, "one", PutioFileType.FILE)), nextCursor = FilesCursor("next"))
         val loading = FilesBrowserReducer.reduce(root, FilesBrowserEvent.LoadNextPage)
         val effect = loading.effect as FilesBrowserEffect.LoadNextPage
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed =
             FilesBrowserReducer.reduce(
                 loading.state,
@@ -330,7 +331,7 @@ class FilesBrowserReducerTest {
                 FilesBrowserEvent.SelectSort(FilesSort.TYPE_ASCENDING),
             )
         val persistEffect = persisting.effect as FilesBrowserEffect.PersistSort
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed =
             FilesBrowserReducer.reduce(
                 persisting.state,
@@ -375,7 +376,7 @@ class FilesBrowserReducerTest {
             reloading.state,
             FilesBrowserEvent.LoadFailed(
                 reloadEffect.requestId,
-                FilesFailure.Unexpected(IllegalStateException("offline")),
+                PutioFailure.Unexpected(IllegalStateException("offline")),
             ),
         ).state
 
@@ -398,7 +399,7 @@ class FilesBrowserReducerTest {
         val root = loadedRoot(listOf(original), FilesCursor("next"), FilesSort.NAME_ASCENDING)
         val refreshing = FilesBrowserReducer.reduce(root, FilesBrowserEvent.Refresh)
         val refreshEffect = refreshing.effect as FilesBrowserEffect.LoadFolder
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed =
             FilesBrowserReducer.reduce(
                 refreshing.state,
@@ -430,7 +431,7 @@ class FilesBrowserReducerTest {
         val root = loadedRoot(listOf(original), FilesCursor("next"))
         val paging = FilesBrowserReducer.reduce(root, FilesBrowserEvent.LoadNextPage)
         val pagingEffect = paging.effect as FilesBrowserEffect.LoadNextPage
-        val pagingFailure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val pagingFailure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failedPaging =
             FilesBrowserReducer.reduce(
                 paging.state,
@@ -469,7 +470,7 @@ class FilesBrowserReducerTest {
         assertFalse(latePersist.consumed)
         assertSame(reloading.state, latePersist.state)
 
-        val failure = FilesFailure.Unexpected(IllegalStateException("offline"))
+        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val failed =
             FilesBrowserReducer.reduce(
                 reloading.state,

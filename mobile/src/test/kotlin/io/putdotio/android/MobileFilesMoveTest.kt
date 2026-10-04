@@ -27,7 +27,6 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -37,9 +36,7 @@ import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
-import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.StubFilesRepository
-import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
@@ -149,17 +146,17 @@ class MobileFilesMoveTest {
         var continuations = 0
         val requests = mutableListOf<FilesCursor?>()
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(
                 folderId: FilesItemId,
                 cursor: FilesCursor?,
-            ): FilesRepositoryResult<FilesPage> {
+            ): PutioResult<FilesPage> {
                 requests += cursor
                 return when {
-                    cursor == null -> FilesRepositoryResult.Success(FilesPage(emptyList(), FilesCursor("next")))
-                    ++continuations == 1 -> FilesRepositoryResult.Failure(failure("offline page"))
-                    else -> FilesRepositoryResult.Success(FilesPage(listOf(destination), null))
+                    cursor == null -> PutioResult.Success(FilesPage(emptyList(), FilesCursor("next")))
+                    ++continuations == 1 -> PutioResult.Failure(failure("offline page"))
+                    else -> PutioResult.Success(FilesPage(listOf(destination), null))
                 }
             }
         }
@@ -181,10 +178,10 @@ class MobileFilesMoveTest {
     @Test
     fun missingDestinationKeepsThePickerCopyOverPutiosReason() {
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-                FilesRepositoryResult.Failure(putioRefusal(404, putioErrorBody(404, "not a folder")).toFilesFailure())
+                PutioResult.Failure(putioRefusal(404, putioErrorBody(404, "not a folder")).toPutioFailure())
         }
         compose.setContent {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, { true }, {}, true, {}) }
@@ -200,7 +197,7 @@ class MobileFilesMoveTest {
         val checking = finishedPost(errors)
         val reloading = FilesBrowserReducer.reduce(checking.state, FilesBrowserEvent.MoveChecked(
             checkNotNull(checking.effect).requestId,
-            FilesRepositoryResult.Success(source.copy(parentId = destination.id)),
+            PutioResult.Success(source.copy(parentId = destination.id)),
         ))
         var state by mutableStateOf(reload(
             reloading.state, checkNotNull(reloading.effect).requestId, FilesPage(listOf(source), null),
@@ -215,7 +212,7 @@ class MobileFilesMoveTest {
             val next = finishedPost(unknown)
             val read = FilesBrowserReducer.reduce(next.state, FilesBrowserEvent.MoveChecked(
                 checkNotNull(next.effect).requestId,
-                FilesRepositoryResult.Success(source.copy(parentId = destination.id)),
+                PutioResult.Success(source.copy(parentId = destination.id)),
             ))
             state = reload(read.state, checkNotNull(read.effect).requestId, FilesPage(emptyList(), null))
         }
@@ -244,7 +241,7 @@ class MobileFilesMoveTest {
         compose.runOnIdle {
             assertTrue(effects.single() is FilesBrowserEffect.CheckMove)
             val reloading = FilesBrowserReducer.reduce(state, FilesBrowserEvent.MoveChecked(
-                effects.single().requestId, FilesRepositoryResult.Success(source.copy(parentId = destination.id)),
+                effects.single().requestId, PutioResult.Success(source.copy(parentId = destination.id)),
             ))
             state = FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadFailed(
                 checkNotNull(reloading.effect).requestId, failure("reload offline"),
@@ -264,17 +261,17 @@ class MobileFilesMoveTest {
         val readStarted = CompletableDeferred<Unit>()
         val readCancelled = CompletableDeferred<Unit>()
         val previousRepository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(
                 folderId: FilesItemId,
                 cursor: FilesCursor?,
-            ): FilesRepositoryResult<FilesPage> {
+            ): PutioResult<FilesPage> {
                 if (cursor != null) {
                     readStarted.complete(Unit)
                     try { awaitCancellation() } finally { readCancelled.complete(Unit) }
                 }
-                return FilesRepositoryResult.Success(
+                return PutioResult.Success(
                     if (folderId == FilesFolder.Root.id) FilesPage(listOf(destination), null)
                     else FilesPage(emptyList(), FilesCursor("old-session-page")),
                 )
@@ -282,14 +279,14 @@ class MobileFilesMoveTest {
         }
         val nextRequests = mutableListOf<FilesItemId>()
         val nextRepository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(
                 folderId: FilesItemId,
                 cursor: FilesCursor?,
-            ): FilesRepositoryResult<FilesPage> {
+            ): PutioResult<FilesPage> {
                 nextRequests += folderId
-                return FilesRepositoryResult.Success(FilesPage(
+                return PutioResult.Success(FilesPage(
                     if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null,
                 ))
             }
@@ -377,11 +374,11 @@ class MobileFilesMoveTest {
     fun pickerAuthenticationFailureRejectsTheSession() {
         var rejections = 0
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-                FilesRepositoryResult.Failure(
-                    FilesFailure.AuthenticationRequired(PutioConfigurationException("Expired picker session")),
+                PutioResult.Failure(
+                    PutioFailure.AuthenticationRequired(PutioConfigurationException("Expired picker session")),
                 )
         }
         compose.setContent {
@@ -396,17 +393,17 @@ class MobileFilesMoveTest {
     fun pickerPaginationAuthenticationFailureBlocksQueuedConfirmationWhileRejectionIsPending() {
         val events = mutableListOf<FilesBrowserEvent>()
         var rejections = 0
-        val pageResult = CompletableDeferred<FilesRepositoryResult<FilesPage>>()
+        val pageResult = CompletableDeferred<PutioResult<FilesPage>>()
         val child = folder(9L, "Nested child").copy(parentId = destination.id)
         val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
             override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
                 when {
                     folderId == FilesFolder.Root.id ->
-                        FilesRepositoryResult.Success(FilesPage(listOf(destination), null))
+                        PutioResult.Success(FilesPage(listOf(destination), null))
                     folderId == destination.id && cursor == null ->
-                        FilesRepositoryResult.Success(FilesPage(listOf(child), FilesCursor("next")))
+                        PutioResult.Success(FilesPage(listOf(child), FilesCursor("next")))
                     folderId == destination.id && cursor == FilesCursor("next") -> pageResult.await()
                     else -> error("Unexpected destination read")
                 }
@@ -424,8 +421,8 @@ class MobileFilesMoveTest {
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).assertIsEnabled()
         val queuedConfirm = clickAction(MOBILE_FILES_MOVE_HERE_TAG)
         compose.runOnIdle {
-            pageResult.complete(FilesRepositoryResult.Failure(
-                FilesFailure.AuthenticationRequired(PutioConfigurationException("Expired picker session")),
+            pageResult.complete(PutioResult.Failure(
+                PutioFailure.AuthenticationRequired(PutioConfigurationException("Expired picker session")),
             ))
         }
         compose.onNodeWithTag(MOBILE_FILES_MOVE_RETRY_TAG).assertIsDisplayed()
@@ -487,10 +484,10 @@ class MobileFilesMoveTest {
         .fetchSemanticsNode().config[SemanticsActions.OnClick].action)
 
     private fun destinationRepository() = object : StubFilesRepository() {
-        override suspend fun loadFolder(folderId: FilesItemId): FilesRepositoryResult<FilesPage> =
+        override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
                 error("Unexpected source read")
         override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-            FilesRepositoryResult.Success(FilesPage(
+            PutioResult.Success(FilesPage(
                 if (folderId == FilesFolder.Root.id) listOf(source, destination) else emptyList(), null,
             ))
     }
@@ -500,7 +497,7 @@ class MobileFilesMoveTest {
             loadedRoot(), FilesBrowserEvent.Move(FilesFolder.Root.id, source.id, destination.id),
         )
         return FilesBrowserReducer.reduce(moving.state, FilesBrowserEvent.MoveFinished(
-            checkNotNull(moving.effect).requestId, FilesRepositoryResult.Success(errors),
+            checkNotNull(moving.effect).requestId, PutioResult.Success(errors),
         ))
     }
 
@@ -511,7 +508,7 @@ class MobileFilesMoveTest {
 
     private fun reload(state: FilesBrowserState, requestId: FilesRequestId, page: FilesPage) =
         FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadSucceeded(requestId, page)).state
-    private fun failure(message: String) = FilesFailure.Unexpected(IllegalStateException(message))
+    private fun failure(message: String) = PutioFailure.Unexpected(IllegalStateException(message))
     private fun folder(id: Long, name: String) =
         FilesItem(FilesItemId(id), FilesFolder.Root.id, name, PutioFileType.FOLDER, 1L, "2026-09-06")
 }

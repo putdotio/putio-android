@@ -19,6 +19,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import io.putdotio.android.PutioFailure
 
 class OfflinePlaybackRepositoryTest {
     private val target = PlaybackTarget(FilesItemId(7L), "Sintel.mkv")
@@ -26,7 +27,9 @@ class OfflinePlaybackRepositoryTest {
     private val delegate = object : PlaybackRepository {
         override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
             delegateCalls += target
-            return PlaybackRepositoryResult.Failure(PlaybackFailure.NetworkUnavailable(IOException("offline")))
+            return PlaybackRepositoryResult.Failure(
+                PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
+            )
         }
 
         override suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
