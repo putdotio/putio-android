@@ -26,6 +26,8 @@ public data class FilesItem(
     val folderType: PutioFolderType = PutioFolderType.REGULAR,
     /** put.io's still image of a video, as a token-free URL; null when put.io has none. */
     val screenshotUrl: String? = null,
+    /** The API's `updated_at`; absent when the response omits it. */
+    val updatedAt: String? = null,
 ) {
     val isFolder: Boolean
         get() = type == PutioFileType.FOLDER

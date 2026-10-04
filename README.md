@@ -49,6 +49,10 @@ Mobile, on the emulator harness against the live API:
 - Exclusive access: create, copy, share and revoke public links to your own
   files and folders from their action sheet; Account lists every link with
   revoke
+- System file picker, proven on the emulator with a faked account so far: while
+  signed in, put.io is a read-only location in other apps' pickers with paged
+  folders and search; files stream from put.io, or open from a completed audio
+  download, and sign-out revokes every grant
 
 TV:
 

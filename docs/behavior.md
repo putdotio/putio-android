@@ -689,6 +689,72 @@ Tests: `PublicLinksControllerTest`, `SdkPublicLinksRepositoryTest`,
 `MobilePublicLinksTest`, `MobilePublicLinksProofTest` (opt-in synthetic device
 proof; see [Harness](./harness.md#public-links-proof)).
 
+## Documents provider
+
+While signed in, Android's system file picker (`ACTION_OPEN_DOCUMENT`,
+`ACTION_GET_CONTENT`) lists put.io as a root titled with the app's name and
+the account's username. Signed out there is no root, as the platform's guide
+asks. The auth runtime notifies the picker's roots when a session starts or
+ends, so the root appears and goes without reopening the picker. A picker that
+starts the app's process restores the stored session first, which reads the
+account as the app's own start does; a document query waits up to 15 s for it,
+and a session put.io can't validate (no connection) reads as signed out.
+
+Read-only for v1: no create, rename, move, delete or write, a write-mode open
+is refused before the document is looked up, and there are no recents, tree
+access or thumbnails. Search runs through the Search domain's paging with the
+term the picker sends.
+
+Folders and searches load through the app's repositories, 50 rows a page. The
+first query returns nothing with `EXTRA_LOADING`; each landed page notifies
+the listing, and the picker's next query returns every row so far and asks for
+the next page. Pages keep arriving while the folder is open and stop once the
+viewer leaves it; each is asked for once. A picker listens for changes only
+after its query returns, so a landed page is announced again every 0.5 s, up
+to three times, until a query reads it. A failed page shows "Couldn’t load from
+put.io. Open it again to retry." (`EXTRA_ERROR`) with the rows already loaded;
+the next query asks for it again, so a failing page cannot loop the picker. A
+listing idle for more than 30 s reads put.io again from its first page and
+shows its old rows until that page replaces them. The provider has no refresh
+hook, because the picker calls one before every load, which would drop each
+page as it lands; a pull to refresh therefore re-reads only once the listing
+is past those 30 s. The picker sorts rows itself.
+
+A document id is `<userId>:<fileId>`, the root being file 0. Rows carry the
+name, a MIME type from the extension (`application/octet-stream` when unknown,
+since SDK 1.0.0 does not expose the API's `content_type`), the size of files,
+the last-modified time from `updated_at` (else `created_at`) and no flags;
+icons are the picker's own, by MIME type.
+
+Opening a document returns a seekable proxy descriptor with its own thread. A
+completed audio download holds the original file, so it is read from the
+download cache without the network once the app's index and Media3's both read
+it complete and every byte is on disk. A video download holds the HLS
+rendition, not the original, so a video always streams. Streaming uses the
+share-out request: the API download endpoint with the session in the header,
+from the read's offset with a `Range` header; a server that ignores the range
+sends the whole file, which is skipped to the offset, and a partial answer
+that starts anywhere else fails the read. Reading on, or a jump ahead of up to
+256 KiB, keeps the request; any other offset starts a new one. Opening adds no
+download. An open waits up to 15 s for the session and up to 15 s for put.io to
+return the file; a caller that cancels stops both waits at once.
+
+The account in the document id keeps a URI from resolving under another
+account. Every listing, single-file read and open descriptor belongs to the
+session that made it; leaving that session (sign-out, an expired session, an
+account switch) drops them, and reads on a descriptor another app still holds
+fail and release its stream. A 401 on a listing, a single-file read or a
+stream signs the session out as anywhere else. The auth runtime then revokes
+every URI grant on the provider, persisted ones included, as it does when a
+cold start's restore ends signed out. No token reaches a document URI, column,
+cursor extra or log.
+
+Tests: `MobileDocumentsProviderTest`, `OfflineOriginalsTest`,
+`MobileOAuthRuntimeTest` (the picker hears each session start and end),
+`SdkFilesRepositoryTest` (`updated_at`), `MobileDocumentsPickerProofTest`
+(opt-in synthetic device proof; see
+[Harness](./harness.md#documents-provider-proof)).
+
 ## Launcher entry
 
 `MainActivity` answers each launcher's `ACTION_MAIN` query: `LAUNCHER` on both

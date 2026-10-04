@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
+import io.putdotio.android.documents.MobileDocumentsProvider
 import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileShareService
@@ -28,6 +29,7 @@ class MobileOAuthRuntime internal constructor(
     private val applicationScope: CoroutineScope,
     private val failureReporter: OAuthRuntimeFailureReporter = AndroidOAuthRuntimeFailureReporter,
     onSessionLeft: (MobileAuthSessionId?) -> Unit = {},
+    onSessionStarted: (MobileAuthSessionId) -> Unit = {},
 ) {
     init {
         // Sessions also end without a UI (a background rejection), so the process scope owns this boundary.
@@ -45,6 +47,7 @@ class MobileOAuthRuntime internal constructor(
                     restoreEnded -> onSessionLeft(null)
                     previous != null && current != previous -> onSessionLeft(previous)
                 }
+                if (current != null && current != previous) onSessionStarted(current)
                 previous = current
             }
         }
@@ -69,6 +72,11 @@ class MobileOAuthRuntime internal constructor(
                 onSessionSettled()
             }
         }
+    }
+
+    /** put.io rejected [sessionId] outside any screen; signs it out unless another session replaced it. */
+    internal fun rejectSession(sessionId: MobileAuthSessionId) {
+        applicationScope.launch { authController.rejectAuthoritativeSession(sessionId) }
     }
 
     fun dispatchAuthTabResult(
@@ -144,7 +152,11 @@ class MobileOAuthRuntime internal constructor(
                 putioClient = putioClient,
                 authController = authController,
                 applicationScope = applicationScope,
-                onSessionLeft = { session -> MobileFileShareService.endSession(context, session) },
+                onSessionLeft = { session ->
+                    MobileFileShareService.endSession(context, session)
+                    MobileDocumentsProvider.sessionLeft(context)
+                },
+                onSessionStarted = { MobileDocumentsProvider.sessionStarted(context) },
             )
         }
     }
