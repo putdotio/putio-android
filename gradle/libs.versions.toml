@@ -64,7 +64,7 @@ putio-sdk-kotlin = { module = "io.put:putio-sdk-kotlin", version.ref = "putioSdk
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 # The SDK 35 runtime every Robolectric test pins with @Config(sdk = [35]); its version is the one
 # the robolectric release above expects, and a mismatch fails offline tests by name.
-robolectric-android-all = { module = "org.robolectric:android-all-instrumented", version = "15-robolectric-13954326-i7" }
+robolectric-android-all = { module = "org.robolectric:android-all-instrumented", version = "17-robolectric-15733970-i7" }
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 detekt-gradle-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
 
