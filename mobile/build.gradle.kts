@@ -109,7 +109,6 @@ dependencies {
     implementation(project(":core:design"))
     implementation(project(":domain:account"))
     implementation(project(":domain:auth"))
-    implementation(project(":domain:downloads"))
     implementation(project(":domain:files"))
     implementation(project(":domain:history"))
     implementation(project(":domain:playback"))

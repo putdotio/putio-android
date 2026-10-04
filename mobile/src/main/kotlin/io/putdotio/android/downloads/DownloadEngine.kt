@@ -7,7 +7,7 @@ import io.putdotio.android.files.FilesItemId
  * progress, and the foreground notification; the controller only issues intents
  * and mirrors reported status into [DownloadStore].
  */
-interface DownloadEngine {
+internal interface DownloadEngine {
     /** Starts or resumes; a retry after failure is the same call. */
     fun start(entry: DownloadEntry)
 

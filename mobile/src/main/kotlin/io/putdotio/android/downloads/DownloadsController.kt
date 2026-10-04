@@ -22,7 +22,7 @@ import kotlinx.coroutines.sync.withLock
  * updates as transfers progress; this class turns UI intents into store writes
  * and engine calls without holding any URL or credential.
  */
-class DownloadsController(
+internal class DownloadsController(
     private val store: DownloadStore,
     private val engine: DownloadEngine,
     parentScope: CoroutineScope,
@@ -167,7 +167,7 @@ private class ProgressWatch(
 }
 
 /** Video downloads the HLS rendition the player streams; audio has only the original. */
-fun PutioFileType.downloadArtifact(): DownloadArtifact? =
+private fun PutioFileType.downloadArtifact(): DownloadArtifact? =
     when (this) {
         PutioFileType.VIDEO -> DownloadArtifact.HLS
         PutioFileType.AUDIO -> DownloadArtifact.ORIGINAL

@@ -8,12 +8,12 @@ import io.putdotio.sdk.files.PutioFileType
  * player streams, subtitles included; audio has no HLS rendition and downloads
  * the original file.
  */
-enum class DownloadArtifact {
+internal enum class DownloadArtifact {
     HLS,
     ORIGINAL,
 }
 
-sealed interface DownloadStatus {
+internal sealed interface DownloadStatus {
     data object Queued : DownloadStatus
 
     /** Partial bytes are kept; the transfer continues by itself once the network returns. */
@@ -36,7 +36,7 @@ sealed interface DownloadStatus {
     ) : DownloadStatus
 }
 
-enum class DownloadFailureReason {
+internal enum class DownloadFailureReason {
     /** Connection dropped or timed out; a retry resumes from the partial file. */
     NETWORK,
     /** The session is no longer valid; the shell handles re-authentication. */
@@ -47,7 +47,7 @@ enum class DownloadFailureReason {
     UNEXPECTED,
 }
 
-data class DownloadEntry(
+internal data class DownloadEntry(
     val fileId: FilesItemId,
     val name: String,
     val type: PutioFileType,
@@ -65,7 +65,7 @@ data class DownloadEntry(
 }
 
 /** Enough of a Files item to start a download without another API call. */
-data class DownloadRequest(
+internal data class DownloadRequest(
     val fileId: FilesItemId,
     val name: String,
     val type: PutioFileType,
