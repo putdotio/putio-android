@@ -7,6 +7,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
@@ -97,6 +98,67 @@ class OfflinePlaybackPositionsTest {
     }
 
     @Test
+    fun aNewerPlayerWriteDuringTheReadIsNeverOverwrittenByTheOlderOfflinePosition() = runTest {
+        remote.online = false
+        val positions = positions(backgroundScope)
+        positions.resumePosition(USER, sintel)
+        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+
+        remote.online = true
+        // The read sees the old server value; the online player's newer write lands right after it.
+        remote.afterRead = {
+            remote.positions[FILE] = 400.0
+            positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit))
+        }
+        positions.syncNow(USER)
+
+        assertTrue(remote.writes.isEmpty())
+        assertEquals(400.0, remote.positions[FILE])
+        assertEquals(400.0, positions.store(USER).known(FILE))
+        assertTrue(synced.isEmpty())
+    }
+
+    @Test
+    fun aPlayerWriteAcceptedDuringTheSyncWriteKeepsItsNewerPosition() = runTest {
+        remote.online = false
+        val positions = positions(backgroundScope)
+        positions.resumePosition(USER, sintel)
+        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+
+        remote.online = true
+        remote.duringWrite = { positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit)) }
+        positions.syncNow(USER)
+
+        // The older position's late confirmation neither rewrites what is known nor reaches Files rows.
+        assertEquals(400.0, positions.store(USER).known(FILE))
+        assertNull(positions.store(USER).pending(FILE))
+        assertTrue(synced.isEmpty())
+    }
+
+    @Test
+    fun aFileDeletedOrNoLongerAccessibleStopsCostingAReadWhileANetworkFailureKeepsWaiting() = runTest {
+        remote.online = false
+        val positions = positions(backgroundScope)
+        positions.resumePosition(USER, sintel)
+        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+        remote.online = true
+
+        remote.readFailure = NetworkFailure.failure
+        positions.syncNow(USER)
+        assertEquals(250.0, positions.store(USER).pending(FILE)?.seconds)
+
+        remote.readFailure = PlaybackFailure.Putio(
+            PutioFailure.ApiRejected(HTTP_NOT_FOUND, "NotFound", PutioConfigurationException("gone")),
+        )
+        positions.syncNow(USER)
+        assertNull(positions.store(USER).pending(FILE))
+        val reads = remote.reads
+        positions.syncNow(USER)
+        assertEquals(reads, remote.reads)
+        assertTrue(remote.writes.isEmpty())
+    }
+
+    @Test
     fun resumeTurnedOffOnTheAccountDropsWhatWasPlayedOffline() = runTest {
         remote.online = false
         val positions = positions(backgroundScope)
@@ -138,6 +200,7 @@ class OfflinePlaybackPositionsTest {
         const val USER = 7L
         const val OTHER = 8L
         const val FILE = 10L
+        const val HTTP_NOT_FOUND = 404
         val NetworkFailure = PlaybackRepositoryResult.Failure(
             PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
         )
@@ -149,13 +212,27 @@ internal class FakePositionRemote : PositionRemote {
     var resume = true
     /** The server stores the position, but the reply never arrives. */
     var landButFail = false
+    var readFailure: PlaybackFailure? = null
+    /** Runs after a read has taken its value, as a concurrent request would. */
+    var afterRead: () -> Unit = {}
+    var duringWrite: () -> Unit = {}
     val positions = mutableMapOf<Long, Double>()
     val writes = mutableListOf<Pair<Long, Double>>()
+    var reads = 0
+        private set
 
-    override suspend fun read(fileId: Long): PlaybackRepositoryResult<Double> =
-        if (online) PlaybackRepositoryResult.Success(positions[fileId] ?: 0.0) else offline()
+    override suspend fun read(fileId: Long): PlaybackRepositoryResult<Double> {
+        reads += 1
+        val failure = readFailure ?: offlineFailure.takeUnless { online }
+        val value = positions[fileId] ?: 0.0
+        afterRead()
+        afterRead = {}
+        return failure?.let { PlaybackRepositoryResult.Failure(it) } ?: PlaybackRepositoryResult.Success(value)
+    }
 
     override suspend fun write(fileId: Long, seconds: Double): PlaybackRepositoryResult<Unit> {
+        duringWrite()
+        duringWrite = {}
         if (online) positions[fileId] = seconds
         if (online && !landButFail) writes += fileId to seconds
         return if (online && !landButFail) PlaybackRepositoryResult.Success(Unit) else offline()
@@ -164,7 +241,7 @@ internal class FakePositionRemote : PositionRemote {
     override suspend fun resumeEnabled(): PlaybackRepositoryResult<Boolean> =
         if (online) PlaybackRepositoryResult.Success(resume) else offline()
 
-    private fun offline() = PlaybackRepositoryResult.Failure(
-        PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
-    )
+    private val offlineFailure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline")))
+
+    private fun offline() = PlaybackRepositoryResult.Failure(offlineFailure)
 }

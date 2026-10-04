@@ -727,11 +727,15 @@ Media3 has no record of is never dropped silently: a finished one reads missing,
 a failed one keeps its reason, and an unfinished one goes back in the queue. A
 finished row whose bytes are gone from the cache, found at reconcile or when
 offline playback opens it, reads missing: it stops counting as on this device
-in Files and Downloads, streams instead, and offers Download again.
+in Files and Downloads, streams instead, and offers Download again. The
+reverse, a download of this user that Media3 lists but the index does not (an
+index that could not be read), could never be seen, played or deleted, so
+reconcile removes its bytes and Files offers Download again.
 
 **Removal.** Deleting removes only local copies; Downloads has no path to the
-put.io originals. One row's sheet or a multi-select (Select, or a long press,
-then Select all) asks first, saying the files stay in the account. Confirmed
+put.io originals. One row's sheet or a multi-select asks first, saying the
+files stay in the account. Select opens an empty selection and Delete waits for
+a row; a long press opens one with its row; Select all takes every row. Confirmed
 rows are marked before Media3 deletes their bytes, stop counting as available
 at once, and leave once Media3 confirms; a process death in between finishes
 the delete on the next start.
@@ -739,9 +743,10 @@ the delete on the next start.
 **Notifications.** When a download finishes or fails, with or without the app
 open, a notification names the file and opens its row in Downloads; the lock
 screen sees the outcome without the name. Each file has one slot, cleared by a
-retry or a delete. Nothing is posted while the app's notifications or the
-Finished downloads channel are off, or, on Android 13 and later, while
-POST_NOTIFICATIONS is not granted. The first download asks for that permission
+retry or a delete. Only the account signed in now is notified, so one account's
+outcome never appears while another is signed in. Nothing is posted while the
+app's notifications or the Finished downloads channel are off, or, on Android
+13 and later, while POST_NOTIFICATIONS is not granted. The first download asks for that permission
 once; afterwards Downloads shows a notice whose Turn on asks again while the
 system allows it and otherwise opens the app's notification settings.
 
@@ -757,7 +762,11 @@ network returns, on sign-in, and after an accepted write, a sync pass for the
 signed-in user follows iOS main's `OfflineVideoPlaybackPositionSync`: it drops
 every waiting position if the account has resume off; a position another
 device saved since this one went offline wins; otherwise this device's newest
-position is written, and a write that landed without a reply is recognised.
+position is written, and a write that landed without a reply is recognised. A
+position the online player gets accepted while a pass runs is newer: the pass
+checks again right before it writes and never sends, records or publishes the
+older one over it. A file put.io refuses for good (deleted, or access lost)
+drops its waiting position instead of being read on every pass.
 
 Tests: `DownloadsControllerTest` (intents, bulk removal, retry order, missing
 copies, concurrency, progress polling while shown), `MobileDownloadsScreenTest`
@@ -765,13 +774,14 @@ copies, concurrency, progress polling while shown), `MobileDownloadsScreenTest`
 shown and hidden events), `MobileShellDownloadsTest` (bulk delete never reaches
 put.io, notification links, the subtitle setting a Files download carries),
 `MobileDownloadStoreTest`, `MobileDownloadEngineTest` (queue order and limit
-across process recreation, recovery of every row state, low-storage pause,
-reconcile, sign-out parking, account isolation, close before reconcile,
-in-memory progress and its denominator, the recorded request URL and the
-local-copy check against a real Media3 manager and cache),
-`MobileDownloadNotificationsTest` (granted, denied and disabled states),
-`OfflinePlaybackPositionsTest`, `MobilePlaybackReportingTest` (cold offline
-start), `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
+across process recreation, recovery of every row state, downloads an
+unreadable index lost, low-storage pause, reconcile, sign-out parking, account
+isolation, close before reconcile, in-memory progress and its denominator, the
+recorded request URL and the local-copy check against a real Media3 manager and
+cache), `MobileDownloadNotificationsTest` (granted, denied and disabled states,
+signed-in account only), `OfflinePlaybackPositionsTest` (sync rules, the
+player's write racing a pass, refused files), `MobilePlaybackReportingTest`
+(cold offline start), `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`, `MobileDeepLinksTest`.
 
 ## TV Back

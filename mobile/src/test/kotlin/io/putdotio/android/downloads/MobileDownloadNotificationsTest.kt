@@ -37,7 +37,8 @@ import org.robolectric.annotation.Config
 class MobileDownloadNotificationsTest {
     private val context: Application = ApplicationProvider.getApplicationContext()
     private val manager = context.getSystemService(NotificationManager::class.java)
-    private val notifications = MobileDownloadNotifications(context)
+    private var signedIn: Long? = USER
+    private val notifications = MobileDownloadNotifications(context) { signedIn }
     // The listener never reads the manager; Media3 hands it one anyway.
     private val downloadManager = DownloadManager(
         context,
@@ -106,6 +107,22 @@ class MobileDownloadNotificationsTest {
     }
 
     @Test
+    fun onlyTheSignedInAccountHearsAboutItsDownloads() {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        // A finished download of an account that is not the one signed in now stays quiet.
+        signedIn = OTHER
+        notifications.changed(download(10L, Download.STATE_COMPLETED))
+        signedIn = null
+        notifications.changed(download(11L, Download.STATE_FAILED))
+        assertTrue(shadowOf(manager).allNotifications.isEmpty())
+
+        signedIn = USER
+        notifications.changed(download(10L, Download.STATE_COMPLETED))
+        assertEquals(1, shadowOf(manager).allNotifications.size)
+    }
+
+    @Test
     fun deletesRunningStatesAndUnknownRowsStayQuietAndARetryClearsTheOldOutcome() {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
 
@@ -141,5 +158,6 @@ class MobileDownloadNotificationsTest {
 
     private companion object {
         const val USER = 7L
+        const val OTHER = 8L
     }
 }

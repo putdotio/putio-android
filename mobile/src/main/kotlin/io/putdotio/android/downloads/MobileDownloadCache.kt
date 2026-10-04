@@ -23,6 +23,8 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.Downloader
 import androidx.media3.exoplayer.offline.DownloaderFactory
 import androidx.media3.exoplayer.scheduler.Requirements
+import io.putdotio.android.auth.MobileAuthState
+import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.util.concurrent.CountDownLatch
@@ -109,7 +111,10 @@ internal class MobileDownloadCache private constructor(context: Context) {
         maxParallelDownloads = MobileDownloadSettings(appContext).concurrency
         minRetryCount = MIN_RETRIES
         requirements = DOWNLOAD_REQUIREMENTS
-        addListener(MobileDownloadNotifications(appContext))
+        addListener(MobileDownloadNotifications(appContext) {
+            (MobileOAuthRuntime.get(appContext).authController.state.value as? MobileAuthState.SignedIn)
+                ?.account?.userId
+        })
     }
 
     /**

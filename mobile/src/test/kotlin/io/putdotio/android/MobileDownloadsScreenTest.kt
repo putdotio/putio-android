@@ -15,11 +15,14 @@ import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_CONCURRENCY_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_NOTIFICATIONS_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECTION_DELETE_TAG
+import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECT_TAG
 import io.putdotio.android.downloads.MobileDownloadsScreen
 import io.putdotio.android.downloads.withEntries
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -136,6 +139,31 @@ class MobileDownloadsScreenTest {
             DownloadsEvent.RequestRemoval(setOf(FilesItemId(10L), FilesItemId(11L))),
             events.last(),
         )
+    }
+
+    @Test
+    fun selectStartsEmptyAndDeleteWaitsForARow() {
+        val state = DownloadsState().withEntries(listOf(
+            row(10L, "Sintel.mkv", DownloadStatus.Completed(1L)),
+            row(11L, "Tears.mkv", DownloadStatus.Completed(1L)),
+        ))
+        val events = mutableListOf<DownloadsEvent>()
+        compose.setContent {
+            PutioTheme {
+                MobileDownloadsScreen(state, { events += it; true }, onPlay = {}, notifications = NotificationsOn)
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECT_TAG).performClick()
+        compose.onNodeWithText("0 selected").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECTION_DELETE_TAG).assertIsNotEnabled()
+        compose.onNodeWithText("Tears.mkv").performClick()
+        compose.onNodeWithText("1 selected").assertIsDisplayed()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECTION_DELETE_TAG).performClick()
+        assertEquals(DownloadsEvent.RequestRemoval(setOf(FilesItemId(11L))), events.last())
+
+        compose.onNodeWithContentDescription("Cancel selection").performClick()
+        compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECT_TAG).assertIsDisplayed()
     }
 
     private fun row(fileId: Long, name: String, status: DownloadStatus, queuedAt: Long = fileId) = DownloadEntry(

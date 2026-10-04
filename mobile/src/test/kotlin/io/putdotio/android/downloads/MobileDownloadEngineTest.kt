@@ -147,6 +147,26 @@ class MobileDownloadEngineTest {
     }
 
     @Test
+    fun downloadsAnUnreadableIndexLostAreRemovedRatherThanLeftInvisible() {
+        index.putDownload(download("$ALICE:30", Download.STATE_COMPLETED, bytes = TOTAL).also(::cacheBytes))
+        index.putDownload(download("$ALICE:31", Download.STATE_QUEUED))
+        index.putDownload(download("$BOB:40", Download.STATE_QUEUED))
+        preferences.edit().putString(storeKey(ALICE), "[{not json").commit()
+        val store = store(ALICE)
+        assertTrue(store.entries.value.isEmpty())
+
+        engine(ALICE, store, manager())
+
+        val sent = generateSequence { shadowOf(context).nextStartedService }.toList()
+        assertEquals(
+            setOf("$ALICE:30", "$ALICE:31"),
+            sent.filter { it.action == DownloadService.ACTION_REMOVE_DOWNLOAD }
+                .mapTo(mutableSetOf()) { it.getStringExtra(DownloadService.KEY_CONTENT_ID) },
+        )
+        assertTrue(store.entries.value.isEmpty())
+    }
+
+    @Test
     fun queueOrderAndConcurrencySurviveProcessRecreation() {
         for (id in 10L..13L) index.putDownload(queued("$ALICE:$id", startTimeMs = id))
         val store = store(ALICE)

@@ -167,7 +167,7 @@ class MobileDownloadsQueueProofTest {
             ).apply {
                 requirements = Requirements(Requirements.DEVICE_STORAGE_NOT_LOW)
                 minRetryCount = 0
-                addListener(MobileDownloadNotifications(context))
+                addListener(MobileDownloadNotifications(context) { USER_ID })
             }
             val engine = MobileDownloadEngine(context, store, USER_ID, scope, manager)
             // Adds and removes go to this manager; the app's own service drives the real one.

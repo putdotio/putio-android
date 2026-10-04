@@ -127,9 +127,17 @@ internal class MobileDownloadEngine(
         return known
     }
 
-    /** Every app row ends in a state the viewer can act on; only a confirmed delete drops one. */
+    /**
+     * Every app row ends in a state the viewer can act on; only a confirmed delete drops one. A
+     * download of this user with no row, left by an index that could not be read, could never be
+     * seen, played or deleted, so its bytes are removed and Files offers Download again.
+     */
     private fun recover(known: Map<FilesItemId, Download>) {
         if (closed) return
+        val rows = store.entries.value.mapTo(mutableSetOf()) { it.fileId }
+        for ((fileId, download) in known) {
+            if (fileId !in rows && download.state != Download.STATE_REMOVING) remove(fileId)
+        }
         for (entry in store.entries.value) {
             val download = known[entry.fileId]
             when {

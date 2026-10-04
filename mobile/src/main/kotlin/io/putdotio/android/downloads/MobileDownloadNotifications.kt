@@ -31,25 +31,31 @@ internal sealed interface DownloadOutcome {
  * comes from the owner's index row; no URL or token reaches a notification. Each file has one
  * slot, replaced by its next outcome and cleared by a retry or a delete; a tap opens the row in
  * Downloads. Nothing is posted while the app's notifications are off, the channel is blocked,
- * or, from Android 13, POST_NOTIFICATIONS is not granted.
+ * or, from Android 13, POST_NOTIFICATIONS is not granted, nor for an account other than the one
+ * signed in now.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal class MobileDownloadNotifications(private val context: Context) : DownloadManager.Listener {
+internal class MobileDownloadNotifications(
+    private val context: Context,
+    /** The signed-in account's user id, from the auth state; null while nobody is signed in. */
+    private val signedInUser: () -> Long?,
+) : DownloadManager.Listener {
     override fun onDownloadChanged(
         downloadManager: DownloadManager,
         download: Download,
         finalException: Exception?,
     ) {
+        // Most changes are progress; only outcomes read the index.
         val outcome = when (download.state) {
             Download.STATE_COMPLETED -> DownloadOutcome.Completed
             Download.STATE_FAILED -> DownloadOutcome.Failed(finalException.toFailureReason())
-            else -> null
+            else -> return
         }
-        val userId = download.request.ownerUserId()
+        val userId = download.request.ownerUserId()?.takeIf { it == signedInUser() } ?: return
         val fileId = download.request.id.substringAfter(':').toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
         // A row being deleted, or one this device never indexed, stays quiet.
-        val entry = if (userId == null || fileId == null) null else MobileDownloadStore.peek(context, userId, fileId)
-        if (outcome != null && userId != null && entry?.removing == false) post(context, userId, entry, outcome)
+        val entry = fileId?.let { MobileDownloadStore.peek(context, userId, it) }
+        if (entry?.removing == false) post(context, userId, entry, outcome)
     }
 
     companion object {

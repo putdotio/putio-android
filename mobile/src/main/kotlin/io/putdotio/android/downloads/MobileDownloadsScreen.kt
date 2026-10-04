@@ -86,11 +86,18 @@ internal fun MobileDownloadsScreen(
 ) {
     var sheetFileId by rememberSaveable { mutableStateOf<Long?>(null) }
     var selected by rememberSaveable { mutableStateOf(emptyList<Long>()) }
+    // Select opens an empty selection; a long press opens one with its row.
+    var selecting by rememberSaveable { mutableStateOf(false) }
     var choosingConcurrency by rememberSaveable { mutableStateOf(false) }
     val sheetEntry = state.entries.firstOrNull { it.fileId.value == sheetFileId }
     // Rows that left the store, or started deleting, leave the selection.
     val selectable = state.entries.filterNot { it.fileId in state.removing }.map { it.fileId.value }
     val selection = selected.filter { it in selectable }.toSet()
+    val inSelection = (selecting || selection.isNotEmpty()) && selectable.isNotEmpty()
+    val endSelection = {
+        selecting = false
+        selected = emptyList()
+    }
     LifecycleStartEffect(onEvent) {
         onEvent(DownloadsEvent.Shown)
         onStopOrDispose { onEvent(DownloadsEvent.Hidden) }
@@ -100,21 +107,22 @@ internal fun MobileDownloadsScreen(
         if (state.entry(focus) != null) sheetFileId = focus.value
         onEvent(DownloadsEvent.FocusHandled)
     }
-    BackHandler(enabled = selection.isNotEmpty()) { selected = emptyList() }
+    BackHandler(enabled = inSelection, onBack = endSelection)
     val rows = DownloadRows(
         state = state,
-        selection = selection,
+        selection = selection.takeIf { inSelection },
         onPlay = onPlay,
         onOpenSheet = { sheetFileId = it.fileId.value },
         onToggle = { entry ->
             val id = entry.fileId.value
+            selecting = true
             selected = if (id in selection) (selection - id).toList() else (selection + id).toList()
         },
     )
     LazyColumn(modifier.fillMaxSize().testTag(MOBILE_DOWNLOADS_LIST_TAG)) {
-        if (selection.isEmpty()) {
+        if (!inSelection) {
             item(key = "summary") {
-                DownloadsSummary(state, canSelect = selectable.isNotEmpty()) { selected = selectable.take(1) }
+                DownloadsSummary(state, canSelect = selectable.isNotEmpty()) { selecting = true }
             }
         } else {
             stickyHeader(key = "selection") {
@@ -122,7 +130,7 @@ internal fun MobileDownloadsScreen(
                     count = selection.size,
                     allSelected = selection.size == selectable.size,
                     onSelectAll = { selected = selectable },
-                    onClear = { selected = emptyList() },
+                    onClear = endSelection,
                     onDelete = {
                         onEvent(DownloadsEvent.RequestRemoval(selection.mapTo(mutableSetOf(), ::FilesItemId)))
                     },
@@ -164,7 +172,7 @@ internal fun MobileDownloadsScreen(
         section("attention", R.string.mobile_downloads_section_attention, state.needsAttention, rows)
         section("on-device", R.string.mobile_downloads_section_on_device, state.onDevice, rows)
     }
-    sheetEntry?.takeIf { selection.isEmpty() }?.let { entry ->
+    sheetEntry?.takeIf { !inSelection }?.let { entry ->
         MobileDownloadItemSheet(
             entry = entry,
             removing = state.removing.contains(entry.fileId),
@@ -188,7 +196,7 @@ internal fun MobileDownloadsScreen(
         RemovalDialog(
             removal = removal,
             onConfirm = {
-                selected = emptyList()
+                endSelection()
                 onEvent(DownloadsEvent.ConfirmRemoval)
             },
             onCancel = { onEvent(DownloadsEvent.CancelRemoval) },
@@ -199,7 +207,8 @@ internal fun MobileDownloadsScreen(
 /** What each row needs from the screen, so every section draws rows the same way. */
 private class DownloadRows(
     val state: DownloadsState,
-    val selection: Set<Long>,
+    /** Null outside selection. */
+    val selection: Set<Long>?,
     val onPlay: (FilesItem) -> Unit,
     val onOpenSheet: (DownloadEntry) -> Unit,
     val onToggle: (DownloadEntry) -> Unit,
@@ -236,7 +245,7 @@ private fun LazyListScope.section(
             entry = entry,
             queuePosition = rows.state.queuePosition(entry.fileId),
             removing = removing,
-            selected = if (rows.selection.isEmpty() || removing) null else entry.fileId.value in rows.selection,
+            selected = rows.selection?.takeUnless { removing }?.contains(entry.fileId.value),
             onOpen = when {
                 removing -> null
                 rows.state.isAvailableOffline(entry.fileId) -> { { rows.onPlay(entry.toFilesItem()) } }
@@ -296,8 +305,15 @@ private fun SelectionBar(
             if (!allSelected) {
                 TextButton(onClick = onSelectAll) { Text(stringResource(R.string.mobile_downloads_select_all)) }
             }
-            TextButton(onClick = onDelete, modifier = Modifier.testTag(MOBILE_DOWNLOADS_SELECTION_DELETE_TAG)) {
-                Text(stringResource(R.string.mobile_downloads_remove_confirm), color = MaterialTheme.colorScheme.error)
+            TextButton(
+                onClick = onDelete,
+                enabled = count > 0,
+                modifier = Modifier.testTag(MOBILE_DOWNLOADS_SELECTION_DELETE_TAG),
+            ) {
+                Text(
+                    stringResource(R.string.mobile_downloads_remove_confirm),
+                    color = if (count > 0) MaterialTheme.colorScheme.error else Color.Unspecified,
+                )
             }
         }
     }
