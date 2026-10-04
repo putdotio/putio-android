@@ -1,8 +1,8 @@
 # Harness
 
 Emulator, launch-proof, evidence, live-API, and headless operating notes for
-this repo. The root [Agent Guide](../AGENTS.md) owns toolchain, build, verify,
-and the definition of done; [Behaviour](./behavior.md) owns the product rules
+this repo. The root [Agent Guide](../AGENTS.md) owns setup, build, verify,
+and the proof map; [Behaviour](./behavior.md) owns the product rules
 the proof lanes exercise.
 
 ## Emulators
