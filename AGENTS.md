@@ -160,6 +160,10 @@ and `StaleOAuthCallbackTest` on a Gradle Managed Device weekly and on dispatch.
 It is not a pull-request gate because shared-runner emulator boots are too slow
 and flaky; `scripts/prove.sh` stays the local proof.
 
+[Scan](.github/workflows/scan.yml) runs the shared put.io scan weekly and on
+every pull request: Gitleaks and TruffleHog look for secrets, and Actionlint
+and Zizmor audit `.github/` when a pull request changes it.
+
 To reproduce a CI failure, check out the app SHA from the run summary in a
 detached worktree with `sdk.dir` set and `putioSdkKotlinPath` unset, then run
 the same command. A pull-request run tests a temporary merge commit; if it is
