@@ -37,26 +37,12 @@ class MobileOAuthRuntime internal constructor(
     private val failureReporter: OAuthRuntimeFailureReporter = AndroidOAuthRuntimeFailureReporter,
     onSessionLeft: (MobileAuthSessionId?) -> Unit = {},
     onSessionStarted: (MobileAuthSessionId) -> Unit = {},
-    offlinePreferences: SharedPreferences? = null,
 ) {
     private val positions = SdkPlaybackPositionRepository(putioClient)
 
-    /** Saved positions of downloaded files; null where no preferences back them, as in some tests. */
-    internal val offlinePositions: OfflinePlaybackPositions? = offlinePreferences?.let { preferences ->
-        OfflinePlaybackPositions(
-            preferences = preferences,
-            signedInUser = { (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId },
-            remote = object : PositionRemote {
-                override suspend fun read(fileId: Long) = positions.read(fileId)
-
-                override suspend fun write(fileId: Long, seconds: Double) = positions.write(fileId, seconds)
-
-                override suspend fun resumeEnabled() = positions.resumeEnabled()
-            },
-            scope = applicationScope,
-            onSynced = { fileId, seconds -> playbackReporting.publishSaved(fileId, seconds) },
-        )
-    }
+    /** Saved positions of downloaded files; attached by [create], absent in runtimes tests build. */
+    internal var offlinePositions: OfflinePlaybackPositions? = null
+        private set
 
     init {
         // Sessions also end without a UI (a background rejection), so the process scope owns this boundary.
@@ -88,8 +74,27 @@ class MobileOAuthRuntime internal constructor(
         applicationScope,
         onAuthenticationRequired = { sessionId -> authController.rejectAuthoritativeSession(sessionId) },
         write = positions::write,
-        offline = offlinePositions,
+        offline = { offlinePositions },
     )
+
+    private fun keepOfflinePositions(preferences: SharedPreferences): OfflinePlaybackPositions =
+        OfflinePlaybackPositions(
+            preferences = preferences,
+            signedInUser = { (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId },
+            remote = object : PositionRemote {
+                override suspend fun read(fileId: Long) = positions.read(fileId)
+
+                override suspend fun write(fileId: Long, seconds: Double) = positions.write(fileId, seconds)
+
+                override suspend fun resumeEnabled() = positions.resumeEnabled()
+            },
+            scope = applicationScope,
+            onSynced = { fileId, seconds -> playbackReporting.publishSaved(fileId, seconds) },
+        ).also {
+            offlinePositions = it
+            // A session restored before this attached still has its waiting positions sent.
+            it.requestSync()
+        }
 
     /**
      * Background components that outlive the UI restore the session so the download
@@ -188,8 +193,9 @@ class MobileOAuthRuntime internal constructor(
                     MobileDocumentsProvider.sessionLeft(context)
                 },
                 onSessionStarted = { MobileDocumentsProvider.sessionStarted(context) },
-                offlinePreferences = downloadPreferences(context),
-            ).also { runtime -> runtime.offlinePositions?.let { syncWhenOnline(context, it) } }
+            ).also { runtime ->
+                syncWhenOnline(context, runtime.keepOfflinePositions(downloadPreferences(context)))
+            }
         }
 
         /** put.io answers again once a validated network returns; positions saved offline go then. */

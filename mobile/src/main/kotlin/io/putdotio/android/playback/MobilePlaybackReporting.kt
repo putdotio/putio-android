@@ -23,7 +23,7 @@ internal class MobilePlaybackReporting(
     private val scope: CoroutineScope,
     onAuthenticationRequired: suspend (MobileAuthSessionId) -> Unit = {},
     /** Positions of downloaded files, kept on the device when put.io cannot take them. */
-    private val offline: OfflinePlaybackPositions? = null,
+    private val offline: () -> OfflinePlaybackPositions? = { null },
     write: suspend (Long, Double) -> PlaybackRepositoryResult<Unit>,
 ) {
     private val mutableSavedPositions = MutableSharedFlow<SavedPlaybackPosition>(
@@ -39,7 +39,7 @@ internal class MobilePlaybackReporting(
         val sessionId = signedIn?.sessionId
         write(fileId, seconds).also { result ->
             if (result is PlaybackRepositoryResult.Success) publishSaved(fileId, seconds)
-            signedIn?.let { offline?.afterWrite(it.account.userId, fileId, seconds, result) }
+            signedIn?.let { offline()?.afterWrite(it.account.userId, fileId, seconds, result) }
             if (sessionId != null && result is PlaybackRepositoryResult.Failure &&
                 result.failure.putioFailure is PutioFailure.AuthenticationRequired
             ) {
@@ -110,7 +110,7 @@ internal class MobilePlaybackReporting(
      */
     private fun resumeAllowed(sessionId: MobileAuthSessionId, userId: Long, fileId: Long): Boolean {
         val state = settings?.takeIf { it.sessionId == sessionId }?.state?.value
-        val offlineStore = offline?.store(userId)?.takeIf { state?.content !is AccountSettingsContent.Ready }
+        val offlineStore = offline()?.store(userId)?.takeIf { state?.content !is AccountSettingsContent.Ready }
         return state?.confirmedResumePlayback()
             ?: (offlineStore?.resumeSetting == true && offlineStore.tracks(fileId) && state != null)
     }

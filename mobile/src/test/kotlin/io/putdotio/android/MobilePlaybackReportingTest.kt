@@ -357,7 +357,7 @@ private class ReportingFixture(
     )
     val writes = mutableListOf<Pair<Long, Double>>()
     var cancelledWrites = 0
-    val runtime = MobilePlaybackReporting(auth, scope, onAuthenticationRequired, offline) { fileId, seconds ->
+    val runtime = MobilePlaybackReporting(auth, scope, onAuthenticationRequired, { offline }) { fileId, seconds ->
         writes += fileId to seconds
         if (suspendWrites) {
             try {
