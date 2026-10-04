@@ -105,8 +105,8 @@ Building against an unreleased SDK checkout:
 
 ## Docs
 
-- [Agent guide](./AGENTS.md): toolchain, build and verify, CI, and the
-  definition of done
+- [Agent guide](./AGENTS.md): where code lives, hazards, setup, build and
+  verify, the proof map, and CI
 - [Harness](./docs/harness.md): emulator lifecycle, recording, proof lanes,
   live API proof
 - [Design system binding](./design/README.md): tokens and icon generation
