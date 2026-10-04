@@ -44,6 +44,40 @@ jobs:
               - '!.github/ISSUE_TEMPLATE/**'
               - '!LICENSE'
 
+  # `verify` runs as two parallel jobs that together run exactly its tasks: the
+  # minified release builds here, everything else plus the debug assembles in
+  # `verify`.
+  release:
+    name: Build release
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: putio-android
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+        with:
+          validate-wrappers: true
+
+      - name: Assemble release builds
+        working-directory: putio-android
+        run: >-
+          ./gradlew :mobile:assembleProductionRelease :tv:assembleProductionRelease
+          :tv:assembleNightlyRelease
+
   verify:
     name: Verify Android app
     needs: changes
@@ -84,7 +118,8 @@ jobs:
       - name: Verify and assemble all flavors
         working-directory: putio-android
         run: >-
-          ./gradlew verify
+          ./gradlew verify -x :mobile:assembleProductionRelease -x :tv:assembleProductionRelease
+          -x :tv:assembleNightlyRelease
           :mobile:assembleProductionDebug :tv:assembleProductionDebug
           :mobile:assembleNightlyDebug :tv:assembleNightlyDebug
 

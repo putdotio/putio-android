@@ -134,7 +134,11 @@ the release variants unsigned, and nothing signs, publishes, or uploads to
 Play. CI runs `./gradlew verify` plus all four debug
 assembles on every `main` push and on pull requests that change more than
 Markdown, `docs/`, issue templates, or `LICENSE`; a docs-only pull request
-reports the job as skipped. CI holds no secrets and keeps
+reports the jobs as skipped. Two parallel jobs split that work: `Build
+release` runs the three minified release assembles, and `Verify Android app`
+runs `verify` with them excluded plus the debug assembles. When either command
+changes, compare their `--dry-run` task lists with the full command's; together
+they must run exactly the same tasks. CI holds no secrets and keeps
 failed unit-test XML as the `failed-unit-test-reports` artifact. A new push to
 a pull request cancels its running check; `main` runs never replace each other.
 
