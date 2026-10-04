@@ -4,6 +4,9 @@ plugins {
 
 android {
     namespace = "io.putdotio.android.playback"
+
+    // State builders other modules' tests reuse.
+    testFixtures.enable = true
 }
 
 dependencies {
@@ -23,5 +26,7 @@ dependencies {
     implementation(libs.androidx.media3.ui.compose)
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)
+    testFixturesImplementation(project(":domain:files"))
     testImplementation(testFixtures(project(":core:common")))
+    testImplementation(testFixtures(project(":domain:account")))
 }

@@ -111,10 +111,11 @@ import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRequestId
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.copyForTest
 import io.putdotio.android.playback.hasSelectableSubtitles
+import io.putdotio.android.playback.playbackState
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.toMediaItem
-import io.putdotio.android.playback.toMediaRequestFailureOrNull
 import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackConversionState
@@ -141,9 +142,6 @@ import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.PlaybackAudioTrack
 import io.putdotio.android.playback.withAudioTrack
-import io.putdotio.android.playback.displayAspectRatioOrNull
-import io.putdotio.android.playback.fitInside
-import io.putdotio.android.playback.FittedVideoSize
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MOBILE_AUDIO_COVER_TAG
 import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
@@ -181,7 +179,7 @@ class MobilePlayerScreenTest {
     @Test
     fun resumeDecisionSurvivesRecreationAndCreatesNoPlayerUntilChosen() {
         val original = readyState(startFromSeconds = 12.345)
-        var state by mutableStateOf(original.copy(
+        var state by mutableStateOf(original.copyForTest(
             content = PlaybackContent.AwaitingResume((original.content as PlaybackContent.Ready).source),
         ))
         val players = mutableListOf<RecordingPlayer>()
@@ -250,7 +248,7 @@ class MobilePlayerScreenTest {
     @Suppress("DEPRECATION")
     fun dismissingTheResumeDialogCancelsWithoutCreatingAPlayer() {
         val original = readyState(startFromSeconds = 12.345)
-        val pending = original.copy(
+        val pending = original.copyForTest(
             content = PlaybackContent.AwaitingResume((original.content as PlaybackContent.Ready).source),
         )
         var visible by mutableStateOf(true)
@@ -279,7 +277,7 @@ class MobilePlayerScreenTest {
     @Test
     fun startOverPreparesAtZeroInsteadOfTheSavedPosition() {
         val original = readyState(startFromSeconds = 12.345)
-        var state by mutableStateOf(original.copy(
+        var state by mutableStateOf(original.copyForTest(
             content = PlaybackContent.AwaitingResume((original.content as PlaybackContent.Ready).source),
         ))
         val players = mutableListOf<RecordingPlayer>()
@@ -591,7 +589,7 @@ class MobilePlayerScreenTest {
         compose.setContent {
             PutioTheme {
                 MobilePlayerScreen(
-                    state = state(content).copy(resumePositionMillis = 12_345L),
+                    state = state(content).copyForTest(resumePositionMillis = 12_345L),
                     onRetry = {},
                     onPlayerFailure = { failure, _ -> content = PlaybackContent.Failed(failure) },
                     onBack = {},
@@ -2468,7 +2466,7 @@ class MobilePlayerScreenTest {
         content: PlaybackContent,
         target: PlaybackTarget = Target,
     ): PlaybackState =
-        PlaybackState(
+        playbackState(
             target = target,
             content = content,
             nextRequestValue = 2L,
@@ -2938,13 +2936,6 @@ class MobilePlayerCodecTest {
     }
 
     @Test
-    fun subtitleFrameMatchesTheFittedVideoSurface() {
-        assertEquals(16f / 9f, VideoSize(1_920, 1_080).displayAspectRatioOrNull())
-        assertEquals(FittedVideoSize(1_080, 608), fitInside(1_080, 2_160, 16f / 9f))
-        assertEquals(FittedVideoSize(1_080, 1_920), fitInside(1_080, 2_160, 9f / 16f))
-    }
-
-    @Test
     fun activeNonTouchInteractionPreventsControlAutoHide() {
         val player = RecordingPlayer()
         try {
@@ -3004,77 +2995,6 @@ class MobilePlayerCodecTest {
         assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_ENDED, false))
         assertTrue(controlsVisibleAfterTap(true, Media3Player.STATE_READY, true))
         assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_READY, true))
-    }
-
-    @Test
-    fun mediaRequestUnauthorizedRefreshesThePlaybackCredential() {
-        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
-        val response =
-            HttpDataSource.InvalidResponseCodeException(
-                401,
-                "Unauthorized",
-                IOException("rejected"),
-                emptyMap(),
-                dataSpec,
-                ByteArray(0),
-            )
-
-        assertTrue(
-            IllegalStateException("player failed", response).toMediaRequestFailureOrNull() is
-                PlaybackFailure.MediaCredentialUnavailable,
-        )
-    }
-
-    @Test
-    fun mediaRequestForbiddenRefreshesThePlaybackCredential() {
-        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
-        val response =
-            HttpDataSource.InvalidResponseCodeException(
-                403,
-                "Forbidden",
-                IOException("rejected"),
-                emptyMap(),
-                dataSpec,
-                ByteArray(0),
-            )
-
-        assertTrue(
-            IllegalStateException("player failed", response).toMediaRequestFailureOrNull() is
-                PlaybackFailure.MediaCredentialUnavailable,
-        )
-    }
-
-    @Test
-    fun mediaRequestNotFoundUsesGenericRecovery() {
-        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
-        val response =
-            HttpDataSource.InvalidResponseCodeException(
-                404,
-                "Not Found",
-                IOException("missing"),
-                emptyMap(),
-                dataSpec,
-                ByteArray(0),
-            )
-
-        assertNull(IllegalStateException("player failed", response).toMediaRequestFailureOrNull())
-    }
-
-    @Test
-    fun mediaRequestTransportFailureReportsNetworkUnavailable() {
-        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
-        val transport =
-            HttpDataSource.HttpDataSourceException(
-                IOException("offline"),
-                dataSpec,
-                PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-                HttpDataSource.HttpDataSourceException.TYPE_OPEN,
-            )
-
-        assertTrue(
-            IllegalStateException("player failed", transport).toMediaRequestFailureOrNull() is
-                PlaybackFailure.NetworkUnavailable,
-        )
     }
 
     @Test

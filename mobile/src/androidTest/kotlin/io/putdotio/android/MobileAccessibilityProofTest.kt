@@ -35,18 +35,18 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.history.HistoryContent
-import io.putdotio.android.history.HistoryState
+import io.putdotio.android.history.historyState
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
-import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.search.searchState
 import io.putdotio.android.transfers.AppTransferStatus
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
-import io.putdotio.android.transfers.TransfersState
+import io.putdotio.android.transfers.transfersState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -122,7 +122,7 @@ class MobileAccessibilityProofTest {
         val events = mutableListOf<TransfersEvent>()
         mount {
             if (transfers) {
-                MobileTransfersScreen(TransfersState(TransfersContent.Ready(listOf(TransferItem(
+                MobileTransfersScreen(transfersState(TransfersContent.Ready(listOf(TransferItem(
                     id = TransferId(147), name = "Rehearsal documentary.mp4", status = AppTransferStatus.Downloading,
                     fileId = null, sizeBytes = 128_000_000.0, percentDone = 42.0,
                     downloadSpeedBytesPerSecond = 1_000_000.0, uploadSpeedBytesPerSecond = null,
@@ -132,8 +132,8 @@ class MobileAccessibilityProofTest {
                     sessionId = MobileAuthSessionId(147))
             } else {
                 MobileSearchHistoryScreen(
-                    searchState = SearchState("", SearchContent.Idle, recent, emptySet(), 1),
-                    historyState = HistoryState(HistoryContent.Disabled),
+                    searchState = searchState("", SearchContent.Idle, recent, 1),
+                    historyState = historyState(HistoryContent.Disabled),
                     recentSearchFailure = null,
                     onSearchQueryChanged = {}, onSearchSubmit = {}, onSearchResult = {},
                     onSearchNextPage = {}, onSearchRetry = {}, onRecentSearch = {},

@@ -44,6 +44,8 @@ import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.DefaultAccountSettingsPreferences
+import io.putdotio.android.settings.DefaultAndroidAppConfigPreferences
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
@@ -53,8 +55,11 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigRequestId
-import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.accountSettingsState
+import io.putdotio.android.settings.androidAppConfigState
+import io.putdotio.android.settings.readyAccountSettingsState
+import io.putdotio.android.settings.readyAndroidAppConfigState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -282,7 +287,7 @@ class MobileAccountScreenTest {
     fun loadingAndFailuresRemainRecoverable() {
         val events = mutableListOf<AccountSettingsEvent>()
         var state by mutableStateOf(
-            AccountSettingsState(
+            accountSettingsState(
                 content = AccountSettingsContent.Loading(AccountSettingsRequestId(1L)),
                 mutation = AccountSettingsMutation.Idle,
                 nextRequestValue = 2L,
@@ -305,7 +310,7 @@ class MobileAccountScreenTest {
 
         compose.runOnIdle {
             state =
-                AccountSettingsState(
+                accountSettingsState(
                     content =
                         AccountSettingsContent.Failed(
                             AccountSettingsFailure.AccessDenied(PutioConfigurationException("restricted")),
@@ -325,7 +330,7 @@ class MobileAccountScreenTest {
         val events = mutableListOf<AccountSettingsEvent>()
         setAccountContent(
             state =
-                AccountSettingsState(
+                accountSettingsState(
                     content =
                         AccountSettingsContent.Failed(
                             AccountSettingsFailure.AuthenticationRequired(
@@ -516,7 +521,7 @@ class MobileAccountScreenTest {
     fun playbackLoadingAndFailureStaySectionLocalAndRetry() {
         val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
         var appConfigState by mutableStateOf(
-            AndroidAppConfigState(
+            androidAppConfigState(
                 content = AndroidAppConfigContent.Loading(AndroidAppConfigRequestId(1L)),
                 mutation = AndroidAppConfigMutation.Idle,
                 nextRequestValue = 2L,
@@ -541,7 +546,7 @@ class MobileAccountScreenTest {
         compose.onNodeWithText("Loading playback settings").assertIsDisplayed()
         compose.runOnIdle {
             appConfigState =
-                AndroidAppConfigState(
+                androidAppConfigState(
                     content =
                         AndroidAppConfigContent.Failed(
                             AndroidAppConfigFailure.AccessDenied(
@@ -794,7 +799,7 @@ class MobileAccountScreenTest {
                     sessionId = SessionOne,
                     settingsState = readyAccountSettingsState(),
                     // Optimistic Ready shows MP4, but the save is still pending: playback keeps HLS.
-                    appConfigState = AndroidAppConfigState(
+                    appConfigState = androidAppConfigState(
                         content = AndroidAppConfigContent.Ready(mp4),
                         mutation = AndroidAppConfigMutation.Saving(
                             requestId = AndroidAppConfigRequestId(3L),

@@ -20,10 +20,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.transfers.MobileTransfersScreen
-import io.putdotio.android.transfers.SdkTransfersRepository
-import io.putdotio.android.transfers.TransfersAddOperations
 import io.putdotio.android.transfers.TransfersController
-import io.putdotio.android.transfers.TransfersReadOperations
+import io.putdotio.android.transfers.scriptedSdkTransfersRepository
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
@@ -67,18 +65,9 @@ class MobileTransferRetryProofTest {
     fun failedRowsShowTheServerReasonAndRetryReportsItsResult() {
         val retried = CopyOnWriteArrayList<Long>()
         val server = ConcurrentHashMap(TRANSFERS.associateBy(Transfer::id))
-        val repository = SdkTransfersRepository(
-            reads = TransfersReadOperations(
-                list = { TransfersListResponse(cursor = null, transfers = server.values.sortedBy(Transfer::id), status = "OK") },
-                continueList = { _, _ -> error("No second page") },
-                get = { id -> requireNotNull(server[id]) },
-            ),
-            adds = TransfersAddOperations(
-                add = { error("No add in this proof") },
-                addMany = { error("No add in this proof") },
-                upload = { error("No add in this proof") },
-            ),
-            cancelTransfers = { error("No cancel in this proof") },
+        val repository = scriptedSdkTransfersRepository(
+            list = { TransfersListResponse(cursor = null, transfers = server.values.sortedBy(Transfer::id), status = "OK") },
+            get = { id -> requireNotNull(server[id]) },
             retryTransfer = { id ->
                 retried += id
                 if (id == REJECTED_ID) throw noErrorToRetry(id)

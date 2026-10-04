@@ -25,7 +25,6 @@ import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
-import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
@@ -35,9 +34,8 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesMoveDestinationEvent
-import io.putdotio.android.files.FilesMoveDestinationFolder
 import io.putdotio.android.files.FilesMoveDestinationRequest
-import io.putdotio.android.files.FilesMoveDestinationState
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.files.FilesMoveStatus
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
@@ -50,6 +48,8 @@ import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
 import io.putdotio.android.files.MobileFilesMoveDestination
 import io.putdotio.android.files.MobileFilesScreen
 import io.putdotio.android.files.complete
+import io.putdotio.android.files.filesMoveDestinationFolder
+import io.putdotio.android.files.filesMoveDestinationState
 import io.putdotio.android.files.mobileFilesMoveFolderTag
 import io.putdotio.android.files.reduce
 import io.putdotio.android.playback.dispatch
@@ -192,14 +192,14 @@ private class MoveRecoveryPreview {
     val item = FilesItem(FilesItemId(13), folder.id, "A Folder été", PutioFileType.FOLDER, 0, "2026-01-01T00:00:00Z")
     val source = item.copy(id = folder.id, parentId = FilesFolder.Root.id, name = checkNotNull(folder.name))
     val effects = mutableListOf<FilesBrowserEffect>()
-    var state by mutableStateOf(FilesBrowserState(listOf(
+    var state by mutableStateOf(filesBrowserState(listOf(
         FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(source), FilesPaging.Complete)),
         FilesFolderState(folder, FilesContent.Ready(listOf(item), FilesPaging.Complete)),
     ), nextRequestValue = 1))
         private set
     var showPicker by mutableStateOf(false)
-    var picker by mutableStateOf(FilesMoveDestinationState(item, folder.id,
-        listOf(FilesMoveDestinationFolder(FilesFolder.Root, FilesContent.Failed(offline()))), nextRequestValue = 1))
+    var picker by mutableStateOf(filesMoveDestinationState(item, folder.id,
+        listOf(filesMoveDestinationFolder(FilesFolder.Root, FilesContent.Failed(offline()))), nextRequestValue = 1))
     var pickerRequest: FilesMoveDestinationRequest? = null
         private set
 

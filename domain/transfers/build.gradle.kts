@@ -5,7 +5,7 @@ plugins {
 android {
     namespace = "io.putdotio.android.transfers"
 
-    // Fakes the app module's tests reuse.
+    // Fakes and state builders other modules' tests reuse.
     testFixtures.enable = true
 }
 
@@ -16,4 +16,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     testFixturesImplementation(libs.putio.sdk.kotlin)
     testFixturesImplementation(libs.kotlinx.coroutines.android)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

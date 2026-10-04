@@ -24,7 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.putdotio.android.files.FilesBrowserEvent
 import androidx.compose.ui.focus.focusRequester
-import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
@@ -34,9 +33,11 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.files.filesBrowserState
+import io.putdotio.android.history.historyState
 import io.putdotio.android.search.SearchContent
-import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.search.searchState
 import io.putdotio.android.tv.TvDestination
 import io.putdotio.android.tv.TvLinkScreen
 import io.putdotio.android.tv.search.TV_SEARCH_FIELD_TAG
@@ -51,7 +52,6 @@ import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
-import io.putdotio.android.history.HistoryState
 import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.trash.TvTrashScreen
 import io.putdotio.android.tv.account.TvAccountScreen
@@ -187,7 +187,7 @@ class TvShellTest {
     @Test
     fun returningToFilesLandsOnTheRowThatHeldFocus() {
         val memory = mutableMapOf<Long, Long>()
-        val files = FilesBrowserState(
+        val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     folder = FilesFolder.Root,
@@ -245,7 +245,7 @@ class TvShellTest {
 
     @Test
     fun railRoundTripWithoutLeavingFilesReturnsToTheLiveRow() {
-        val files = FilesBrowserState(
+        val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     folder = FilesFolder.Root,
@@ -286,7 +286,7 @@ class TvShellTest {
 
     @Test
     fun railRoundTripOnAnEmptyPageReturnsToItsPagingControl() {
-        val files = FilesBrowserState(
+        val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(FilesFolder.Root, FilesContent.Empty(FilesPaging.Available(FilesCursor("c")))),
             ),
@@ -317,7 +317,7 @@ class TvShellTest {
 
     @Test
     fun railRoundTripFromLoadMoreReturnsToLoadMore() {
-        val files = FilesBrowserState(
+        val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
@@ -355,7 +355,7 @@ class TvShellTest {
     @Test
     fun theLastPageLandingWhileOnTheRailDoesNotStealFocus() {
         var files by mutableStateOf(
-            FilesBrowserState(
+            filesBrowserState(
                 stack = listOf(
                     FilesFolderState(
                         FilesFolder.Root,
@@ -385,7 +385,7 @@ class TvShellTest {
         compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
 
-        files = FilesBrowserState(
+        files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
@@ -404,7 +404,7 @@ class TvShellTest {
     @Test
     fun aFolderThatFinishesLoadingWhileOnTheRailDoesNotStealFocus() {
         var files by mutableStateOf(
-            FilesBrowserState(
+            filesBrowserState(
                 stack = listOf(FilesFolderState(FilesFolder.Root, FilesContent.Loading(FilesRequestId(1)))),
                 nextRequestValue = 10L,
             ),
@@ -430,7 +430,7 @@ class TvShellTest {
             .performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
 
-        files = FilesBrowserState(
+        files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
@@ -449,7 +449,7 @@ class TvShellTest {
     @Test
     fun aFolderThatFailsWhileOnTheRailDoesNotStealFocus() {
         var files by mutableStateOf(
-            FilesBrowserState(
+            filesBrowserState(
                 stack = listOf(FilesFolderState(FilesFolder.Root, FilesContent.Loading(FilesRequestId(1)))),
                 nextRequestValue = 10L,
             ),
@@ -475,7 +475,7 @@ class TvShellTest {
             .performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
 
-        files = FilesBrowserState(
+        files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
@@ -493,7 +493,7 @@ class TvShellTest {
 
     @Test
     fun backOnTheRailReturnsToTheUnsupportedScreenBeforeDismissingIt() {
-        val files = FilesBrowserState(
+        val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
@@ -538,7 +538,7 @@ class TvShellTest {
     fun backOnTheDrawerReturnsToTheFolderRowBeforePoppingIt() {
         val events = mutableListOf<FilesBrowserEvent>()
         var exits = 0
-        val nested = FilesBrowserState(
+        val nested = filesBrowserState(
             stack = listOf(
                 FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "Sample folder")), FilesPaging.Complete)),
                 FilesFolderState(
@@ -586,7 +586,7 @@ class TvShellTest {
     @Test
     fun backFromAnotherDestinationKeepsTheFolderStackBehindIt() {
         val events = mutableListOf<FilesBrowserEvent>()
-        val nested = FilesBrowserState(
+        val nested = filesBrowserState(
             stack = listOf(
                 FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(row(1, "Sample folder")), FilesPaging.Complete)),
                 FilesFolderState(
@@ -661,7 +661,7 @@ class TvShellTest {
     fun backFromSearchHistoryAndAccountReturnsToTheFilesRowThatHeldFocus() {
         val memory = mutableMapOf<Long, Long>()
         var exits = 0
-        val files = FilesBrowserState(
+        val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     folder = FilesFolder.Root,
@@ -773,11 +773,10 @@ class TvShellTest {
     }
     @Test
     fun searchDestinationFocusesTheFieldAndAResultRequestReturnsToFiles() {
-        val search = SearchState(
+        val search = searchState(
             query = "",
             content = SearchContent.Idle,
             recentTerms = listOf(SearchTerm("tears")),
-            consumedCursors = emptySet(),
             nextRequestValue = 5L,
         )
         val actions = TvSearchActions(
@@ -822,7 +821,7 @@ class TvShellTest {
 
     @Test
     fun historyDestinationFocusesTheFirstRowAndAnOpenRequestReturnsToFiles() {
-        val history = HistoryState(
+        val history = historyState(
             HistoryContent.Ready(
                 listOf(
                     HistoryItem(
@@ -879,7 +878,7 @@ class TvShellTest {
     @Test
     fun historyRowsThatGoWhileTheUserIsOnTheDrawerLeaveClearAsTheEntryPoint() {
         var history by mutableStateOf(
-            HistoryState(
+            historyState(
                 HistoryContent.Ready(
                     listOf(
                         HistoryItem(
@@ -919,7 +918,7 @@ class TvShellTest {
         }
         compose.onNode(hasText("History") and hasClickAction()).assertIsFocused()
 
-        compose.runOnIdle { history = HistoryState(HistoryContent.Empty) }
+        compose.runOnIdle { history = historyState(HistoryContent.Empty) }
         compose.onNodeWithText("No activity yet.").assertIsDisplayed()
         // The rows went while the drawer held focus: nothing pulled it back.
         compose.onNode(hasText("History") and hasClickAction()).assertIsFocused().performKeyInput {

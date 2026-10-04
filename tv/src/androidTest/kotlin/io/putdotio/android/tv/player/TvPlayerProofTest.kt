@@ -31,13 +31,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.putioTvDarkColorScheme
-import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackFailure
@@ -47,6 +47,7 @@ import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.SUBTITLE_CUES_TAG
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.playbackAudioTracks
+import io.putdotio.android.playback.playbackState
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsPreferences
@@ -59,7 +60,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import io.putdotio.android.playback.PlaybackMediaType
-import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.auth.TvAccount
@@ -712,7 +712,7 @@ class TvPlayerProofTest {
 
             override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")
         }
-        val files = FilesBrowserState(
+        val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
@@ -813,7 +813,7 @@ class TvPlayerProofTest {
         } else {
             row(FIXTURE_FILE_ID, FIXTURE_TITLE, PutioFileType.VIDEO)
         }
-        val files = FilesBrowserState(
+        val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
@@ -891,7 +891,7 @@ class TvPlayerProofTest {
     ): ProofPlayerFactory {
         val factory = ProofPlayerFactory()
         val video = row(FIXTURE_FILE_ID, FIXTURE_TITLE, PutioFileType.VIDEO)
-        val files = FilesBrowserState(
+        val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
@@ -911,7 +911,7 @@ class TvPlayerProofTest {
                     player = {
                         val item = checkNotNull(playing)
                         TvPlayerScreen(
-                            state = PlaybackState(
+                            state = playbackState(
                                 target = PlaybackTarget(item.id, item.name, PlaybackMediaType.VIDEO),
                                 content = PlaybackContent.Ready(source),
                                 nextRequestValue = 2L,

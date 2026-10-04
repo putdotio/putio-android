@@ -41,6 +41,8 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.files.copyForTest
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
@@ -233,7 +235,7 @@ class TvFilesScreenTest {
             item(2, "Movies", PutioFileType.FOLDER),
             item(3, "third.txt", PutioFileType.TEXT),
         )
-        val child = FilesBrowserState(
+        val child = filesBrowserState(
             stack = root.stack + FilesFolderState(
                 folder = FilesFolder(FilesItemId(2), "Movies"),
                 content = FilesContent.Ready(listOf(item(4, "inner.mp4", PutioFileType.VIDEO)), FilesPaging.Complete),
@@ -993,7 +995,7 @@ class TvFilesScreenTest {
             status = FilesDeleteStatus.TOO_LARGE_FOR_TRASH,
         )
         fun withOutcome(listed: FilesItem) =
-            ready(listed).let { it.copy(stack = listOf(it.current.copy(deleteOutcome = outcome))) }
+            ready(listed).let { it.copyForTest(stack = listOf(it.current.copy(deleteOutcome = outcome))) }
         var state by mutableStateOf(withOutcome(folder))
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
@@ -1070,7 +1072,7 @@ class TvFilesScreenTest {
         sort: FilesSort? = null,
         operation: FilesFolderOperation = FilesFolderOperation.Idle,
     ): FilesBrowserState =
-        FilesBrowserState(
+        filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     folder = FilesFolder.Root.copy(sort = sort),

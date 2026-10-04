@@ -98,6 +98,8 @@ tasks.register("verify") {
         ":tv:assembleNightlyRelease",
         ":mobile:assembleProductionDebugAndroidTest",
         ":tv:assembleProductionDebugAndroidTest",
+        ":domain:auth:assembleDebugAndroidTest",
+        ":domain:transfers:assembleDebugAndroidTest",
         checkDesignAssets,
         checkIcons,
         testDesignAssetPipeline,

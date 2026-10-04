@@ -37,6 +37,7 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.playbackState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -303,7 +304,7 @@ class MobileFullscreenVideoProofTest {
         // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
-        return PlaybackState(
+        return playbackState(
             target = PlaybackTarget(
                 FilesItemId(9_154_001), file.name, PlaybackMediaType.VIDEO,
             ),

@@ -45,6 +45,10 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.settings.readyAccountSettingsState
+import io.putdotio.android.settings.readyAndroidAppConfigState
+import io.putdotio.android.transfers.TransfersContent
+import io.putdotio.android.transfers.transfersState
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -303,6 +307,7 @@ abstract class NavigationShellFixture(fontScale: Float) {
                     filesState = files,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
                     account = MobileAccount(42, "Navigation proof", "proof@example.invalid"),
                     playbackRepository = NoNavigationPlayback,
                     sessionId = MobileAuthSessionId(1),

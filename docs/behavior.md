@@ -727,7 +727,7 @@ a 403 reads as nothing to retry. A failed retry leaves no blocking error
 dialog, and a session rejection still signs out.
 
 Tests: `SdkTransfersRepositoryTest`, `TransfersReducerTest`,
-`MobileTransfersScreenTest`, `FilesSessionFailureTest`,
+`MobileTransfersScreenTest`, `TransfersSessionFailureTest`,
 `MobileTransferRetryProofTest` (opt-in device proof; see
 [Harness](./harness.md#transfer-retry-proof)).
 

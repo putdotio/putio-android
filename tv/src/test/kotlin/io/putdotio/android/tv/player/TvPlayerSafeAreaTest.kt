@@ -13,8 +13,8 @@ import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
-import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.playbackState
 import io.putdotio.android.tv.assertInsideTvSafeArea
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -90,7 +90,7 @@ class TvPlayerSafeAreaTest {
         compose.assertInsideTvSafeArea(controls)
     }
 
-    private fun readyState() = PlaybackState(
+    private fun readyState() = playbackState(
         target = PlaybackTarget(FilesItemId(9), TITLE, PlaybackMediaType.VIDEO),
         content = PlaybackContent.Ready(
             PlaybackSource(

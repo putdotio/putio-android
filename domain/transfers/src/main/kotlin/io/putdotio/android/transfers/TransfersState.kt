@@ -86,7 +86,8 @@ sealed interface TransferRetryOutcome {
     ) : TransferRetryOutcome
 }
 
-data class TransfersState(
+@ConsistentCopyVisibility
+data class TransfersState internal constructor(
     val content: TransfersContent,
     val refresh: TransfersRefresh = TransfersRefresh.Idle,
     val mutation: TransferMutation = TransferMutation.Idle,
@@ -97,7 +98,7 @@ data class TransfersState(
     val lastAddReceipt: TransferAddReceipt? = null,
     internal val firstPageIds: Set<TransferId> = emptySet(),
     internal val consumedCursors: Set<TransferCursor> = emptySet(),
-    val nextRequestValue: Long = 1L,
+    internal val nextRequestValue: Long = 1L,
 ) {
     val lastSuccessfulAddRequestId: TransfersRequestId? get() = lastAddReceipt?.requestId
 }

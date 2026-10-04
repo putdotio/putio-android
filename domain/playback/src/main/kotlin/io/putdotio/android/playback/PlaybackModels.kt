@@ -85,10 +85,11 @@ sealed interface PlaybackContent {
     ) : PlaybackContent
 }
 
-data class PlaybackState(
+@ConsistentCopyVisibility
+data class PlaybackState internal constructor(
     val target: PlaybackTarget,
     val content: PlaybackContent,
-    val nextRequestValue: Long,
+    internal val nextRequestValue: Long,
     val resumePositionMillis: Long? = null,
     val visitedFileIds: Set<FilesItemId> = setOf(target.fileId),
     /**

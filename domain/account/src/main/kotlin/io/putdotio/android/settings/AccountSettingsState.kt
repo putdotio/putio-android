@@ -125,10 +125,11 @@ sealed interface AccountSettingsMutation {
     ) : AccountSettingsMutation
 }
 
-data class AccountSettingsState(
+@ConsistentCopyVisibility
+data class AccountSettingsState internal constructor(
     val content: AccountSettingsContent,
     val mutation: AccountSettingsMutation,
-    val nextRequestValue: Long,
+    internal val nextRequestValue: Long,
 )
 
 sealed interface AccountSettingsEvent {

@@ -32,6 +32,7 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.MobileFilesScreen
+import io.putdotio.android.files.copyForTest
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -112,7 +113,7 @@ class MobileFilesDeleteTest {
     fun deleteCancelAndConfirmHandleAnEarlierRenameFailure() {
         val rename = FilesFolderOperationIntent.Rename(item.id, "failed name")
         val root = loadedRoot()
-        val failedRename = root.copy(stack = listOf(root.current.copy(
+        val failedRename = root.copyForTest(stack = listOf(root.current.copy(
             operation = FilesFolderOperation.Failed(
                 FilesFailure.Unexpected(IllegalStateException("rename failed")),
                 rename, FilesFolderOperationPhase.RENAMING,
@@ -253,7 +254,9 @@ class MobileFilesDeleteTest {
             FilesRequestId(4L), intent, "Harbor film.mp4", status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
         )
         var state by mutableStateOf(
-            loadedRoot(listOf(remaining)).let { it.copy(stack = listOf(it.current.copy(deleteOutcome = outcome))) },
+            loadedRoot(listOf(remaining)).let {
+                it.copyForTest(stack = listOf(it.current.copy(deleteOutcome = outcome)))
+            },
         )
         val events = mutableListOf<FilesBrowserEvent>()
         var viewedTrash = 0
@@ -277,14 +280,16 @@ class MobileFilesDeleteTest {
 
         // Once announced, the kept outcome is neither announced again nor shown as a line.
         compose.runOnIdle {
-            state = state.copy(stack = listOf(state.current.copy(deleteOutcome = outcome.copy(announced = true))))
+            state = state.copyForTest(
+                stack = listOf(state.current.copy(deleteOutcome = outcome.copy(announced = true))),
+            )
         }
         compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
         compose.onAllNodesWithText("“Harbor film.mp4” is no longer available in Files.").assertCountEquals(0)
 
         // Permanent deletion keeps its line in the folder and is not announced as a Trash move.
         compose.runOnIdle {
-            state = state.copy(stack = listOf(state.current.copy(deleteOutcome = outcome.copy(
+            state = state.copyForTest(stack = listOf(state.current.copy(deleteOutcome = outcome.copy(
                 requestId = FilesRequestId(5L), intent = intent.copy(mode = FilesDeleteMode.PERMANENT),
             ))))
         }
@@ -293,7 +298,7 @@ class MobileFilesDeleteTest {
 
         // A failed Trash request whose item is gone anyway proves no Trash move either.
         compose.runOnIdle {
-            state = state.copy(stack = listOf(state.current.copy(deleteOutcome = outcome.copy(
+            state = state.copyForTest(stack = listOf(state.current.copy(deleteOutcome = outcome.copy(
                 requestId = FilesRequestId(6L), failure = FilesFailure.Unexpected(IllegalStateException("rejected")),
             ))))
         }
@@ -310,7 +315,7 @@ class MobileFilesDeleteTest {
             status = FilesDeleteStatus.TOO_LARGE_FOR_TRASH,
         )
         fun withOutcome(items: List<FilesItem>) =
-            loadedRoot(items).let { it.copy(stack = listOf(it.current.copy(deleteOutcome = outcome))) }
+            loadedRoot(items).let { it.copyForTest(stack = listOf(it.current.copy(deleteOutcome = outcome))) }
         var state by mutableStateOf(withOutcome(listOf(folder)))
         val events = mutableListOf<FilesBrowserEvent>()
         compose.setContent {

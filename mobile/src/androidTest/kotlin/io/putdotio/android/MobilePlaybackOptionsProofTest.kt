@@ -34,8 +34,8 @@ import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
-import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.playbackState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -136,7 +136,7 @@ class MobilePlaybackOptionsProofTest {
     ): StateRestorationTester {
         proofMediaType = mediaType
         val source = fixture(mediaType)
-        val state = PlaybackState(
+        val state = playbackState(
             target = PlaybackTarget(
                 FilesItemId(source.fileId),
                 if (mediaType == PlaybackMediaType.AUDIO) {

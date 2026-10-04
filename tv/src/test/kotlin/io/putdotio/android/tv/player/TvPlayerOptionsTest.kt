@@ -50,10 +50,10 @@ import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
-import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SUBTITLE_CUES_TAG
 import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.playbackState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -501,7 +501,7 @@ class TvPlayerOptionsTest {
         resumePositionMillis: Long? = null,
         durationSeconds: Double? = null,
         subtitlesHidden: Boolean = false,
-    ) = PlaybackState(
+    ) = playbackState(
         target = PlaybackTarget(FilesItemId(fileId), name, PlaybackMediaType.VIDEO, durationSeconds),
         content = PlaybackContent.Ready(
             PlaybackSource(

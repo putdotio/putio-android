@@ -24,11 +24,11 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsPreferences
-import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
-import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.accountSettingsState
+import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.android.trash.TrashController
 import java.io.File
 import java.util.UUID
@@ -75,9 +75,9 @@ internal fun TrashRestoreProofShell(
             color = MaterialTheme.colorScheme.background) {
             MobileShell(
                 filesState = files, filesRepository = filesRepository, trashController = controller,
-                accountSettingsState = AccountSettingsState(AccountSettingsContent.Ready(settings),
+                accountSettingsState = accountSettingsState(AccountSettingsContent.Ready(settings),
                     AccountSettingsMutation.Idle, 1),
-                appConfigState = AndroidAppConfigState(AndroidAppConfigContent.Ready(config),
+                appConfigState = androidAppConfigState(AndroidAppConfigContent.Ready(config),
                     AndroidAppConfigMutation.Idle, 1),
                 account = account, sessionId = sessionId, playbackRepository = TrashRestoreNoPlayback,
                 onFilesEvent = onFilesEvent,

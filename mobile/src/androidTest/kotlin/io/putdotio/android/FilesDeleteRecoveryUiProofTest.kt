@@ -26,7 +26,6 @@ import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
-import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesBrowserTransition
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesDeleteMode
@@ -42,6 +41,7 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.MOBILE_FILES_OPERATION_RETRY_TAG
 import io.putdotio.android.files.MobileFilesScreen
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.playback.dispatch
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
@@ -229,7 +229,7 @@ private class DeleteRecoveryPreview(itemName: String = "A Action été") {
     val folder = FilesFolder(FilesItemId(12), "Delete recovery preview")
     val item = FilesItem(FilesItemId(13), folder.id, itemName, PutioFileType.FOLDER, 0, "2026-01-01T00:00:00Z")
     val effects = mutableListOf<FilesBrowserEffect>()
-    var state by mutableStateOf(FilesBrowserState(
+    var state by mutableStateOf(filesBrowserState(
         stack = listOf(
             FilesFolderState(FilesFolder.Root, FilesContent.Ready(
                 listOf(item.copy(id = folder.id, parentId = FilesFolder.Root.id, name = checkNotNull(folder.name))),

@@ -41,7 +41,6 @@ import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
-import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
@@ -52,6 +51,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -60,11 +60,11 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsPreferences
-import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
-import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.accountSettingsState
+import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -239,15 +239,15 @@ class FilesMoveNavigationUiProofTest {
 
 private class RootMoveBackPreview {
     val item = FilesItem(FilesItemId(7), FilesFolder.Root.id, "Pending Move été", PutioFileType.FOLDER, 0, "2026-09-06")
-    val settings = AccountSettingsState(
+    val settings = accountSettingsState(
         AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
         AccountSettingsMutation.Idle, 1,
     )
-    val appConfig = AndroidAppConfigState(AndroidAppConfigContent.Ready(AndroidAppConfigPreferences()),
+    val appConfig = androidAppConfigState(AndroidAppConfigContent.Ready(AndroidAppConfigPreferences()),
         AndroidAppConfigMutation.Idle, 1)
     val effects = mutableListOf<FilesBrowserEffect>()
     val events = mutableListOf<FilesBrowserEvent>()
-    var files by mutableStateOf(FilesBrowserState(listOf(
+    var files by mutableStateOf(filesBrowserState(listOf(
         FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(item), FilesPaging.Complete)),
     ), 1))
         private set

@@ -34,8 +34,8 @@ import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchRequestId
-import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.search.searchState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
@@ -575,11 +575,10 @@ class TvSearchScreenTest {
         recent: List<SearchTerm> = emptyList(),
         query: String = "",
         historyEnabled: Boolean? = null,
-    ) = SearchState(
+    ) = searchState(
         query = query,
         content = content,
         recentTerms = recent,
-        consumedCursors = emptySet(),
         nextRequestValue = 5L,
         recentSearchesEnabled = historyEnabled,
     )

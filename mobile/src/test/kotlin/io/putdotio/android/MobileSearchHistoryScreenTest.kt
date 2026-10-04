@@ -27,10 +27,12 @@ import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
+import io.putdotio.android.history.historyState
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.search.searchState
 import io.putdotio.sdk.files.PutioFileType
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
@@ -135,7 +137,7 @@ class MobileSearchHistoryScreenTest {
             HistoryItem(HistoryEventId(it), "2026-08-30T10:00:00Z", HistoryEventKind.File(HistoryFileId(it), "Sample $it"))
         }
         setScreen(
-            history = HistoryState(HistoryContent.Ready(items, HistoryPaging.Available(HistoryEventId(60L)))),
+            history = historyState(HistoryContent.Ready(items, HistoryPaging.Available(HistoryEventId(60L)))),
             actions = MobileSearchHistoryActions(onHistoryEvent = events::add),
         )
 
@@ -149,7 +151,7 @@ class MobileSearchHistoryScreenTest {
     fun historyGroupsEventsAndConfirmsClear() {
         val events = mutableListOf<HistoryEvent>()
         val history =
-            HistoryState(
+            historyState(
                 content =
                     HistoryContent.Ready(
                         listOf(
@@ -179,7 +181,7 @@ class MobileSearchHistoryScreenTest {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         try {
             val history =
-                HistoryState(
+                historyState(
                     content =
                         HistoryContent.Ready(
                             listOf(
@@ -212,7 +214,7 @@ class MobileSearchHistoryScreenTest {
     fun completedTransferWithAFileOpensThroughHistoryNavigation() {
         val events = mutableListOf<HistoryEvent>()
         val history =
-            HistoryState(
+            historyState(
                 content =
                     HistoryContent.Ready(
                         listOf(
@@ -254,7 +256,7 @@ class MobileSearchHistoryScreenTest {
             val items = kinds.mapIndexed { index, kind ->
                 HistoryItem(HistoryEventId(index + 1L), "2026-09-09T15:25:32", kind)
             }
-            setScreen(history = HistoryState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+            setScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
             compose.onNodeWithText("History").performClick()
             // iOS details these rows with their time alone; only shared files and transfers name a kind.
@@ -284,7 +286,7 @@ class MobileSearchHistoryScreenTest {
             HistoryEventKind.File(id = null, name = null),
             HistoryEventKind.Transfer(transferId = null, fileId = null, name = null),
         ).mapIndexed { index, kind -> HistoryItem(HistoryEventId(index + 1L), "2026-09-09T15:25:32", kind) }
-        setScreen(history = HistoryState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+        setScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
         compose.onNodeWithText("History").performClick()
         compose.onAllNodesWithText("No title").assertCountEquals(2)
@@ -294,7 +296,7 @@ class MobileSearchHistoryScreenTest {
 
     @Test
     fun disabledHistoryPointsAtTheAccountToggle() {
-        setScreen(history = HistoryState(HistoryContent.Disabled))
+        setScreen(history = historyState(HistoryContent.Disabled))
 
         compose.onNodeWithText("History").performClick()
         compose.onNodeWithText("Turn on “Keep account history” in Account to see activity here.").assertIsDisplayed()
@@ -302,7 +304,7 @@ class MobileSearchHistoryScreenTest {
 
     private fun setScreen(
         search: SearchState = searchState(SearchContent.Idle),
-        history: HistoryState = HistoryState(HistoryContent.Disabled),
+        history: HistoryState = historyState(HistoryContent.Disabled),
         recentSearchFailure: FilesFailure? = null,
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     ) {
@@ -329,7 +331,7 @@ class MobileSearchHistoryScreenTest {
     private fun searchState(
         content: SearchContent,
         recentTerms: List<SearchTerm> = emptyList(),
-    ) = SearchState("", content, recentTerms, emptySet(), 1L)
+    ) = searchState("", content, recentTerms, 1L)
 
     private fun fileItem() =
         FilesItem(

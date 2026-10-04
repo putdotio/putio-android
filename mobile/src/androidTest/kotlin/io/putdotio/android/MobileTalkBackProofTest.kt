@@ -24,6 +24,7 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.playbackState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -146,7 +147,7 @@ class MobileTalkBackProofTest {
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
         val fileId = if (mediaType == PlaybackMediaType.VIDEO) 9_147_001L else 9_147_002L
-        return PlaybackState(
+        return playbackState(
             PlaybackTarget(FilesItemId(fileId), "Accessibility local $kind", mediaType),
             PlaybackContent.Ready(PlaybackSource(fileId, PlaybackSourceKind.ORIGINAL, url, 20.0,
                 if (mediaType == PlaybackMediaType.VIDEO) PlaybackSubtitles.Embedded else PlaybackSubtitles.None)),

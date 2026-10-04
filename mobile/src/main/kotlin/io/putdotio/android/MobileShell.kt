@@ -61,8 +61,8 @@ import io.putdotio.android.files.MobileFilesSortMenu
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.files.pendingDelete
 import io.putdotio.android.files.pendingMove
-import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
+import io.putdotio.android.history.HistoryReducer
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobileNowPlayingBar
@@ -71,7 +71,7 @@ import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.rememberNowPlaying
 import io.putdotio.android.search.RecentSearchEdit
-import io.putdotio.android.search.SearchContent
+import io.putdotio.android.search.SearchReducer
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.settings.AccountSettingsEvent
@@ -89,8 +89,8 @@ import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferMutation
 import io.putdotio.android.transfers.TransferNavigation
 import io.putdotio.android.transfers.TransferNotice
-import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
+import io.putdotio.android.transfers.TransfersReducer
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 import io.putdotio.android.trash.TrashController
@@ -659,17 +659,9 @@ private fun FilesOpenOrigin.returnDestination(): MobileDestination? =
 
 private fun emptySearchHistoryState(): MobileSearchHistoryState =
     MobileSearchHistoryState(
-        search =
-            SearchState(
-                query = "",
-                content = SearchContent.Idle,
-                recentTerms = emptyList(),
-                consumedCursors = emptySet(),
-                nextRequestValue = 1L,
-            ),
-        history = HistoryState(HistoryContent.Disabled),
+        search = SearchReducer.start(),
+        history = HistoryReducer.start(historyEnabled = false).state,
         recentSearchFailure = null,
     )
 
-private fun emptyTransfersState(): TransfersState =
-    TransfersState(content = TransfersContent.Empty)
+private fun emptyTransfersState(): TransfersState = TransfersReducer.start().state

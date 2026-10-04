@@ -128,9 +128,10 @@ data class FilesFolderState(
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
 )
 
-data class FilesBrowserState(
+@ConsistentCopyVisibility
+data class FilesBrowserState internal constructor(
     val stack: List<FilesFolderState>,
-    val nextRequestValue: Long,
+    internal val nextRequestValue: Long,
     val copyOutcome: FilesCopyOutcome? = null,
 ) {
     init {

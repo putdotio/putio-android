@@ -72,10 +72,11 @@ sealed interface AndroidAppConfigMutation {
     ) : AndroidAppConfigMutation
 }
 
-data class AndroidAppConfigState(
+@ConsistentCopyVisibility
+data class AndroidAppConfigState internal constructor(
     val content: AndroidAppConfigContent,
     val mutation: AndroidAppConfigMutation,
-    val nextRequestValue: Long,
+    internal val nextRequestValue: Long,
     val confirmedPreferences: AndroidAppConfigPreferences? =
         (content as? AndroidAppConfigContent.Ready)?.preferences,
 )

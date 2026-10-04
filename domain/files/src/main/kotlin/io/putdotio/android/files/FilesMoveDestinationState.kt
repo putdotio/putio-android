@@ -1,6 +1,7 @@
 package io.putdotio.android.files
 
-data class FilesMoveDestinationFolder(
+@ConsistentCopyVisibility
+data class FilesMoveDestinationFolder internal constructor(
     val folder: FilesFolder,
     val content: FilesContent,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
@@ -9,11 +10,12 @@ data class FilesMoveDestinationFolder(
 )
 
 /** A folder picker; without a [sourceItem] it picks a destination for new content, such as a transfer. */
-data class FilesMoveDestinationState(
+@ConsistentCopyVisibility
+data class FilesMoveDestinationState internal constructor(
     val sourceItem: FilesItem?,
     val sourceFolderId: FilesItemId?,
     internal val stack: List<FilesMoveDestinationFolder>,
-    val nextRequestValue: Long,
+    internal val nextRequestValue: Long,
     /** The picker opened at a remembered folder whose first read is pending; a failed read restarts at root. */
     internal val opensRememberedTarget: Boolean = false,
 ) {

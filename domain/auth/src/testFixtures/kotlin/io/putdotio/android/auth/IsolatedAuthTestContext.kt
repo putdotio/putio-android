@@ -6,7 +6,7 @@ import android.content.SharedPreferences
 import java.util.UUID
 
 // Exercise the production stores and Android Keystore without touching a reusable device's session.
-internal class IsolatedAuthTestContext(base: Context) : ContextWrapper(base) {
+class IsolatedAuthTestContext(base: Context) : ContextWrapper(base) {
     private val namespace = "${base.packageName}.auth_test.${UUID.randomUUID()}"
 
     override fun getPackageName(): String = namespace

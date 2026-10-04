@@ -29,7 +29,6 @@ import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
-import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesExternalOpen
@@ -43,6 +42,7 @@ import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
@@ -51,11 +51,11 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsPreferences
-import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
-import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.accountSettingsState
+import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.android.transfers.AppTransferStatus
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferId
@@ -65,7 +65,7 @@ import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersReducer
-import io.putdotio.android.transfers.TransfersState
+import io.putdotio.android.transfers.transfersState
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -192,23 +192,23 @@ private class DeleteNavigationPreview {
         parentId = FilesFolder.Root.id,
         name = "Delete recovery preview",
     )
-    val settings = AccountSettingsState(
+    val settings = accountSettingsState(
         AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
         AccountSettingsMutation.Idle,
         1,
     )
-    val appConfig = AndroidAppConfigState(AndroidAppConfigContent.Ready(AndroidAppConfigPreferences()),
+    val appConfig = androidAppConfigState(AndroidAppConfigContent.Ready(AndroidAppConfigPreferences()),
         AndroidAppConfigMutation.Idle, 1)
     val deliveries = Channel<FilesExternalOpen>(Channel.UNLIMITED)
     val searchResults = deliveries.receiveAsFlow()
     val effects = mutableListOf<FilesBrowserEffect>()
     val transferEvents = mutableListOf<TransfersEvent>()
-    var files by mutableStateOf(FilesBrowserState(listOf(
+    var files by mutableStateOf(filesBrowserState(listOf(
         FilesFolderState(FilesFolder.Root, FilesContent.Ready(listOf(source), FilesPaging.Complete)),
         FilesFolderState(FilesFolder(source.id, source.name), FilesContent.Ready(listOf(item), FilesPaging.Complete)),
     ), 1))
         private set
-    var transfers by mutableStateOf(TransfersState(TransfersContent.Ready(listOf(TransferItem(
+    var transfers by mutableStateOf(transfersState(TransfersContent.Ready(listOf(TransferItem(
         TransferId(7), "Completed transfer", AppTransferStatus.Completed, TransferFileId(resolved.id.value),
         1.0, 100.0, null, null, null, null, null, "2026-09-06", true,
     )), TransfersPaging.Complete)))

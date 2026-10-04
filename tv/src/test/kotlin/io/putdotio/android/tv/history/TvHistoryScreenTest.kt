@@ -29,6 +29,7 @@ import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryRequestId
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.HistoryTransferId
+import io.putdotio.android.history.historyState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import java.time.Clock
 import java.time.Instant
@@ -53,7 +54,7 @@ class TvHistoryScreenTest {
 
     @Test
     fun eventsAreGroupedByRelativeDateAndCenterOpensAFile() {
-        show(HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)))
+        show(historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)))
 
         compose.onNodeWithText("Today").assertIsDisplayed()
         compose.onNodeWithText("Last week").assertIsDisplayed()
@@ -77,7 +78,7 @@ class TvHistoryScreenTest {
 
     @Test
     fun upFromTheFirstRowReachesClearAndCenterAsksForConfirmation() {
-        show(HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)))
+        show(historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)))
 
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
@@ -94,7 +95,7 @@ class TvHistoryScreenTest {
     @Test
     fun theClearDialogFocusesCancelAndConfirmsFromTheStackedButton() {
         var state by mutableStateOf(
-            HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete), HistoryClearing.AwaitingConfirmation),
+            historyState(HistoryContent.Ready(items(), HistoryPaging.Complete), HistoryClearing.AwaitingConfirmation),
         )
         show { state }
 
@@ -107,12 +108,12 @@ class TvHistoryScreenTest {
         assertEquals(listOf<HistoryEvent>(HistoryEvent.ConfirmClear), log)
 
         compose.runOnIdle {
-            state = HistoryState(HistoryContent.Loading(HistoryRequestId(2)), HistoryClearing.Idle)
+            state = historyState(HistoryContent.Loading(HistoryRequestId(2)), HistoryClearing.Idle)
         }
         compose.onNodeWithText("Loading history").assertIsDisplayed()
         compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
 
-        compose.runOnIdle { state = HistoryState(HistoryContent.Empty) }
+        compose.runOnIdle { state = historyState(HistoryContent.Empty) }
         compose.onNodeWithText("No activity yet.").assertIsDisplayed()
         compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
     }
@@ -120,7 +121,7 @@ class TvHistoryScreenTest {
     @Test
     fun aFailedClearExplainsItselfAndOkDismisses() {
         show(
-            HistoryState(
+            historyState(
                 HistoryContent.Ready(items(), HistoryPaging.Complete),
                 HistoryClearing.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
             ),
@@ -138,7 +139,7 @@ class TvHistoryScreenTest {
     @Test
     fun aFailedListFocusesTryAgainAndRowsTakeOverWhenItLoads() {
         var state by mutableStateOf(
-            HistoryState(
+            historyState(
                 HistoryContent.Failed(FilesFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
             ),
         )
@@ -151,25 +152,25 @@ class TvHistoryScreenTest {
         }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.Retry), log)
 
-        compose.runOnIdle { state = HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
+        compose.runOnIdle { state = historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
     }
 
     @Test
     fun rowsTakeFocusFromClearWhenTheListLoads() {
-        var state by mutableStateOf(HistoryState(HistoryContent.Loading(HistoryRequestId(1))))
+        var state by mutableStateOf(historyState(HistoryContent.Loading(HistoryRequestId(1))))
         show { state }
 
         compose.onNodeWithText("Loading history").assertIsDisplayed()
         compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused()
 
-        compose.runOnIdle { state = HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
+        compose.runOnIdle { state = historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
     }
 
     @Test
     fun disabledExplainsTheAccountSettingAndKeepsClearAsTheEntryPoint() {
-        show(HistoryState(HistoryContent.Disabled))
+        show(historyState(HistoryContent.Disabled))
 
         compose.onNodeWithText("History is off").assertIsDisplayed()
         compose.onNodeWithText("Turn on “Keep account history” in Account to see activity here.").assertIsDisplayed()
@@ -179,7 +180,7 @@ class TvHistoryScreenTest {
     @Test
     fun pagingLoadsMoreAndHandsFocusToTheLastRowWhenThePagesEnd() {
         var state by mutableStateOf(
-            HistoryState(HistoryContent.Ready(items(), HistoryPaging.Available(HistoryEventId(3)))),
+            historyState(HistoryContent.Ready(items(), HistoryPaging.Available(HistoryEventId(3)))),
         )
         show { state }
 
@@ -195,14 +196,14 @@ class TvHistoryScreenTest {
         assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log)
 
         compose.runOnIdle {
-            state = HistoryState(
+            state = historyState(
                 HistoryContent.Ready(items(), HistoryPaging.Loading(HistoryEventId(3), HistoryRequestId(2))),
             )
         }
         compose.onNodeWithText("Loading more history").assertIsFocused()
 
         compose.runOnIdle {
-            state = HistoryState(
+            state = historyState(
                 HistoryContent.Ready(
                     items(),
                     HistoryPaging.Failed(
@@ -220,7 +221,7 @@ class TvHistoryScreenTest {
         assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage, HistoryEvent.Retry), log)
 
         compose.runOnIdle {
-            state = HistoryState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
+            state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
         }
         compose.onNodeWithContentDescription("Open older.mkv").assertIsFocused()
     }
@@ -228,7 +229,7 @@ class TvHistoryScreenTest {
     @Test
     fun aFailedOpenNamesItsCause() {
         show(
-            HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)),
+            historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)),
             notice = FilesFailure.NetworkUnavailable(PutioConfigurationException("offline")),
         )
 
@@ -238,7 +239,7 @@ class TvHistoryScreenTest {
     @Test
     fun aBlockedOpenIsExplainedAboveTheList() {
         show(
-            HistoryState(HistoryContent.Ready(items(), HistoryPaging.Complete)),
+            historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)),
             notice = FilesFailure.NavigationBlocked,
         )
 
