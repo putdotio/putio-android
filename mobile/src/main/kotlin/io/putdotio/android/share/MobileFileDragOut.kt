@@ -12,17 +12,19 @@ import android.net.Uri
 import android.text.TextPaint
 import android.text.TextUtils
 import android.view.View
-import android.webkit.MimeTypeMap
 import io.putdotio.android.auth.MobileAuthSessionId
+import io.putdotio.android.auth.MobileSessionKey
+import io.putdotio.android.auth.sessionKey
+import io.putdotio.android.documents.DocumentReader
+import io.putdotio.android.documents.RemoteOriginals
+import io.putdotio.android.documents.mimeTypeOf
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
-import java.io.File
-import java.io.IOException
+import java.io.FileNotFoundException
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 
-/** The drag's own marker, visible only inside this app: which export a drag of ours started. */
+/** The drag's own marker, visible only inside this app: which drag of ours this is. */
 internal class MobileFileDrag(val key: String, val itemId: FilesItemId)
 
 /** Other apps may read the dropped URI, and only read it; no prefix, write or persistable grant. */
@@ -44,93 +46,103 @@ internal fun mobileFileDragClip(authority: String, key: String, name: String, mi
 
 internal fun mobileDragAuthority(context: Context): String = "${context.packageName}.drag"
 
-internal fun mimeTypeForName(name: String): String =
-    name.substringAfterLast('.', "").lowercase().takeIf { it.isNotEmpty() }
-        ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
-        ?: "application/octet-stream"
-
 /**
- * Files dragged out of the app, by the random key in their URI. A drop target gets the URI at once,
- * before the original is on the device; the export the drag started fills it in, and the provider
- * waits for it. An entry belongs to the session that started the drag.
+ * Files dragged out of the app, by the random key in their URI. Nothing is copied: opening a drag's URI
+ * streams the original from put.io with ranged reads, as the system file picker does, for the session that
+ * started the drag and only while it is the signed-in one. Leaving that session stops every read.
  */
-internal object MobileDragExports {
-    class Export(val session: MobileAuthSessionId, val name: String, val sizeBytes: Long, val mimeType: String) {
-        val file: CompletableFuture<File> = CompletableFuture()
+internal object MobileFileDrags {
+    class Drag(
+        val session: MobileSessionKey,
+        val fileId: FilesItemId,
+        val name: String,
+        val sizeBytes: Long,
+        val mimeType: String,
+    ) {
+        val readers: MutableSet<DocumentReader> = ConcurrentHashMap.newKeySet()
+    }
 
-        @Volatile private var cancelled = false
+    private val lock = Any()
+    private val drags = LinkedHashMap<String, Drag>()
 
-        @Volatile private var canceller: (() -> Unit)? = null
-
-        /** Runs [action] when the drag is cancelled, at once if it already was. */
-        fun onCancel(action: () -> Unit) {
-            canceller = action
-            if (cancelled) action()
+    fun begin(session: MobileSessionKey, item: FilesItem): String =
+        UUID.randomUUID().toString().also { key ->
+            val drag = Drag(session, item.id, item.name.sanitizedFileName(), item.sizeBytes, mimeTypeOf(item.name))
+            val evicted = mutableListOf<Drag>()
+            synchronized(lock) {
+                drags[key] = drag
+                // A dropped file stays readable; only the latest drags are kept, so this never grows.
+                while (drags.size > MAX_DRAGS) drags.remove(drags.keys.first())?.let(evicted::add)
+            }
+            evicted.forEach(::stop)
         }
 
-        fun cancel() {
-            cancelled = true
-            canceller?.invoke()
+    operator fun get(key: String): Drag? = synchronized(lock) { drags[key] }
+
+    /** A drag nobody took; its URI never reached another app. */
+    fun forget(key: String) {
+        synchronized(lock) { drags.remove(key) }?.let(::stop)
+    }
+
+    /** Leaving a session stops its readers and forgets its drags; a later session's drags stay. */
+    fun endSession(session: MobileAuthSessionId?) {
+        val ended = synchronized(lock) {
+            drags.filterValues { it.session.sessionId == session }.keys.mapNotNull(drags::remove)
         }
+        ended.forEach(::stop)
     }
 
-    private val exports = ConcurrentHashMap<String, Export>()
-
-    fun begin(session: MobileAuthSessionId, name: String, sizeBytes: Long, mimeType: String): String =
-        UUID.randomUUID().toString().also {
-            exports[it] = Export(session, name.sanitizedFileName(), sizeBytes, mimeType)
+    /**
+     * A reader for the drag behind [key]. It returns at once; bytes are fetched as they are read, and each
+     * read checks that the drag's session is still the signed-in one.
+     */
+    fun open(key: String, dependencies: MobileShareDependencies, onReleased: () -> Unit): DocumentReader {
+        val drag = get(key)?.takeIf { dependencies.authState.value.sessionKey() == it.session }
+            ?: throw FileNotFoundException("No such drag")
+        val isCurrent = { dependencies.authState.value.sessionKey() == drag.session }
+        val bytes = RemoteOriginals(dependencies.http, dependencies.accessToken).bytes(drag.fileId, drag.sizeBytes)
+        lateinit var reader: DocumentReader
+        reader = DocumentReader(bytes, drag.session, isCurrent) {
+            drag.readers -= reader
+            onReleased()
         }
-
-    operator fun get(key: String): Export? = exports[key]
-
-    fun ready(key: String, file: File) {
-        exports[key]?.file?.complete(file)
+        drag.readers += reader
+        // A session that ended while this opened has already stopped the drag's other readers.
+        if (get(key) !== drag) {
+            reader.revoke()
+            throw FileNotFoundException("The session ended")
+        }
+        return reader
     }
 
-    fun remove(key: String) {
-        exports.remove(key)?.file?.completeExceptionally(IOException("Drag export ended"))
+    internal fun clearForTest() {
+        synchronized(lock) { drags.values.toList().also { drags.clear() } }.forEach(::stop)
     }
 
-    /** A new export deletes every earlier copy, so every other drag ends with it. */
-    fun retainOnly(key: String?) {
-        exports.keys.filter { it != key }.forEach(::remove)
+    private fun stop(drag: Drag) {
+        drag.readers.forEach(DocumentReader::revoke)
     }
 
-    /** Stops the export behind a drag nobody took. */
-    fun cancel(key: String) {
-        exports[key]?.cancel()
-        remove(key)
-    }
-
-    /** Leaving a session ends its drags; a later session's drags stay. */
-    fun endSession(session: MobileAuthSessionId) {
-        exports.filterValues { it.session == session }.keys.forEach(::remove)
-    }
+    private const val MAX_DRAGS = 32
 }
 
 /**
  * Starts dragging a file out of Files for [session]. The drop target receives the provider URI with a
- * read grant for that drop; the original downloads through the share-out export, bound to the same
- * session, while the drag is under way.
+ * read grant for that drop; the bytes stream from put.io only when it reads them.
  */
-internal class MobileFileDragOut(private val context: Context, private val session: MobileAuthSessionId) {
+internal class MobileFileDragOut(private val context: Context, private val session: MobileSessionKey) {
     fun start(view: View, item: FilesItem, shadow: View.DragShadowBuilder): Boolean {
         if (item.isFolder || item.id.value <= 0L) return false
-        val mimeType = mimeTypeForName(item.name)
-        val key = MobileDragExports.begin(session, item.name, item.sizeBytes, mimeType)
-        val clip = mobileFileDragClip(mobileDragAuthority(context), key, item.name, mimeType)
+        val key = MobileFileDrags.begin(session, item)
+        val clip = mobileFileDragClip(mobileDragAuthority(context), key, item.name, mimeTypeOf(item.name))
         val started = view.startDragAndDrop(clip, shadow, MobileFileDrag(key, item.id), MOBILE_FILE_DRAG_FLAGS)
-        if (started) {
-            MobileFileShareService.startDrag(context, item.id, item.name, key)
-        } else {
-            MobileDragExports.remove(key)
-        }
+        if (!started) MobileFileDrags.forget(key)
         return started
     }
 
-    /** A drag nobody took stops its download; a dropped one keeps going for the reader. */
+    /** A drag nobody took is forgotten; a dropped one stays readable by the app it landed in. */
     fun ended(drag: MobileFileDrag, dropped: Boolean) {
-        if (!dropped) MobileDragExports.cancel(drag.key)
+        if (!dropped) MobileFileDrags.forget(drag.key)
     }
 }
 

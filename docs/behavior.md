@@ -764,8 +764,9 @@ arrow keys walk focus through Files, which outlines the focused row, and Enter
 opens the row as a tap would: a folder opens, media plays, any other file opens
 its actions. A folder reached from the keyboard puts focus on the row last
 focused there, such as the video that just played, else on its first visible
-row; when the focused row leaves the listing (moved to Trash, say), focus goes
-to the row now in its place.
+row. When the row that last held focus leaves the listing (moved to Trash,
+say) and no row holds focus, focus goes to the row now in its place; focus the
+viewer moved elsewhere, to the navigation rail say, stays there.
 
 Shortcuts act only on keys no focused control used, so a text field keeps
 Backspace and the arrows, and a focused button keeps Enter and Space:
@@ -788,10 +789,14 @@ Backspace and the arrows, and a focused button keeps Enter and Space:
 
 Only bare keys and Ctrl are taken: Android's own shortcuts use Meta or Alt,
 and Shift combinations are left alone. The system Keyboard Shortcuts Helper
-(Meta + /) lists them under Files and Player.
+(Meta + /) lists them under Files and Player. On Android 8 and 8.1, which lack
+the platform's unhandled-key callback, androidx's `KeyEventDispatcher` delivers
+them; `ComponentActivity`, which both apps' activities extend, routes keys
+through it.
 
 Tests: `MobileKeyboardShortcutsTest` (keys through the window's real input
-stages), `MobilePlayerKeyboardTest`, device proof `MobileTabletPowerProofTest`
+stages, on API 35 and API 26), `FilesKeyboardFocusTest`,
+`MobilePlayerKeyboardTest`, device proof `MobileTabletPowerProofTest`
 ([Harness](./harness.md#tablet-proof)).
 
 ## Drag and drop
@@ -807,18 +812,22 @@ The drag grants global read only (`DRAG_FLAG_GLOBAL` and
 other app reads it only through the drop's `DragAndDropPermissions` and not
 after releasing them. The provider is not exported.
 
-The bytes come from [Share-out](#share-out)'s export: the drag starts the same
-session-bound download into private storage, and opening the URI waits for it,
-up to ten minutes, then hands out a read-only descriptor, only while the
-session that started the drag is still signed in. A drag nobody took cancels
-its download. A dropped file stays readable for ten minutes, then its copy is
-deleted; leaving the session, or a newer export or drag, ends it at once.
+Nothing is downloaded or copied for a drag. Opening the URI hands out a
+read-only proxy descriptor at once, and reads stream the original from put.io
+with ranged requests, as the [system file picker](#documents-provider) does:
+the API's download endpoint with the session in the header, never in the URL.
+Every read checks that the session that started the drag is still the signed-in
+one; leaving it stops reads in progress and forgets its drags. A drag nobody
+took is forgotten when it ends; a dropped file stays readable by the app it
+landed in for as long as the drop's grant lasts and the app keeps its 32 latest
+drags.
 
 Links, magnet links and `.torrent` files dragged in from another app open the
 Add transfer sheet through [Share-in](#share-in)'s intake and its rules: nothing
 is added until Add, a new drop asks before replacing an unfinished draft, and a
-`.torrent` is read off the main thread under the drop's grant, released after
-the read, and refused from this app's own providers. While such a drag is
+`.torrent` is read off the main thread under the drop's grant, released once
+the read is over or a newer intake cancelled it, and refused from this app's
+own providers. While such a drag is
 under way the signed-in screen shows "Drop to add a transfer" across its pane.
 Item text and `http`, `https` and `magnet` URIs are read as links; a content
 URI counts as a torrent only when the drag labels it `application/x-bittorrent`
@@ -830,10 +839,10 @@ taken during playback.
 Dragging an item onto a folder inside the app does not move it; Move stays in
 the actions sheet.
 
-Tests: `MobileDragProviderTest` (payload, grant flags, the waiting read,
-session and cancellation), `MobileFileShareServiceTest` (a drag's export opens
-no chooser and ends with its session; a drag nobody took never downloads),
-`MobileTransferDropTest`, device proof `MobileTabletPowerProofTest`
+Tests: `MobileDragProviderTest` (payload and grant flags; opening fetches
+nothing; ranged reads; a session change or end stops reads),
+`MobileTransferDropTest`, `MobileTransferDraftTest` (a cancelled read still
+releases the grant), device proof `MobileTabletPowerProofTest`
 ([Harness](./harness.md#tablet-proof)).
 
 ## Multi-window
@@ -847,8 +856,9 @@ navigation and the player from saved state as before. Layout follows the
 window, not the display: the bar, rail or drawer and Account's device class
 come from the window's size, so a pane 600 dp or wider gets the rail when it is
 tall enough. A paused split-screen or freeform window is still on screen, so
-video keeps playing until the window stops, and the video window requests no
-orientation in multi-window mode.
+video keeps playing until the window stops; a pause or play made while it is
+paused, from a headset say, counts as the viewer's, so resuming the window keeps
+it. The video window requests no orientation in multi-window mode.
 
 Tests: `MobileMultiWindowTest` (resizing, rotation and a keyboard keep the
 Activity; a density change recreates it and keeps its intake; the shell keeps

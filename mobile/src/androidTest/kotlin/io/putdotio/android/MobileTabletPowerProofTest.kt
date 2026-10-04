@@ -37,6 +37,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
+import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesContent
@@ -134,10 +135,10 @@ class MobileTabletPowerProofTest {
 
     @get:Rule val rules: RuleChain = RuleChain.outerRule(optIn).around(compose)
 
-    private val files = ProofFiles()
+    private val poster = posterJpeg()
+    private val files = ProofFiles(posterSize = poster.size.toLong())
     private val players = ProofPlayers()
     private val draft = MobileTransferDraft()
-    private val poster = posterJpeg()
 
     @Test
     fun keyboardDrivesFilesSearchTrashAndThePlayer() = withShell {
@@ -311,7 +312,7 @@ class MobileTabletPowerProofTest {
                         onAccountSettingsEvent = {},
                         onPlaybackAuthenticationRequired = {},
                         onShareItem = {},
-                        fileDragOut = MobileFileDragOut(context, Session),
+                        fileDragOut = MobileFileDragOut(context, MobileSessionKey(Account.userId, Session)),
                         onSignOut = {},
                     )
                 }
@@ -496,6 +497,7 @@ class MobileTabletPowerProofTest {
         const val POLL_MS = 100L
         const val TIMEOUT_MS = 20_000L
         const val PROOF_TOKEN = "tablet-proof-token"
+        const val PARTIAL_CONTENT = 206
         const val PROBE_ACTIVITY = "io.putdotio.android.probe.DragProbeActivity"
         const val PROBE_RECEIVED = "io.putdotio.android.probe.RECEIVED"
         const val PROBE_FINISH = "io.putdotio.android.probe.FINISH"
@@ -530,9 +532,9 @@ class MobileTabletPowerProofTest {
     }
 
     /** Root and one folder; Trash removes an item, and an exact-ID read then reports it gone. */
-    private class ProofFiles : FilesRepository {
+    private class ProofFiles(posterSize: Long) : FilesRepository {
         val loads = AtomicInteger()
-        private val root = mutableListOf(SHOWS, FILM, POSTER, NOTES)
+        private val root = mutableListOf(SHOWS, FILM, POSTER.copy(sizeBytes = posterSize), NOTES)
 
         @Volatile var deleted: List<Pair<FilesItemId, FilesDeleteMode>> = emptyList()
             private set
@@ -625,18 +627,20 @@ class MobileTabletPowerProofTest {
         override fun stopAudio(context: Context) = Unit
     }
 
-    /** Serves poster.jpg for the drag-out export; the session travels only in the header. */
+    /** Serves poster.jpg for the drag-out reads, whole or from a range; the session travels only in the header. */
     private class PosterSource(private val body: ByteArray) : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
             val request = chain.request()
             check(request.header("Authorization") == "Token $PROOF_TOKEN")
             check(!request.url.toString().contains(PROOF_TOKEN))
+            val start = request.header("Range")?.removePrefix("bytes=")?.substringBefore('-')?.toIntOrNull() ?: 0
             return Response.Builder()
                 .request(request)
                 .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body(body.toResponseBody("image/jpeg".toMediaType()))
+                .code(PARTIAL_CONTENT)
+                .message("Partial Content")
+                .header("Content-Range", "bytes $start-${body.size - 1}/${body.size}")
+                .body(body.copyOfRange(start, body.size).toResponseBody("image/jpeg".toMediaType()))
                 .build()
         }
     }

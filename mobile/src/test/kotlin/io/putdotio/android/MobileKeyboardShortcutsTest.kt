@@ -45,7 +45,7 @@ import io.putdotio.android.settings.readyAndroidAppConfigState
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -87,9 +87,24 @@ class MobileKeyboardShortcutsTest {
             assertEquals(listOf(FilesBrowserEvent.NavigateBack, FilesBrowserEvent.NavigateBack), events)
         }
 
+        // With nothing left to go back to, the app still takes Escape, so Android never turns it into a Back
+        // that leaves the app.
         compose.runOnIdle { files = rootState() }
-        compose.activity.pressHardwareKey(KeyEvent.KEYCODE_ESCAPE)
-        compose.runOnIdle { assertFalse(compose.activity.isFinishing) }
+        compose.waitForIdle()
+        assertTrue(compose.activity.pressHardwareKeyConsumed(KeyEvent.KEYCODE_ESCAPE))
+        compose.runOnIdle { assertEquals(2, events.size) }
+    }
+
+    /** Below API 28 the listener rides androidx's KeyEventDispatcher, which ComponentActivity routes keys through. */
+    @Test
+    @Config(sdk = [26])
+    fun onApi26F5RefreshesAndEscapeStaysInTheApp() {
+        setShell()
+
+        compose.activity.pressHardwareKey(KeyEvent.KEYCODE_F5)
+        assertTrue(compose.activity.pressHardwareKeyConsumed(KeyEvent.KEYCODE_ESCAPE))
+
+        compose.runOnIdle { assertEquals(listOf(FilesBrowserEvent.Refresh), events) }
     }
 
     @Test

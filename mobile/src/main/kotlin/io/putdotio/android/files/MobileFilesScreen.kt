@@ -724,12 +724,12 @@ private fun MobileFilesList(
 
 /**
  * Where keyboard focus goes in a listing. A folder reached from the keyboard focuses the row last
- * focused there, such as the video that just played, else its first visible row. When the listing
- * changes under keyboard focus and no row keeps it (the focused row went to Trash, say), focus goes to
- * the row now in its place.
+ * focused there, such as the video that just played, else its first visible row. When the row that
+ * last held focus leaves the listing (moved to Trash, say) and no row holds focus, focus goes to the
+ * row now in its place; focus the viewer moved elsewhere, to the navigation rail say, stays there.
  */
 @Stable
-private class FilesKeyboardFocus(
+internal class FilesKeyboardFocus(
     entryIndex: Int,
     entryPending: Boolean,
     private val lastFocusedId: MutableState<Long?>,
@@ -754,10 +754,11 @@ private class FilesKeyboardFocus(
     }
 
     fun afterListingChange(keyboardInput: Boolean, items: List<FilesItem>) {
-        val index = lastFocusedIndex ?: return
+        val index = lastFocusedIndex?.takeIf { keyboardInput && items.isNotEmpty() } ?: return
+        val left = items.none { it.id.value == lastFocusedId.value }
         // A removed row reports no focus change, so a focused row no longer listed has lost it too.
-        val rowKeptFocus = focusedRow?.let { row -> items.any { it.id == row } } == true
-        if (keyboardInput && !rowKeptFocus && items.isNotEmpty()) {
+        val rowHoldsFocus = focusedRow?.let { row -> items.any { it.id == row } } == true
+        if (left && !rowHoldsFocus) {
             focusedRow = null
             entryIndex = index.coerceAtMost(items.lastIndex)
             entryPending = true

@@ -35,7 +35,8 @@ internal fun ClipData.toMobileIncomingTransfer(): MobileIncomingTransfer? {
 
 /**
  * Takes an intent's or a drop's payload into the draft. A torrent is read from [resolver] off the main
- * thread, never from this app's own providers, and [afterRead] runs once that read returns.
+ * thread, never from this app's own providers, and [afterRead] runs once that read is over, including
+ * when a newer intake cancelled it before it began.
  */
 internal fun MobileTransferDraft.receive(
     incoming: MobileIncomingTransfer,
@@ -45,13 +46,8 @@ internal fun MobileTransferDraft.receive(
 ) {
     when (incoming) {
         is MobileIncomingTransfer.Ready -> receive(incoming.transfer)
-        is MobileIncomingTransfer.Torrent -> receiveLater {
-            try {
-                resolver.readMobileTorrent(incoming.uri, ownPackage)
-            } finally {
-                afterRead()
-            }
-        }
+        is MobileIncomingTransfer.Torrent ->
+            receiveLater(read = { resolver.readMobileTorrent(incoming.uri, ownPackage) }, onDone = afterRead)
     }
 }
 

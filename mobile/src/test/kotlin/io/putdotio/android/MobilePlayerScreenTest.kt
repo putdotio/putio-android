@@ -2633,6 +2633,34 @@ class MobilePlayerKeyboardTest {
         compose.runOnIdle { assertFalse(players.last().playWhenReady) }
     }
 
+    @Test
+    fun aPauseMadeWhileTheSplitScreenPaneIsStartedSurvivesItsResume() {
+        val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
+        val players = mutableListOf<RecordingPlayer>()
+        shadowOf(compose.activity).setInMultiWindowMode(true)
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                PutioTheme {
+                    MobilePlayerScreen(
+                        state = state(PlaybackContent.Ready(videoSource())),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also(players::add) },
+                    )
+                }
+            }
+        }
+        compose.runOnIdle { assertTrue(players.single().playWhenReady) }
+
+        // The other pane takes focus, then a headset or the notification pauses the video.
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.STARTED) }
+        compose.runOnIdle { players.single().pause() }
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
+
+        compose.runOnIdle { assertFalse(players.single().playWhenReady) }
+    }
+
     private fun setPlayer(onBack: () -> Unit = {}, create: () -> RecordingPlayer) {
         compose.setContent {
             PutioTheme {

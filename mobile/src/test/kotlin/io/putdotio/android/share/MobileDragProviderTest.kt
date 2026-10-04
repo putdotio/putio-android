@@ -1,25 +1,32 @@
 package io.putdotio.android.share
 
-import android.content.ClipDescription
 import android.content.Context
 import android.provider.OpenableColumns
+import android.system.ErrnoException
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
-import java.io.File
+import io.putdotio.android.auth.MobileSessionKey
+import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.files.PutioFileType
 import java.io.FileNotFoundException
-import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.flow.MutableStateFlow
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -34,17 +41,23 @@ class MobileDragProviderTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val auth = MutableStateFlow<MobileAuthState>(signedIn(SESSION))
     private val authority = mobileDragAuthority(context)
-    private val reader = Executors.newSingleThreadExecutor()
+    private val original = ByteArray(ORIGINAL_SIZE) { (it % 251).toByte() }
+    private val requests = CopyOnWriteArrayList<Request>()
+    private val dependencies = MobileShareDependencies(
+        http = OkHttpClient.Builder().addInterceptor { chain -> ranged(chain.request()) }.build(),
+        authState = auth,
+        accessToken = { "session-token" },
+    )
 
     @Before
     fun setUp() {
-        useReadyWindow(5.seconds)
+        MobileFileShareService.dependenciesForTest = dependencies
+        Robolectric.setupContentProvider(MobileDragProvider::class.java, authority)
     }
 
     @After
     fun tearDown() {
-        reader.shutdownNow()
-        MobileDragExports.retainOnly(null)
+        MobileFileDrags.clearForTest()
         MobileFileShareService.dependenciesForTest = null
     }
 
@@ -68,84 +81,98 @@ class MobileDragProviderTest {
     }
 
     @Test
-    fun aDropOpensTheFileOnceItsExportLandsAndOnlyForReading() {
-        val key = MobileDragExports.begin(SESSION, "poster.jpg", 6L, "image/jpeg")
-        val uri = mobileFileDragClip(authority, key, "poster.jpg", "image/jpeg").getItemAt(0).uri
+    fun openingReturnsAtOnceAndReadsStreamTheOriginalInRanges() {
+        val key = MobileFileDrags.begin(SESSION, POSTER)
 
-        val read = reader.submit<String> {
-            requireNotNull(context.contentResolver.openInputStream(uri)).use { String(it.readBytes()) }
+        val reader = MobileFileDrags.open(key, dependencies) {}
+        assertTrue("Nothing is fetched until the drop target reads", requests.isEmpty())
+        assertEquals(ORIGINAL_SIZE.toLong(), reader.onGetSize())
+
+        val buffer = ByteArray(16)
+        assertEquals(16, reader.onRead(0L, 16, buffer))
+        assertArrayEquals(original.copyOfRange(0, 16), buffer)
+        assertEquals(16, reader.onRead(FAR_OFFSET, 16, buffer))
+        assertArrayEquals(original.copyOfRange(FAR_OFFSET.toInt(), FAR_OFFSET.toInt() + 16), buffer)
+
+        assertEquals(listOf("bytes=0-", "bytes=$FAR_OFFSET-"), requests.map { it.header("Range") })
+        requests.forEach { request ->
+            assertEquals("Token session-token", request.header("Authorization"))
+            assertFalse(request.url.toString().contains("session-token"))
+            assertEquals("/v2/files/${POSTER.id.value}/download", request.url.encodedPath)
         }
-        Thread.sleep(WAIT_MILLIS)
-        assertFalse(read.isDone)
-        MobileDragExports.ready(key, export("poster"))
+    }
 
-        assertEquals("poster", read.get(5, TimeUnit.SECONDS))
-        context.contentResolver.query(uri, null, null, null, null)!!.use { cursor ->
+    @Test
+    fun theProviderNamesTypesAndRefusesWritingADrag() {
+        val key = MobileFileDrags.begin(SESSION, POSTER)
+        val uri = mobileFileDragClip(authority, key, POSTER.name, "image/jpeg").getItemAt(0).uri
+
+        requireNotNull(context.contentResolver.query(uri, null, null, null, null)).use { cursor ->
             assertTrue(cursor.moveToFirst())
             assertEquals("poster.jpg", cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)))
-            assertEquals(6L, cursor.getLong(cursor.getColumnIndexOrThrow(OpenableColumns.SIZE)))
+            assertEquals(ORIGINAL_SIZE.toLong(), cursor.getLong(cursor.getColumnIndexOrThrow(OpenableColumns.SIZE)))
         }
         assertEquals("image/jpeg", context.contentResolver.getType(uri))
         assertThrows(SecurityException::class.java) { context.contentResolver.openFileDescriptor(uri, "w") }
     }
 
     @Test
-    fun anotherSessionACancelledDragOrAnUnknownKeyReadsNothing() {
-        val key = MobileDragExports.begin(SESSION, "poster.jpg", 6L, "image/jpeg")
-        val uri = mobileFileDragClip(authority, key, "poster.jpg", "image/jpeg").getItemAt(0).uri
-        MobileDragExports.ready(key, export("poster"))
+    fun endingTheSessionStopsReadsAndOnlyItsSessionOpensADrag() {
+        val key = MobileFileDrags.begin(SESSION, POSTER)
+        val reader = MobileFileDrags.open(key, dependencies) {}
+        assertEquals(4, reader.onRead(0L, 4, ByteArray(4)))
 
-        auth.value = signedIn(MobileAuthSessionId(2L))
-        assertThrows(FileNotFoundException::class.java) { context.contentResolver.openInputStream(uri) }
+        auth.value = signedIn(OTHER)
+        assertThrows(ErrnoException::class.java) { reader.onRead(4L, 4, ByteArray(4)) }
+        assertThrows(FileNotFoundException::class.java) { MobileFileDrags.open(key, dependencies) {} }
 
         auth.value = signedIn(SESSION)
-        MobileDragExports.cancel(key)
-        assertThrows(FileNotFoundException::class.java) { context.contentResolver.openInputStream(uri) }
-
-        val unknown = mobileFileDragClip(authority, "unknown", "poster.jpg", "image/jpeg").getItemAt(0).uri
-        assertThrows(FileNotFoundException::class.java) { context.contentResolver.openInputStream(unknown) }
+        val again = MobileFileDrags.open(key, dependencies) {}
+        MobileFileDrags.endSession(SESSION.sessionId)
+        assertThrows(ErrnoException::class.java) { again.onRead(0L, 4, ByteArray(4)) }
+        assertThrows(FileNotFoundException::class.java) { MobileFileDrags.open(key, dependencies) {} }
     }
 
     @Test
-    fun aFileStillDownloadingAfterTheReadyWindowReadsNothing() {
-        useReadyWindow(100.milliseconds)
-        val key = MobileDragExports.begin(SESSION, "poster.jpg", 6L, "image/jpeg")
-        val uri = mobileFileDragClip(authority, key, "poster.jpg", "image/jpeg").getItemAt(0).uri
+    fun aDragNobodyTookIsForgottenAndAnotherSessionsDragsStay() {
+        val untaken = MobileFileDrags.begin(SESSION, POSTER)
+        val later = MobileFileDrags.begin(OTHER, POSTER)
 
-        assertThrows(FileNotFoundException::class.java) { context.contentResolver.openInputStream(uri) }
+        MobileFileDrags.forget(untaken)
+        MobileFileDrags.endSession(SESSION.sessionId)
+
+        assertNull(MobileFileDrags[untaken])
+        assertTrue(MobileFileDrags[later] != null)
+        assertTrue(requests.isEmpty())
     }
 
-    @Test
-    fun leavingASessionEndsOnlyItsOwnDrags() {
-        val departed = MobileDragExports.begin(SESSION, "a.jpg", 1L, ClipDescription.MIMETYPE_UNKNOWN)
-        val next = MobileDragExports.begin(MobileAuthSessionId(2L), "b.jpg", 1L, ClipDescription.MIMETYPE_UNKNOWN)
-
-        MobileFileShareService.endSession(context, SESSION)
-
-        assertEquals(null, MobileDragExports[departed])
-        assertTrue(MobileDragExports[next] != null)
+    /** put.io's download endpoint answering a range from the request's offset. */
+    private fun ranged(request: Request): Response {
+        requests += request
+        val start = request.header("Range")?.removePrefix("bytes=")?.substringBefore('-')?.toInt() ?: 0
+        return Response.Builder()
+            .request(request)
+            .protocol(Protocol.HTTP_1_1)
+            .code(PARTIAL_CONTENT)
+            .message("Partial Content")
+            .header("Content-Range", "bytes $start-${original.size - 1}/${original.size}")
+            .body(original.copyOfRange(start, original.size).toResponseBody("image/jpeg".toMediaType()))
+            .build()
     }
-
-    private fun useReadyWindow(window: kotlin.time.Duration) {
-        MobileFileShareService.dependenciesForTest = MobileShareDependencies(
-            http = OkHttpClient(),
-            authState = auth,
-            accessToken = { null },
-            readyTimeout = window,
-        )
-        Robolectric.setupContentProvider(MobileDragProvider::class.java, authority)
-    }
-
-    private fun export(content: String): File =
-        File.createTempFile("drag", ".jpg", context.cacheDir).apply { writeText(content) }
 
     private companion object {
-        const val WAIT_MILLIS = 200L
-        val SESSION = MobileAuthSessionId(1L)
+        const val ORIGINAL_SIZE = 600_000
+        const val FAR_OFFSET = 500_000L
+        const val PARTIAL_CONTENT = 206
+        val SESSION = MobileSessionKey(1L, MobileAuthSessionId(1L))
+        val OTHER = MobileSessionKey(1L, MobileAuthSessionId(2L))
+        val POSTER = FilesItem(
+            FilesItemId(9L), FilesItemId(0L), "poster.jpg", PutioFileType.IMAGE, ORIGINAL_SIZE.toLong(), "2026-10-04",
+        )
 
-        fun signedIn(session: MobileAuthSessionId) = MobileAuthState.SignedIn(
-            account = MobileAccount(userId = 1L, username = "someone", email = "someone@example.com"),
-            sessionId = session,
+        fun signedIn(session: MobileSessionKey) = MobileAuthState.SignedIn(
+            account = MobileAccount(userId = session.userId, username = "someone", email = "someone@example.com"),
+            sessionId = session.sessionId,
         )
     }
 }

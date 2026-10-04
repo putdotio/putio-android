@@ -45,8 +45,8 @@ internal enum class MobileDropHighlight { None, Available, Over }
  * Takes links, magnet links and `.torrent` files dragged in from another app into the Add transfer
  * sheet, through the same intake as a share. While such a drag is under way the whole signed-in
  * screen shows where to drop it. A torrent's read grant is requested for this drop only and released
- * once the file is read. Drags of this app's own files are not taken; their end is reported to
- * [onOwnDragEnded], which stops a download nobody received.
+ * once its read is over or cancelled. Drags of this app's own files are not taken; their end is
+ * reported to [onOwnDragEnded], which forgets a drag nobody received.
  */
 @Composable
 internal fun MobileTransferDropZone(

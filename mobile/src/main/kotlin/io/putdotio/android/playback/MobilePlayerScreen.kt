@@ -768,9 +768,14 @@ private fun PlayerListenerEffect(
     pictureInPicture: State<Boolean>,
 ) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val activity = LocalActivity.current
     val player = playerState.player
     DisposableEffect(player) {
-        fun lifecycleState() = lifecycle.currentState.withPictureInPicture(pictureInPicture.value)
+        // A started split-screen or freeform window is on screen as a picture-in-picture one is, so a pause
+        // or play made there, from a headset say, is what the next resume keeps.
+        fun lifecycleState() = lifecycle.currentState.withPictureInPicture(
+            pictureInPicture.value || activity?.isInMultiWindowMode == true,
+        )
         // A picked track is found again in each new track list, and automatic subtitles find the
         // account's default. The pick is read live: tracks can change before recomposition
         // passes it back as retainedSubtitleSelection.

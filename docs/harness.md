@@ -1221,7 +1221,8 @@ Behaviour: [Keyboard and shortcuts](./behavior.md#keyboard-and-shortcuts),
 [Multi-window](./behavior.md#multi-window). `MobileTabletPowerProofTest` mounts
 the production shell in the debug-only `MobileTabletProofActivity`, which takes
 MainActivity's configuration changes, over faked Files, a local video, and a
-controlled session whose drag-out export downloads a generated JPEG in process.
+controlled session whose drag-out reads stream a generated JPEG from an
+in-process download source.
 It makes no API calls, so report it as synthetic proof. The other app is the
 androidTest package's `DragProbeActivity`: it runs in the test package's own
 process, so it is written in Java against the framework only, and its torrent

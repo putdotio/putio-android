@@ -31,10 +31,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -70,7 +68,6 @@ class MobileFileShareService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val fileId = intent?.getLongExtra(EXTRA_FILE_ID, -1L)?.takeIf { it > 0L }
         val name = intent?.getStringExtra(EXTRA_NAME)?.takeIf { it.isNotBlank() }
-        val dragKey = intent?.getStringExtra(EXTRA_DRAG_KEY)
         if (fileId == null || name == null || intent.action == ACTION_CANCEL) {
             // Every start arrives through startForegroundService; the promise must be kept before stopping.
             val label = name ?: getString(R.string.mobile_files_share)
@@ -87,12 +84,10 @@ class MobileFileShareService : Service() {
         show(notifications.progress(name, indeterminate = true, progress = 0))
         val session = dependencies.authState.value.sessionId
         val previous = job
-        // The export below deletes every earlier copy, so every other drag ends now.
-        MobileDragExports.retainOnly(dragKey)
         job = scope.launch {
             previous?.cancelAndJoin()
             try {
-                share(FilesItemId(fileId), name, session, dragKey)
+                share(FilesItemId(fileId), name, session)
             } finally {
                 // A newer start keeps the service alive; only the latest startId stops it.
                 stopSelf(startId)
@@ -101,25 +96,16 @@ class MobileFileShareService : Service() {
         return START_NOT_STICKY
     }
 
-    /**
-     * The share flow's boundary: every failure ends as the cause-free notice, an ended session as a silent
-     * drop. A drag's export downloads the same way, but its drop target already holds the URI, so no chooser
-     * opens: the copy stays readable for the ready window, then goes, and the drag ends with its export.
-     */
+    // The share flow's boundary: every failure ends as the cause-free notice, an ended session as a silent drop.
     @Suppress("TooGenericExceptionCaught", "SwallowedException")
-    private suspend fun share(fileId: FilesItemId, name: String, session: MobileAuthSessionId?, dragKey: String?) {
+    private suspend fun share(fileId: FilesItemId, name: String, session: MobileAuthSessionId?) {
         try {
             if (session == null) throw IOException("No session")
-            dragKey?.let { bindDrag(it, session, currentCoroutineContext().job) }
             boundTo(session) {
                 val file = exporter.export(fileId, name, session) { percent ->
                     show(notifications.progress(name, indeterminate = false, progress = percent))
                 }
-                if (dragKey == null) {
-                    deliver(name, session) { shareChooser(file) }
-                } else {
-                    holdForDrop(dragKey, file, dependencies.readyTimeout)
-                }
+                deliver(name, session) { shareChooser(file) }
             }
         } catch (error: CancellationException) {
             throw error
@@ -134,8 +120,6 @@ class MobileFileShareService : Service() {
             // FileProvider, notification posting and Activity launch report failure as runtime errors.
             currentCoroutineContext().ensureActive()
             fail(name)
-        } finally {
-            dragKey?.let(MobileDragExports::remove)
         }
     }
 
@@ -206,7 +190,6 @@ class MobileFileShareService : Service() {
     companion object {
         private const val EXTRA_FILE_ID = "fileId"
         private const val EXTRA_NAME = "name"
-        private const val EXTRA_DRAG_KEY = "dragKey"
         internal const val ACTION_CANCEL = "io.putdotio.android.action.CANCEL_SHARE"
         private const val NOTIFICATION_ID = 3001
         private const val STALE_EXPORT_MS = 24L * 60L * 60L * 1000L
@@ -227,16 +210,6 @@ class MobileFileShareService : Service() {
             context.startForegroundService(intent)
         }
 
-        /** Exports the original behind the drag with [key]; the drop target reads it through the drag provider. */
-        internal fun startDrag(context: Context, fileId: FilesItemId, name: String, key: String) {
-            context.startForegroundService(
-                Intent(context, MobileFileShareService::class.java)
-                    .putExtra(EXTRA_FILE_ID, fileId.value)
-                    .putExtra(EXTRA_NAME, name)
-                    .putExtra(EXTRA_DRAG_KEY, key),
-            )
-        }
-
         internal fun shareRoot(context: Context): File = File(context.filesDir, "shares")
 
         /**
@@ -254,7 +227,6 @@ class MobileFileShareService : Service() {
          * A null session is one an earlier process left behind, whose id this process never knew.
          */
         fun endSession(context: Context, session: MobileAuthSessionId?) {
-            session?.let(MobileDragExports::endSession)
             shareRoot(context).listFiles()
                 ?.filter { it.name != processShares }
                 ?.forEach { it.deleteRecursively() }
@@ -298,26 +270,6 @@ internal class MobileShareDependencies(
 }
 
 private val sharedHttp: OkHttpClient by lazy { OkHttpClient() }
-
-/**
- * Ties the drag behind [dragKey] to its export: a drag that ended without a drop cancels [exportJob], even
- * one that has not started yet. A drag another session started, or one already gone, exports nothing.
- */
-private fun bindDrag(dragKey: String, session: MobileAuthSessionId, exportJob: Job) {
-    val drag = MobileDragExports[dragKey]?.takeIf { it.session == session } ?: throw SessionEndedException()
-    drag.onCancel { exportJob.cancel() }
-}
-
-/** Hands a drag's finished export to the drop target's reads, then removes the copy after [window]. */
-private suspend fun Service.holdForDrop(dragKey: String, file: File, window: Duration) {
-    MobileDragExports.ready(dragKey, file)
-    ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-    try {
-        delay(window)
-    } finally {
-        file.parentFile?.deleteRecursively()
-    }
-}
 
 /** Stream only. Recipients receive a read grant on the content URI and nothing else. */
 private fun Context.shareChooser(file: File): Intent {
