@@ -143,8 +143,11 @@ out as anywhere else. Each remembered folder is checked when it is first read:
 a renamed one shows its new name, and one moved since keeps only root above it.
 A move never opens inside the item it moves: a remembered path through that
 item opens at root, as does a remembered folder whose parent is now that item.
-A remembered folder nested deeper inside that item is not caught before the
-move request goes out.
+A remembered folder nested deeper inside that item still opens, because the app
+can't read its ancestry. put.io refuses a move into the item itself or any
+folder inside it with a bare 403, so the item stays where it was and the
+outcome says a folder can't be moved into itself or a folder inside it, in
+place of the access copy other 403s get.
 
 Web keeps both values in its own `/config`, which Android can't read, so
 Android keeps them on the device, per signed-in account, in private

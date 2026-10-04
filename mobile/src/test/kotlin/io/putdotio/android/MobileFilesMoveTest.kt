@@ -222,6 +222,27 @@ class MobileFilesMoveTest {
     }
 
     @Test
+    fun moveRefusedForADestinationInsideTheItemSaysSoInsteadOfDenyingAccess() {
+        val moving = FilesBrowserReducer.reduce(
+            loadedRoot(), FilesBrowserEvent.Move(FilesFolder.Root.id, source.id, destination.id),
+        )
+        val checking = FilesBrowserReducer.reduce(moving.state, FilesBrowserEvent.MoveFinished(
+            checkNotNull(moving.effect).requestId,
+            PutioResult.Failure(putioRefusal(403, MOVE_INTO_ITSELF_BODY).toPutioFailure()),
+        ))
+        val reloading = FilesBrowserReducer.reduce(checking.state, FilesBrowserEvent.MoveChecked(
+            checkNotNull(checking.effect).requestId, PutioResult.Success(source),
+        ))
+        val state = reload(reloading.state, checkNotNull(reloading.effect).requestId, FilesPage(listOf(source), null))
+        compose.setContent { PutioTheme { MobileFilesScreen(state, {}, {}, confirmedTrashEnabled = true) } }
+        compose.onNodeWithText(
+            "“${source.name}” is not in the selected folder. You can choose a destination again.",
+        ).assertIsDisplayed()
+        compose.onNodeWithText("A folder can’t be moved into itself or a folder inside it.").assertIsDisplayed()
+        compose.onNodeWithText("You don’t have access to this folder.").assertDoesNotExist()
+    }
+
+    @Test
     fun failedMoveOffersStatusCheckAndFailedReloadOffersReadRetry() {
         val checking = finishedPost()
         var state by mutableStateOf(FilesBrowserReducer.reduce(checking.state, FilesBrowserEvent.LoadFailed(
@@ -512,3 +533,9 @@ class MobileFilesMoveTest {
     private fun folder(id: Long, name: String) =
         FilesItem(FilesItemId(id), FilesFolder.Root.id, name, PutioFileType.FOLDER, 1L, "2026-09-06")
 }
+
+// put.io's response to moving a folder into a folder inside it, captured on 2026-10-04.
+private const val MOVE_INTO_ITSELF_BODY = """{"error_id":null,"error_message":"You don't have the permission to """ +
+    """access the requested resource. It is either read-protected or not readable by the server.",""" +
+    """"error_type":"Forbidden","error_uri":"http://api.put.io/v2/docs","extra":{},"status":"ERROR",""" +
+    """"status_code":403}"""

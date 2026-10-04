@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 
 internal const val MOBILE_FILES_MOVE_OUTCOME_TAG = "mobile-files-move-outcome"
@@ -38,10 +39,16 @@ internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome) {
             )
             if (outcome.status != FilesMoveStatus.MOVED) {
                 outcome.failure?.let {
-                    Text(it.mobileMessage(), color = MaterialTheme.colorScheme.error,
+                    Text(it.moveFailureMessage(), color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
     }
 }
+
+// put.io answers a move with a bare 403 only when the destination is the item or a folder inside
+// it; the app never sends the negative IDs that also get one.
+@Composable
+private fun PutioFailure.moveFailureMessage(): String =
+    if (this is PutioFailure.AccessDenied) stringResource(R.string.mobile_files_move_into_itself) else mobileMessage()
