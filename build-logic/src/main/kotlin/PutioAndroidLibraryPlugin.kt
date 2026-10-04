@@ -37,6 +37,8 @@ class PutioAndroidLibraryPlugin : Plugin<Project> {
             testOptions.unitTests.isIncludeAndroidResources = true
         }
 
+        useOfflineRobolectric()
+
         extensions.configure<DetektExtension> {
             config.setFrom(rootProject.file("detekt.yml"))
             buildUponDefaultConfig = true
