@@ -425,7 +425,43 @@ private fun FilesRenameCompletion?.confirms(
         this?.intent == FilesFolderOperationIntent.Rename(itemId, submittedName) &&
         requestId.value != previousRequestValue
 
-private fun confirmedDeleteMode(trashEnabled: Boolean?): FilesDeleteMode? =
+/**
+ * The Delete key on a focused row, acting as the sheet's delete row would: Move to trash goes at once,
+ * Delete permanently confirms first. [mode] is the setting when the key was pressed; if the account's
+ * Trash setting has changed since, nothing is sent.
+ */
+@Composable
+internal fun MobileFilesKeyDelete(
+    item: FilesItem,
+    folderId: FilesItemId,
+    mode: FilesDeleteMode,
+    confirmedTrashEnabled: Boolean?,
+    operation: FilesFolderOperation,
+    onEvent: (FilesBrowserEvent) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var submitted by rememberSaveable { mutableStateOf(false) }
+    val settingMatches = confirmedDeleteMode(confirmedTrashEnabled) == mode
+    val submit = {
+        if (!submitted && settingMatches && operation.canStartOperation) {
+            submitted = true
+            onEvent(FilesBrowserEvent.Delete(folderId, item.id, mode))
+        }
+        onDismiss()
+    }
+    if (mode == FilesDeleteMode.PERMANENT && settingMatches) {
+        MobileFilesDeleteConfirmation(
+            item = item,
+            enabled = !submitted && operation.canStartOperation,
+            onDismiss = onDismiss,
+            onConfirm = submit,
+        )
+    } else {
+        SideEffect(submit)
+    }
+}
+
+internal fun confirmedDeleteMode(trashEnabled: Boolean?): FilesDeleteMode? =
     when (trashEnabled) {
         true -> FilesDeleteMode.TRASH
         false -> FilesDeleteMode.PERMANENT

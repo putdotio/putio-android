@@ -52,6 +52,7 @@ import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.android.settings.putioFailure
+import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.sharing.MobilePublicLinksViewModel
 import io.putdotio.android.sharing.PublicLinksController
@@ -303,6 +304,7 @@ private fun SignedInMobileSession(
         deepLinkRequests = deepLinkRequests,
         onOpenFile = searchHistorySession::openFile,
         onShareItem = { item -> MobileFileShareService.start(appContext, item.id, item.name) },
+        fileDragOut = remember(appContext, sessionId) { MobileFileDragOut(appContext, sessionId) },
         downloadsController = downloadsController,
         publicLinksController = publicLinksController,
         sessionId = sessionId,

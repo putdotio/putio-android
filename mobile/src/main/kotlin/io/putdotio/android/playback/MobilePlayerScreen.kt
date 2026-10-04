@@ -43,7 +43,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -71,6 +75,9 @@ import androidx.media3.common.util.Util
 import androidx.media3.ui.compose.ContentFrame
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
+import io.putdotio.android.MobileKeyCommand
+import io.putdotio.android.MobileShortcutScope
+import io.putdotio.android.mobileKeyCommand
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
@@ -683,8 +690,11 @@ private fun PlayerLifecycleEffects(
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         // Entering picture-in-picture pauses the Activity and the video plays on in the window. The
         // Activity's own flag is already set when the pause arrives; mode listeners hear it later.
+        // A paused split-screen or freeform window is still on screen too; Android's multi-window
+        // guidance keeps video going until the window stops.
         val enteringPictureInPicture = pictureInPicture.value || activity?.isInPictureInPictureMode == true
-        if (playerState.ownsPlayer && !playerState.playerReleased && !enteringPictureInPicture) {
+        val stillVisible = enteringPictureInPicture || activity?.isInMultiWindowMode == true
+        if (playerState.ownsPlayer && !playerState.playerReleased && !stillVisible) {
             val update =
                 playerRetentionUpdate(
                     event = PlayerRetentionEvent.LifecyclePause,
@@ -940,10 +950,19 @@ private fun MobileReadyPlayerContent(
         currentOnPositionChanged.value(request.targetPositionMillis)
         player.seekTo(request.targetPositionMillis)
     }
+    // The player holds keyboard focus itself, so Space and the arrows reach it before any control is
+    // focused; Tab still walks the controls, and a focused control keeps the keys it uses.
+    val keyFocus = remember { FocusRequester() }
+    LaunchedEffect(keyFocus) { keyFocus.requestFocus() }
 
     Box(
         Modifier
             .fillMaxSize()
+            .onKeyEvent { event ->
+                playerKeyCommand(event.nativeKeyEvent) { command -> player.runKeyCommand(command, ::seek, onBack) }
+            }
+            .focusRequester(keyFocus)
+            .focusTarget()
             .focusGroup()
             .testTag(MOBILE_PLAYER_TAG)
             .observePlayerControlInteraction(
@@ -1026,6 +1045,29 @@ private fun MobileReadyPlayerContent(
                 }
             }
         }
+    }
+}
+
+/**
+ * Space plays or pauses, Left and Right seek like the 10-second buttons, and Escape or Backspace
+ * leave. A held arrow keeps seeking; a held Space or Escape acts once. The release of a taken key is
+ * taken too.
+ */
+internal fun playerKeyCommand(event: KeyEvent, run: (MobileKeyCommand) -> Unit): Boolean {
+    val command = mobileKeyCommand(MobileShortcutScope.Player, event.keyCode, event.metaState) ?: return false
+    val repeats = command == MobileKeyCommand.SeekBack || command == MobileKeyCommand.SeekForward
+    if (event.action == KeyEvent.ACTION_DOWN && (event.repeatCount == 0 || repeats)) run(command)
+    return true
+}
+
+@UnstableApi
+private fun Media3Player.runKeyCommand(command: MobileKeyCommand, seek: (SeekDirection) -> Unit, onBack: () -> Unit) {
+    when (command) {
+        MobileKeyCommand.PlayPause -> Util.handlePlayPauseButtonAction(this)
+        MobileKeyCommand.SeekBack -> seek(SeekDirection.Backward)
+        MobileKeyCommand.SeekForward -> seek(SeekDirection.Forward)
+        MobileKeyCommand.Back -> onBack()
+        else -> Unit
     }
 }
 

@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The tablet proof's other app: it runs in the test package's own process, beside put.io. -->
+    <application>
+        <activity
+            android:name="io.putdotio.android.probe.DragProbeActivity"
+            android:exported="true"
+            android:label="Drag probe"
+            android:resizeableActivity="true"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+        <provider
+            android:name="io.putdotio.android.probe.DragProbeProvider"
+            android:authorities="io.putdotio.probe.files"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>

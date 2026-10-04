@@ -61,6 +61,7 @@ import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedShowSubtitles
 import io.putdotio.android.settings.confirmedTrashEnabled
+import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.sharing.MobilePublicLinks
 import io.putdotio.android.sharing.MobilePublicLinksScreen
@@ -106,6 +107,9 @@ internal fun MobileNavHost(
     modifier: Modifier = Modifier,
     deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
     publicLinks: MobilePublicLinks? = null,
+    focusSearch: Boolean = false,
+    onSearchFocused: () -> Unit = {},
+    fileDragOut: MobileFileDragOut? = null,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
@@ -137,6 +141,7 @@ internal fun MobileNavHost(
                 onViewTrash = trashController?.let { { navController.navigateToTrash() } },
                 moveTargetStore = moveTargetStore,
                 publicLinks = publicLinks,
+                fileDragOut = fileDragOut,
             )
         }
         composable(MobileDestination.Search.route) {
@@ -153,6 +158,8 @@ internal fun MobileNavHost(
                 onRecentEdit = searchHistoryActions.onRecentEdit,
                 onRecentRetry = searchHistoryActions.onRecentRetry,
                 onHistoryEvent = searchHistoryActions.onHistoryEvent,
+                focusSearch = focusSearch,
+                onSearchFocused = onSearchFocused,
             )
         }
         composable(MobileDestination.Transfers.route) {

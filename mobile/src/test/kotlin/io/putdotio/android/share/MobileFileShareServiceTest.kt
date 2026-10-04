@@ -55,6 +55,7 @@ class MobileFileShareServiceTest {
     fun reset() {
         MobileResumedActivity.paused(activity)
         MobileFileShareService.dependenciesForTest = null
+        MobileDragExports.retainOnly(null)
     }
 
     @Test
@@ -366,6 +367,51 @@ class MobileFileShareServiceTest {
         fixture.destroy()
     }
 
+    @Test
+    fun aDragExportFillsItsUriOpensNoChooserAndEndsWithItsSession() {
+        val fixture = ShareFixture()
+        MobileResumedActivity.resumed(activity)
+        val key = MobileDragExports.begin(SESSION, "poster.jpg", 6L, "image/jpeg")
+
+        fixture.startDrag(fileId = 9L, name = "poster.jpg", key = key, startId = 1)
+        fixture.scheduler.runCurrent()
+
+        val export = requireNotNull(MobileDragExports[key]).file.getNow(null)
+        assertEquals("poster", export.readText())
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertTrue(shadowOf(fixture.service).isForegroundStopped)
+
+        fixture.auth.value = MobileAuthState.SigningOut
+        fixture.scheduler.runCurrent()
+        assertNull(MobileDragExports[key])
+        assertFalse(export.exists())
+        fixture.destroy()
+    }
+
+    @Test
+    fun aDragNobodyTookNeverDownloadsAndANewExportEndsEarlierDrags() {
+        val fixture = ShareFixture()
+        var requests = 0
+        fixture.respond = { request ->
+            requests += 1
+            ok(request)
+        }
+        val dropped = MobileDragExports.begin(SESSION, "a.jpg", 6L, "image/jpeg")
+        fixture.startDrag(fileId = 9L, name = "a.jpg", key = dropped, startId = 1)
+        MobileDragExports.cancel(dropped)
+        fixture.scheduler.runCurrent()
+        assertEquals(0, requests)
+        assertTrue(shadowOf(fixture.service).isStoppedBySelf)
+
+        val earlier = MobileDragExports.begin(SESSION, "b.jpg", 6L, "image/jpeg")
+        fixture.startDrag(fileId = 10L, name = "b.jpg", key = earlier, startId = 2)
+        fixture.scheduler.runCurrent()
+        assertTrue(requireNotNull(MobileDragExports[earlier]).file.isDone)
+        fixture.start(fileId = 11L, name = "c.jpg", startId = 3)
+        assertNull(MobileDragExports[earlier])
+        fixture.destroy()
+    }
+
     private class ShareFixture(
         readyTimeout: Duration = 10.minutes,
         io: CoroutineDispatcher? = null,
@@ -401,6 +447,14 @@ class MobileFileShareServiceTest {
             val intent = Intent(service, MobileFileShareService::class.java)
                 .putExtra("fileId", fileId)
                 .putExtra("name", name)
+            service.onStartCommand(intent, 0, startId)
+        }
+
+        fun startDrag(fileId: Long, name: String, key: String, startId: Int) {
+            val intent = Intent(service, MobileFileShareService::class.java)
+                .putExtra("fileId", fileId)
+                .putExtra("name", name)
+                .putExtra("dragKey", key)
             service.onStartCommand(intent, 0, startId)
         }
 

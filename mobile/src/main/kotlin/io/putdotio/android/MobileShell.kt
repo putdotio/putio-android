@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -87,8 +88,10 @@ import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedDefaultSort
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.sharing.MobilePublicLinks
+import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.sharing.PublicLinksController
 import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.MobileTransferDropZone
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferMutation
 import io.putdotio.android.transfers.TransferNavigation
@@ -152,6 +155,7 @@ internal fun MobileShell(
     onDismissNavigationFailure: () -> Unit = {},
     onSignOut: () -> Unit,
     transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
+    fileDragOut: MobileFileDragOut? = null,
 ) {
     val navController = rememberNavController()
     var rejectedNavigation by remember(sessionId) { mutableStateOf<FilesFailure?>(null) }
@@ -201,6 +205,14 @@ internal fun MobileShell(
     BackHandler(enabled = isPlayback) {
         navController.popBackStack()
     }
+    var searchFocusPending by remember { mutableStateOf(false) }
+    MobileShellKeyboardEffect(
+        searchEnabled = !isPlayback,
+        onSearch = {
+            navController.navigateTo(MobileDestination.Search)
+            searchFocusPending = true
+        },
+    )
 
     val playbackFileId = if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null
     val resolvingTransfer = transfersState.navigation as? TransferNavigation.Resolving
@@ -239,58 +251,67 @@ internal fun MobileShell(
 
     // One NavHost call site in one slot: playback only hides the chrome, so destinations keep saved state.
     key(transfersSessionId) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight)
-            MobileNavigationContainer(
-                layout = navigationLayout,
-                selectedDestination = selectedDestination,
-                onDestination = { navController.navigateTo(it) },
-                enabled = !isPlayback,
-            ) { openNavigation ->
-                MobileChrome(
-                    visible = !isPlayback,
+        MobileTransferDropZone(
+            enabled = !isPlayback,
+            draft = transferDraft,
+            onOwnDragEnded = { drag, dropped -> fileDragOut?.ended(drag, dropped) },
+        ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight)
+                MobileNavigationContainer(
                     layout = navigationLayout,
-                    openNavigation = openNavigation,
-                    navController = navController,
                     selectedDestination = selectedDestination,
-                    filesState = filesState,
-                    playbackPlayerFactory = playbackPlayerFactory,
-                    onFilesEvent = { onFilesEvent(it) },
-                    onFilesBack = onFilesBack,
-                    inactiveNotice = account.inactiveNotice,
-                ) { contentModifier ->
-                    MobileNavHost(
-                        transferDraft = transferDraft,
+                    onDestination = { navController.navigateTo(it) },
+                    enabled = !isPlayback,
+                ) { openNavigation ->
+                    MobileChrome(
+                        visible = !isPlayback,
+                        layout = navigationLayout,
+                        openNavigation = openNavigation,
                         navController = navController,
+                        selectedDestination = selectedDestination,
                         filesState = filesState,
-                        filesRepository = filesRepository,
-                        trashController = trashController,
-                        downloadsController = downloadsController,
-                        downloadsState = downloadsState,
-                        onShareItem = onShareItem,
-                        accountSettingsState = accountSettingsState,
-                        appConfigState = appConfigState,
-                        searchHistoryState = searchHistoryState,
-                        transfersState = transfersState,
-                        transfersSessionId = transfersSessionId,
-                        account = account,
-                        playbackRepository = playbackRepository,
                         playbackPlayerFactory = playbackPlayerFactory,
-                        sessionId = sessionId,
                         onFilesEvent = { onFilesEvent(it) },
-                        onAccountSettingsEvent = onAccountSettingsEvent,
-                        loadTunnelRoutes = loadTunnelRoutes,
-                        deviceClass = if (maxWidth >= 600.dp) AppDiagnostics.DeviceClass.Tablet
-                            else AppDiagnostics.DeviceClass.Phone,
-                        onAppConfigEvent = onAppConfigEvent,
-                        onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
-                        onFilesAuthenticationRequired = onFilesAuthenticationRequired,
-                        searchHistoryActions = searchHistoryActions,
-                        onTransfersEvent = onTransfersEvent,
-                        onSignOut = onSignOut,
-                        modifier = contentModifier,
-                        publicLinks = publicLinks,
-                    )
+                        onFilesBack = onFilesBack,
+                        inactiveNotice = account.inactiveNotice,
+                    ) { contentModifier ->
+                        MobileNavHost(
+                            transferDraft = transferDraft,
+                            navController = navController,
+                            filesState = filesState,
+                            filesRepository = filesRepository,
+                            trashController = trashController,
+                            downloadsController = downloadsController,
+                            downloadsState = downloadsState,
+                            onShareItem = onShareItem,
+                            accountSettingsState = accountSettingsState,
+                            appConfigState = appConfigState,
+                            searchHistoryState = searchHistoryState,
+                            transfersState = transfersState,
+                            transfersSessionId = transfersSessionId,
+                            account = account,
+                            playbackRepository = playbackRepository,
+                            playbackPlayerFactory = playbackPlayerFactory,
+                            sessionId = sessionId,
+                            onFilesEvent = { onFilesEvent(it) },
+                            onAccountSettingsEvent = onAccountSettingsEvent,
+                            loadTunnelRoutes = loadTunnelRoutes,
+                            deviceClass = if (maxWidth >= 600.dp) AppDiagnostics.DeviceClass.Tablet
+                                else AppDiagnostics.DeviceClass.Phone,
+                            onAppConfigEvent = onAppConfigEvent,
+                            onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
+                            onFilesAuthenticationRequired = onFilesAuthenticationRequired,
+                            searchHistoryActions = searchHistoryActions,
+                            onTransfersEvent = onTransfersEvent,
+                            onSignOut = onSignOut,
+                            modifier = contentModifier,
+                            publicLinks = publicLinks,
+                            focusSearch = searchFocusPending,
+                            onSearchFocused = { searchFocusPending = false },
+                            fileDragOut = fileDragOut,
+                        )
+                    }
                 }
             }
         }
@@ -304,6 +325,26 @@ internal fun MobileShell(
             },
             onTransfersEvent = onTransfersEvent,
         )
+    }
+}
+
+/**
+ * Backspace and Escape go up a folder or back wherever no control used them, through the same Back
+ * the system gesture takes; with nothing left to close they do nothing rather than leave the app.
+ * Ctrl+F opens Search and puts the cursor in its field.
+ */
+@Composable
+private fun MobileShellKeyboardEffect(searchEnabled: Boolean, onSearch: () -> Unit) {
+    val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    MobileUnhandledKeyEffect(MobileShortcutScope.Files) { command ->
+        when (command) {
+            MobileKeyCommand.Back -> {
+                backDispatcher?.takeIf { it.hasEnabledCallbacks() }?.onBackPressed()
+                true
+            }
+            MobileKeyCommand.Search -> searchEnabled.also { if (it) onSearch() }
+            else -> false
+        }
     }
 }
 

@@ -4,6 +4,7 @@ import android.content.Context
 import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.annotation.StringRes
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -38,17 +39,30 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -68,7 +82,10 @@ import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
+import io.putdotio.android.MobileKeyCommand
 import io.putdotio.android.MobileLoadingState
+import io.putdotio.android.MobileShortcutScope
+import io.putdotio.android.MobileUnhandledKeyEffect
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
@@ -77,6 +94,8 @@ import io.putdotio.android.downloads.DownloadPauseReason
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.parsePutioTimestamp
+import io.putdotio.android.share.MobileFileDragOut
+import io.putdotio.android.share.MobileFileDragShadow
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -104,6 +123,7 @@ internal fun MobileFilesScreen(
     onViewTrash: (() -> Unit)? = null,
     onCopyItem: ((FilesItem) -> Unit)? = null,
     onPublicLinkItem: ((FilesItem) -> Unit)? = null,
+    fileDragOut: MobileFileDragOut? = null,
 ) {
     val current = state.current
     when (val content = current.content) {
@@ -130,6 +150,7 @@ internal fun MobileFilesScreen(
                 onViewTrash,
                 onCopyItem,
                 onPublicLinkItem,
+                fileDragOut,
             )
         }
     }
@@ -166,32 +187,65 @@ private fun MobileRefreshableFilesContent(
     onViewTrash: (() -> Unit)? = null,
     onCopyItem: ((FilesItem) -> Unit)? = null,
     onPublicLinkItem: ((FilesItem) -> Unit)? = null,
+    fileDragOut: MobileFileDragOut? = null,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
     var selectedItemId by rememberSaveable { mutableStateOf<Long?>(null) }
-    val selectedItem = (content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == selectedItemId }
+    // Delete on a focused row goes straight to the sheet's delete step, in the mode the setting had then.
+    var keyDelete by rememberSaveable { mutableStateOf<FilesDeleteMode?>(null) }
+    var focusedItemId by remember { mutableStateOf<Long?>(null) }
+    val items = (content as? FilesContent.Ready)?.items.orEmpty()
+    val selectedItem = items.firstOrNull { it.id.value == selectedItemId }
     LaunchedEffect(selectedItemId, selectedItem) {
         if (selectedItem == null) selectedItemId = null
     }
+    MobileFilesKeyboardEffect(
+        selectionOpen = selectedItemId != null,
+        operation = operation,
+        focusedItem = items.firstOrNull { it.id.value == focusedItemId },
+        confirmedTrashEnabled = confirmedTrashEnabled,
+        onRefresh = { onEvent(FilesBrowserEvent.Refresh) },
+        onDelete = { item, mode ->
+            keyDelete = mode
+            selectedItemId = item.id.value
+        },
+    )
+    val dismissSelection = {
+        selectedItemId = null
+        keyDelete = null
+    }
     if (selectedItem != null) {
         key(selectedItem.id.value) {
-            MobileFilesActions(
-                item = selectedItem,
-                folderId = state.current.folder.id,
-                operation = operation,
-                renameCompletion = state.current.renameCompletion,
-                onEvent = onEvent,
-                onDismiss = { selectedItemId = null },
-                confirmedTrashEnabled = confirmedTrashEnabled,
-                onMoveItem = onMoveItem,
-                downloadStatus = downloads.entry(selectedItem.id)?.status,
-                onDownloadItem = onDownloadItem,
-                onShareItem = onShareItem,
-                onCopyItem = onCopyItem,
-                canStartCopy = state.canStartCopy,
-                onPublicLinkItem = onPublicLinkItem,
-            )
+            val deleteMode = keyDelete
+            if (deleteMode != null) {
+                MobileFilesKeyDelete(
+                    item = selectedItem,
+                    folderId = state.current.folder.id,
+                    mode = deleteMode,
+                    confirmedTrashEnabled = confirmedTrashEnabled,
+                    operation = operation,
+                    onEvent = onEvent,
+                    onDismiss = dismissSelection,
+                )
+            } else {
+                MobileFilesActions(
+                    item = selectedItem,
+                    folderId = state.current.folder.id,
+                    operation = operation,
+                    renameCompletion = state.current.renameCompletion,
+                    onEvent = onEvent,
+                    onDismiss = dismissSelection,
+                    confirmedTrashEnabled = confirmedTrashEnabled,
+                    onMoveItem = onMoveItem,
+                    downloadStatus = downloads.entry(selectedItem.id)?.status,
+                    onDownloadItem = onDownloadItem,
+                    onShareItem = onShareItem,
+                    onCopyItem = onCopyItem,
+                    canStartCopy = state.canStartCopy,
+                    onPublicLinkItem = onPublicLinkItem,
+                )
+            }
         }
     }
     val isRefreshing =
@@ -250,6 +304,12 @@ private fun MobileRefreshableFilesContent(
                                 },
                                 operation = operation,
                                 downloads = downloads,
+                                onItemFocusChanged = { id, focused ->
+                                    focusedItemId = focusedItemId.afterFocusChange(id.value, focused)
+                                },
+                                fileDragOut = fileDragOut,
+                                // A touch drag starts after the long press opened the sheet; the drag replaces it.
+                                onDragStarted = dismissSelection,
                             )
                         }
 
@@ -268,6 +328,41 @@ private fun MobileRefreshableFilesContent(
         )
     }
 }
+
+/**
+ * F5 or Ctrl+R refreshes as pull-to-refresh does, and Delete acts on the focused row as its sheet's
+ * delete row would; neither runs while a sheet is open or an operation is under way. Delete waits for
+ * a known Trash setting by opening the sheet, which says why it cannot delete yet.
+ */
+@Composable
+private fun MobileFilesKeyboardEffect(
+    selectionOpen: Boolean,
+    operation: FilesFolderOperation,
+    focusedItem: FilesItem?,
+    confirmedTrashEnabled: Boolean?,
+    onRefresh: () -> Unit,
+    onDelete: (FilesItem, FilesDeleteMode?) -> Unit,
+) {
+    val idle = !selectionOpen && operation.canStartOperation
+    MobileUnhandledKeyEffect(MobileShortcutScope.Files) { command ->
+        when (command) {
+            MobileKeyCommand.Refresh -> true.also { if (idle) onRefresh() }
+            MobileKeyCommand.Delete -> {
+                val item = focusedItem?.takeIf { idle && it.acceptsOwnerActions && it.id.value > 0L }
+                item?.let { onDelete(it, confirmedDeleteMode(confirmedTrashEnabled)) }
+                item != null
+            }
+            else -> false
+        }
+    }
+}
+
+private fun <T> T?.afterFocusChange(itemId: T, focused: Boolean): T? =
+    when {
+        focused -> itemId
+        this == itemId -> null
+        else -> this
+    }
 
 @Composable
 private fun MobileFilesFolderStatus(
@@ -526,12 +621,16 @@ private fun MobileFilesList(
     operation: FilesFolderOperation,
     modifier: Modifier = Modifier,
     downloads: DownloadsState = DownloadsState(),
+    onItemFocusChanged: (FilesItemId, Boolean) -> Unit = { _, _ -> },
+    fileDragOut: MobileFileDragOut? = null,
+    onDragStarted: () -> Unit = {},
 ) {
     val viewport = content.viewport
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = viewport.firstVisibleItemIndex,
         initialFirstVisibleItemScrollOffset = viewport.firstVisibleItemScrollOffset,
     )
+    val keyboardFocus = rememberFilesKeyboardFocus(content.items, viewport.firstVisibleItemIndex)
     val currentOnEvent by rememberUpdatedState(onEvent)
     val pendingItemId = operation.pendingItemId()
     val actionsEnabled = operation.canStartOperation
@@ -567,34 +666,47 @@ private fun MobileFilesList(
             .fillMaxSize()
             .testTag(MOBILE_FILES_LIST_TAG),
     ) {
-        items(
+        itemsIndexed(
             items = content.items,
-            key = { it.id.value },
-        ) { item ->
-            MobileFilesRow(
+            key = { _, item -> item.id.value },
+        ) { index, item ->
+            MobileFilesListRow(
                 item = item,
-                highlighted = item.id == revealItemId,
-                downloadStatus = downloads.rowStatus(item.id),
-                onActions = if (hasActions(item)) { { onActions(item) } } else null,
-                actionsEnabled = actionsEnabled,
-                onClick = when {
-                    item.id == pendingItemId -> null
-                    item.isFolder -> {
-                        { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
-                    }
-
-                    item.isPlayable -> {
-                        { onPlayMedia(item) }
-                    }
-
-                    else -> null
+                takeEntryFocus = keyboardFocus.takesEntry(index),
+                onEntryFocused = keyboardFocus::entered,
+                fileDragOut = fileDragOut,
+                onDragStarted = onDragStarted,
+                onFocusChanged = { focused ->
+                    keyboardFocus.onRowFocus(item.id, index, focused)
+                    onItemFocusChanged(item.id, focused)
                 },
-                onClickLabel = when {
-                    item.isFolder -> stringResource(R.string.mobile_files_open_folder, item.name)
-                    item.isPlayable -> stringResource(R.string.mobile_files_play_media, item.name)
-                    else -> null
-                },
-            )
+            ) { rowModifier ->
+                MobileFilesRow(
+                    item = item,
+                    modifier = rowModifier,
+                    highlighted = item.id == revealItemId,
+                    downloadStatus = downloads.rowStatus(item.id),
+                    onActions = if (hasActions(item)) { { onActions(item) } } else null,
+                    actionsEnabled = actionsEnabled,
+                    onClick = when {
+                        item.id == pendingItemId -> null
+                        item.isFolder -> {
+                            { onEvent(FilesBrowserEvent.OpenFolder(item.id)) }
+                        }
+
+                        item.isPlayable -> {
+                            { onPlayMedia(item) }
+                        }
+
+                        else -> null
+                    },
+                    onClickLabel = when {
+                        item.isFolder -> stringResource(R.string.mobile_files_open_folder, item.name)
+                        item.isPlayable -> stringResource(R.string.mobile_files_play_media, item.name)
+                        else -> null
+                    },
+                )
+            }
             HorizontalDivider(modifier = Modifier.padding(start = FILES_DIVIDER_INSET))
         }
         if (content.paging != FilesPaging.Complete) {
@@ -608,6 +720,100 @@ private fun MobileFilesList(
             }
         }
     }
+}
+
+/**
+ * Where keyboard focus goes in a listing. A folder reached from the keyboard focuses the row last
+ * focused there, such as the video that just played, else its first visible row. When the listing
+ * changes under keyboard focus and no row keeps it (the focused row went to Trash, say), focus goes to
+ * the row now in its place.
+ */
+@Stable
+private class FilesKeyboardFocus(
+    entryIndex: Int,
+    entryPending: Boolean,
+    private val lastFocusedId: MutableState<Long?>,
+) {
+    private var entryIndex by mutableIntStateOf(entryIndex)
+    private var entryPending by mutableStateOf(entryPending)
+    private var focusedRow: FilesItemId? = null
+    private var lastFocusedIndex: Int? = null
+
+    fun takesEntry(index: Int): Boolean = entryPending && index == entryIndex
+
+    fun entered() {
+        entryPending = false
+    }
+
+    fun onRowFocus(id: FilesItemId, index: Int, focused: Boolean) {
+        if (focused) {
+            lastFocusedIndex = index
+            lastFocusedId.value = id.value
+        }
+        focusedRow = focusedRow.afterFocusChange(id, focused)
+    }
+
+    fun afterListingChange(keyboardInput: Boolean, itemCount: Int) {
+        val index = lastFocusedIndex ?: return
+        if (keyboardInput && focusedRow == null && itemCount > 0) {
+            entryIndex = index.coerceAtMost(itemCount - 1)
+            entryPending = true
+        }
+    }
+}
+
+@Composable
+private fun rememberFilesKeyboardFocus(items: List<FilesItem>, firstVisibleIndex: Int): FilesKeyboardFocus {
+    val keyboardInput = LocalInputModeManager.current.inputMode == InputMode.Keyboard
+    val lastFocusedId = rememberSaveable { mutableStateOf<Long?>(null) }
+    val focus = remember {
+        val entry = items.indexOfFirst { it.id.value == lastFocusedId.value }.takeIf { it >= 0 } ?: firstVisibleIndex
+        FilesKeyboardFocus(entry, keyboardInput, lastFocusedId)
+    }
+    LaunchedEffect(items) {
+        // Focus moves and drops as rows leave during this frame; decide once it has settled.
+        withFrameNanos {}
+        focus.afterListingChange(keyboardInput, items.size)
+    }
+    return focus
+}
+
+/**
+ * A row's keyboard and pointer extras: the focus a folder entered from the keyboard puts on it, focus
+ * reporting for the Delete key, and dragging a file out of the app.
+ */
+@Composable
+private fun MobileFilesListRow(
+    item: FilesItem,
+    takeEntryFocus: Boolean,
+    onEntryFocused: () -> Unit,
+    fileDragOut: MobileFileDragOut?,
+    onDragStarted: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit,
+    row: @Composable (Modifier) -> Unit,
+) {
+    val entryFocus = if (takeEntryFocus) remember { FocusRequester() } else null
+    entryFocus?.let { requester ->
+        LaunchedEffect(requester) {
+            requester.requestFocus()
+            onEntryFocused()
+        }
+    }
+    val view = LocalView.current
+    val density = LocalDensity.current
+    val shadowBackground = MaterialTheme.colorScheme.inverseSurface.toArgb()
+    val shadowForeground = MaterialTheme.colorScheme.inverseOnSurface.toArgb()
+    val startDrag = rememberUpdatedState {
+        val shadow =
+            MobileFileDragShadow(item.name, density.density, density.fontScale, shadowBackground, shadowForeground)
+        if (fileDragOut?.start(view, item, shadow) == true) onDragStarted()
+    }
+    row(
+        Modifier
+            .then(entryFocus?.let { Modifier.focusRequester(it) } ?: Modifier)
+            .onFocusChanged { onFocusChanged(it.hasFocus) }
+            .mobileFileDragSource(fileDragOut != null && !item.isFolder && item.id.value > 0L) { startDrag.value() },
+    )
 }
 
 private fun FilesFolderOperation.pendingItemId(): FilesItemId? {
@@ -644,6 +850,9 @@ internal fun MobileFilesRow(
 ) {
     val metadata = formatFilesItemMetadata(LocalContext.current, item)
     val actionsLabel = stringResource(R.string.mobile_files_actions, item.name)
+    // Touch never focuses a row; a keyboard-focused one is outlined so it reads at a glance.
+    var focused by remember { mutableStateOf(false) }
+    val outline = MaterialTheme.colorScheme.primary
     val interaction = if (onActions != null && actionsEnabled) {
         Modifier.combinedClickable(
             onClickLabel = onClickLabel,
@@ -672,6 +881,8 @@ internal fun MobileFilesRow(
         },
         modifier = modifier
             .fillMaxWidth()
+            .onFocusChanged { focused = it.isFocused }
+            .focusOutline(focused, outline)
             .then(interaction)
             .semantics { if (highlighted) selected = true },
         colors = if (highlighted) {
@@ -857,6 +1068,9 @@ private fun MobileFilesPaging(
     }
 }
 
+private fun Modifier.focusOutline(focused: Boolean, color: Color): Modifier =
+    if (focused) border(FILES_FOCUS_OUTLINE, color) else this
+
 private fun formatFilesItemMetadata(
     context: Context,
     item: FilesItem,
@@ -913,4 +1127,5 @@ private val FILES_ICON_SIZE = 24.dp
 private val FILES_PROGRESS_SPACING = 6.dp
 private val FILES_PROGRESS_HEIGHT = 4.dp
 private val FILES_BADGE_ICON_SIZE = 16.dp
+private val FILES_FOCUS_OUTLINE = 2.dp
 private const val PERCENT_SCALE = 100f
