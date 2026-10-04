@@ -51,6 +51,7 @@ internal const val MOBILE_FILES_RENAME_FIELD_TAG = "mobile-files-rename-field"
 internal const val MOBILE_FILES_DOWNLOAD_ACTION_TAG = "mobile-files-download-action"
 internal const val MOBILE_FILES_SHARE_ACTION_TAG = "mobile-files-share-action"
 internal const val MOBILE_FILES_COPY_ACTION_TAG = "mobile-files-copy-action"
+internal const val MOBILE_FILES_PUBLIC_LINK_ACTION_TAG = "mobile-files-public-link-action"
 
 /**
  * Whether the row's sheet offers anything. Download and Share read the original, and Make a copy
@@ -76,6 +77,7 @@ internal fun MobileFilesActions(
     onShareItem: ((FilesItem) -> Unit)? = null,
     onCopyItem: ((FilesItem) -> Unit)? = null,
     canStartCopy: Boolean = true,
+    onPublicLinkItem: ((FilesItem) -> Unit)? = null,
 ) {
     val failed = operation as? FilesFolderOperation.Failed
     val failedRename = (failed?.intent as? FilesFolderOperationIntent.Rename)?.takeIf { it.itemId == item.id }
@@ -157,6 +159,7 @@ internal fun MobileFilesActions(
             onDownloadItem = onDownloadItem,
             onShareItem = onShareItem,
             onCopyItem = onCopyItem,
+            onPublicLinkItem = onPublicLinkItem,
         )
     }
 }
@@ -237,6 +240,7 @@ private fun MobileFilesActionsSheet(
     onDownloadItem: ((FilesItem) -> Unit)?,
     onShareItem: ((FilesItem) -> Unit)?,
     onCopyItem: ((FilesItem) -> Unit)?,
+    onPublicLinkItem: ((FilesItem) -> Unit)?,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -291,6 +295,7 @@ private fun MobileFilesActionsSheet(
                         },
                 )
             }
+            MobileFilesPublicLinkAction(item, onPublicLinkItem, onDismiss)
             if (onMoveItem != null && item.acceptsOwnerActions) {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.mobile_files_move)) },
@@ -315,6 +320,26 @@ private fun MobileFilesActionsSheet(
             }
         }
     }
+}
+
+// Owner-only, as on web: a friend's item and the shared folders are not the viewer's to share.
+@Composable
+private fun MobileFilesPublicLinkAction(
+    item: FilesItem,
+    onPublicLinkItem: ((FilesItem) -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    if (onPublicLinkItem == null || !item.acceptsOwnerActions || item.id.value <= 0L) return
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.mobile_public_links_action)) },
+        supportingContent = { Text(stringResource(R.string.mobile_public_links_action_description)) },
+        modifier = Modifier
+            .testTag(MOBILE_FILES_PUBLIC_LINK_ACTION_TAG)
+            .clickable(role = Role.Button) {
+                onPublicLinkItem(item)
+                onDismiss()
+            },
+    )
 }
 
 // A completed or running download shows its state; the row stays informational.

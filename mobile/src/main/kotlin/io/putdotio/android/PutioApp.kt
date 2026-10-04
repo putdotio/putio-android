@@ -32,6 +32,8 @@ import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.files.mobileFilesViewModelFactory
 import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.search.mobileSearchHistoryViewModelFactory
+import io.putdotio.android.sharing.MobilePublicLinksViewModel
+import io.putdotio.android.sharing.mobilePublicLinksViewModelFactory
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersViewModel
 import io.putdotio.android.transfers.mobileTransfersViewModelFactory
@@ -109,6 +111,9 @@ private fun MobileAuthRoot(
     val downloadsViewModel = viewModel<MobileDownloadsViewModel>(
         factory = remember(authController) { mobileDownloadsViewModelFactory(authController.state) },
     )
+    val publicLinksViewModel = viewModel<MobilePublicLinksViewModel>(
+        factory = remember(authController) { mobilePublicLinksViewModelFactory(authController.state) },
+    )
 
     LaunchedEffect(authController) {
         authController.restoreSession()
@@ -177,6 +182,7 @@ private fun MobileAuthRoot(
                 transfersViewModel = transfersViewModel,
                 trashViewModel = trashViewModel,
                 downloadsViewModel = downloadsViewModel,
+                publicLinksViewModel = publicLinksViewModel,
                 authController = authController,
                 rootScope = rootScope,
                 nowPlayingRequests = nowPlayingRequests,

@@ -23,6 +23,7 @@
     <string name="mobile_files_move_still_present">“%1$s” is not in the selected folder. You can choose a destination again.</string>
     <string name="mobile_files_move_rejected">Couldn’t move “%1$s”. Choose another folder and try again.</string>
     <string name="mobile_files_move_collision">A file or folder named “%1$s” already exists there. Choose another folder.</string>
+    <string name="mobile_files_move_into_itself">A folder can’t be moved into itself or a folder inside it.</string>
     <string name="mobile_files_make_copy">Make a copy</string>
     <string name="mobile_files_copy_here">Copy here</string>
     <string name="mobile_files_copying">Copying “%1$s” to %2$s…</string>
@@ -466,4 +467,55 @@
     <string name="mobile_share_replace_message">You already have an unfinished transfer. Choose which input to keep.</string>
     <string name="mobile_share_use_link">Use shared link</string>
     <string name="mobile_share_keep_draft">Keep draft</string>
+    <!--
+        Exclusive access (public links), from putio-web public-share-modal.tsx, sharing/pages/Sharing/PublicShares.tsx,
+        features/public-shares/errors.ts and packages/translations/src/languages/en.json.
+    -->
+    <!-- en.json files_menu_public_share_label, verbatim. -->
+    <string name="mobile_public_links_action">Exclusive access</string>
+    <string name="mobile_public_links_action_description">A link anyone can open for 72 hours</string>
+    <string name="mobile_public_links_manage">Exclusive access</string>
+    <string name="mobile_public_links_manage_description">Links to your files that anyone can open</string>
+    <!-- en.json files_public_share_abuse_message_title and files_public_share_abuse_message_details, verbatim. -->
+    <string name="mobile_public_links_warning_title">This is a public link, but it’s not for the whole world to enjoy.</string>
+    <string name="mobile_public_links_warning">The share will die if more than a certain number of IP addresses access the file or if more than a certain amount of data is downloaded. It will also vanish after 72 hours.</string>
+    <string name="mobile_public_links_create">Create link</string>
+    <string name="mobile_public_links_creating">Creating link…</string>
+    <string name="mobile_public_links_created">Link created. Copy or share it below.</string>
+    <string name="mobile_public_links_loading">Loading links…</string>
+    <string name="mobile_public_links_none_for_item">No links for this item yet.</string>
+    <!-- en.json sharing_public_links_empty, verbatim. -->
+    <string name="mobile_public_links_empty">You don’t have any shared links.</string>
+    <!-- en.json sharing_public_links_expires_in. -->
+    <string name="mobile_public_links_expires">Expires at %1$s</string>
+    <string name="mobile_public_links_expiry_unknown">Expires within 72 hours</string>
+    <string name="mobile_public_links_copy">Copy link</string>
+    <string name="mobile_public_links_copied">Copied</string>
+    <string name="mobile_public_links_clip_label">put.io link</string>
+    <!-- en.json sharing_files_share. -->
+    <string name="mobile_public_links_share">Share</string>
+    <!-- en.json sharing_links_revoke_label. -->
+    <string name="mobile_public_links_revoke">Revoke</string>
+    <string name="mobile_public_links_revoking">Revoking…</string>
+    <string name="mobile_public_links_revoke_title">Revoke this link?</string>
+    <string name="mobile_public_links_revoke_message">Anyone who has the link to “%1$s” loses access.</string>
+    <!-- en.json sharing_links_revoke_success, verbatim. -->
+    <string name="mobile_public_links_revoked">Link is revoked.</string>
+    <string name="mobile_public_links_revoke_failed">Couldn’t revoke the link. %1$s</string>
+    <string name="mobile_public_links_create_failed">Couldn’t create a link. %1$s</string>
+    <string name="mobile_public_links_access_denied">put.io didn’t allow this for your account.</string>
+    <!-- en.json files_public_share_error_not_allowed_plan. -->
+    <string name="mobile_public_links_refused_plan">You can’t create public links with your current plan.</string>
+    <!-- en.json files_public_share_error_unsupported_file_type. -->
+    <string name="mobile_public_links_refused_file_type">This file type can’t be shared.</string>
+    <!-- en.json files_public_share_error_limit_exceeded, with Account in place of web's link. -->
+    <string name="mobile_public_links_refused_limit">You have reached the limit of your public links. You’ll have to revoke some under Account, Exclusive access, if you want to make more.</string>
+    <!-- en.json files_public_share_error_max_size_limit_exceeded; put.io's numbers are not read. -->
+    <string name="mobile_public_links_refused_folder_size">This folder is too big to share.</string>
+    <!-- en.json files_public_share_error_max_children_limit_exceeded. -->
+    <string name="mobile_public_links_refused_folder_children">This folder contains too many files to share.</string>
+    <!-- en.json files_public_share_error_daily_total_link_count_exceeded. -->
+    <string name="mobile_public_links_refused_daily">You have reached the daily public link creation limit.</string>
+    <!-- en.json files_public_share_error_weekly_total_link_count_exceeded. -->
+    <string name="mobile_public_links_refused_weekly">You have reached the weekly public link creation limit.</string>
 </resources>

@@ -113,6 +113,7 @@ dependencies {
     implementation(project(":domain:history"))
     implementation(project(":domain:playback"))
     implementation(project(":domain:search"))
+    implementation(project(":domain:sharing"))
     implementation(project(":domain:transfers"))
     implementation(project(":domain:trash"))
 
@@ -158,6 +159,7 @@ dependencies {
     testImplementation(testFixtures(project(":domain:history")))
     testImplementation(testFixtures(project(":domain:playback")))
     testImplementation(testFixtures(project(":domain:search")))
+    testImplementation(testFixtures(project(":domain:sharing")))
     testImplementation(testFixtures(project(":domain:transfers")))
     testImplementation(testFixtures(project(":domain:trash")))
     testImplementation(libs.junit)
@@ -172,6 +174,7 @@ dependencies {
     androidTestImplementation(testFixtures(project(":domain:history")))
     androidTestImplementation(testFixtures(project(":domain:playback")))
     androidTestImplementation(testFixtures(project(":domain:search")))
+    androidTestImplementation(testFixtures(project(":domain:sharing")))
     androidTestImplementation(testFixtures(project(":domain:transfers")))
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

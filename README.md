@@ -46,6 +46,9 @@ Mobile, on the emulator harness against the live API:
 - Share out: Share file exports the original through a scoped content URI; the
   chooser never sees a token. Product deep links open Files, a folder,
   Transfers, Search, History, Trash and Downloads
+- Exclusive access: create, copy, share and revoke public links to your own
+  files and folders from their action sheet; Account lists every link with
+  revoke
 
 TV:
 
@@ -92,7 +95,7 @@ Not started: Chromecast and the Play release lane.
 
 ## Build and verify
 
-Requires JDK 21, `python3`, and, on macOS, Homebrew. Everything else is scripted.
+Requires JDK 21, Node 20.19 or newer, `python3`, and, on macOS, Homebrew. Everything else is scripted.
 
 ```bash
 ./scripts/bootstrap.sh   # once per machine; installs the Android SDK, AVDs, local.properties

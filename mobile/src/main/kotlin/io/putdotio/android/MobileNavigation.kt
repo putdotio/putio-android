@@ -59,6 +59,9 @@ import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedTrashEnabled
+import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
+import io.putdotio.android.sharing.MobilePublicLinks
+import io.putdotio.android.sharing.MobilePublicLinksScreen
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.transfers.TransfersEvent
@@ -100,6 +103,7 @@ internal fun MobileNavHost(
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
     modifier: Modifier = Modifier,
     deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
+    publicLinks: MobilePublicLinks? = null,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
@@ -126,6 +130,7 @@ internal fun MobileNavHost(
                 onShareItem = onShareItem,
                 onViewTrash = trashController?.let { { navController.navigateToTrash() } },
                 moveTargetStore = moveTargetStore,
+                publicLinks = publicLinks,
             )
         }
         composable(MobileDestination.Search.route) {
@@ -171,7 +176,13 @@ internal fun MobileNavHost(
                 onManageDownloads = downloadsController?.let {
                     { navController.navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true } }
                 },
+                onManagePublicLinks = publicLinks?.let {
+                    { navController.navigate(MOBILE_PUBLIC_LINKS_ROUTE) { launchSingleTop = true } }
+                },
             )
+        }
+        composable(MOBILE_PUBLIC_LINKS_ROUTE) {
+            publicLinks?.let { MobilePublicLinksScreen(it) }
         }
         composable(MOBILE_DOWNLOADS_ROUTE) {
             downloadsController?.let { controller ->

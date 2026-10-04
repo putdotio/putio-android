@@ -1289,6 +1289,31 @@ in `move-target-proof-<UUID>/`:
 - `05-copy-reopens-at-remembered`: Make a copy opens there too
 - `06-after-sign-out-root`: after the sign-out cleanup, root with the toggle off
 - `07-missing-folder-root`: a remembered folder that can't be read opens at root
+- `08-move-opens-inside-moved-folder`: a folder remembered before it ended up
+  two levels inside the folder being moved still opens there
+- `09-move-into-itself-refused`: Move here gets put.io's 403, and the outcome
+  says a folder can't be moved into itself
+
+## Public links proof
+
+Behaviour: [Public links](./behavior.md#public-links).
+`MobilePublicLinksProofTest` mounts the production Files route, the public
+links controller and sheet, the system share chooser, and Account's list on
+faked repositories. It makes no API calls, so report it as synthetic proof; a
+live run needs the app signed in to `devs-auto` through Auth Tab, which takes
+the account's web sign-in. Opt in with `putio.publiclinks.enabled=true` and
+`putio.publiclinks.runId=<UUID>` and require `OK (1 test)`. Each step holds for
+about a second so a recording started beside it shows it. Screenshots land in
+`public-links-proof-<UUID>/`:
+
+- `01-shared-file-no-exclusive-access`: a friend's file has no Exclusive access
+- `02-owned-file-actions`: an owned file's sheet offers it
+- `03-sheet-existing-link`: the item's existing link with Create link
+- `04-link-created` and `05-copied`: a new link, then Copy link
+- `06-share-chooser`: the chooser with the file name and address only
+- `07-revoke-confirm` and `08-revoked`: Revoke confirms, then the link is gone
+- `09-daily-limit`: web's copy for put.io's daily limit
+- `10-account-list`: Account's list of every link
 
 ## Transfer retry proof
 

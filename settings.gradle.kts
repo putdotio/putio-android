@@ -28,6 +28,7 @@ include(
     ":domain:history",
     ":domain:playback",
     ":domain:search",
+    ":domain:sharing",
     ":domain:transfers",
     ":domain:trash",
 )
