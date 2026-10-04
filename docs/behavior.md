@@ -270,6 +270,41 @@ Tests: `PlaybackReducerTest`, `PlaybackControllerTest`, `MobilePlayerScreenTest`
 prompt), `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
 `SdkPlaybackRepositoryTest`, `MobilePlaybackReportingTest`.
 
+## Picture-in-picture
+
+Mobile video moves into a picture-in-picture window when the viewer leaves the app while it
+plays: Android 12 and later enter on their own, Android 8 to 11 on the leave hint. The window is
+offered only while the video holds the screen on (playing, not ended, idle or suppressed), so
+never for paused, finished or failed video, the resume prompt, the conversion interstitial or
+audio, which keeps playing through its background service. There is no setting; iOS's player has
+none either. The window takes the video's display shape, held between 1:2.38 and 2.38:1 so every
+device accepts it, and animates from the letterboxed video rather than the whole screen.
+
+The window shows only the video and its subtitles: the controls, the back button and seek
+feedback leave composition, which also closes an open settings sheet. Its menu carries one
+action, Pause or Play, which drives the screen's own player through Media3's play and pause
+handling. MainActivity handles the orientation, screen size and layout changes the window brings,
+so entering or leaving it never recreates the Activity or its player; rotation anywhere in the
+app no longer recreates it either.
+
+Entering the window pauses the Activity, not the video. On the API 37 emulator the Activity's own
+picture-in-picture flag is already set when the pause arrives, before mode listeners hear it;
+where a pause still beats the flag, the window resumes what it stopped. In the window the started
+Activity counts as the foreground: a pause or play there is what Expand keeps, and autoplay next
+starts the next video playing in the window. When autoplay finds nothing more, the window stays on
+the finished video and the route returns only once the window closes or expands, so the window
+never shows the shell. The screen-on hold follows playback as it does full screen, and position
+reporting is unchanged: the observer samples every 15 seconds while the window plays.
+
+Expand returns to the full-screen player where the window was. Closing the window stops the
+Activity, which releases the player and writes its position as leaving the app does; whichever
+order the stop and the mode change arrive in, the next visit finds the video paused at that
+position instead of playing on.
+
+Tests: `MobilePictureInPictureTest`,
+`MobileShellPlaybackTest.terminalAutoplayInPictureInPictureWaitsForTheWindowToClose`; device
+proof `MobilePictureInPictureProofTest` ([Harness](./harness.md#picture-in-picture-proof)).
+
 ## MP4 conversion
 
 Both surfaces resolve a video that needs MP4 conversion to the same shared
