@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class FilesMoveDestinationController private constructor(
+public class FilesMoveDestinationController private constructor(
     sourceItem: FilesItem?,
     sourceFolderId: FilesItemId?,
     private val repository: FilesRepository,
@@ -23,7 +23,7 @@ class FilesMoveDestinationController private constructor(
     @Suppress("UNUSED_PARAMETER") marker: Unit,
 ) : Closeable {
     /** [startPath] is the folder to open at and its ancestors below root; empty opens at root. */
-    constructor(
+    public constructor(
         sourceItem: FilesItem,
         sourceFolderId: FilesItemId,
         repository: FilesRepository,
@@ -32,7 +32,7 @@ class FilesMoveDestinationController private constructor(
     ) : this(sourceItem, sourceFolderId, repository, parentScope, startPath, Unit)
 
     /** Picks a folder for new content; every folder, root included, is a valid destination. */
-    constructor(
+    public constructor(
         repository: FilesRepository,
         parentScope: CoroutineScope,
         startPath: List<FilesFolder> = emptyList(),
@@ -65,13 +65,13 @@ class FilesMoveDestinationController private constructor(
     ))
     private var job: Job? = null
     private var closed = false
-    val state: StateFlow<FilesMoveDestinationState> = mutableState.asStateFlow()
+    public val state: StateFlow<FilesMoveDestinationState> = mutableState.asStateFlow()
 
     init {
         synchronized(lock) { startRequest(firstRequest) }
     }
 
-    fun dispatch(event: FilesMoveDestinationEvent): Boolean = synchronized(lock) {
+    public fun dispatch(event: FilesMoveDestinationEvent): Boolean = synchronized(lock) {
         if (closed) return@synchronized false
         val transition = mutableState.value.reduce(event)
         if (!transition.consumed) return@synchronized false

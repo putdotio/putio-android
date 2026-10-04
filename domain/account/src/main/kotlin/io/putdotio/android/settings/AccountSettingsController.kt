@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class AccountSettingsController(
+public class AccountSettingsController(
     private val repository: AccountSettingsRepository,
     parentScope: CoroutineScope,
 ) : Closeable {
@@ -25,13 +25,13 @@ class AccountSettingsController(
     private var activeJob: Job? = null
     private var closed = false
 
-    val state: StateFlow<AccountSettingsState> = mutableState.asStateFlow()
+    public val state: StateFlow<AccountSettingsState> = mutableState.asStateFlow()
 
     init {
         initial.effect?.let(::launchEffect)
     }
 
-    fun dispatch(event: AccountSettingsEvent): Boolean {
+    public fun dispatch(event: AccountSettingsEvent): Boolean {
         val transition =
             synchronized(lock) {
                 if (closed) {

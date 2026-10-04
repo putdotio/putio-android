@@ -3,12 +3,12 @@ package io.putdotio.android
 import io.putdotio.sdk.errors.PutioException
 import java.util.concurrent.CancellationException
 
-sealed interface PutioResult<out T> {
-    data class Success<T>(
+public sealed interface PutioResult<out T> {
+    public data class Success<T>(
         val value: T,
     ) : PutioResult<T>
 
-    data class Failure(
+    public data class Failure(
         val failure: PutioFailure,
     ) : PutioResult<Nothing>
 }
@@ -20,7 +20,7 @@ sealed interface PutioResult<out T> {
 // Kotlin/JVM has no typed throws contract, so the SDK boundary converts
 // unknown failures after preserving cancellation.
 @Suppress("TooGenericExceptionCaught")
-suspend fun <T> putioRequest(
+public suspend fun <T> putioRequest(
     classify: (PutioException) -> PutioFailure = PutioException::toPutioFailure,
     request: suspend () -> T,
 ): PutioResult<T> =

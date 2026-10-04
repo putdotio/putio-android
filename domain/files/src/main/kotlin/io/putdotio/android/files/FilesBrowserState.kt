@@ -6,44 +6,44 @@ import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FileMoveError
 
 @JvmInline
-value class FilesRequestId(
-    val value: Long,
+public value class FilesRequestId(
+    public val value: Long,
 )
 
-data class FilesViewportPosition(
+public data class FilesViewportPosition(
     val firstVisibleItemIndex: Int = 0,
     val firstVisibleItemScrollOffset: Int = 0,
 )
 
-sealed interface FilesPaging {
-    data object Complete : FilesPaging
+public sealed interface FilesPaging {
+    public data object Complete : FilesPaging
 
-    data class Available(
+    public data class Available(
         val cursor: FilesCursor,
     ) : FilesPaging
 
-    data class Loading(
+    public data class Loading(
         val cursor: FilesCursor,
         val requestId: FilesRequestId,
     ) : FilesPaging
 
-    data class Failed(
+    public data class Failed(
         val cursor: FilesCursor,
         val failure: PutioFailure,
     ) : FilesPaging
 }
 
-sealed interface FilesContent {
-    data class Loading(
+public sealed interface FilesContent {
+    public data class Loading(
         val requestId: FilesRequestId,
     ) : FilesContent
 
-    data class Empty(
+    public data class Empty(
         val paging: FilesPaging,
         val viewport: FilesViewportPosition = FilesViewportPosition(),
     ) : FilesContent
 
-    data class Ready(
+    public data class Ready(
         val items: List<FilesItem>,
         val paging: FilesPaging,
         val viewport: FilesViewportPosition = FilesViewportPosition(),
@@ -53,32 +53,32 @@ sealed interface FilesContent {
         }
     }
 
-    data class Failed(
+    public data class Failed(
         val failure: PutioFailure,
     ) : FilesContent
 }
 
-sealed interface FilesFolderOperationIntent {
-    data object Refresh : FilesFolderOperationIntent
+public sealed interface FilesFolderOperationIntent {
+    public data object Refresh : FilesFolderOperationIntent
 
-    data class Sort(
+    public data class Sort(
         val sort: FilesSort,
     ) : FilesFolderOperationIntent
 
-    data class Rename(
+    public data class Rename(
         val itemId: FilesItemId,
         val name: String,
     ) : FilesFolderOperationIntent
 
-    data class Move(val itemId: FilesItemId, val destinationId: FilesItemId) : FilesFolderOperationIntent
+    public data class Move(val itemId: FilesItemId, val destinationId: FilesItemId) : FilesFolderOperationIntent
 
-    data class Delete(
+    public data class Delete(
         val itemId: FilesItemId,
         val mode: FilesDeleteMode,
     ) : FilesFolderOperationIntent
 }
 
-enum class FilesFolderOperationPhase {
+public enum class FilesFolderOperationPhase {
     PERSISTING_SORT,
     RENAMING,
     DELETING,
@@ -88,28 +88,28 @@ enum class FilesFolderOperationPhase {
     RELOADING,
 }
 
-sealed interface FilesFolderOperation {
-    data object Idle : FilesFolderOperation
+public sealed interface FilesFolderOperation {
+    public data object Idle : FilesFolderOperation
 
-    data class Loading(
+    public data class Loading(
         val requestId: FilesRequestId,
         val intent: FilesFolderOperationIntent,
         val phase: FilesFolderOperationPhase,
     ) : FilesFolderOperation
 
-    data class Failed(
+    public data class Failed(
         val failure: PutioFailure,
         val intent: FilesFolderOperationIntent,
         val phase: FilesFolderOperationPhase,
     ) : FilesFolderOperation
 }
 
-data class FilesRenameCompletion(
+public data class FilesRenameCompletion(
     val requestId: FilesRequestId,
     val intent: FilesFolderOperationIntent.Rename,
 )
 
-data class FilesFolderState(
+public data class FilesFolderState(
     val folder: FilesFolder,
     val content: FilesContent,
     val operation: FilesFolderOperation = FilesFolderOperation.Idle,
@@ -131,7 +131,7 @@ data class FilesFolderState(
 )
 
 @ConsistentCopyVisibility
-data class FilesBrowserState internal constructor(
+public data class FilesBrowserState internal constructor(
     val stack: List<FilesFolderState>,
     internal val nextRequestValue: Long,
     val copyOutcome: FilesCopyOutcome? = null,
@@ -150,75 +150,75 @@ data class FilesBrowserState internal constructor(
         get() = stack.size > 1
 }
 
-sealed interface FilesBrowserEvent {
-    data class OpenFolder(
+public sealed interface FilesBrowserEvent {
+    public data class OpenFolder(
         val itemId: FilesItemId,
     ) : FilesBrowserEvent
 
     /** A folder opens itself and any other item its parent, on top of the current location. */
-    data class OpenExternalItem(
+    public data class OpenExternalItem(
         val item: FilesItem,
         val origin: FilesOpenOrigin,
     ) : FilesBrowserEvent
 
-    data object NavigateBack : FilesBrowserEvent
+    public data object NavigateBack : FilesBrowserEvent
 
-    data object LoadNextPage : FilesBrowserEvent
+    public data object LoadNextPage : FilesBrowserEvent
 
     /** Shows [itemId] when [folderId] is the current folder, reading later pages for it when needed. */
-    data class RevealItem(
+    public data class RevealItem(
         val folderId: FilesItemId,
         val itemId: FilesItemId,
     ) : FilesBrowserEvent
 
-    data object Refresh : FilesBrowserEvent
+    public data object Refresh : FilesBrowserEvent
 
     /** Staleness signals from other surfaces; they never navigate or mutate on their own. */
-    sealed interface InvalidationEvent : FilesBrowserEvent
+    public sealed interface InvalidationEvent : FilesBrowserEvent
 
-    data class InvalidateRestoredItem(val item: FilesItem) : InvalidationEvent
+    public data class InvalidateRestoredItem(val item: FilesItem) : InvalidationEvent
 
-    data object InvalidateAllFolders : InvalidationEvent
+    public data object InvalidateAllFolders : InvalidationEvent
 
     /** The account default order changed; every cached listing may now be in the wrong order. */
-    data object InvalidateSortOrder : InvalidationEvent
+    public data object InvalidateSortOrder : InvalidationEvent
 
-    data object ReloadIfStale : InvalidationEvent
+    public data object ReloadIfStale : InvalidationEvent
 
     /** A saved position for [itemId]; cached rows update in place so leaving playback shows the new progress. */
-    data class PlaybackPositionReported(val itemId: FilesItemId, val seconds: Double) : InvalidationEvent
+    public data class PlaybackPositionReported(val itemId: FilesItemId, val seconds: Double) : InvalidationEvent
 
-    data class SelectSort(
+    public data class SelectSort(
         val sort: FilesSort,
     ) : FilesBrowserEvent
 
-    data class Rename(
+    public data class Rename(
         val folderId: FilesItemId,
         val itemId: FilesItemId,
         val name: String,
     ) : ItemMutationEvent
 
-    data class AbandonRename(
+    public data class AbandonRename(
         val folderId: FilesItemId,
         val intent: FilesFolderOperationIntent.Rename,
     ) : ItemMutationEvent
 
-    sealed interface ItemMutationEvent : FilesBrowserEvent
+    public sealed interface ItemMutationEvent : FilesBrowserEvent
 
-    sealed interface DeleteEvent : ItemMutationEvent
+    public sealed interface DeleteEvent : ItemMutationEvent
 
-    data class Delete(
+    public data class Delete(
         val folderId: FilesItemId,
         val itemId: FilesItemId,
         val mode: FilesDeleteMode,
     ) : DeleteEvent
 
-    data class DeleteFinished(
+    public data class DeleteFinished(
         val requestId: FilesRequestId,
         val result: PutioResult<FileDeleteResult>,
     ) : DeleteEvent
 
-    data class DeleteChecked(
+    public data class DeleteChecked(
         val requestId: FilesRequestId,
         val result: PutioResult<FilesItem>,
     ) : DeleteEvent
@@ -227,146 +227,146 @@ sealed interface FilesBrowserEvent {
      * The screen announced this settled outcome on its own, so it is not announced again. An
      * outcome a later page corrected is no longer the one announced and is left as it is.
      */
-    data class DeleteOutcomeAnnounced(
+    public data class DeleteOutcomeAnnounced(
         val outcome: FilesDeleteOutcome,
     ) : DeleteEvent
 
-    sealed interface MoveEvent : ItemMutationEvent
+    public sealed interface MoveEvent : ItemMutationEvent
 
-    data class Move(
+    public data class Move(
         val folderId: FilesItemId,
         val itemId: FilesItemId,
         val destinationId: FilesItemId,
     ) : MoveEvent
 
-    data class MoveFinished(
+    public data class MoveFinished(
         val requestId: FilesRequestId,
         val result: PutioResult<List<FileMoveError>>,
     ) : MoveEvent
 
-    data class MoveChecked(
+    public data class MoveChecked(
         val requestId: FilesRequestId,
         val result: PutioResult<FilesItem>,
     ) : MoveEvent
 
     /** Copies are put.io's background work, so they live beside the folder stack, not on a folder. */
-    sealed interface CopyEvent : ItemMutationEvent
+    public sealed interface CopyEvent : ItemMutationEvent
 
     /** Copies [itemId], shared with the viewer and listed in [folderId], into [destination]. */
-    data class Copy(
+    public data class Copy(
         val folderId: FilesItemId,
         val itemId: FilesItemId,
         val destination: FilesFolder,
     ) : CopyEvent
 
-    data class CopyStarted(
+    public data class CopyStarted(
         val requestId: FilesRequestId,
         val result: PutioResult<FilesCopyId>,
     ) : CopyEvent
 
-    data class CopyChecked(
+    public data class CopyChecked(
         val requestId: FilesRequestId,
         val result: PutioResult<FilesCopyProgress>,
     ) : CopyEvent
 
     /** Clears a settled copy's status line; a running copy keeps it. */
-    data object DismissCopyOutcome : CopyEvent
+    public data object DismissCopyOutcome : CopyEvent
 
-    data object Retry : FilesBrowserEvent
+    public data object Retry : FilesBrowserEvent
 
-    data class ViewportChanged(
+    public data class ViewportChanged(
         val position: FilesViewportPosition,
     ) : FilesBrowserEvent
 
-    sealed interface LoadResult : FilesBrowserEvent {
-        val requestId: FilesRequestId
+    public sealed interface LoadResult : FilesBrowserEvent {
+        public val requestId: FilesRequestId
     }
 
-    data class LoadSucceeded(
+    public data class LoadSucceeded(
         override val requestId: FilesRequestId,
         val page: FilesPage,
     ) : LoadResult
 
-    data class LoadFailed(
+    public data class LoadFailed(
         override val requestId: FilesRequestId,
         val failure: PutioFailure,
     ) : LoadResult
 
-    data class MutationSucceeded(
+    public data class MutationSucceeded(
         val requestId: FilesRequestId,
     ) : FilesBrowserEvent
 }
 
-sealed interface FilesBrowserEffect {
-    val requestId: FilesRequestId
+public sealed interface FilesBrowserEffect {
+    public val requestId: FilesRequestId
 
-    data class LoadFolder(
+    public data class LoadFolder(
         val folderId: FilesItemId,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
-    data class LoadNextPage(
+    public data class LoadNextPage(
         val cursor: FilesCursor,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
-    data class PersistSort(
+    public data class PersistSort(
         val folderId: FilesItemId,
         val sort: FilesSort,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
-    data class Rename(
+    public data class Rename(
         val itemId: FilesItemId,
         val name: String,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
-    data class Delete(
+    public data class Delete(
         val itemId: FilesItemId,
         val mode: FilesDeleteMode,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
-    data class Move(
+    public data class Move(
         val itemId: FilesItemId,
         val destinationId: FilesItemId,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
-    data class CheckMove(
+    public data class CheckMove(
         val itemId: FilesItemId,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
-    data class CheckDelete(
+    public data class CheckDelete(
         val itemId: FilesItemId,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
-    sealed interface CopyEffect : FilesBrowserEffect
+    public sealed interface CopyEffect : FilesBrowserEffect
 
-    data class StartCopy(
+    public data class StartCopy(
         val itemId: FilesItemId,
         val destinationId: FilesItemId,
         override val requestId: FilesRequestId,
     ) : CopyEffect
 
     /** Waits [COPY_CHECK_INTERVAL_MILLIS] before asking, as web does between checks. */
-    data class CheckCopy(
+    public data class CheckCopy(
         val copyId: FilesCopyId,
         override val requestId: FilesRequestId,
     ) : CopyEffect
 }
 
-data class FilesBrowserTransition(
+public data class FilesBrowserTransition(
     val state: FilesBrowserState,
     val effect: FilesBrowserEffect? = null,
     val consumed: Boolean = true,
 )
 
-object FilesBrowserReducer {
-    fun start(): FilesBrowserTransition {
+public object FilesBrowserReducer {
+    public fun start(): FilesBrowserTransition {
         val requestId = FilesRequestId(INITIAL_REQUEST_VALUE)
         val state =
             FilesBrowserState(
@@ -386,7 +386,7 @@ object FilesBrowserReducer {
         )
     }
 
-    fun reduce(
+    public fun reduce(
         state: FilesBrowserState,
         event: FilesBrowserEvent,
     ): FilesBrowserTransition =
@@ -431,7 +431,7 @@ object FilesBrowserReducer {
         }
 }
 
-suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesBrowserEvent =
+internal suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesBrowserEvent =
     when (effect) {
         is FilesBrowserEffect.LoadFolder -> loadFolder(effect.folderId).toLoadEvent(effect.requestId)
         is FilesBrowserEffect.LoadNextPage -> loadNextPage(effect.cursor).toLoadEvent(effect.requestId)

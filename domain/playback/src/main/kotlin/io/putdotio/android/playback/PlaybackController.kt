@@ -13,7 +13,7 @@ import java.io.Closeable
 import java.util.concurrent.CancellationException
 import io.putdotio.android.PutioFailure
 
-class PlaybackController(
+public class PlaybackController(
     target: PlaybackTarget,
     private val repository: PlaybackRepository,
     parentScope: CoroutineScope,
@@ -27,13 +27,13 @@ class PlaybackController(
     private var activeJob: Job? = null
     private var closed = false
 
-    val state: StateFlow<PlaybackState> = mutableState.asStateFlow()
+    public val state: StateFlow<PlaybackState> = mutableState.asStateFlow()
 
     init {
         initial.effect?.let(::launchEffect)
     }
 
-    fun dispatch(event: PlaybackEvent): Boolean {
+    public fun dispatch(event: PlaybackEvent): Boolean {
         val transition =
             synchronized(lock) {
                 if (closed) {

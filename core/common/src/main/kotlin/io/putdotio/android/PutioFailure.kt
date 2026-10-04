@@ -13,34 +13,34 @@ import io.putdotio.sdk.errors.PutioTransportException
  * app itself refused. It sits beside [PutioFailure] because a sealed type's cases must share its
  * module, and transfers and both apps carry it.
  */
-sealed interface FilesFailure {
-    val cause: Throwable
+public sealed interface FilesFailure {
+    public val cause: Throwable
 
-    data object NavigationBlocked : FilesFailure {
-        override val cause = IllegalStateException("Files navigation was rejected")
+    public data object NavigationBlocked : FilesFailure {
+        override val cause: IllegalStateException = IllegalStateException("Files navigation was rejected")
     }
 }
 
 /** A put.io operation that did not complete, in the taxonomy every domain shares. */
-sealed interface PutioFailure : FilesFailure {
-    data class AuthenticationRequired(
+public sealed interface PutioFailure : FilesFailure {
+    public data class AuthenticationRequired(
         override val cause: PutioException,
     ) : PutioFailure
 
-    data class AccessDenied(
+    public data class AccessDenied(
         override val cause: PutioException,
     ) : PutioFailure
 
-    data class RateLimited(
+    public data class RateLimited(
         override val cause: PutioException,
     ) : PutioFailure
 
-    data class ServerUnavailable(
+    public data class ServerUnavailable(
         val statusCode: Int,
         override val cause: PutioException,
     ) : PutioFailure
 
-    data class ApiRejected(
+    public data class ApiRejected(
         val statusCode: Int,
         val errorType: String?,
         override val cause: PutioException,
@@ -48,32 +48,32 @@ sealed interface PutioFailure : FilesFailure {
     ) : PutioFailure
 
     /** Any cause: playback also reports a failed media stream or a timed-out position write here. */
-    data class NetworkUnavailable(
+    public data class NetworkUnavailable(
         override val cause: Throwable,
     ) : PutioFailure
 
-    data class InvalidResponse(
+    public data class InvalidResponse(
         override val cause: PutioException,
     ) : PutioFailure
 
-    data class Misconfigured(
+    public data class Misconfigured(
         override val cause: PutioException,
     ) : PutioFailure
 
-    data class Unexpected(
+    public data class Unexpected(
         override val cause: Throwable,
     ) : PutioFailure
 }
 
 /** put.io's own reason for a refused request; the surface's copy applies when it is null. */
-val PutioFailure.apiReason: String?
+public val PutioFailure.apiReason: String?
     get() = (this as? PutioFailure.ApiRejected)?.cause?.apiRejectionReason()
 
 // Mirrors PutioAuthSessionGateway.isAuthoritativeAuthRejection: a contract-derived
 // 401/403 reason is an auth verdict even when the underlying error is not an API
 // exception, and the wrapper chain is walked with a cycle guard. The envelope's
 // status code classifies the API error; ApiRejected keeps the HTTP status beside it.
-fun PutioException.toPutioFailure(): PutioFailure {
+public fun PutioException.toPutioFailure(): PutioFailure {
     var current: PutioException = this
     val visited = mutableSetOf<PutioException>()
     while (current is PutioOperationException && visited.add(current)) {
@@ -84,7 +84,7 @@ fun PutioException.toPutioFailure(): PutioFailure {
 }
 
 /** The API error under the SDK's operation wrappers and causes, if any; cycles end the walk. */
-fun Throwable.findPutioApiException(): PutioApiException? {
+public fun Throwable.findPutioApiException(): PutioApiException? {
     var current: Throwable? = this
     val visited = mutableSetOf<Throwable>()
     while (current != null && visited.add(current)) {

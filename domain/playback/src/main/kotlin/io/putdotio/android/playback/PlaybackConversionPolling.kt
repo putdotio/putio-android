@@ -14,7 +14,7 @@ import kotlinx.coroutines.delay
  * app is in the foreground and no read is in flight, as tv-native's `useConversionStatus` did.
  */
 @Composable
-fun PlaybackConversionPolling(conversion: PlaybackContent.Conversion, onRefresh: () -> Unit) {
+public fun PlaybackConversionPolling(conversion: PlaybackContent.Conversion, onRefresh: () -> Unit) {
     val foreground by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     val polling = conversion.refreshRequestId == null &&
         conversion.state.pollsAutomatically &&

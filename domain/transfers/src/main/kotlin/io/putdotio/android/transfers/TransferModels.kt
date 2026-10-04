@@ -6,37 +6,37 @@ import java.net.URI
 private const val MAX_PORT = 65_535
 
 @JvmInline
-value class TransferId(val value: Long)
+public value class TransferId(public val value: Long)
 
 @JvmInline
-value class TransferFileId(val value: Long)
+public value class TransferFileId(public val value: Long)
 
 @JvmInline
-value class TransferCursor(val value: String) {
+public value class TransferCursor(internal val value: String) {
     init {
         require(value.isNotBlank()) { "A transfer cursor cannot be blank" }
     }
 }
 
-sealed interface AppTransferStatus {
-    val isTerminal: Boolean
+public sealed interface AppTransferStatus {
+    public val isTerminal: Boolean
 
-    data object Waiting : AppTransferStatus { override val isTerminal = false }
-    data object PreparingDownload : AppTransferStatus { override val isTerminal = false }
-    data object Queued : AppTransferStatus { override val isTerminal = false }
-    data object Downloading : AppTransferStatus { override val isTerminal = false }
-    data object WaitingForCompleteQueue : AppTransferStatus { override val isTerminal = false }
-    data object WaitingForDownloader : AppTransferStatus { override val isTerminal = false }
-    data object Completing : AppTransferStatus { override val isTerminal = false }
-    data object Stopping : AppTransferStatus { override val isTerminal = false }
-    data object Seeding : AppTransferStatus { override val isTerminal = false }
-    data object PreparingSeed : AppTransferStatus { override val isTerminal = false }
-    data object Completed : AppTransferStatus { override val isTerminal = true }
-    data object Failed : AppTransferStatus { override val isTerminal = true }
-    data class Unknown(val value: String) : AppTransferStatus { override val isTerminal = false }
+    public data object Waiting : AppTransferStatus { override val isTerminal: Boolean = false }
+    public data object PreparingDownload : AppTransferStatus { override val isTerminal: Boolean = false }
+    public data object Queued : AppTransferStatus { override val isTerminal: Boolean = false }
+    public data object Downloading : AppTransferStatus { override val isTerminal: Boolean = false }
+    public data object WaitingForCompleteQueue : AppTransferStatus { override val isTerminal: Boolean = false }
+    public data object WaitingForDownloader : AppTransferStatus { override val isTerminal: Boolean = false }
+    public data object Completing : AppTransferStatus { override val isTerminal: Boolean = false }
+    public data object Stopping : AppTransferStatus { override val isTerminal: Boolean = false }
+    public data object Seeding : AppTransferStatus { override val isTerminal: Boolean = false }
+    public data object PreparingSeed : AppTransferStatus { override val isTerminal: Boolean = false }
+    public data object Completed : AppTransferStatus { override val isTerminal: Boolean = true }
+    public data object Failed : AppTransferStatus { override val isTerminal: Boolean = true }
+    public data class Unknown(val value: String) : AppTransferStatus { override val isTerminal: Boolean = false }
 }
 
-val AppTransferStatus.canCancel: Boolean
+public val AppTransferStatus.canCancel: Boolean
     get() =
         when (this) {
             AppTransferStatus.Completed,
@@ -56,7 +56,7 @@ val AppTransferStatus.canCancel: Boolean
             -> true
         }
 
-val TransferItem.canOpen: Boolean
+public val TransferItem.canOpen: Boolean
     get() =
         fileId != null &&
             userFileExists != false &&
@@ -66,7 +66,7 @@ val TransferItem.canOpen: Boolean
                 AppTransferStatus.PreparingSeed,
             )
 
-data class TransferItem(
+public data class TransferItem(
     val id: TransferId,
     val name: String,
     val status: AppTransferStatus,
@@ -83,20 +83,20 @@ data class TransferItem(
     val userFileExists: Boolean?,
 )
 
-data class TransfersPage(
+public data class TransfersPage(
     val items: List<TransferItem>,
     val nextCursor: TransferCursor?,
 )
 
-data class TransfersRowRefresh(
+public data class TransfersRowRefresh(
     val items: List<TransferItem>,
     val missingIds: Set<TransferId>,
 )
 
 @JvmInline
-value class TransferSubmission private constructor(val value: String) {
-    companion object {
-        fun parse(input: String): TransferSubmission? {
+public value class TransferSubmission private constructor(public val value: String) {
+    public companion object {
+        public fun parse(input: String): TransferSubmission? {
             val value = input.trim()
             val uri = runCatching { URI(value) }.getOrNull() ?: return null
             val valid =
@@ -117,7 +117,7 @@ value class TransferSubmission private constructor(val value: String) {
         }
 
         /** Every whitespace-separated link, or null when any is invalid, none is given, or there are too many. */
-        fun parseAll(input: String): List<TransferSubmission>? {
+        public fun parseAll(input: String): List<TransferSubmission>? {
             val links = input.split(LinkSeparator)
                 .filter(String::isNotEmpty)
                 .map { parse(it) ?: return null }
@@ -128,28 +128,28 @@ value class TransferSubmission private constructor(val value: String) {
 }
 
 /** put.io's `TRANSFER_MULTI_ADD_LIMIT` for one `/transfers/add-multi` call. */
-const val MAX_TRANSFER_LINKS = 100
+public const val MAX_TRANSFER_LINKS: Int = 100
 
 private val LinkSeparator = Regex("[\\s\\p{Z}\\u0085]+")
 
 /** A `.torrent` the user picked or shared; its bytes stay in memory and never reach logs. */
-class TorrentUpload(val fileName: String, val content: ByteArray) {
+public class TorrentUpload(public val fileName: String, public val content: ByteArray) {
     init {
         require(fileName.endsWith(TORRENT_EXTENSION, ignoreCase = true)) { "A torrent upload needs a .torrent name" }
     }
 
     override fun toString(): String = "TorrentUpload(<redacted>, size=${content.size})"
 
-    companion object {
-        const val TORRENT_EXTENSION = ".torrent"
+    public companion object {
+        public const val TORRENT_EXTENSION: String = ".torrent"
     }
 }
 
 /** One confirmed submission, saved to [saveParentId] or, when null, the account's default download folder. */
-sealed interface TransferAddRequest {
-    val saveParentId: Long?
+public sealed interface TransferAddRequest {
+    public val saveParentId: Long?
 
-    data class Links(
+    public data class Links(
         val links: List<TransferSubmission>,
         override val saveParentId: Long? = null,
     ) : TransferAddRequest {
@@ -162,14 +162,14 @@ sealed interface TransferAddRequest {
         override fun toString(): String = "Links(<redacted> x${links.size}, saveParentId=$saveParentId)"
     }
 
-    data class Torrent(
+    public data class Torrent(
         val file: TorrentUpload,
         override val saveParentId: Long? = null,
     ) : TransferAddRequest
 }
 
 /** put.io adds each link on its own; [rejectedLinks] are the ones it refused. */
-data class TransferAddOutcome(
+public data class TransferAddOutcome(
     val added: List<TransferItem>,
     val rejectedLinks: List<String> = emptyList(),
 ) {

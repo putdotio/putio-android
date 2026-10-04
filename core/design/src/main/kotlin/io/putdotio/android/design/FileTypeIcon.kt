@@ -14,7 +14,7 @@ import io.putdotio.sdk.files.PutioFileType
  * file glyph.
  */
 @DrawableRes
-fun fileTypeIconRes(type: PutioFileType): Int = when (type) {
+public fun fileTypeIconRes(type: PutioFileType): Int = when (type) {
     PutioFileType.FOLDER -> R.drawable.ic_ph_folder_fill
     PutioFileType.AUDIO -> R.drawable.ic_ph_file_audio_fill
     PutioFileType.VIDEO -> R.drawable.ic_ph_file_video_fill
@@ -27,7 +27,7 @@ fun fileTypeIconRes(type: PutioFileType): Int = when (type) {
 }
 
 @Composable
-fun FileTypeIcon(
+public fun FileTypeIcon(
     type: PutioFileType,
     modifier: Modifier = Modifier,
     contentDescription: String? = null,

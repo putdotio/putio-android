@@ -13,7 +13,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-enum class TokenRevocationResult {
+public enum class TokenRevocationResult {
     /** put.io deleted the token. */
     REVOKED,
 
@@ -24,15 +24,15 @@ enum class TokenRevocationResult {
     UNAVAILABLE,
 }
 
-fun interface AuthTokenRevoker {
-    suspend fun revoke(accessToken: AccessToken): TokenRevocationResult
+public fun interface AuthTokenRevoker {
+    public suspend fun revoke(accessToken: AccessToken): TokenRevocationResult
 }
 
 /**
  * Revokes a specific token with its own short-lived client, so a retry never
  * touches the live session's client or revokes whatever token it holds now.
  */
-class PutioAuthTokenRevoker(
+public class PutioAuthTokenRevoker(
     private val sessionConfig: PutioConfig,
 ) : AuthTokenRevoker {
     // The SDK is a process boundary; any failure other than cancellation is "no verdict yet".
@@ -55,18 +55,18 @@ class PutioAuthTokenRevoker(
 }
 
 /** The controller's view of revocations that outlive a sign-out. */
-interface TokenRevocations {
+public interface TokenRevocations {
     /** Remembers [accessToken] until put.io confirms it is gone, and starts revoking it in the background. */
-    suspend fun revoke(accessToken: AccessToken)
+    public suspend fun revoke(accessToken: AccessToken)
 
     /**
      * Drops a pending revocation of [accessToken]: put.io handed the same token back on a new
      * sign-in. Waits for an attempt already in flight; false when put.io revoked the token anyway.
      */
-    suspend fun keep(accessToken: AccessToken): Boolean
+    public suspend fun keep(accessToken: AccessToken): Boolean
 
     /** Retries a revocation left unconfirmed by an earlier attempt or process. */
-    fun resume()
+    public fun resume()
 }
 
 /**
@@ -84,7 +84,7 @@ interface TokenRevocations {
  * session that is still in use. An unreadable record or session defers the
  * attempt instead.
  */
-class PendingTokenRevocations(
+public class PendingTokenRevocations(
     private val store: AuthTokenStore,
     private val sessionStore: AuthTokenStore,
     private val revoker: AuthTokenRevoker,

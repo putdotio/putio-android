@@ -5,21 +5,21 @@ import io.putdotio.sdk.files.PutioFolderType
 
 /** A background copy put.io started for an item shared with the viewer. */
 @JvmInline
-value class FilesCopyId(
-    val value: Long,
+public value class FilesCopyId(
+    internal val value: Long,
 )
 
 /** What put.io reports for a started copy. */
-sealed interface FilesCopyProgress {
-    data object Running : FilesCopyProgress
+public sealed interface FilesCopyProgress {
+    public data object Running : FilesCopyProgress
 
-    data object Done : FilesCopyProgress
+    public data object Done : FilesCopyProgress
 
     /** put.io's own reason, in English, when it gives one. */
-    data class Failed(val message: String?) : FilesCopyProgress
+    public data class Failed(val message: String?) : FilesCopyProgress
 }
 
-enum class FilesCopyStatus {
+public enum class FilesCopyStatus {
     STARTING,
     COPYING,
     COPIED,
@@ -31,7 +31,7 @@ enum class FilesCopyStatus {
 
 /** The one copy a session runs at a time; it outlives folder navigation until dismissed. */
 @ConsistentCopyVisibility
-data class FilesCopyOutcome internal constructor(
+public data class FilesCopyOutcome internal constructor(
     val itemName: String,
     val destination: FilesFolder,
     val status: FilesCopyStatus,
@@ -49,9 +49,9 @@ data class FilesCopyOutcome internal constructor(
  * Web and iOS offer Make a copy on a friend's file or folder and on anything inside one, but not
  * on the virtual shared folders, which put.io cannot copy.
  */
-val FilesItem.canMakeCopy: Boolean
+public val FilesItem.canMakeCopy: Boolean
     get() = id.value > 0L && isShared &&
         folderType != PutioFolderType.SHARED_ROOT && folderType != PutioFolderType.SHARED_FRIEND
 
-val FilesBrowserState.canStartCopy: Boolean
+public val FilesBrowserState.canStartCopy: Boolean
     get() = copyOutcome?.isRunning != true

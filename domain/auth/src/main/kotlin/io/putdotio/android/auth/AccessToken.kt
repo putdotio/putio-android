@@ -1,15 +1,15 @@
 package io.putdotio.android.auth
 
 /** An OAuth access token. Never logged or rendered; [reveal] only for the SDK and secure storage. */
-class AccessToken private constructor(
+public class AccessToken private constructor(
     private val value: String,
 ) {
-    fun reveal(): String = value
+    public fun reveal(): String = value
 
     override fun toString(): String = "AccessToken([REDACTED])"
 
-    companion object {
-        fun parse(value: String?): AccessToken? =
+    public companion object {
+        public fun parse(value: String?): AccessToken? =
             when {
                 value.isNullOrEmpty() || value.length > MAX_ACCESS_TOKEN_LENGTH -> null
                 value.any { it.code !in ACCESS_TOKEN_CHARACTER_RANGE } -> null

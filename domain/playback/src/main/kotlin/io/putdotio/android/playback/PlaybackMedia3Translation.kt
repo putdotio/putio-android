@@ -18,12 +18,12 @@ private const val MILLIS_PER_SECOND = 1_000.0
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403
 
-data class PreparedPlayback(
+public data class PreparedPlayback(
     val mediaItem: MediaItem,
     val startPositionMillis: Long,
 )
 
-fun PlaybackSource.preparePlayback(
+public fun PlaybackSource.preparePlayback(
     title: String,
     mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
     resumePositionMillis: Long? = null,
@@ -33,7 +33,7 @@ fun PlaybackSource.preparePlayback(
         startPositionMillis = resumePositionMillis ?: startFromSeconds.toPlaybackMillis(),
     )
 
-fun PlaybackSource.toMediaItem(
+public fun PlaybackSource.toMediaItem(
     title: String,
     mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
 ): MediaItem {
@@ -75,7 +75,7 @@ fun PlaybackSource.toMediaItem(
         .build()
 }
 
-fun PlaybackSource.hasSelectableSubtitles(): Boolean =
+public fun PlaybackSource.hasSelectableSubtitles(): Boolean =
     subtitles is PlaybackSubtitles.Embedded ||
         (subtitles as? PlaybackSubtitles.Sidecar)
             ?.tracks
@@ -104,7 +104,7 @@ internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
     return networkFailure?.let { PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(this)) }
 }
 
-fun PlaybackException.toPlaybackFailure(): PlaybackFailure =
+public fun PlaybackException.toPlaybackFailure(): PlaybackFailure =
     toMediaRequestFailureOrNull() ?: errorCodeFailureOrNull() ?: PlaybackFailure.Putio(PutioFailure.Unexpected(this))
 
 // An exception relayed through a MediaController keeps only its error code: the cause is
@@ -142,7 +142,7 @@ private val RELAYED_RESPONSE_CODE = Regex("""Response code: (\d{3})""")
 
 private fun String.relayedResponseCode(): Int? = RELAYED_RESPONSE_CODE.find(this)?.groupValues?.get(1)?.toIntOrNull()
 
-fun Double.toPlaybackMillis(): Long =
+public fun Double.toPlaybackMillis(): Long =
     (this * MILLIS_PER_SECOND)
         .coerceIn(0.0, Long.MAX_VALUE.toDouble())
         .roundToLong()

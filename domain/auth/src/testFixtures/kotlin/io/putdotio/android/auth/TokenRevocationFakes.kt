@@ -4,20 +4,20 @@ import kotlinx.coroutines.CompletableDeferred
 import java.util.ArrayDeque
 
 /** For fixtures that never sign out. */
-object NoTokenRevocations : TokenRevocations {
-    override suspend fun revoke(accessToken: AccessToken) = Unit
+public object NoTokenRevocations : TokenRevocations {
+    override suspend fun revoke(accessToken: AccessToken): Unit = Unit
 
-    override suspend fun keep(accessToken: AccessToken) = true
+    override suspend fun keep(accessToken: AccessToken): Boolean = true
 
-    override fun resume() = Unit
+    override fun resume(): Unit = Unit
 }
 
-class InMemoryAuthTokenStore(
-    var token: AccessToken? = null,
+public class InMemoryAuthTokenStore(
+    public var token: AccessToken? = null,
 ) : AuthTokenStore {
-    var failWrite = false
-    var failClear = false
-    var failedReads = 0
+    internal var failWrite = false
+    internal var failClear = false
+    internal var failedReads = 0
 
     override suspend fun read(): AccessToken? {
         if (failedReads > 0) {
@@ -42,13 +42,13 @@ class InMemoryAuthTokenStore(
  * Answers with [results] in order, then with the last one; records each revoked token value.
  * A set [gate] holds the next answer, as a request still in flight, until it completes.
  */
-class ScriptedTokenRevoker(
+public class ScriptedTokenRevoker(
     vararg results: TokenRevocationResult,
 ) : AuthTokenRevoker {
     private val remaining = ArrayDeque(results.toList())
     private var last = TokenRevocationResult.REVOKED
-    val attempts = mutableListOf<String>()
-    var gate: CompletableDeferred<Unit>? = null
+    public val attempts: MutableList<String> = mutableListOf()
+    public var gate: CompletableDeferred<Unit>? = null
 
     override suspend fun revoke(accessToken: AccessToken): TokenRevocationResult {
         attempts += accessToken.reveal()

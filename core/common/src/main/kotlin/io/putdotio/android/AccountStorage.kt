@@ -3,7 +3,7 @@ package io.putdotio.android
 import io.putdotio.sdk.account.AccountInfo
 
 /** The account's disk from `/account/info`, and which side of it the viewer asked to see. */
-data class AccountStorage(
+public data class AccountStorage(
     val availableBytes: Long = 0L,
     val sizeBytes: Long = 0L,
     val usedBytes: Long = 0L,
@@ -15,7 +15,7 @@ data class AccountStorage(
         get() = if (sizeBytes <= 0L) 0f else (usedBytes.toDouble() / sizeBytes.toDouble()).coerceIn(0.0, 1.0).toFloat()
 }
 
-fun AccountInfo.toAccountStorage(): AccountStorage =
+public fun AccountInfo.toAccountStorage(): AccountStorage =
     AccountStorage(
         availableBytes = disk.available,
         sizeBytes = disk.size,

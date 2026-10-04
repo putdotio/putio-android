@@ -15,11 +15,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-const val PLAYBACK_REPORTING_LEASE_KEY = "io.putdotio.android.playback.reportingLease"
+public const val PLAYBACK_REPORTING_LEASE_KEY: String = "io.putdotio.android.playback.reportingLease"
 private const val POSITION_REPORT_INTERVAL_MILLIS = 15_000L
 
 /** Tags [this] item with a [PlaybackPositionWriter] lease, so an observer reports its positions under it. */
-fun MediaItem.withReportingLease(token: String): MediaItem {
+public fun MediaItem.withReportingLease(token: String): MediaItem {
     val extras = Bundle(mediaMetadata.extras ?: Bundle())
     extras.putString(PLAYBACK_REPORTING_LEASE_KEY, token)
     return buildUpon().setMediaMetadata(mediaMetadata.buildUpon().setExtras(extras).build()).build()
@@ -29,7 +29,7 @@ fun MediaItem.withReportingLease(token: String): MediaItem {
  * One per actual player, on mobile and TV. The owner calls this on the player's application
  * looper and supplies a scope on that looper.
  */
-class PlaybackPositionObserver(
+public class PlaybackPositionObserver(
     private val player: Media3Player,
     parentScope: CoroutineScope,
     private val submit: (String, Long) -> Unit,
@@ -78,7 +78,7 @@ class PlaybackPositionObserver(
         updateTicker()
     }
 
-    fun flush() {
+    public fun flush() {
         if (closed) return
         checkApplicationLooper()
         submitPosition(player.currentMediaItem.reportingLease(), player.currentPosition)

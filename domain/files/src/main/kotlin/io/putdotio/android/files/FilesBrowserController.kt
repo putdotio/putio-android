@@ -13,7 +13,7 @@ import java.io.Closeable
 import java.util.concurrent.CancellationException
 import io.putdotio.android.PutioFailure
 
-class FilesBrowserController(
+public class FilesBrowserController(
     private val repository: FilesRepository,
     parentScope: CoroutineScope,
 ) : Closeable {
@@ -25,13 +25,13 @@ class FilesBrowserController(
     private val mutableState = MutableStateFlow(initial.state)
     private var closed = false
 
-    val state: StateFlow<FilesBrowserState> = mutableState.asStateFlow()
+    public val state: StateFlow<FilesBrowserState> = mutableState.asStateFlow()
 
     init {
         initial.effect?.let(::launchEffect)
     }
 
-    fun dispatch(event: FilesBrowserEvent): Boolean {
+    public fun dispatch(event: FilesBrowserEvent): Boolean {
         val (transition, removedJobs) =
             synchronized(lock) {
                 if (closed) {

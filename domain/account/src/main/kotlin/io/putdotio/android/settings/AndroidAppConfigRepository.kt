@@ -13,17 +13,17 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
-interface AndroidAppConfigRepository {
-    suspend fun load(): PutioResult<AndroidAppConfigPreferences>
+public interface AndroidAppConfigRepository {
+    public suspend fun load(): PutioResult<AndroidAppConfigPreferences>
 
-    suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit>
+    public suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit>
 }
 
-class SdkAndroidAppConfigRepository(
+public class SdkAndroidAppConfigRepository(
     private val getConfig: suspend () -> AppConfig,
     private val saveConfig: suspend (AppConfigUpdate) -> Unit,
 ) : AndroidAppConfigRepository {
-    constructor(client: PutioClient) : this(
+    public constructor(client: PutioClient) : this(
         getConfig = client.appConfig::get,
         saveConfig = { update -> client.appConfig.save(update) },
     )
@@ -75,7 +75,7 @@ internal fun AppConfig.toAndroidPreferences(): AndroidAppConfigPreferences =
                 ?: false,
     )
 
-fun AndroidAppConfigChange.toUpdate(): AppConfigUpdate =
+public fun AndroidAppConfigChange.toUpdate(): AppConfigUpdate =
     when (this) {
         is AndroidAppConfigChange.VideoPlayback ->
             AppConfigUpdate(
@@ -89,7 +89,7 @@ fun AndroidAppConfigChange.toUpdate(): AppConfigUpdate =
             )
     }
 
-const val VIDEO_PLAYBACK_TYPE_KEY = "video_playback_type"
+public const val VIDEO_PLAYBACK_TYPE_KEY: String = "video_playback_type"
 internal const val AUTOPLAY_NEXT_VIDEO_KEY = "autoplay_next_video"
 private const val VIDEO_PLAYBACK_TYPE_HLS = "hls"
 private const val VIDEO_PLAYBACK_TYPE_MP4 = "mp4"
@@ -98,7 +98,7 @@ private const val VIDEO_PLAYBACK_TYPE_MP4 = "mp4"
  * [toPutioFailure], except that an `invalid_scope` refusal anywhere in the chain is AccessDenied
  * rather than a 401 that expires the session.
  */
-fun PutioException.toSettingsFailure(): PutioFailure =
+public fun PutioException.toSettingsFailure(): PutioFailure =
     if (findPutioApiException()?.errorType == INVALID_SCOPE_ERROR_TYPE) {
         PutioFailure.AccessDenied(this)
     } else {

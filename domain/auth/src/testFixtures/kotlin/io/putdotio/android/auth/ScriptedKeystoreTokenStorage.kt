@@ -7,30 +7,30 @@ import kotlinx.coroutines.Dispatchers
  * The production [KeystoreAuthTokenStore] over [preferences], with a cipher the test scripts in
  * place of Android Keystore, so other modules can drive sign-in through real token storage.
  */
-class ScriptedKeystoreTokenStorage(private val preferences: SharedPreferences) {
+public class ScriptedKeystoreTokenStorage(private val preferences: SharedPreferences) {
     private val cipher = ScriptedTokenCipher()
 
-    val store: AuthTokenStore = KeystoreAuthTokenStore(preferences, cipher, Dispatchers.Unconfined)
+    public val store: AuthTokenStore = KeystoreAuthTokenStore(preferences, cipher, Dispatchers.Unconfined)
 
     /** Thrown by every decrypt while set, as Android Keystore would. */
-    var decryptFailure: Exception? by cipher::decryptFailure
+    public var decryptFailure: Exception? by cipher::decryptFailure
 
     /** Thrown by every key deletion while set. */
-    var destroyFailure: Exception? by cipher::destroyFailure
+    public var destroyFailure: Exception? by cipher::destroyFailure
 
-    val destroyKeyCalls: Int get() = cipher.destroyKeyCalls
+    public val destroyKeyCalls: Int get() = cipher.destroyKeyCalls
 
     /** The stored access-token record, or null when storage holds none. */
-    val record: String? get() = preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null)
+    public val record: String? get() = preferences.getString(ENCRYPTED_ACCESS_TOKEN_KEY, null)
 
     /** Replaces the stored record with one that can never decrypt. */
-    fun corruptRecord() {
+    public fun corruptRecord() {
         check(preferences.edit().putString(ENCRYPTED_ACCESS_TOKEN_KEY, "v1:not-a-record").commit())
     }
 
-    companion object {
+    public companion object {
         /** The failure Android Keystore reports once the token key is gone. */
-        fun missingKey(): Exception = MissingAuthTokenKeyException()
+        public fun missingKey(): Exception = MissingAuthTokenKeyException()
     }
 }
 

@@ -9,7 +9,7 @@ internal fun FilesBrowserState.reduceMove(event: FilesBrowserEvent.MoveEvent): F
     is FilesBrowserEvent.MoveChecked -> moveChecked(event)
 }
 
-val FilesBrowserState.canStartMove: Boolean
+public val FilesBrowserState.canStartMove: Boolean
     get() = current.operation.canStartOperation &&
         stack.dropLast(1).all { it.operation == FilesFolderOperation.Idle }
 
@@ -114,7 +114,7 @@ private fun PutioResult<FilesItem>.moveReadFailure(expectedId: FilesItemId): Put
     }
 }
 
-val FilesFolderOperation.pendingMove: FilesFolderOperationIntent.Move?
+public val FilesFolderOperation.pendingMove: FilesFolderOperationIntent.Move?
     get() = pendingIntent()
 
 internal fun FilesMoveOutcome.afterFolderPage(page: FilesPage): FilesMoveOutcome =

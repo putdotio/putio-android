@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
  * @param close releases a value that is replaced, discarded, or [clear]ed.
  * @param onSessionEnded releases a value whose session ended; defaults to [close].
  */
-class SessionScopedHolder<S, K : Any, T : Any>(
+public class SessionScopedHolder<S, K : Any, T : Any>(
     private val authState: StateFlow<S>,
     private val keyOf: (S) -> K?,
     scope: CoroutineScope,
@@ -33,7 +33,7 @@ class SessionScopedHolder<S, K : Any, T : Any>(
     }
 
     /** The value for [key], built with [create] when none is held; null once [key] is not current. */
-    fun valueFor(key: K, create: () -> T): T? =
+    public fun valueFor(key: K, create: () -> T): T? =
         synchronized(lock) {
             if (currentKey() != key) return@synchronized null
             active?.takeIf { it.key == key }?.let { return@synchronized it.value }
@@ -53,7 +53,7 @@ class SessionScopedHolder<S, K : Any, T : Any>(
         }
 
     /** Closes the held value; call from the owner's `onCleared`. */
-    fun clear() {
+    public fun clear() {
         synchronized(lock) {
             active?.let { close(it.value) }
             active = null

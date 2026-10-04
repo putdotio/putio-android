@@ -20,13 +20,13 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
-interface TransfersRepository {
-    suspend fun load(cursor: TransferCursor? = null): PutioResult<TransfersPage>
-    suspend fun refresh(ids: List<TransferId>): PutioResult<TransfersRowRefresh>
-    suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome>
-    suspend fun cancel(id: TransferId): PutioResult<Unit>
-    suspend fun retry(id: TransferId): PutioResult<TransferItem>
-    suspend fun clean(ids: List<TransferId>): PutioResult<Set<TransferId>>
+public interface TransfersRepository {
+    public suspend fun load(cursor: TransferCursor? = null): PutioResult<TransfersPage>
+    public suspend fun refresh(ids: List<TransferId>): PutioResult<TransfersRowRefresh>
+    public suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome>
+    public suspend fun cancel(id: TransferId): PutioResult<Unit>
+    public suspend fun retry(id: TransferId): PutioResult<TransferItem>
+    public suspend fun clean(ids: List<TransferId>): PutioResult<Set<TransferId>>
 }
 
 internal class TransfersAddOperations(
@@ -76,14 +76,14 @@ internal class TransfersReadOperations(
     val get: suspend (Long) -> Transfer,
 )
 
-class SdkTransfersRepository internal constructor(
+public class SdkTransfersRepository internal constructor(
     private val reads: TransfersReadOperations,
     private val adds: TransfersAddOperations,
     private val cancelTransfers: suspend (List<Long>) -> Unit,
     private val retryTransfer: suspend (Long) -> Transfer,
     private val cleanTransfers: suspend (List<Long>) -> TransfersCleanResponse,
 ) : TransfersRepository {
-    constructor(client: PutioClient) : this(
+    public constructor(client: PutioClient) : this(
         reads =
             TransfersReadOperations(
                 list = client.transfers::list,
@@ -213,7 +213,7 @@ private fun PutioException.isTransferNotFound(): Boolean {
 }
 
 private const val HTTP_NOT_FOUND = 404
-const val TORRENT_MEDIA_TYPE = "application/x-bittorrent"
+public const val TORRENT_MEDIA_TYPE: String = "application/x-bittorrent"
 
 private fun Transfer.displayPercentDone(): Double? =
     when (status) {

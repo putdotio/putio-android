@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class AndroidAppConfigController(
+public class AndroidAppConfigController(
     private val repository: AndroidAppConfigRepository,
     parentScope: CoroutineScope,
 ) : Closeable {
@@ -25,13 +25,13 @@ class AndroidAppConfigController(
     private var activeJob: Job? = null
     private var closed = false
 
-    val state: StateFlow<AndroidAppConfigState> = mutableState.asStateFlow()
+    public val state: StateFlow<AndroidAppConfigState> = mutableState.asStateFlow()
 
     init {
         initial.effect?.let(::launchEffect)
     }
 
-    fun dispatch(event: AndroidAppConfigEvent): Boolean {
+    public fun dispatch(event: AndroidAppConfigEvent): Boolean {
         val transition =
             synchronized(lock) {
                 if (closed || !controllerJob.isActive) return false

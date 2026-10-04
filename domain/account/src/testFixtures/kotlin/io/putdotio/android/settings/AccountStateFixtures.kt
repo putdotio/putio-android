@@ -3,19 +3,19 @@ package io.putdotio.android.settings
 // States as the reducers would hold them, for tests outside this module; request ids continue
 // from nextRequestValue.
 
-fun accountSettingsState(
+public fun accountSettingsState(
     content: AccountSettingsContent,
     mutation: AccountSettingsMutation,
     nextRequestValue: Long,
 ): AccountSettingsState = AccountSettingsState(content, mutation, nextRequestValue)
 
-fun readyAccountSettingsState(
+public fun readyAccountSettingsState(
     preferences: AccountSettingsPreferences = DefaultAccountSettingsPreferences,
     mutation: AccountSettingsMutation = AccountSettingsMutation.Idle,
 ): AccountSettingsState =
     accountSettingsState(AccountSettingsContent.Ready(preferences), mutation, nextRequestValue = 2L)
 
-val DefaultAccountSettingsPreferences =
+public val DefaultAccountSettingsPreferences: AccountSettingsPreferences =
     AccountSettingsPreferences(
         historyEnabled = true,
         trashEnabled = true,
@@ -23,17 +23,17 @@ val DefaultAccountSettingsPreferences =
         autoSelectSubtitles = true,
     )
 
-fun androidAppConfigState(
+public fun androidAppConfigState(
     content: AndroidAppConfigContent,
     mutation: AndroidAppConfigMutation,
     nextRequestValue: Long,
     confirmedPreferences: AndroidAppConfigPreferences? = (content as? AndroidAppConfigContent.Ready)?.preferences,
 ): AndroidAppConfigState = AndroidAppConfigState(content, mutation, nextRequestValue, confirmedPreferences)
 
-fun readyAndroidAppConfigState(
+public fun readyAndroidAppConfigState(
     preferences: AndroidAppConfigPreferences = DefaultAndroidAppConfigPreferences,
     mutation: AndroidAppConfigMutation = AndroidAppConfigMutation.Idle,
 ): AndroidAppConfigState =
     androidAppConfigState(AndroidAppConfigContent.Ready(preferences), mutation, nextRequestValue = 2L)
 
-val DefaultAndroidAppConfigPreferences = AndroidAppConfigPreferences()
+public val DefaultAndroidAppConfigPreferences: AndroidAppConfigPreferences = AndroidAppConfigPreferences()

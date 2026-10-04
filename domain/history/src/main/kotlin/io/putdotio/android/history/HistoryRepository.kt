@@ -8,16 +8,16 @@ import io.putdotio.sdk.history.HistoryEventType
 import io.putdotio.sdk.history.HistoryListQuery
 import io.putdotio.sdk.history.HistoryListResponse
 
-interface HistoryRepository {
-    suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage>
-    suspend fun clear(): PutioResult<Unit>
+public interface HistoryRepository {
+    public suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage>
+    public suspend fun clear(): PutioResult<Unit>
 }
 
-class SdkHistoryRepository internal constructor(
+public class SdkHistoryRepository internal constructor(
     private val listEvents: suspend (HistoryListQuery) -> HistoryListResponse,
     private val clearEvents: suspend () -> Unit,
 ) : HistoryRepository {
-    constructor(client: PutioClient) : this(
+    public constructor(client: PutioClient) : this(
         listEvents = { query -> client.history.list(query) },
         clearEvents = { client.history.clear() },
     )
@@ -65,7 +65,7 @@ private fun String?.nonBlank(): String? = this?.takeIf(String::isNotBlank)
  * Only the events [keep] accepts. A page it empties reads on from that page's oldest event,
  * so a run of dropped events neither ends the list nor shows as an empty page.
  */
-fun HistoryRepository.keeping(keep: (HistoryEventKind) -> Boolean): HistoryRepository =
+public fun HistoryRepository.keeping(keep: (HistoryEventKind) -> Boolean): HistoryRepository =
     FilteredHistoryRepository(this, keep)
 
 private class FilteredHistoryRepository(

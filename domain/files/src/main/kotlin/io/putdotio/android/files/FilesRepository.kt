@@ -16,39 +16,39 @@ import io.putdotio.sdk.sharing.CloneSharedFilesInput
 import io.putdotio.sdk.sharing.SharedFileCloneInfo
 import io.putdotio.sdk.sharing.SharedFileCloneStatus
 
-interface FilesRepository : FilesCopyRepository {
-    suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage>
+public interface FilesRepository : FilesCopyRepository {
+    public suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage>
 
-    suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage>
+    public suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage>
 
-    suspend fun loadMoveDestinations(
+    public suspend fun loadMoveDestinations(
         folderId: FilesItemId,
         cursor: FilesCursor? = null,
     ): PutioResult<FilesPage>
 
-    suspend fun move(itemId: FilesItemId, destinationId: FilesItemId): PutioResult<List<FileMoveError>>
+    public suspend fun move(itemId: FilesItemId, destinationId: FilesItemId): PutioResult<List<FileMoveError>>
 
-    suspend fun persistSort(
+    public suspend fun persistSort(
         folderId: FilesItemId,
         sort: FilesSort,
     ): PutioResult<Unit>
 
-    suspend fun rename(itemId: FilesItemId, name: String): PutioResult<Unit>
+    public suspend fun rename(itemId: FilesItemId, name: String): PutioResult<Unit>
 
-    suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): PutioResult<FileDeleteResult>
+    public suspend fun delete(itemId: FilesItemId, mode: FilesDeleteMode): PutioResult<FileDeleteResult>
 
-    suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
+    public suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
 }
 
-interface FilesCopyRepository {
+public interface FilesCopyRepository {
     /** Starts copying an item shared with the viewer into [destinationId]; put.io copies in the background. */
-    suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId): PutioResult<FilesCopyId>
+    public suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId): PutioResult<FilesCopyId>
 
-    suspend fun checkCopy(copyId: FilesCopyId): PutioResult<FilesCopyProgress>
+    public suspend fun checkCopy(copyId: FilesCopyId): PutioResult<FilesCopyProgress>
 }
 
-interface FilesItemResolver {
-    suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
+public interface FilesItemResolver {
+    public suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
 }
 
 internal class SdkFilesMutations(
@@ -83,7 +83,7 @@ internal class SdkFilesCopies(
     }
 }
 
-class SdkFilesRepository internal constructor(
+public class SdkFilesRepository internal constructor(
     private val listFolder: suspend (Long, FilesListQuery) -> FilesListResponse,
     private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse,
     private val setSort: suspend (Long, String) -> Unit,
@@ -94,7 +94,7 @@ class SdkFilesRepository internal constructor(
         info = { error("Copies are not wired") },
     ),
 ) : FilesRepository, FilesItemResolver, FilesCopyRepository by copies {
-    constructor(client: PutioClient) : this(
+    public constructor(client: PutioClient) : this(
         listFolder = { folderId, query -> client.files.list(parentId = folderId, query = query) },
         continueListing = { cursor, query -> client.files.continueList(cursor = cursor, query = query) },
         setSort = { folderId, sort ->
@@ -184,7 +184,7 @@ private fun FilesListResponse.toFilesPage(): FilesPage =
         parent = parent?.toFilesItem(),
     )
 
-fun PutioFile.toFilesItem(): FilesItem =
+public fun PutioFile.toFilesItem(): FilesItem =
     FilesItem(
         id = FilesItemId(id),
         parentId = parentId?.let(::FilesItemId),

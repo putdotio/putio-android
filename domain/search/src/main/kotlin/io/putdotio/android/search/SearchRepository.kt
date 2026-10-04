@@ -8,17 +8,17 @@ import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.files.FileSearchResponse
 import io.putdotio.sdk.files.FilesSearchQuery
 
-interface SearchRepository {
-    suspend fun search(term: SearchTerm): PutioResult<SearchPage>
+public interface SearchRepository {
+    public suspend fun search(term: SearchTerm): PutioResult<SearchPage>
 
-    suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage>
+    public suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage>
 }
 
-class SdkSearchRepository internal constructor(
+public class SdkSearchRepository internal constructor(
     private val searchFiles: suspend (FilesSearchQuery) -> FileSearchResponse,
     private val continueSearch: suspend (String) -> FileSearchResponse,
 ) : SearchRepository {
-    constructor(client: PutioClient) : this(
+    public constructor(client: PutioClient) : this(
         searchFiles = { query -> client.files.search(query) },
         continueSearch = { cursor -> client.files.continueSearch(cursor) },
     )

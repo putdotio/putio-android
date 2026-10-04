@@ -3,12 +3,12 @@ package io.putdotio.android.files
 import io.putdotio.android.PutioFailure
 import io.putdotio.sdk.files.FileDeleteResult
 
-enum class FilesDeleteMode {
+public enum class FilesDeleteMode {
     TRASH,
     PERMANENT,
 }
 
-enum class FilesDeleteStatus {
+public enum class FilesDeleteStatus {
     CHECKING,
     NO_LONGER_AVAILABLE,
     STILL_PRESENT,
@@ -19,7 +19,7 @@ enum class FilesDeleteStatus {
     UNKNOWN,
 }
 
-data class FilesDeleteOutcome(
+public data class FilesDeleteOutcome(
     val requestId: FilesRequestId,
     val intent: FilesFolderOperationIntent.Delete,
     val itemName: String,

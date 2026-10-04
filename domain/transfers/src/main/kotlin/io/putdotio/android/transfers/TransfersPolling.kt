@@ -63,5 +63,5 @@ private fun TransferItem.needsPolling(): Boolean =
     !status.isTerminal ||
         (status == AppTransferStatus.Completed && fileId == null && userFileExists != false)
 
-val TransfersContent.isPaging: Boolean
+public val TransfersContent.isPaging: Boolean
     get() = (this as? TransfersContent.Ready)?.paging is TransfersPaging.Loading

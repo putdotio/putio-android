@@ -16,7 +16,7 @@ import io.putdotio.android.PutioFailure
 
 /** All access belongs to the application's main thread, including the final authorization check. */
 @MainThread
-class PlaybackPositionWriter(
+public class PlaybackPositionWriter(
     private val scope: CoroutineScope,
     private val write: suspend (Long, Double) -> PlaybackRepositoryResult<Unit>,
 ) : Closeable {
@@ -26,9 +26,9 @@ class PlaybackPositionWriter(
     private var activeJob: Job? = null
     private var closed = false
     private val mutableFailure = MutableStateFlow<PlaybackFailure?>(null)
-    val failure = mutableFailure.asStateFlow()
+    internal val failure = mutableFailure.asStateFlow()
 
-    fun register(fileId: Long, authorized: () -> Boolean): String {
+    public fun register(fileId: Long, authorized: () -> Boolean): String {
         check(!closed)
         require(fileId > 0L)
         // A reopened file supersedes its old producer, including a queued exit snapshot.
@@ -40,7 +40,7 @@ class PlaybackPositionWriter(
         return token
     }
 
-    fun offer(token: String, positionMillis: Long) {
+    public fun offer(token: String, positionMillis: Long) {
         val lease = leases[token]?.takeIf { !closed && positionMillis > 0L && it.authorized() } ?: return
         if (lease.lastOffered?.div(POSITION_DEDUP_MILLIS) == positionMillis / POSITION_DEDUP_MILLIS) return
         lease.lastOffered = positionMillis
@@ -51,7 +51,7 @@ class PlaybackPositionWriter(
     }
 
     /** Discards revoked work; this is deliberately different from a player's trailing flush. */
-    fun reconcile() {
+    public fun reconcile() {
         leases.values.filterNot { it.authorized() }.forEach { it.lastOffered = null }
         if (pending?.allowed() == false) pending = null
         if (active?.allowed() == false) activeJob?.cancel()

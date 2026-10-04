@@ -5,6 +5,7 @@ import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.getByType
+import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidExtension
 
 /** Android SDK levels shared by the application and every library module. */
 object PutioAndroidSdk {
@@ -15,8 +16,9 @@ object PutioAndroidSdk {
 
 /**
  * Shared setup for the `core` and `domain` Android libraries: SDK levels, the
- * repository's lint and detekt gates, the Compose compiler, the JVM test stack and the
- * instrumentation runner. Each module still declares its namespace and its own dependencies.
+ * repository's lint and detekt gates, Kotlin explicit API mode, the Compose compiler, the JVM
+ * test stack and the instrumentation runner. Each module still declares its namespace and its
+ * own dependencies.
  */
 class PutioAndroidLibraryPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
@@ -36,6 +38,12 @@ class PutioAndroidLibraryPlugin : Plugin<Project> {
             }
             // Robolectric-backed tests need the module's resources.
             testOptions.unitTests.isIncludeAndroidResources = true
+        }
+
+        // Strict explicit API: a declaration another module can see needs an explicit `public`.
+        // AGP's built-in Kotlin applies it to main and test fixtures; unit and device tests are exempt.
+        extensions.configure<KotlinAndroidExtension> {
+            explicitApi()
         }
 
         useOfflineRobolectric()

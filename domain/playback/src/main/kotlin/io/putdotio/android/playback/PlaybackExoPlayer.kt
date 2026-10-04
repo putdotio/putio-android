@@ -14,7 +14,7 @@ private const val EMULATOR_CODEC_WORKAROUND_API = 37
 
 /** The renderers every ExoPlayer in the app starts from, on either surface. */
 @UnstableApi
-fun playbackRenderersFactory(context: Context): DefaultRenderersFactory {
+public fun playbackRenderersFactory(context: Context): DefaultRenderersFactory {
     val renderersFactory = DefaultRenderersFactory(context)
     if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
         // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
@@ -25,7 +25,7 @@ fun playbackRenderersFactory(context: Context): DefaultRenderersFactory {
     return renderersFactory
 }
 
-fun PlaybackMediaType.audioAttributes(): AudioAttributes =
+public fun PlaybackMediaType.audioAttributes(): AudioAttributes =
     AudioAttributes.Builder()
         .setContentType(
             when (this) {
@@ -45,7 +45,7 @@ internal fun emulatorCodecPriority(codecName: String): Int =
     if (codecName.startsWith("c2.goldfish.")) 1 else 0
 
 @UnstableApi
-fun playbackSurfaceType(
+public fun playbackSurfaceType(
     sdkInt: Int,
     hardware: String,
 ): Int =

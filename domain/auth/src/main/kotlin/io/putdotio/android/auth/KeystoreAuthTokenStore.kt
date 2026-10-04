@@ -21,15 +21,15 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-interface AuthTokenStore {
-    suspend fun read(): AccessToken?
+public interface AuthTokenStore {
+    public suspend fun read(): AccessToken?
 
-    suspend fun write(accessToken: AccessToken)
+    public suspend fun write(accessToken: AccessToken)
 
-    suspend fun clear()
+    public suspend fun clear()
 }
 
-class AuthTokenStorageException(
+public class AuthTokenStorageException(
     operation: String,
     cause: Throwable? = null,
 ) : Exception("Secure token storage failed during $operation", cause)
@@ -41,13 +41,13 @@ class AuthTokenStorageException(
 // Platform commit is intentionally used so validation waits for durability and
 // can fail when the Boolean result says the write did not reach storage.
 @SuppressLint("ApplySharedPref", "UseKtx")
-class KeystoreAuthTokenStore internal constructor(
+public class KeystoreAuthTokenStore internal constructor(
     private val preferences: SharedPreferences,
     private val tokenCipher: AuthTokenCipher,
     private val ioDispatcher: CoroutineDispatcher,
     private val recordKey: String = ENCRYPTED_ACCESS_TOKEN_KEY,
 ) : AuthTokenStore {
-    constructor(context: Context) : this(
+    public constructor(context: Context) : this(
         preferences = context.getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE),
         tokenCipher = AndroidKeystoreAuthTokenCipher(authTokenKeyAlias(context.packageName)),
         ioDispatcher = Dispatchers.IO,
@@ -81,7 +81,7 @@ class KeystoreAuthTokenStore internal constructor(
         }
     }
 
-    override suspend fun write(accessToken: AccessToken) = withContext(ioDispatcher) {
+    override suspend fun write(accessToken: AccessToken): Unit = withContext(ioDispatcher) {
         storageOperation(AUTH_STORAGE_WRITE_OPERATION) {
             val plaintext = accessToken.reveal().toByteArray(StandardCharsets.UTF_8)
             val serialized = tokenCipher.encrypt(plaintext).serialize()
@@ -91,7 +91,7 @@ class KeystoreAuthTokenStore internal constructor(
         }
     }
 
-    override suspend fun clear() = withContext(ioDispatcher) {
+    override suspend fun clear(): Unit = withContext(ioDispatcher) {
         var clearFailure: AuthTokenStorageException? = null
 
         try {
@@ -116,12 +116,12 @@ class KeystoreAuthTokenStore internal constructor(
         Unit
     }
 
-    companion object {
+    public companion object {
         /**
          * A signed-out token whose revocation put.io has not confirmed yet. It has its
          * own record and Keystore key, so clearing the session never drops it.
          */
-        fun pendingRevocation(context: Context): KeystoreAuthTokenStore =
+        public fun pendingRevocation(context: Context): KeystoreAuthTokenStore =
             KeystoreAuthTokenStore(
                 preferences = context.getSharedPreferences(AUTH_PREFERENCES_NAME, Context.MODE_PRIVATE),
                 tokenCipher = AndroidKeystoreAuthTokenCipher(pendingRevocationKeyAlias(context.packageName)),
@@ -256,7 +256,7 @@ private fun ByteArray.encodeBase64Url(): String =
 private fun String.decodeBase64Url(): ByteArray =
     Base64.getUrlDecoder().decode(this)
 
-const val AUTH_PREFERENCES_NAME = "putio_auth"
+public const val AUTH_PREFERENCES_NAME: String = "putio_auth"
 internal const val ENCRYPTED_ACCESS_TOKEN_KEY = "access_token_v1"
 internal const val PENDING_REVOCATION_TOKEN_KEY = "pending_revocation_token_v1"
 internal fun authTokenKeyAlias(packageName: String): String = "$packageName.$AUTH_KEY_ALIAS_SUFFIX"

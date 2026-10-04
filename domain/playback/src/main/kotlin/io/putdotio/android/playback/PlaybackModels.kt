@@ -5,7 +5,7 @@ import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PutioFileType
 
-data class PlaybackTarget(
+public data class PlaybackTarget(
     val fileId: FilesItemId,
     val name: String,
     val mediaType: PlaybackMediaType = PlaybackMediaType.VIDEO,
@@ -13,13 +13,13 @@ data class PlaybackTarget(
     val durationSeconds: Double? = null,
 )
 
-enum class PlaybackMediaType {
+public enum class PlaybackMediaType {
     VIDEO,
     AUDIO,
     ;
 
-    companion object {
-        fun fromFileType(fileType: PutioFileType): PlaybackMediaType? =
+    public companion object {
+        public fun fromFileType(fileType: PutioFileType): PlaybackMediaType? =
             when (fileType) {
                 PutioFileType.VIDEO -> VIDEO
                 PutioFileType.AUDIO -> AUDIO
@@ -29,64 +29,64 @@ enum class PlaybackMediaType {
 }
 
 @JvmInline
-value class PlaybackRequestId(
-    val value: Long,
+public value class PlaybackRequestId(
+    internal val value: Long,
 )
 
-enum class PlaybackStartup {
+public enum class PlaybackStartup {
     Resolve,
     AttachAudioSession,
 }
 
-sealed interface PlaybackContent {
-    data object Session : PlaybackContent
+public sealed interface PlaybackContent {
+    public data object Session : PlaybackContent
 
-    data class Loading(
+    public data class Loading(
         val requestId: PlaybackRequestId,
     ) : PlaybackContent
 
-    data class AwaitingResume(
+    public data class AwaitingResume(
         val source: PlaybackSource,
         val subtitlesHidden: Boolean = false,
     ) : PlaybackContent
 
-    data class Ready(
+    public data class Ready(
         val source: PlaybackSource,
         val useStartFrom: Boolean = false,
         /** See [PlaybackResolution.Ready.subtitlesHidden]. */
         val subtitlesHidden: Boolean = false,
     ) : PlaybackContent
 
-    data class FindingNext(
+    public data class FindingNext(
         val requestId: PlaybackRequestId,
     ) : PlaybackContent
 
-    data class NextFailed(
+    public data class NextFailed(
         val failure: PlaybackFailure,
     ) : PlaybackContent
 
-    data object Ended : PlaybackContent
+    public data object Ended : PlaybackContent
 
     /**
      * The file needs MP4 conversion first. A [refreshRequestId] is a resolution or conversion
      * start in flight; the interstitial stays up meanwhile instead of flashing a loading screen.
      */
-    data class Conversion(
+    public data class Conversion(
         val state: PlaybackConversionState,
         val refreshRequestId: PlaybackRequestId? = null,
     ) : PlaybackContent
 
-    data class Unsupported(
+    public data class Unsupported(
         val fileType: PutioFileType,
     ) : PlaybackContent
 
-    data class Failed(
+    public data class Failed(
         val failure: PlaybackFailure,
     ) : PlaybackContent
 }
 
 @ConsistentCopyVisibility
-data class PlaybackState internal constructor(
+public data class PlaybackState internal constructor(
     val target: PlaybackTarget,
     val content: PlaybackContent,
     internal val nextRequestValue: Long,
@@ -99,84 +99,84 @@ data class PlaybackState internal constructor(
     internal val conversionStatusRead: Boolean = false,
 )
 
-sealed interface PlaybackEvent {
-    data object Resume : PlaybackEvent
+public sealed interface PlaybackEvent {
+    public data object Resume : PlaybackEvent
 
-    data object Restart : PlaybackEvent
+    public data object Restart : PlaybackEvent
 
-    data object Retry : PlaybackEvent
+    public data object Retry : PlaybackEvent
 
     /** Reads the conversion again while its interstitial stays up. */
-    data object RefreshConversion : PlaybackEvent
+    public data object RefreshConversion : PlaybackEvent
 
     /** The viewer asked to convert again after a failed conversion. */
-    data object StartConversion : PlaybackEvent
+    public data object StartConversion : PlaybackEvent
 
-    data object PlayerEnded : PlaybackEvent
+    public data object PlayerEnded : PlaybackEvent
 
-    data class SourceRequired(
+    public data class SourceRequired(
         val resumePositionMillis: Long? = null,
     ) : PlaybackEvent
 
-    data class PlayerFailed(
+    public data class PlayerFailed(
         val failure: PlaybackFailure,
         val resumePositionMillis: Long,
     ) : PlaybackEvent
 
-    data class ResolveSucceeded(
+    public data class ResolveSucceeded(
         val requestId: PlaybackRequestId,
         val resolution: PlaybackResolution,
     ) : PlaybackEvent
 
-    data class ResolveFailed(
+    public data class ResolveFailed(
         val requestId: PlaybackRequestId,
         val failure: PlaybackFailure,
     ) : PlaybackEvent
 
-    data class NextFound(
+    public data class NextFound(
         val requestId: PlaybackRequestId,
         val target: PlaybackTarget,
     ) : PlaybackEvent
 
-    data class NextEnded(
+    public data class NextEnded(
         val requestId: PlaybackRequestId,
     ) : PlaybackEvent
 
-    data class NextFailed(
+    public data class NextFailed(
         val requestId: PlaybackRequestId,
         val failure: PlaybackFailure,
     ) : PlaybackEvent
 }
 
-sealed interface PlaybackEffect {
-    val target: PlaybackTarget
-    val requestId: PlaybackRequestId
+public sealed interface PlaybackEffect {
+    public val target: PlaybackTarget
+    public val requestId: PlaybackRequestId
 
-    data class Resolve(
+    public data class Resolve(
         override val target: PlaybackTarget,
         override val requestId: PlaybackRequestId,
     ) : PlaybackEffect
 
-    data class FindNext(
+    public data class FindNext(
         override val target: PlaybackTarget,
         override val requestId: PlaybackRequestId,
     ) : PlaybackEffect
 
     /** Starts the MP4 conversion, then resolves again. */
-    data class StartConversion(
+    public data class StartConversion(
         override val target: PlaybackTarget,
         override val requestId: PlaybackRequestId,
     ) : PlaybackEffect
 }
 
-data class PlaybackTransition(
+public data class PlaybackTransition(
     val state: PlaybackState,
     val effect: PlaybackEffect? = null,
     val consumed: Boolean = true,
 )
 
-object PlaybackReducer {
-    fun start(
+public object PlaybackReducer {
+    public fun start(
         target: PlaybackTarget,
         startup: PlaybackStartup = PlaybackStartup.Resolve,
     ): PlaybackTransition {
@@ -200,7 +200,7 @@ object PlaybackReducer {
         )
     }
 
-    fun reduce(
+    public fun reduce(
         state: PlaybackState,
         event: PlaybackEvent,
     ): PlaybackTransition =
@@ -389,17 +389,17 @@ private const val INITIAL_REQUEST_VALUE = 1L
 private const val FINISHED_WITHIN_SECONDS = 10.0
 
 /** How often a queued or running conversion is read again (tv-native `useConversionStatus`: 3 s). */
-const val PLAYBACK_CONVERSION_POLL_MILLIS = 3_000L
+public const val PLAYBACK_CONVERSION_POLL_MILLIS: Long = 3_000L
 
 /**
  * Queued and running conversions are read again on their own; the others wait for the viewer
  * (the SDK's consumer contract in putio-sdk-kotlin `docs/ARCHITECTURE.md`).
  */
-val PlaybackConversionState.pollsAutomatically: Boolean
+internal val PlaybackConversionState.pollsAutomatically: Boolean
     get() = this == PlaybackConversionState.Queued || this is PlaybackConversionState.Converting
 
 /** Whether the viewer may start the conversion again: only after a failed one. */
-val PlaybackContent.Conversion.startable: Boolean
+public val PlaybackContent.Conversion.startable: Boolean
     get() = state == PlaybackConversionState.Failed
 
 /**
@@ -408,11 +408,11 @@ val PlaybackContent.Conversion.startable: Boolean
  * not available is the status read before the app's own start, not a verdict, while that start
  * is in flight. Read without a request in flight, it is final: the file cannot be converted.
  */
-val PlaybackContent.Conversion.starting: Boolean
+public val PlaybackContent.Conversion.starting: Boolean
     get() = state == PlaybackConversionState.NotAvailable && refreshRequestId != null
 
 /** What the conversion interstitial offers besides Back. */
-enum class PlaybackConversionAction {
+public enum class PlaybackConversionAction {
     /** [PlaybackEvent.StartConversion] after a failed conversion. */
     ConvertAgain,
 
@@ -421,7 +421,7 @@ enum class PlaybackConversionAction {
 }
 
 /** Null while the conversion starts or polls on its own, and once the file cannot be converted. */
-val PlaybackContent.Conversion.action: PlaybackConversionAction?
+public val PlaybackContent.Conversion.action: PlaybackConversionAction?
     get() = when {
         startable -> PlaybackConversionAction.ConvertAgain
         state == PlaybackConversionState.NotAvailable || state.pollsAutomatically -> null

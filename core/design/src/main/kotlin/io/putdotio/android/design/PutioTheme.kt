@@ -9,7 +9,7 @@ import androidx.compose.runtime.Composable
  * there is no light scheme in the contract.
  */
 @Composable
-fun PutioTheme(content: @Composable () -> Unit) {
+public fun PutioTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = putioDarkColorScheme(),
         content = content,

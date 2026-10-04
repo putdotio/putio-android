@@ -22,8 +22,10 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
   and `trash` also build on `files` for `FilesItem`. A domain failure with
   cases of its own wraps a `PutioFailure` (`AccountSettingsFailure`,
   `PlaybackFailure`) instead of cloning the shared cases. Kotlin packages stay
-  `io.putdotio.android.*` whatever the module. A declaration stays `internal`
-  unless another module uses it; fakes other modules' tests reuse live in the
+  `io.putdotio.android.*` whatever the module. Libraries build in strict
+  Kotlin explicit API mode, which covers `main` and `src/testFixtures`: a
+  declaration stays `internal` unless another module uses it, and a new public
+  one needs an explicit `public`. Fakes other modules' tests reuse live in the
   owning module's `src/testFixtures`.
 - Mobile and TV share data, domain, theme, and component foundations; their
   shells diverge where input differs. TV should feel like Android TV: Compose

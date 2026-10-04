@@ -1,21 +1,21 @@
 package io.putdotio.android.files
 
 @JvmInline
-value class FilesItemId(
-    val value: Long,
+public value class FilesItemId(
+    public val value: Long,
 )
 
 @JvmInline
-value class FilesCursor(
-    val value: String,
+public value class FilesCursor(
+    public val value: String,
 ) {
     init {
         require(value.isNotBlank()) { "A Files cursor cannot be blank" }
     }
 }
 
-enum class FilesSort(
-    val apiValue: String,
+public enum class FilesSort(
+    public val apiValue: String,
 ) {
     NAME_ASCENDING("NAME_ASC"),
     NAME_DESCENDING("NAME_DESC"),
@@ -31,8 +31,8 @@ enum class FilesSort(
     WATCH_STATUS_DESCENDING("WATCH_DESC"),
     ;
 
-    companion object {
-        fun fromApiValue(value: String?): FilesSort? =
+    public companion object {
+        public fun fromApiValue(value: String?): FilesSort? =
             entries.firstOrNull { it.apiValue == value }
     }
 }

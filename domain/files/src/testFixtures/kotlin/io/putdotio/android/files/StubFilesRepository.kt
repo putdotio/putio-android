@@ -4,7 +4,7 @@ import io.putdotio.android.PutioResult
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FileMoveError
 
-abstract class StubFilesRepository : FilesRepository {
+public abstract class StubFilesRepository : FilesRepository {
     override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<FilesPage> =
         error("Unexpected continuation")
     override suspend fun loadMoveDestinations(

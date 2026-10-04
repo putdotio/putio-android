@@ -11,21 +11,21 @@ import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.routes.TunnelRoute
 import java.util.concurrent.CancellationException
 
-sealed interface AccountSettingsRepositoryResult<out T> {
-    data class Success<T>(
+public sealed interface AccountSettingsRepositoryResult<out T> {
+    public data class Success<T>(
         val value: T,
     ) : AccountSettingsRepositoryResult<T>
 
-    data class Failure(
+    public data class Failure(
         val failure: AccountSettingsFailure,
     ) : AccountSettingsRepositoryResult<Nothing>
 }
 
-sealed interface AccountSettingsFailure {
-    val cause: Throwable
+public sealed interface AccountSettingsFailure {
+    public val cause: Throwable
 
     /** A put.io failure, classified by [toSettingsFailure]. */
-    data class Putio(
+    public data class Putio(
         val failure: PutioFailure,
     ) : AccountSettingsFailure {
         override val cause: Throwable
@@ -33,34 +33,34 @@ sealed interface AccountSettingsFailure {
     }
 
     /** The server refused the chosen proxy for this account (403 `UNAVAILABLE_VALUE`). */
-    data class RouteUnavailable(
+    public data class RouteUnavailable(
         override val cause: PutioException,
     ) : AccountSettingsFailure
 }
 
 /** The put.io failure behind this one; null for a refusal only account settings explains. */
-val AccountSettingsFailure.putioFailure: PutioFailure?
+public val AccountSettingsFailure.putioFailure: PutioFailure?
     get() = (this as? AccountSettingsFailure.Putio)?.failure
 
 /** put.io's own reason for a refused request; the surface's copy applies when it is null. */
-val AccountSettingsFailure.apiReason: String?
+public val AccountSettingsFailure.apiReason: String?
     get() = putioFailure?.apiReason
 
-interface AccountSettingsRepository {
-    suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences>
+public interface AccountSettingsRepository {
+    public suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences>
 
-    suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<Unit>
+    public suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<Unit>
 
     /** Selectable tunnel routes for this account; `default` is always first. */
-    suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>>
+    public suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>>
 }
 
-class SdkAccountSettingsRepository(
+public class SdkAccountSettingsRepository(
     private val getSettings: suspend () -> AccountSettings,
     private val saveSettings: suspend (AccountSettingsPatch) -> Unit,
     private val listRoutes: suspend () -> List<TunnelRoute> = { error("Tunnel routes are unavailable") },
 ) : AccountSettingsRepository {
-    constructor(client: PutioClient) : this(
+    public constructor(client: PutioClient) : this(
         getSettings = client.account::getSettings,
         saveSettings = { patch -> client.account.saveSettings(patch) },
         listRoutes = client.routes::list,

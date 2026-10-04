@@ -15,7 +15,7 @@ internal const val MAX_REVEAL_PAGES = 10
  * belongs to the folder, so leaving it cancels the search.
  */
 @ConsistentCopyVisibility
-data class FilesRevealSearch internal constructor(
+public data class FilesRevealSearch internal constructor(
     internal val requestId: FilesRequestId,
     internal val cursor: FilesCursor,
     internal val items: List<FilesItem>,

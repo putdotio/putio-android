@@ -5,7 +5,7 @@ package io.putdotio.android.settings
  * contract's allowed dimensions: coarse classes and versions only, never
  * device model strings, build fingerprints, identifiers, or account data.
  */
-data class AppDiagnostics(
+public data class AppDiagnostics(
     val appVersion: String,
     val versionCode: Int,
     val releaseChannel: ReleaseChannel,
@@ -15,30 +15,30 @@ data class AppDiagnostics(
     val deviceClass: DeviceClass,
     val player: String,
 ) {
-    enum class ReleaseChannel(val wireValue: String) {
+    public enum class ReleaseChannel(internal val wireValue: String) {
         Stable("stable"),
         Internal("internal"),
         ;
 
-        companion object {
-            fun fromFlavor(channel: String): ReleaseChannel =
+        public companion object {
+            public fun fromFlavor(channel: String): ReleaseChannel =
                 if (channel == "nightly") Internal else Stable
         }
     }
 
-    enum class Runtime(val wireValue: String) {
+    public enum class Runtime(internal val wireValue: String) {
         Android("android"),
         AndroidTv("androidtv"),
     }
 
-    enum class DeviceClass(val wireValue: String) {
+    public enum class DeviceClass(internal val wireValue: String) {
         Phone("phone"),
         Tablet("tablet"),
         Tv("tv"),
     }
 
     /** Plain-text block for pasting into a support ticket; one `key: value` per line. */
-    fun supportText(): String =
+    public fun supportText(): String =
         listOf(
             "app" to runtime.wireValue,
             "app_version" to appVersion,
