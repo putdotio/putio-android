@@ -1,34 +1,14 @@
 package io.putdotio.android
 
-import io.putdotio.android.PutioResult
-import io.putdotio.android.playback.apiReason
-import io.putdotio.android.playback.toPlaybackFailure
-import io.putdotio.android.settings.AccountSettingsRepositoryResult
-import io.putdotio.android.settings.SdkAccountSettingsRepository
-import io.putdotio.android.settings.SdkAndroidAppConfigRepository
-import io.putdotio.android.settings.apiReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.errors.PutioTransportException
 import java.io.IOException
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ApiRejectionReasonTest {
-    @Test
-    fun `every surface's failure carries put io's message for a refused request`() = runBlocking {
-        val refusal = refusal(400, "Folder is full, empty some space first.")
-
-        assertEquals(REASON, refusal.toPutioFailure().apiReason)
-        assertEquals(REASON, refusal.toPlaybackFailure().apiReason)
-        val settings = SdkAccountSettingsRepository(getSettings = { throw refusal }, saveSettings = {}).load()
-        assertEquals(REASON, (settings as AccountSettingsRepositoryResult.Failure).failure.apiReason)
-        val config = SdkAndroidAppConfigRepository(getConfig = { throw refusal }, saveConfig = {}).load()
-        assertEquals(REASON, (config as PutioResult.Failure).failure.apiReason)
-    }
-
     @Test
     fun `the reason is read through the SDK's operation wrapper and normalised`() {
         val wrapped = PutioOperationException(

@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.io.Closeable
 import java.util.UUID
+import io.putdotio.android.PutioFailure
 
 /** All access belongs to the application's main thread, including the final authorization check. */
 @MainThread
@@ -87,11 +88,13 @@ class PlaybackPositionWriter(
                     }
                 }
             } catch (error: TimeoutCancellationException) {
-                if (snapshot.allowed()) mutableFailure.value = PlaybackFailure.NetworkUnavailable(error)
+                if (snapshot.allowed()) {
+                    mutableFailure.value = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(error))
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                if (snapshot.allowed()) mutableFailure.value = PlaybackFailure.Unexpected(error)
+                if (snapshot.allowed()) mutableFailure.value = PlaybackFailure.Putio(PutioFailure.Unexpected(error))
             }
         }
         activeJob = job

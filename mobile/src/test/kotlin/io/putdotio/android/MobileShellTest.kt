@@ -1975,7 +1975,7 @@ class MobileShellPlaybackTest {
             override suspend fun resolve(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> {
                 resolves += 1
                 return PlaybackRepositoryResult.Failure(
-                    PlaybackFailure.NetworkUnavailable(IllegalStateException("offline")),
+                    PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))),
                 )
             }
             override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
@@ -2262,7 +2262,9 @@ private val AuthenticationFailureRepository =
             target: PlaybackTarget,
         ): PlaybackRepositoryResult<PlaybackResolution> =
             PlaybackRepositoryResult.Failure(
-                PlaybackFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
+                PlaybackFailure.Putio(
+                    PutioFailure.AuthenticationRequired(PutioConfigurationException("session expired")),
+                ),
             )
 
         override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended

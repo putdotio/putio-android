@@ -5,6 +5,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.PutioFailure
 import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -37,7 +38,7 @@ class PlaybackFailureTest {
     fun aDecoderThatFailsToStartMayBeBusyAndIsRetried() {
         val failure = PlaybackException("busy", null, PlaybackException.ERROR_CODE_DECODER_INIT_FAILED)
             .toPlaybackFailure()
-        assertTrue(failure is PlaybackFailure.Unexpected)
+        assertTrue(failure.putioFailure is PutioFailure.Unexpected)
         assertTrue(failure.retryable)
     }
 
@@ -63,19 +64,19 @@ class PlaybackFailureTest {
             IOException(),
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
         ).toPlaybackFailure()
-        assertTrue(offline is PlaybackFailure.NetworkUnavailable)
+        assertTrue(offline.putioFailure is PutioFailure.NetworkUnavailable)
         assertTrue(offline.retryable)
     }
 
     @Test
     fun aRejectedSessionOrRefusedFileIsNotRetried() {
         val cause = io.putdotio.sdk.errors.PutioConfigurationException("test")
-        assertEquals(false, PlaybackFailure.AuthenticationRequired(cause).retryable)
-        assertEquals(false, PlaybackFailure.AccessDenied(cause).retryable)
-        assertEquals(true, PlaybackFailure.RateLimited(cause).retryable)
-        assertEquals(true, PlaybackFailure.ServerUnavailable(503, cause).retryable)
-        assertEquals(false, PlaybackFailure.ApiRejected(400, null, cause).retryable)
-        assertEquals(true, PlaybackFailure.ApiRejected(408, null, cause).retryable)
+        assertEquals(false, PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(cause)).retryable)
+        assertEquals(false, PlaybackFailure.Putio(PutioFailure.AccessDenied(cause)).retryable)
+        assertEquals(true, PlaybackFailure.Putio(PutioFailure.RateLimited(cause)).retryable)
+        assertEquals(true, PlaybackFailure.Putio(PutioFailure.ServerUnavailable(503, cause)).retryable)
+        assertEquals(false, PlaybackFailure.Putio(PutioFailure.ApiRejected(400, null, cause)).retryable)
+        assertEquals(true, PlaybackFailure.Putio(PutioFailure.ApiRejected(408, null, cause)).retryable)
     }
 
     @Test
@@ -144,8 +145,8 @@ class PlaybackFailureTest {
             )
 
         assertTrue(
-            IllegalStateException("player failed", transport).toMediaRequestFailureOrNull() is
-                PlaybackFailure.NetworkUnavailable,
+            IllegalStateException("player failed", transport).toMediaRequestFailureOrNull()?.putioFailure is
+                PutioFailure.NetworkUnavailable,
         )
     }
 }

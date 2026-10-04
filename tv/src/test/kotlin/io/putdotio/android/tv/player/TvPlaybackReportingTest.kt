@@ -8,6 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.withReportingLease
@@ -115,7 +116,7 @@ class TvPlaybackReportingTest {
         val fixture = Fixture(backgroundScope)
         val player = fixture.play(positionMillis = 10_000L, playing = false)
 
-        val offline = PlaybackFailure.NetworkUnavailable(IllegalStateException("offline"))
+        val offline = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
         fixture.result = PlaybackRepositoryResult.Failure(offline)
         fixture.reporting.observe(player).close()
         runCurrent()
@@ -188,7 +189,8 @@ class TvPlaybackReportingTest {
 
     private companion object {
         const val FILE_ID = 9L
-        val AuthFailure = PlaybackFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
+        val AuthFailure =
+            PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected")))
 
         fun loaded(resumePlayback: Boolean): AccountSettingsState =
             AccountSettingsReducer.reduce(

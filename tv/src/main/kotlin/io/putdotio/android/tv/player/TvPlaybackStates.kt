@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackConversionAction
@@ -146,19 +147,21 @@ internal fun TvPlaybackFailureScreen(failure: PlaybackFailure, onRetry: () -> Un
 /** String resources: the title, then the message. */
 private fun PlaybackFailure.titleAndMessage(): Pair<Int, Int> =
     when (this) {
-        is PlaybackFailure.AuthenticationRequired -> R.string.tv_player_error_title to R.string.tv_error_session
-        is PlaybackFailure.NetworkUnavailable -> R.string.tv_player_error_title to R.string.tv_error_network
         is PlaybackFailure.MediaCredentialUnavailable ->
             R.string.tv_player_error_title to R.string.tv_player_error_link_expired
-        is PlaybackFailure.RateLimited -> R.string.tv_player_error_title to R.string.tv_error_rate_limited
-        is PlaybackFailure.AccessDenied -> R.string.tv_player_error_title to R.string.tv_player_error_forbidden
         is PlaybackFailure.MediaUnsupported ->
             R.string.tv_player_unsupported_title to R.string.tv_player_error_media_unsupported
-        is PlaybackFailure.ApiRejected,
-        is PlaybackFailure.Misconfigured,
-        -> R.string.tv_player_error_title to R.string.tv_player_error_rejected
-        is PlaybackFailure.ServerUnavailable,
-        is PlaybackFailure.InvalidResponse,
-        is PlaybackFailure.Unexpected,
-        -> R.string.tv_player_error_title to R.string.tv_error_unavailable
+        is PlaybackFailure.Putio -> when (failure) {
+            is PutioFailure.AuthenticationRequired -> R.string.tv_player_error_title to R.string.tv_error_session
+            is PutioFailure.NetworkUnavailable -> R.string.tv_player_error_title to R.string.tv_error_network
+            is PutioFailure.RateLimited -> R.string.tv_player_error_title to R.string.tv_error_rate_limited
+            is PutioFailure.AccessDenied -> R.string.tv_player_error_title to R.string.tv_player_error_forbidden
+            is PutioFailure.ApiRejected,
+            is PutioFailure.Misconfigured,
+            -> R.string.tv_player_error_title to R.string.tv_player_error_rejected
+            is PutioFailure.ServerUnavailable,
+            is PutioFailure.InvalidResponse,
+            is PutioFailure.Unexpected,
+            -> R.string.tv_player_error_title to R.string.tv_error_unavailable
+        }
     }

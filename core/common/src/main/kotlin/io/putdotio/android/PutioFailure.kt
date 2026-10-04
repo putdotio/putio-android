@@ -47,8 +47,9 @@ sealed interface PutioFailure : FilesFailure {
         val httpStatusCode: Int = statusCode,
     ) : PutioFailure
 
+    /** Any cause: playback also reports a failed media stream or a timed-out position write here. */
     data class NetworkUnavailable(
-        override val cause: PutioException,
+        override val cause: Throwable,
     ) : PutioFailure
 
     data class InvalidResponse(

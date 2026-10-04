@@ -21,6 +21,7 @@ import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PLAYBACK_CONVERSION_POLL_MILLIS
@@ -156,7 +157,7 @@ class TvPlaybackStatesTest {
 
     @Test
     fun failuresExplainThemselvesAndOfferTryAgainOnlyWhereItCanWork() {
-        content = PlaybackContent.Failed(PlaybackFailure.NetworkUnavailable(IOException("offline")))
+        content = PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))))
         show()
         compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
@@ -172,11 +173,11 @@ class TvPlaybackStatesTest {
         compose.onNodeWithText("Try again").assertDoesNotExist()
 
         val cause = PutioConfigurationException("test")
-        change(PlaybackContent.Failed(PlaybackFailure.AuthenticationRequired(cause)))
+        change(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AuthenticationRequired(cause))))
         compose.onNodeWithText("Your session expired. Sign in again.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
 
-        change(PlaybackContent.Failed(PlaybackFailure.AccessDenied(cause)))
+        change(PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.AccessDenied(cause))))
         compose.onNodeWithText("You don’t have access to this file.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
 

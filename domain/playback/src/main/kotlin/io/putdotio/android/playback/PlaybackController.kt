@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.Closeable
 import java.util.concurrent.CancellationException
+import io.putdotio.android.PutioFailure
 
 class PlaybackController(
     target: PlaybackTarget,
@@ -71,7 +72,7 @@ class PlaybackController(
                     } catch (error: CancellationException) {
                         throw error
                     } catch (unexpected: Exception) {
-                        effect.failureEvent(PlaybackFailure.Unexpected(unexpected))
+                        effect.failureEvent(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
                     }
                 synchronized(lock) {
                     if (activeJob === coroutineContext[Job]) {

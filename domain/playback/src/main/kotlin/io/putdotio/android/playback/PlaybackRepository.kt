@@ -1,6 +1,8 @@
 package io.putdotio.android.playback
 
-import io.putdotio.android.apiRejectionReason
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.apiReason
+import io.putdotio.android.toPutioFailure
 import io.putdotio.android.files.loadMediaAccount
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountInfo
@@ -39,58 +41,31 @@ sealed interface PlaybackRepositoryResult<out T> {
 sealed interface PlaybackFailure {
     val cause: Throwable
 
-    data class AuthenticationRequired(
-        override val cause: PutioException,
-    ) : PlaybackFailure
-
-    data class AccessDenied(
-        override val cause: PutioException,
-    ) : PlaybackFailure
-
-    data class RateLimited(
-        override val cause: PutioException,
-    ) : PlaybackFailure
-
-    data class ServerUnavailable(
-        val statusCode: Int,
-        override val cause: PutioException,
-    ) : PlaybackFailure
-
-    data class ApiRejected(
-        val statusCode: Int,
-        val errorType: String?,
-        override val cause: PutioException,
-    ) : PlaybackFailure
-
-    data class NetworkUnavailable(
-        override val cause: Throwable,
-    ) : PlaybackFailure
-
-    data class InvalidResponse(
-        override val cause: PutioException,
-    ) : PlaybackFailure
+    /** A failure in the shared taxonomy: from a put.io request ([toPlaybackFailure]) or from the player. */
+    data class Putio(
+        val failure: PutioFailure,
+    ) : PlaybackFailure {
+        override val cause: Throwable
+            get() = failure.cause
+    }
 
     data class MediaCredentialUnavailable(
         override val cause: Throwable,
-    ) : PlaybackFailure
-
-    data class Misconfigured(
-        override val cause: PutioException,
     ) : PlaybackFailure
 
     /** The device cannot decode or parse this media; resolving it again plays nothing. */
     data class MediaUnsupported(
         override val cause: Throwable,
     ) : PlaybackFailure
-
-    data class Unexpected(
-        override val cause: Throwable,
-    ) : PlaybackFailure
 }
+
+/** The put.io failure behind this one; null for a media failure only playback explains. */
+val PlaybackFailure.putioFailure: PutioFailure?
+    get() = (this as? PlaybackFailure.Putio)?.failure
 
 /** put.io's own reason for a refused request; the surface's copy applies when it is null. */
 val PlaybackFailure.apiReason: String?
-    get() = (this as? PlaybackFailure.ApiRejected)?.cause?.apiRejectionReason()
+    get() = putioFailure?.apiReason
 
 /**
  * Whether trying again can succeed: a network, rate-limit, server, request-timeout or
@@ -99,21 +74,23 @@ val PlaybackFailure.apiReason: String?
  */
 val PlaybackFailure.retryable: Boolean
     get() = when (this) {
-        is PlaybackFailure.NetworkUnavailable,
-        is PlaybackFailure.MediaCredentialUnavailable,
-        is PlaybackFailure.RateLimited,
-        is PlaybackFailure.ServerUnavailable,
-        is PlaybackFailure.InvalidResponse,
-        is PlaybackFailure.Unexpected,
-        -> true
+        is PlaybackFailure.MediaCredentialUnavailable -> true
+        is PlaybackFailure.MediaUnsupported -> false
+        is PlaybackFailure.Putio -> when (failure) {
+            is PutioFailure.NetworkUnavailable,
+            is PutioFailure.RateLimited,
+            is PutioFailure.ServerUnavailable,
+            is PutioFailure.InvalidResponse,
+            is PutioFailure.Unexpected,
+            -> true
 
-        is PlaybackFailure.ApiRejected -> statusCode == HTTP_REQUEST_TIMEOUT
+            is PutioFailure.ApiRejected -> failure.statusCode == HTTP_REQUEST_TIMEOUT
 
-        is PlaybackFailure.AuthenticationRequired,
-        is PlaybackFailure.AccessDenied,
-        is PlaybackFailure.Misconfigured,
-        is PlaybackFailure.MediaUnsupported,
-        -> false
+            is PutioFailure.AuthenticationRequired,
+            is PutioFailure.AccessDenied,
+            is PutioFailure.Misconfigured,
+            -> false
+        }
     }
 
 interface PlaybackRepository {
@@ -122,7 +99,9 @@ interface PlaybackRepository {
     /** Starts converting [target] to MP4, then resolves it again. */
     suspend fun startConversion(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackResolution> =
         PlaybackRepositoryResult.Failure(
-            PlaybackFailure.Unexpected(UnsupportedOperationException("This source cannot start a conversion")),
+            PlaybackFailure.Putio(
+                PutioFailure.Unexpected(UnsupportedOperationException("This source cannot start a conversion")),
+            ),
         )
 
     suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult
@@ -203,7 +182,7 @@ class SdkPlaybackRepository internal constructor(
         } catch (error: PutioException) {
             PlaybackRepositoryResult.Failure(error.toPlaybackFailure())
         } catch (unexpected: Exception) {
-            PlaybackRepositoryResult.Failure(PlaybackFailure.Unexpected(unexpected))
+            PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
         }
 
     private fun PlaybackResolution.Ready.needsDuration(target: PlaybackTarget): Boolean =
@@ -246,7 +225,7 @@ class SdkPlaybackRepository internal constructor(
         } catch (error: PutioException) {
             PlaybackNextResult.Failure(error.toPlaybackFailure())
         } catch (unexpected: Exception) {
-            PlaybackNextResult.Failure(PlaybackFailure.Unexpected(unexpected))
+            PlaybackNextResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
         }
 
     private suspend fun findNextInFolder(target: PlaybackTarget, parentId: Long): PlaybackNextResult {
@@ -333,7 +312,7 @@ class ConvertingPlaybackRepository internal constructor(
         } catch (error: PutioException) {
             PlaybackRepositoryResult.Failure(error.toPlaybackFailure())
         } catch (unexpected: Exception) {
-            PlaybackRepositoryResult.Failure(PlaybackFailure.Unexpected(unexpected))
+            PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
         }
 }
 
@@ -371,6 +350,11 @@ sealed interface PlaybackResolution {
     ) : PlaybackResolution
 }
 
+/**
+ * Playback's reading of a put.io error, unlike [toPutioFailure]: an API error under the SDK's
+ * operation wrappers outranks a wrapper's contract status, and the HTTP status, not the
+ * envelope's, classifies it.
+ */
 fun PutioException.toPlaybackFailure(): PlaybackFailure {
     var current: PutioException = this
     val visited = mutableSetOf<PutioException>()
@@ -379,12 +363,13 @@ fun PutioException.toPlaybackFailure(): PlaybackFailure {
         wrappers += current
         current = current.underlyingError
     }
-    return if (current is PutioApiException) {
+    val failure = if (current is PutioApiException) {
         current.leafFailure(context = this)
     } else {
         wrappers.firstNotNullOfOrNull { it.reasonFailure(context = this) }
             ?: current.leafFailure(context = this)
     }
+    return PlaybackFailure.Putio(failure)
 }
 
 private fun PutioException.hasHttpStatusCode(statusCode: Int): Boolean {
@@ -396,28 +381,28 @@ private fun PutioException.hasHttpStatusCode(statusCode: Int): Boolean {
     return (current as? PutioApiException)?.httpStatusCode == statusCode
 }
 
-private fun PutioOperationException.reasonFailure(context: PutioException): PlaybackFailure? =
+private fun PutioOperationException.reasonFailure(context: PutioException): PutioFailure? =
     when ((reason as? PutioOperationErrorReason.StatusCode)?.statusCode) {
-        HTTP_UNAUTHORIZED -> PlaybackFailure.AuthenticationRequired(context)
-        HTTP_FORBIDDEN -> PlaybackFailure.AccessDenied(context)
+        HTTP_UNAUTHORIZED -> PutioFailure.AuthenticationRequired(context)
+        HTTP_FORBIDDEN -> PutioFailure.AccessDenied(context)
         else -> null
     }
 
-private fun PutioException.leafFailure(context: PutioException): PlaybackFailure =
+private fun PutioException.leafFailure(context: PutioException): PutioFailure =
     when (this) {
         is PutioApiException ->
             when (httpStatusCode) {
-                HTTP_UNAUTHORIZED -> PlaybackFailure.AuthenticationRequired(context)
-                HTTP_FORBIDDEN -> PlaybackFailure.AccessDenied(context)
-                HTTP_TOO_MANY_REQUESTS -> PlaybackFailure.RateLimited(context)
-                in HTTP_SERVER_ERROR_RANGE -> PlaybackFailure.ServerUnavailable(httpStatusCode, context)
-                else -> PlaybackFailure.ApiRejected(httpStatusCode, errorType, context)
+                HTTP_UNAUTHORIZED -> PutioFailure.AuthenticationRequired(context)
+                HTTP_FORBIDDEN -> PutioFailure.AccessDenied(context)
+                HTTP_TOO_MANY_REQUESTS -> PutioFailure.RateLimited(context)
+                in HTTP_SERVER_ERROR_RANGE -> PutioFailure.ServerUnavailable(httpStatusCode, context)
+                else -> PutioFailure.ApiRejected(httpStatusCode, errorType, context)
             }
 
-        is PutioTransportException -> PlaybackFailure.NetworkUnavailable(context)
-        is PutioSerializationException -> PlaybackFailure.InvalidResponse(context)
-        is PutioConfigurationException -> PlaybackFailure.Misconfigured(context)
-        is PutioOperationException -> PlaybackFailure.Unexpected(context)
+        is PutioTransportException -> PutioFailure.NetworkUnavailable(context)
+        is PutioSerializationException -> PutioFailure.InvalidResponse(context)
+        is PutioConfigurationException -> PutioFailure.Misconfigured(context)
+        is PutioOperationException -> PutioFailure.Unexpected(context)
     }
 
 private const val HTTP_UNAUTHORIZED = 401

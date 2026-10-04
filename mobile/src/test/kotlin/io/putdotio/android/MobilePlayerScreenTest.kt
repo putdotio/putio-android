@@ -151,6 +151,7 @@ import io.putdotio.android.playback.playerSeekWindow
 import io.putdotio.android.playback.rememberRetainedPlayerPreferences
 import io.putdotio.android.playback.retainPlaybackOnPause
 import io.putdotio.android.playback.toRetainedPlayerPreferences
+import io.putdotio.android.playback.putioFailure
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -489,7 +490,9 @@ class MobilePlayerScreenTest {
                     state =
                         state(
                             PlaybackContent.NextFailed(
-                                PlaybackFailure.NetworkUnavailable(IllegalStateException("offline")),
+                                PlaybackFailure.Putio(
+                                    PutioFailure.NetworkUnavailable(IllegalStateException("offline")),
+                                ),
                             ),
                         ),
                     onRetry = { retries += 1 },
@@ -510,7 +513,9 @@ class MobilePlayerScreenTest {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(
-                        PlaybackContent.NextFailed(PlaybackFailure.AccessDenied(PutioConfigurationException("403"))),
+                        PlaybackContent.NextFailed(
+                            PlaybackFailure.Putio(PutioFailure.AccessDenied(PutioConfigurationException("403"))),
+                        ),
                     ),
                     onRetry = {},
                     onPlayerFailure = { _, _ -> },
@@ -599,7 +604,8 @@ class MobilePlayerLifecycleTest {
         compose.runOnIdle { assertTrue(players.single().released) }
 
         compose.runOnIdle {
-            content = PlaybackContent.Failed(PlaybackFailure.NetworkUnavailable(IOException("offline")))
+            content =
+                PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))))
         }
         compose.onNodeWithText("Check your connection and try again.").assertIsDisplayed()
 
@@ -2134,7 +2140,7 @@ class MobilePlayerSourceFreeSessionTest {
         compose.onNodeWithText("Try again").assertIsDisplayed()
         compose.runOnIdle {
             assertEquals(2, failures.size)
-            assertTrue(failures.last().first is PlaybackFailure.NetworkUnavailable)
+            assertTrue(failures.last().first.putioFailure is PutioFailure.NetworkUnavailable)
             assertEquals(46_000L, failures.last().second)
             assertEquals(0, sourceRequests)
         }
@@ -2479,9 +2485,9 @@ class MobilePlayerAudioTest {
 
         assertFalse(relay(unauthorized).cause is HttpDataSource.InvalidResponseCodeException)
         assertTrue(relay(unauthorized).toPlaybackFailure() is PlaybackFailure.MediaCredentialUnavailable)
-        assertTrue(relay(missing).toPlaybackFailure() is PlaybackFailure.Unexpected)
-        assertTrue(relay(offline).toPlaybackFailure() is PlaybackFailure.NetworkUnavailable)
-        assertTrue(relay(decoder).toPlaybackFailure() is PlaybackFailure.Unexpected)
+        assertTrue(relay(missing).toPlaybackFailure().putioFailure is PutioFailure.Unexpected)
+        assertTrue(relay(offline).toPlaybackFailure().putioFailure is PutioFailure.NetworkUnavailable)
+        assertTrue(relay(decoder).toPlaybackFailure().putioFailure is PutioFailure.Unexpected)
     }
 
     @Test
@@ -2535,7 +2541,8 @@ class MobilePlayerAudioTest {
 
         compose.onNodeWithText("Preparing audio").assertIsDisplayed()
         compose.runOnIdle {
-            content = PlaybackContent.Failed(PlaybackFailure.Unexpected(IllegalStateException("boom")))
+            content =
+                PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("boom"))))
         }
         compose.onNodeWithText("Couldn’t play this audio").assertIsDisplayed()
     }
@@ -3068,7 +3075,7 @@ class MobilePlayerCodecTest {
                 PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK,
             )
 
-        assertTrue(error.toPlaybackFailure() is PlaybackFailure.Unexpected)
+        assertTrue(error.toPlaybackFailure().putioFailure is PutioFailure.Unexpected)
     }
 
     @Test
@@ -3080,6 +3087,6 @@ class MobilePlayerCodecTest {
                 PlaybackException.ERROR_CODE_DECODING_FAILED,
             )
 
-        assertTrue(error.toPlaybackFailure() is PlaybackFailure.Unexpected)
+        assertTrue(error.toPlaybackFailure().putioFailure is PutioFailure.Unexpected)
     }
 }

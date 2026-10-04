@@ -5,11 +5,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.putioFailure
 
 /**
  * Playback replaces the signed-in shell rather than covering it, so no shell control can
@@ -51,7 +53,7 @@ internal fun TvPlaybackRoute(
         is PlaybackContent.NextFailed -> content.failure
         else -> null
     }
-    val sessionRejected = failure is PlaybackFailure.AuthenticationRequired
+    val sessionRejected = failure?.putioFailure is PutioFailure.AuthenticationRequired
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
     TvPlayerScreen(
         state = state,
