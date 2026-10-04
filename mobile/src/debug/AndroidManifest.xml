@@ -5,10 +5,12 @@
         <activity
             android:name="androidx.activity.ComponentActivity"
             android:configChanges="assetsPaths" />
-        <!-- Preserve injected video proof content while its real window changes orientation. -->
+        <!-- Preserve injected video proof content while its real window changes orientation or
+             size, and host the video's picture-in-picture as MainActivity does. -->
         <activity
             android:name=".MobileFullscreenProofActivity"
-            android:configChanges="orientation|screenSize|assetsPaths"
-            android:exported="false" />
+            android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|assetsPaths"
+            android:exported="false"
+            android:supportsPictureInPicture="true" />
     </application>
 </manifest>

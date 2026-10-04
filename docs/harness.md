@@ -1116,7 +1116,7 @@ authentication; report it as synthetic proof.
 - `homeEntersTheWindowWhichKeepsPlayingObeysItsControlsAndExpandsWherePlaybackIs`: Home enters
   the window, playback advances and the position observer reports from it, the menu's Pause holds
   the position, Play resumes, and Expand returns to the same Activity and player, playing on past
-  where it expanded.
+  where it expanded, straight to landscape with no portrait configuration on the way.
 - `closingTheWindowStopsTheVideoAndTheNextVisitFindsItPaused`: Close stops the Activity and writes
   the position; relaunching from the launcher builds a new player that waits, paused, within one
   second of it.

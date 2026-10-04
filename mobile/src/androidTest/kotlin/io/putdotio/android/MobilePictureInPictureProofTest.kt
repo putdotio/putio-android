@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
@@ -10,6 +11,7 @@ import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.activity.compose.setContent
+import androidx.core.util.Consumer
 import androidx.lifecycle.Lifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -102,12 +104,19 @@ class MobilePictureInPictureProofTest {
             await("playing on in the window again") { it.currentPosition > paused + 1_000 }
             val beforeExpand = onMain { factory.current().currentPosition }
 
+            // A landscape video expands straight to landscape, never through the launcher's portrait.
+            val orientations = mutableListOf<Int>()
+            val listener = Consumer<Configuration> { orientations += it.orientation }
+            onMain { activity.addOnConfigurationChangedListener(listener) }
             pressUntil("expanded", menu.expand) { !activity.isInPictureInPictureMode }
             awaitActivity("resumed full screen") { it.lifecycle.currentState == Lifecycle.State.RESUMED }
             await("playing on after expanding") { it.isPlaying && it.currentPosition > beforeExpand }
             scenario.onActivity { assertSame(activity, it) }
             assertEquals(1, factory.created)
             SystemClock.sleep(SETTLE_MILLIS)
+            onMain { activity.removeOnConfigurationChangedListener(listener) }
+            assertTrue("Orientations after Expand: $orientations", Configuration.ORIENTATION_PORTRAIT !in orientations)
+            assertEquals(Configuration.ORIENTATION_LANDSCAPE, onMain { activity.resources.configuration.orientation })
             screenshot("04-expanded")
             // The controls show where playback is after the round trip.
             val (width, height) = onMain { activity.window.decorView.run { width to height } }

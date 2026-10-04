@@ -281,23 +281,26 @@ plays: Android 12 and later enter on their own, Android 8 to 11 on the leave hin
 offered only while the video holds the screen on (playing, not ended, idle or suppressed), so
 never for paused, finished or failed video, the resume prompt, the conversion interstitial or
 audio, which keeps playing through its background service. There is no setting; iOS's player has
-none either. The window takes the video's display shape, held between 1:2.38 and 2.38:1 so every
-device accepts it, and animates from the letterboxed video rather than the whole screen.
+none either. The window takes the video's display shape, held between 1:2.38 and 2.38:1 within
+the platform's default limits, and animates from the letterboxed video rather than the whole
+screen. A device that refuses the shape or the window, and an Activity whose manifest does not
+declare `supportsPictureInPicture`, give the video no window instead of failing.
 
 The window shows only the video and its subtitles: the controls, the back button and seek
 feedback leave composition, which also closes an open settings sheet. Its menu carries one
 action, Pause or Play, which drives the screen's own player through Media3's play and pause
 handling. MainActivity handles the orientation, screen size and layout changes the window brings,
 so entering or leaving it never recreates the Activity or its player; rotation anywhere in the
-app no longer recreates it either.
+app no longer recreates it either. Expanding returns a landscape video straight to landscape: the
+phone's landscape lock ignores picture-in-picture's own multi-window mode.
 
 Entering the window pauses the Activity, not the video. On the API 37 emulator the Activity's own
 picture-in-picture flag is already set when the pause arrives, before mode listeners hear it;
 where a pause still beats the flag, the window resumes what it stopped. In the window the started
 Activity counts as the foreground: a pause or play there is what Expand keeps, and autoplay next
-starts the next video playing in the window. When autoplay finds nothing more, the window stays on
-the finished video and the route returns only once the window closes or expands, so the window
-never shows the shell. The screen-on hold follows playback as it does full screen, and position
+starts the next video playing in the window. When autoplay finds nothing more, the window goes
+blank and the route returns only once the window closes or expands, so the window never shows
+the shell. The screen-on hold follows playback as it does full screen, and position
 reporting is unchanged: the observer samples every 15 seconds while the window plays.
 
 Expand returns to the full-screen player where the window was. Closing the window stops the

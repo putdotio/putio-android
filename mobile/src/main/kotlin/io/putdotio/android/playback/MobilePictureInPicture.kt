@@ -1,11 +1,13 @@
 package io.putdotio.android.playback
 
+import android.app.Activity
 import android.app.PendingIntent
 import android.app.RemoteAction
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Rational
@@ -61,7 +63,7 @@ internal fun Lifecycle.State.withPictureInPicture(pictureInPicture: Boolean): Li
  * Offers the video to picture-in-picture while it is [playing]: Android 12 and later enter on
  * their own when the viewer leaves, earlier versions on the leave hint. The window takes the
  * video's shape, and its one action asks [onPlayingRequested] to pause or play the screen's own
- * player.
+ * player. A host Activity whose manifest does not declare the window gets none.
  */
 @Composable
 internal fun MobilePictureInPictureEffect(
@@ -70,7 +72,11 @@ internal fun MobilePictureInPictureEffect(
     videoFrame: Rect?,
     onPlayingRequested: (Boolean) -> Unit,
 ) {
-    val activity = LocalActivity.current as? PictureInPictureProvider ?: return
+    val host = LocalActivity.current ?: return
+    // The platform throws for an Activity that does not declare the window.
+    val declared = remember(host) { host.declaresPictureInPicture() }
+    val activity = host as? PictureInPictureProvider
+    if (!declared || activity == null) return
     val context = LocalContext.current
     val actions = remember(context) { PictureInPictureActions(context) }
     val params = remember(playing, videoSize, videoFrame, actions) {
@@ -78,15 +84,19 @@ internal fun MobilePictureInPictureEffect(
     }
     val currentParams by rememberUpdatedState(params)
     val currentOnPlayingRequested by rememberUpdatedState(onPlayingRequested)
-    LaunchedEffect(activity, params) { activity.setPictureInPictureParams(params) }
+    LaunchedEffect(activity, params) {
+        if (!pictureInPictureCall { activity.setPictureInPictureParams(params) }) activity.withdrawPictureInPicture()
+    }
     DisposableEffect(activity) {
-        val leaveHint = Runnable {
-            if (currentParams.isEnabled) activity.enterPictureInPictureMode(currentParams)
-        }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) activity.addOnUserLeaveHintListener(leaveHint)
-        onDispose {
-            activity.removeOnUserLeaveHintListener(leaveHint)
-            activity.setPictureInPictureParams(PictureInPictureParamsCompat.Builder().setEnabled(false).build())
+        onDispose { activity.withdrawPictureInPicture() }
+    }
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+        DisposableEffect(activity) {
+            val leaveHint = Runnable {
+                if (currentParams.isEnabled) pictureInPictureCall { activity.enterPictureInPictureMode(currentParams) }
+            }
+            activity.addOnUserLeaveHintListener(leaveHint)
+            onDispose { activity.removeOnUserLeaveHintListener(leaveHint) }
         }
     }
     DisposableEffect(context) {
@@ -142,6 +152,35 @@ internal fun PictureInPictureDismissalEffect(onDismissed: () -> Unit) {
             activity.removeOnPictureInPictureModeChangedListener(modeListener)
         }
     }
+}
+
+private fun PictureInPictureProvider.withdrawPictureInPicture() {
+    pictureInPictureCall { setPictureInPictureParams(PictureInPictureParamsCompat.Builder().setEnabled(false).build()) }
+}
+
+/**
+ * A device may narrow the platform's shape limits or refuse the window outright; the platform
+ * then throws, and the video simply gets no window.
+ */
+private inline fun pictureInPictureCall(call: () -> Unit): Boolean =
+    try {
+        call()
+        true
+    } catch (_: IllegalArgumentException) {
+        false
+    } catch (_: IllegalStateException) {
+        false
+    }
+
+// The ComponentInfoFlags overload exists only from API 33; this one answers on every supported level.
+@Suppress("DEPRECATION")
+private fun Activity.declaresPictureInPicture(): Boolean {
+    val flags = try {
+        packageManager.getActivityInfo(componentName, 0).flags
+    } catch (_: PackageManager.NameNotFoundException) {
+        0
+    }
+    return flags and FLAG_SUPPORTS_PICTURE_IN_PICTURE != 0
 }
 
 internal fun pictureInPictureParams(
@@ -218,6 +257,10 @@ private fun remoteAction(
     )
     return RemoteAction(Icon.createWithResource(context, icon), title, title, intent)
 }
+
+// ActivityInfo.FLAG_SUPPORTS_PICTURE_IN_PICTURE, which the SDK hides; set from the manifest's
+// supportsPictureInPicture since Android 7.
+private const val FLAG_SUPPORTS_PICTURE_IN_PICTURE = 0x400000
 
 // Inside the platform's 2.39:1 limits, so a rounding difference can never make the shape invalid.
 private const val WIDEST_HUNDREDTHS = 238

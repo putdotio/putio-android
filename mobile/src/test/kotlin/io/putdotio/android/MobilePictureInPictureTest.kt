@@ -3,6 +3,7 @@ package io.putdotio.android
 import android.app.Application
 import android.app.PictureInPictureParams
 import android.content.Context
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Looper
@@ -254,9 +255,41 @@ class MobilePictureInPictureTest {
     }
 
     @Test
+    fun aHostThatDoesNotDeclareTheWindowNeverAsksForIt() {
+        val host = launchHost(UndeclaredHostActivity::class.java, declaresPictureInPicture = false)
+        val activity = host.get()
+        val player = RecordingPlayer()
+        activity.setContent { PutioTheme { PlayerScreen(videoState(), MobilePlayerFactory { _, _ -> player }) } }
+        reportPlaying(player)
+        compose.runOnIdle { player.updateVideoSize(VideoSize(1_920, 1_080)) }
+        compose.runOnIdle { assertTrue(activity.params.isEmpty()) }
+        host.close()
+        assertTrue(activity.params.isEmpty())
+    }
+
+    @Test
+    fun aShapeTheDeviceRefusesLeavesTheVideoWithoutAWindow() {
+        val host = launchHost(ShapeRefusingHostActivity::class.java)
+        val activity = host.get()
+        val player = RecordingPlayer()
+        activity.setContent { PutioTheme { PlayerScreen(videoState(), MobilePlayerFactory { _, _ -> player }) } }
+        reportPlaying(player)
+        compose.runOnIdle { player.updateVideoSize(VideoSize(1_920, 1_080)) }
+        compose.runOnIdle {
+            assertTrue(player.playWhenReady)
+            assertFalse(activity.params.last().isAutoEnterEnabled)
+        }
+        host.close()
+    }
+
+    @Test
     fun windowResizesKeepTheActivityAndItsPlayer() {
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         val before = controller.get()
+        val players = mutableListOf<RecordingPlayer>()
+        val factory = MobilePlayerFactory { _, _ -> RecordingPlayer().also(players::add) }
+        before.setContent { PutioTheme { PlayerScreen(videoState(), factory) } }
+        compose.runOnIdle { assertTrue(players.single().playWhenReady) }
         val pictureInPicture = Configuration(before.resources.configuration).apply {
             orientation = Configuration.ORIENTATION_LANDSCAPE
             screenWidthDp = 240
@@ -265,7 +298,11 @@ class MobilePictureInPictureTest {
             screenLayout = Configuration.SCREENLAYOUT_SIZE_SMALL or Configuration.SCREENLAYOUT_LONG_NO
         }
         controller.configurationChange(pictureInPicture)
-        assertSame(before, controller.get())
+        compose.runOnIdle {
+            assertSame(before, controller.get())
+            assertFalse(players.single().released)
+            assertTrue(players.single().playWhenReady)
+        }
         controller.close()
     }
 
@@ -288,10 +325,27 @@ class MobilePictureInPictureTest {
         compose.runOnIdle { assertTrue(player.playWhenReady) }
     }
 
-    private fun launchHost(): ActivityController<PictureInPictureHostActivity> {
+    private fun launchHost(): ActivityController<PictureInPictureHostActivity> =
+        launchHost(PictureInPictureHostActivity::class.java)
+
+    private fun <T : PictureInPictureHostActivity> launchHost(
+        type: Class<T>,
+        declaresPictureInPicture: Boolean = true,
+    ): ActivityController<T> {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        shadowOf(application.packageManager).setSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE, true)
-        return Robolectric.buildActivity(PictureInPictureHostActivity::class.java).setup()
+        val packageManager = shadowOf(application.packageManager)
+        packageManager.setSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE, true)
+        packageManager.addOrUpdateActivity(
+            ActivityInfo().apply {
+                name = type.name
+                packageName = application.packageName
+                // What the manifest's supportsPictureInPicture sets; the SDK hides the constant.
+                if (declaresPictureInPicture) {
+                    flags = flags or ActivityInfo::class.java.getField("FLAG_SUPPORTS_PICTURE_IN_PICTURE").getInt(null)
+                }
+            },
+        )
+        return Robolectric.buildActivity(type).setup()
     }
 
     private fun ComponentActivity.pictureInPicture(active: Boolean) =
@@ -304,11 +358,27 @@ class MobilePictureInPictureTest {
 }
 
 /** Records what the screen asks of the platform; Robolectric has no window manager to enter it. */
-class PictureInPictureHostActivity : ComponentActivity() {
+open class PictureInPictureHostActivity : ComponentActivity() {
     val params = mutableListOf<PictureInPictureParams>()
 
     override fun setPictureInPictureParams(params: PictureInPictureParams) {
         this.params += params
+    }
+
+    override fun enterPictureInPictureMode(params: PictureInPictureParams): Boolean {
+        this.params += params
+        return true
+    }
+}
+
+/** Its manifest entry, as the test registers it, lacks supportsPictureInPicture. */
+class UndeclaredHostActivity : PictureInPictureHostActivity()
+
+/** A device whose narrower limits refuse every shape, as the platform does with an exception. */
+class ShapeRefusingHostActivity : PictureInPictureHostActivity() {
+    override fun setPictureInPictureParams(params: PictureInPictureParams) {
+        require(params.aspectRatio == null) { "Invalid aspect ratio" }
+        super.setPictureInPictureParams(params)
     }
 }
 
