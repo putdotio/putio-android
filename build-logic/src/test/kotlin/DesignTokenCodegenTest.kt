@@ -101,4 +101,15 @@ class DesignTokenCodegenTest {
         assertTrue(error is IllegalStateException)
         assertTrue(error!!.message!!.contains("tv-overscan-y"))
     }
+
+    @Test
+    fun generatesXmlColorsForTheResourceTokensOnly() {
+        val dtcg = java.io.File("../design/tokens.dtcg.json").readText()
+        val xml = DesignTokenCodegen.generateColorResources(dtcg, "3.3.0")
+        assertTrue(xml.contains("<color name=\"putio_yellow_solid\">#FFFDCE45</color>"))
+        // Dark mode wins here too.
+        assertTrue(xml.contains("<color name=\"putio_app_bg\">#FF161616</color>"))
+        assertEquals(DesignTokenCodegen.RESOURCE_TOKENS.size, Regex("<color ").findAll(xml).count())
+        assertTrue(!xml.contains("putio_red_solid"))
+    }
 }

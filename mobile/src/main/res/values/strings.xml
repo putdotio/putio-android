@@ -433,6 +433,28 @@
     <string name="mobile_downloads_notification_completed">Download finished</string>
     <string name="mobile_downloads_notification_failed">Download failed</string>
     <string name="mobile_downloads_notification_failed_text">%1$s\n%2$s</string>
+    <string name="mobile_downloads_notification_open">Open in Downloads</string>
+    <!-- Home-screen Transfers widget. -->
+    <string name="mobile_widget_transfers_label">put.io transfers</string>
+    <string name="mobile_widget_transfers_description">Active transfers and their progress</string>
+    <string name="mobile_widget_transfers_loading">Loading transfers…</string>
+    <string name="mobile_widget_transfers_empty">No active transfers</string>
+    <string name="mobile_widget_transfers_signed_out">Sign in to put.io to see your transfers.</string>
+    <string name="mobile_widget_transfers_unavailable">Couldn’t reach put.io. Tap refresh to try again.</string>
+    <string name="mobile_widget_transfers_status_percent">%1$s · %2$d%%</string>
+    <string name="mobile_widget_transfers_updated">Updated %1$s</string>
+    <plurals name="mobile_widget_transfers_updated_more">
+        <item quantity="one">Updated %1$s · %2$d more</item>
+        <item quantity="other">Updated %1$s · %2$d more</item>
+    </plurals>
+    <string name="mobile_widget_refresh">Refresh</string>
+    <!-- Launcher shortcuts: long-press the app icon. -->
+    <string name="mobile_shortcut_search_short">Search</string>
+    <string name="mobile_shortcut_search_long">Search put.io</string>
+    <string name="mobile_shortcut_add_transfer_short">Add</string>
+    <string name="mobile_shortcut_add_transfer_long">Add transfer</string>
+    <string name="mobile_shortcut_downloads_short">Downloads</string>
+    <string name="mobile_shortcut_downloads_long">Downloads</string>
     <plurals name="mobile_downloads_notification">
         <item quantity="one">Downloading %1$d file</item>
         <item quantity="other">Downloading %1$d files</item>

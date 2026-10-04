@@ -10,11 +10,13 @@ import io.putdotio.android.BuildConfig
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.documents.MobileDocumentsProvider
 import io.putdotio.android.downloads.MobileDownloadCache
+import io.putdotio.android.downloads.MobileDownloadNotifications
 import io.putdotio.android.downloads.OfflinePlaybackPositions
 import io.putdotio.android.downloads.PositionRemote
 import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileShareService
+import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +25,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration
 import io.putdotio.android.playback.MobilePlaybackReporting
 
 internal fun interface OAuthRuntimeFailureReporter {
@@ -110,6 +115,15 @@ class MobileOAuthRuntime internal constructor(
         }
     }
 
+    /**
+     * The session once it settles, for a component without a screen: a stored one is restored first.
+     * Null while restore or validation is still running after [timeout].
+     */
+    internal suspend fun awaitSettledSession(timeout: Duration): MobileAuthState? {
+        ensureSessionRestored {}
+        return withTimeoutOrNull(timeout) { authController.state.first { it.isSettled() } }
+    }
+
     /** put.io rejected [sessionId] outside any screen; signs it out unless another session replaced it. */
     internal fun rejectSession(sessionId: MobileAuthSessionId) {
         applicationScope.launch { authController.rejectAuthoritativeSession(sessionId) }
@@ -191,8 +205,17 @@ class MobileOAuthRuntime internal constructor(
                 onSessionLeft = { session ->
                     MobileFileShareService.endSession(context, session)
                     MobileDocumentsProvider.sessionLeft(context)
+                    // The collector can lag the next sign-in; that account's outcomes stay.
+                    MobileDownloadNotifications.cancelOtherAccounts(
+                        context,
+                        (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId,
+                    )
+                    MobileWidgets.sessionLeft(context)
                 },
-                onSessionStarted = { MobileDocumentsProvider.sessionStarted(context) },
+                onSessionStarted = {
+                    MobileDocumentsProvider.sessionStarted(context)
+                    MobileWidgets.sessionStarted(context)
+                },
             ).also { runtime ->
                 syncWhenOnline(context, runtime.keepOfflinePositions(downloadPreferences(context)))
             }

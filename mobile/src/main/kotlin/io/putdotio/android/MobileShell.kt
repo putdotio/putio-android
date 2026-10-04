@@ -50,6 +50,7 @@ import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
+import io.putdotio.android.downloads.toFilesItem
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
@@ -182,11 +183,15 @@ internal fun MobileShell(
     val shareNavigationBlocked = shareNavigationBlocked(filesState, trashState, transfersState, nowPlayingPending)
     DeepLinkNavigationEffect(
         deepLinkRequests = deepLinkRequests,
+        userId = account.userId,
         navigationReady = backStackEntry != null,
         navigationBlocked = shareNavigationBlocked,
         navController = navController,
-        onOpenFile = onOpenFile,
-        onFocusDownload = { fileId -> downloadsController?.dispatch(DownloadsEvent.Focus(fileId)) },
+        targets = DeepLinkTargets(
+            openFile = onOpenFile,
+            openDownload = { fileId, play -> navController.openDownload(downloadsController, fileId, play) },
+            addTransfer = transferDraft::open,
+        ),
     )
     IncomingTransferNavigationEffect(
         incomingRequestId = incomingDraft.incomingRequestId,
@@ -334,46 +339,63 @@ private fun shareNavigationBlocked(
 } || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving ||
     transfersState.mutation is TransferMutation.Running || nowPlayingPending
 
+/** What a routed link opens beyond plain navigation. */
+private class DeepLinkTargets(
+    val openFile: suspend (FilesItemId) -> Unit,
+    val openDownload: (FilesItemId, play: Boolean) -> Unit,
+    val addTransfer: () -> Unit,
+)
+
 @Composable
 private fun DeepLinkNavigationEffect(
     deepLinkRequests: MobileDeepLinkRequests,
+    userId: Long,
     navigationReady: Boolean,
     navigationBlocked: Boolean,
     navController: NavHostController,
-    onOpenFile: suspend (FilesItemId) -> Unit,
-    onFocusDownload: (FilesItemId) -> Unit,
+    targets: DeepLinkTargets,
 ) {
     val pendingDeepLink by deepLinkRequests.pending.collectAsStateWithLifecycle()
     // Keyed on readiness rather than the entry so the navigation a link causes cannot restart it.
-    LaunchedEffect(pendingDeepLink, navigationReady, navigationBlocked) {
+    LaunchedEffect(pendingDeepLink, navigationReady, navigationBlocked, userId) {
         val link = pendingDeepLink ?: return@LaunchedEffect
         if (!navigationReady || navigationBlocked) return@LaunchedEffect
-        // A newer link restarts this effect and cancels an unfinished file resolve.
-        navController.openDeepLink(link, onOpenFile, onFocusDownload)
+        // A newer link restarts this effect and cancels an unfinished file resolve. One scoped to
+        // another account, such as an earlier account's notification, is dropped unopened.
+        if (link.belongsTo(userId)) navController.openDeepLink(link, targets)
         deepLinkRequests.acknowledge(link)
     }
 }
 
-private suspend fun NavHostController.openDeepLink(
-    link: MobileDeepLink,
-    onOpenFile: suspend (FilesItemId) -> Unit,
-    onFocusDownload: (FilesItemId) -> Unit,
-) {
+private suspend fun NavHostController.openDeepLink(link: MobileDeepLink, targets: DeepLinkTargets) {
     when (link) {
         MobileDeepLink.Files -> navigateTo(MobileDestination.Files)
         is MobileDeepLink.File -> {
             navigateTo(MobileDestination.Files)
-            onOpenFile(link.id)
+            targets.openFile(link.id)
         }
         MobileDeepLink.Transfers -> navigateTo(MobileDestination.Transfers)
+        MobileDeepLink.AddTransfer -> {
+            navigateTo(MobileDestination.Transfers)
+            // Tab restoration can bring back playback above Transfers; the sheet belongs to Transfers.
+            popBackStack(MobileDestination.Transfers.route, inclusive = false)
+            targets.addTransfer()
+        }
         MobileDeepLink.Search, MobileDeepLink.History -> navigateTo(MobileDestination.Search)
         MobileDeepLink.Trash -> navigateToTrash()
         is MobileDeepLink.Downloads -> {
             navigateTo(MobileDestination.Account)
             navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true }
-            link.fileId?.let(onFocusDownload)
+            link.fileId?.let { targets.openDownload(it, link.play) }
         }
     }
+}
+
+/** Plays a copy on this device over Downloads when asked to and it is there; otherwise opens its row. */
+private fun NavHostController.openDownload(controller: DownloadsController?, fileId: FilesItemId, play: Boolean) {
+    val state = controller?.state?.value ?: return
+    val entry = state.entry(fileId)?.takeIf { play && state.isAvailableOffline(fileId) }
+    if (entry != null) navigateToPlayback(entry.toFilesItem()) else controller.dispatch(DownloadsEvent.Focus(fileId))
 }
 
 @Composable

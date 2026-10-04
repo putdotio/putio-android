@@ -27,6 +27,7 @@ val generateDesignTokens = tasks.register<GenerateDesignTokensTask>("generateDes
             },
     )
     outputDir.set(layout.buildDirectory.dir("generated/designTokens/kotlin"))
+    resOutputDir.set(layout.buildDirectory.dir("generated/designTokens/res"))
 }
 
 androidComponents {
@@ -34,6 +35,10 @@ androidComponents {
         variant.sources.kotlin?.addGeneratedSourceDirectory(
             generateDesignTokens,
             GenerateDesignTokensTask::outputDir,
+        )
+        variant.sources.res?.addGeneratedSourceDirectory(
+            generateDesignTokens,
+            GenerateDesignTokensTask::resOutputDir,
         )
     }
 }

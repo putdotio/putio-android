@@ -774,16 +774,39 @@ against each merged manifest in `check`.
 (`autoVerify`; the `assetlinks.json` publication is a release-owner task, so
 unverified installs still open through the app chooser or an explicit package)
 and `putio://{files,transfers,search,history,trash,downloads}`, plus
+`putio://transfers/add`, which opens Transfers with an empty Add transfer sheet,
 `putio://downloads/<id>`, which a download notification opens to show that
-row's actions. `putio://auth`
+row's actions, and `putio://downloads/<id>/play`, which plays that row's copy
+on this device over Downloads or, without one, opens the row. Links a download
+notification builds add `?user=<userId>`: under any other account the shell
+drops them unopened, and a `user` that is not an account id voids the link. No
+other query is read. `putio://auth`
 stays with the OAuth receiver. A link is consumed once per Activity intent, any
 put.io URI is removed from the retained intent, and routing waits for sign-in;
-an unrouted link survives process death as its token-free `putio://` form. A file
+an unrouted link survives process death as its token-free `putio://` form,
+`user` included. A file
 id resolves through the item resolver, opens as under
 [History opens](#timestamps-and-history-opens) with Back staying in Files, and
 reuses the navigation-failure dialog.
 
-Tests: `MobileDeepLinksTest`, `MainActivityDeepLinkTest`.
+Tests: `MobileDeepLinksTest`, `MainActivityDeepLinkTest`, `MobileShellLinkActionsTest`.
+
+## App shortcuts
+
+Long-pressing the mobile launcher icon offers three static shortcuts: Search
+(`putio://search`), Add transfer (`putio://transfers/add`) and Downloads
+(`putio://downloads`). Each is an explicit `ACTION_VIEW` intent for this
+variant's `MainActivity`, whose package the build generates from the variant's
+application id, so production, nightly and debug installs never open each
+other's. Each routes as the product link it carries under
+[Deep links](#deep-links): signed out, the app shows sign-in and opens the
+target once signed in. Add transfer opens an empty sheet and adds nothing until
+the viewer taps Add; no shortcut changes anything on its own. The shortcuts
+need no session, so the launcher lists them from install. Their icons are
+adaptive: a Phosphor glyph on the brand yellow, in the launcher's own shape.
+
+Tests: `MobileShortcutsTest` (reads `shortcuts.xml` with the platform's own
+intent parser), `MobileShellLinkActionsTest`, `MobileDeepLinksTest`.
 
 ## Timestamps and History opens
 
@@ -943,13 +966,29 @@ the delete on the next start.
 
 **Notifications.** When a download finishes or fails, with or without the app
 open, a notification names the file and opens its row in Downloads; the lock
-screen sees the outcome without the name. Each file has one slot, cleared by a
-retry or a delete. Only the account signed in now is notified, so one account's
+screen sees the outcome without the name. A finished download's notification
+offers Play, which plays the copy on this device over Downloads (or opens the
+row if the copy is gone), and Open in Downloads; a failed one offers Try again
+and Open in Downloads. Play, Open and the tap are explicit, immutable intents
+for MainActivity carrying `putio://downloads/<id>[/play]?user=<userId>`, so
+under another account they open nothing (see [Deep links](#deep-links)). Try
+again is an explicit, immutable broadcast to an unexported receiver, so no
+other app can send it. It hands the download back to Media3 without opening
+the app, and the row follows Media3's state as after any background change,
+but only for the account that owns it, once the session settles (a stored one
+is restored first, for up to 15 s), and only while the row is still failed or
+missing. Under another account or none, or for a row that is gone, it removes
+the notification instead; while the session cannot be confirmed it does
+nothing. Each file has one slot, cleared by a retry, a delete or the end of
+its account's session: when a session ends, every outcome of an account other
+than the one signed in then is removed. Only the account signed in now is
+notified, so one account's
 outcome never appears while another is signed in. Nothing is posted while the
 app's notifications or the Finished downloads channel are off, or, on Android
 13 and later, while POST_NOTIFICATIONS is not granted. The first download asks for that permission
 once; afterwards Downloads shows a notice whose Turn on asks again while the
-system allows it and otherwise opens the app's notification settings.
+system allows it and otherwise opens the app's notification settings. Transfers
+post no notifications, so they have no actions.
 
 **Offline resume.** Offline playback resumes like streaming: with the resume
 setting confirmed this session, else the one this device last confirmed, else
@@ -974,16 +1013,58 @@ copies, concurrency, progress polling while shown), `MobileDownloadsScreenTest`
 (queue order and places, the limit, the notification notice, selection,
 shown and hidden events), `MobileShellDownloadsTest` (bulk delete never reaches
 put.io, notification links, the subtitle setting a Files download carries),
-`MobileDownloadStoreTest` (unreadable rows kept), `MobileDownloadEngineTest` (queue order and limit
+`MobileDownloadStoreTest` (unreadable rows kept), `MobileDownloadActionReceiverTest` (Try again for the
+owner only), `MobileDownloadEngineTest` (queue order and limit
 across process recreation, recovery of every row state, rows rebuilt for
 downloads an unreadable index lost, low-storage pause, reconcile, sign-out parking, account
 isolation, close before reconcile, in-memory progress and its denominator, the
 recorded request URL and the local-copy check against a real Media3 manager and
 cache), `MobileDownloadNotificationsTest` (granted, denied and disabled states,
-signed-in account only), `OfflinePlaybackPositionsTest` (sync rules, the
+signed-in account only, actions and their intents, other accounts' outcomes at a
+session's end), `OfflinePlaybackPositionsTest` (sync rules, the
 player's write racing a pass, refused files), `MobilePlaybackReportingTest`
 (cold offline start), `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`, `MobileDeepLinksTest`.
+
+## Transfers widget
+
+Mobile offers a resizable four-by-two Transfers home-screen widget. Signed in,
+it lists up to three transfers still running (anything but completed or
+failed, seeding included) from the first page of the account's transfers,
+newest first. Each row shows the status in the Transfers screen's words, a
+percentage when put.io reports one and a progress bar, indeterminate without
+one; a footer says when the rows were read and how many more are running. With
+none it reads No active transfers. A tap opens Transfers through
+`putio://transfers`, and a refresh button reads again. Signed out it reads Sign
+in to put.io to see your transfers, with no refresh button, and a tap opens
+sign-in, then Transfers.
+
+It reads the transfers through the SDK in the signed-in session, never with a
+token of its own: when it is placed, every 30 minutes (`updatePeriodMillis`,
+the platform's shortest period), on sign-in, on its refresh button, and
+whenever the Transfers screen loads rows, which it shows without a request of
+its own. With no widget placed nothing is read. A refresh replaces one still
+running and gives up after 25 s. In a process the app has not started it
+restores the stored session first, for up to 15 s, as the download service
+does. A 401 signs the session out as anywhere else. A failed read keeps rows
+already shown, with the time they were read; with none shown, or when the
+session cannot be confirmed, it reads Couldn't reach put.io.
+
+Rows belong to the session that read them. A read is shown only while that
+session is still signed in, checked under one lock with sign-out, so a read
+that finishes after sign-out or an account switch is dropped. A session's end
+(sign-out, a rejected session, a cold start whose restore ends signed out)
+replaces every placed widget with the signed-out state at once and empties
+each row's text too, because launchers reapply new views onto the old ones.
+Nothing is stored: the launcher holds the only copy of the names, and the
+widget's intents carry token-free product links. The refresh button is an
+explicit, immutable broadcast to an unexported receiver. Its colors are the
+generated design tokens' XML colors (`@color/putio_*`).
+
+Tests: `MobileTransfersWidgetTest` (each auth state against Robolectric's
+widget host, which reapplies views as launchers do: sign-out, a read that
+outlives its session, an account switch, a 401, failed reads, no widget, the
+Transfers screen's rows, intents).
 
 ## TV Back
 

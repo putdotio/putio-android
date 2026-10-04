@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher shortcuts, written to each variant's res/xml/shortcuts.xml by GenerateShortcutsTask with
+     its application id: the platform reads targetPackage literally, never as a resource reference.
+     Each opens a product link through MainActivity, which waits for sign-in and routes it like any
+     other; none of them changes anything without a confirmation in the app. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_search"
+        android:shortcutId="search"
+        android:shortcutLongLabel="@string/mobile_shortcut_search_long"
+        android:shortcutShortLabel="@string/mobile_shortcut_search_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="putio://search"
+            android:targetClass="io.putdotio.android.MainActivity"
+            android:targetPackage="${applicationId}" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_add_transfer"
+        android:shortcutId="add-transfer"
+        android:shortcutLongLabel="@string/mobile_shortcut_add_transfer_long"
+        android:shortcutShortLabel="@string/mobile_shortcut_add_transfer_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="putio://transfers/add"
+            android:targetClass="io.putdotio.android.MainActivity"
+            android:targetPackage="${applicationId}" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/shortcut_downloads"
+        android:shortcutId="downloads"
+        android:shortcutLongLabel="@string/mobile_shortcut_downloads_long"
+        android:shortcutShortLabel="@string/mobile_shortcut_downloads_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="putio://downloads"
+            android:targetClass="io.putdotio.android.MainActivity"
+            android:targetPackage="${applicationId}" />
+    </shortcut>
+</shortcuts>
