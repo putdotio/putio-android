@@ -26,9 +26,12 @@ jobs:
       contents: read
       pull-requests: read
     # Pushes and dispatches verify everything. A pull request whose every path
-    # is docs skips verify; unlisted paths count as code.
+    # is docs skips verify; unlisted paths count as code. `verify` also checks
+    # Markdown; `markdown` covers pull requests that change Markdown, including
+    # the docs-only ones that skip verify.
     outputs:
       code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
+      markdown: ${{ github.event_name == 'pull_request' && steps.filter.outputs.markdown == 'true' }}
     steps:
       - name: Classify changed paths
         id: filter
@@ -43,6 +46,35 @@ jobs:
               - '!docs/**'
               - '!.github/ISSUE_TEMPLATE/**'
               - '!LICENSE'
+            markdown:
+              - '**/*.md'
+
+  markdown:
+    name: Check Markdown
+    needs: changes
+    if: needs.changes.outputs.markdown == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6
+        with:
+          validate-wrappers: true
+
+      - name: Check Markdown formatting
+        run: ./gradlew --stacktrace markdownCheck
 
   # `verify` runs as two parallel jobs that together run exactly its tasks: the
   # minified release builds here, everything else plus the debug assembles in

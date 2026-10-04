@@ -65,8 +65,8 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
 
 ## Setup
 
-The machine provides JDK 21 (pinned in `.java-version`), `python3`, and, on
-macOS, Homebrew. Then run:
+The machine provides JDK 21 (pinned in `.java-version`), Node 20.19 or newer,
+`python3`, and, on macOS, Homebrew. Then run:
 
 ```bash
 ./scripts/bootstrap.sh   # idempotent; --google-tv adds the Google TV image and AVD
@@ -99,9 +99,12 @@ built that way records the SDK checkout's SHA and `git status --short`.
 The root [`verify` task](build.gradle.kts) runs every module's `check` (lint
 with warnings as errors, detekt, JVM unit tests, launcher-manifest checks),
 unsigned minified release builds of both apps, both instrumentation APKs, the
-icon and design-asset lock checks, the script contract tests, and the
-`build-logic` tests. The script checks need `bash` 3.2+, `python3`, `ffprobe`,
-and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
+icon and design-asset lock checks, the script contract tests, the
+`build-logic` tests, and `markdownCheck`. The script checks need `bash` 3.2+,
+`python3`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
+encoder on PATH. `markdownCheck` runs oxfmt through `npx` at the version
+[package.json](package.json) pins for Dependabot;
+`npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
 
 - Fix lint and detekt findings at the source; suppress only the narrowest
   declaration, with a comment naming the constraint. No module has a detekt
@@ -119,7 +122,7 @@ that matches. Report skipped or unavailable proof.
 
 | Change                              | Proof                                                                                                             |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Docs only                           | None; check the links and commands you touched. Pull-request CI skips `verify` for these paths                    |
+| Docs only                           | `./gradlew markdownCheck`; check the links and commands you touched. Pull-request CI runs only `Check Markdown`   |
 | Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module |
 | App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                              |
 | UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md)    |
@@ -144,7 +147,9 @@ reports the jobs as skipped. Two parallel jobs split that work: `Build
 release` runs the three minified release assembles, and `Verify Android app`
 runs `verify` with them excluded plus the debug assembles. When either command
 changes, compare their `--dry-run` task lists with the full command's; together
-they must run exactly the same tasks. CI holds no secrets and keeps
+they must run exactly the same tasks. A pull request that changes Markdown also
+runs `Check Markdown` (`./gradlew markdownCheck`), so docs-only changes still
+get the formatting check. CI holds no secrets and keeps
 failed unit-test XML as the `failed-unit-test-reports` artifact. A new push to
 a pull request cancels its running check; `main` runs never replace each other.
 
