@@ -1,5 +1,6 @@
 package io.putdotio.android.documents
 
+import android.os.CancellationSignal
 import android.os.SystemClock
 import android.provider.DocumentsContract.Document
 import io.putdotio.android.PutioFailure
@@ -16,7 +17,9 @@ import io.putdotio.android.search.SearchTerm
 import java.io.FileNotFoundException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -89,10 +92,13 @@ internal class MobileDocuments(
         return session.listing(DocumentsListingKey.Search(session.key.userId, query, term))
     }
 
-    /** A completed download of the original is read from disk; anything else streams from put.io. */
-    fun open(documentId: String, onReleased: () -> Unit = {}): DocumentReader {
-        val (session, id) = signedIn(documentId)
-        val bytes = session.bytes(id)
+    /**
+     * A completed download of the original is read from disk; anything else streams from put.io. [signal] cancels
+     * the waits for the session and the file, which then throw [android.os.OperationCanceledException].
+     */
+    fun open(documentId: String, signal: CancellationSignal? = null, onReleased: () -> Unit = {}): DocumentReader {
+        val (session, id) = signedIn(documentId, signal)
+        val bytes = session.bytes(id, signal)
         lateinit var reader: DocumentReader
         reader = DocumentReader(
             bytes = bytes,
@@ -110,9 +116,9 @@ internal class MobileDocuments(
         return reader
     }
 
-    private fun signedIn(documentId: String): Pair<Session, PutioDocumentId> {
+    private fun signedIn(documentId: String, signal: CancellationSignal? = null): Pair<Session, PutioDocumentId> {
         val id = PutioDocumentId.parse(documentId)
-        val session = awaitSession()
+        val session = awaitSession(signal)
         if (id == null || session == null || session.key.userId != id.userId) {
             throw FileNotFoundException("Not a document of the signed-in account")
         }
@@ -123,9 +129,9 @@ internal class MobileDocuments(
      * The settled session. A query can arrive before a cold start has restored it; that wait is bounded, and a
      * session still unsettled afterwards reads as signed out.
      */
-    private fun awaitSession(): Session? {
+    private fun awaitSession(signal: CancellationSignal? = null): Session? {
         val state = backend.authState.value.takeIf { it.isSettled() }
-            ?: runBlocking { withTimeoutOrNull(SETTLE_TIMEOUT) { backend.authState.first { it.isSettled() } } }
+            ?: blocking(signal, SETTLE_TIMEOUT) { backend.authState.first { it.isSettled() } }
         return enter(state?.sessionKey())
     }
 
@@ -158,11 +164,11 @@ internal class MobileDocuments(
         }
 
         /** From a listing this session holds, else one exact-ID read from put.io, kept for the session. */
-        fun item(fileId: FilesItemId): FilesItem =
-            listings.find(fileId) ?: synchronized(lock) { resolved[fileId] } ?: resolve(fileId)
+        fun item(fileId: FilesItemId, signal: CancellationSignal? = null): FilesItem =
+            listings.find(fileId) ?: synchronized(lock) { resolved[fileId] } ?: resolve(fileId, signal)
 
-        private fun resolve(fileId: FilesItemId): FilesItem {
-            val result = runBlocking { withTimeoutOrNull(RESOLVE_TIMEOUT) { backend.files.resolveItem(fileId) } }
+        private fun resolve(fileId: FilesItemId, signal: CancellationSignal?): FilesItem {
+            val result = blocking(signal, RESOLVE_TIMEOUT) { backend.files.resolveItem(fileId) }
             if (result is PutioResult.Failure) report(result.failure)
             val item = (result as? PutioResult.Success)?.value
                 ?: throw FileNotFoundException("put.io did not return it")
@@ -170,13 +176,24 @@ internal class MobileDocuments(
             return item
         }
 
-        fun bytes(id: PutioDocumentId): DocumentBytes {
+        fun bytes(id: PutioDocumentId, signal: CancellationSignal?): DocumentBytes {
             val fileId = id.fileId.takeUnless { id.isRoot } ?: throw FileNotFoundException("A folder has no bytes")
             backend.offline(key.userId, fileId)?.let { return it }
-            val file = item(fileId).takeUnless(FilesItem::isFolder)
+            val file = item(fileId, signal).takeUnless(FilesItem::isFolder)
                 ?: throw FileNotFoundException("A folder has no bytes")
-            return backend.remote(file.id, file.sizeBytes)
+            return backend.remote(file.id, file.sizeBytes).endingSessionOn401()
         }
+
+        /** A 401 on the stream ends the session, as a 401 on a listing does. */
+        private fun DocumentBytes.endingSessionOn401(): DocumentBytes =
+            DocumentBytes(size, onDevice) { offset ->
+                try {
+                    open(offset)
+                } catch (error: DownloadUnauthorizedException) {
+                    backend.onAuthenticationRequired(key.sessionId)
+                    throw error
+                }
+            }
 
         fun report(failure: PutioFailure) {
             if (failure is PutioFailure.AuthenticationRequired) backend.onAuthenticationRequired(key.sessionId)
@@ -199,3 +216,23 @@ private fun MobileAuthState.isSettled(): Boolean =
         -> false
         else -> true
     }
+
+/**
+ * Runs [block] on this thread until it returns, [timeout] passes (null), or [signal] cancels it, which throws
+ * [android.os.OperationCanceledException]. A provider call blocks a binder thread; the caller can give it up.
+ */
+private fun <T> blocking(signal: CancellationSignal?, timeout: Duration, block: suspend () -> T): T? {
+    val result = runBlocking {
+        val work = async { withTimeoutOrNull(timeout) { block() } }
+        signal?.setOnCancelListener { work.cancel() }
+        try {
+            work.await()
+        } catch (_: CancellationException) {
+            null
+        } finally {
+            signal?.setOnCancelListener(null)
+        }
+    }
+    signal?.throwIfCanceled()
+    return result
+}

@@ -21,7 +21,8 @@ import kotlinx.coroutines.launch
  * One session's folder and search listings, loaded a page at a time through the app's repositories. A query returns
  * the items that have landed and asks for the next page; each landed page reports its listing so the picker queries
  * again. A failed page is reported once and asked for again on the query after that, so a page that keeps failing
- * cannot loop the picker. An idle listing older than [FRESH_FOR] starts again from its first page.
+ * cannot loop the picker. An idle listing older than [FRESH_FOR] starts again from its first page, showing its old
+ * rows until that page lands.
  *
  * A picker registers for changes only after its query returns, so a page that lands in that gap would go unheard;
  * a landed page is announced again every [RENOTIFY_AFTER], up to [RENOTIFY_TIMES] times, until a query reads it.
@@ -40,10 +41,12 @@ internal class DocumentListings(
 
     fun query(key: DocumentsListingKey): Snapshot =
         synchronized(lock) {
-            val current = listings[key]?.takeUnless { closed || it.isStale(clock()) }
+            val existing = listings[key]
+            val current = existing?.takeUnless { it.isStale(clock()) }
             val next = when {
                 closed -> Listing()
-                current == null -> load(key, Listing(), cursor = null)
+                // A stale listing keeps showing its rows until the fresh first page replaces them.
+                current == null -> load(key, Listing(items = existing?.items.orEmpty()), cursor = null)
                 current.job != null -> current
                 current.failure != null && !current.failureShown -> current.copy(failureShown = true)
                 current.failure != null -> load(key, current, current.failedCursor)

@@ -35,6 +35,7 @@ private fun Response.bodyFrom(offset: Long): InputStream =
         when {
             code == HTTP_PARTIAL_CONTENT && rangeStart() == offset -> body.byteStream()
             code == HTTP_OK -> body.byteStream().apply { skipFully(offset) }
+            code == HTTP_UNAUTHORIZED -> throw DownloadUnauthorizedException()
             else -> throw IOException("Download failed with $code")
         }
     } catch (error: IOException) {
@@ -46,5 +47,9 @@ private fun Response.bodyFrom(offset: Long): InputStream =
 private fun Response.rangeStart(): Long? =
     header("Content-Range")?.removePrefix("bytes ")?.substringBefore('-')?.trim()?.toLongOrNull()
 
+/** put.io refused the session's token on the download endpoint. */
+internal class DownloadUnauthorizedException : IOException("put.io rejected the session")
+
 private const val HTTP_OK = 200
+private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_PARTIAL_CONTENT = 206

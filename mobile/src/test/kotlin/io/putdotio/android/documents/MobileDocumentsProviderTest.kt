@@ -8,6 +8,8 @@ import android.content.pm.ProviderInfo
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
+import android.os.CancellationSignal
+import android.os.OperationCanceledException
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
 import android.provider.DocumentsContract.Root
@@ -36,6 +38,7 @@ import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -281,6 +284,92 @@ class MobileDocumentsProviderTest {
     }
 
     @Test
+    fun aReaderLetsGoOfItsStreamOnceTheSessionEnds() {
+        fixture.auth.value = signedIn(ALICE, session = 1)
+        fixture.offline[FilesItemId(9L)] = "local original".toByteArray()
+        val reader = fixture.documents.open("$ALICE:9")
+        assertEquals(4, reader.onRead(0L, 4, ByteArray(4)))
+        assertEquals(0, fixture.closedStreams)
+
+        fixture.auth.value = MobileAuthState.SignedOut()
+        fixture.settle()
+
+        // The refused read closes the stream; it does not wait for the holder to close the descriptor.
+        assertThrows(ErrnoException::class.java) { reader.onRead(4L, 4, ByteArray(4)) }
+        assertEquals(1, fixture.closedStreams)
+    }
+
+    @Test
+    fun aStaleFolderKeepsItsRowsWhileItsFirstPageReloads() {
+        fixture.auth.value = signedIn(ALICE, session = 1)
+        fixture.files.folders[ROOT] = PutioResult.Success(FilesPage(listOf(file(7L, "old.txt")), null))
+        fixture.children("$ALICE:0").close()
+        fixture.settle()
+        assertEquals(listOf("$ALICE:7"), fixture.children("$ALICE:0").use { it.ids() })
+
+        fixture.now += 31_000L
+        fixture.files.folders[ROOT] = PutioResult.Success(FilesPage(listOf(file(8L, "new.txt")), null))
+        fixture.children("$ALICE:0").use { reloading ->
+            assertEquals(listOf("$ALICE:7"), reloading.ids())
+            assertTrue(reloading.extras.getBoolean(DocumentsContract.EXTRA_LOADING))
+        }
+        fixture.settle()
+        assertEquals(listOf("$ALICE:8"), fixture.children("$ALICE:0").use { it.ids() })
+        assertEquals(listOf(ROOT, ROOT), fixture.files.folderLoads)
+    }
+
+    @Test
+    fun aCancelledOpenStopsWaitingOnPutio() {
+        fixture.auth.value = signedIn(ALICE, session = 1)
+        fixture.files.resolveHangs = true
+        val signal = CancellationSignal()
+        Thread {
+            Thread.sleep(200L)
+            signal.cancel()
+        }.start()
+        val started = System.nanoTime()
+
+        assertThrows(OperationCanceledException::class.java) { fixture.provider.openDocument("$ALICE:10", "r", signal) }
+
+        // Far inside the 15 s the read would otherwise hold the binder thread.
+        assertTrue(System.nanoTime() - started < 5_000_000_000L)
+        assertEquals(1, fixture.files.resolvesCancelled)
+    }
+
+    @Test
+    fun a401OnTheStreamSignsTheSessionOut() {
+        fixture.auth.value = signedIn(ALICE, session = 1)
+        fixture.remoteBytes = ByteArray(100) { it.toByte() }
+        fixture.files.items[FilesItemId(10L)] = file(10L, "clip.mp4", size = 100L)
+        fixture.answer = Answer.UNAUTHORIZED
+        val reader = fixture.documents.open("$ALICE:10")
+
+        assertThrows(ErrnoException::class.java) { reader.onRead(0L, 16, ByteArray(16)) }
+
+        assertEquals(listOf(MobileAuthSessionId(1L)), fixture.rejected)
+    }
+
+    @Test
+    fun aServerThatIgnoresTheRangeIsSkippedToTheOffsetAndAMismatchedRangeIsRefused() {
+        fixture.auth.value = signedIn(ALICE, session = 1)
+        val bytes = ByteArray(1_000) { (it % 251).toByte() }
+        fixture.remoteBytes = bytes
+        fixture.files.items[FilesItemId(10L)] = file(10L, "clip.mp4", size = 1_000L)
+        val buffer = ByteArray(16)
+
+        fixture.answer = Answer.WHOLE_FILE
+        val wholeFile = fixture.documents.open("$ALICE:10")
+        assertEquals(16, wholeFile.onRead(300L, 16, buffer))
+        assertArrayEquals(bytes.copyOfRange(300, 316), buffer)
+
+        // A 206 that starts somewhere else would hand the wrong bytes to the reader.
+        fixture.answer = Answer.WRONG_RANGE
+        val wrongRange = fixture.documents.open("$ALICE:10")
+        assertThrows(ErrnoException::class.java) { wrongRange.onRead(300L, 16, buffer) }
+        assertEquals(listOf("bytes=300-", "bytes=300-"), fixture.requests.map { it.header("Range") })
+    }
+
+    @Test
     fun writesAreRefused() {
         fixture.auth.value = signedIn(ALICE, session = 1)
         fixture.offline[FilesItemId(9L)] = "local original".toByteArray()
@@ -322,6 +411,11 @@ class MobileDocumentsProviderTest {
         val search = ScriptedSearch()
         val offline = mutableMapOf<FilesItemId, ByteArray>()
         var offlineLookups = 0
+        var closedStreams = 0
+        var now = 0L
+
+        /** How the stand-in for put.io answers a ranged download. */
+        var answer = Answer.PARTIAL
         val rejected = mutableListOf<MobileAuthSessionId>()
         val requests = mutableListOf<Request>()
         var remoteBytes = ByteArray(0)
@@ -336,7 +430,13 @@ class MobileDocumentsProviderTest {
                     offlineLookups += 1
                     offline[fileId]?.takeIf { userId == ALICE }?.let { bytes ->
                         DocumentBytes(bytes.size.toLong(), onDevice = true) { offset ->
-                            OpenedBytes(bytes.inputStream(offset.toInt(), bytes.size - offset.toInt()))
+                            val input = object : java.io.ByteArrayInputStream(bytes, offset.toInt(), bytes.size) {
+                                override fun close() {
+                                    closedStreams += 1
+                                    super.close()
+                                }
+                            }
+                            OpenedBytes(input)
                         }
                     }
                 },
@@ -344,6 +444,7 @@ class MobileDocumentsProviderTest {
                 onAuthenticationRequired = { rejected += it },
             ),
             scope,
+            clock = { now },
         )
         val provider: MobileDocumentsProvider = Robolectric.buildContentProvider(MobileDocumentsProvider::class.java)
             .create(
@@ -398,14 +499,17 @@ class MobileDocumentsProviderTest {
         private fun serve(request: Request): Response {
             requests += request
             val offset = request.header("Range")?.removePrefix("bytes=")?.removeSuffix("-")?.toInt() ?: 0
-            return Response.Builder()
-                .request(request)
-                .protocol(Protocol.HTTP_1_1)
-                .code(206)
-                .message("Partial Content")
-                .header("Content-Range", "bytes $offset-${remoteBytes.size - 1}/${remoteBytes.size}")
-                .body(remoteBytes.copyOfRange(offset, remoteBytes.size).toResponseBody())
-                .build()
+            val response = Response.Builder().request(request).protocol(Protocol.HTTP_1_1)
+            return when (answer) {
+                Answer.PARTIAL -> response.code(206).message("Partial Content")
+                    .header("Content-Range", "bytes $offset-${remoteBytes.size - 1}/${remoteBytes.size}")
+                    .body(remoteBytes.copyOfRange(offset, remoteBytes.size).toResponseBody())
+                Answer.WHOLE_FILE -> response.code(200).message("OK").body(remoteBytes.toResponseBody())
+                Answer.WRONG_RANGE -> response.code(206).message("Partial Content")
+                    .header("Content-Range", "bytes 0-${remoteBytes.size - 1}/${remoteBytes.size}")
+                    .body(remoteBytes.toResponseBody())
+                Answer.UNAUTHORIZED -> response.code(401).message("Unauthorized").body("{}".toResponseBody())
+            }.build()
         }
 
         fun close() {
@@ -413,6 +517,8 @@ class MobileDocumentsProviderTest {
             scope.cancel()
         }
     }
+
+    private enum class Answer { PARTIAL, WHOLE_FILE, WRONG_RANGE, UNAUTHORIZED }
 
     private class ScriptedFiles : StubFilesRepository() {
         val folders = mutableMapOf<FilesItemId, PutioResult<FilesPage>>()
@@ -431,9 +537,21 @@ class MobileDocumentsProviderTest {
             return checkNotNull(continuations[cursor.value])
         }
 
-        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
-            items[itemId]?.let { PutioResult.Success(it) }
+        /** Set to hold every single-file read until it is cancelled. */
+        var resolveHangs = false
+        var resolvesCancelled = 0
+
+        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
+            if (resolveHangs) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    resolvesCancelled += 1
+                }
+            }
+            return items[itemId]?.let { PutioResult.Success(it) }
                 ?: PutioResult.Failure(PutioFailure.ApiRejected(404, "NotFound", apiError(404)))
+        }
     }
 
     private class ScriptedSearch : SearchRepository {

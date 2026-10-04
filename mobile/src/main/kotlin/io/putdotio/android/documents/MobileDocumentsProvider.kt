@@ -11,6 +11,7 @@ import android.os.CancellationSignal
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.os.storage.StorageManager
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
@@ -72,18 +73,14 @@ class MobileDocumentsProvider : DocumentsProvider() {
         sortOrder: String?,
     ): Cursor {
         val context = checkNotNull(context)
-        return documents().children(parentDocumentId).toCursor(
-            projection,
-            DocumentsContract.buildChildDocumentsUri(authority(context), parentDocumentId),
-        )
+        val uri = DocumentsContract.buildChildDocumentsUri(authority(context), parentDocumentId)
+        return listingCursor(projection, uri) { documents().children(parentDocumentId) }
     }
 
     override fun querySearchDocuments(rootId: String, query: String, projection: Array<out String>?): Cursor {
         val context = checkNotNull(context)
-        return documents().search(rootId, query).toCursor(
-            projection,
-            DocumentsContract.buildSearchDocumentsUri(authority(context), rootId, query),
-        )
+        val uri = DocumentsContract.buildSearchDocumentsUri(authority(context), rootId, query)
+        return listingCursor(projection, uri) { documents().search(rootId, query) }
     }
 
     override fun openDocument(documentId: String, mode: String, signal: CancellationSignal?): ParcelFileDescriptor {
@@ -94,7 +91,7 @@ class MobileDocumentsProvider : DocumentsProvider() {
         // One thread per open document, so a read waiting on the network holds up no other document. It starts
         // only once the document opened, so a refused open leaves no thread behind.
         val thread = HandlerThread("putio-document")
-        val reader = documents().open(documentId) { thread.quitSafely() }
+        val reader = documents().open(documentId, signal) { thread.quitSafely() }
         thread.start()
         return try {
             storage.openProxyFileDescriptor(ParcelFileDescriptor.MODE_READ_ONLY, reader, Handler(thread.looper))
@@ -114,18 +111,33 @@ class MobileDocumentsProvider : DocumentsProvider() {
             .add(Document.COLUMN_FLAGS, 0)
     }
 
-    private fun DocumentsListing.toCursor(projection: Array<out String>?, notificationUri: Uri): Cursor {
+    /**
+     * The cursor listens before [listing] reads, so a page that lands during the read still notifies it; a listing
+     * that throws closes it.
+     */
+    private fun listingCursor(
+        projection: Array<out String>?,
+        notificationUri: Uri,
+        listing: () -> DocumentsListing,
+    ): Cursor {
         val context = checkNotNull(context)
         val cursor = MatrixCursor(projection ?: DOCUMENT_COLUMNS)
-        rows.forEach { cursor.add(it) }
-        cursor.extras = Bundle().apply {
-            putBoolean(DocumentsContract.EXTRA_LOADING, loading)
-            if (failed) {
-                putString(DocumentsContract.EXTRA_ERROR, context.getString(R.string.mobile_documents_load_failed))
-            }
-        }
         cursor.setNotificationUri(context.contentResolver, notificationUri)
-        return cursor
+        var filled = false
+        try {
+            val rows = listing()
+            rows.rows.forEach { cursor.add(it) }
+            cursor.extras = Bundle().apply {
+                putBoolean(DocumentsContract.EXTRA_LOADING, rows.loading)
+                if (rows.failed) {
+                    putString(DocumentsContract.EXTRA_ERROR, context.getString(R.string.mobile_documents_load_failed))
+                }
+            }
+            filled = true
+            return cursor
+        } finally {
+            if (!filled) cursor.close()
+        }
     }
 
     companion object {
@@ -186,13 +198,18 @@ class MobileDocumentsProvider : DocumentsProvider() {
             }
 
         /** The documents over [backend], notifying listings through [context]'s resolver. */
-        internal fun documents(context: Context, backend: MobileDocumentsBackend, scope: CoroutineScope) =
-            MobileDocuments(
-                backend = backend,
-                scope = scope,
-                onListingChanged = { key -> context.contentResolver.notifyChange(listingUri(context, key), null) },
-                rootName = context.getString(DesignR.string.app_name),
-            )
+        internal fun documents(
+            context: Context,
+            backend: MobileDocumentsBackend,
+            scope: CoroutineScope,
+            clock: () -> Long = SystemClock::elapsedRealtime,
+        ) = MobileDocuments(
+            backend = backend,
+            scope = scope,
+            onListingChanged = { key -> context.contentResolver.notifyChange(listingUri(context, key), null) },
+            rootName = context.getString(DesignR.string.app_name),
+            clock = clock,
+        )
 
         private fun productionDocuments(context: Context): MobileDocuments {
             val app = context.applicationContext

@@ -74,8 +74,12 @@ internal class DocumentReader(
         return next.input
     }
 
+    /** A refused read also releases the stream, so an ended session holds no connection open. */
     private fun ensureReadable() {
-        if (revoked || !isCurrent()) throw ErrnoException("read", OsConstants.EACCES)
+        if (revoked || !isCurrent()) {
+            closeStream()
+            throw ErrnoException("read", OsConstants.EACCES)
+        }
     }
 
     private fun closeStream() {

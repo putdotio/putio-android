@@ -676,8 +676,11 @@ after its query returns, so a landed page is announced again every 0.5 s, up
 to three times, until a query reads it. A failed page shows "Couldn’t load from
 put.io. Open it again to retry." (`EXTRA_ERROR`) with the rows already loaded;
 the next query asks for it again, so a failing page cannot loop the picker. A
-401 signs the session out as anywhere else. An idle listing older than 30 s
-starts again from its first page. The picker sorts rows itself.
+listing idle for more than 30 s reads put.io again from its first page and
+shows its old rows until that page replaces them. The provider has no refresh
+hook, because the picker calls one before every load, which would drop each
+page as it lands; a pull to refresh therefore re-reads only once the listing
+is past those 30 s. The picker sorts rows itself.
 
 A document id is `<userId>:<fileId>`, the root being file 0. Rows carry the
 name, a MIME type from the extension (`application/octet-stream` when unknown,
@@ -692,17 +695,21 @@ it complete and every byte is on disk. A video download holds the HLS
 rendition, not the original, so a video always streams. Streaming uses the
 share-out request: the API download endpoint with the session in the header,
 from the read's offset with a `Range` header; a server that ignores the range
-sends the whole file, which is skipped to the offset. Reading on, or a jump
-ahead of up to 256 KiB, keeps the request; any other offset starts a new one.
-Opening adds no download.
+sends the whole file, which is skipped to the offset, and a partial answer
+that starts anywhere else fails the read. Reading on, or a jump ahead of up to
+256 KiB, keeps the request; any other offset starts a new one. Opening adds no
+download. An open waits up to 15 s for the session and up to 15 s for put.io to
+return the file; a caller that cancels stops both waits at once.
 
 The account in the document id keeps a URI from resolving under another
 account. Every listing, single-file read and open descriptor belongs to the
 session that made it; leaving that session (sign-out, an expired session, an
 account switch) drops them, and reads on a descriptor another app still holds
-fail. The auth runtime then revokes every URI grant on the provider, persisted
-ones included, as it does when a cold start's restore ends signed out. No
-token reaches a document URI, column, cursor extra or log.
+fail and release its stream. A 401 on a listing, a single-file read or a
+stream signs the session out as anywhere else. The auth runtime then revokes
+every URI grant on the provider, persisted ones included, as it does when a
+cold start's restore ends signed out. No token reaches a document URI, column,
+cursor extra or log.
 
 Tests: `MobileDocumentsProviderTest`, `OfflineOriginalsTest`,
 `MobileOAuthRuntimeTest` (the picker hears each session start and end),
