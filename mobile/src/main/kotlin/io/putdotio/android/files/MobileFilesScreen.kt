@@ -102,6 +102,7 @@ internal fun MobileFilesScreen(
     onShareItem: ((FilesItem) -> Unit)? = null,
     onViewTrash: (() -> Unit)? = null,
     onCopyItem: ((FilesItem) -> Unit)? = null,
+    onPublicLinkItem: ((FilesItem) -> Unit)? = null,
 ) {
     val current = state.current
     when (val content = current.content) {
@@ -127,6 +128,7 @@ internal fun MobileFilesScreen(
                 onShareItem,
                 onViewTrash,
                 onCopyItem,
+                onPublicLinkItem,
             )
         }
     }
@@ -162,6 +164,7 @@ private fun MobileRefreshableFilesContent(
     onShareItem: ((FilesItem) -> Unit)? = null,
     onViewTrash: (() -> Unit)? = null,
     onCopyItem: ((FilesItem) -> Unit)? = null,
+    onPublicLinkItem: ((FilesItem) -> Unit)? = null,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -186,6 +189,7 @@ private fun MobileRefreshableFilesContent(
                 onShareItem = onShareItem,
                 onCopyItem = onCopyItem,
                 canStartCopy = state.canStartCopy,
+                onPublicLinkItem = onPublicLinkItem,
             )
         }
     }

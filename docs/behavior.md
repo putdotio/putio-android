@@ -101,7 +101,8 @@ Tests: `InactiveAccountNoticeTest`, `PutioAuthSessionGatewayTest`,
 
 Friends' shared files (`is_shared`) and the shared folders (`SHARED_ROOT`,
 `SHARED_FRIEND`) accept no owner mutations, so neither surface offers Rename,
-Move, Move to trash/Delete or Mark as watched/unwatched on them. Download and
+Move, Move to trash/Delete or Mark as watched/unwatched on them, and mobile
+doesn't offer [Exclusive access](#public-links). Download and
 Share file (which downloads the original, then opens the share sheet) stay on
 shared files, as web and iOS keep Download. On TV, a shared media file offers
 only Open in VLC, as tv-native does, and Menu on any other shared item opens
@@ -127,7 +128,7 @@ the line is gone and another copy can start while put.io may still run the
 first. TV doesn't offer Make a copy, because tv-native and tv-vite don't.
 
 Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesRowActionsTest`,
-`FilesCopyTest`, `MobileFilesCopyTest`, `MobileSharedItemsProofTest` (opt-in
+`FilesCopyTest`, `MobileFilesCopyTest`, `MobilePublicLinksTest`, `MobileSharedItemsProofTest` (opt-in
 synthetic device proof; see [Harness](./harness.md#shared-with-me-items-proof)).
 
 ## Move and copy target folder
@@ -523,6 +524,42 @@ the next session's export; signing out of a restored session deletes an earlier
 process's export), `MobileShellTest` (Share on file rows in the phone and rail
 layouts).
 
+## Public links
+
+Mobile only. A file or folder the viewer owns offers Exclusive access, web's
+name for put.io's public links, in its action sheet; items shared with the
+viewer don't (see [Shared-with-me items](#shared-with-me-items)), as web hides
+it for `is_shared` files. The sheet shows web's warning (IP and data limits,
+gone after 72 hours), the item's existing links with their expiry, and Create
+link. put.io issues a new link on every create (two creates on one file returned
+two links on the live API) and counts each against daily and weekly limits, so
+Create link waits until the account's links have loaded: the viewer sees what
+exists first, and a failed read offers Try again before anything else. A new
+link joins the list, newest first. Each link offers Copy link, which puts only
+the address on the clipboard, flagged sensitive on Android 13 and later so the
+clipboard preview hides it; Share, a plain-text chooser with the address and the
+file's name; and Revoke, which confirms first and drops the link once put.io
+confirms. A failed revoke reads the links again, so a link already revoked
+elsewhere or expired leaves the list; if that read fails too, the links stay as
+they were. Account's Exclusive access lists every link the account holds with
+its item, type and expiry and the same actions, as web's Sharing page does. One
+request runs at a time, so opening the sheet or the list reads the links again
+only when no other request is running; otherwise it shows that request's result.
+
+The address is web's `https://app.put.io/exclusive-access/<token>`. The token is
+the share's own, not the session's, and the app never logs or prints it. put.io
+refuses a new link with a 403 and an error type; mobile shows web's copy for the
+plan, file type, link count, daily and weekly limits, and a folder's size and
+file count, without put.io's numbers, which the SDK doesn't expose. Web's copy
+for `PUBLIC_SHARE_INSUFFICIENT_DATA` asks to fill out fields of a form the app
+doesn't have, so it isn't ported. That refusal and any other failure follow
+[Refused requests](#refused-requests), and a 401 signs out. Web's Watch together
+option for videos (`utm_campaign=party`) is not ported. TV has no public links.
+
+Tests: `PublicLinksControllerTest`, `SdkPublicLinksRepositoryTest`,
+`MobilePublicLinksTest`, `MobilePublicLinksProofTest` (opt-in synthetic device
+proof; see [Harness](./harness.md#public-links-proof)).
+
 ## Launcher entry
 
 `MainActivity` answers each launcher's `ACTION_MAIN` query: `LAUNCHER` on both
@@ -706,8 +743,8 @@ controls), `DesignTokenCodegenTest` (overscan ratios, axis and presence checks).
 
 When put.io refuses a request with a 4xx and its own `error_message`, both
 surfaces show that message, as web does, in place of the app's generic copy:
-Files, Search, History, Transfers, Trash, the move picker, Account settings
-and the player. 401, 403, 408 and 429 keep the app's own copy, and more
+Files, Search, History, Transfers, Trash, the move picker, Account settings,
+the player and public links. 401, 403, 408 and 429 keep the app's own copy, and more
 specific app copy (an unavailable move
 destination, an incomplete Trash restore, a transfer with nothing to retry)
 still wins. 5xx, network and unreadable responses keep the existing copy, and
