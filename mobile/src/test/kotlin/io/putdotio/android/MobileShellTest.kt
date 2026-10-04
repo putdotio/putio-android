@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.CompositionLocalProvider
@@ -37,6 +38,8 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -2133,6 +2136,40 @@ class MobileShellPlaybackTest {
 
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
         compose.onAllNodesWithTag(MOBILE_PLAYER_TAG).assertCountEquals(0)
+        compose.onNodeWithText("episode.mkv").assertIsDisplayed()
+    }
+
+    @Test
+    fun terminalAutoplayInPictureInPictureWaitsForTheWindowToClose() {
+        lateinit var player: RecordingPlayer
+        compose.setPlaybackShell(
+            appConfigState =
+                readyAndroidAppConfigState(
+                    AndroidAppConfigPreferences(autoplayNextVideo = true),
+                ),
+            playback = ShellPlayback(
+                EndingPlaybackRepository,
+                MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
+            ),
+        )
+        compose.onNodeWithText("episode.mkv").performClick()
+        compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
+        val activity = compose.runOnIdle {
+            ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(Stage.RESUMED).single()
+        }
+        val pictureInPicture = Configuration(activity.resources.configuration)
+
+        compose.runOnIdle {
+            activity.onPictureInPictureModeChanged(true, pictureInPicture)
+            player.updatePlaybackState(Media3Player.STATE_ENDED)
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag(MOBILE_PLAYER_TAG).fetchSemanticsNodes().isEmpty()
+        }
+        compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+
+        compose.runOnIdle { activity.onPictureInPictureModeChanged(false, pictureInPicture) }
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
         compose.onNodeWithText("episode.mkv").assertIsDisplayed()
     }
 

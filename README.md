@@ -24,6 +24,9 @@ Mobile, on the emulator harness against the live API:
   configurable HLS or MP4
 - Separate audio/video player layouts with a compact timeline and native settings sheets
 - Audio playback in the background with system media controls and a now-playing bar
+- Picture-in-picture for video: leaving the app while a video plays keeps it playing in a
+  window with Pause and Play, Expand returns to the full-screen player, and closing it stops
+  the video where it was
 - Resume or start over from a saved position, with throttled position updates
   while video or background audio plays
 - Playback options for audio and video: 0.75×, 1×, 1.25×, 1.5×, and 2× speed,
@@ -79,7 +82,7 @@ TV:
 - Android TV system search lists put.io files through a suggestions provider; a
   chosen result plays or opens in Files
 
-Not started: Chromecast, Picture-in-Picture, and the Play release lane.
+Not started: Chromecast and the Play release lane.
 
 ## Direction
 

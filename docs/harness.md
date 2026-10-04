@@ -1166,6 +1166,54 @@ with a cropped and looped excerpt, replacement test tones and synthetic captions
 Publishing its screenshots or clips requires attribution: “© copyright Blender
 Foundation | durian.blender.org”, with the [CC BY 3.0 sharing terms](https://durian.blender.org/sharing/).
 
+## Picture-in-picture proof
+
+Behaviour: [Picture-in-picture](./behavior.md#picture-in-picture). `MobilePictureInPictureProofTest`
+mounts the real player screen in MainActivity, so the app's manifest declarations are the ones on
+trial, plays a caller-owned local MP4 with automatic captions on the real frame clock, and drives
+the system window with Home and taps on the system's menu. It makes no API calls and never reaches
+authentication; report it as synthetic proof.
+
+- `homeEntersTheWindowWhichKeepsPlayingObeysItsControlsAndExpandsWherePlaybackIs`: Home enters
+  the window, playback advances and the position observer reports from it, the menu's Pause holds
+  the position, Play resumes, and Expand returns to the same Activity and player, playing on past
+  where it expanded, straight to landscape with no portrait configuration on the way.
+- `closingTheWindowStopsTheVideoAndTheNextVisitFindsItPaused`: Close stops the Activity and writes
+  the position; relaunching from the launcher builds a new player that waits, paused, within one
+  second of it.
+
+Opt in with `putio.pip.enabled=true`, `putio.pip.runId=<UUID>` and `putio.pip.fixture=<path>` under
+the app's external files directory. On a fresh install that directory exists only once the app
+creates it, so run the instrumentation once first: it creates the directory and fails on the
+missing fixture. Never create it with `adb shell mkdir`; a shell-owned directory is unreadable to
+the app.
+
+```bash
+./gradlew :mobile:assembleProductionDebug :mobile:assembleProductionDebugAndroidTest
+adb -s emulator-5554 install -r mobile/build/outputs/apk/production/debug/mobile-production-debug.apk
+adb -s emulator-5554 install -r mobile/build/outputs/apk/androidTest/production/debug/mobile-production-debug-androidTest.apk
+python3 -c 'for i in range(40): t = lambda v: f"00:{v // 60:02d}:{v % 60:02d},000"; print(f"{i + 1}\n{t(i * 3)} --> {t(i * 3 + 3)}\nPicture-in-picture proof caption {i + 1}\n")' > captions.srt
+ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=120 -f lavfi -i sine=frequency=440:duration=120 \
+  -i captions.srt -map 0:v -map 1:a -map 2:s -c:v libx264 -pix_fmt yuv420p -g 60 -c:a aac -c:s mov_text \
+  -metadata:s:s:0 language=eng -shortest pip-proof.mp4
+adb -s emulator-5554 push pip-proof.mp4 /sdcard/Android/data/io.put.putio.mobile.debug/files/pip-proof.mp4
+adb -s emulator-5554 shell am instrument -w -r -e class io.putdotio.android.MobilePictureInPictureProofTest \
+  -e putio.pip.enabled true -e putio.pip.runId "$(uuidgen | tr A-Z a-z)" \
+  -e putio.pip.fixture /sdcard/Android/data/io.put.putio.mobile.debug/files/pip-proof.mp4 \
+  io.put.putio.mobile.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Start `scripts/evidence.sh record --allow-dark` just before the instrumentation for the clip, and
+append `#<method>` to the class to record one flow. Screenshots go to `pip-proof-<UUID>/`: `01`
+to `05` for the first flow (playing, the window playing, paused from the window, expanded,
+expanded with the controls showing the position) and `10` to `12` for the second (the window
+playing, closed, reopened and paused). The menu's buttons are found once by their accessibility
+descriptions (Pause, Expand, Close); the accessibility window list drops the menu after its first
+use, so later presses reuse those places and check the player's or the Activity's state. A fresh
+device's one-time immersive-mode hint is acknowledged if it shows. `am instrument` force-stops the
+app first, and Home, the taps and the relaunch act on the whole device, so use an emulator you
+booted with no other proof running. Remove the fixture and the screenshot directories afterwards.
+
 ## Mobile share-in proof
 
 Behaviour: [Share-in](./behavior.md#share-in). Never use real credentials in

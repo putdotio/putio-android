@@ -29,7 +29,8 @@ internal fun MobileVideoWindow(fileId: Long, landscape: Boolean) {
         original = original.requestedOrientation,
         landscape = landscape,
         smallestWidthDp = configuration.smallestScreenWidthDp,
-        multiWindow = activity.isInMultiWindowMode,
+        // Picture-in-picture is multi-window too, but expanding it must return to the video's own shape.
+        multiWindow = activity.isInMultiWindowMode && !activity.isInPictureInPictureMode,
     )
     val currentOrientation = rememberUpdatedState(requestedOrientation)
     DisposableEffect(activity, lifecycle) {
@@ -46,7 +47,7 @@ internal fun MobileVideoWindow(fileId: Long, landscape: Boolean) {
         }
         onDispose {
             lifecycle.removeObserver(observer)
-            // Restoring portrait while Android recreates a landscape Activity triggers another rotation.
+            // A recreating Activity keeps its window, which restoring now would turn once more.
             if (!activity.isChangingConfigurations) {
                 original.restoreBars(activity)
                 if (activity.requestedOrientation != original.requestedOrientation) {

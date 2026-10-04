@@ -73,7 +73,9 @@ window to sensor landscape; a portrait video keeps the window's orientation.
 Tablets and multiwindow use the available window. Back restores the shell's
 orientation and system bars. Controls auto-hide during playback; tapping
 reveals them, and system navigation remains available by an edge swipe.
-TalkBack and keyboard navigation keep controls visible.
+TalkBack and keyboard navigation keep controls visible. Leaving the app while a
+video plays continues it in a picture-in-picture window that shows only the
+video and its captions, with the system's own Pause or Play.
 
 The overlay has a back arrow and raw filename, screen-centered play/pause and
 ten-second seek buttons, and a compact timeline with inline timestamps. Audio,
