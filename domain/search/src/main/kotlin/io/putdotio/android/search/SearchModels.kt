@@ -79,15 +79,32 @@ sealed interface SearchContent {
     ) : SearchContent
 }
 
-data class SearchState(
+@ConsistentCopyVisibility
+data class SearchState internal constructor(
     val query: String,
     val content: SearchContent,
     val recentTerms: List<SearchTerm>,
     internal val consumedCursors: Set<FilesCursor>,
-    val nextRequestValue: Long,
+    internal val nextRequestValue: Long,
     /** Whether the account keeps recent searches; null until the shared config has loaded. */
     val recentSearchesEnabled: Boolean? = null,
 )
+
+object SearchReducer {
+    /** No query yet; recent searches come from the account once its shared config has loaded. */
+    fun start(
+        recentTerms: List<SearchTerm> = emptyList(),
+        recentSearchesEnabled: Boolean? = null,
+    ): SearchState =
+        SearchState(
+            query = "",
+            content = SearchContent.Idle,
+            recentTerms = recentTerms,
+            consumedCursors = emptySet(),
+            nextRequestValue = INITIAL_REQUEST_VALUE,
+            recentSearchesEnabled = recentSearchesEnabled,
+        )
+}
 
 sealed interface SearchOutput {
     data class OpenResult(
@@ -122,3 +139,5 @@ interface RecentSearchStore {
 
     fun setEnabled(enabled: Boolean)
 }
+
+private const val INITIAL_REQUEST_VALUE = 1L

@@ -34,12 +34,12 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
-import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.HistoryTransferId
+import io.putdotio.android.history.historyState
 import io.putdotio.android.search.MOBILE_HISTORY_LIST_TAG
 import io.putdotio.android.search.MobileSearchHistoryScreen
 import io.putdotio.android.search.SearchContent
-import io.putdotio.android.search.SearchState
+import io.putdotio.android.search.searchState
 import io.putdotio.android.trash.MOBILE_TRASH_LIST_TAG
 import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.trash.TrashContent
@@ -75,13 +75,13 @@ class MobileCopyProofTest {
     @Test
     fun historyQuotaAndTrashUseTheReferenceCopy() {
         var screen by mutableStateOf(Screen.History)
-        var history by mutableStateOf(HistoryState(HistoryContent.Ready(historyItems(), HistoryPaging.Complete)))
+        var history by mutableStateOf(historyState(HistoryContent.Ready(historyItems(), HistoryPaging.Complete)))
         var optimistic by mutableStateOf(false)
         var trash by mutableStateOf(TrashState(TrashContent.Loaded(listOf(trashItem()), null, 1, 52_428_800)))
         mount {
             when (screen) {
                 Screen.History -> MobileSearchHistoryScreen(
-                    searchState = SearchState("", SearchContent.Idle, emptyList(), emptySet(), 1L),
+                    searchState = searchState("", SearchContent.Idle, emptyList(), 1L),
                     historyState = history,
                     recentSearchFailure = null,
                     onSearchQueryChanged = {},
@@ -122,7 +122,7 @@ class MobileCopyProofTest {
             compose.onNodeWithText(title).assertIsDisplayed()
         }
         capture("01-history-events")
-        compose.runOnIdle { history = HistoryState(HistoryContent.Disabled) }
+        compose.runOnIdle { history = historyState(HistoryContent.Disabled) }
         compose.onNodeWithText("Turn on “Keep account history” in Account to see activity here.").assertIsDisplayed()
         capture("02-history-off")
 

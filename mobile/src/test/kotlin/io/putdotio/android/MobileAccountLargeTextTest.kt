@@ -29,14 +29,21 @@ import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
+import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigFailure
+import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.DefaultAccountSettingsPreferences
 import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.accountSettingsState
+import io.putdotio.android.settings.androidAppConfigState
+import io.putdotio.android.settings.readyAccountSettingsState
+import io.putdotio.android.settings.readyAndroidAppConfigState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -126,8 +133,10 @@ class MobileAccountLargeTextTest {
     fun accountLoadFailureKeepsFullWidthRecoveryTextAndDispatchesRetry() {
         val events = mutableListOf<AccountSettingsEvent>()
         mount(
-            settings = readyAccountSettingsState().copy(
+            settings = accountSettingsState(
                 content = AccountSettingsContent.Failed(AccountSettingsFailure.Unexpected(IllegalStateException())),
+                mutation = AccountSettingsMutation.Idle,
+                nextRequestValue = 2L,
             ),
             settingsEvents = events,
         )
@@ -139,8 +148,10 @@ class MobileAccountLargeTextTest {
     fun playbackLoadFailureKeepsFullWidthRecoveryTextAndDispatchesRetry() {
         val events = mutableListOf<AndroidAppConfigEvent>()
         mount(
-            config = readyAndroidAppConfigState().copy(
+            config = androidAppConfigState(
                 content = AndroidAppConfigContent.Failed(AndroidAppConfigFailure.Unexpected(IllegalStateException())),
+                mutation = AndroidAppConfigMutation.Idle,
+                nextRequestValue = 2L,
             ),
             configEvents = events,
         )

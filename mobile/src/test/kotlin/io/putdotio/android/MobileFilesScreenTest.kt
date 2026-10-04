@@ -53,6 +53,7 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
 import io.putdotio.android.files.FilesViewportPosition
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.files.toFilesFailure
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
@@ -803,7 +804,7 @@ class MobileFilesScreenTest {
         sort: FilesSort? = null,
         viewportGeneration: Long = 0L,
     ): FilesBrowserState =
-        FilesBrowserState(
+        filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     folder = FilesFolder.Root.copy(sort = sort),

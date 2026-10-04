@@ -66,8 +66,8 @@ import io.putdotio.android.transfers.TransferItem
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersPaging
-import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.transfers.parseMobileSharedTransfer
+import io.putdotio.android.transfers.transfersState
 import java.io.Closeable
 import java.io.File
 import org.junit.Assert.assertEquals
@@ -409,7 +409,7 @@ class MobileShellAccessibilityProofTest {
         const val MINIMUM_CONTENT_WIDTH = 0.9f
     }
 
-    private fun shellTransfers() = TransfersState(TransfersContent.Ready(listOf(TransferItem(
+    private fun shellTransfers() = transfersState(TransfersContent.Ready(listOf(TransferItem(
         id = TransferId(147), name = TRANSFER_NAME, status = AppTransferStatus.Downloading,
         fileId = null, sizeBytes = 128_000_000.0, percentDone = 42.0,
         downloadSpeedBytesPerSecond = 1_000_000.0, uploadSpeedBytesPerSecond = null,

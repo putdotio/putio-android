@@ -42,21 +42,22 @@ import androidx.tv.material3.Text
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import io.putdotio.android.design.putioTvDarkColorScheme
-import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackReducer
 import io.putdotio.android.playback.PlaybackRequestId
-import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.copyForTest
+import io.putdotio.android.playback.playbackState
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.files.TvFilesScreen
@@ -249,7 +250,7 @@ class TvPlayerScreenTest {
         val (failure, position) = checkNotNull(reported)
         assertEquals(61_000L, position)
 
-        state = state.copy(content = PlaybackContent.Failed(failure))
+        state = state.copyForTest(content = PlaybackContent.Failed(failure))
         compose.onNodeWithText("Couldn’t play this file").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, retries) }
@@ -517,7 +518,9 @@ class TvPlayerScreenTest {
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvPlayerScreen(
-                    state = readyState().copy(content = PlaybackContent.AwaitingResume(source(startFromSeconds = 30.0))),
+                    state = readyState().copyForTest(
+                        content = PlaybackContent.AwaitingResume(source(startFromSeconds = 30.0)),
+                    ),
                     onBack = {},
                     onRetry = {},
                     onResume = { resumes += 1 },
@@ -698,7 +701,7 @@ class TvPlayerScreenTest {
     @Test
     fun selectingAVideoPlaysItAndBackReturnsToItsFilesRow() {
         val player = FakePlayer()
-        val files = FilesBrowserState(
+        val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
@@ -1214,7 +1217,7 @@ class TvPlayerScreenTest {
         name: String = "Sintel.mp4",
         resumePositionMillis: Long? = null,
         useStartFrom: Boolean = false,
-    ) = PlaybackState(
+    ) = playbackState(
         target = PlaybackTarget(FilesItemId(9), name, PlaybackMediaType.VIDEO),
         content = PlaybackContent.Ready(source(), useStartFrom),
         nextRequestValue = 2L,

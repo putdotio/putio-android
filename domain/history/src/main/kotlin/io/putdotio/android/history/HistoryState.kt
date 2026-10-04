@@ -29,12 +29,13 @@ sealed interface HistoryClearing {
     data class Failed(val failure: FilesFailure) : HistoryClearing
 }
 
-data class HistoryState(
+@ConsistentCopyVisibility
+data class HistoryState internal constructor(
     val content: HistoryContent,
     val clearing: HistoryClearing = HistoryClearing.Idle,
     internal val authoritativeFailure: FilesFailure.AuthenticationRequired? = null,
     internal val consumedBefore: Set<HistoryEventId> = emptySet(),
-    val nextRequestValue: Long = 1L,
+    internal val nextRequestValue: Long = 1L,
 )
 
 sealed interface HistoryEvent {

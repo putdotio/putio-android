@@ -20,9 +20,9 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesMoveDestinationEvent
-import io.putdotio.android.files.FilesMoveDestinationFolder
-import io.putdotio.android.files.FilesMoveDestinationState
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.filesMoveDestinationFolder
+import io.putdotio.android.files.filesMoveDestinationState
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -63,13 +63,13 @@ class MobileFilesMoveLayoutTest {
         val folders = (20L..34L).map { id ->
             FilesItem(FilesItemId(id), destination.id, "Folder été $id", PutioFileType.FOLDER, 0, "2026-09-06")
         }
-        val state = FilesMoveDestinationState(
+        val state = filesMoveDestinationState(
             sourceItem = FilesItem(FilesItemId(7), FilesFolder.Root.id,
                 "Archive 東京 été ".repeat(16).take(240), PutioFileType.FOLDER, 0, "2026-09-06"),
             sourceFolderId = FilesFolder.Root.id,
             stack = listOf(
-                FilesMoveDestinationFolder(FilesFolder.Root, FilesContent.Empty(FilesPaging.Complete)),
-                FilesMoveDestinationFolder(destination,
+                filesMoveDestinationFolder(FilesFolder.Root, FilesContent.Empty(FilesPaging.Complete)),
+                filesMoveDestinationFolder(destination,
                     FilesContent.Ready(folders, FilesPaging.Available(FilesCursor("next-page")))),
             ),
             nextRequestValue = 1,

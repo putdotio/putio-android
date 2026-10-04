@@ -11,6 +11,7 @@ import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigRequestId
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.VideoPlaybackType
+import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackPreference
 import org.junit.Assert.assertEquals
@@ -31,7 +32,7 @@ class PlaybackPreferencesTest {
         assertEquals(PlaybackPreference.HLS, AndroidAppConfigReducer.start().state.playbackPreference())
         assertEquals(
             PlaybackPreference.HLS,
-            AndroidAppConfigState(
+            androidAppConfigState(
                 content =
                     AndroidAppConfigContent.Failed(
                         AndroidAppConfigFailure.AccessDenied(PutioConfigurationException("forbidden")),
@@ -221,14 +222,11 @@ class PlaybackPreferencesTest {
         preferences: AndroidAppConfigPreferences = AndroidAppConfigPreferences(),
         mutation: AndroidAppConfigMutation = AndroidAppConfigMutation.Idle,
         confirmedPreferences: AndroidAppConfigPreferences = preferences,
-    ): AndroidAppConfigState {
-        val loading = AndroidAppConfigReducer.start()
-        return AndroidAppConfigReducer.reduce(
-            loading.state,
-            AndroidAppConfigEvent.LoadSucceeded(requireNotNull(loading.effect).requestId, preferences),
-        ).state.copy(
-            mutation = mutation,
-            confirmedPreferences = confirmedPreferences,
+    ): AndroidAppConfigState =
+        androidAppConfigState(
+            AndroidAppConfigContent.Ready(preferences),
+            mutation,
+            nextRequestValue = 2L,
+            confirmedPreferences,
         )
-    }
 }

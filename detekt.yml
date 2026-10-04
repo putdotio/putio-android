@@ -11,6 +11,8 @@ complexity:
     ignoreAnnotated: ['Composable']
   LongParameterList:
     ignoreAnnotated: ['Composable']
+    # Test fixtures mirror data class constructors, which the rule already ignores.
+    excludes: ['**/testFixtures/**']
   TooManyFunctions:
     ignoreAnnotatedFunctions: ['Composable', 'Preview']
 

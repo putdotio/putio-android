@@ -28,8 +28,8 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRequestId
-import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.playbackState
 import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.android.putioErrorBody
 import io.putdotio.android.putioRefusal
@@ -209,7 +209,7 @@ class TvPlaybackStatesTest {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                     TvPlayerScreen(
-                        state = PlaybackState(
+                        state = playbackState(
                             target = PlaybackTarget(FilesItemId(9), TITLE, PlaybackMediaType.VIDEO),
                             content = content,
                             nextRequestValue = 3L,

@@ -24,7 +24,6 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.lifecycle.Lifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFailure
@@ -34,6 +33,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRepositoryResult
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.trash.TrashBulkSelection
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
@@ -182,7 +182,7 @@ class TrashRestoreUiProofTest {
         val repository = TrashRestoreControlledRepository(::await)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
         val controller = TrashController(repository, scope)
-        val files = FilesBrowserState(listOf(FilesFolderState(FilesFolder.Root,
+        val files = filesBrowserState(listOf(FilesFolderState(FilesFolder.Root,
             FilesContent.Empty(FilesPaging.Complete))), 1)
         try {
             compose.setContent {

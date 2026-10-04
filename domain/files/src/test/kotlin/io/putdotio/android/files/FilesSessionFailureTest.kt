@@ -1,49 +1,11 @@
-package io.putdotio.android
+package io.putdotio.android.files
 
-import io.putdotio.android.files.FilesBrowserState
-import io.putdotio.android.files.authoritativeSessionFailure
-import io.putdotio.android.files.FilesContent
-import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesFailure
-import io.putdotio.android.files.FilesFolder
-import io.putdotio.android.files.FilesFolderOperation
-import io.putdotio.android.files.FilesFolderOperationIntent
-import io.putdotio.android.files.FilesFolderOperationPhase
-import io.putdotio.android.files.FilesFolderState
-import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesPaging
-import io.putdotio.android.files.FilesRequestId
-import io.putdotio.android.history.HistoryClearing
-import io.putdotio.android.history.HistoryContent
-import io.putdotio.android.history.HistoryEventId
-import io.putdotio.android.history.HistoryEventKind
-import io.putdotio.android.history.HistoryFileId
-import io.putdotio.android.history.HistoryItem
-import io.putdotio.android.history.HistoryPaging
-import io.putdotio.android.history.HistoryState
-import io.putdotio.android.history.authoritativeSessionFailure
-import io.putdotio.android.transfers.TransferRetryOutcome
-import io.putdotio.android.transfers.TransfersContent
-import io.putdotio.android.transfers.TransfersRequestId
-import io.putdotio.android.transfers.TransfersState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 
 class FilesSessionFailureTest {
-    @Test
-    fun `a retry rejected for the session expires it`() {
-        val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
-        val state =
-            TransfersState(
-                content = TransfersContent.Empty,
-                retryOutcome = TransferRetryOutcome.Failed(TransfersRequestId(2L), failure),
-            )
-
-        assertSame(failure, state.authoritativeSessionFailure())
-    }
-
     @Test
     fun `authoritative failure in a hidden parent still expires the session`() {
         val failure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
@@ -99,22 +61,6 @@ class FilesSessionFailureTest {
         assertNull(state.authoritativeSessionFailure())
     }
 
-    private fun browserStateWithOperationFailure(failure: FilesFailure): FilesBrowserState =
-        FilesBrowserState(
-            stack = listOf(
-                FilesFolderState(
-                    folder = FilesFolder.Root,
-                    content = FilesContent.Empty(paging = FilesPaging.Complete),
-                    operation = FilesFolderOperation.Failed(
-                        failure = failure,
-                        intent = FilesFolderOperationIntent.Refresh,
-                        phase = FilesFolderOperationPhase.RELOADING,
-                    ),
-                ),
-            ),
-            nextRequestValue = 2L,
-        )
-
     @Test
     fun `non-auth operation failure does not mask authoritative paging failure`() {
         val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
@@ -139,41 +85,21 @@ class FilesSessionFailureTest {
         assertSame(authFailure, state.authoritativeSessionFailure())
     }
 
-    @Test
-    fun `history paging failure does not mask an authoritative clear failure`() {
-        val pagingFailure = FilesFailure.Misconfigured(PutioConfigurationException("missing client"))
-        val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
-        val state =
-            HistoryState(
-                content =
-                    HistoryContent.Ready(
-                        items =
-                            listOf(
-                                HistoryItem(
-                                    id = HistoryEventId(1L),
-                                    createdAt = "2026-08-30T00:00:00Z",
-                                    kind = HistoryEventKind.File(HistoryFileId(2L), "file.mkv"),
-                                ),
-                            ),
-                        paging = HistoryPaging.Failed(HistoryEventId(1L), pagingFailure),
+    private fun browserStateWithOperationFailure(failure: FilesFailure): FilesBrowserState =
+        FilesBrowserState(
+            stack = listOf(
+                FilesFolderState(
+                    folder = FilesFolder.Root,
+                    content = FilesContent.Empty(paging = FilesPaging.Complete),
+                    operation = FilesFolderOperation.Failed(
+                        failure = failure,
+                        intent = FilesFolderOperationIntent.Refresh,
+                        phase = FilesFolderOperationPhase.RELOADING,
                     ),
-                clearing = HistoryClearing.Failed(authFailure),
-            )
-
-        assertSame(authFailure, state.authoritativeSessionFailure())
-    }
-
-    @Test
-    fun `history preserves an authoritative failure while disabled`() {
-        val authFailure = FilesFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
-        val state =
-            HistoryState(
-                content = HistoryContent.Disabled,
-                authoritativeFailure = authFailure,
-            )
-
-        assertSame(authFailure, state.authoritativeSessionFailure())
-    }
+                ),
+            ),
+            nextRequestValue = 2L,
+        )
 
     private fun browserStateWithParentPagingFailure(failure: FilesFailure): FilesBrowserState =
         FilesBrowserState(

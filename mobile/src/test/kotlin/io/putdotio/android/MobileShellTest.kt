@@ -67,6 +67,7 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRepositoryResult
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.files.copyForTest
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
@@ -88,6 +89,10 @@ import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.DefaultAccountSettingsPreferences
+import io.putdotio.android.settings.androidAppConfigState
+import io.putdotio.android.settings.readyAccountSettingsState
+import io.putdotio.android.settings.readyAndroidAppConfigState
 import io.putdotio.android.transfers.AppTransferStatus
 import io.putdotio.android.transfers.TransferItem
 import io.putdotio.android.transfers.TransfersPaging
@@ -100,6 +105,8 @@ import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersRequestId
 import io.putdotio.android.transfers.TransfersState
+import io.putdotio.android.transfers.copyForTest
+import io.putdotio.android.transfers.transfersState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
@@ -164,6 +171,7 @@ class MobileShellTest {
                     filesState = files,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -328,7 +336,7 @@ class MobileShellTest {
     @Test
     fun shareNavigationWaitsForARunningTransferMutationToSettle() {
         val draft = MobileTransferDraft()
-        var transfers by mutableStateOf(TransfersState(
+        var transfers by mutableStateOf(transfersState(
             content = TransfersContent.Empty,
             mutation = io.putdotio.android.transfers.TransferMutation.Running(
                 io.putdotio.android.transfers.TransferAction.Clean, TransfersRequestId(2L),
@@ -359,7 +367,7 @@ class MobileShellTest {
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertDoesNotExist()
         compose.runOnIdle {
             org.junit.Assert.assertNotNull(draft.state.value.incomingRequestId)
-            transfers = transfers.copy(mutation = io.putdotio.android.transfers.TransferMutation.Idle)
+            transfers = transfers.copyForTest(mutation = io.putdotio.android.transfers.TransferMutation.Idle)
         }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).assertIsDisplayed()
         compose.runOnIdle {
@@ -455,6 +463,7 @@ class MobileShellTest {
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -507,6 +516,7 @@ class MobileShellTest {
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -589,7 +599,7 @@ class MobileShellTest {
         val failure = AndroidAppConfigFailure.AuthenticationRequired(
             PutioConfigurationException("expired"),
         )
-        val state = AndroidAppConfigState(
+        val state = androidAppConfigState(
             content = AndroidAppConfigContent.Failed(failure),
             mutation = AndroidAppConfigMutation.Idle,
             nextRequestValue = 2L,
@@ -763,7 +773,7 @@ class MobileShellTest {
     @Test
     fun filesSortIsDisabledWhileARefreshIsRunning() {
         val ready = readyFilesState(FilesSort.NAME_ASCENDING)
-        val refreshing = ready.copy(
+        val refreshing = ready.copyForTest(
             stack = ready.stack.dropLast(1) + ready.current.copy(
                 operation = FilesFolderOperation.Loading(
                     requestId = FilesRequestId(12L),
@@ -780,7 +790,7 @@ class MobileShellTest {
     @Test
     fun failedSortReloadCanSelectTheDisplayedSort() {
         val ready = readyFilesState(FilesSort.NAME_ASCENDING)
-        val failed = ready.copy(
+        val failed = ready.copyForTest(
             stack = ready.stack.dropLast(1) + ready.current.copy(
                 operation = FilesFolderOperation.Failed(
                     failure = FilesFailure.Unexpected(IllegalStateException("reload failed")),
@@ -824,7 +834,7 @@ class MobileShellTest {
         compose.onNodeWithText("Size, largest first").assertIsDisplayed()
 
         compose.runOnIdle {
-            filesState = filesState.copy(
+            filesState = filesState.copyForTest(
                 stack = filesState.stack.dropLast(1) + filesState.current.copy(
                     operation = FilesFolderOperation.Loading(
                         requestId = FilesRequestId(13L),
@@ -1221,6 +1231,7 @@ class MobileShellTest {
                     filesState = filesState,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -1327,7 +1338,7 @@ class MobileShellTransfersTest {
         compose.waitUntil { resolutionStarted.isCompleted }
         compose.runOnIdle {
             sessionId = MobileAuthSessionId(2L)
-            transfersState = TransfersState(TransfersContent.Empty)
+            transfersState = transfersState(TransfersContent.Empty)
         }
         compose.runOnIdle { releaseResolution.complete(Unit) }
 
@@ -1341,7 +1352,7 @@ class MobileShellTransfersTest {
     fun newShellDisplaysDurableTransferNoticeUntilAcknowledged() {
         val events = mutableListOf<TransfersEvent>()
         var transfersState by mutableStateOf(
-            TransfersState(TransfersContent.Empty).copy(
+            transfersState(TransfersContent.Empty).copyForTest(
                 notice = TransferNotice.FilePreparing(TransferId(7L), TransfersRequestId(3L)),
             ),
         )
@@ -1360,7 +1371,7 @@ class MobileShellTransfersTest {
                     onTransfersEvent = { event ->
                         events += event
                         if (event == TransfersEvent.DismissNotice(TransfersRequestId(3L))) {
-                            transfersState = transfersState.copy(notice = null)
+                            transfersState = transfersState.copyForTest(notice = null)
                         }
                     },
                     onAccountSettingsEvent = {},
@@ -1495,6 +1506,7 @@ class MobileShellTransfersTest {
                     filesState = emptyFilesState(),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
                     transfersSessionId = sessionId,
                     account = Account,
                     playbackRepository = ConversionRepository,
@@ -2326,7 +2338,7 @@ private class ShellLifecycleOwner : LifecycleOwner {
 }
 
 private fun resolvingTransfersState(): TransfersState =
-    TransfersState(
+    transfersState(
         content = TransfersContent.Empty,
         navigation = TransferNavigation.Resolving(TransferFileId(7L), TransfersRequestId(3L)),
     )
@@ -2401,7 +2413,7 @@ private fun shellResolvedFolder(): FilesItem = FilesItem(
     FilesItemId(7L), FilesFolder.Root.id, "resolved folder", PutioFileType.FOLDER, 0L, "2026-09-06",
 )
 
-private fun shellOpenableTransferState(): TransfersState = TransfersState(
+private fun shellOpenableTransferState(): TransfersState = transfersState(
     TransfersContent.Ready(listOf(TransferItem(
         id = TransferId(7L), name = "Completed transfer", status = AppTransferStatus.Completed,
         fileId = TransferFileId(7L), sizeBytes = 1.0, percentDone = 100.0,

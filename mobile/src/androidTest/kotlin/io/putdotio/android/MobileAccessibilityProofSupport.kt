@@ -12,6 +12,7 @@ import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsPreferences
@@ -20,6 +21,8 @@ import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.accountSettingsState
+import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashItem
 import io.putdotio.android.trash.TrashState
@@ -77,7 +80,7 @@ internal fun accessibilityProofScreenshot(
     } finally { bitmap.recycle() }
 }
 
-internal fun accessibilityFiles(): FilesBrowserState = FilesBrowserState(listOf(FilesFolderState(
+internal fun accessibilityFiles(): FilesBrowserState = filesBrowserState(listOf(FilesFolderState(
     FilesFolder.Root,
     FilesContent.Ready(listOf(FilesItem(
         FilesItemId(147), FilesFolder.Root.id, ACCESSIBILITY_FILE_NAME, PutioFileType.VIDEO,
@@ -91,11 +94,11 @@ internal fun accessibilityTrash(): TrashState = TrashState(TrashContent.Loaded(
     nextCursor = null, total = 1, trashSizeBytes = 128_000_000,
 ))
 
-internal fun accessibilitySettings(): AccountSettingsState = AccountSettingsState(
+internal fun accessibilitySettings(): AccountSettingsState = accountSettingsState(
     AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
     AccountSettingsMutation.Idle, 1,
 )
 
-internal fun accessibilityAppConfig(): AndroidAppConfigState = AndroidAppConfigState(
+internal fun accessibilityAppConfig(): AndroidAppConfigState = androidAppConfigState(
     AndroidAppConfigContent.Ready(AndroidAppConfigPreferences()), AndroidAppConfigMutation.Idle, 1,
 )

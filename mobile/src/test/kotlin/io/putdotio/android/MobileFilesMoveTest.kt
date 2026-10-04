@@ -32,6 +32,7 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderOperationIntent
 import io.putdotio.android.files.FilesFolderOperationPhase
+import io.putdotio.android.files.copyForTest
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -361,7 +362,7 @@ class MobileFilesMoveTest {
                 failure("ancestor refresh failed"), FilesFolderOperationIntent.Refresh,
                 FilesFolderOperationPhase.RELOADING,
             ))
-            state = loaded.copy(stack = listOf(ancestor, loaded.current))
+            state = loaded.copyForTest(stack = listOf(ancestor, loaded.current))
             val rejected = FilesBrowserReducer.reduce(state,
                 FilesBrowserEvent.Move(state.current.folder.id, child.id, FilesFolder.Root.id))
             assertTrue(!rejected.consumed)

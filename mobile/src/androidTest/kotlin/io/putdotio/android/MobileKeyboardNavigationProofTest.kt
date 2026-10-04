@@ -29,9 +29,11 @@ import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.history.HistoryContent
-import io.putdotio.android.history.HistoryState
+import io.putdotio.android.history.historyState
 import io.putdotio.android.search.SearchContent
-import io.putdotio.android.search.SearchState
+import io.putdotio.android.search.searchState
+import io.putdotio.android.transfers.TransfersContent
+import io.putdotio.android.transfers.transfersState
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
@@ -80,10 +82,11 @@ class MobileKeyboardNavigationProofTest {
                         accountSettingsState = accessibilitySettings(),
                         appConfigState = accessibilityAppConfig(),
                         searchHistoryState = MobileSearchHistoryState(
-                            SearchState(query, SearchContent.Idle, emptyList(), emptySet(), 1),
-                            HistoryState(HistoryContent.Disabled), null,
+                            searchState(query, SearchContent.Idle, emptyList(), 1),
+                            historyState(HistoryContent.Disabled), null,
                         ),
                         searchHistoryActions = MobileSearchHistoryActions(onQueryChanged = { query = it }),
+                        transfersState = transfersState(TransfersContent.Empty),
                         transfersSessionId = MobileAuthSessionId(147),
                         account = MobileAccount(147, "Keyboard proof", "proof@example.invalid"),
                         playbackRepository = NoShellProofPlayback,

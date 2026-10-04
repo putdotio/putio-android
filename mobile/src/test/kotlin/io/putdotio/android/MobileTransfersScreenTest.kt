@@ -44,6 +44,8 @@ import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersRefresh
 import io.putdotio.android.transfers.TransfersRequestId
 import io.putdotio.android.transfers.TransfersState
+import io.putdotio.android.transfers.copyForTest
+import io.putdotio.android.transfers.transfersState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -201,7 +203,7 @@ class MobileTransfersScreenTest {
         }
         compose.waitForIdle()
         compose.runOnIdle {
-            current = current.copy(
+            current = current.copyForTest(
                 mutation = TransferMutation.Idle,
                 lastAddReceipt = TransferAddReceipt(TransfersRequestId(9L), 0, listOf("https://example.invalid/refused")),
             )
@@ -210,7 +212,7 @@ class MobileTransfersScreenTest {
         compose.onNodeWithText("put.io couldn’t add these links. Check them and try again.").assertIsDisplayed()
         compose.onAllNodesWithText("0 transfers added").assertCountEquals(0)
         compose.runOnIdle {
-            current = current.copy(lastAddReceipt = TransferAddReceipt(TransfersRequestId(10L), 2, emptyList()))
+            current = current.copyForTest(lastAddReceipt = TransferAddReceipt(TransfersRequestId(10L), 2, emptyList()))
         }
         compose.onNodeWithText("2 transfers added").assertIsDisplayed()
     }
@@ -224,10 +226,10 @@ class MobileTransfersScreenTest {
         compose.setContent { PutioTheme { MobileTransfersScreen(current, events::add, draft = draft) } }
         val blocked = listOf(
             current,
-            state(TransfersContent.Empty).copy(
+            state(TransfersContent.Empty).copyForTest(
                 mutation = TransferMutation.Running(TransferAction.Clean, TransfersRequestId(2)),
             ),
-            state(TransfersContent.Empty).copy(
+            state(TransfersContent.Empty).copyForTest(
                 navigation = TransferNavigation.Resolving(TransferFileId(3), TransfersRequestId(3)),
             ),
         )
@@ -249,7 +251,7 @@ class MobileTransfersScreenTest {
         val draft = MobileTransferDraft()
         val original = "https://example.invalid/first"
         draft.receive(parseMobileSharedTransfer(original))
-        var current by mutableStateOf(state(TransfersContent.Empty).copy(
+        var current by mutableStateOf(state(TransfersContent.Empty).copyForTest(
             mutation = TransferMutation.Failed(
                 TransferAction.Add(linksRequest(original)),
                 FilesFailure.Unexpected(IllegalStateException("rejected")),
@@ -308,7 +310,7 @@ class MobileTransfersScreenTest {
         compose.runOnIdle { draft.receive(parseMobileSharedTransfer("https://example.invalid/first")) }
         compose.onNodeWithText("Add").performClick()
         compose.runOnIdle {
-            current = current.copy(mutation = TransferMutation.Running(
+            current = current.copyForTest(mutation = TransferMutation.Running(
                 TransferAction.Add(linksRequest("https://example.invalid/first")),
                 TransfersRequestId(9),
             ))
@@ -318,7 +320,10 @@ class MobileTransfersScreenTest {
         compose.waitForIdle()
         compose.runOnIdle {
             draft.receive(parseMobileSharedTransfer("https://example.invalid/second"))
-            current = current.copy(mutation = TransferMutation.Idle, lastAddReceipt = TransferAddReceipt(TransfersRequestId(9), 1, emptyList()))
+            current = current.copyForTest(
+                mutation = TransferMutation.Idle,
+                lastAddReceipt = TransferAddReceipt(TransfersRequestId(9), 1, emptyList()),
+            )
             visible = true
         }
         assertAddInput("https://example.invalid/second")
@@ -388,13 +393,13 @@ class MobileTransfersScreenTest {
         setMutableScreen({ current }, events::add)
 
         compose.runOnIdle {
-            current = current.copy(retryOutcome = TransferRetryOutcome.Accepted(TransfersRequestId(3L)))
+            current = current.copyForTest(retryOutcome = TransferRetryOutcome.Accepted(TransfersRequestId(3L)))
         }
         compose.onNodeWithText("Retrying transfer").assertIsDisplayed()
 
         compose.runOnIdle {
             current =
-                current.copy(
+                current.copyForTest(
                     retryOutcome =
                         TransferRetryOutcome.Failed(
                             TransfersRequestId(4L),
@@ -427,16 +432,20 @@ class MobileTransfersScreenTest {
         var current by mutableStateOf(state(content))
         setMutableScreen({ current }, onEvent = {})
 
-        compose.runOnIdle { current = current.copy(lastAddReceipt = TransferAddReceipt(TransfersRequestId(1L), 1, emptyList())) }
+        compose.runOnIdle {
+            current = current.copyForTest(lastAddReceipt = TransferAddReceipt(TransfersRequestId(1L), 1, emptyList()))
+        }
         compose.onNodeWithText("1 transfer added").assertIsDisplayed()
 
         compose.runOnIdle {
-            current = current.copy(retryOutcome = TransferRetryOutcome.Accepted(TransfersRequestId(3L)))
+            current = current.copyForTest(retryOutcome = TransferRetryOutcome.Accepted(TransfersRequestId(3L)))
         }
         compose.onNodeWithText("Retrying transfer").assertIsDisplayed()
         compose.onAllNodesWithText("1 transfer added").assertCountEquals(0)
 
-        compose.runOnIdle { current = current.copy(lastAddReceipt = TransferAddReceipt(TransfersRequestId(5L), 1, emptyList())) }
+        compose.runOnIdle {
+            current = current.copyForTest(lastAddReceipt = TransferAddReceipt(TransfersRequestId(5L), 1, emptyList()))
+        }
         compose.onNodeWithText("1 transfer added").assertIsDisplayed()
         compose.onAllNodesWithText("Retrying transfer").assertCountEquals(0)
     }
@@ -519,12 +528,12 @@ class MobileTransfersScreenTest {
                             is TransfersEvent.Add -> {
                                 val action = TransferAction.Add(linksRequest(event.input))
                                 current =
-                                    current.copy(
+                                    current.copyForTest(
                                         mutation = TransferMutation.Running(action, TransfersRequestId(1L)),
                                     )
                             }
                             TransfersEvent.DismissMutationFailure ->
-                                current = current.copy(mutation = TransferMutation.Idle)
+                                current = current.copyForTest(mutation = TransferMutation.Idle)
                             else -> Unit
                         }
                     },
@@ -552,7 +561,7 @@ class MobileTransfersScreenTest {
         compose.runOnIdle {
             val running = current.mutation as TransferMutation.Running
             current =
-                current.copy(
+                current.copyForTest(
                     mutation =
                         TransferMutation.Failed(
                             running.action,
@@ -579,7 +588,7 @@ class MobileTransfersScreenTest {
                     onEvent = { event ->
                         if (event is TransfersEvent.Add) {
                             current =
-                                current.copy(
+                                current.copyForTest(
                                     content =
                                         TransfersContent.Ready(
                                             listOf(transfer(1L, AppTransferStatus.Downloading)),
@@ -618,7 +627,7 @@ class MobileTransfersScreenTest {
         compose.onNodeWithText("Enter a valid HTTP URL or magnet link.").assertIsDisplayed()
 
         compose.runOnIdle {
-            current = current.copy(
+            current = current.copyForTest(
                 content = TransfersContent.Ready(
                     listOf(transfer(1L, AppTransferStatus.Downloading)),
                     TransfersPaging.Complete,
@@ -712,7 +721,7 @@ class MobileTransfersScreenTest {
                 transfer(3L, AppTransferStatus.Completed, fileId = 13L),
             )
         setScreen(
-            state(TransfersContent.Ready(rows, TransfersPaging.Complete)).copy(
+            state(TransfersContent.Ready(rows, TransfersPaging.Complete)).copyForTest(
                 mutation =
                     TransferMutation.Running(
                         TransferAction.Cancel(rows.first().id),
@@ -772,7 +781,7 @@ class MobileTransfersScreenTest {
 
         compose.runOnIdle {
             current =
-                current.copy(
+                current.copyForTest(
                     content =
                         TransfersContent.Ready(
                             listOf(row),
@@ -822,7 +831,7 @@ class MobileTransfersScreenTest {
 
         compose.runOnIdle {
             current =
-                current.copy(
+                current.copyForTest(
                     mutation =
                         TransferMutation.Running(
                             TransferAction.Cancel(rows.first().id),
@@ -842,7 +851,7 @@ class MobileTransfersScreenTest {
                 transfer(2L, AppTransferStatus.Completed, fileId = 12L),
             )
         setScreen(
-            state(TransfersContent.Ready(rows, TransfersPaging.Complete)).copy(
+            state(TransfersContent.Ready(rows, TransfersPaging.Complete)).copyForTest(
                 navigation =
                     TransferNavigation.Resolving(
                         TransferFileId(12L),
@@ -939,13 +948,13 @@ class MobileTransfersScreenTest {
     private fun state(
         content: TransfersContent,
         refresh: TransfersRefresh = TransfersRefresh.Idle,
-    ): TransfersState = TransfersState(content = content, refresh = refresh)
+    ): TransfersState = transfersState(content = content, refresh = refresh)
 
     private fun linksRequest(input: String) =
         TransferAddRequest.Links(requireNotNull(TransferSubmission.parseAll(input)))
 
     private fun TransfersState.withRunningAdd(): TransfersState =
-        copy(
+        copyForTest(
             mutation =
                 TransferMutation.Running(
                     TransferAction.Add(linksRequest("https://example.com/file")),

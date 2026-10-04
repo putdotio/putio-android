@@ -111,7 +111,9 @@ import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackRequestId
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.copyForTest
 import io.putdotio.android.playback.hasSelectableSubtitles
+import io.putdotio.android.playback.playbackState
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.toMediaItem
 import io.putdotio.android.playback.toMediaRequestFailureOrNull
@@ -181,7 +183,7 @@ class MobilePlayerScreenTest {
     @Test
     fun resumeDecisionSurvivesRecreationAndCreatesNoPlayerUntilChosen() {
         val original = readyState(startFromSeconds = 12.345)
-        var state by mutableStateOf(original.copy(
+        var state by mutableStateOf(original.copyForTest(
             content = PlaybackContent.AwaitingResume((original.content as PlaybackContent.Ready).source),
         ))
         val players = mutableListOf<RecordingPlayer>()
@@ -250,7 +252,7 @@ class MobilePlayerScreenTest {
     @Suppress("DEPRECATION")
     fun dismissingTheResumeDialogCancelsWithoutCreatingAPlayer() {
         val original = readyState(startFromSeconds = 12.345)
-        val pending = original.copy(
+        val pending = original.copyForTest(
             content = PlaybackContent.AwaitingResume((original.content as PlaybackContent.Ready).source),
         )
         var visible by mutableStateOf(true)
@@ -279,7 +281,7 @@ class MobilePlayerScreenTest {
     @Test
     fun startOverPreparesAtZeroInsteadOfTheSavedPosition() {
         val original = readyState(startFromSeconds = 12.345)
-        var state by mutableStateOf(original.copy(
+        var state by mutableStateOf(original.copyForTest(
             content = PlaybackContent.AwaitingResume((original.content as PlaybackContent.Ready).source),
         ))
         val players = mutableListOf<RecordingPlayer>()
@@ -591,7 +593,7 @@ class MobilePlayerScreenTest {
         compose.setContent {
             PutioTheme {
                 MobilePlayerScreen(
-                    state = state(content).copy(resumePositionMillis = 12_345L),
+                    state = state(content).copyForTest(resumePositionMillis = 12_345L),
                     onRetry = {},
                     onPlayerFailure = { failure, _ -> content = PlaybackContent.Failed(failure) },
                     onBack = {},
@@ -2468,7 +2470,7 @@ class MobilePlayerScreenTest {
         content: PlaybackContent,
         target: PlaybackTarget = Target,
     ): PlaybackState =
-        PlaybackState(
+        playbackState(
             target = target,
             content = content,
             nextRequestValue = 2L,

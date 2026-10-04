@@ -32,7 +32,7 @@ import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersPaging
-import io.putdotio.android.transfers.TransfersState
+import io.putdotio.android.transfers.transfersState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -119,7 +119,7 @@ class MobileTransfersLayoutTest {
     fun shortLargeFontSheetCanScrollFromInputToSubmit() {
         val events = mutableListOf<TransfersEvent>()
         compose.setContent {
-            PutioTheme { MobileTransfersScreen(TransfersState(content = TransfersContent.Empty), events::add) }
+            PutioTheme { MobileTransfersScreen(transfersState(content = TransfersContent.Empty), events::add) }
         }
         compose.onNodeWithText("Add transfer").performClick()
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performScrollTo()
@@ -137,7 +137,7 @@ class MobileTransfersLayoutTest {
                 PutioTheme {
                     Box(modifier = Modifier.fillMaxSize().testTag("transfers-viewport")) {
                         MobileTransfersScreen(
-                            TransfersState(
+                            transfersState(
                                 content = TransfersContent.Ready(listOf(TransferItem(
                                     id = TransferId(1), name = TRANSFER_NAME, status = AppTransferStatus.Seeding,
                                     fileId = TransferFileId(2), sizeBytes = null, percentDone = null,

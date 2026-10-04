@@ -34,12 +34,12 @@ import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
-import io.putdotio.android.history.HistoryState
+import io.putdotio.android.history.historyState
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchRequestId
-import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.search.searchState
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.player.TvPlaybackLayer
@@ -73,11 +73,10 @@ class TvPickReturnFocusTest {
         mount(TvDestination.Search) {
             searchPane = { paneFocus ->
                 TvSearchScreen(
-                    state = SearchState(
+                    state = searchState(
                         query = "clip",
                         content = SearchContent.Ready(SearchTerm("clip"), results, SearchPaging.Complete),
                         recentTerms = emptyList(),
-                        consumedCursors = emptySet(),
                         nextRequestValue = 2L,
                     ),
                     actions = TvSearchActions({}, {}, { playing = true }, {}, {}, {}, {}, {}),
@@ -108,11 +107,10 @@ class TvPickReturnFocusTest {
         mount(TvDestination.Search) {
             searchPane = { paneFocus ->
                 TvSearchScreen(
-                    state = SearchState(
+                    state = searchState(
                         query = "clip",
                         content = content,
                         recentTerms = emptyList(),
-                        consumedCursors = emptySet(),
                         nextRequestValue = 2L,
                     ),
                     actions = TvSearchActions({}, {}, { playing = true }, {}, {}, {}, {}, {}),
@@ -155,7 +153,7 @@ class TvPickReturnFocusTest {
         mount(TvDestination.History) {
             historyPane = { paneFocus ->
                 TvHistoryScreen(
-                    state = HistoryState(HistoryContent.Ready(events, HistoryPaging.Complete)),
+                    state = historyState(HistoryContent.Ready(events, HistoryPaging.Complete)),
                     onEvent = {
                         playing = true
                         true

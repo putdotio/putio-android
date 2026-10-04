@@ -38,16 +38,7 @@ class SearchController internal constructor(
     private val controllerJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val controllerScope = CoroutineScope(parentScope.coroutineContext + controllerJob)
     private val mutableState =
-        MutableStateFlow(
-            SearchState(
-                query = "",
-                content = SearchContent.Idle,
-                recentTerms = recentSearchStore.terms.value,
-                consumedCursors = emptySet(),
-                nextRequestValue = INITIAL_REQUEST_VALUE,
-                recentSearchesEnabled = recentSearchStore.enabled.value,
-            ),
-        )
+        MutableStateFlow(SearchReducer.start(recentSearchStore.terms.value, recentSearchStore.enabled.value))
     private val outputChannel = Channel<SearchOutput>(Channel.BUFFERED)
     private val requestIds = SearchRequestIds(mutableState)
     private var activeJob: Job? = null
@@ -420,4 +411,3 @@ private fun SearchState.hasRequest(requestId: SearchRequestId): Boolean =
     }
 
 internal const val SEARCH_DEBOUNCE_MILLIS = 300L
-private const val INITIAL_REQUEST_VALUE = 1L

@@ -23,11 +23,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
-import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesPaging
+import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
@@ -37,11 +37,11 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsMutation
 import io.putdotio.android.settings.AccountSettingsPreferences
-import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
-import io.putdotio.android.settings.AndroidAppConfigState
+import io.putdotio.android.settings.accountSettingsState
+import io.putdotio.android.settings.androidAppConfigState
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -208,14 +208,14 @@ class MobileLiveAudioAttachmentProofTest {
             PutioTheme {
                 Surface(Modifier.fillMaxSize()) {
                     MobileShell(
-                        filesState = FilesBrowserState(listOf(FilesFolderState(
+                        filesState = filesBrowserState(listOf(FilesFolderState(
                             FilesFolder.Root, FilesContent.Empty(FilesPaging.Complete),
                         )), 1),
-                        accountSettingsState = AccountSettingsState(
+                        accountSettingsState = accountSettingsState(
                             AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
                             AccountSettingsMutation.Idle, 1,
                         ),
-                        appConfigState = AndroidAppConfigState(
+                        appConfigState = androidAppConfigState(
                             AndroidAppConfigContent.Ready(AndroidAppConfigPreferences()),
                             AndroidAppConfigMutation.Idle, 1,
                         ),

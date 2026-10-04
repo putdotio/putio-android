@@ -29,12 +29,12 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
-import io.putdotio.android.history.HistoryState
+import io.putdotio.android.history.historyState
 import io.putdotio.android.search.MobileSearchHistoryScreen
 import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
-import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.search.searchState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -145,7 +145,7 @@ class MobileSearchHistoryLayoutTest {
         recentFailure: FilesFailure? = null,
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     ) {
-        val historyState = if (history == null) HistoryState(HistoryContent.Disabled) else HistoryState(
+        val historyState = if (history == null) historyState(HistoryContent.Disabled) else historyState(
             HistoryContent.Ready(
                 listOf(HistoryItem(HistoryEventId(1), "2026-09-08T10:00:00Z", history)),
                 HistoryPaging.Complete,
@@ -155,7 +155,7 @@ class MobileSearchHistoryLayoutTest {
             PutioTheme {
                 Box(Modifier.fillMaxSize().testTag(VIEWPORT)) {
                     MobileSearchHistoryScreen(
-                        searchState = SearchState("", SearchContent.Idle, listOf(SearchTerm(TERM)), emptySet(), 1),
+                        searchState = searchState("", SearchContent.Idle, listOf(SearchTerm(TERM)), 1),
                         historyState = historyState,
                         recentSearchFailure = recentFailure,
                         onSearchQueryChanged = {}, onSearchSubmit = {}, onSearchResult = actions.onResult,

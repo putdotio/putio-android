@@ -88,7 +88,6 @@ class MobilePlaybackViewModelTest {
             assertSame(beforeViewModel.controller, afterViewModel.controller)
             assertEquals(NextTarget, state.target)
             assertEquals(setOf(InitialTarget.fileId, NextTarget.fileId), state.visitedFileIds)
-            assertEquals(4L, state.nextRequestValue)
             assertTrue(state.content is PlaybackContent.Ready)
             assertEquals(listOf(InitialTarget, NextTarget), repository.resolvedTargets)
         } finally {
