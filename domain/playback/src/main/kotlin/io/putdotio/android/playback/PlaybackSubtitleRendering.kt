@@ -110,9 +110,9 @@ private fun Modifier.fitInsideAspectRatio(aspectRatio: Float): Modifier =
         layout(fitted.width, fitted.height) { placeable.place(0, 0) }
     }
 
-data class FittedVideoSize(val width: Int, val height: Int)
+internal data class FittedVideoSize(val width: Int, val height: Int)
 
-fun fitInside(
+internal fun fitInside(
     availableWidth: Int,
     availableHeight: Int,
     aspectRatio: Float,

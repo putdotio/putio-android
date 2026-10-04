@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import android.net.Uri
 import androidx.media3.common.PlaybackException
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
@@ -7,6 +8,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.io.IOException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -74,5 +76,76 @@ class PlaybackFailureTest {
         assertEquals(true, PlaybackFailure.ServerUnavailable(503, cause).retryable)
         assertEquals(false, PlaybackFailure.ApiRejected(400, null, cause).retryable)
         assertEquals(true, PlaybackFailure.ApiRejected(408, null, cause).retryable)
+    }
+
+    @Test
+    fun mediaRequestUnauthorizedRefreshesThePlaybackCredential() {
+        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
+        val response =
+            HttpDataSource.InvalidResponseCodeException(
+                401,
+                "Unauthorized",
+                IOException("rejected"),
+                emptyMap(),
+                dataSpec,
+                ByteArray(0),
+            )
+
+        assertTrue(
+            IllegalStateException("player failed", response).toMediaRequestFailureOrNull() is
+                PlaybackFailure.MediaCredentialUnavailable,
+        )
+    }
+
+    @Test
+    fun mediaRequestForbiddenRefreshesThePlaybackCredential() {
+        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
+        val response =
+            HttpDataSource.InvalidResponseCodeException(
+                403,
+                "Forbidden",
+                IOException("rejected"),
+                emptyMap(),
+                dataSpec,
+                ByteArray(0),
+            )
+
+        assertTrue(
+            IllegalStateException("player failed", response).toMediaRequestFailureOrNull() is
+                PlaybackFailure.MediaCredentialUnavailable,
+        )
+    }
+
+    @Test
+    fun mediaRequestNotFoundUsesGenericRecovery() {
+        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
+        val response =
+            HttpDataSource.InvalidResponseCodeException(
+                404,
+                "Not Found",
+                IOException("missing"),
+                emptyMap(),
+                dataSpec,
+                ByteArray(0),
+            )
+
+        assertNull(IllegalStateException("player failed", response).toMediaRequestFailureOrNull())
+    }
+
+    @Test
+    fun mediaRequestTransportFailureReportsNetworkUnavailable() {
+        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
+        val transport =
+            HttpDataSource.HttpDataSourceException(
+                IOException("offline"),
+                dataSpec,
+                PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                HttpDataSource.HttpDataSourceException.TYPE_OPEN,
+            )
+
+        assertTrue(
+            IllegalStateException("player failed", transport).toMediaRequestFailureOrNull() is
+                PlaybackFailure.NetworkUnavailable,
+        )
     }
 }

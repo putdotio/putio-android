@@ -80,7 +80,7 @@ fun PlaybackSource.hasSelectableSubtitles(): Boolean =
             ?.tracks
             ?.any { it.toSubtitleMimeType() != null } == true
 
-fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
+internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
     var current: Throwable? = this
     val visited = mutableSetOf<Throwable>()
     var networkFailure: HttpDataSource.HttpDataSourceException? = null
