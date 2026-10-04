@@ -753,10 +753,13 @@ private class FilesKeyboardFocus(
         focusedRow = focusedRow.afterFocusChange(id, focused)
     }
 
-    fun afterListingChange(keyboardInput: Boolean, itemCount: Int) {
+    fun afterListingChange(keyboardInput: Boolean, items: List<FilesItem>) {
         val index = lastFocusedIndex ?: return
-        if (keyboardInput && focusedRow == null && itemCount > 0) {
-            entryIndex = index.coerceAtMost(itemCount - 1)
+        // A removed row reports no focus change, so a focused row no longer listed has lost it too.
+        val rowKeptFocus = focusedRow?.let { row -> items.any { it.id == row } } == true
+        if (keyboardInput && !rowKeptFocus && items.isNotEmpty()) {
+            focusedRow = null
+            entryIndex = index.coerceAtMost(items.lastIndex)
             entryPending = true
         }
     }
@@ -773,7 +776,7 @@ private fun rememberFilesKeyboardFocus(items: List<FilesItem>, firstVisibleIndex
     LaunchedEffect(items) {
         // Focus moves and drops as rows leave during this frame; decide once it has settled.
         withFrameNanos {}
-        focus.afterListingChange(keyboardInput, items.size)
+        focus.afterListingChange(keyboardInput, items)
     }
     return focus
 }

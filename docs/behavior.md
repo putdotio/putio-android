@@ -757,6 +757,105 @@ Tests: `MobileDocumentsProviderTest`, `OfflineOriginalsTest`,
 (opt-in synthetic device proof; see
 [Harness](./harness.md#documents-provider-proof)).
 
+## Keyboard and shortcuts
+
+Mobile only; TV keeps its D-pad rules. With a hardware keyboard, Tab and the
+arrow keys walk focus through Files, which outlines the focused row, and Enter
+opens the row as a tap would: a folder opens, media plays, any other file opens
+its actions. A folder reached from the keyboard puts focus on the row last
+focused there, such as the video that just played, else on its first visible
+row; when the focused row leaves the listing (moved to Trash, say), focus goes
+to the row now in its place.
+
+Shortcuts act only on keys no focused control used, so a text field keeps
+Backspace and the arrows, and a focused button keeps Enter and Space:
+
+- Backspace or Escape goes up a folder or back, through the same Back as the
+  system gesture. With nothing left to close they do nothing, rather than
+  leave the app.
+- Ctrl+F opens Search with the cursor in its field, from any screen but the
+  player.
+- F5 or Ctrl+R refreshes Files as pull-to-refresh does; neither runs while a
+  sheet is open or an operation is under way.
+- Delete acts on the focused row as its sheet's delete row would: Move to
+  trash at once when the account's Trash is on, Delete permanently after its
+  confirmation when it is off. While the setting is unknown it opens the
+  sheet, which says why it cannot delete yet. Items shared with the viewer
+  have no delete, so the key does nothing on them.
+- The player takes focus when it opens. Space plays or pauses, Left and Right
+  seek 10 s as the on-screen buttons do (a held arrow keeps seeking), and
+  Escape or Backspace leaves.
+
+Only bare keys and Ctrl are taken: Android's own shortcuts use Meta or Alt,
+and Shift combinations are left alone. The system Keyboard Shortcuts Helper
+(Meta + /) lists them under Files and Player.
+
+Tests: `MobileKeyboardShortcutsTest` (keys through the window's real input
+stages), `MobilePlayerKeyboardTest`, device proof `MobileTabletPowerProofTest`
+([Harness](./harness.md#tablet-proof)).
+
+## Drag and drop
+
+Mobile only. A file row, not a folder, drags out to another app: with a mouse
+or touchpad as soon as the pressed pointer moves, with touch or a stylus after a
+long press. The long press still opens the actions sheet; moving on starts the
+drag and closes it. The drop receives one
+`content://<application id>.drag/<random key>/<safe name>` URI, labelled with
+the file's name and typed from its extension: no token, account id or API URL.
+The drag grants global read only (`DRAG_FLAG_GLOBAL` and
+`DRAG_FLAG_GLOBAL_URI_READ`; no write, persistable or prefix grant), so the
+other app reads it only through the drop's `DragAndDropPermissions` and not
+after releasing them. The provider is not exported.
+
+The bytes come from [Share-out](#share-out)'s export: the drag starts the same
+session-bound download into private storage, and opening the URI waits for it,
+up to ten minutes, then hands out a read-only descriptor, only while the
+session that started the drag is still signed in. A drag nobody took cancels
+its download. A dropped file stays readable for ten minutes, then its copy is
+deleted; leaving the session, or a newer export or drag, ends it at once.
+
+Links, magnet links and `.torrent` files dragged in from another app open the
+Add transfer sheet through [Share-in](#share-in)'s intake and its rules: nothing
+is added until Add, a new drop asks before replacing an unfinished draft, and a
+`.torrent` is read off the main thread under the drop's grant, released after
+the read, and refused from this app's own providers. While such a drag is
+under way the signed-in screen shows "Drop to add a transfer" across its pane.
+Item text and `http`, `https` and `magnet` URIs are read as links; a content
+URI counts as a torrent only when the drag labels it `application/x-bittorrent`
+or `application/octet-stream`, and is never read as text. Other files, images
+for example, do not light the target, because the app has no file upload. An
+open sheet or dialog is its own window and takes no drops, and nothing is
+taken during playback.
+
+Dragging an item onto a folder inside the app does not move it; Move stays in
+the actions sheet.
+
+Tests: `MobileDragProviderTest` (payload, grant flags, the waiting read,
+session and cancellation), `MobileFileShareServiceTest` (a drag's export opens
+no chooser and ends with its session; a drag nobody took never downloads),
+`MobileTransferDropTest`, device proof `MobileTabletPowerProofTest`
+([Harness](./harness.md#tablet-proof)).
+
+## Multi-window
+
+MainActivity handles orientation, screen size, layout and keyboard changes
+itself, so split screen, freeform resizing, rotation, picture-in-picture and a
+keyboard being attached reach Compose without recreating the Activity:
+navigation, open sheets, scroll positions and the playing video's player carry
+on. Changes that still recreate it (density, font scale, locale) restore
+navigation and the player from saved state as before. Layout follows the
+window, not the display: the bar, rail or drawer and Account's device class
+come from the window's size, so a pane 600 dp or wider gets the rail when it is
+tall enough. A paused split-screen or freeform window is still on screen, so
+video keeps playing until the window stops, and the video window requests no
+orientation in multi-window mode.
+
+Tests: `MobileMultiWindowTest` (resizing, rotation and a keyboard keep the
+Activity; a density change recreates it and keeps its intake; the shell keeps
+its destination across resizing and recreation), `MobilePlayerKeyboardTest`
+(split-screen pause), `MobileAdaptiveNavigationTest`, device proof
+`MobileTabletPowerProofTest` ([Harness](./harness.md#tablet-proof)).
+
 ## Launcher entry
 
 `MainActivity` answers each launcher's `ACTION_MAIN` query: `LAUNCHER` on both

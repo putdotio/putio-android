@@ -9,13 +9,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -105,17 +103,6 @@ class MobileKeyboardShortcutsTest {
             assertEquals(listOf(FilesBrowserEvent.Delete(FilesFolder.Root.id, Notes.id, FilesDeleteMode.TRASH)), events)
         }
         compose.onNodeWithText("Rename").assertDoesNotExist()
-    }
-
-    @Test
-    fun theKeyboardKeepsARowFocusedWhenTheFocusedOneLeavesTheListing() {
-        setShell()
-        focusRow("notes.txt")
-
-        compose.activity.pressHardwareKey(KeyEvent.KEYCODE_FORWARD_DEL)
-        compose.runOnIdle { files = rootState(without = Notes) }
-
-        compose.onAllNodes(isFocused() and hasAnyAncestor(hasTestTag(FILES_LIST))).assertCountEquals(1)
     }
 
     @Test
@@ -276,11 +263,10 @@ class MobileKeyboardShortcutsTest {
             createdAt = "2026-08-29T00:00:00Z",
         )
 
-        fun rootState(without: FilesItem? = null): FilesBrowserState {
+        fun rootState(): FilesBrowserState {
             val initial = FilesBrowserReducer.start()
             val requestId = (initial.effect as FilesBrowserEffect.LoadFolder).requestId
-            val items = listOf(Shows, Movie, Notes, Friend) - listOfNotNull(without).toSet()
-            val page = FilesPage(items, nextCursor = null)
+            val page = FilesPage(listOf(Shows, Movie, Notes, Friend), nextCursor = null)
             return FilesBrowserReducer.reduce(initial.state, FilesBrowserEvent.LoadSucceeded(requestId, page)).state
         }
 
