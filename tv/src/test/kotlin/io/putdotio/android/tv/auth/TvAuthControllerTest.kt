@@ -342,7 +342,10 @@ class TvAuthControllerTest {
         inFlight.complete(Unit)
         harness.scope.advanceUntilIdle()
 
-        assertEquals(TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true), harness.controller.state.value)
+        assertEquals(
+            TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true),
+            harness.controller.state.value,
+        )
         assertNull(harness.tokenStore.stored)
         assertEquals(listOf("fresh-token"), harness.revoker.attempts)
     }
@@ -386,7 +389,10 @@ class TvAuthControllerTest {
 
     @Test
     fun `linking with the token awaiting revocation cancels the revocation`() = runTest {
-        val harness = Harness(pendingRevocation = "fresh-token", revocationResults = listOf(TokenRevocationResult.UNAVAILABLE))
+        val harness = Harness(
+            pendingRevocation = "fresh-token",
+            revocationResults = listOf(TokenRevocationResult.UNAVAILABLE),
+        )
         harness.controller.restoreSession()
         assertEquals(listOf("fresh-token"), harness.revoker.attempts)
 

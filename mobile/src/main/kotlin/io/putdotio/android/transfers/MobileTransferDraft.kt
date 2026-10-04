@@ -32,12 +32,15 @@ internal data class MobileTransferDraftState(
 }
 
 /** Activity-owned memory only: signed URLs must never enter a saved-state registry. */
-class MobileTransferDraft internal constructor(
+class MobileTransferDraft private constructor(
     private val ioDispatcher: CoroutineDispatcher,
-) : ViewModel() {
+    private val mutableState: MutableStateFlow<MobileTransferDraftState>,
+) : ViewModel(), MobileTransferDraftEdits by MobileTransferDraftEditor(mutableState) {
+    internal constructor(ioDispatcher: CoroutineDispatcher) :
+        this(ioDispatcher, MutableStateFlow(MobileTransferDraftState()))
+
     constructor() : this(Dispatchers.IO)
 
-    private val mutableState = MutableStateFlow(MobileTransferDraftState())
     internal val state = mutableState.asStateFlow()
     private var boundSessionId: MobileAuthSessionId? = null
     private var nextRequestId = 1L
@@ -51,7 +54,8 @@ class MobileTransferDraft internal constructor(
     internal fun reconcileSession(sessionId: MobileAuthSessionId?) {
         if (boundSessionId != null && boundSessionId != sessionId) {
             pendingRead?.cancel()
-            clear(keepDestination = false)
+            replacement = null
+            mutableState.value = MobileTransferDraftState()
             observedTransfers = false
             lastSuccessfulAdd = null
             lastMutation = TransferMutation.Idle
@@ -68,7 +72,8 @@ class MobileTransferDraft internal constructor(
         lastSuccessfulAdd = receipt?.requestId
         setSubmitting((state.mutation as? TransferMutation.Running)?.action is TransferAction.Add)
         if (state.mutation != lastMutation) {
-            when (val request = ((state.mutation as? TransferMutation.Failed)?.action as? TransferAction.Add)?.request) {
+            val failedAdd = (state.mutation as? TransferMutation.Failed)?.action as? TransferAction.Add
+            when (val request = failedAdd?.request) {
                 is TransferAddRequest.Links -> restoreRejectedInput(request.links.joinLines())
                 is TransferAddRequest.Torrent -> restoreRejectedTorrent(request.file)
                 null -> Unit
@@ -97,7 +102,8 @@ class MobileTransferDraft internal constructor(
     private fun deliver(shared: MobileSharedTransfer) {
         val current = mutableState.value
         val requestId = nextRequestId++
-        if (current.submitting || current.open || current.input.isNotBlank() || current.torrent != null) {
+        val hasContent = current.input.isNotBlank() || current.torrent != null
+        if (current.submitting || current.open || hasContent) {
             replacement = shared
             mutableState.value = current.copy(incomingRequestId = requestId, pendingReplacement = true)
         } else {
@@ -109,58 +115,6 @@ class MobileTransferDraft internal constructor(
         if (mutableState.value.incomingRequestId == requestId) {
             mutableState.value = mutableState.value.copy(incomingRequestId = null)
         }
-    }
-
-    internal fun open() {
-        mutableState.value = mutableState.value.copy(open = true)
-    }
-
-    internal fun edit(input: String) {
-        val current = mutableState.value
-        if (current.submitting) return
-        mutableState.value = if (!input.fitsMobileTransferInputLimit()) {
-            current.copy(validation = MobileShareValidation.TooLong)
-        } else {
-            current.copy(input = input, validation = null)
-        }
-    }
-
-    internal fun removeTorrent() {
-        if (mutableState.value.submitting) return
-        mutableState.value = mutableState.value.copy(torrent = null, validation = null)
-    }
-
-    internal fun chooseDestination(folder: FilesFolder?) {
-        if (mutableState.value.submitting) return
-        mutableState.value = mutableState.value.copy(destination = folder)
-    }
-
-    internal fun dismiss() {
-        if (mutableState.value.submitting) return
-        mutableState.value = mutableState.value.copy(open = false, incomingRequestId = null)
-    }
-
-    /** The add to dispatch, or null after marking what the user must fix. */
-    internal fun validate(): TransfersEvent? {
-        val current = mutableState.value
-        if (current.submitting || current.validation == MobileShareValidation.TooLong) return null
-        val saveParentId = current.destination?.id?.value
-        current.torrent?.let { return TransfersEvent.AddTorrent(it, saveParentId) }
-        val valid = TransferSubmission.parseAll(current.input)?.joinLines()
-        val invalid = if (current.input.split(LinkSeparator).count(String::isNotEmpty) > MAX_TRANSFER_LINKS) {
-            MobileShareValidation.TooManyLinks
-        } else {
-            MobileShareValidation.InvalidLink
-        }
-        mutableState.value = current.copy(
-            input = valid ?: current.input,
-            validation = if (valid == null) current.validation ?: invalid else null,
-        )
-        return valid?.let { TransfersEvent.Add(it, saveParentId) }
-    }
-
-    internal fun setSubmitting(submitting: Boolean) {
-        mutableState.value = mutableState.value.copy(submitting = submitting)
     }
 
     /** put.io refused [rejectedLinks]; they stay in the draft for the user to fix or drop. */
@@ -176,32 +130,10 @@ class MobileTransferDraft internal constructor(
                 incomingRequestId = current.incomingRequestId,
                 pendingReplacement = pending != null,
             )
-            pending == null -> clear(keepDestination = true)
+            // A chosen folder lasts for the session, like web's "custom folder in this session".
+            pending == null -> mutableState.value = MobileTransferDraftState(destination = current.destination)
             else -> present(pending, current.incomingRequestId)
         }
-    }
-
-    internal fun restoreRejectedInput(input: String) {
-        val current = mutableState.value
-        mutableState.value = current.copy(
-            input = current.input.ifBlank { input.takeIf { it.fitsMobileTransferInputLimit() }.orEmpty() },
-            validation = if (!input.fitsMobileTransferInputLimit()) {
-                MobileShareValidation.TooLong
-            } else {
-                current.validation
-            },
-            open = true,
-            submitting = false,
-        )
-    }
-
-    internal fun restoreRejectedTorrent(file: TorrentUpload) {
-        val current = mutableState.value
-        mutableState.value = current.copy(
-            torrent = current.torrent ?: file.takeIf { current.input.isBlank() },
-            open = true,
-            submitting = false,
-        )
     }
 
     internal fun useSharedLink() {
@@ -225,14 +157,4 @@ class MobileTransferDraft internal constructor(
             incomingRequestId = requestId,
         )
     }
-
-    // A chosen folder lasts for the session, like web's "custom folder in this session".
-    private fun clear(keepDestination: Boolean) {
-        replacement = null
-        mutableState.value = MobileTransferDraftState(
-            destination = mutableState.value.destination.takeIf { keepDestination },
-        )
-    }
 }
-
-private val LinkSeparator = Regex("[\\s\\p{Z}\\u0085]+")

@@ -134,7 +134,11 @@ class MobileSearchHistoryScreenTest {
     fun historyLoadsTheNextPageNearTheEndWithoutATap() {
         val events = mutableListOf<HistoryEvent>()
         val items = (1L..60L).map {
-            HistoryItem(HistoryEventId(it), "2026-08-30T10:00:00Z", HistoryEventKind.File(HistoryFileId(it), "Sample $it"))
+            HistoryItem(
+                HistoryEventId(it),
+                "2026-08-30T10:00:00Z",
+                HistoryEventKind.File(HistoryFileId(it), "Sample $it"),
+            )
         }
         setScreen(
             history = historyState(HistoryContent.Ready(items, HistoryPaging.Available(HistoryEventId(60L)))),

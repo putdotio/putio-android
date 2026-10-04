@@ -238,7 +238,8 @@ class MobileFileShareServiceTest {
         val fixture = ShareFixture()
         fixture.start(fileId = 1L, name = "a", startId = 1)
         fixture.service.onStartCommand(
-            Intent(fixture.service, MobileFileShareService::class.java).setAction("io.putdotio.android.action.CANCEL_SHARE"),
+            Intent(fixture.service, MobileFileShareService::class.java)
+                .setAction("io.putdotio.android.action.CANCEL_SHARE"),
             0,
             2,
         )

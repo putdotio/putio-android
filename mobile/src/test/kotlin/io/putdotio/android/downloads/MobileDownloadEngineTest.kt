@@ -194,7 +194,7 @@ class MobileDownloadEngineTest {
         manager: DownloadManager,
         io: CoroutineDispatcher = Dispatchers.Unconfined,
     ): MobileDownloadEngine =
-        MobileDownloadEngine(context, store, userId, scope, downloads, manager, io).also { engines += it }
+        MobileDownloadEngine(context, store, userId, scope, manager, io).also { engines += it }
 
     private fun store(userId: Long) = MobileDownloadStore(preferences, storeKey(userId), Dispatchers.Unconfined)
 

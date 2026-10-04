@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -12,7 +13,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
 import androidx.tv.material3.Text
 import io.putdotio.android.R
+import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesDeleteMode
+import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvDialog
 import io.putdotio.sdk.files.PutioFileType
@@ -41,11 +46,73 @@ internal fun FilesItem.tvActions(
         if (isPlayable) add(TvFilesAction.OpenInVlc)
         val watched = playback?.isWatched == true
         if (!acceptsOwnerActions) return@buildList
-        if (type == PutioFileType.VIDEO && watchedToggleEnabled && (watched || playback?.durationSeconds != null)) {
+        val canToggleWatched = watched || playback?.durationSeconds != null
+        if (type == PutioFileType.VIDEO && watchedToggleEnabled && canToggleWatched) {
             add(TvFilesAction.SetWatched(!watched))
         }
         if (trashEnabled != null && canDelete && id.value > 0L) add(TvFilesAction.Delete(trashEnabled))
     }
+
+/** Otherwise the reducer would refuse the Delete a permanent-deletion confirmation sends. */
+internal fun FilesFolderState.permanentDeleteConfirmable(trashEnabled: Boolean?): Boolean =
+    trashEnabled == false && operation.canStartOperation
+
+/** The open row's actions, or the confirmation for its permanent deletion. */
+@Composable
+internal fun TvFilesActionsMenu(
+    item: FilesItem,
+    folder: FilesFolderState,
+    trashEnabled: Boolean?,
+    watchedToggleEnabled: Boolean,
+    confirmingPermanentDelete: Boolean,
+    onConfirmPermanentDelete: () -> Unit,
+    trashPressed: Boolean,
+    onTrashPressedChange: (Boolean) -> Unit,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+    onOpenInVlc: (FilesItem) -> Unit,
+    onSetWatched: (FilesItem, Boolean) -> Unit,
+    onClose: () -> Unit,
+) {
+    val canStartOperation = folder.operation.canStartOperation
+    val delete = { mode: FilesDeleteMode ->
+        onClose()
+        onEvent(FilesBrowserEvent.Delete(folder.folder.id, item.id, mode))
+    }
+    if (trashPressed) {
+        val trashStillOn = trashEnabled == true && canStartOperation
+        SideEffect {
+            onTrashPressedChange(false)
+            if (trashStillOn) delete(FilesDeleteMode.TRASH)
+        }
+    }
+    if (confirmingPermanentDelete && folder.permanentDeleteConfirmable(trashEnabled)) {
+        TvFilesDeleteDialog(
+            item = item,
+            onConfirm = { delete(FilesDeleteMode.PERMANENT) },
+            onDismiss = onClose,
+        )
+    } else {
+        TvFilesActionsDialog(
+            item = item,
+            actions = item.tvActions(watchedToggleEnabled, trashEnabled, canStartOperation),
+            onAction = { action ->
+                when (action) {
+                    TvFilesAction.OpenInVlc -> {
+                        onClose()
+                        onOpenInVlc(item)
+                    }
+                    is TvFilesAction.SetWatched -> {
+                        onClose()
+                        onSetWatched(item, action.watched)
+                    }
+                    is TvFilesAction.Delete ->
+                        if (action.trash) onTrashPressedChange(true) else onConfirmPermanentDelete()
+                }
+            },
+            onDismiss = onClose,
+        )
+    }
+}
 
 @Composable
 internal fun TvFilesAction.label(): String =

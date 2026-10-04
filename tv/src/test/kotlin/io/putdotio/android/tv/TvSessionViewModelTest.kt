@@ -404,7 +404,9 @@ class TvSessionViewModelTest {
     fun `leaving a video autoplay moved on to beyond the loaded rows reads on to that row`() {
         rootPages = (0 until 3).map { page ->
             FilesPage(
-                items = (1L..50L).map { media(page * 100L + it, "Harbor film ${page * 100L + it}.mp4", PutioFileType.VIDEO) },
+                items = (1L..50L).map {
+                    media(page * 100L + it, "Harbor film ${page * 100L + it}.mp4", PutioFileType.VIDEO)
+                },
                 nextCursor = FilesCursor("page-${page + 1}").takeIf { page < 2 },
             )
         }

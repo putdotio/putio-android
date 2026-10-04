@@ -8,6 +8,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -15,19 +16,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeGestures
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.MutableLongState
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -40,24 +42,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.core.view.ViewCompat
@@ -65,9 +56,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
@@ -77,22 +68,16 @@ import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.R
-import io.putdotio.android.design.PutioDesignTokens
-import io.putdotio.android.downloads.description
 import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackSource
+import java.io.Closeable
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
 internal const val MOBILE_PLAYER_TAG = "mobile-player"
 internal const val MOBILE_PLAYER_GESTURE_TAG = "mobile-player-gesture"
 internal const val MOBILE_AUDIO_COVER_TAG = "mobile-audio-cover"
-internal const val MOBILE_SEEK_BACK_TAG = "mobile-seek-back"
-internal const val MOBILE_SEEK_FORWARD_TAG = "mobile-seek-forward"
-internal const val MOBILE_SEEK_FEEDBACK_TAG = "mobile-seek-feedback"
 private const val MOBILE_CONTROLS_HIDE_DELAY_MILLIS = 3_000L
-private const val MOBILE_SEEK_FEEDBACK_DELAY_MILLIS = 800L
-internal const val MOBILE_SEEK_INTERVAL_MILLIS = 10_000L
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
@@ -124,22 +109,14 @@ internal fun MobilePlayerScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .observePlayerControlInteraction(
-                onInteractionChanged = { if (it) keyboardNavigationActive = false },
-                onActivity = {},
-            ).observePlayerControlKeyActivity { keyboardNavigationActive = true },
+            .observeControlNavigation(
+                onPointerNavigation = { keyboardNavigationActive = false },
+                onKeyboardNavigation = { keyboardNavigationActive = true },
+            ),
     ) {
         when (val content = state.content) {
             is PlaybackContent.Loading ->
-                MobileLoadingState(
-                    stringResource(
-                        if (state.target.mediaType == PlaybackMediaType.AUDIO) {
-                            R.string.mobile_playback_loading_audio
-                        } else {
-                            R.string.mobile_playback_loading
-                        },
-                    ),
-                )
+                MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
 
             is PlaybackContent.AwaitingResume -> MobileResumePlaybackDialog(
                 title = state.target.name,
@@ -212,13 +189,7 @@ internal fun MobilePlayerScreen(
 
             is PlaybackContent.Failed ->
                 MobilePlaybackFailureState(
-                    title = stringResource(
-                        if (state.target.mediaType == PlaybackMediaType.AUDIO) {
-                            R.string.mobile_playback_error_title_audio
-                        } else {
-                            R.string.mobile_playback_error_title
-                        },
-                    ),
+                    title = stringResource(state.target.mediaType.errorTitle()),
                     failure = content.failure,
                     onRetry = onRetry,
                 )
@@ -275,7 +246,7 @@ private fun MobileReadyPlayer(
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var lifecycleState by remember(lifecycle) { mutableStateOf(lifecycle.currentState) }
-    var playerGeneration by remember(lifecycle) { mutableIntStateOf(0) }
+    val playerGeneration = remember(lifecycle) { mutableIntStateOf(0) }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, _ -> lifecycleState = lifecycle.currentState }
         lifecycle.addObserver(observer)
@@ -283,11 +254,8 @@ private fun MobileReadyPlayer(
     }
     if (!lifecycleState.isAtLeast(Lifecycle.State.STARTED)) return
 
-    val sessionFileId = if (sessionHandled) sessionPlayer?.activeSessionFileId() else {
-        sessionPlayer?.resumableSessionFileId()
-    }
-    val matchingSessionError = sessionPlayer?.currentMediaItem?.mediaId == fileId.toString() &&
-        sessionPlayer.playerError != null
+    val sessionFileId = sessionPlayer?.sessionFileId(sessionHandled)
+    val matchingSessionError = sessionPlayer?.playerErrorFor(fileId) != null
     if (source == null && sessionFileId != fileId && !matchingSessionError) {
         LaunchedEffect(sessionPlayer, fileId) { onSourceRequired(startPositionMillis) }
         MobileLoadingState(stringResource(R.string.mobile_playback_loading_audio))
@@ -297,11 +265,11 @@ private fun MobileReadyPlayer(
     val initialPlayback = remember(source, title, mediaType, startPositionMillis) {
         source?.preparePlayback(title, mediaType, startPositionMillis)
     }
-    var retainedPositionMillis by rememberSaveable(fileId) {
+    val retainedPosition = rememberSaveable(fileId) {
         mutableLongStateOf(initialPlayback?.startPositionMillis ?: startPositionMillis ?: 0L)
     }
-    val preparedPlayback = remember(source, title, mediaType, playerGeneration) {
-        source?.preparePlayback(title, mediaType, retainedPositionMillis)
+    val preparedPlayback = remember(source, title, mediaType, playerGeneration.intValue) {
+        source?.preparePlayback(title, mediaType, retainedPosition.longValue)
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
@@ -312,75 +280,174 @@ private fun MobileReadyPlayer(
     val currentPreferences = rememberUpdatedState(preferences)
     // A session player outlives this screen: it is never paused, released, or recreated here.
     val ownsPlayer = sessionPlayer == null
-    val player = remember(context, lifecycle, playerFactory, playerGeneration, mediaType, sessionPlayer) {
+    val player = remember(context, lifecycle, playerFactory, playerGeneration.intValue, mediaType, sessionPlayer) {
         sessionPlayer ?: playerFactory.create(context, mediaType)
     }
-    val positionObserver = remember(player) {
-        if (ownsPlayer) playerFactory.observePositions(context, player) else null
-    }
-    var playerReleased by remember(player) { mutableStateOf(false) }
-    val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
-    // A route that already handled the session keeps an ended file ended; a route opened
-    // fresh onto an ended file prepares it again.
-    var activeFileId by remember(player) {
-        mutableStateOf(if (sessionHandled) player.activeSessionFileId() else player.resumableSessionFileId())
-    }
-    var optionsInitialized by remember(player) { mutableStateOf(false) }
-    var cues by remember(player) { mutableStateOf(player.currentCues.cues) }
-    var videoSize by remember(player) { mutableStateOf(player.videoSize) }
-    val currentOnVideoAspectRatio by rememberUpdatedState(onVideoAspectRatio)
-    LaunchedEffect(videoSize) { videoSize.displayAspectRatioOrNull()?.let(currentOnVideoAspectRatio) }
-    var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
     val isAudio = mediaType == PlaybackMediaType.AUDIO
-    var keepScreenOn by remember(player) { mutableStateOf(!isAudio && player.shouldKeepScreenOn()) }
-    var controlsVisible by rememberSaveable(fileId) { mutableStateOf(true) }
-    var playerWantsToPlay by remember(player) { mutableStateOf(player.playWhenReady) }
-    var retainedPlayIntent by remember(player) { mutableStateOf(resumeAfterLifecyclePause) }
-    var controlsInteracting by remember { mutableStateOf(false) }
-    var controlsMenuOpen by remember { mutableStateOf(false) }
-    var controlsActivity by remember { mutableIntStateOf(0) }
-    var failurePositionMillis by remember(player) { mutableStateOf<Long?>(null) }
-    var endedReported by remember(player) { mutableStateOf(false) }
-    var seekWindow by remember(player) { mutableStateOf(player.currentSeekWindow()) }
-    var pendingSeek by remember(player, fileId) { mutableStateOf<PendingSeek?>(null) }
-    val accessibilityManager = LocalAccessibilityManager.current
-    var nextSeekRequestId by remember(player) { mutableLongStateOf(0L) }
-    val hostView = LocalView.current
-    LaunchedEffect(player, resumeAfterLifecyclePause) {
-        retainedPlayIntent = resumeAfterLifecyclePause
+    val playerState = remember(player) {
+        ReadyPlayerState(
+            player = player,
+            ownsPlayer = ownsPlayer,
+            positionObserver = if (ownsPlayer) playerFactory.observePositions(context, player) else null,
+            sessionHandled = sessionHandled,
+            keepScreenOn = !isAudio && player.shouldKeepScreenOn(),
+            resumeAfterLifecyclePause = resumeAfterLifecyclePause,
+        )
     }
-    fun seek(direction: SeekDirection) {
-        val currentWindow = player.currentSeekWindow()
-        pendingSeek =
-            pendingSeekAfterWindowUpdate(
-                pending = pendingSeek,
-                previousWindow = seekWindow,
-                updatedWindow = currentWindow,
-            )
-        seekWindow = currentWindow
-        if (!currentWindow.available) return
-        val request =
-            nextPendingSeek(
-                previous = pendingSeek,
-                currentPositionMillis = player.currentPosition,
-                durationMillis = currentWindow.durationMillis,
-                direction = direction,
-                requestId = ++nextSeekRequestId,
-                nowMillis = seekClock(),
-            ) ?: return
-        pendingSeek = request
-        retainedPositionMillis = request.targetPositionMillis
-        currentOnPositionChanged.value(request.targetPositionMillis)
-        player.seekTo(request.targetPositionMillis)
+    val currentOnVideoAspectRatio by rememberUpdatedState(onVideoAspectRatio)
+    LaunchedEffect(playerState.videoSize) {
+        playerState.videoSize.displayAspectRatioOrNull()?.let(currentOnVideoAspectRatio)
+    }
+    val controlsVisible = rememberSaveable(fileId) { mutableStateOf(true) }
+    val controlsInteracting = remember { mutableStateOf(false) }
+    val controlsMenuOpen = remember { mutableStateOf(false) }
+    val controlsActivity = remember { mutableIntStateOf(0) }
+    val pendingSeek = remember(player, fileId) { mutableStateOf<PendingSeek?>(null) }
+    LaunchedEffect(player, resumeAfterLifecyclePause) {
+        playerState.retainedPlayIntent = resumeAfterLifecyclePause
     }
 
+    PlaybackPreparationEffect(
+        playerState = playerState,
+        preparedPlayback = preparedPlayback,
+        source = source,
+        fileId = fileId,
+        useStartFrom = useStartFrom,
+        startPositionMillis = startPositionMillis,
+        retainedSubtitleSelection = retainedSubtitleSelection,
+        subtitleStartupPolicy = subtitleStartupPolicy,
+        preferences = preferences,
+        playerFactory = playerFactory,
+        retainedPosition = retainedPosition,
+        currentOnPlaybackRetained = currentOnPlaybackRetained,
+        currentOnPositionChanged = currentOnPositionChanged,
+        currentOnPlayerFailure = currentOnPlayerFailure,
+        onSessionHandled = onSessionHandled,
+        onSourceRequired = onSourceRequired,
+    )
+    SubtitleStartupEffect(playerState, fileId, retainedSubtitleSelection, subtitleStartupPolicy)
+
+    val touchExplorationEnabled = rememberTouchExplorationEnabled()
+    ControlsVisibilityEffects(
+        playerState = playerState,
+        isAudio = isAudio,
+        touchExplorationEnabled = touchExplorationEnabled,
+        keyboardNavigationActive = keyboardNavigationActive,
+        controlsVisible = controlsVisible,
+        controlsInteracting = controlsInteracting,
+        controlsMenuOpen = controlsMenuOpen,
+        controlsActivity = controlsActivity,
+    )
+    SeekFeedbackTimeout(pendingSeek)
+    HostViewEffects(playerState, controlsVisible, controlsActivity, onKeyboardNavigation)
+    PlayerLifecycleEffects(
+        playerState = playerState,
+        playerGeneration = playerGeneration,
+        retainedPosition = retainedPosition,
+        onPlaybackRetained = onPlaybackRetained,
+        onPositionChanged = onPositionChanged,
+        currentOnPlaybackRetained = currentOnPlaybackRetained,
+        currentOnPositionChanged = currentOnPositionChanged,
+    )
+    PlayerListenerEffect(
+        playerState = playerState,
+        isAudio = isAudio,
+        retainedPosition = retainedPosition,
+        controlsVisible = controlsVisible,
+        pendingSeek = pendingSeek,
+        currentPreferences = currentPreferences,
+        currentSubtitleStartupPolicy = currentSubtitleStartupPolicy,
+        currentAutoplayNextVideo = currentAutoplayNextVideo,
+        currentOnPlaybackEnded = currentOnPlaybackEnded,
+        currentOnPlayerFailure = currentOnPlayerFailure,
+        currentOnPlaybackRetained = currentOnPlaybackRetained,
+        currentOnPositionChanged = currentOnPositionChanged,
+    )
+
+    MobileReadyPlayerContent(
+        playerState = playerState,
+        fileId = fileId,
+        title = title,
+        isAudio = isAudio,
+        preferences = preferences,
+        subtitleStartupPolicy = subtitleStartupPolicy,
+        touchExplorationEnabled = touchExplorationEnabled,
+        retainedPosition = retainedPosition,
+        controlsVisible = controlsVisible,
+        controlsInteracting = controlsInteracting,
+        controlsMenuOpen = controlsMenuOpen,
+        controlsActivity = controlsActivity,
+        pendingSeek = pendingSeek,
+        currentOnPositionChanged = currentOnPositionChanged,
+        seekClock = seekClock,
+        onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+        onKeyboardNavigation = onKeyboardNavigation,
+        onPointerNavigation = onPointerNavigation,
+        onBack = onBack,
+    )
+}
+
+/**
+ * What the screen tracks about one player. It is remembered with that player, so a recreated
+ * player starts from fresh state while the route's saveable state carries over.
+ */
+@Stable
+private class ReadyPlayerState(
+    val player: Media3Player,
+    val ownsPlayer: Boolean,
+    val positionObserver: Closeable?,
+    sessionHandled: Boolean,
+    keepScreenOn: Boolean,
+    resumeAfterLifecyclePause: Boolean,
+) {
+    var playerReleased by mutableStateOf(false)
+    val defaultTrackSelection: TrackSelectionParameters = player.trackSelectionParameters
+
+    // A route that already handled the session keeps an ended file ended; a route opened
+    // fresh onto an ended file prepares it again.
+    var activeFileId by mutableStateOf(player.sessionFileId(sessionHandled))
+    var optionsInitialized by mutableStateOf(false)
+    var cues by mutableStateOf(player.currentCues.cues)
+    var videoSize by mutableStateOf(player.videoSize)
+    var playbackState by mutableIntStateOf(player.playbackState)
+    var keepScreenOn by mutableStateOf(keepScreenOn)
+    var playerWantsToPlay by mutableStateOf(player.playWhenReady)
+    var retainedPlayIntent by mutableStateOf(resumeAfterLifecyclePause)
+    var failurePositionMillis by mutableStateOf<Long?>(null)
+    var endedReported by mutableStateOf(false)
+    var seekWindow by mutableStateOf(player.currentSeekWindow())
+    var nextSeekRequestId by mutableLongStateOf(0L)
+}
+
+@UnstableApi
+@Composable
+private fun PlaybackPreparationEffect(
+    playerState: ReadyPlayerState,
+    preparedPlayback: PreparedPlayback?,
+    source: PlaybackSource?,
+    fileId: Long,
+    useStartFrom: Boolean,
+    startPositionMillis: Long?,
+    retainedSubtitleSelection: SubtitleSelection?,
+    subtitleStartupPolicy: SubtitleStartupPolicy?,
+    preferences: RetainedPlayerPreferences,
+    playerFactory: MobilePlayerFactory,
+    retainedPosition: MutableLongState,
+    currentOnPlaybackRetained: State<(RetainedPlayback) -> Unit>,
+    currentOnPositionChanged: State<(Long) -> Unit>,
+    currentOnPlayerFailure: State<(PlaybackFailure, Long) -> Unit>,
+    onSessionHandled: () -> Unit,
+    onSourceRequired: (Long?) -> Unit,
+) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val player = playerState.player
     LaunchedEffect(player, preparedPlayback) {
-        val replacingFileId = activeFileId
-        val sessionError = player.playerError
-        if (source == null && player.currentMediaItem?.mediaId == fileId.toString() && sessionError != null) {
+        val replacingFileId = playerState.activeFileId
+        val sessionError = player.playerErrorFor(fileId)
+        if (source == null && sessionError != null) {
             preferences.adoptPlaybackOptions(player)
             val position = player.currentPosition.coerceAtLeast(0L)
-            failurePositionMillis = position
+            playerState.failurePositionMillis = position
             playerRetentionUpdate(
                 event = PlayerRetentionEvent.PlayerError,
                 lifecycleState = lifecycle.currentState,
@@ -390,24 +457,24 @@ private fun MobileReadyPlayer(
             currentOnPlayerFailure.value(sessionError.toPlaybackFailure(), position)
             return@LaunchedEffect
         }
-        if (!ownsPlayer && replacingFileId == fileId) {
+        if (!playerState.ownsPlayer && replacingFileId == fileId) {
             onSessionHandled()
             preferences.adoptPlaybackOptions(player)
-            optionsInitialized = true
+            playerState.optionsInitialized = true
             // Returning to audio that kept playing: adopt the live position instead of restarting.
             val livePosition = player.currentPosition.coerceAtLeast(0L)
-            retainedPositionMillis = livePosition
+            retainedPosition.longValue = livePosition
             currentOnPositionChanged.value(livePosition)
-            seekWindow = player.currentSeekWindow()
-            playerWantsToPlay = player.playWhenReady
-            retainedPlayIntent = player.playWhenReady
+            playerState.seekWindow = player.currentSeekWindow()
+            playerState.playerWantsToPlay = player.playWhenReady
+            playerState.retainedPlayIntent = player.playWhenReady
             return@LaunchedEffect
         }
         if (preparedPlayback == null) {
             onSourceRequired(startPositionMillis)
             return@LaunchedEffect
         }
-        if (!ownsPlayer) onSessionHandled()
+        if (!playerState.ownsPlayer) onSessionHandled()
         val replacementPosition =
             replacementPositionMillis(
                 activeFileId = replacingFileId,
@@ -415,42 +482,57 @@ private fun MobileReadyPlayer(
                 livePositionMillis = player.currentPosition,
                 preparedPositionMillis = preparedPlayback.startPositionMillis,
             )
-        retainedPositionMillis = replacementPosition
+        retainedPosition.longValue = replacementPosition
         currentOnPositionChanged.value(replacementPosition)
         if (replacingFileId != fileId || retainedSubtitleSelection == null) {
             player.trackSelectionParameters =
                 restoreSubtitleSelection(
-                    defaults = defaultTrackSelection,
+                    defaults = playerState.defaultTrackSelection,
                     retained = retainedSubtitleSelection,
                     startupPolicy = subtitleStartupPolicy,
                 )
         }
-        activeFileId = fileId
+        playerState.activeFileId = fileId
         player.setPlaybackSpeed(preferences.playbackSpeed)
         player.trackSelectionParameters = player.trackSelectionParameters.withAudioSelection(
             preferences.audioSelection,
             emptyList(),
         )
-        optionsInitialized = true
+        playerState.optionsInitialized = true
         player.setMediaItem(playerFactory.reportableItem(preparedPlayback.mediaItem, useStartFrom), replacementPosition)
         player.prepare()
-        seekWindow = player.currentSeekWindow()
+        playerState.seekWindow = player.currentSeekWindow()
         // Session audio plays behind a dialog or a stopped screen; only a private player waits.
-        playerWantsToPlay =
-            if (ownsPlayer) lifecycleAllowsAutoplay(lifecycle.currentState, retainedPlayIntent) else retainedPlayIntent
-        player.playWhenReady = playerWantsToPlay
+        playerState.playerWantsToPlay =
+            if (playerState.ownsPlayer) {
+                lifecycleAllowsAutoplay(lifecycle.currentState, playerState.retainedPlayIntent)
+            } else {
+                playerState.retainedPlayIntent
+            }
+        player.playWhenReady = playerState.playerWantsToPlay
     }
-    LaunchedEffect(player, activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
+}
+
+@UnstableApi
+@Composable
+private fun SubtitleStartupEffect(
+    playerState: ReadyPlayerState,
+    fileId: Long,
+    retainedSubtitleSelection: SubtitleSelection?,
+    subtitleStartupPolicy: SubtitleStartupPolicy?,
+) {
+    val player = playerState.player
+    LaunchedEffect(player, playerState.activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
         val policy = subtitleStartupPolicy ?: return@LaunchedEffect
         // Hiding also overrides a pick made before the settings arrived (#237).
-        if (activeFileId == fileId && (retainedSubtitleSelection == null || !policy.showSubtitles)) {
+        if (playerState.activeFileId == fileId && (retainedSubtitleSelection == null || !policy.showSubtitles)) {
             val current = player.trackSelectionParameters
             val parameters =
                 if (policy.showSubtitles && policy.autoSelectSubtitles) {
                     current.withSubtitleSelection(
                         SubtitleSelection.Automatic,
                         player.currentTracks.playbackSubtitleTracks(),
-                        defaultTrackSelection,
+                        playerState.defaultTrackSelection,
                     )
                 } else {
                     restoreSubtitleSelection(
@@ -464,36 +546,49 @@ private fun MobileReadyPlayer(
             }
         }
     }
+}
 
-    val touchExplorationEnabled = rememberTouchExplorationEnabled()
+@Composable
+private fun ControlsVisibilityEffects(
+    playerState: ReadyPlayerState,
+    isAudio: Boolean,
+    touchExplorationEnabled: Boolean,
+    keyboardNavigationActive: Boolean,
+    controlsVisible: MutableState<Boolean>,
+    controlsInteracting: State<Boolean>,
+    controlsMenuOpen: State<Boolean>,
+    controlsActivity: MutableIntState,
+) {
+    val accessibilityManager = LocalAccessibilityManager.current
     // The tap layer has no accessibility click semantics, so a service enabled
     // mid-playback needs the controls back on screen to reach them.
     LaunchedEffect(touchExplorationEnabled) {
-        controlsVisible = controlsVisibleForTouchExploration(controlsVisible, touchExplorationEnabled)
+        controlsVisible.value = controlsVisibleForTouchExploration(controlsVisible.value, touchExplorationEnabled)
     }
     LaunchedEffect(keyboardNavigationActive) {
         if (keyboardNavigationActive) {
-            controlsVisible = true
-            controlsActivity += 1
+            controlsVisible.value = true
+            controlsActivity.intValue += 1
         }
     }
+    val player = playerState.player
     LaunchedEffect(
         player,
-        controlsVisible,
-        playerWantsToPlay,
-        playbackState,
-        controlsInteracting,
+        controlsVisible.value,
+        playerState.playerWantsToPlay,
+        playerState.playbackState,
+        controlsInteracting.value,
         keyboardNavigationActive,
-        controlsMenuOpen,
+        controlsMenuOpen.value,
         touchExplorationEnabled,
-        controlsActivity,
+        controlsActivity.intValue,
     ) {
         if (!isAudio &&
             player.controlsShouldAutoHide(
-                controlsVisible = controlsVisible,
-                pointerInteracting = controlsInteracting,
+                controlsVisible = controlsVisible.value,
+                pointerInteracting = controlsInteracting.value,
                 keyboardNavigationActive = keyboardNavigationActive,
-                menuOpen = controlsMenuOpen,
+                menuOpen = controlsMenuOpen.value,
                 touchExplorationEnabled = touchExplorationEnabled,
             )
         ) {
@@ -504,26 +599,24 @@ private fun MobileReadyPlayer(
                 containsControls = true,
             ) ?: MOBILE_CONTROLS_HIDE_DELAY_MILLIS
             delay(timeout.coerceAtLeast(MOBILE_CONTROLS_HIDE_DELAY_MILLIS))
-            controlsVisible = false
+            controlsVisible.value = false
         }
     }
-    LaunchedEffect(pendingSeek?.requestId) {
-        val requestId = pendingSeek?.requestId ?: return@LaunchedEffect
-        val feedbackTimeout = accessibilityManager?.calculateRecommendedTimeoutMillis(
-            originalTimeoutMillis = MOBILE_SEEK_FEEDBACK_DELAY_MILLIS,
-            containsText = true,
-        ) ?: MOBILE_SEEK_FEEDBACK_DELAY_MILLIS
-        // Accumulation expiry lives on the request; this timer only hides the feedback.
-        delay(feedbackTimeout.coerceAtLeast(MOBILE_SEEK_FEEDBACK_DELAY_MILLIS))
-        // A new seek can arrive before recomposition cancels the previous timer.
-        if (pendingSeek?.requestId == requestId) pendingSeek = null
-    }
+}
 
-    DisposableEffect(hostView, keepScreenOn) {
+@Composable
+private fun HostViewEffects(
+    playerState: ReadyPlayerState,
+    controlsVisible: MutableState<Boolean>,
+    controlsActivity: MutableIntState,
+    onKeyboardNavigation: () -> Unit,
+) {
+    val hostView = LocalView.current
+    DisposableEffect(hostView, playerState.keepScreenOn) {
         val inheritedKeepScreenOn = hostView.keepScreenOn
-        if (keepScreenOn && !inheritedKeepScreenOn) hostView.keepScreenOn = true
+        if (playerState.keepScreenOn && !inheritedKeepScreenOn) hostView.keepScreenOn = true
         onDispose {
-            if (keepScreenOn && !inheritedKeepScreenOn) hostView.keepScreenOn = false
+            if (playerState.keepScreenOn && !inheritedKeepScreenOn) hostView.keepScreenOn = false
         }
     }
 
@@ -531,17 +624,30 @@ private fun MobileReadyPlayer(
         val listener = ViewCompat.OnUnhandledKeyEventListenerCompat { _, event ->
             if (event.action == KeyEvent.ACTION_DOWN) {
                 onKeyboardNavigation()
-                controlsVisible = true
-                controlsActivity += 1
+                controlsVisible.value = true
+                controlsActivity.intValue += 1
             }
             false
         }
         ViewCompat.addOnUnhandledKeyEventListener(hostView, listener)
         onDispose { ViewCompat.removeOnUnhandledKeyEventListener(hostView, listener) }
     }
+}
 
+@Composable
+private fun PlayerLifecycleEffects(
+    playerState: ReadyPlayerState,
+    playerGeneration: MutableIntState,
+    retainedPosition: MutableLongState,
+    onPlaybackRetained: (RetainedPlayback) -> Unit,
+    onPositionChanged: (Long) -> Unit,
+    currentOnPlaybackRetained: State<(RetainedPlayback) -> Unit>,
+    currentOnPositionChanged: State<(Long) -> Unit>,
+) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val player = playerState.player
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        if (ownsPlayer && !playerReleased) {
+        if (playerState.ownsPlayer && !playerState.playerReleased) {
             val update =
                 playerRetentionUpdate(
                     event = PlayerRetentionEvent.LifecyclePause,
@@ -549,37 +655,58 @@ private fun MobileReadyPlayer(
                     positionMillis = player.currentPosition,
                     playWhenReady = player.playWhenReady,
                 )
-            retainedPlayIntent = (update as PlayerRetentionUpdate.Playback).retained.resumeAfterLifecyclePause
-            retainedPositionMillis = update.positionMillis
+            playerState.retainedPlayIntent =
+                (update as PlayerRetentionUpdate.Playback).retained.resumeAfterLifecyclePause
+            retainedPosition.longValue = update.positionMillis
             update.dispatch(onPlaybackRetained, onPositionChanged)
             player.pause()
         }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (playerReleased) {
-            playerGeneration += 1
+        if (playerState.playerReleased) {
+            playerGeneration.intValue += 1
         }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        if (ownsPlayer && !playerReleased && retainedPlayIntent) {
+        if (playerState.ownsPlayer && !playerState.playerReleased && playerState.retainedPlayIntent) {
             player.play()
         }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
-        if (!playerReleased) {
-            retainedPositionMillis = player.currentPosition.coerceAtLeast(0L)
+        if (!playerState.playerReleased) {
+            retainedPosition.longValue = player.currentPosition.coerceAtLeast(0L)
             RetainedPlayback(
-                positionMillis = retainedPositionMillis,
-                resumeAfterLifecyclePause = retainedPlayIntent,
+                positionMillis = retainedPosition.longValue,
+                resumeAfterLifecyclePause = playerState.retainedPlayIntent,
             ).let(currentOnPlaybackRetained.value)
-            currentOnPositionChanged.value(retainedPositionMillis)
-            if (ownsPlayer) {
-                playerReleased = true
-                positionObserver?.close()
+            currentOnPositionChanged.value(retainedPosition.longValue)
+            if (playerState.ownsPlayer) {
+                playerState.playerReleased = true
+                playerState.positionObserver?.close()
                 player.release()
             }
         }
     }
+}
+
+@UnstableApi
+@Composable
+private fun PlayerListenerEffect(
+    playerState: ReadyPlayerState,
+    isAudio: Boolean,
+    retainedPosition: MutableLongState,
+    controlsVisible: MutableState<Boolean>,
+    pendingSeek: MutableState<PendingSeek?>,
+    currentPreferences: State<RetainedPlayerPreferences>,
+    currentSubtitleStartupPolicy: State<SubtitleStartupPolicy?>,
+    currentAutoplayNextVideo: State<Boolean>,
+    currentOnPlaybackEnded: State<() -> Unit>,
+    currentOnPlayerFailure: State<(PlaybackFailure, Long) -> Unit>,
+    currentOnPlaybackRetained: State<(RetainedPlayback) -> Unit>,
+    currentOnPositionChanged: State<(Long) -> Unit>,
+) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val player = playerState.player
     DisposableEffect(player) {
         // A picked track is found again in each new track list, and automatic subtitles find the
         // account's default. The pick is read live: tracks can change before recomposition
@@ -589,7 +716,7 @@ private fun MobileReadyPlayer(
                 retained = currentPreferences.value.subtitleSelection,
                 startupPolicy = currentSubtitleStartupPolicy.value,
                 tracks = tracks,
-                textDefaults = defaultTrackSelection,
+                textDefaults = playerState.defaultTrackSelection,
             )
             if (parameters != player.trackSelectionParameters) {
                 player.trackSelectionParameters = parameters
@@ -598,11 +725,11 @@ private fun MobileReadyPlayer(
         val listener =
             object : Media3Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
-                    if (playerReleased) return
-                    if (!ownsPlayer) currentPreferences.value.adoptPlaybackOptions(player)
+                    if (playerState.playerReleased) return
+                    if (!playerState.ownsPlayer) currentPreferences.value.adoptPlaybackOptions(player)
                     val errorPositionMillis = player.currentPosition.coerceAtLeast(0L)
-                    retainedPositionMillis = errorPositionMillis
-                    failurePositionMillis = errorPositionMillis
+                    retainedPosition.longValue = errorPositionMillis
+                    playerState.failurePositionMillis = errorPositionMillis
                     playerRetentionUpdate(
                         event = PlayerRetentionEvent.PlayerError,
                         lifecycleState = lifecycle.currentState,
@@ -616,16 +743,16 @@ private fun MobileReadyPlayer(
                 }
 
                 override fun onCues(cueGroup: CueGroup) {
-                    cues = cueGroup.cues
+                    playerState.cues = cueGroup.cues
                 }
 
                 override fun onVideoSizeChanged(size: VideoSize) {
-                    videoSize = size
+                    playerState.videoSize = size
                 }
 
                 override fun onTracksChanged(tracks: Tracks) {
                     resolveRetainedSubtitleSelection(tracks.playbackSubtitleTracks())
-                    if (optionsInitialized) {
+                    if (playerState.optionsInitialized) {
                         val parameters = player.trackSelectionParameters.withRetainedAudioSelection(
                             currentPreferences.value.audioSelection,
                             tracks.playbackAudioTracks(),
@@ -635,20 +762,20 @@ private fun MobileReadyPlayer(
                 }
 
                 override fun onPlaybackParametersChanged(parameters: androidx.media3.common.PlaybackParameters) {
-                    if (optionsInitialized) currentPreferences.value.playbackSpeed = parameters.speed
+                    if (playerState.optionsInitialized) currentPreferences.value.playbackSpeed = parameters.speed
                 }
 
                 override fun onPlaybackStateChanged(newPlaybackState: Int) {
-                    playbackState = newPlaybackState
-                    controlsVisible = controlsVisibleForPlaybackState(controlsVisible, newPlaybackState)
-                    keepScreenOn = !isAudio && player.shouldKeepScreenOn()
+                    playerState.playbackState = newPlaybackState
+                    controlsVisible.value = controlsVisibleForPlaybackState(controlsVisible.value, newPlaybackState)
+                    playerState.keepScreenOn = !isAudio && player.shouldKeepScreenOn()
                     if (newPlaybackState == Media3Player.STATE_ENDED) {
-                        if (!endedReported) {
-                            endedReported = true
+                        if (!playerState.endedReported) {
+                            playerState.endedReported = true
                             if (currentAutoplayNextVideo.value) currentOnPlaybackEnded.value()
                         }
                     } else {
-                        endedReported = false
+                        playerState.endedReported = false
                     }
                 }
 
@@ -657,25 +784,25 @@ private fun MobileReadyPlayer(
                     events: Media3Player.Events,
                 ) {
                     val updatedSeekWindow = player.currentSeekWindow()
-                    pendingSeek =
+                    pendingSeek.value =
                         pendingSeekAfterWindowUpdate(
-                            pending = pendingSeek,
-                            previousWindow = seekWindow,
+                            pending = pendingSeek.value,
+                            previousWindow = playerState.seekWindow,
                             updatedWindow = updatedSeekWindow,
                         )
-                    seekWindow = updatedSeekWindow
+                    playerState.seekWindow = updatedSeekWindow
                 }
 
                 override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
-                    keepScreenOn = !isAudio && player.shouldKeepScreenOn()
+                    playerState.keepScreenOn = !isAudio && player.shouldKeepScreenOn()
                 }
 
                 override fun onPlayWhenReadyChanged(
                     playWhenReady: Boolean,
                     reason: Int,
                 ) {
-                    playerWantsToPlay = playWhenReady
-                    keepScreenOn = !isAudio && player.shouldKeepScreenOn()
+                    playerState.playerWantsToPlay = playWhenReady
+                    playerState.keepScreenOn = !isAudio && player.shouldKeepScreenOn()
                     val update = playerRetentionUpdate(
                         event = PlayerRetentionEvent.PlayIntentChanged,
                         lifecycleState = lifecycle.currentState,
@@ -683,7 +810,7 @@ private fun MobileReadyPlayer(
                         playWhenReady = playWhenReady,
                     )
                     if (update is PlayerRetentionUpdate.Playback) {
-                        retainedPlayIntent = update.retained.resumeAfterLifecyclePause
+                        playerState.retainedPlayIntent = update.retained.resumeAfterLifecyclePause
                     }
                     update.dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
                 }
@@ -692,23 +819,72 @@ private fun MobileReadyPlayer(
         resolveRetainedSubtitleSelection(player.currentTracks.playbackSubtitleTracks())
         onDispose {
             player.removeListener(listener)
-            if (playerReleased) return@onDispose
-            retainedPositionMillis =
+            if (playerState.playerReleased) return@onDispose
+            retainedPosition.longValue =
                 retainedPositionOnDispose(
-                    failurePositionMillis = failurePositionMillis,
+                    failurePositionMillis = playerState.failurePositionMillis,
                     livePositionMillis = player.currentPosition,
                 )
             playerRetentionUpdate(
                 event = PlayerRetentionEvent.PlayerDisposed,
                 lifecycleState = lifecycle.currentState,
-                positionMillis = retainedPositionMillis,
+                positionMillis = retainedPosition.longValue,
                 playWhenReady = player.playWhenReady,
             ).dispatch(currentOnPlaybackRetained.value, currentOnPositionChanged.value)
-            if (ownsPlayer) {
-                positionObserver?.close()
+            if (playerState.ownsPlayer) {
+                playerState.positionObserver?.close()
                 player.release()
             }
         }
+    }
+}
+
+@UnstableApi
+@Composable
+private fun MobileReadyPlayerContent(
+    playerState: ReadyPlayerState,
+    fileId: Long,
+    title: String,
+    isAudio: Boolean,
+    preferences: RetainedPlayerPreferences,
+    subtitleStartupPolicy: SubtitleStartupPolicy?,
+    touchExplorationEnabled: Boolean,
+    retainedPosition: MutableLongState,
+    controlsVisible: MutableState<Boolean>,
+    controlsInteracting: MutableState<Boolean>,
+    controlsMenuOpen: MutableState<Boolean>,
+    controlsActivity: MutableIntState,
+    pendingSeek: MutableState<PendingSeek?>,
+    currentOnPositionChanged: State<(Long) -> Unit>,
+    seekClock: () -> Long,
+    onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
+    onKeyboardNavigation: () -> Unit,
+    onPointerNavigation: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val player = playerState.player
+    fun seek(direction: SeekDirection) {
+        val currentWindow = player.currentSeekWindow()
+        pendingSeek.value =
+            pendingSeekAfterWindowUpdate(
+                pending = pendingSeek.value,
+                previousWindow = playerState.seekWindow,
+                updatedWindow = currentWindow,
+            )
+        playerState.seekWindow = currentWindow
+        if (!currentWindow.available) return
+        val request =
+            currentWindow.nextPendingSeek(
+                previous = pendingSeek.value,
+                currentPositionMillis = player.currentPosition,
+                direction = direction,
+                requestId = ++playerState.nextSeekRequestId,
+                nowMillis = seekClock(),
+            ) ?: return
+        pendingSeek.value = request
+        retainedPosition.longValue = request.targetPositionMillis
+        currentOnPositionChanged.value(request.targetPositionMillis)
+        player.seekTo(request.targetPositionMillis)
     }
 
     Box(
@@ -718,96 +894,42 @@ private fun MobileReadyPlayer(
             .testTag(MOBILE_PLAYER_TAG)
             .observePlayerControlInteraction(
                 onInteractionChanged = {
-                    controlsInteracting = it
+                    controlsInteracting.value = it
                     if (it) onPointerNavigation()
                 },
-                onActivity = { controlsActivity += 1 },
+                onActivity = { controlsActivity.intValue += 1 },
             )
             .observePlayerControlKeyActivity {
                 onKeyboardNavigation()
-                controlsVisible = true
-                controlsActivity += 1
+                controlsVisible.value = true
+                controlsActivity.intValue += 1
             },
     ) {
         if (!isAudio) {
-            ContentFrame(
-                player = player,
-                modifier = Modifier.fillMaxSize(),
-                surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
+            MobileVideoLayers(
+                playerState = playerState,
+                fileId = fileId,
+                touchExplorationEnabled = touchExplorationEnabled,
+                controlsVisible = controlsVisible,
+                onSeek = ::seek,
+                onPointerNavigation = onPointerNavigation,
             )
         }
-        if (!isAudio) Box(
-            Modifier
-                .fillMaxSize()
-                .zIndex(0.5f)
-                .testTag(MOBILE_PLAYER_GESTURE_TAG),
-        ) {
-            // Separate physical regions keep taps across the midpoint as independent single taps.
-            for (direction in SeekDirection.entries) {
-                Box(
-                    Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(0.5f)
-                        .align(
-                            if (direction == SeekDirection.Backward) {
-                                AbsoluteAlignment.CenterLeft
-                            } else {
-                                AbsoluteAlignment.CenterRight
-                            },
-                        )
-                        .windowInsetsPadding(
-                            WindowInsets.safeGestures.only(
-                                WindowInsetsSides.Vertical +
-                                    if (direction == SeekDirection.Backward) {
-                                        WindowInsetsSides.Left
-                                    } else {
-                                        WindowInsetsSides.Right
-                                    },
-                            ),
-                        )
-                        .pointerInput(player, fileId, seekWindow, touchExplorationEnabled) {
-                            detectVideoTapGestures(
-                                onDoubleTap = {
-                                    onPointerNavigation()
-                                    seek(direction)
-                                    if (!seekWindow.available) controlsVisible = true
-                                },
-                                onTap = {
-                                    onPointerNavigation()
-                                    controlsVisible = controlsVisibleAfterTap(
-                                        controlsVisible = controlsVisible,
-                                        playbackState = playbackState,
-                                        touchExplorationEnabled = touchExplorationEnabled,
-                                    )
-                                },
-                            )
-                        },
-                )
-            }
-        }
-        if (!isAudio) SubtitleCueOverlay(
-            cues = cues,
-            videoAspectRatio = videoSize.displayAspectRatioOrNull(),
-            modifier =
-                Modifier
-                    .align(Alignment.Center)
-                    .zIndex(3f),
-        )
         MobilePlayerChrome(
             player = player,
             title = title,
             isAudio = isAudio,
-            visible = controlsVisible,
-            seekEnabled = seekWindow.available,
+            visible = controlsVisible.value,
+            seekEnabled = playerState.seekWindow.available,
             onSeek = ::seek,
-            onScrub = { pendingSeek = null },
+            onScrub = { pendingSeek.value = null },
             onBack = onBack,
             modifier = Modifier.zIndex(2f),
             settings = {
                 MobilePlaybackOptions(
                     player = player,
                     onAudioSelectionChanged = { preferences.audioSelection = it },
-                    onMenuVisibilityChanged = { controlsMenuOpen = it },
+                    onMenuVisibilityChanged = { controlsMenuOpen.value = it },
                     onKeyboardNavigation = onKeyboardNavigation,
                     onPointerNavigation = onPointerNavigation,
                     directControls = !isAudio,
@@ -816,9 +938,9 @@ private fun MobileReadyPlayer(
                 if (!isAudio && subtitleStartupPolicy?.showSubtitles != false) {
                     MobileSubtitleControls(
                         player = player,
-                        defaultTrackSelection = defaultTrackSelection,
+                        defaultTrackSelection = playerState.defaultTrackSelection,
                         onSubtitleSelectionChanged = onSubtitleSelectionChanged,
-                        onMenuVisibilityChanged = { controlsMenuOpen = it },
+                        onMenuVisibilityChanged = { controlsMenuOpen.value = it },
                         onKeyboardNavigation = onKeyboardNavigation,
                         onPointerNavigation = onPointerNavigation,
                         showLabel = true,
@@ -826,7 +948,7 @@ private fun MobileReadyPlayer(
                 }
             },
         )
-        pendingSeek?.let { request ->
+        pendingSeek.value?.let { request ->
             // Identical text still needs a fresh accessibility event for each seek.
             key(request.requestId) {
                 MobileSeekFeedback(
@@ -846,8 +968,82 @@ private fun MobileReadyPlayer(
                 )
             }
         }
-
     }
+}
+
+@UnstableApi
+@Composable
+private fun BoxScope.MobileVideoLayers(
+    playerState: ReadyPlayerState,
+    fileId: Long,
+    touchExplorationEnabled: Boolean,
+    controlsVisible: MutableState<Boolean>,
+    onSeek: (SeekDirection) -> Unit,
+    onPointerNavigation: () -> Unit,
+) {
+    val player = playerState.player
+    ContentFrame(
+        player = player,
+        modifier = Modifier.fillMaxSize(),
+        surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
+    )
+    Box(
+        Modifier
+            .fillMaxSize()
+            .zIndex(0.5f)
+            .testTag(MOBILE_PLAYER_GESTURE_TAG),
+    ) {
+        // Separate physical regions keep taps across the midpoint as independent single taps.
+        for (direction in SeekDirection.entries) {
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(0.5f)
+                    .align(
+                        if (direction == SeekDirection.Backward) {
+                            AbsoluteAlignment.CenterLeft
+                        } else {
+                            AbsoluteAlignment.CenterRight
+                        },
+                    )
+                    .windowInsetsPadding(
+                        WindowInsets.safeGestures.only(
+                            WindowInsetsSides.Vertical +
+                                if (direction == SeekDirection.Backward) {
+                                    WindowInsetsSides.Left
+                                } else {
+                                    WindowInsetsSides.Right
+                                },
+                        ),
+                    )
+                    .pointerInput(player, fileId, playerState.seekWindow, touchExplorationEnabled) {
+                        detectVideoTapGestures(
+                            onDoubleTap = {
+                                onPointerNavigation()
+                                onSeek(direction)
+                                if (!playerState.seekWindow.available) controlsVisible.value = true
+                            },
+                            onTap = {
+                                onPointerNavigation()
+                                controlsVisible.value = controlsVisibleAfterTap(
+                                    controlsVisible = controlsVisible.value,
+                                    playbackState = playerState.playbackState,
+                                    touchExplorationEnabled = touchExplorationEnabled,
+                                )
+                            },
+                        )
+                    },
+            )
+        }
+    }
+    SubtitleCueOverlay(
+        cues = playerState.cues,
+        videoAspectRatio = playerState.videoSize.displayAspectRatioOrNull(),
+        modifier =
+            Modifier
+                .align(Alignment.Center)
+                .zIndex(3f),
+    )
 }
 
 /**
@@ -903,252 +1099,11 @@ internal fun Media3Player.activeSessionFileId(): Long? =
 internal fun Media3Player.resumableSessionFileId(): Long? =
     activeSessionFileId()?.takeIf { playbackState != Media3Player.STATE_ENDED }
 
-internal enum class SeekDirection {
-    Backward,
-    Forward,
-}
+private fun Media3Player.sessionFileId(sessionHandled: Boolean): Long? =
+    if (sessionHandled) activeSessionFileId() else resumableSessionFileId()
 
-internal data class PendingSeek(
-    val direction: SeekDirection,
-    val targetPositionMillis: Long,
-    val accumulatedMillis: Long,
-    val requestId: Long,
-    // Monotonic time until which the next request stacks on this target.
-    val accumulatesUntilMillis: Long,
-)
-
-internal fun PendingSeek.accumulatesAt(nowMillis: Long): Boolean = nowMillis < accumulatesUntilMillis
-
-internal data class PlayerSeekWindow(
-    val available: Boolean,
-    val durationMillis: Long,
-)
-
-internal fun pendingSeekAfterWindowUpdate(
-    pending: PendingSeek?,
-    previousWindow: PlayerSeekWindow,
-    updatedWindow: PlayerSeekWindow,
-): PendingSeek? =
-    pending?.takeIf {
-        updatedWindow.available &&
-            updatedWindow.durationMillis == previousWindow.durationMillis &&
-            it.targetPositionMillis <= updatedWindow.durationMillis
-    }
-
-internal fun Media3Player.currentSeekWindow(): PlayerSeekWindow {
-    val canReadCurrentItem = isCommandAvailable(Media3Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
-    val knownDuration = if (canReadCurrentItem) duration else C.TIME_UNSET
-    return playerSeekWindow(
-        canReadCurrentItem = canReadCurrentItem,
-        durationMillis = knownDuration,
-        seekable = canReadCurrentItem && isCurrentMediaItemSeekable,
-        live = canReadCurrentItem && isCurrentMediaItemLive,
-        canSeek = isCommandAvailable(Media3Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM),
-    )
-}
-
-internal fun playerSeekWindow(
-    canReadCurrentItem: Boolean,
-    durationMillis: Long,
-    seekable: Boolean,
-    live: Boolean,
-    canSeek: Boolean,
-): PlayerSeekWindow {
-    val knownDuration = durationMillis.takeIf { it != C.TIME_UNSET && it > 0L } ?: 0L
-    return PlayerSeekWindow(
-        available =
-            canReadCurrentItem &&
-                knownDuration > 0L &&
-                seekable &&
-                !live &&
-                canSeek,
-        durationMillis = knownDuration,
-    )
-}
-
-internal fun nextPendingSeek(
-    previous: PendingSeek?,
-    currentPositionMillis: Long,
-    durationMillis: Long,
-    direction: SeekDirection,
-    requestId: Long,
-    nowMillis: Long,
-): PendingSeek? {
-    if (durationMillis <= 0L) return null
-    // The window is measured from the previous request, not from when its effect started.
-    val stacked = previous?.takeIf { it.accumulatesAt(nowMillis) }
-    val basePosition = (stacked?.targetPositionMillis ?: currentPositionMillis).coerceIn(0L, durationMillis)
-    val targetPosition =
-        when (direction) {
-            SeekDirection.Backward -> (basePosition - MOBILE_SEEK_INTERVAL_MILLIS).coerceAtLeast(0L)
-            SeekDirection.Forward ->
-                if (durationMillis - basePosition <= MOBILE_SEEK_INTERVAL_MILLIS) {
-                    durationMillis
-                } else {
-                    basePosition + MOBILE_SEEK_INTERVAL_MILLIS
-                }
-        }
-    val movedMillis =
-        when (direction) {
-            SeekDirection.Backward -> basePosition - targetPosition
-            SeekDirection.Forward -> targetPosition - basePosition
-        }
-    if (movedMillis == 0L) return null
-    val accumulated =
-        if (stacked?.direction == direction) {
-            stacked.accumulatedMillis + movedMillis
-        } else {
-            movedMillis
-        }
-    return PendingSeek(
-        direction = direction,
-        targetPositionMillis = targetPosition,
-        accumulatedMillis = accumulated,
-        requestId = requestId,
-        accumulatesUntilMillis = nowMillis + MOBILE_SEEK_FEEDBACK_DELAY_MILLIS,
-    )
-}
-
-@Composable
-internal fun MobileSeekButton(
-    direction: SeekDirection,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    onVideo: Boolean = false,
-) {
-    val intervalSeconds = (MOBILE_SEEK_INTERVAL_MILLIS / 1_000L).toInt()
-    val description =
-        pluralStringResource(
-            if (direction == SeekDirection.Backward) {
-                R.plurals.mobile_playback_seek_back
-            } else {
-                R.plurals.mobile_playback_seek_forward
-            },
-            intervalSeconds,
-            intervalSeconds,
-        )
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        colors = IconButtonDefaults.iconButtonColors(
-            containerColor = MaterialTheme.colorScheme.background.copy(alpha = 0f),
-        ),
-        modifier = modifier.requiredSize(if (onVideo) 48.dp else 56.dp).testTag(
-            if (direction == SeekDirection.Backward) MOBILE_SEEK_BACK_TAG else MOBILE_SEEK_FORWARD_TAG,
-        ).semantics { contentDescription = description },
-    ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.clearAndSetSemantics {}) {
-            Icon(
-                painter = painterResource(
-                    if (direction == SeekDirection.Backward) {
-                        R.drawable.ic_ph_arrow_counter_clockwise
-                    } else {
-                        R.drawable.ic_ph_arrow_clockwise
-                    },
-                ),
-                contentDescription = null,
-                modifier = Modifier.size(32.dp),
-            )
-            // The number belongs to the fixed-size glyph; the accessible label carries the interval.
-            Text("10", fontSize = with(LocalDensity.current) { 12.dp.toSp() })
-        }
-    }
-}
-
-@Composable
-internal fun MobileSeekFeedback(
-    request: PendingSeek,
-    modifier: Modifier = Modifier,
-) {
-    val fractionalMovement = request.accumulatedMillis % 1_000L != 0L
-    val seconds = (request.accumulatedMillis / 1_000L).toInt() + if (fractionalMovement) 1 else 0
-    val message = when (request.direction) {
-        SeekDirection.Backward -> if (fractionalMovement) {
-            R.plurals.mobile_playback_seek_back_less_than
-        } else {
-            R.plurals.mobile_playback_seek_back
-        }
-        SeekDirection.Forward -> if (fractionalMovement) {
-            R.plurals.mobile_playback_seek_forward_less_than
-        } else {
-            R.plurals.mobile_playback_seek_forward
-        }
-    }
-    Text(
-        text = pluralStringResource(message, seconds, seconds),
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier =
-            modifier
-                .background(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                    shape = MaterialTheme.shapes.large,
-                ).padding(horizontal = 16.dp, vertical = 12.dp)
-                .testTag(MOBILE_SEEK_FEEDBACK_TAG)
-                .semantics { liveRegion = LiveRegionMode.Polite },
-    )
-}
-
-internal fun Modifier.observePlayerControlInteraction(
-    onInteractionChanged: (Boolean) -> Unit,
-    onActivity: () -> Unit,
-): Modifier =
-    pointerInput(Unit) {
-        awaitPointerEventScope {
-            var wasPressed = false
-            while (true) {
-                val isPressed =
-                    awaitPointerEvent(PointerEventPass.Initial)
-                        .changes
-                        .any { it.pressed }
-                if (isPressed && !wasPressed) onActivity()
-                onInteractionChanged(isPressed)
-                wasPressed = isPressed
-            }
-        }
-    }
-
-internal fun Modifier.observePlayerControlKeyActivity(onActivity: () -> Unit): Modifier =
-    onPreviewKeyEvent { event ->
-        if (event.type == KeyEventType.KeyDown) onActivity()
-        false
-    }
-
-internal fun Media3Player.controlsShouldAutoHide(
-    controlsVisible: Boolean,
-    pointerInteracting: Boolean,
-    keyboardNavigationActive: Boolean,
-    menuOpen: Boolean,
-    touchExplorationEnabled: Boolean,
-): Boolean =
-    controlsVisible &&
-        playWhenReady &&
-        playbackState != Media3Player.STATE_ENDED &&
-        !pointerInteracting &&
-        !keyboardNavigationActive &&
-        !menuOpen &&
-        !touchExplorationEnabled
-
-internal fun controlsVisibleForTouchExploration(
-    controlsVisible: Boolean,
-    touchExplorationEnabled: Boolean,
-): Boolean = controlsVisible || touchExplorationEnabled
-
-internal fun controlsVisibleForPlaybackState(
-    controlsVisible: Boolean,
-    playbackState: Int,
-): Boolean = controlsVisible || playbackState == Media3Player.STATE_ENDED
-
-internal fun controlsVisibleAfterTap(
-    controlsVisible: Boolean,
-    playbackState: Int,
-    touchExplorationEnabled: Boolean,
-): Boolean =
-    if (playbackState == Media3Player.STATE_ENDED || touchExplorationEnabled) {
-        true
-    } else {
-        !controlsVisible
-    }
+private fun Media3Player.playerErrorFor(fileId: Long): PlaybackException? =
+    playerError?.takeIf { currentMediaItem?.mediaId == fileId.toString() }
 
 @Composable
 private fun rememberTouchExplorationEnabled(): Boolean {
@@ -1251,4 +1206,20 @@ private fun PlaybackFailure.messageResource(): Int =
         is PlaybackFailure.ServerUnavailable,
         is PlaybackFailure.Unexpected,
         -> R.string.mobile_state_error_unavailable
+    }
+
+@StringRes
+private fun PlaybackMediaType.loadingMessage(): Int =
+    if (this == PlaybackMediaType.AUDIO) {
+        R.string.mobile_playback_loading_audio
+    } else {
+        R.string.mobile_playback_loading
+    }
+
+@StringRes
+private fun PlaybackMediaType.errorTitle(): Int =
+    if (this == PlaybackMediaType.AUDIO) {
+        R.string.mobile_playback_error_title_audio
+    } else {
+        R.string.mobile_playback_error_title
     }

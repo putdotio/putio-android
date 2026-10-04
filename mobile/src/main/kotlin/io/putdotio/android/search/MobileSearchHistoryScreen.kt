@@ -482,7 +482,10 @@ private fun MobileHistoryList(
                     headlineContent = { Text(item.title()) },
                     supportingContent = {
                         val time = item.timeLabel()
-                        Text(item.kindLabel()?.let { stringResource(R.string.mobile_history_metadata, it, time) } ?: time)
+                        Text(
+                            item.kindLabel()?.let { stringResource(R.string.mobile_history_metadata, it, time) }
+                                ?: time,
+                        )
                     },
                     modifier = if (fileId == null) Modifier else Modifier.clickable(
                         role = Role.Button,
@@ -597,7 +600,8 @@ private fun HistoryItem.title(): String =
             when (value.type) {
                 HistoryNoticeType.Upload -> value.subject
                 HistoryNoticeType.TransferError -> stringResource(R.string.mobile_history_transfer_error, value.subject)
-                HistoryNoticeType.RssFileDeleted -> stringResource(R.string.mobile_history_rss_file_deleted, value.subject)
+                HistoryNoticeType.RssFileDeleted ->
+                    stringResource(R.string.mobile_history_rss_file_deleted, value.subject)
                 HistoryNoticeType.RssFilterPaused ->
                     stringResource(R.string.mobile_history_rss_filter_paused, value.subject)
                 HistoryNoticeType.RssTransferError ->

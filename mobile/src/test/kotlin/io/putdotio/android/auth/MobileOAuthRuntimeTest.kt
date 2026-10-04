@@ -36,7 +36,7 @@ class MobileOAuthRuntimeTest {
         val controller = MobileAuthController(
             oauthConfiguration = MobileOAuthConfiguration.Configured("9677"),
             tokenStore = EmptyAuthTokenStore,
-            pendingOAuthAttemptStore = FailingPendingOAuthAttemptStore(failure),
+            oauthAttempts = OAuthAttempts(FailingPendingOAuthAttemptStore(failure)),
             sessionGateway = UnusedAuthSessionGateway,
             tokenRevocations = NoTokenRevocations,
         )
@@ -137,10 +137,12 @@ class MobileOAuthRuntimeTest {
         val controller = MobileAuthController(
             oauthConfiguration = MobileOAuthConfiguration.Configured("9677"),
             tokenStore = StoredAuthTokenStore(checkNotNull(AccessToken.parse("token"))),
-            pendingOAuthAttemptStore = InMemoryPendingOAuthAttemptStore(),
+            oauthAttempts = OAuthAttempts(
+                store = InMemoryPendingOAuthAttemptStore(),
+                stateGenerator = OAuthStateGenerator { OAUTH_STATE },
+            ),
             sessionGateway = FixedAuthSessionGateway(validation),
             tokenRevocations = NoTokenRevocations,
-            stateGenerator = OAuthStateGenerator { OAUTH_STATE },
         )
 
         init {

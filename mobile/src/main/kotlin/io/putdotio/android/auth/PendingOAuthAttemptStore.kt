@@ -41,6 +41,41 @@ internal interface PendingOAuthAttemptStore {
     suspend fun clear()
 }
 
+/** The sign-in attempt this device waits on: its OAuth state, when it started, and when it expires. */
+internal class OAuthAttempts(
+    private val store: PendingOAuthAttemptStore,
+    private val stateGenerator: OAuthStateGenerator = SecureOAuthStateGenerator(),
+    private val clock: OAuthAttemptClock = SystemOAuthAttemptClock,
+) {
+    fun newState(): String = stateGenerator.generate()
+
+    /** Throws [PendingOAuthAttemptStorageException] when the attempt is not durable. */
+    suspend fun record(state: String) {
+        store.write(PendingOAuthAttempt(state = state, createdAtEpochMillis = clock.nowEpochMillis()))
+    }
+
+    /** The recorded attempt, or null when there is none or it expired; throws like [record]. */
+    suspend fun readUnexpired(): PendingOAuthAttempt? =
+        store.read()?.takeUnless { it.isExpired(clock.nowEpochMillis()) }
+
+    /** Throws like [record]. */
+    suspend fun exists(): Boolean = store.read() != null
+
+    /** False when the store could not be cleared. */
+    suspend fun clear(): Boolean =
+        try {
+            store.clear()
+            true
+        } catch (_: PendingOAuthAttemptStorageException) {
+            false
+        }
+}
+
+private fun PendingOAuthAttempt.isExpired(nowEpochMillis: Long): Boolean {
+    val age = nowEpochMillis - createdAtEpochMillis
+    return age < 0 || age > OAUTH_ATTEMPT_MAX_AGE_MILLIS
+}
+
 internal class PendingOAuthAttemptStorageException(
     operation: String,
     cause: Throwable? = null,
@@ -120,6 +155,7 @@ internal const val PENDING_OAUTH_STATE_KEY = "pending_oauth_state_v1"
 internal const val PENDING_OAUTH_CREATED_AT_KEY = "pending_oauth_created_at_v1"
 
 private const val MAX_OAUTH_STATE_LENGTH = 1_024
+private const val OAUTH_ATTEMPT_MAX_AGE_MILLIS = 15 * 60 * 1_000L
 private val OAUTH_STATE_CHARACTER_RANGE = '!'.code..'~'.code
 private const val PENDING_ATTEMPT_READ_OPERATION = "read"
 private const val PENDING_ATTEMPT_WRITE_OPERATION = "write"

@@ -15,9 +15,11 @@ import io.putdotio.android.auth.MobileAuthController
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.OfflinePlaybackRepository
+import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItemId
@@ -32,12 +34,15 @@ import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.playbackPreference
+import io.putdotio.android.search.ActiveSearchHistorySession
 import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.authoritativeSessionFailure
+import io.putdotio.android.settings.AccountSettingsController
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.AndroidAppConfigController
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.SdkAndroidAppConfigRepository
@@ -50,11 +55,13 @@ import io.putdotio.android.transfers.SdkTransfersRepository
 import io.putdotio.android.transfers.TransferMutation
 import io.putdotio.android.transfers.TransferRetryOutcome
 import io.putdotio.android.transfers.TransfersContent
+import io.putdotio.android.transfers.TransfersController
 import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.TransfersRefresh
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MobileTrashViewModel
 import io.putdotio.android.trash.SdkTrashRepository
+import io.putdotio.android.trash.TrashController
 import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -141,15 +148,57 @@ internal fun SignedInMobileRoot(
     val downloadsController = remember(downloadsViewModel, downloadsContext, account.userId, sessionId) {
         downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId)
     }
-    if (trashController == null || filesController == null ||
-        accountSettingsController == null ||
-        appConfigController == null ||
-        searchHistorySession == null ||
-        transfersController == null
-    ) {
+    // Each view model hands out null once its session is no longer current.
+    val controllersReady = trashController != null && filesController != null &&
+        accountSettingsController != null && appConfigController != null &&
+        searchHistorySession != null && transfersController != null
+    if (!controllersReady) {
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
     }
+    SignedInMobileSession(
+        runtime = runtime,
+        signedIn = signedIn,
+        filesRepository = filesRepository,
+        accountSettingsRepository = accountSettingsRepository,
+        filesController = filesController,
+        accountSettingsController = accountSettingsController,
+        appConfigController = appConfigController,
+        searchHistorySession = searchHistorySession,
+        transfersController = transfersController,
+        trashController = trashController,
+        downloadsController = downloadsController,
+        authController = authController,
+        rootScope = rootScope,
+        playbackPlayerFactory = playbackPlayerFactory,
+        nowPlayingRequests = nowPlayingRequests,
+        deepLinkRequests = deepLinkRequests,
+        transferDraft = transferDraft,
+    )
+}
+
+@Composable
+private fun SignedInMobileSession(
+    runtime: MobileOAuthRuntime,
+    signedIn: MobileAuthState.SignedIn,
+    filesRepository: SdkFilesRepository,
+    accountSettingsRepository: SdkAccountSettingsRepository,
+    filesController: FilesBrowserController,
+    accountSettingsController: AccountSettingsController,
+    appConfigController: AndroidAppConfigController,
+    searchHistorySession: ActiveSearchHistorySession,
+    transfersController: TransfersController,
+    trashController: TrashController,
+    downloadsController: DownloadsController?,
+    authController: MobileAuthController,
+    rootScope: CoroutineScope,
+    playbackPlayerFactory: MobilePlayerFactory,
+    nowPlayingRequests: NowPlayingRequests,
+    deepLinkRequests: MobileDeepLinkRequests,
+    transferDraft: MobileTransferDraft,
+) {
+    val account = signedIn.account
+    val sessionId = signedIn.sessionId
     val appContext = LocalContext.current.applicationContext
     val playbackRepository = remember(runtime.putioClient, appConfigController, downloadsController, account.userId) {
         val streaming = ConvertingPlaybackRepository(runtime.putioClient) {

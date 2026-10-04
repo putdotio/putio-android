@@ -60,9 +60,11 @@ class TvSearchScreenTest {
         onResult = { log += "open:${it.name}" },
         onNextPage = { log += "next" },
         onRetry = { log += "retry" },
-        onRecentSearch = { log += "recent:${it.value}" },
-        onRecentEdit = { log += "edit:$it" },
-        onRecentRetry = { log += "recent-retry" },
+        recent = TvRecentSearchActions(
+            onSearch = { log += "recent:${it.value}" },
+            onEdit = { log += "edit:$it" },
+            onRetry = { log += "recent-retry" },
+        ),
     )
 
     @Test
@@ -205,16 +207,7 @@ class TvSearchScreenTest {
 
     @Test
     fun loadMoreKeepsFocusThroughLoadingAndHandsOffToTheLastRowWhenComplete() {
-        var state by mutableStateOf(
-            searchState(
-                SearchContent.Ready(
-                    SearchTerm("t"),
-                    listOf(item(1, "one.mkv", PutioFileType.VIDEO)),
-                    SearchPaging.Available(FilesCursor("c1")),
-                ),
-                query = "t",
-            ),
-        )
+        var state by mutableStateOf(oneRowSearch(SearchPaging.Available(FilesCursor("c1"))))
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvSearchScreen(state = state, actions = actions)
@@ -229,26 +222,11 @@ class TvSearchScreenTest {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
         }
-        state = searchState(
-            SearchContent.Ready(
-                SearchTerm("t"),
-                listOf(item(1, "one.mkv", PutioFileType.VIDEO)),
-                SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)),
-            ),
-            query = "t",
-        )
+        state = oneRowSearch(SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)))
         compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused()
 
-        state = searchState(
-            SearchContent.Ready(
-                SearchTerm("t"),
-                listOf(item(1, "one.mkv", PutioFileType.VIDEO)),
-                SearchPaging.Failed(
-                    FilesCursor("c1"),
-                    FilesFailure.Misconfigured(PutioConfigurationException("boom")),
-                ),
-            ),
-            query = "t",
+        state = oneRowSearch(
+            SearchPaging.Failed(FilesCursor("c1"), FilesFailure.Misconfigured(PutioConfigurationException("boom"))),
         )
         compose.onNodeWithText("Couldn’t load more results.").assertIsDisplayed()
         compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
@@ -256,33 +234,14 @@ class TvSearchScreenTest {
             keyUp(Key.DirectionCenter)
         }
 
-        state = searchState(
-            SearchContent.Ready(
-                SearchTerm("t"),
-                listOf(
-                    item(1, "one.mkv", PutioFileType.VIDEO),
-                    item(2, "two.mkv", PutioFileType.VIDEO),
-                ),
-                SearchPaging.Complete,
-            ),
-            query = "t",
-        )
+        state = oneRowSearch(SearchPaging.Complete, item(2, "two.mkv", PutioFileType.VIDEO))
         compose.onNodeWithContentDescription("Play two.mkv").assertIsFocused()
         assertEquals(listOf("next", "retry"), log)
     }
 
     @Test
     fun aLastPageLandingAfterLeavingLoadMoreDoesNotStealFocus() {
-        var state by mutableStateOf(
-            searchState(
-                SearchContent.Ready(
-                    SearchTerm("t"),
-                    listOf(item(1, "one.mkv", PutioFileType.VIDEO)),
-                    SearchPaging.Available(FilesCursor("c1")),
-                ),
-                query = "t",
-            ),
-        )
+        var state by mutableStateOf(oneRowSearch(SearchPaging.Available(FilesCursor("c1"))))
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
                 TvSearchScreen(state = state, actions = actions)
@@ -297,31 +256,14 @@ class TvSearchScreenTest {
             keyDown(Key.DirectionCenter)
             keyUp(Key.DirectionCenter)
         }
-        state = searchState(
-            SearchContent.Ready(
-                SearchTerm("t"),
-                listOf(item(1, "one.mkv", PutioFileType.VIDEO)),
-                SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)),
-            ),
-            query = "t",
-        )
+        state = oneRowSearch(SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)))
         compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
             pressKey(Key.DirectionUp)
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
 
-        state = searchState(
-            SearchContent.Ready(
-                SearchTerm("t"),
-                listOf(
-                    item(1, "one.mkv", PutioFileType.VIDEO),
-                    item(2, "two.mkv", PutioFileType.VIDEO),
-                ),
-                SearchPaging.Complete,
-            ),
-            query = "t",
-        )
+        state = oneRowSearch(SearchPaging.Complete, item(2, "two.mkv", PutioFileType.VIDEO))
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
         assertEquals(listOf("next"), log)
     }
@@ -331,12 +273,14 @@ class TvSearchScreenTest {
         var recent by mutableStateOf(listOf(SearchTerm("tears"), SearchTerm("sintel")))
         val removing = TvSearchActions(
             onQueryChanged = {}, onSubmit = {}, onResult = {}, onNextPage = {}, onRetry = {},
-            onRecentSearch = { log += "recent:${it.value}" },
-            onRecentEdit = { edit ->
-                log += "edit:$edit"
-                if (edit is RecentSearchEdit.Remove) recent = recent.filterNot { it == edit.term }
-            },
-            onRecentRetry = {},
+            recent = TvRecentSearchActions(
+                onSearch = { log += "recent:${it.value}" },
+                onEdit = { edit ->
+                    log += "edit:$edit"
+                    if (edit is RecentSearchEdit.Remove) recent = recent.filterNot { it == edit.term }
+                },
+                onRetry = {},
+            ),
         )
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
@@ -417,7 +361,7 @@ class TvSearchScreenTest {
         var notice by mutableStateOf<FilesFailure?>(FilesFailure.Misconfigured(PutioConfigurationException("boom")))
         val retrying = TvSearchActions(
             onQueryChanged = {}, onSubmit = {}, onResult = {}, onNextPage = {}, onRetry = {},
-            onRecentSearch = {}, onRecentEdit = {}, onRecentRetry = { notice = null },
+            recent = TvRecentSearchActions(onSearch = {}, onEdit = {}, onRetry = { notice = null }),
         )
         compose.setContent {
             MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
@@ -581,6 +525,11 @@ class TvSearchScreenTest {
         recentTerms = recent,
         nextRequestValue = 5L,
         recentSearchesEnabled = historyEnabled,
+    )
+
+    private fun oneRowSearch(paging: SearchPaging, vararg more: FilesItem) = searchState(
+        SearchContent.Ready(SearchTerm("t"), listOf(item(1, "one.mkv", PutioFileType.VIDEO)) + more, paging),
+        query = "t",
     )
 
     private fun item(id: Long, name: String, type: PutioFileType) = FilesItem(

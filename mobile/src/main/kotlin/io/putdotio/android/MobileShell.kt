@@ -37,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -94,6 +95,7 @@ import io.putdotio.android.transfers.TransfersReducer
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 import io.putdotio.android.trash.TrashController
+import io.putdotio.android.trash.TrashState
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
@@ -165,168 +167,63 @@ internal fun MobileShell(
     val isDownloads = backStackEntry?.destination?.route == MOBILE_DOWNLOADS_ROUTE
     val downloadsState = downloadsController?.state?.collectAsStateWithLifecycle()?.value ?: DownloadsState()
     val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
-    LaunchedEffect(trashState?.restoredVersion) {
-        trashState?.lastRestoredItem?.let { item ->
-            onFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(item))
-        }
-    }
-    LaunchedEffect(trashState?.bulkRestoreVersion) {
-        if ((trashState?.bulkRestoreVersion ?: 0L) > 0L) {
-            onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
-        }
-    }
-    val shareNavigationBlocked = filesState.stack.any {
-        it.operation.pendingDelete != null || it.operation.pendingMove != null
-    } || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving ||
-        transfersState.mutation is TransferMutation.Running || nowPlayingPending
-    val pendingDeepLink by deepLinkRequests.pending.collectAsStateWithLifecycle()
-    val navigationReady = backStackEntry != null
-    // Keyed on readiness rather than the entry so the navigation a link causes cannot restart it.
-    LaunchedEffect(pendingDeepLink, navigationReady, shareNavigationBlocked) {
-        val link = pendingDeepLink ?: return@LaunchedEffect
-        if (!navigationReady || shareNavigationBlocked) return@LaunchedEffect
-        // A newer link restarts this effect and cancels an unfinished file resolve.
-        when (link) {
-            MobileDeepLink.Files -> navController.navigateTo(MobileDestination.Files)
-            is MobileDeepLink.File -> {
-                navController.navigateTo(MobileDestination.Files)
-                onOpenFile(link.id)
-            }
-            MobileDeepLink.Transfers -> navController.navigateTo(MobileDestination.Transfers)
-            MobileDeepLink.Search, MobileDeepLink.History -> navController.navigateTo(MobileDestination.Search)
-            MobileDeepLink.Trash -> navController.navigateToTrash()
-            MobileDeepLink.Downloads -> {
-                navController.navigateTo(MobileDestination.Account)
-                navController.navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true }
-            }
-        }
-        deepLinkRequests.acknowledge(link)
-    }
-    LaunchedEffect(incomingDraft.incomingRequestId, backStackEntry, shareNavigationBlocked) {
-        val requestId = incomingDraft.incomingRequestId ?: return@LaunchedEffect
-        if (backStackEntry == null || shareNavigationBlocked) return@LaunchedEffect
-        navController.navigateTo(MobileDestination.Transfers)
-        // Tab restoration can bring back playback above Transfers; a share must reach its editor.
-        navController.popBackStack(MobileDestination.Transfers.route, inclusive = false)
-        transferDraft.acknowledgeNavigation(requestId)
-    }
-    // Folders without their own sort inherit the account default, so a change the server
-    // accepted makes every loaded listing stale. The first settled value is the baseline.
-    val confirmedDefaultSort = accountSettingsState.confirmedDefaultSort()
-    var knownDefaultSort by remember(sessionId) { mutableStateOf<ConfirmedDefaultSort?>(null) }
-    LaunchedEffect(confirmedDefaultSort) {
-        if (confirmedDefaultSort == null) return@LaunchedEffect
-        if (knownDefaultSort != null && knownDefaultSort != confirmedDefaultSort) {
-            onFilesEvent(FilesBrowserEvent.InvalidateSortOrder)
-        }
-        knownDefaultSort = confirmedDefaultSort
-    }
-    LaunchedEffect(selectedDestination, isTrash, filesState.current.folder.id,
-        filesState.current.needsReload, filesState.current.operation,
-        filesState.current.content is FilesContent.Loading) {
-        if (selectedDestination == MobileDestination.Files && !isTrash && filesState.current.needsReload) {
-            onFilesEvent(FilesBrowserEvent.ReloadIfStale)
-        }
-    }
+    TrashRestoreEffects(trashState, onFilesEvent)
+    val shareNavigationBlocked = shareNavigationBlocked(filesState, trashState, transfersState, nowPlayingPending)
+    DeepLinkNavigationEffect(
+        deepLinkRequests = deepLinkRequests,
+        navigationReady = backStackEntry != null,
+        navigationBlocked = shareNavigationBlocked,
+        navController = navController,
+        onOpenFile = onOpenFile,
+    )
+    IncomingTransferNavigationEffect(
+        incomingRequestId = incomingDraft.incomingRequestId,
+        backStackEntry = backStackEntry,
+        navigationBlocked = shareNavigationBlocked,
+        navController = navController,
+        transferDraft = transferDraft,
+    )
+    DefaultSortInvalidationEffect(sessionId, accountSettingsState, onFilesEvent)
+    StaleFilesReloadEffect(selectedDestination, isTrash, filesState, onFilesEvent)
 
     BackHandler(enabled = isPlayback) {
         navController.popBackStack()
     }
 
-    val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
+    val playbackFileId = if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null
     val resolvingTransfer = transfersState.navigation as? TransferNavigation.Resolving
-
-    // The collector outlives any one Activity, so it must not hold one.
-    val appContext = LocalContext.current.applicationContext
-    val currentPlaybackFileId by rememberUpdatedState(
-        if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null,
+    NowPlayingNavigationEffect(nowPlayingRequests, playbackPlayerFactory, transferDraft, navController, playbackFileId)
+    ContentNavigationEffect(
+        contentNavigation = contentNavigation,
+        transferDraft = transferDraft,
+        navController = navController,
+        playbackFileId = playbackFileId,
+        onFilesEvent = onFilesEvent,
+        onNavigationRejected = { rejectedNavigation = FilesFailure.NavigationBlocked },
     )
-    LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext, transferDraft) {
-        nowPlayingRequests.pending.collect { pending ->
-            if (!pending) return@collect
-            val target = playbackPlayerFactory.activeAudio(appContext)
-            // Acknowledged only once the lookup finished: a cancelled lookup leaves it pending.
-            nowPlayingRequests.acknowledge()
-            if (target == null || transferDraft.state.value.incomingRequestId != null) return@collect
-            val onPlaybackRoute = currentPlaybackFileId
-            if (onPlaybackRoute == target.fileId.value) return@collect
-            // A different item's route, still loading or failed, gives no controls for the live audio.
-            navController.navigateToPlayback(
-                target.fileId,
-                target.title,
-                PlaybackMediaType.AUDIO,
-                replaceCurrentPlayback = onPlaybackRoute != null,
-            )
-        }
-    }
-    // Media plays above the screen it was chosen on; anything else opens in Files above its prior location.
-    LaunchedEffect(contentNavigation, transferDraft) {
-        contentNavigation.collect { (item, origin) ->
-            val draft = transferDraft.state.value
-            val editingTransfer = navController.currentDestination?.route == MobileDestination.Transfers.route &&
-                (draft.open || draft.pendingReplacement)
-            if (item.isPlayable) {
-                // A delayed history result must not displace a newer transfer draft. A newer pick
-                // replaces the player, so Back still returns to the screen below it.
-                if (!editingTransfer) {
-                    navController.navigateToPlayback(item, replaceCurrentPlayback = currentPlaybackFileId != null)
-                }
-            } else if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item, origin))) {
-                // A delayed history result may update Files without displacing a newer transfer draft.
-                if (!editingTransfer) navController.navigateTo(MobileDestination.Files)
-            } else {
-                rejectedNavigation = FilesFailure.NavigationBlocked
-            }
-        }
-    }
-    LaunchedEffect(resolvingTransfer?.requestId, transfersSessionId) {
-        val resolving = resolvingTransfer ?: return@LaunchedEffect
-        val sessionOnFilesEvent = onFilesEvent
-        val sessionOnTransfersEvent = onTransfersEvent
-        val sessionResolveTransferFile = resolveTransferFile
-        val sessionOnTransferAuthenticationRequired = onTransferAuthenticationRequired
-        val resolved = sessionResolveTransferFile(resolving.fileId)
-        currentCoroutineContext().ensureActive()
-        when (resolved) {
-            is FilesRepositoryResult.Success -> {
-                navController.currentBackStackEntryFlow.first()
-                currentCoroutineContext().ensureActive()
-                val open = FilesBrowserEvent.OpenExternalItem(resolved.value, FilesOpenOrigin.TRANSFERS)
-                if (sessionOnFilesEvent(open)) {
-                    navController.navigateTo(MobileDestination.Files)
-                    sessionOnTransfersEvent(TransfersEvent.OpenSucceeded(resolving.requestId))
-                } else {
-                    sessionOnTransfersEvent(TransfersEvent.OpenFailed(
-                        resolving.requestId, FilesFailure.NavigationBlocked,
-                    ))
-                }
-            }
-            is FilesRepositoryResult.Failure ->
-                if (resolved.failure is FilesFailure.AuthenticationRequired) {
-                    sessionOnTransferAuthenticationRequired()
-                } else {
-                    sessionOnTransfersEvent(TransfersEvent.OpenFailed(resolving.requestId, resolved.failure))
-                }
-        }
-    }
+    TransferFileNavigationEffect(
+        resolving = resolvingTransfer,
+        transfersSessionId = transfersSessionId,
+        navController = navController,
+        onFilesEvent = onFilesEvent,
+        onTransfersEvent = onTransfersEvent,
+        resolveTransferFile = resolveTransferFile,
+        onTransferAuthenticationRequired = onTransferAuthenticationRequired,
+    )
 
-    val filesOwnsBack = filesState.stack.any { it.operation.pendingMove != null } ||
-        selectedDestination == MobileDestination.Files && filesState.canNavigateBack
+    val filesOwnsBack = filesOwnsBack(filesState, selectedDestination)
     // Back from a folder opened from Search, History or Transfers returns to that screen.
     val onFilesBack = {
         val origin = filesState.current.openedFrom
         if (onFilesEvent(FilesBrowserEvent.NavigateBack)) origin?.returnDestination()?.let(navController::navigateTo)
     }
     BackHandler(enabled = !isPlayback && filesOwnsBack, onBack = onFilesBack)
-
-    val protectTrashRecovery = trashState?.hasPendingMutation == true && !filesOwnsBack
-    BackHandler(enabled = !isPlayback && (isTrash || isDownloads || protectTrashRecovery)) {
-        if (isTrash || isDownloads) {
-            navController.popBackStack()
-        } else {
-            navController.navigateToTrash()
-        }
-    }
+    SubpageBackHandler(
+        enabled = !isPlayback,
+        onSubpage = isTrash || isDownloads,
+        protectTrashRecovery = trashState?.hasPendingMutation == true && !filesOwnsBack,
+        navController = navController,
+    )
 
     // One NavHost call site in one slot: playback only hides the chrome, so destinations keep saved state.
     key(transfersSessionId) {
@@ -394,6 +291,256 @@ internal fun MobileShell(
             },
             onTransfersEvent = onTransfersEvent,
         )
+    }
+}
+
+@Composable
+private fun TrashRestoreEffects(
+    trashState: TrashState?,
+    onFilesEvent: (FilesBrowserEvent) -> Boolean,
+) {
+    LaunchedEffect(trashState?.restoredVersion) {
+        trashState?.lastRestoredItem?.let { item ->
+            onFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(item))
+        }
+    }
+    LaunchedEffect(trashState?.bulkRestoreVersion) {
+        if ((trashState?.bulkRestoreVersion ?: 0L) > 0L) {
+            onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
+        }
+    }
+}
+
+private fun shareNavigationBlocked(
+    filesState: FilesBrowserState,
+    trashState: TrashState?,
+    transfersState: TransfersState,
+    nowPlayingPending: Boolean,
+): Boolean = filesState.stack.any {
+    it.operation.pendingDelete != null || it.operation.pendingMove != null
+} || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving ||
+    transfersState.mutation is TransferMutation.Running || nowPlayingPending
+
+@Composable
+private fun DeepLinkNavigationEffect(
+    deepLinkRequests: MobileDeepLinkRequests,
+    navigationReady: Boolean,
+    navigationBlocked: Boolean,
+    navController: NavHostController,
+    onOpenFile: suspend (FilesItemId) -> Unit,
+) {
+    val pendingDeepLink by deepLinkRequests.pending.collectAsStateWithLifecycle()
+    // Keyed on readiness rather than the entry so the navigation a link causes cannot restart it.
+    LaunchedEffect(pendingDeepLink, navigationReady, navigationBlocked) {
+        val link = pendingDeepLink ?: return@LaunchedEffect
+        if (!navigationReady || navigationBlocked) return@LaunchedEffect
+        // A newer link restarts this effect and cancels an unfinished file resolve.
+        navController.openDeepLink(link, onOpenFile)
+        deepLinkRequests.acknowledge(link)
+    }
+}
+
+private suspend fun NavHostController.openDeepLink(
+    link: MobileDeepLink,
+    onOpenFile: suspend (FilesItemId) -> Unit,
+) {
+    when (link) {
+        MobileDeepLink.Files -> navigateTo(MobileDestination.Files)
+        is MobileDeepLink.File -> {
+            navigateTo(MobileDestination.Files)
+            onOpenFile(link.id)
+        }
+        MobileDeepLink.Transfers -> navigateTo(MobileDestination.Transfers)
+        MobileDeepLink.Search, MobileDeepLink.History -> navigateTo(MobileDestination.Search)
+        MobileDeepLink.Trash -> navigateToTrash()
+        MobileDeepLink.Downloads -> {
+            navigateTo(MobileDestination.Account)
+            navigate(MOBILE_DOWNLOADS_ROUTE) { launchSingleTop = true }
+        }
+    }
+}
+
+@Composable
+private fun IncomingTransferNavigationEffect(
+    incomingRequestId: Long?,
+    backStackEntry: NavBackStackEntry?,
+    navigationBlocked: Boolean,
+    navController: NavHostController,
+    transferDraft: MobileTransferDraft,
+) {
+    LaunchedEffect(incomingRequestId, backStackEntry, navigationBlocked) {
+        val requestId = incomingRequestId ?: return@LaunchedEffect
+        if (backStackEntry == null || navigationBlocked) return@LaunchedEffect
+        navController.navigateTo(MobileDestination.Transfers)
+        // Tab restoration can bring back playback above Transfers; a share must reach its editor.
+        navController.popBackStack(MobileDestination.Transfers.route, inclusive = false)
+        transferDraft.acknowledgeNavigation(requestId)
+    }
+}
+
+/**
+ * Folders without their own sort inherit the account default, so a change the server
+ * accepted makes every loaded listing stale. The first settled value is the baseline.
+ */
+@Composable
+private fun DefaultSortInvalidationEffect(
+    sessionId: MobileAuthSessionId,
+    accountSettingsState: AccountSettingsState,
+    onFilesEvent: (FilesBrowserEvent) -> Boolean,
+) {
+    val confirmedDefaultSort = accountSettingsState.confirmedDefaultSort()
+    var knownDefaultSort by remember(sessionId) { mutableStateOf<ConfirmedDefaultSort?>(null) }
+    LaunchedEffect(confirmedDefaultSort) {
+        if (confirmedDefaultSort == null) return@LaunchedEffect
+        if (knownDefaultSort != null && knownDefaultSort != confirmedDefaultSort) {
+            onFilesEvent(FilesBrowserEvent.InvalidateSortOrder)
+        }
+        knownDefaultSort = confirmedDefaultSort
+    }
+}
+
+@Composable
+private fun StaleFilesReloadEffect(
+    selectedDestination: MobileDestination,
+    isTrash: Boolean,
+    filesState: FilesBrowserState,
+    onFilesEvent: (FilesBrowserEvent) -> Boolean,
+) {
+    LaunchedEffect(selectedDestination, isTrash, filesState.current.folder.id,
+        filesState.current.needsReload, filesState.current.operation,
+        filesState.current.content is FilesContent.Loading) {
+        if (selectedDestination == MobileDestination.Files && !isTrash && filesState.current.needsReload) {
+            onFilesEvent(FilesBrowserEvent.ReloadIfStale)
+        }
+    }
+}
+
+@Composable
+private fun NowPlayingNavigationEffect(
+    nowPlayingRequests: NowPlayingRequests,
+    playbackPlayerFactory: MobilePlayerFactory,
+    transferDraft: MobileTransferDraft,
+    navController: NavHostController,
+    playbackFileId: Long?,
+) {
+    // The collector outlives any one Activity, so it must not hold one.
+    val appContext = LocalContext.current.applicationContext
+    val currentPlaybackFileId by rememberUpdatedState(playbackFileId)
+    LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext, transferDraft) {
+        nowPlayingRequests.pending.collect { pending ->
+            if (!pending) return@collect
+            val target = playbackPlayerFactory.activeAudio(appContext)
+            // Acknowledged only once the lookup finished: a cancelled lookup leaves it pending.
+            nowPlayingRequests.acknowledge()
+            if (target == null || transferDraft.state.value.incomingRequestId != null) return@collect
+            val onPlaybackRoute = currentPlaybackFileId
+            if (onPlaybackRoute == target.fileId.value) return@collect
+            // A different item's route, still loading or failed, gives no controls for the live audio.
+            navController.navigateToPlayback(
+                target.fileId,
+                target.title,
+                PlaybackMediaType.AUDIO,
+                replaceCurrentPlayback = onPlaybackRoute != null,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContentNavigationEffect(
+    contentNavigation: Flow<FilesExternalOpen>,
+    transferDraft: MobileTransferDraft,
+    navController: NavHostController,
+    playbackFileId: Long?,
+    onFilesEvent: (FilesBrowserEvent) -> Boolean,
+    onNavigationRejected: () -> Unit,
+) {
+    val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
+    val currentPlaybackFileId by rememberUpdatedState(playbackFileId)
+    // Media plays above the screen it was chosen on; anything else opens in Files above its prior location.
+    LaunchedEffect(contentNavigation, transferDraft) {
+        contentNavigation.collect { (item, origin) ->
+            val draft = transferDraft.state.value
+            val editingTransfer = navController.currentDestination?.route == MobileDestination.Transfers.route &&
+                (draft.open || draft.pendingReplacement)
+            if (item.isPlayable) {
+                // A delayed history result must not displace a newer transfer draft. A newer pick
+                // replaces the player, so Back still returns to the screen below it.
+                if (!editingTransfer) {
+                    navController.navigateToPlayback(item, replaceCurrentPlayback = currentPlaybackFileId != null)
+                }
+            } else if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item, origin))) {
+                // A delayed history result may update Files without displacing a newer transfer draft.
+                if (!editingTransfer) navController.navigateTo(MobileDestination.Files)
+            } else {
+                onNavigationRejected()
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransferFileNavigationEffect(
+    resolving: TransferNavigation.Resolving?,
+    transfersSessionId: MobileAuthSessionId?,
+    navController: NavHostController,
+    onFilesEvent: (FilesBrowserEvent) -> Boolean,
+    onTransfersEvent: (TransfersEvent) -> Unit,
+    resolveTransferFile: suspend (TransferFileId) -> FilesRepositoryResult<FilesItem>,
+    onTransferAuthenticationRequired: suspend () -> Unit,
+) {
+    LaunchedEffect(resolving?.requestId, transfersSessionId) {
+        val resolvingTransfer = resolving ?: return@LaunchedEffect
+        val sessionOnFilesEvent = onFilesEvent
+        val sessionOnTransfersEvent = onTransfersEvent
+        val sessionResolveTransferFile = resolveTransferFile
+        val sessionOnTransferAuthenticationRequired = onTransferAuthenticationRequired
+        val resolved = sessionResolveTransferFile(resolvingTransfer.fileId)
+        currentCoroutineContext().ensureActive()
+        when (resolved) {
+            is FilesRepositoryResult.Success -> {
+                navController.currentBackStackEntryFlow.first()
+                currentCoroutineContext().ensureActive()
+                val open = FilesBrowserEvent.OpenExternalItem(resolved.value, FilesOpenOrigin.TRANSFERS)
+                if (sessionOnFilesEvent(open)) {
+                    navController.navigateTo(MobileDestination.Files)
+                    sessionOnTransfersEvent(TransfersEvent.OpenSucceeded(resolvingTransfer.requestId))
+                } else {
+                    sessionOnTransfersEvent(TransfersEvent.OpenFailed(
+                        resolvingTransfer.requestId, FilesFailure.NavigationBlocked,
+                    ))
+                }
+            }
+            is FilesRepositoryResult.Failure ->
+                if (resolved.failure is FilesFailure.AuthenticationRequired) {
+                    sessionOnTransferAuthenticationRequired()
+                } else {
+                    sessionOnTransfersEvent(TransfersEvent.OpenFailed(resolvingTransfer.requestId, resolved.failure))
+                }
+        }
+    }
+}
+
+private fun filesOwnsBack(
+    filesState: FilesBrowserState,
+    selectedDestination: MobileDestination,
+): Boolean = filesState.stack.any { it.operation.pendingMove != null } ||
+    selectedDestination == MobileDestination.Files && filesState.canNavigateBack
+
+/** Back leaves Trash or Downloads; elsewhere it returns to Trash while a Trash change is pending. */
+@Composable
+private fun SubpageBackHandler(
+    enabled: Boolean,
+    onSubpage: Boolean,
+    protectTrashRecovery: Boolean,
+    navController: NavHostController,
+) {
+    BackHandler(enabled = enabled && (onSubpage || protectTrashRecovery)) {
+        if (onSubpage) {
+            navController.popBackStack()
+        } else {
+            navController.navigateToTrash()
+        }
     }
 }
 
@@ -503,7 +650,9 @@ private fun MobileChrome(
                         inactiveNotice?.let { notice ->
                             MobileInactiveAccountNotice(
                                 notice,
-                                Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+                                Modifier.windowInsetsPadding(
+                                    WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
+                                ),
                             )
                         }
                     }

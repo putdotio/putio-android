@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -9,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -17,6 +19,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesItem
@@ -28,16 +31,20 @@ import io.putdotio.android.files.SdkFilesWatchedRepository
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.history.HistoryEvent
+import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.SdkHistoryRepository
 import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.search.AppConfigRecentSearchStore
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.search.SearchOutput
+import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.authoritativeSessionFailure
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
+import io.putdotio.android.settings.AccountSettingsState
+import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.SdkAccountSettingsRepository
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.authoritativeSessionFailure
@@ -48,6 +55,7 @@ import io.putdotio.android.tv.files.launchVlc
 import io.putdotio.android.tv.files.tvMessageText
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.trash.TrashContent
+import io.putdotio.android.trash.TrashState
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.playback.ConvertingPlaybackRepository
 import io.putdotio.android.tv.player.TvPlaybackLayer
@@ -70,6 +78,7 @@ import io.putdotio.android.tv.history.TvHistoryScreen
 import io.putdotio.android.tv.trash.TvTrashScreen
 import io.putdotio.android.trash.SdkTrashRepository
 import io.putdotio.android.trash.TrashEvent
+import io.putdotio.android.tv.search.TvRecentSearchActions
 import io.putdotio.android.tv.search.TvSearchActions
 import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.tvSessionViewModelFactory
@@ -181,17 +190,17 @@ internal fun TvSessionShell(
     val positionWriteRejected by session.playbackReporting.authenticationRejected.collectAsStateWithLifecycle()
     // A 401 from the proxy list is as authoritative as one from any controller.
     var tunnelRoutesRejected by remember(session) { mutableStateOf(false) }
-    val sessionRejected = filesState.authoritativeSessionFailure() != null ||
-        trashState.authenticationFailure != null ||
-        settingsState.authoritativeSessionFailure() != null ||
-        appConfigState.authoritativeSessionFailure() != null ||
-        tunnelRoutesRejected ||
-        positionWriteRejected ||
-        searchState.authoritativeSessionFailure() != null ||
-        historyState.authoritativeSessionFailure() != null ||
-        recentSearchFailure is FilesFailure.AuthenticationRequired ||
-        fileActionFailure is FilesFailure.AuthenticationRequired ||
-        historyOpenFailure is FilesFailure.AuthenticationRequired
+    val controllerRejected = listOf(
+        filesState.authoritativeSessionFailure(),
+        trashState.authenticationFailure,
+        settingsState.authoritativeSessionFailure(),
+        appConfigState.authoritativeSessionFailure(),
+        searchState.authoritativeSessionFailure(),
+        historyState.authoritativeSessionFailure(),
+    ).any { it != null }
+    val sideActionRejected = listOf(recentSearchFailure, fileActionFailure, historyOpenFailure)
+        .any { it is FilesFailure.AuthenticationRequired }
+    val sessionRejected = controllerRejected || tunnelRoutesRejected || positionWriteRejected || sideActionRejected
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
     // The controller starts from the setting read at validation; each confirmed value from
     // the settings controller supersedes it, so the Account toggle flips the History pane.
@@ -207,14 +216,7 @@ internal fun TvSessionShell(
     var openRejected by remember(session) { mutableStateOf(false) }
     var historyOpenRejected by remember(session) { mutableStateOf(false) }
     val openExternal: (FilesItem, FilesOpenOrigin) -> Boolean = { item, origin ->
-        when (session.openExternal(item, origin)) {
-            TvExternalOpen.PLAYING -> true
-            TvExternalOpen.IN_FILES -> {
-                requestedDestination = TvDestination.Files
-                true
-            }
-            TvExternalOpen.REFUSED -> false
-        }
+        session.openPick(item, origin, onInFiles = { requestedDestination = TvDestination.Files })
     }
     LaunchedEffect(session) {
         session.search.outputs.collect { output ->
@@ -258,11 +260,7 @@ internal fun TvSessionShell(
             // Back from a folder opened from Search or History returns to that pane.
             onFilesBack = if (filesState.canNavigateBack) {
                 {
-                    val returnTo = when (filesState.current.openedFrom) {
-                        FilesOpenOrigin.SEARCH -> TvDestination.Search
-                        FilesOpenOrigin.HISTORY -> TvDestination.History
-                        FilesOpenOrigin.TRANSFERS, FilesOpenOrigin.LINK, null -> null
-                    }
+                    val returnTo = filesState.current.openedFrom.returnDestination()
                     if (session.files.dispatch(FilesBrowserEvent.NavigateBack) && returnTo != null) {
                         requestedDestination = returnTo
                     }
@@ -271,149 +269,265 @@ internal fun TvSessionShell(
                 null
             },
             filesPane = { paneFocus ->
-                // A restore from Trash marks its folder stale; the listing reloads when Files shows
-                // again, or once a refresh that was running at that moment has settled.
-                // Keyed like mobile: the folder, the operation, and whether the content is still
-                // loading, so a reload deferred by any of them runs once that settles.
-                val current = filesState.current
-                LaunchedEffect(
-                    session,
-                    current.folder.id,
-                    current.needsReload,
-                    current.operation,
-                    current.content is FilesContent.Loading,
-                ) {
-                    if (current.needsReload &&
-                        current.operation.canStartOperation &&
-                        current.content !is FilesContent.Loading
-                    ) {
-                        session.files.dispatch(FilesBrowserEvent.ReloadIfStale)
-                    }
-                }
-                // A row's actions: VLC gets the original file; a watched toggle writes the
-                // account's position; deletion runs on the shared browser operation.
-                val context = LocalContext.current
-                val streamScope = rememberCoroutineScope()
-                var filesNotice by remember(session) { mutableStateOf<Int?>(null) }
-                var streamFailure by remember(session) { mutableStateOf<FilesFailure?>(null) }
-                // A requester on the pane lands on its first focusable descendant (Refresh); the
-                // pane's own entry effects then move focus to the row it remembers.
-                TvFilesScreen(
-                    state = filesState,
-                    onEvent = session.files::dispatch,
-                    onPlayMedia = session::play,
-                    modifier = Modifier.focusRequester(paneFocus),
+                TvFilesPane(
+                    session = session,
+                    filesState = filesState,
+                    settingsState = settingsState,
+                    fileActionFailure = fileActionFailure,
                     sessionKey = sessionKey,
-                    focusMemory = session.filesFocusMemory,
-                    confirmedTrashEnabled = settingsState.confirmedTrashEnabled(),
-                    watchedToggleEnabled = settingsState.confirmedResumePlayback() == true,
-                    onOpenInVlc = { item ->
-                        streamScope.launch {
-                            val stream = session.originalStreamUrl(item)
-                            filesNotice = null
-                            streamFailure = null
-                            when (stream) {
-                                is FilesStreamUrlResult.Ready ->
-                                    if (!launchVlc(context, stream.url, item)) filesNotice = R.string.tv_files_vlc_missing
-                                FilesStreamUrlResult.DownloadTokenUnavailable ->
-                                    filesNotice = R.string.tv_files_stream_unavailable
-                                // A 401 is the session's verdict, which the session already holds.
-                                is FilesStreamUrlResult.Failure -> streamFailure =
-                                    stream.failure.takeUnless { it is FilesFailure.AuthenticationRequired }
-                            }
-                        }
-                    },
-                    onSetWatched = session::setWatched,
-                    notice = filesNotice?.let { stringResource(it) }
-                        ?: streamFailure?.let { stringResource(R.string.tv_files_stream_error, it.tvMessageText()) }
-                        ?: fileActionFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
-                            ?.let { stringResource(R.string.tv_files_watched_error, it.tvMessageText()) },
-                    // OK clears only what it was shown; a failure that arrived behind a VLC
-                    // notice is shown next.
-                    onDismissNotice = {
-                        when {
-                            filesNotice != null -> filesNotice = null
-                            streamFailure != null -> streamFailure = null
-                            else -> session.dismissFileActionFailure()
-                        }
-                    },
+                    paneFocus = paneFocus,
                 )
             },
             searchPane = { paneFocus ->
-                TvSearchScreen(
-                    state = searchState,
-                    actions = remember(session) { tvSearchActions(session, onQueryEdited = { openRejected = false }) },
-                    notice = when {
-                        openRejected -> FilesFailure.NavigationBlocked
-                        else -> recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
-                    },
-                    modifier = Modifier.focusRequester(paneFocus),
+                TvSearchPane(
+                    session = session,
+                    searchState = searchState,
+                    openRejected = openRejected,
+                    recentSearchFailure = recentSearchFailure,
+                    onQueryEdited = { openRejected = false },
                     sessionKey = sessionKey,
-                    pickedRow = session.searchPickedRow,
+                    paneFocus = paneFocus,
                 )
             },
             historyPane = { paneFocus ->
-                // A stale explanation must not greet a visit to the pane: cleared on entry as well
-                // as on leaving, since a slow resolution can settle after the user has left.
-                DisposableEffect(session) {
-                    historyOpenRejected = false
-                    session.dismissHistoryOpenFailure()
-                    onDispose {
-                        historyOpenRejected = false
-                        session.dismissHistoryOpenFailure()
-                    }
-                }
-                TvHistoryScreen(
-                    state = historyState,
-                    onEvent = { event ->
-                        if (event is HistoryEvent.OpenFile) historyOpenRejected = false
-                        session.history.dispatch(event)
-                    },
-                    notice = when {
-                        historyOpenRejected -> FilesFailure.NavigationBlocked
-                        else -> historyOpenFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
-                    },
-                    modifier = Modifier.focusRequester(paneFocus),
+                TvHistoryPane(
+                    session = session,
+                    historyState = historyState,
+                    openRejected = historyOpenRejected,
+                    openFailure = historyOpenFailure,
+                    onClearOpenRejection = { historyOpenRejected = false },
                     sessionKey = sessionKey,
-                    pickedRow = session.historyPickedRow,
+                    paneFocus = paneFocus,
                 )
             },
             accountPane = { paneFocus ->
-                // The listing is read on entry so Manage your trash can show the trash's size, and
-                // kept while the pane is away; a pending mutation's recovery stays available
-                // because the controller outlives the pane.
-                LaunchedEffect(session) { session.trash.dispatch(TrashEvent.Open) }
-                TvAccountScreen(
+                TvAccountPane(
+                    session = session,
                     account = account,
                     settingsState = settingsState,
                     appConfigState = appConfigState,
-                    onSettingsEvent = session.settings::dispatch,
-                    onAppConfigEvent = session.appConfig::dispatch,
+                    trashState = trashState,
                     onSignOut = onSignOut,
-                    paneFocus = paneFocus,
-                    trashSizeBytes = (trashState.content as? TrashContent.Loaded)?.trashSizeBytes,
-                    trashPane = { trashFocus ->
-                        TvTrashScreen(
-                            state = trashState,
-                            onEvent = session.trash::dispatch,
-                            modifier = Modifier.focusRequester(trashFocus),
-                            sessionKey = sessionKey,
-                        )
-                    },
-                    loadTunnelRoutes = {
-                        loadTunnelRoutes().also { result ->
-                            if (result is AccountSettingsRepositoryResult.Failure &&
-                                result.failure is AccountSettingsFailure.AuthenticationRequired
-                            ) {
-                                tunnelRoutesRejected = true
-                            }
-                        }
-                    },
+                    loadTunnelRoutes = loadTunnelRoutes,
+                    onTunnelRoutesRejected = { tunnelRoutesRejected = true },
                     sessionKey = sessionKey,
+                    paneFocus = paneFocus,
                 )
             },
         )
     }
+}
+
+/** Opens a Search or History pick; false when Files refused it while a move or deletion settles. */
+private fun TvSession.openPick(item: FilesItem, origin: FilesOpenOrigin, onInFiles: () -> Unit): Boolean =
+    when (openExternal(item, origin)) {
+        TvExternalOpen.PLAYING -> true
+        TvExternalOpen.IN_FILES -> {
+            onInFiles()
+            true
+        }
+        TvExternalOpen.REFUSED -> false
+    }
+
+/** The pane Back from a folder returns to: the one that opened it, or none to stay in Files. */
+private fun FilesOpenOrigin?.returnDestination(): TvDestination? =
+    when (this) {
+        FilesOpenOrigin.SEARCH -> TvDestination.Search
+        FilesOpenOrigin.HISTORY -> TvDestination.History
+        FilesOpenOrigin.TRANSFERS, FilesOpenOrigin.LINK, null -> null
+    }
+
+@Composable
+private fun TvFilesPane(
+    session: TvSession,
+    filesState: FilesBrowserState,
+    settingsState: AccountSettingsState,
+    fileActionFailure: FilesFailure?,
+    sessionKey: Any,
+    paneFocus: FocusRequester,
+) {
+    // A restore from Trash marks its folder stale; the listing reloads when Files shows
+    // again, or once a refresh that was running at that moment has settled.
+    // Keyed like mobile: the folder, the operation, and whether the content is still
+    // loading, so a reload deferred by any of them runs once that settles.
+    val current = filesState.current
+    LaunchedEffect(
+        session,
+        current.folder.id,
+        current.needsReload,
+        current.operation,
+        current.content is FilesContent.Loading,
+    ) {
+        if (current.needsReload &&
+            current.operation.canStartOperation &&
+            current.content !is FilesContent.Loading
+        ) {
+            session.files.dispatch(FilesBrowserEvent.ReloadIfStale)
+        }
+    }
+    // A row's actions: VLC gets the original file; a watched toggle writes the
+    // account's position; deletion runs on the shared browser operation.
+    val context = LocalContext.current
+    val streamScope = rememberCoroutineScope()
+    var filesNotice by remember(session) { mutableStateOf<Int?>(null) }
+    var streamFailure by remember(session) { mutableStateOf<FilesFailure?>(null) }
+    // A requester on the pane lands on its first focusable descendant (Refresh); the
+    // pane's own entry effects then move focus to the row it remembers.
+    TvFilesScreen(
+        state = filesState,
+        onEvent = session.files::dispatch,
+        onPlayMedia = session::play,
+        modifier = Modifier.focusRequester(paneFocus),
+        sessionKey = sessionKey,
+        focusMemory = session.filesFocusMemory,
+        confirmedTrashEnabled = settingsState.confirmedTrashEnabled(),
+        watchedToggleEnabled = settingsState.confirmedResumePlayback() == true,
+        onOpenInVlc = { item ->
+            streamScope.launch {
+                val stream = session.originalStreamUrl(item)
+                filesNotice = stream.openInVlc(context, item)
+                // A 401 is the session's verdict, which the session already holds.
+                streamFailure = (stream as? FilesStreamUrlResult.Failure)?.failure
+                    ?.takeUnless { it is FilesFailure.AuthenticationRequired }
+            }
+        },
+        onSetWatched = session::setWatched,
+        notice = filesNoticeText(filesNotice, streamFailure, fileActionFailure),
+        // OK clears only what it was shown; a failure that arrived behind a VLC
+        // notice is shown next.
+        onDismissNotice = {
+            when {
+                filesNotice != null -> filesNotice = null
+                streamFailure != null -> streamFailure = null
+                else -> session.dismissFileActionFailure()
+            }
+        },
+    )
+}
+
+/** Hands a ready stream to VLC; the notice to show instead, if any. */
+private fun FilesStreamUrlResult.openInVlc(context: Context, item: FilesItem): Int? =
+    when (this) {
+        is FilesStreamUrlResult.Ready -> R.string.tv_files_vlc_missing.takeUnless { launchVlc(context, url, item) }
+        FilesStreamUrlResult.DownloadTokenUnavailable -> R.string.tv_files_stream_unavailable
+        is FilesStreamUrlResult.Failure -> null
+    }
+
+@Composable
+private fun filesNoticeText(
+    filesNotice: Int?,
+    streamFailure: FilesFailure?,
+    fileActionFailure: FilesFailure?,
+): String? =
+    filesNotice?.let { stringResource(it) }
+        ?: streamFailure?.let { stringResource(R.string.tv_files_stream_error, it.tvMessageText()) }
+        ?: fileActionFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
+            ?.let { stringResource(R.string.tv_files_watched_error, it.tvMessageText()) }
+
+@Composable
+private fun TvSearchPane(
+    session: TvSession,
+    searchState: SearchState,
+    openRejected: Boolean,
+    recentSearchFailure: FilesFailure?,
+    onQueryEdited: () -> Unit,
+    sessionKey: Any,
+    paneFocus: FocusRequester,
+) {
+    TvSearchScreen(
+        state = searchState,
+        actions = remember(session) { tvSearchActions(session, onQueryEdited = onQueryEdited) },
+        notice = when {
+            openRejected -> FilesFailure.NavigationBlocked
+            else -> recentSearchFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
+        },
+        modifier = Modifier.focusRequester(paneFocus),
+        sessionKey = sessionKey,
+        pickedRow = session.searchPickedRow,
+    )
+}
+
+@Composable
+private fun TvHistoryPane(
+    session: TvSession,
+    historyState: HistoryState,
+    openRejected: Boolean,
+    openFailure: FilesFailure?,
+    onClearOpenRejection: () -> Unit,
+    sessionKey: Any,
+    paneFocus: FocusRequester,
+) {
+    // A stale explanation must not greet a visit to the pane: cleared on entry as well
+    // as on leaving, since a slow resolution can settle after the user has left.
+    DisposableEffect(session) {
+        onClearOpenRejection()
+        session.dismissHistoryOpenFailure()
+        onDispose {
+            onClearOpenRejection()
+            session.dismissHistoryOpenFailure()
+        }
+    }
+    TvHistoryScreen(
+        state = historyState,
+        onEvent = { event ->
+            if (event is HistoryEvent.OpenFile) onClearOpenRejection()
+            session.history.dispatch(event)
+        },
+        notice = when {
+            openRejected -> FilesFailure.NavigationBlocked
+            else -> openFailure?.takeUnless { it is FilesFailure.AuthenticationRequired }
+        },
+        modifier = Modifier.focusRequester(paneFocus),
+        sessionKey = sessionKey,
+        pickedRow = session.historyPickedRow,
+    )
+}
+
+@Composable
+private fun TvAccountPane(
+    session: TvSession,
+    account: TvAccount,
+    settingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
+    trashState: TrashState,
+    onSignOut: () -> Unit,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
+    onTunnelRoutesRejected: () -> Unit,
+    sessionKey: Any,
+    paneFocus: FocusRequester,
+) {
+    // The listing is read on entry so Manage your trash can show the trash's size, and
+    // kept while the pane is away; a pending mutation's recovery stays available
+    // because the controller outlives the pane.
+    LaunchedEffect(session) { session.trash.dispatch(TrashEvent.Open) }
+    TvAccountScreen(
+        account = account,
+        settingsState = settingsState,
+        appConfigState = appConfigState,
+        onSettingsEvent = session.settings::dispatch,
+        onAppConfigEvent = session.appConfig::dispatch,
+        onSignOut = onSignOut,
+        paneFocus = paneFocus,
+        trashSizeBytes = (trashState.content as? TrashContent.Loaded)?.trashSizeBytes,
+        trashPane = { trashFocus ->
+            TvTrashScreen(
+                state = trashState,
+                onEvent = session.trash::dispatch,
+                modifier = Modifier.focusRequester(trashFocus),
+                sessionKey = sessionKey,
+            )
+        },
+        loadTunnelRoutes = {
+            loadTunnelRoutes().also { result ->
+                if (result is AccountSettingsRepositoryResult.Failure &&
+                    result.failure is AccountSettingsFailure.AuthenticationRequired
+                ) {
+                    onTunnelRoutesRejected()
+                }
+            }
+        },
+        sessionKey = sessionKey,
+    )
 }
 
 private fun tvSearchActions(
@@ -429,11 +543,13 @@ private fun tvSearchActions(
         onResult = { item: FilesItem -> session.search.openResult(item.id) },
         onNextPage = { session.search.loadNextPage() },
         onRetry = { session.search.retry() },
-        onRecentSearch = { term ->
-            onQueryEdited()
-            session.search.updateQuery(term.value)
-            session.search.submit()
-        },
-        onRecentEdit = { session.search.editRecentSearches(it) },
-        onRecentRetry = session::retryRecentSearches,
+        recent = TvRecentSearchActions(
+            onSearch = { term ->
+                onQueryEdited()
+                session.search.updateQuery(term.value)
+                session.search.submit()
+            },
+            onEdit = { session.search.editRecentSearches(it) },
+            onRetry = session::retryRecentSearches,
+        ),
     )

@@ -81,11 +81,7 @@ internal fun MobileSubtitleControls(
         )
         dismiss()
     }
-    val interactionModifier = Modifier
-        .observePlayerControlInteraction(
-            onInteractionChanged = { if (it) onPointerNavigation() },
-            onActivity = {},
-        ).observePlayerControlKeyActivity(onKeyboardNavigation)
+    val interactionModifier = Modifier.observeControlNavigation(onPointerNavigation, onKeyboardNavigation)
     val description = stringResource(
         if (parameters.subtitlesEnabled(tracks)) {
             R.string.mobile_playback_subtitles_on

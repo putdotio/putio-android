@@ -124,7 +124,7 @@ class MobileOAuthRuntime internal constructor(
             val authController = MobileAuthController(
                 oauthConfiguration = oauthConfiguration,
                 tokenStore = tokenStore,
-                pendingOAuthAttemptStore = SharedPreferencesPendingOAuthAttemptStore(context),
+                oauthAttempts = OAuthAttempts(SharedPreferencesPendingOAuthAttemptStore(context)),
                 sessionGateway = PutioAuthSessionGateway(putioClient) { token ->
                     MobileDownloadCache.get(context).let {
                         if (token == null) it.onTokenClearing?.invoke()

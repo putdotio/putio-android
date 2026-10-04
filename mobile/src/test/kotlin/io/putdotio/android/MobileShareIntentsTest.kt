@@ -82,7 +82,8 @@ class MobileShareIntentsTest {
         val parsed = parseMobileSharedTransfer(multiple)
         assertEquals("https://example.invalid/a\nmagnet:?xt=urn:btih:12345", parsed.input)
         assertNull(parsed.validation)
-        val pasted = parseMobileSharedTransfer(" magnet:?xt=urn:btih:1\n\nmagnet:?xt=urn:btih:2 https://example.invalid/b ")
+        val pasted =
+            parseMobileSharedTransfer(" magnet:?xt=urn:btih:1\n\nmagnet:?xt=urn:btih:2 https://example.invalid/b ")
         assertEquals("magnet:?xt=urn:btih:1\nmagnet:?xt=urn:btih:2\nhttps://example.invalid/b", pasted.input)
         val tooMany = (0..100).joinToString(" ") { "see https://example.invalid/$it" }
         assertEquals(MobileShareValidation.TooManyLinks, parseMobileSharedTransfer(tooMany).validation)
@@ -227,7 +228,10 @@ class MobileShareIntentsTest {
             assertEquals(link, parsed.input)
             assertEquals(MobileShareValidation.InvalidLink, parsed.validation)
         }
-        assertEquals(MobileShareValidation.InvalidLink, parseMobileMagnetLink("https://example.invalid/file").validation)
+        assertEquals(
+            MobileShareValidation.InvalidLink,
+            parseMobileMagnetLink("https://example.invalid/file").validation,
+        )
         val oversized = parseMobileMagnetLink("magnet:?xt=urn:btih:1&dn=" + "a".repeat(MOBILE_TRANSFER_INPUT_LIMIT))
         assertEquals("", oversized.input)
         assertEquals(MobileShareValidation.TooLong, oversized.validation)
@@ -259,7 +263,10 @@ class MobileShareIntentsTest {
         assertNull(read.validation)
         assertFalse(read.toString().contains("Harbor"))
         for (bytes in listOf(ByteArray(0), "not a torrent".toByteArray(), "d3:keyi1ee".toByteArray())) {
-            assertEquals(MobileShareValidation.InvalidTorrent, readMobileTorrent("a.torrent") { bytes.inputStream() }.validation)
+            assertEquals(
+                MobileShareValidation.InvalidTorrent,
+                readMobileTorrent("a.torrent") { bytes.inputStream() }.validation,
+            )
         }
         assertEquals(MobileShareValidation.InvalidTorrent, readMobileTorrent("a.torrent") { null }.validation)
         assertEquals(
@@ -332,7 +339,13 @@ private fun Intent.consumeShared(): MobileSharedTransfer =
 private open class TorrentProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
 
-    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor =
+    override fun query(
+        uri: Uri,
+        projection: Array<out String>?,
+        selection: String?,
+        args: Array<out String>?,
+        sort: String?,
+    ): Cursor =
         MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME)).apply { addRow(arrayOf("Harbor film.torrent")) }
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
@@ -350,6 +363,12 @@ private open class TorrentProvider : ContentProvider() {
 }
 
 private class BrokenProvider : TorrentProvider() {
-    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor =
+    override fun query(
+        uri: Uri,
+        projection: Array<out String>?,
+        selection: String?,
+        args: Array<out String>?,
+        sort: String?,
+    ): Cursor =
         throw UnsupportedOperationException("no queries here")
 }

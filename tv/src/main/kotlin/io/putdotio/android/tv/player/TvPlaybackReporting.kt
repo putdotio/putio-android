@@ -76,8 +76,8 @@ internal class TvPlaybackReporting(
 
     override fun lease(fileId: Long): String? {
         if (closed) return null
-        current?.takeIf { it.fileId == fileId }?.let { return it.token }
-        return writer.register(fileId, ::authorized).also { current = Lease(fileId, it) }
+        return current?.takeIf { it.fileId == fileId }?.token
+            ?: writer.register(fileId, ::authorized).also { current = Lease(fileId, it) }
     }
 
     override fun observe(player: Player): Closeable =

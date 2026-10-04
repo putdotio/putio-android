@@ -30,6 +30,7 @@ import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesRequestId
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -65,69 +66,78 @@ class MobileFilesRenameTest {
         val target = file.copy(type = type)
         val otherFolder = file.copy(id = FilesItemId(8L), name = "other folder", type = PutioFileType.FOLDER)
         val otherVideo = file.copy(id = FilesItemId(9L), name = "other.mkv")
-        val items = listOf(target, otherFolder, otherVideo)
-        val initial = FilesBrowserReducer.start()
-        var state by mutableStateOf(FilesBrowserReducer.reduce(initial.state, FilesBrowserEvent.LoadSucceeded(
-            checkNotNull(initial.effect).requestId, FilesPage(items, null),
-        )).state)
-        val effects = mutableListOf<FilesBrowserEffect>()
-        val played = mutableListOf<FilesItem>()
-        val onEvent: (FilesBrowserEvent) -> Unit = {
-            val transition = FilesBrowserReducer.reduce(state, it)
-            state = transition.state
-            transition.effect?.let(effects::add)
-        }
-        compose.setContent {
-            PutioTheme {
-                Column {
-                    MobileFilesSortMenu(state.current, onSelect = { onEvent(FilesBrowserEvent.SelectSort(it)) })
-                    MobileFilesScreen(state, onEvent, onPlayMedia = played::add, modifier = Modifier.weight(1f))
-                }
-            }
-        }
+        val flow = RenameFlow(listOf(target, otherFolder, otherVideo))
+        showWithSortMenu(flow)
         val queuedRefresh = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG)
             .fetchSemanticsNode().config[SemanticsActions.CustomActions].single().action
-        compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
-        compose.onNodeWithText("Rename").assertIsButton().performClick()
-        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("saved.mkv")
-        compose.onNodeWithText("Save").performClick()
-        compose.runOnIdle {
-            val reload = FilesBrowserReducer.reduce(
-                state,
-                FilesBrowserEvent.MutationSucceeded(effects.single().requestId),
-            )
-            state = reload.state
-            effects += checkNotNull(reload.effect)
-        }
-        val reloadRequest = effects.last().requestId
+        val reloadRequest = saveRenameAndStartReload(flow)
         compose.onNodeWithText(target.name).assertHasNoClickAction()
         compose.onNodeWithText(otherVideo.name).performClick()
         compose.runOnIdle {
-            assertEquals(listOf(otherVideo), played)
-            state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadFailed(
+            assertEquals(listOf(otherVideo), flow.played)
+            flow.state = FilesBrowserReducer.reduce(flow.state, FilesBrowserEvent.LoadFailed(
                 reloadRequest, FilesFailure.Unexpected(IllegalStateException("reload failed")),
             )).state
         }
         compose.onNodeWithText(target.name).assertHasNoClickAction()
         compose.runOnIdle {
-            val failed = state.current.operation
+            val failed = flow.state.current.operation
             assertFalse(queuedRefresh())
-            assertEquals(failed, state.current.operation)
+            assertEquals(failed, flow.state.current.operation)
         }
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).assertIsNotEnabled()
         val refreshConfig = compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).fetchSemanticsNode().config
         assertFalse(SemanticsActions.CustomActions in refreshConfig)
         compose.onNodeWithText(otherFolder.name).performClick()
         compose.runOnIdle {
-            assertEquals(otherFolder.id, state.current.folder.id)
-            state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.NavigateBack).state
+            assertEquals(otherFolder.id, flow.state.current.folder.id)
+            flow.state = FilesBrowserReducer.reduce(flow.state, FilesBrowserEvent.NavigateBack).state
         }
+        retryReloadAndOpenTheRenamedItem(flow, target)
+    }
+
+    private fun showWithSortMenu(flow: RenameFlow) {
+        compose.setContent {
+            PutioTheme {
+                Column {
+                    MobileFilesSortMenu(
+                        flow.state.current,
+                        onSelect = { flow.onEvent(FilesBrowserEvent.SelectSort(it)) },
+                    )
+                    MobileFilesScreen(
+                        flow.state,
+                        flow.onEvent,
+                        onPlayMedia = flow.played::add,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+
+    private fun saveRenameAndStartReload(flow: RenameFlow): FilesRequestId {
+        compose.onNodeWithContentDescription("Actions for old.mkv").performClick()
+        compose.onNodeWithText("Rename").assertIsButton().performClick()
+        compose.onNodeWithTag(MOBILE_FILES_RENAME_FIELD_TAG).performTextReplacement("saved.mkv")
+        compose.onNodeWithText("Save").performClick()
+        compose.runOnIdle {
+            val reload = FilesBrowserReducer.reduce(
+                flow.state,
+                FilesBrowserEvent.MutationSucceeded(flow.effects.single().requestId),
+            )
+            flow.state = reload.state
+            flow.effects += checkNotNull(reload.effect)
+        }
+        return flow.effects.last().requestId
+    }
+
+    private fun retryReloadAndOpenTheRenamedItem(flow: RenameFlow, target: FilesItem) {
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).performClick()
         compose.runOnIdle {
-            state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.LoadSucceeded(
-                effects.last().requestId,
+            flow.state = FilesBrowserReducer.reduce(flow.state, FilesBrowserEvent.LoadSucceeded(
+                flow.effects.last().requestId,
                 FilesPage(
-                    items.map { if (it.id == target.id) it.copy(name = "saved.mkv") else it },
+                    flow.items.map { if (it.id == target.id) it.copy(name = "saved.mkv") else it },
                     null,
                 ),
             )).state
@@ -137,11 +147,11 @@ class MobileFilesRenameTest {
         assertEquals(1, recoveredRefresh[SemanticsActions.CustomActions].size)
         compose.onNodeWithText("saved.mkv").performClick()
         compose.runOnIdle {
-            if (type == PutioFileType.FOLDER) {
-                assertEquals(target.id, state.current.folder.id)
-                assertEquals("saved.mkv", state.current.folder.name)
+            if (target.type == PutioFileType.FOLDER) {
+                assertEquals(target.id, flow.state.current.folder.id)
+                assertEquals("saved.mkv", flow.state.current.folder.name)
             } else {
-                assertEquals(target.copy(name = "saved.mkv"), played.last())
+                assertEquals(target.copy(name = "saved.mkv"), flow.played.last())
             }
         }
     }
@@ -289,4 +299,21 @@ class MobileFilesRenameTest {
         sizeBytes = 128L,
         createdAt = "2026-09-05T00:00:00Z",
     )
+
+    private class RenameFlow(val items: List<FilesItem>) {
+        var state by mutableStateOf(
+            FilesBrowserReducer.start().let { initial ->
+                FilesBrowserReducer.reduce(initial.state, FilesBrowserEvent.LoadSucceeded(
+                    checkNotNull(initial.effect).requestId, FilesPage(items, null),
+                )).state
+            },
+        )
+        val effects = mutableListOf<FilesBrowserEffect>()
+        val played = mutableListOf<FilesItem>()
+        val onEvent: (FilesBrowserEvent) -> Unit = {
+            val transition = FilesBrowserReducer.reduce(state, it)
+            state = transition.state
+            transition.effect?.let(effects::add)
+        }
+    }
 }

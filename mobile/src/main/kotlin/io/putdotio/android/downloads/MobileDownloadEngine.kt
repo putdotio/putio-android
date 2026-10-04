@@ -34,11 +34,11 @@ internal class MobileDownloadEngine(
     private val store: MobileDownloadStore,
     private val userId: Long,
     scope: CoroutineScope,
-    private val downloads: MobileDownloadCache = MobileDownloadCache.get(context),
-    private val downloadManager: DownloadManager = downloads.downloadManager,
+    private val downloadManager: DownloadManager = MobileDownloadCache.get(context).downloadManager,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : DownloadEngine, DownloadManager.Listener {
+) : DownloadEngine {
     private val appContext = context.applicationContext
+    private val downloads = MobileDownloadCache.get(appContext)
     private val removing = mutableSetOf<FilesItemId>()
     private val parkOnTokenClearing: () -> Unit = { park() }
 
@@ -47,10 +47,35 @@ internal class MobileDownloadEngine(
     private var closed = false
     private val reconcileJob: Job
 
+    private val listener = object : DownloadManager.Listener {
+        override fun onDownloadChanged(
+            downloadManager: DownloadManager,
+            download: Download,
+            finalException: Exception?,
+        ) {
+            reflect(download, finalException)
+        }
+
+        override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+            val fileId = fileIdOf(download.request.id)
+            if (closed || fileId == null) return
+            synchronized(removing) { removing -= fileId }
+            store.removeBlocking(fileId)
+        }
+
+        // Media3 keeps queued rows queued while offline; the rows show why nothing moves.
+        override fun onWaitingForRequirementsChanged(
+            downloadManager: DownloadManager,
+            waitingForRequirements: Boolean,
+        ) {
+            for (download in downloadManager.currentDownloads) reflect(download, null)
+        }
+    }
+
     init {
         downloads.activeUserId = userId
         downloads.onTokenClearing = parkOnTokenClearing
-        downloadManager.addListener(this)
+        downloadManager.addListener(listener)
         // The index read is SQLite; only the manager calls must run on its looper.
         reconcileJob = scope.launch {
             val snapshot = withContext(ioDispatcher) {
@@ -122,7 +147,7 @@ internal class MobileDownloadEngine(
     fun close() {
         closed = true
         reconcileJob.cancel()
-        downloadManager.removeListener(this)
+        downloadManager.removeListener(listener)
         if (downloads.activeUserId == userId) downloads.activeUserId = null
         if (downloads.onTokenClearing === parkOnTokenClearing) downloads.onTokenClearing = null
     }
@@ -144,32 +169,15 @@ internal class MobileDownloadEngine(
     override fun refreshProgress() {
         if (closed) return
         for (download in downloadManager.currentDownloads) {
-            if (download.state != Download.STATE_DOWNLOADING) continue
-            val fileId = fileIdOf(download.request.id) ?: continue
+            val fileId = fileIdOf(download.request.id)
+            if (download.state != Download.STATE_DOWNLOADING || fileId == null) continue
             store.updateProgressInMemory(fileId, download.bytesDownloaded, download.contentLength.takeIf { it > 0L })
         }
     }
 
-    override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
-        reflect(download, finalException)
-    }
-
-    override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
-        if (closed) return
-        val fileId = fileIdOf(download.request.id) ?: return
-        synchronized(removing) { removing -= fileId }
-        store.removeBlocking(fileId)
-    }
-
-    // Media3 keeps queued rows queued while offline; the rows show why nothing moves.
-    override fun onWaitingForRequirementsChanged(downloadManager: DownloadManager, waitingForRequirements: Boolean) {
-        for (download in downloadManager.currentDownloads) reflect(download, null)
-    }
-
     private fun reflect(download: Download, error: Exception?) {
-        if (closed) return
-        val fileId = fileIdOf(download.request.id) ?: return
-        if (download.state == Download.STATE_REMOVING) return
+        val fileId = fileIdOf(download.request.id)
+        if (closed || fileId == null || download.state == Download.STATE_REMOVING) return
         val status = download.toStatus(error, downloadManager.isWaitingForRequirements) ?: return
         store.updateStatusBlocking(fileId) { current ->
             // Reconcile sees the failed state without its exception; the stored reason is better.
@@ -182,9 +190,8 @@ internal class MobileDownloadEngine(
     private fun contentId(fileId: FilesItemId): String = downloadContentId(userId, fileId)
 
     private fun fileIdOf(contentId: String): FilesItemId? {
-        val (owner, file) = contentId.split(':', limit = 2).takeIf { it.size == 2 } ?: return null
-        if (owner.toLongOrNull() != userId) return null
-        return file.toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
+        if (contentId.substringBefore(':', missingDelimiterValue = "").toLongOrNull() != userId) return null
+        return contentId.substringAfter(':').toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
     }
 
     internal companion object {
@@ -224,24 +231,24 @@ private fun Download.toStatus(error: Exception?, waitingForNetwork: Boolean): Do
         else -> null
     }
 
+private fun Exception?.toFailureReason(): DownloadFailureReason =
+    generateSequence<Throwable>(this) { it.cause }
+        .firstNotNullOfOrNull { it.failureReasonOrNull() }
+        ?: DownloadFailureReason.UNEXPECTED
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-private fun Exception?.toFailureReason(): DownloadFailureReason {
-    var current: Throwable? = this
-    while (current != null) {
-        when (current) {
-            is HttpDataSource.InvalidResponseCodeException -> return when (current.responseCode) {
-                HTTP_UNAUTHORIZED -> DownloadFailureReason.AUTHENTICATION
-                HTTP_FORBIDDEN, HTTP_NOT_FOUND, HTTP_GONE -> DownloadFailureReason.UNAVAILABLE
-                else -> DownloadFailureReason.UNEXPECTED
-            }
-            is UnknownHostException, is SocketException, is TimeoutException -> return DownloadFailureReason.NETWORK
-            is HttpDataSource.HttpDataSourceException -> return DownloadFailureReason.NETWORK
-            is IOException -> if (current.message?.contains("ENOSPC") == true) return DownloadFailureReason.STORAGE
+private fun Throwable.failureReasonOrNull(): DownloadFailureReason? =
+    when (this) {
+        is HttpDataSource.InvalidResponseCodeException -> when (responseCode) {
+            HTTP_UNAUTHORIZED -> DownloadFailureReason.AUTHENTICATION
+            HTTP_FORBIDDEN, HTTP_NOT_FOUND, HTTP_GONE -> DownloadFailureReason.UNAVAILABLE
+            else -> DownloadFailureReason.UNEXPECTED
         }
-        current = current.cause
+        is UnknownHostException, is SocketException, is TimeoutException -> DownloadFailureReason.NETWORK
+        is HttpDataSource.HttpDataSourceException -> DownloadFailureReason.NETWORK
+        is IOException -> DownloadFailureReason.STORAGE.takeIf { message?.contains("ENOSPC") == true }
+        else -> null
     }
-    return DownloadFailureReason.UNEXPECTED
-}
 
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_FORBIDDEN = 403

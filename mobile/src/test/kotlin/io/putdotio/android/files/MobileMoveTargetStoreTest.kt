@@ -12,7 +12,10 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class MobileMoveTargetStoreTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
-    private val path = listOf(FilesFolder(FilesItemId(8L), "Sample folder"), FilesFolder(FilesItemId(9L), "Archive été 東京"))
+    private val path = listOf(
+        FilesFolder(FilesItemId(8L), "Sample folder"),
+        FilesFolder(FilesItemId(9L), "Archive été 東京"),
+    )
 
     @Test
     fun eachAccountKeepsItsOwnChoiceUntilSignOutClearsThemAll() {
@@ -21,7 +24,10 @@ class MobileMoveTargetStoreTest {
         assertEquals(FilesMoveTargetMemory(), first.read())
 
         first.write(FilesMoveTargetMemory(remember = true, lastTarget = path))
-        assertEquals(FilesMoveTargetMemory(remember = true, lastTarget = path), MobileMoveTargetStore(context, 1L).read())
+        assertEquals(
+            FilesMoveTargetMemory(remember = true, lastTarget = path),
+            MobileMoveTargetStore(context, 1L).read(),
+        )
         assertEquals(FilesMoveTargetMemory(), second.read())
         second.write(FilesMoveTargetMemory(remember = true))
 

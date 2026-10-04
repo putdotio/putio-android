@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -92,53 +93,8 @@ internal fun MobileTrashScreen(
             is TrashContent.Error -> item(key = "error") {
                 TrashReadFailure(content.failure) { onEvent(TrashEvent.Retry) }
             }
-            is TrashContent.Loaded -> {
-                item(key = "summary") {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        content.trashSizeBytes?.let { size ->
-                            Text(stringResource(R.string.mobile_trash_storage,
-                                Formatter.formatShortFileSize(LocalContext.current, size)))
-                        }
-                        Text(stringResource(R.string.mobile_trash_expiration_hint),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        OutlinedButton(onClick = { onEvent(TrashEvent.Refresh) },
-                            enabled = !content.isRefreshing && !content.isLoadingMore) {
-                            Text(stringResource(R.string.mobile_action_refresh))
-                        }
-                        MobileTrashBulkActions(state, onEvent)
-                        if (content.isRefreshing) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    }
-                }
-                content.refreshFailure?.let { failure ->
-                    item(key = "refresh-error") { TrashReadFailure(failure) { onEvent(TrashEvent.Refresh) } }
-                }
-                if (content.items.isEmpty() && content.nextCursor == null) {
-                    item(key = "empty") {
-                        MobileEmptyState(stringResource(R.string.mobile_trash_empty_title),
-                            stringResource(R.string.mobile_trash_empty_message))
-                    }
-                }
-                items(content.items, key = { it.id.value }) { item ->
-                    MobileTrashRow(
-                        item, enabled = state.canRestore(item.id) || state.canDelete(item.id),
-                        onActions = { sheetItemId = item.id.value },
-                    )
-                    HorizontalDivider(Modifier.padding(start = 72.dp))
-                }
-                item(key = "paging") {
-                    val pageFailure = content.pageFailure
-                    when {
-                        content.isLoadingMore -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
-                        pageFailure != null -> TrashReadFailure(pageFailure) { onEvent(TrashEvent.Retry) }
-                        content.nextCursor != null -> TextButton(
-                            onClick = { onEvent(TrashEvent.LoadNextPage) },
-                            enabled = !content.isRefreshing,
-                            modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        ) { Text(stringResource(R.string.mobile_files_load_more)) }
-                    }
-                }
-            }
+            is TrashContent.Loaded ->
+                loadedTrashItems(content, state, onEvent, onActions = { sheetItemId = it.id.value })
         }
     }
     sheetItem?.let { item ->
@@ -148,36 +104,94 @@ internal fun MobileTrashScreen(
         MobileTrashActionConfirmation(action, state, onEvent)
     }
     state.confirmation?.let { item ->
-        val confirmationId = state.confirmationId
-        AlertDialog(
-            onDismissRequest = { onEvent(TrashEvent.CancelRestore) },
-            title = { Text(stringResource(R.string.mobile_trash_restore_title)) },
-            text = {
-                Column(
-                    Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(item.name)
-                    Text(stringResource(if (item.isFolder) R.string.mobile_trash_restore_folder_message
-                        else R.string.mobile_trash_restore_message))
-                }
-            },
-            confirmButton = {
-                val canConfirm =
-                    confirmationId != null && state.authenticationFailure == null && !state.hasPendingMutation
-                TextButton(onClick = { confirmationId?.let { onEvent(TrashEvent.ConfirmRestore(it)) } },
-                    enabled = canConfirm,
-                    modifier = Modifier.testTag(MOBILE_TRASH_CONFIRM_TAG)) {
-                    Text(stringResource(R.string.mobile_trash_restore))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { onEvent(TrashEvent.CancelRestore) }) {
-                    Text(stringResource(R.string.mobile_action_cancel))
-                }
-            },
-        )
+        MobileTrashRestoreConfirmation(item, state, onEvent)
     }
+}
+
+private fun LazyListScope.loadedTrashItems(
+    content: TrashContent.Loaded,
+    state: TrashState,
+    onEvent: (TrashEvent) -> Boolean,
+    onActions: (TrashItem) -> Unit,
+) {
+    item(key = "summary") {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            content.trashSizeBytes?.let { size ->
+                Text(stringResource(R.string.mobile_trash_storage,
+                    Formatter.formatShortFileSize(LocalContext.current, size)))
+            }
+            Text(stringResource(R.string.mobile_trash_expiration_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedButton(onClick = { onEvent(TrashEvent.Refresh) },
+                enabled = !content.isRefreshing && !content.isLoadingMore) {
+                Text(stringResource(R.string.mobile_action_refresh))
+            }
+            MobileTrashBulkActions(state, onEvent)
+            if (content.isRefreshing) LinearProgressIndicator(Modifier.fillMaxWidth())
+        }
+    }
+    content.refreshFailure?.let { failure ->
+        item(key = "refresh-error") { TrashReadFailure(failure) { onEvent(TrashEvent.Refresh) } }
+    }
+    if (content.items.isEmpty() && content.nextCursor == null) {
+        item(key = "empty") {
+            MobileEmptyState(stringResource(R.string.mobile_trash_empty_title),
+                stringResource(R.string.mobile_trash_empty_message))
+        }
+    }
+    items(content.items, key = { it.id.value }) { item ->
+        MobileTrashRow(
+            item, enabled = state.canRestore(item.id) || state.canDelete(item.id),
+            onActions = { onActions(item) },
+        )
+        HorizontalDivider(Modifier.padding(start = 72.dp))
+    }
+    item(key = "paging") {
+        val pageFailure = content.pageFailure
+        when {
+            content.isLoadingMore -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
+            pageFailure != null -> TrashReadFailure(pageFailure) { onEvent(TrashEvent.Retry) }
+            content.nextCursor != null -> TextButton(
+                onClick = { onEvent(TrashEvent.LoadNextPage) },
+                enabled = !content.isRefreshing,
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+            ) { Text(stringResource(R.string.mobile_files_load_more)) }
+        }
+    }
+}
+
+@Composable
+private fun MobileTrashRestoreConfirmation(item: TrashItem, state: TrashState, onEvent: (TrashEvent) -> Boolean) {
+    val confirmationId = state.confirmationId
+    AlertDialog(
+        onDismissRequest = { onEvent(TrashEvent.CancelRestore) },
+        title = { Text(stringResource(R.string.mobile_trash_restore_title)) },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(item.name)
+                Text(stringResource(if (item.isFolder) R.string.mobile_trash_restore_folder_message
+                    else R.string.mobile_trash_restore_message))
+            }
+        },
+        confirmButton = {
+            val canConfirm =
+                confirmationId != null && state.authenticationFailure == null && !state.hasPendingMutation
+            TextButton(onClick = { confirmationId?.let { onEvent(TrashEvent.ConfirmRestore(it)) } },
+                enabled = canConfirm,
+                modifier = Modifier.testTag(MOBILE_TRASH_CONFIRM_TAG)) {
+                Text(stringResource(R.string.mobile_trash_restore))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { onEvent(TrashEvent.CancelRestore) }) {
+                Text(stringResource(R.string.mobile_action_cancel))
+            }
+        },
+    )
 }
 
 @Composable
@@ -224,25 +238,7 @@ private fun MobileTrashOutcome(
 ) {
     Column(Modifier.fillMaxWidth().padding(16.dp).testTag(MOBILE_TRASH_OUTCOME_TAG)
         .semantics { liveRegion = LiveRegionMode.Polite }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        val resolved = outcome.resolvedItem
-        if (outcome.check == TrashRestoreCheck.AVAILABLE && resolved != null) {
-            Text(stringResource(if (resolved.isFolder) R.string.mobile_trash_folder_available
-                else R.string.mobile_trash_file_available, resolved.name), style = MaterialTheme.typography.titleMedium)
-        } else {
-            Text(outcome.item.name, style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(when (outcome.submission) {
-                TrashRestoreSubmission.SUBMITTING -> R.string.mobile_trash_submitting
-                TrashRestoreSubmission.ACKNOWLEDGED -> R.string.mobile_trash_started
-                TrashRestoreSubmission.UNCERTAIN -> R.string.mobile_trash_uncertain
-                TrashRestoreSubmission.REJECTED -> R.string.mobile_trash_rejected
-            }))
-            outcome.submissionFailure?.let { failure ->
-                val incomplete = failure is FilesFailure.ApiRejected &&
-                    failure.statusCode == 400 && failure.httpStatusCode == 400 &&
-                        failure.errorType == "TRASH_INCOMPLETE_TRASH"
-                Text(if (incomplete) stringResource(R.string.mobile_trash_incomplete) else failure.trashMessage())
-            }
-        }
+        MobileTrashRestoreSummary(outcome)
         when (outcome.check) {
             TrashRestoreCheck.CHECKING -> {
                 Text(stringResource(R.string.mobile_trash_checking))
@@ -266,6 +262,31 @@ private fun MobileTrashOutcome(
             }
         }
     }
+}
+
+@Composable
+private fun MobileTrashRestoreSummary(outcome: TrashRestoreOutcome) {
+    val resolved = outcome.resolvedItem
+    if (outcome.check == TrashRestoreCheck.AVAILABLE && resolved != null) {
+        Text(stringResource(if (resolved.isFolder) R.string.mobile_trash_folder_available
+            else R.string.mobile_trash_file_available, resolved.name), style = MaterialTheme.typography.titleMedium)
+    } else {
+        Text(outcome.item.name, style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(outcome.submission.messageResource()))
+        outcome.submissionFailure?.let { failure ->
+            val incomplete = failure is FilesFailure.ApiRejected &&
+                failure.statusCode == 400 && failure.httpStatusCode == 400 &&
+                    failure.errorType == "TRASH_INCOMPLETE_TRASH"
+            Text(if (incomplete) stringResource(R.string.mobile_trash_incomplete) else failure.trashMessage())
+        }
+    }
+}
+
+private fun TrashRestoreSubmission.messageResource(): Int = when (this) {
+    TrashRestoreSubmission.SUBMITTING -> R.string.mobile_trash_submitting
+    TrashRestoreSubmission.ACKNOWLEDGED -> R.string.mobile_trash_started
+    TrashRestoreSubmission.UNCERTAIN -> R.string.mobile_trash_uncertain
+    TrashRestoreSubmission.REJECTED -> R.string.mobile_trash_rejected
 }
 
 @Composable

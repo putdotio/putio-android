@@ -62,7 +62,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** What one signed-in TV session needs to build its controllers. */
-internal class TvSessionDependencies(
+internal data class TvSessionDependencies(
     val filesRepository: FilesRepository,
     val searchRepository: SearchRepository,
     val historyRepository: HistoryRepository,
@@ -99,32 +99,41 @@ internal enum class TvExternalOpen {
  * changes together and are closed together when the session ends.
  */
 internal class TvSession internal constructor(
-    val files: FilesBrowserController,
-    private val filesRepository: FilesRepository,
-    val search: SearchController,
-    val history: HistoryController,
-    val trash: TrashController,
-    /** Account-wide `/account/settings`; shared with mobile, read once per session. */
-    val settings: AccountSettingsController,
-    /** This app's `/config` playback keys; shared with mobile. */
-    val appConfig: AndroidAppConfigController,
-    private val recentSearches: RecentSearchStoreOwner,
-    filesItemResolver: FilesItemResolver,
-    private val watchedRepository: FilesWatchedRepository,
-    private val streamUrls: FilesStreamUrls,
-    playbackRepositoryFor: (preference: () -> PlaybackPreference) -> PlaybackRepository,
-    writePlaybackPosition: suspend (fileId: Long, seconds: Double) -> PlaybackRepositoryResult<Unit>,
+    dependencies: TvSessionDependencies,
+    historyEnabled: Boolean,
     sessionCurrent: () -> Boolean,
     parentScope: CoroutineScope,
 ) {
+    private val recentSearches = dependencies.recentSearchStore(parentScope)
+    val files = FilesBrowserController(dependencies.filesRepository, parentScope)
+    val search = SearchController(dependencies.searchRepository, recentSearches, parentScope)
+    val history = HistoryController(
+        dependencies.historyRepository.keeping(HistoryEventKind::isShownOnTv),
+        historyEnabled,
+        parentScope,
+    )
+    val trash = TrashController(dependencies.trashRepository, parentScope)
+
+    /** Account-wide `/account/settings`; shared with mobile, read once per session. */
+    val settings = AccountSettingsController(dependencies.settingsRepository, parentScope)
+
+    /** This app's `/config` playback keys; shared with mobile. */
+    val appConfig = AndroidAppConfigController(dependencies.appConfigRepository, parentScope)
+    private val filesRepository = dependencies.filesRepository
+    private val watchedRepository = dependencies.watchedRepository
+    private val streamUrls = dependencies.streamUrls
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + sessionJob)
     private val historyOpenChannel = Channel<FilesItem>(Channel.BUFFERED)
-    private val historyOpener =
-        HistoryFileOpener(history.navigation, filesItemResolver, { item, _ -> historyOpenChannel.send(item) }, scope)
+    private val historyOpener = HistoryFileOpener(
+        history.navigation,
+        dependencies.filesItemResolver,
+        { item, _ -> historyOpenChannel.send(item) },
+        scope,
+    )
     private val mutableFileActionFailure = MutableStateFlow<FilesFailure?>(null)
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
-    private val playbackRepository = playbackRepositoryFor { appConfig.state.value.playbackPreference() }
+    private val playbackRepository = dependencies.playbackRepository { appConfig.state.value.playbackPreference() }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
     /** The item that started playback; autoplay stays within its folder. */
     private var playbackStart: FilesItem? = null
@@ -135,7 +144,7 @@ internal class TvSession internal constructor(
         scope = scope,
         settings = settings.state,
         sessionCurrent = sessionCurrent,
-        write = writePlaybackPosition,
+        write = dependencies.writePlaybackPosition,
         // The Files row shows the saved position once the server has it.
         onSaved = { fileId, seconds ->
             files.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(fileId), seconds))
@@ -185,28 +194,20 @@ internal class TvSession internal constructor(
     fun openExternal(item: FilesItem, origin: FilesOpenOrigin): TvExternalOpen {
         // A newer pick wins over media still waiting for its duration.
         durationLookup?.cancel()
-        if (item.isPlayable) {
-            playWithDuration(item)
-            return TvExternalOpen.PLAYING
-        }
-        if (!files.dispatch(FilesBrowserEvent.OpenExternalItem(item, origin))) return TvExternalOpen.REFUSED
-        if (!item.isFolder) item.parentId?.let { filesFocusMemory[it.value] = item.id.value }
-        return TvExternalOpen.IN_FILES
-    }
-
-    // The resume dialog needs the duration, which search results and single-file reads omit;
-    // listing the file itself returns it as the parent. Without one, playback continues from
-    // the saved position without asking, as for any row without a duration.
-    private fun playWithDuration(item: FilesItem) {
-        if (item.playback?.durationSeconds != null) {
-            startPlayback(item)
-            return
-        }
-        durationLookup = scope.launch {
-            val listed = (filesRepository.loadFolder(item.id) as? FilesRepositoryResult.Success)?.value?.parent
-            val duration = listed?.takeIf { it.id == item.id }?.playback?.durationSeconds
-            val progress = duration?.let { FilesPlaybackProgress(item.playback?.startFromSeconds ?: 0.0, it) }
-            startPlayback(if (progress == null) item else item.copy(playback = progress))
+        return when {
+            item.isPlayable -> {
+                if (item.playback?.durationSeconds != null) {
+                    startPlayback(item)
+                } else {
+                    durationLookup = scope.launch { startPlayback(filesRepository.withListedDuration(item)) }
+                }
+                TvExternalOpen.PLAYING
+            }
+            !files.dispatch(FilesBrowserEvent.OpenExternalItem(item, origin)) -> TvExternalOpen.REFUSED
+            else -> {
+                if (!item.isFolder) item.parentId?.let { filesFocusMemory[it.value] = item.id.value }
+                TvExternalOpen.IN_FILES
+            }
         }
     }
 
@@ -331,25 +332,9 @@ internal class TvSessionViewModel(
     ): TvSession? {
         val key = TvSessionKey(account.userId, sessionId)
         return active.valueFor(key) {
-            val recentSearches = dependencies.recentSearchStore(viewModelScope)
             TvSession(
-                files = FilesBrowserController(dependencies.filesRepository, viewModelScope),
-                filesRepository = dependencies.filesRepository,
-                search = SearchController(dependencies.searchRepository, recentSearches, viewModelScope),
-                history = HistoryController(
-                    dependencies.historyRepository.keeping(HistoryEventKind::isShownOnTv),
-                    account.historyEnabled,
-                    viewModelScope,
-                ),
-                trash = TrashController(dependencies.trashRepository, viewModelScope),
-                settings = AccountSettingsController(dependencies.settingsRepository, viewModelScope),
-                appConfig = AndroidAppConfigController(dependencies.appConfigRepository, viewModelScope),
-                recentSearches = recentSearches,
-                filesItemResolver = dependencies.filesItemResolver,
-                watchedRepository = dependencies.watchedRepository,
-                streamUrls = dependencies.streamUrls,
-                playbackRepositoryFor = dependencies.playbackRepository,
-                writePlaybackPosition = dependencies.writePlaybackPosition,
+                dependencies = dependencies,
+                historyEnabled = account.historyEnabled,
                 sessionCurrent = { authState.value.sessionKey() == key },
                 parentScope = viewModelScope,
             )
@@ -362,6 +347,16 @@ internal class TvSessionViewModel(
 
     private fun TvAuthState.sessionKey(): TvSessionKey? =
         (this as? TvAuthState.SignedIn)?.let { TvSessionKey(it.account.userId, it.sessionId) }
+}
+
+// The resume dialog needs the duration, which search results and single-file reads omit;
+// listing the file itself returns it as the parent. Without one, playback continues from
+// the saved position without asking, as for any row without a duration.
+private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesItem {
+    val listed = (loadFolder(item.id) as? FilesRepositoryResult.Success)?.value?.parent
+    val duration = listed?.takeIf { it.id == item.id }?.playback?.durationSeconds
+    val progress = duration?.let { FilesPlaybackProgress(item.playback?.startFromSeconds ?: 0.0, it) }
+    return if (progress == null) item else item.copy(playback = progress)
 }
 
 internal fun tvSessionViewModelFactory(authState: StateFlow<TvAuthState>): ViewModelProvider.Factory =

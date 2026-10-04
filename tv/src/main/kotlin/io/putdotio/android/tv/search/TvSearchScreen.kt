@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.search
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
@@ -48,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -55,6 +57,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -86,6 +89,8 @@ import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
+import io.putdotio.android.tv.bringIntoComposition
+import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.android.tv.files.tvMessageText
@@ -100,9 +105,14 @@ internal class TvSearchActions(
     val onResult: (FilesItem) -> Unit,
     val onNextPage: () -> Unit,
     val onRetry: () -> Unit,
-    val onRecentSearch: (SearchTerm) -> Unit,
-    val onRecentEdit: (RecentSearchEdit) -> Unit,
-    val onRecentRetry: () -> Unit,
+    val recent: TvRecentSearchActions,
+)
+
+/** The recent-search chips, the search settings dialog, and the store's failure notice. */
+internal class TvRecentSearchActions(
+    val onSearch: (SearchTerm) -> Unit,
+    val onEdit: (RecentSearchEdit) -> Unit,
+    val onRetry: () -> Unit,
 )
 
 /**
@@ -160,7 +170,7 @@ internal fun TvSearchScreen(
         TvSearchHeader(
             state = state,
             owner = owner,
-            onRecentEdit = actions.onRecentEdit,
+            onRecentEdit = actions.recent.onEdit,
         ) {
             TvSearchField(
                 state = textState,
@@ -186,21 +196,16 @@ internal fun TvSearchScreen(
             TvRecentSearches(
                 terms = state.recentTerms,
                 onSearch = { term ->
-                    // Marked only when the text changes: an unchanged field emits nothing,
-                    // and a stale mark would swallow the next real edit to the same text.
-                    if (textState.text.toString() != term.value) {
-                        rewrite.value = term.value
-                        textState.setTextAndPlaceCursorAtEnd(term.value)
-                    }
-                    actions.onRecentSearch(term)
+                    textState.rewriteTo(term.value, rewrite)
+                    actions.recent.onSearch(term)
                 },
-                onRemove = { actions.onRecentEdit(RecentSearchEdit.Remove(it)) },
+                onRemove = { actions.recent.onEdit(RecentSearchEdit.Remove(it)) },
                 owner = owner,
                 modifier = Modifier.padding(top = 16.dp),
             )
         }
         if (notice != null) {
-            TvSearchNotice(notice, onRetry = actions.onRecentRetry, owner = owner)
+            TvSearchNotice(notice, onRetry = actions.recent.onRetry, owner = owner)
         }
         when (val content = state.content) {
             SearchContent.Idle ->
@@ -311,12 +316,49 @@ private fun submit(
     rewrite: MutableState<String?>,
     onSubmit: () -> Unit,
 ) {
-    val trimmed = state.text.toString().trim()
-    if (trimmed != state.text.toString()) {
-        rewrite.value = trimmed
-        state.setTextAndPlaceCursorAtEnd(trimmed)
-    }
+    state.rewriteTo(state.text.toString().trim(), rewrite)
     onSubmit()
+}
+
+/**
+ * Writes [text] as the pane's own edit, marked for the field's edit collector to skip. Marked
+ * only when the text changes: an unchanged field emits nothing, and a stale mark would swallow
+ * the next real edit to the same text.
+ */
+private fun TextFieldState.rewriteTo(text: String, rewrite: MutableState<String?>) {
+    if (this.text.toString() != text) {
+        rewrite.value = text
+        setTextAndPlaceCursorAtEnd(text)
+    }
+}
+
+/**
+ * A five-way pad moves between controls; the IME, once summoned with Center, takes the keys
+ * itself. Left and Right stay with the cursor while it has text to cross. Enter reaches the
+ * field and runs the search action.
+ */
+private fun handleFieldKey(
+    event: KeyEvent,
+    state: TextFieldState,
+    focusManager: FocusManager,
+    onCenter: () -> Unit,
+): Boolean {
+    if (event.type != KeyEventType.KeyDown) return false
+    val selection = state.selection
+    return when (event.key) {
+        Key.DirectionDown -> focusManager.moveFocus(FocusDirection.Down)
+        Key.DirectionUp -> focusManager.moveFocus(FocusDirection.Up)
+        Key.DirectionLeft ->
+            selection.collapsed && selection.start == 0 && focusManager.moveFocus(FocusDirection.Left)
+        Key.DirectionRight ->
+            selection.collapsed && selection.end == state.text.length &&
+                focusManager.moveFocus(FocusDirection.Right)
+        Key.DirectionCenter -> {
+            onCenter()
+            true
+        }
+        else -> false
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -379,30 +421,14 @@ private fun TvSearchField(
             .fillMaxWidth()
             .semantics { contentDescription = label }
             .testTag(TV_SEARCH_FIELD_TAG)
-            // A five-way pad moves between controls; the IME, once summoned with Center,
-            // takes the keys itself. Left and Right stay with the cursor while it has
-            // text to cross. Enter reaches the field and runs the search action.
             .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                val selection = state.selection
-                when (event.key) {
-                    Key.DirectionDown -> focusManager.moveFocus(FocusDirection.Down)
-                    Key.DirectionUp -> focusManager.moveFocus(FocusDirection.Up)
-                    Key.DirectionLeft ->
-                        selection.collapsed && selection.start == 0 && focusManager.moveFocus(FocusDirection.Left)
-                    Key.DirectionRight ->
-                        selection.collapsed && selection.end == state.text.length &&
-                            focusManager.moveFocus(FocusDirection.Right)
-                    Key.DirectionCenter -> {
-                        if (keyboardRequested) {
-                            keyboardRequested = false
-                            resummon = true
-                        } else {
-                            keyboardRequested = true
-                        }
-                        true
+                handleFieldKey(event, state, focusManager) {
+                    if (keyboardRequested) {
+                        keyboardRequested = false
+                        resummon = true
+                    } else {
+                        keyboardRequested = true
                     }
-                    else -> false
                 }
             },
         decorator = { inner ->
@@ -498,7 +524,7 @@ private fun TvRecentSearches(
                     )
                 },
                 modifier = Modifier
-                    .then(if (index == 0) Modifier.focusRequester(firstChip) else Modifier)
+                    .focusRequesterIf(index == 0, firstChip)
                     .onFocusChanged { if (it.isFocused) focusedTerm = term }
                     .semantics { contentDescription = label },
             ) {
@@ -591,9 +617,7 @@ private fun TvSearchResults(
     }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
-        val lastId = items.last().id.value
-        if (listState.layoutInfo.visibleItemsInfo.none { it.key == lastId }) listState.scrollToItem(items.lastIndex)
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == lastId } }.first { it }
+        listState.bringIntoComposition(items.last().id.value, items.lastIndex)
         withFrameNanos {}
         // The user may have left for the drawer or the field during the wait.
         if (owner.owns(listFocus)) lastRow.requestFocus()
@@ -625,14 +649,11 @@ private fun TvSearchResults(
             TvFilesRow(
                 item = item,
                 onClick = { onResult(item) },
-                label = stringResource(
-                    if (item.isPlayable) R.string.tv_files_play_media else R.string.tv_search_open_result,
-                    item.name,
-                ),
+                label = stringResource(item.resultLabel(), item.name),
                 modifier = Modifier
-                    .then(if (index == anchorIndex) Modifier.focusRequester(anchorRow) else Modifier)
-                    .then(if (index == items.lastIndex) Modifier.focusRequester(lastRow) else Modifier)
-                    .then(if (item.id.value == restoreRowId) Modifier.focusRequester(restoreRow) else Modifier),
+                    .focusRequesterIf(index == anchorIndex, anchorRow)
+                    .focusRequesterIf(index == items.lastIndex, lastRow)
+                    .focusRequesterIf(item.id.value == restoreRowId, restoreRow),
             )
         }
         if (paging != SearchPaging.Complete) {
@@ -647,6 +668,10 @@ private fun TvSearchResults(
         }
     }
 }
+
+@StringRes
+private fun FilesItem.resultLabel(): Int =
+    if (isPlayable) R.string.tv_files_play_media else R.string.tv_search_open_result
 
 @Composable
 private fun TvSearchPaging(

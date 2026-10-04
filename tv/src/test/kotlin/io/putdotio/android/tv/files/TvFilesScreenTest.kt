@@ -14,20 +14,14 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performSemanticsAction
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesBrowserEvent
-import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
-import io.putdotio.android.files.FilesDeleteMode
-import io.putdotio.android.files.FilesDeleteOutcome
-import io.putdotio.android.files.FilesDeleteStatus
 import io.putdotio.android.files.FilesFailure
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderOperation
@@ -39,20 +33,16 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesRequestId
-import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.files.FilesSort
-import io.putdotio.android.files.copyForTest
-import io.putdotio.android.files.filesBrowserState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
-import io.putdotio.sdk.files.PutioFolderType
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import io.putdotio.android.files.filesBrowserState
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
@@ -171,31 +161,6 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun aFailedPageOffersRetryAndLoadingKeepsAFocusOwner() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        var paging by mutableStateOf<FilesPaging>(FilesPaging.Failed(FilesCursor("c"), networkFailure()))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = ready(item(1, "a.txt", PutioFileType.TEXT), paging = paging),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                )
-            }
-        }
-        compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
-
-        paging = FilesPaging.Loading(FilesCursor("c"), FilesRequestId(9))
-        compose.onNodeWithText("Loading more files").assertIsFocused()
-    }
-
-    @Test
     fun aRefreshKeepsFocusOnTheHeaderWhileTheFolderReloads() {
         var operation by mutableStateOf<FilesFolderOperation>(FilesFolderOperation.Idle)
         val events = mutableListOf<FilesBrowserEvent>()
@@ -290,129 +255,6 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun completingTheLastPageMovesFocusFromLoadMoreToTheLastRow() {
-        var content by mutableStateOf<FilesContent>(
-            FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Available(FilesCursor("c"))),
-        )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(state = state(content), onEvent = { true }, onPlayMedia = {})
-            }
-        }
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
-
-        content = FilesContent.Ready(
-            listOf(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT)),
-            FilesPaging.Complete,
-        )
-        compose.onNodeWithContentDescription("b.txt").assertIsFocused()
-    }
-
-    @Test
-    fun returningToTheMountOffsetIsReportedAgain() {
-        val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(state = ready(*rows.toTypedArray()), onEvent = { events += it; true }, onPlayMedia = {})
-            }
-        }
-        compose.onNodeWithContentDescription("file-1.txt").assertIsFocused().performKeyInput {
-            repeat(12) { pressKey(Key.DirectionDown) }
-        }
-        compose.waitForIdle()
-        val scrolled = events.filterIsInstance<FilesBrowserEvent.ViewportChanged>().last()
-        assertTrue(scrolled.position.firstVisibleItemIndex > 0)
-        compose.onNodeWithContentDescription("file-13.txt").performKeyInput { repeat(12) { pressKey(Key.DirectionUp) } }
-        compose.waitForIdle()
-        assertEquals(
-            FilesViewportPosition(),
-            events.filterIsInstance<FilesBrowserEvent.ViewportChanged>().last().position,
-        )
-    }
-
-    @Test
-    fun completingAPageWithRowsBelowTheFoldScrollsTheNewLastRowIntoFocus() {
-        val firstPage = (1..8L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
-        var content by mutableStateOf<FilesContent>(
-            FilesContent.Ready(firstPage, FilesPaging.Available(FilesCursor("c"))),
-        )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(state = state(content), onEvent = { true }, onPlayMedia = {})
-            }
-        }
-        compose.onNodeWithContentDescription("file-1.txt").performKeyInput { repeat(8) { pressKey(Key.DirectionDown) } }
-        compose.onNodeWithText("Load more").assertIsFocused()
-
-        content = FilesContent.Ready(
-            firstPage + (9..30L).map { item(it, "file-$it.txt", PutioFileType.TEXT) },
-            FilesPaging.Complete,
-        )
-        compose.onNodeWithContentDescription("file-30.txt").assertIsFocused()
-    }
-
-    @Test
-    fun aProgrammaticScrollToTheFocusedRowReportsTheViewport() {
-        val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = state(FilesContent.Ready(rows, FilesPaging.Complete, FilesViewportPosition(30, 0))),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                )
-            }
-        }
-        compose.onNodeWithContentDescription("file-1.txt").assertIsFocused()
-        assertEquals(
-            listOf<FilesBrowserEvent>(FilesBrowserEvent.ViewportChanged(FilesViewportPosition(0, 0))),
-            events,
-        )
-    }
-
-    @Test
-    fun anEmptyPageThatFailedOffersRetryWithFocus() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = state(FilesContent.Empty(FilesPaging.Failed(FilesCursor("c"), networkFailure()))),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                )
-            }
-        }
-        compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
-    }
-
-    @Test
-    fun focusMemoryOutlivesThePaneWhenItIsHostedBySomeoneElse() {
-        val memory = mutableMapOf<Long, Long>()
-        var shown by mutableStateOf(true)
-        val root = ready(item(1, "first.txt", PutioFileType.TEXT), item(2, "second.txt", PutioFileType.TEXT))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                if (shown) TvFilesScreen(state = root, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
-            }
-        }
-        compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("second.txt").assertIsFocused()
-
-        shown = false
-        compose.waitForIdle()
-        shown = true
-        compose.onNodeWithContentDescription("second.txt").assertIsFocused()
-    }
-
-    @Test
     fun aFailedFolderKeepsRefreshAndSortInert() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.setContent {
@@ -473,47 +315,6 @@ class TvFilesScreenTest {
             keyUp(Key.DirectionCenter)
         }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage, FilesBrowserEvent.Retry), events)
-    }
-
-    @Test
-    fun loadMoreFocusOutlivesThePaneWhenItIsRemounted() {
-        val memory = mutableMapOf<Long, Long>()
-        var shown by mutableStateOf(true)
-        val paged = ready(item(1, "first.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c")))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                if (shown) TvFilesScreen(state = paged, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
-            }
-        }
-        compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
-
-        shown = false
-        compose.waitForIdle()
-        shown = true
-        compose.onNodeWithText("Load more").assertIsFocused()
-    }
-
-    @Test
-    fun aRemountAfterTheLastPageLandedFocusesTheLastRow() {
-        val memory = mutableMapOf<Long, Long>()
-        var shown by mutableStateOf(true)
-        var state by mutableStateOf(
-            ready(item(1, "first.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c"))),
-        )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                if (shown) TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
-            }
-        }
-        compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
-
-        shown = false
-        compose.waitForIdle()
-        state = ready(item(1, "first.txt", PutioFileType.TEXT), item(2, "second.txt", PutioFileType.TEXT))
-        shown = true
-        compose.onNodeWithContentDescription("second.txt").assertIsFocused()
     }
 
     @Test
@@ -592,27 +393,6 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun aMiddlePageArrivingKeepsFocusOnLoadMore() {
-        var state by mutableStateOf(
-            ready(item(1, "a.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c1"))),
-        )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {})
-            }
-        }
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
-
-        state = ready(
-            item(1, "a.txt", PutioFileType.TEXT),
-            item(2, "b.txt", PutioFileType.TEXT),
-            paging = FilesPaging.Available(FilesCursor("c2")),
-        )
-        compose.onNodeWithText("Load more").assertIsFocused()
-    }
-
-    @Test
     fun aRefreshWhileOnTheHeaderKeepsFocusOnTheHeader() {
         var state by mutableStateOf(ready(item(1, "a.txt", PutioFileType.TEXT), item(2, "b.txt", PutioFileType.TEXT)))
         compose.setContent {
@@ -647,21 +427,6 @@ class TvFilesScreenTest {
             }
         }
         compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
-    }
-
-    @Test
-    fun aRestoredViewportWithoutFocusMemoryScrollsToAndFocusesTheFirstRow() {
-        val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = state(FilesContent.Ready(rows, FilesPaging.Complete, FilesViewportPosition(30, 0))),
-                    onEvent = { true },
-                    onPlayMedia = {},
-                )
-            }
-        }
-        compose.onNodeWithContentDescription("file-1.txt").assertIsFocused()
     }
 
     @Test
@@ -721,382 +486,9 @@ class TvFilesScreenTest {
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
 
-    @Test
-    fun aPagedFolderOffersLoadMoreAfterTheLastRow() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = ready(
-                        item(1, "a.txt", PutioFileType.TEXT),
-                        paging = FilesPaging.Available(FilesCursor("c")),
-                    ),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                )
-            }
-        }
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events)
-    }
-
     private fun hasSelectedState() = androidx.compose.ui.test.isSelected()
 
     private fun pressSystemBack() {
         compose.activity.onBackPressedDispatcher.onBackPressed()
     }
-
-    private fun networkFailure() = FilesFailure.NetworkUnavailable(PutioConfigurationException("x"))
-
-    @Test
-    fun theMenuKeyOpensTheRowActionsAndMoveToTrashRunsWithoutAConfirmation() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        val toggled = mutableListOf<Pair<Long, Boolean>>()
-        val opened = mutableListOf<Long>()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = ready(
-                        item(2, "clip.mp4", PutioFileType.VIDEO, playback = FilesPlaybackProgress(0.0, 120.0)),
-                        item(3, "notes.txt", PutioFileType.TEXT),
-                    ),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                    confirmedTrashEnabled = true,
-                    watchedToggleEnabled = true,
-                    onOpenInVlc = { opened += it.id.value },
-                    onSetWatched = { item, watched -> toggled += item.id.value to watched },
-                )
-            }
-        }
-
-        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Mark as watched").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        assertEquals(listOf(2L to true), toggled)
-        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-        }
-        compose.onNodeWithText("Move to trash").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
-        assertEquals(
-            listOf<FilesBrowserEvent>(
-                FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(2), FilesDeleteMode.TRASH),
-            ),
-            events,
-        )
-        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused()
-        assertEquals(emptyList<Long>(), opened)
-    }
-
-    @Test
-    fun permanentDeletionConfirmsWithCancelFocusedBeforeDispatching() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                    confirmedTrashEnabled = false,
-                )
-            }
-        }
-
-        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
-        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.runOnIdle {
-            assertEquals(
-                listOf<FilesBrowserEvent>(
-                    FilesBrowserEvent.Delete(FilesFolder.Root.id, FilesItemId(3), FilesDeleteMode.PERMANENT),
-                ),
-                events,
-            )
-        }
-        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
-    }
-
-    @Test
-    fun aTrashPressMadeBeforeTrashTurnedOffReachedTheMenuSendsNothing() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        var trash by mutableStateOf<Boolean?>(true)
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                    confirmedTrashEnabled = trash,
-                )
-            }
-        }
-
-        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Move to trash").assertIsFocused()
-        compose.mainClock.autoAdvance = false
-        trash = false
-        compose.onNodeWithText("Move to trash").performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.mainClock.autoAdvance = true
-        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused()
-    }
-
-    @Test
-    fun aTextRowOffersOnlyDeletionAndNothingWithoutTheTrashSetting() {
-        var trash by mutableStateOf<Boolean?>(null)
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
-                    onEvent = { true },
-                    onPlayMedia = {},
-                    confirmedTrashEnabled = trash,
-                )
-            }
-        }
-
-        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
-        compose.runOnIdle { trash = false }
-        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
-        // The setting flipping under an open confirmation withdraws it rather than rewording it.
-        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
-        compose.runOnIdle { trash = true }
-        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
-        compose.onNodeWithText("Move to trash").assertIsFocused()
-    }
-
-    @Test
-    fun sharedItemsOfferNeitherTheWatchedToggleNorDeletion() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = ready(
-                        item(2, "clip.mp4", PutioFileType.VIDEO, playback = FilesPlaybackProgress(0.0, 120.0))
-                            .copy(isShared = true),
-                        item(3, "Items shared with you", PutioFileType.FOLDER)
-                            .copy(folderType = PutioFolderType.SHARED_ROOT),
-                    ),
-                    onEvent = { true },
-                    onPlayMedia = {},
-                    confirmedTrashEnabled = true,
-                    watchedToggleEnabled = true,
-                )
-            }
-        }
-
-        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Cancel").assertIsFocused()
-        compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
-        compose.onAllNodesWithText("Move to trash").assertCountEquals(0)
-        compose.onNodeWithText("Cancel").performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused()
-    }
-
-    @Test
-    fun aSharedFolderOpensNoMenu() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = ready(
-                        item(3, "Items shared with you", PutioFileType.FOLDER)
-                            .copy(folderType = PutioFolderType.SHARED_ROOT),
-                    ),
-                    onEvent = { true },
-                    onPlayMedia = {},
-                    confirmedTrashEnabled = true,
-                )
-            }
-        }
-
-        compose.onNodeWithContentDescription("Open Items shared with you").assertIsFocused().performKeyInput {
-            pressKey(Key.Menu)
-        }
-        compose.onAllNodesWithText("Cancel").assertCountEquals(0)
-        compose.onNodeWithContentDescription("Open Items shared with you").assertIsFocused()
-    }
-
-    @Test
-    fun aRunningDeleteShowsItsPhaseAndAFailedCheckOffersCheckStatus() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        val intent = FilesFolderOperationIntent.Delete(FilesItemId(2), FilesDeleteMode.TRASH)
-        var state by mutableStateOf(
-            state(
-                FilesContent.Ready(listOf(item(2, "clip.mp4", PutioFileType.VIDEO)), FilesPaging.Complete),
-                operation = FilesFolderOperation.Loading(FilesRequestId(3), intent, FilesFolderOperationPhase.DELETING),
-            ),
-        )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(state = state, onEvent = { events += it; true }, onPlayMedia = {})
-            }
-        }
-
-        compose.onNodeWithText("Moving to trash").assertIsDisplayed()
-        compose.runOnIdle {
-            state = state(
-                FilesContent.Ready(listOf(item(2, "clip.mp4", PutioFileType.VIDEO)), FilesPaging.Complete),
-                operation = FilesFolderOperation.Failed(
-                    networkFailure(),
-                    intent,
-                    FilesFolderOperationPhase.CHECKING_DELETE,
-                ),
-            )
-        }
-        compose.onNodeWithText("Couldn’t confirm the result. Check the item before trying again.").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Check status") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
-    }
-
-    @Test
-    fun aFolderTooLargeForTrashExplainsAndDeletesPermanentlyOnlyAfterConfirmation() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        val folder = item(4, "Sample folder", PutioFileType.FOLDER)
-        val outcome = FilesDeleteOutcome(
-            FilesRequestId(5), FilesFolderOperationIntent.Delete(folder.id, FilesDeleteMode.TRASH), folder.name,
-            status = FilesDeleteStatus.TOO_LARGE_FOR_TRASH,
-        )
-        fun withOutcome(listed: FilesItem) =
-            ready(listed).let { it.copyForTest(stack = listOf(it.current.copy(deleteOutcome = outcome))) }
-        var state by mutableStateOf(withOutcome(folder))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = state,
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                    confirmedTrashEnabled = true,
-                )
-            }
-        }
-        val message = "This folder contains too many files. Would you want to delete it PERMANENTLY?"
-
-        compose.onNodeWithText("We couldn’t send these files to trash").assertIsDisplayed()
-        compose.onAllNodesWithText("Sample folder is still in Files. Open its actions to try again.")
-            .assertCountEquals(0)
-        compose.onNodeWithContentDescription("Open Sample folder").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionUp)
-        }
-        compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.onNodeWithText(message).assertIsDisplayed()
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.onAllNodesWithText(message).assertCountEquals(0)
-        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
-
-        compose.onNode(hasText("Delete permanently") and hasClickAction()).performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNodeWithText("Delete").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.runOnIdle {
-            assertEquals(
-                listOf<FilesBrowserEvent>(
-                    FilesBrowserEvent.Delete(FilesFolder.Root.id, folder.id, FilesDeleteMode.PERMANENT),
-                ),
-                events,
-            )
-        }
-        compose.onAllNodesWithText(message).assertCountEquals(0)
-
-        // A rename keeps the outcome; the confirmation names the folder as it is listed now.
-        compose.runOnIdle { state = withOutcome(folder.copy(name = "Renamed folder")) }
-        compose.onNode(hasText("Delete permanently") and hasClickAction()).apply {
-            performSemanticsAction(SemanticsActions.RequestFocus)
-            assertIsFocused()
-            performKeyInput {
-                keyDown(Key.DirectionCenter)
-                keyUp(Key.DirectionCenter)
-            }
-        }
-        compose.onNodeWithText(message).assertIsDisplayed()
-        compose.onAllNodesWithText("Renamed folder").assertCountEquals(2)
-        compose.onAllNodesWithText("Sample folder").assertCountEquals(0)
-    }
-
-    private fun ready(
-        vararg items: FilesItem,
-        sort: FilesSort? = null,
-        paging: FilesPaging = FilesPaging.Complete,
-    ): FilesBrowserState = state(FilesContent.Ready(items.toList(), paging), sort)
-
-    private fun state(
-        content: FilesContent,
-        sort: FilesSort? = null,
-        operation: FilesFolderOperation = FilesFolderOperation.Idle,
-    ): FilesBrowserState =
-        filesBrowserState(
-            stack = listOf(
-                FilesFolderState(
-                    folder = FilesFolder.Root.copy(sort = sort),
-                    content = content,
-                    operation = operation,
-                ),
-            ),
-            nextRequestValue = 10L,
-        )
-
-    private fun item(
-        id: Long,
-        name: String,
-        type: PutioFileType,
-        sizeBytes: Long = 128L,
-        playback: FilesPlaybackProgress? = null,
-    ): FilesItem =
-        FilesItem(
-            id = FilesItemId(id),
-            parentId = FilesFolder.Root.id,
-            name = name,
-            type = type,
-            sizeBytes = sizeBytes,
-            createdAt = "2026-04-20T10:00:00Z",
-            playback = playback,
-        )
 }

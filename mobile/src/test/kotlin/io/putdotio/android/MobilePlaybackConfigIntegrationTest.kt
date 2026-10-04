@@ -24,6 +24,7 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthConfiguration
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.NoTokenRevocations
+import io.putdotio.android.auth.OAuthAttempts
 import io.putdotio.android.auth.PutioAuthSessionGateway
 import io.putdotio.android.auth.SharedPreferencesPendingOAuthAttemptStore
 import io.putdotio.android.design.PutioTheme
@@ -169,7 +170,7 @@ private class PlaybackConfigRootFixture(
     private val authController = MobileAuthController(
         oauthConfiguration = MobileOAuthConfiguration.fromClientId("9677"),
         tokenStore = KeystoreAuthTokenStore(application),
-        pendingOAuthAttemptStore = SharedPreferencesPendingOAuthAttemptStore(application),
+        oauthAttempts = OAuthAttempts(SharedPreferencesPendingOAuthAttemptStore(application)),
         sessionGateway = PutioAuthSessionGateway(client),
         tokenRevocations = NoTokenRevocations,
     )

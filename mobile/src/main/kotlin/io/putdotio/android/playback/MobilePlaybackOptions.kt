@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,7 +42,17 @@ import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
 import io.putdotio.android.R
 
-internal val MOBILE_PLAYBACK_SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+internal val MOBILE_PLAYBACK_SPEEDS = listOf(
+    THREE_QUARTERS_SPEED,
+    1f,
+    ONE_AND_A_QUARTER_SPEED,
+    ONE_AND_A_HALF_SPEED,
+    2f,
+)
+
+private const val THREE_QUARTERS_SPEED = 0.75f
+private const val ONE_AND_A_QUARTER_SPEED = 1.25f
+private const val ONE_AND_A_HALF_SPEED = 1.5f
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun RetainedPlayerPreferences.adoptPlaybackOptions(player: Media3Player) {
@@ -94,11 +105,7 @@ internal fun MobilePlaybackOptions(
         expanded = false
         onMenuVisibilityChanged(false)
     }
-    val interactionModifier = Modifier
-        .observePlayerControlInteraction(
-            onInteractionChanged = { if (it) onPointerNavigation() },
-            onActivity = {},
-        ).observePlayerControlKeyActivity(onKeyboardNavigation)
+    val interactionModifier = Modifier.observeControlNavigation(onPointerNavigation, onKeyboardNavigation)
     fun open(nextPage: PlaybackOptionsPage) {
         page = nextPage
         expanded = true
@@ -139,25 +146,11 @@ internal fun MobilePlaybackOptions(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(modifier = interactionModifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
-                if (!directControls && page != PlaybackOptionsPage.Root) {
-                    IconButton(onClick = { page = PlaybackOptionsPage.Root }) {
-                        Icon(
-                            painterResource(R.drawable.ic_ph_arrow_left),
-                            contentDescription = stringResource(R.string.mobile_action_back),
-                        )
-                    }
-                }
-                Text(
-                    stringResource(when (page) {
-                        PlaybackOptionsPage.Root -> R.string.mobile_playback_options
-                        PlaybackOptionsPage.Speed -> R.string.mobile_playback_speed
-                        PlaybackOptionsPage.Audio -> R.string.mobile_playback_audio_track
-                    }),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(vertical = 12.dp).semantics { heading() },
-                )
-            }
+            PlaybackOptionsHeader(
+                page = page,
+                pagesNavigable = !directControls,
+                onBack = { page = PlaybackOptionsPage.Root },
+            )
             when (page) {
                 PlaybackOptionsPage.Root -> {
                     PlaybackSettingsRow(
@@ -238,7 +231,30 @@ private fun audioOptionLabels(tracks: List<PlaybackAudioTrack>): List<String> {
     }
 }
 
-private enum class PlaybackOptionsPage { Root, Speed, Audio }
+private enum class PlaybackOptionsPage(@StringRes val title: Int) {
+    Root(R.string.mobile_playback_options),
+    Speed(R.string.mobile_playback_speed),
+    Audio(R.string.mobile_playback_audio_track),
+}
+
+@Composable
+private fun PlaybackOptionsHeader(page: PlaybackOptionsPage, pagesNavigable: Boolean, onBack: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
+        if (pagesNavigable && page != PlaybackOptionsPage.Root) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    painterResource(R.drawable.ic_ph_arrow_left),
+                    contentDescription = stringResource(R.string.mobile_action_back),
+                )
+            }
+        }
+        Text(
+            stringResource(page.title),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(vertical = 12.dp).semantics { heading() },
+        )
+    }
+}
 
 @Composable
 private fun playbackSpeedLabel(speed: Float): String =

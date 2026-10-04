@@ -114,10 +114,11 @@ internal class MobileDownloadCache private constructor(context: Context) {
         if (spec.uri.host != API_HOST) return spec
         // Data sources open on Media3's loader threads; the wait is bounded by the restore itself.
         sessionSettled.await(SESSION_SETTLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        val token = accessToken ?: return spec
-        return spec.buildUpon()
-            .setHttpRequestHeaders(spec.httpRequestHeaders + ("Authorization" to "Token $token"))
-            .build()
+        return accessToken?.let { token ->
+            spec.buildUpon()
+                .setHttpRequestHeaders(spec.httpRequestHeaders + ("Authorization" to "Token $token"))
+                .build()
+        } ?: spec
     }
 
     companion object {

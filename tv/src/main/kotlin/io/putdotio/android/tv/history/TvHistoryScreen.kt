@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
@@ -60,7 +61,10 @@ import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvStatusScreen
+import io.putdotio.android.tv.bringIntoComposition
+import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.paneSection
+import io.putdotio.android.tv.refocusAfterDialog
 import io.putdotio.android.tv.files.tvMessageText
 import java.time.Clock
 import java.time.Instant
@@ -115,9 +119,7 @@ internal fun TvHistoryScreen(
     }
     // Loading, empty, and disabled lists have no focusable content, so Clear takes focus
     // when they replace one that had some; a failed list focuses its own Try again.
-    val headerOwnsFocus = content is HistoryContent.Loading ||
-        content == HistoryContent.Empty ||
-        content == HistoryContent.Disabled
+    val headerOwnsFocus = content.hasNothingToFocus
     LaunchedEffect(headerOwnsFocus) {
         if (headerOwnsFocus && paneHasFocus.value) clearFocus.requestFocus()
     }
@@ -125,13 +127,7 @@ internal fun TvHistoryScreen(
     // again but nothing in it is, so the section that had focus takes it back.
     val dialogOpen = state.clearing != HistoryClearing.Idle
     val dialogWasOpen = remember { mutableStateOf(false) }
-    LaunchedEffect(dialogOpen) {
-        val closing = dialogWasOpen.value && !dialogOpen
-        dialogWasOpen.value = dialogOpen
-        if (!closing || !paneHasFocus.value) return@LaunchedEffect
-        withFrameNanos {}
-        if (paneHasFocus.value) entryTarget.value.requestFocus()
-    }
+    LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -150,16 +146,7 @@ internal fun TvHistoryScreen(
             modifier = Modifier.paneSection(owner, clearFocus).focusRequester(clearFocus),
         )
         if (notice != null) {
-            Text(
-                text = if (notice == FilesFailure.NavigationBlocked) {
-                    stringResource(R.string.tv_error_navigation_blocked)
-                } else {
-                    stringResource(R.string.tv_history_open_error, notice.tvMessageText())
-                },
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
+            TvHistoryNotice(notice)
         }
         when (content) {
             HistoryContent.Disabled ->
@@ -223,6 +210,9 @@ internal fun TvHistoryScreen(
     TvHistoryClearDialog(state.clearing, onEvent)
 }
 
+private val HistoryContent.hasNothingToFocus: Boolean
+    get() = this is HistoryContent.Loading || this == HistoryContent.Empty || this == HistoryContent.Disabled
+
 @Composable
 private fun TvHistoryHeader(
     onClear: () -> Unit,
@@ -252,6 +242,20 @@ private fun TvHistoryHeader(
     }
 }
 
+@Composable
+private fun TvHistoryNotice(notice: FilesFailure) {
+    Text(
+        text = if (notice == FilesFailure.NavigationBlocked) {
+            stringResource(R.string.tv_error_navigation_blocked)
+        } else {
+            stringResource(R.string.tv_history_open_error, notice.tvMessageText())
+        },
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(bottom = 8.dp),
+    )
+}
+
 /** One lazy-list entry: a group header or an event row. */
 private sealed interface TvHistoryEntry {
     val key: Any
@@ -277,6 +281,31 @@ private fun List<HistoryItem>.toEntries(now: Instant, zone: ZoneId): List<TvHist
         entries += TvHistoryEntry.Event(item)
     }
     return entries
+}
+
+/** The first event row at or below [top], or -1; headers are not focusable. */
+private fun List<TvHistoryEntry>.firstRowFrom(top: Int): Int =
+    indices.firstOrNull { it >= top && this[it] is TvHistoryEntry.Event } ?: -1
+
+private fun List<TvHistoryEntry>.indexOfRow(id: Long?): Int =
+    indexOfFirst { it is TvHistoryEntry.Event && it.item.id.value == id }
+
+/**
+ * Waits until the row the list mounts on is composed: the restored row, scrolled to when it is
+ * not, else the anchor. False when there is neither.
+ */
+private suspend fun LazyListState.awaitMountRow(
+    entries: List<TvHistoryEntry>,
+    restoreIndex: Int,
+    anchorIndex: Int,
+): Boolean {
+    val restoreKey = entries.getOrNull(restoreIndex)?.key
+    if (restoreKey != null && layoutInfo.visibleItemsInfo.none { it.key == restoreKey }) {
+        scrollToItem(restoreIndex)
+    }
+    val targetKey = restoreKey ?: entries.getOrNull(anchorIndex)?.key ?: return false
+    snapshotFlow { layoutInfo.visibleItemsInfo.any { it.key == targetKey } }.first { it }
+    return true
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
@@ -312,10 +341,7 @@ private fun TvHistoryList(
     }
     val listState = rememberLazyListState()
     val anchorIndex by remember(listState, entries) {
-        derivedStateOf {
-            val top = listState.firstVisibleItemIndex
-            entries.indices.firstOrNull { it >= top && entries[it] is TvHistoryEntry.Event } ?: -1
-        }
+        derivedStateOf { entries.firstRowFrom(listState.firstVisibleItemIndex) }
     }
     val lastIndex = entries.lastIndex
     // On mount the first row takes focus, also from Clear, which held it while the list
@@ -325,24 +351,15 @@ private fun TvHistoryList(
     // mounted, whatever paging appends to it later.
     // Coming back from what a row opened, that row takes focus instead.
     val restoreRow = remember { FocusRequester() }
-    val restoreIndex = remember(entries) {
-        entries.indexOfFirst { it is TvHistoryEntry.Event && it.item.id.value == restoreRowId }
-    }
+    val restoreIndex = remember(entries) { entries.indexOfRow(restoreRowId) }
     LaunchedEffect(listState) {
-        val restoreKey = entries.getOrNull(restoreIndex)?.key
-        if (restoreKey != null && listState.layoutInfo.visibleItemsInfo.none { it.key == restoreKey }) {
-            listState.scrollToItem(restoreIndex)
-        }
-        val targetKey = restoreKey ?: entries.getOrNull(anchorIndex)?.key ?: return@LaunchedEffect
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == targetKey } }.first { it }
+        if (!listState.awaitMountRow(entries, restoreIndex, anchorIndex)) return@LaunchedEffect
         withFrameNanos {}
-        if (paneHasFocus.value) (if (restoreKey != null) restoreRow else listFocus).requestFocus()
+        if (paneHasFocus.value) (if (restoreIndex >= 0) restoreRow else listFocus).requestFocus()
     }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
-        val lastKey = entries.last().key
-        if (listState.layoutInfo.visibleItemsInfo.none { it.key == lastKey }) listState.scrollToItem(lastIndex)
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.any { it.key == lastKey } }.first { it }
+        listState.bringIntoComposition(entries.last().key, lastIndex)
         withFrameNanos {}
         // The user may have left for the drawer or the header during the wait.
         if (owner.owns(listFocus)) lastRow.requestFocus()
@@ -369,25 +386,16 @@ private fun TvHistoryList(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         itemsIndexed(entries, key = { _, entry -> entry.key }) { index, entry ->
-            when (entry) {
-                is TvHistoryEntry.Header ->
-                    Text(
-                        text = stringResource(entry.bucket.label),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = if (index == 0) 0.dp else 16.dp, bottom = 8.dp),
-                    )
-                is TvHistoryEntry.Event ->
-                    TvHistoryRow(
-                        item = entry.item,
-                        now = now,
-                        onOpen = { onOpen(entry.item, it) },
-                        modifier = Modifier
-                            .then(if (index == anchorIndex) Modifier.focusRequester(anchorRow) else Modifier)
-                            .then(if (index == lastIndex) Modifier.focusRequester(lastRow) else Modifier)
-                            .then(if (index == restoreIndex) Modifier.focusRequester(restoreRow) else Modifier),
-                    )
-            }
+            TvHistoryListEntry(
+                entry = entry,
+                first = index == 0,
+                now = now,
+                onOpen = onOpen,
+                modifier = Modifier
+                    .focusRequesterIf(index == anchorIndex, anchorRow)
+                    .focusRequesterIf(index == lastIndex, lastRow)
+                    .focusRequesterIf(index == restoreIndex, restoreRow),
+            )
         }
         if (content.paging != HistoryPaging.Complete) {
             item(key = TV_HISTORY_PAGING_KEY) {
@@ -399,6 +407,32 @@ private fun TvHistoryList(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TvHistoryListEntry(
+    entry: TvHistoryEntry,
+    first: Boolean,
+    now: Instant,
+    onOpen: (HistoryItem, HistoryFileId) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (entry) {
+        is TvHistoryEntry.Header ->
+            Text(
+                text = stringResource(entry.bucket.label),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = modifier.padding(top = if (first) 0.dp else 16.dp, bottom = 8.dp),
+            )
+        is TvHistoryEntry.Event ->
+            TvHistoryRow(
+                item = entry.item,
+                now = now,
+                onOpen = { onOpen(entry.item, it) },
+                modifier = modifier,
+            )
     }
 }
 

@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.onNodeWithTag
@@ -80,7 +81,6 @@ import io.putdotio.android.files.MobileFilesScreen
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "en-rUS")
 class MobileFilesScreenTest {
-
     @get:Rule
     val compose = createComposeRule()
 
@@ -118,7 +118,10 @@ class MobileFilesScreenTest {
             PutioTheme {
                 MobileFilesScreen(
                     browserState(
-                        FilesContent.Ready(listOf(sharedRoot, friend, sharedFolder, sharedVideo, owned), FilesPaging.Complete),
+                        FilesContent.Ready(
+                            listOf(sharedRoot, friend, sharedFolder, sharedVideo, owned),
+                            FilesPaging.Complete,
+                        ),
                     ),
                     onEvent = {},
                     onPlayMedia = {},
@@ -285,7 +288,7 @@ class MobileFilesScreenTest {
         val events = mutableListOf<FilesBrowserEvent>()
         val played = mutableListOf<FilesItem>()
 
-        setFilesContent(
+        compose.setFilesContent(
             state = browserState(
                 FilesContent.Ready(
                     items = listOf(folder, video, audio, textFile),
@@ -368,6 +371,45 @@ class MobileFilesScreenTest {
     }
 
     @Test
+    fun zoneLessCreatedAtStillShowsTheDate() {
+        val file = filesItem(1L, "movie.mkv").copy(createdAt = "2026-04-20T10:00:00")
+        val folder = filesItem(2L, "Shows", PutioFileType.FOLDER).copy(createdAt = "2026-04-21T10:00:00")
+        val state = browserState(FilesContent.Ready(listOf(file, folder), FilesPaging.Complete))
+        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = { true }, onPlayMedia = {}) } }
+        compose.onNode(hasText("movie.mkv") and hasText("Apr 20, 2026", substring = true)).assertIsDisplayed()
+        compose.onNode(hasText("Shows") and hasText("Apr 21, 2026", substring = true)).assertIsDisplayed()
+    }
+
+    @Test
+    fun watchedMediaMergesTheLabelIntoTheRowAndKeepsTheBarDecorative() {
+        val partly = filesItem(1L, "partly.mkv", PutioFileType.VIDEO)
+            .copy(playback = FilesPlaybackProgress(90.0, 360.0))
+        val unknown = filesItem(2L, "unknown.mp3", PutioFileType.AUDIO)
+            .copy(playback = FilesPlaybackProgress(5.0, null))
+        val fresh = filesItem(3L, "fresh.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 100.0))
+        val plain = filesItem(4L, "plain.txt")
+        val state = browserState(FilesContent.Ready(listOf(partly, unknown, fresh, plain), FilesPaging.Complete))
+        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = { true }, onPlayMedia = {}) } }
+        compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true).assertCountEquals(2)
+        // One merged row node carries name, metadata, and watched label together.
+        compose.onNode(hasText("partly.mkv") and hasText("128 B", substring = true) and hasText("25% watched"))
+            .assertIsDisplayed()
+        compose.onNode(hasText("unknown.mp3") and hasText("Watched")).assertIsDisplayed()
+        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.25f, 0f..1f))).assertCountEquals(0)
+        compose.onAllNodesWithText("watched", substring = true, ignoreCase = true).assertCountEquals(2)
+        compose.onNode(hasText("fresh.mkv") and hasText("watched", substring = true, ignoreCase = true))
+            .assertDoesNotExist()
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobileFilesListTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
     fun pagingLoadsTheNextPageNearTheEndOnceAndLeavesAFailedPageToItsRetry() {
         val items = (1L..60L).map { filesItem(id = it, name = "Sample $it.txt") }
         val available = FilesContent.Ready(items, FilesPaging.Available(FilesCursor("next-page")))
@@ -418,7 +460,7 @@ class MobileFilesScreenTest {
     @Test
     fun aShortPageLoadsTheNextOneWithoutATap() {
         val events = mutableListOf<FilesBrowserEvent>()
-        setFilesContent(
+        compose.setFilesContent(
             browserState(
                 FilesContent.Ready(
                     listOf(filesItem(id = 1L, name = "Harbor film.mp4")),
@@ -444,10 +486,14 @@ class MobileFilesScreenTest {
         fun loads() = compose.runOnIdle { events.count { it == FilesBrowserEvent.LoadNextPage } }
 
         assertEquals("an empty page with a next one continues", 1, loads())
-        compose.runOnIdle { state = browserState(FilesContent.Ready(short, FilesPaging.Available(FilesCursor("page-3")))) }
+        compose.runOnIdle {
+            state = browserState(FilesContent.Ready(short, FilesPaging.Available(FilesCursor("page-3"))))
+        }
         assertEquals(2, loads())
         // The next page landed before its loading state was drawn; its new cursor still continues.
-        compose.runOnIdle { state = browserState(FilesContent.Ready(short, FilesPaging.Available(FilesCursor("page-4")))) }
+        compose.runOnIdle {
+            state = browserState(FilesContent.Ready(short, FilesPaging.Available(FilesCursor("page-4"))))
+        }
         assertEquals(3, loads())
     }
 
@@ -457,7 +503,7 @@ class MobileFilesScreenTest {
         val items = (0L until 30L).map { index ->
             filesItem(id = index + 1L, name = "file-$index.txt")
         }
-        setFilesContent(
+        compose.setFilesContent(
             state = browserState(
                 FilesContent.Ready(
                     items = items,
@@ -785,80 +831,49 @@ class MobileFilesScreenTest {
         }
         compose.onNodeWithText("Couldn’t change sorting.").assertIsDisplayed()
     }
+}
 
-    private fun setFilesContent(
-        state: FilesBrowserState,
-        onEvent: (FilesBrowserEvent) -> Unit,
-        onPlayMedia: (FilesItem) -> Unit = {},
-    ) {
-        compose.setContent {
-            PutioTheme {
-                MobileFilesScreen(state = state, onEvent = onEvent, onPlayMedia = onPlayMedia)
-            }
+private fun ComposeContentTestRule.setFilesContent(
+    state: FilesBrowserState,
+    onEvent: (FilesBrowserEvent) -> Unit,
+    onPlayMedia: (FilesItem) -> Unit = {},
+) {
+    setContent {
+        PutioTheme {
+            MobileFilesScreen(state = state, onEvent = onEvent, onPlayMedia = onPlayMedia)
         }
     }
-
-    private fun browserState(
-        content: FilesContent,
-        operation: FilesFolderOperation = FilesFolderOperation.Idle,
-        sort: FilesSort? = null,
-        viewportGeneration: Long = 0L,
-    ): FilesBrowserState =
-        filesBrowserState(
-            stack = listOf(
-                FilesFolderState(
-                    folder = FilesFolder.Root.copy(sort = sort),
-                    content = content,
-                    operation = operation,
-                    viewportGeneration = viewportGeneration,
-                ),
-            ),
-            nextRequestValue = 2L,
-        )
-
-    @Test
-    fun zoneLessCreatedAtStillShowsTheDate() {
-        val file = filesItem(1L, "movie.mkv").copy(createdAt = "2026-04-20T10:00:00")
-        val folder = filesItem(2L, "Shows", PutioFileType.FOLDER).copy(createdAt = "2026-04-21T10:00:00")
-        val state = browserState(FilesContent.Ready(listOf(file, folder), FilesPaging.Complete))
-        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = { true }, onPlayMedia = {}) } }
-        compose.onNode(hasText("movie.mkv") and hasText("Apr 20, 2026", substring = true)).assertIsDisplayed()
-        compose.onNode(hasText("Shows") and hasText("Apr 21, 2026", substring = true)).assertIsDisplayed()
-    }
-
-    @Test
-    fun watchedMediaMergesTheLabelIntoTheRowAndKeepsTheBarDecorative() {
-        val partly = filesItem(1L, "partly.mkv", PutioFileType.VIDEO)
-            .copy(playback = FilesPlaybackProgress(90.0, 360.0))
-        val unknown = filesItem(2L, "unknown.mp3", PutioFileType.AUDIO)
-            .copy(playback = FilesPlaybackProgress(5.0, null))
-        val fresh = filesItem(3L, "fresh.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 100.0))
-        val plain = filesItem(4L, "plain.txt")
-        val state = browserState(FilesContent.Ready(listOf(partly, unknown, fresh, plain), FilesPaging.Complete))
-        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = { true }, onPlayMedia = {}) } }
-        compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true).assertCountEquals(2)
-        // One merged row node carries name, metadata, and watched label together.
-        compose.onNode(hasText("partly.mkv") and hasText("128 B", substring = true) and hasText("25% watched"))
-            .assertIsDisplayed()
-        compose.onNode(hasText("unknown.mp3") and hasText("Watched")).assertIsDisplayed()
-        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.25f, 0f..1f))).assertCountEquals(0)
-        compose.onAllNodesWithText("watched", substring = true, ignoreCase = true).assertCountEquals(2)
-        compose.onNode(hasText("fresh.mkv") and hasText("watched", substring = true, ignoreCase = true))
-            .assertDoesNotExist()
-    }
-
-    private fun filesItem(
-        id: Long,
-        name: String,
-        type: PutioFileType = PutioFileType.TEXT,
-        sizeBytes: Long = 128L,
-    ): FilesItem =
-        FilesItem(
-            id = FilesItemId(id),
-            parentId = FilesFolder.Root.id,
-            name = name,
-            type = type,
-            sizeBytes = sizeBytes,
-            createdAt = "2026-04-20T10:00:00Z",
-        )
 }
+
+private fun browserState(
+    content: FilesContent,
+    operation: FilesFolderOperation = FilesFolderOperation.Idle,
+    sort: FilesSort? = null,
+    viewportGeneration: Long = 0L,
+): FilesBrowserState =
+    filesBrowserState(
+        stack = listOf(
+            FilesFolderState(
+                folder = FilesFolder.Root.copy(sort = sort),
+                content = content,
+                operation = operation,
+                viewportGeneration = viewportGeneration,
+            ),
+        ),
+        nextRequestValue = 2L,
+    )
+
+private fun filesItem(
+    id: Long,
+    name: String,
+    type: PutioFileType = PutioFileType.TEXT,
+    sizeBytes: Long = 128L,
+): FilesItem =
+    FilesItem(
+        id = FilesItemId(id),
+        parentId = FilesFolder.Root.id,
+        name = name,
+        type = type,
+        sizeBytes = sizeBytes,
+        createdAt = "2026-04-20T10:00:00Z",
+    )

@@ -1,13 +1,18 @@
 package io.putdotio.android.tv
 
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import kotlinx.coroutines.flow.first
 
 /**
  * Which section of a pane focus should return to. Sections register themselves while
@@ -94,4 +99,33 @@ internal fun Modifier.paneSection(
         onDispose { owner.leave(requester, fallback) }
     }
     return onFocusChanged { if (it.hasFocus) owner.enter(requester) }
+}
+
+internal fun Modifier.focusRequesterIf(condition: Boolean, requester: FocusRequester): Modifier =
+    if (condition) focusRequester(requester) else this
+
+/**
+ * Scrolls to [index] unless the item keyed [key] is composed, then waits until it is: a lazy
+ * row that is not composed has no focus requester to answer.
+ */
+internal suspend fun LazyListState.bringIntoComposition(key: Any, index: Int) {
+    if (layoutInfo.visibleItemsInfo.none { it.key == key }) scrollToItem(index)
+    snapshotFlow { layoutInfo.visibleItemsInfo.any { it.key == key } }.first { it }
+}
+
+/**
+ * Runs as a pane's `LaunchedEffect(dialogOpen)`. A closing dialog's window takes focus with it,
+ * so a frame later the pane's entry target takes it back, unless the user left the pane meanwhile.
+ */
+internal suspend fun refocusAfterDialog(
+    dialogOpen: Boolean,
+    dialogWasOpen: MutableState<Boolean>,
+    paneHasFocus: State<Boolean>,
+    entryTarget: State<FocusRequester>,
+) {
+    val closing = dialogWasOpen.value && !dialogOpen
+    dialogWasOpen.value = dialogOpen
+    if (!closing || !paneHasFocus.value) return
+    withFrameNanos {}
+    if (paneHasFocus.value) entryTarget.value.requestFocus()
 }

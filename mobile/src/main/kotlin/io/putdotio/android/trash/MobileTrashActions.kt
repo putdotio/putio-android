@@ -187,33 +187,42 @@ internal fun MobileTrashActionOutcome(
 }
 
 @Composable
-private fun TrashActionOutcome.message(): String {
-    val name = (action as? TrashAction.DeleteItem)?.item?.name.orEmpty()
-    return when {
-        check == TrashActionCheck.VERIFIED -> when (action) {
-            is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_verified, name)
-            TrashAction.RestoreAll -> stringResource(R.string.mobile_trash_restore_all_verified)
-            TrashAction.Empty -> stringResource(R.string.mobile_trash_empty_verified)
-        }
-        check == TrashActionCheck.INCONCLUSIVE -> when (action) {
-            is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_inconclusive, name)
-            else -> stringResource(R.string.mobile_trash_restore_all_inconclusive)
-        }
-        check == TrashActionCheck.FAILED && checkFailure == null -> when (action) {
-            is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_still_present, name)
-            else -> stringResource(R.string.mobile_trash_empty_still_present)
-        }
-        else -> stringResource(when (submission) {
-            TrashActionSubmission.SUBMITTING -> R.string.mobile_trash_action_submitting
-            TrashActionSubmission.ACKNOWLEDGED -> when (action) {
-                is TrashAction.DeleteItem -> R.string.mobile_trash_delete_started
-                TrashAction.RestoreAll -> R.string.mobile_trash_restore_all_started
-                TrashAction.Empty -> R.string.mobile_trash_empty_started
-            }
-            TrashActionSubmission.UNCERTAIN -> R.string.mobile_trash_action_uncertain
-            TrashActionSubmission.REJECTED -> R.string.mobile_trash_action_rejected
-        })
+private fun TrashActionOutcome.message(): String =
+    when {
+        check == TrashActionCheck.VERIFIED -> action.verifiedMessage()
+        check == TrashActionCheck.INCONCLUSIVE -> action.inconclusiveMessage()
+        check == TrashActionCheck.FAILED && checkFailure == null -> action.stillPresentMessage()
+        else -> stringResource(submissionMessageResource())
     }
+
+@Composable
+private fun TrashAction.verifiedMessage(): String = when (this) {
+    is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_verified, item.name)
+    TrashAction.RestoreAll -> stringResource(R.string.mobile_trash_restore_all_verified)
+    TrashAction.Empty -> stringResource(R.string.mobile_trash_empty_verified)
+}
+
+@Composable
+private fun TrashAction.inconclusiveMessage(): String = when (this) {
+    is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_inconclusive, item.name)
+    else -> stringResource(R.string.mobile_trash_restore_all_inconclusive)
+}
+
+@Composable
+private fun TrashAction.stillPresentMessage(): String = when (this) {
+    is TrashAction.DeleteItem -> stringResource(R.string.mobile_trash_delete_still_present, item.name)
+    else -> stringResource(R.string.mobile_trash_empty_still_present)
+}
+
+private fun TrashActionOutcome.submissionMessageResource(): Int = when (submission) {
+    TrashActionSubmission.SUBMITTING -> R.string.mobile_trash_action_submitting
+    TrashActionSubmission.ACKNOWLEDGED -> when (action) {
+        is TrashAction.DeleteItem -> R.string.mobile_trash_delete_started
+        TrashAction.RestoreAll -> R.string.mobile_trash_restore_all_started
+        TrashAction.Empty -> R.string.mobile_trash_empty_started
+    }
+    TrashActionSubmission.UNCERTAIN -> R.string.mobile_trash_action_uncertain
+    TrashActionSubmission.REJECTED -> R.string.mobile_trash_action_rejected
 }
 
 private fun TrashAction.titleResource(): Int = when (this) {

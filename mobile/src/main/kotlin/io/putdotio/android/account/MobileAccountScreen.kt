@@ -185,9 +185,7 @@ internal fun MobileAccountScreen(
                     preferences = content.preferences,
                     mutation = settingsState.mutation,
                     onChange = { change ->
-                        if (change is AccountSettingsChange.Toggle &&
-                            change.key == AccountSettingsKey.Trash && !change.enabled
-                        ) {
+                        if (change.disablesTrash) {
                             confirmTrashDisable = true
                         } else {
                             onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
@@ -262,10 +260,11 @@ internal fun MobileAccountScreen(
         )
     }
 
-    val accountSettings = settingsState.content as? AccountSettingsContent.Ready
-    if (chooseTunnelRoute && accountSettings != null && settingsState.accountControlsEnabled()) {
+    val editableSettings = (settingsState.content as? AccountSettingsContent.Ready)
+        ?.takeIf { settingsState.accountControlsEnabled() }
+    if (chooseTunnelRoute && editableSettings != null) {
         MobileTunnelRouteDialog(
-            selected = accountSettings.preferences.tunnelRoute,
+            selected = editableSettings.preferences.tunnelRoute,
             loadRoutes = loadTunnelRoutes,
             onSelect = { route ->
                 chooseTunnelRoute = false
@@ -279,9 +278,9 @@ internal fun MobileAccountScreen(
         MobileAboutDialog(diagnostics = diagnostics, onDismiss = { showAbout = false })
     }
 
-    if (chooseDefaultSort && accountSettings != null && settingsState.accountControlsEnabled()) {
+    if (chooseDefaultSort && editableSettings != null) {
         MobileDefaultSortDialog(
-            selected = accountSettings.preferences.defaultSort,
+            selected = editableSettings.preferences.defaultSort,
             onSelect = { sort ->
                 chooseDefaultSort = false
                 onSettingsEvent(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Sort(sort)))
@@ -290,10 +289,11 @@ internal fun MobileAccountScreen(
         )
     }
 
-    val appConfig = appConfigState.content as? AndroidAppConfigContent.Ready
-    if (choosePlaybackType && appConfig != null && appConfigState.appConfigControlsEnabled()) {
+    val editableAppConfig = (appConfigState.content as? AndroidAppConfigContent.Ready)
+        ?.takeIf { appConfigState.appConfigControlsEnabled() }
+    if (choosePlaybackType && editableAppConfig != null) {
         MobilePlaybackTypeDialog(
-            selected = appConfig.preferences.videoPlaybackType,
+            selected = editableAppConfig.preferences.videoPlaybackType,
             onSelect = { playbackType ->
                 choosePlaybackType = false
                 onAppConfigEvent(
@@ -461,19 +461,7 @@ private fun LazyListScope.privacyControlsItems(
         MobileAccountSectionHeader(R.string.mobile_settings_section_privacy_controls)
     }
     item(key = STRICTLY_NECESSARY_KEY) {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.mobile_settings_strictly_necessary)) },
-            supportingContent = {
-                MobileAccountValueDescription(
-                    value = stringResource(R.string.mobile_settings_strictly_necessary_state),
-                    description = stringResource(R.string.mobile_settings_strictly_necessary_description),
-                )
-            },
-            leadingContent = {
-                Icon(painter = painterResource(R.drawable.ic_ph_shield_check), contentDescription = null)
-            },
-            modifier = Modifier.fillMaxWidth().testTag(MOBILE_STRICTLY_NECESSARY_TAG),
-        )
+        MobileStrictlyNecessaryRow()
     }
     item(key = AccountSettingsKey.Diagnostics) {
         MobileAccountSettingRow(
@@ -519,6 +507,23 @@ private fun LazyListScope.privacyControlsItems(
             style = MaterialTheme.typography.bodySmall,
         )
     }
+}
+
+@Composable
+private fun MobileStrictlyNecessaryRow() {
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.mobile_settings_strictly_necessary)) },
+        supportingContent = {
+            MobileAccountValueDescription(
+                value = stringResource(R.string.mobile_settings_strictly_necessary_state),
+                description = stringResource(R.string.mobile_settings_strictly_necessary_description),
+            )
+        },
+        leadingContent = {
+            Icon(painter = painterResource(R.drawable.ic_ph_shield_check), contentDescription = null)
+        },
+        modifier = Modifier.fillMaxWidth().testTag(MOBILE_STRICTLY_NECESSARY_TAG),
+    )
 }
 
 // Account-wide `use_start_from` sits with the Playback controls even though it is
@@ -670,6 +675,9 @@ private fun MobileTunnelRouteDialog(
 @Composable
 private fun TunnelRouteName.displayName(): String =
     if (this == TunnelRouteName.DEFAULT) stringResource(R.string.mobile_settings_tunnel_route_default) else value
+
+private val AccountSettingsChange.disablesTrash: Boolean
+    get() = this is AccountSettingsChange.Toggle && key == AccountSettingsKey.Trash && !enabled
 
 internal fun AccountSettingsState.accountControlsEnabled(): Boolean =
     when (val currentMutation = mutation) {

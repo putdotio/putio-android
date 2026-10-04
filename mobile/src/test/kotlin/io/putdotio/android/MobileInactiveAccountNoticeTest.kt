@@ -30,7 +30,9 @@ class MobileInactiveAccountNoticeTest {
 
     @Test
     fun deactivatedAccountShowsWebCopyWithTheDeletionCountdown() {
-        compose.setContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletionIn(14))) } }
+        compose.setContent {
+            PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletionIn(14))) }
+        }
 
         compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
         compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
@@ -40,7 +42,9 @@ class MobileInactiveAccountNoticeTest {
 
     @Test
     fun deletionTomorrowReadsInTheSingular() {
-        compose.setContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletionIn(1))) } }
+        compose.setContent {
+            PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletionIn(1))) }
+        }
 
         compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 1 day.")
             .assertIsDisplayed()
@@ -81,6 +85,9 @@ class MobileInactiveAccountNoticeTest {
     }
 
     private companion object {
-        val PaymentWords = Regex("""\b(pay\w*|renew\w*|subscri\w*|billing|keep a good thing going)""", RegexOption.IGNORE_CASE)
+        val PaymentWords = Regex(
+            """\b(pay\w*|renew\w*|subscri\w*|billing|keep a good thing going)""",
+            RegexOption.IGNORE_CASE,
+        )
     }
 }

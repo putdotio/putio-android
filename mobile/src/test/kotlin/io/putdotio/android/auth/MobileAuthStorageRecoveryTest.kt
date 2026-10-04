@@ -91,11 +91,13 @@ class MobileAuthStorageRecoveryTest {
         val controller = MobileAuthController(
             oauthConfiguration = MobileOAuthConfiguration.Configured("9001"),
             tokenStore = store,
-            pendingOAuthAttemptStore = SharedPreferencesPendingOAuthAttemptStore(preferences, Dispatchers.Unconfined),
+            oauthAttempts = OAuthAttempts(
+                store = SharedPreferencesPendingOAuthAttemptStore(preferences, Dispatchers.Unconfined),
+                stateGenerator = OAuthStateGenerator { OAUTH_STATE },
+                clock = OAuthAttemptClock { NOW_EPOCH_MILLIS },
+            ),
             sessionGateway = ValidSessionGateway(),
             tokenRevocations = NoTokenRevocations,
-            stateGenerator = OAuthStateGenerator { OAUTH_STATE },
-            clock = OAuthAttemptClock { NOW_EPOCH_MILLIS },
         )
 
         suspend fun storeToken() {
