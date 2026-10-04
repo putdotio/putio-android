@@ -556,6 +556,67 @@ relaunch must land in the shell without a code: that is the Keystore restore.
 Fire TV feature flag, so it always links as the Android TV client (6221);
 Fire TV (6233) needs the physical device set from #51.
 
+## TV platform integration proof
+
+Behaviour: [TV sign-in QR code](./behavior.md#tv-sign-in-qr-code),
+[TV Watch Next](./behavior.md#tv-watch-next) and
+[TV system search](./behavior.md#tv-system-search). The `putio-tv` image's
+launcher shows the Play Next row; use a TV emulator you booted, since the lane
+signs in and changes the launcher's rows.
+
+QR: capture the sign-in screen, decode it with ZXing's reader (the `core` jar
+Gradle already resolved), and compare it with put.io's own QR image for the
+same code; then approve the code read from the QR:
+
+```bash
+./scripts/evidence.sh screenshot --serial emulator-5558 --label tv-link-qr
+jar=$(find ~/.gradle/caches/modules-2/files-2.1/com.google.zxing/core -name 'core-*.jar' | head -1)
+cat > /tmp/Decode.java <<'JAVA'
+import com.google.zxing.*; import com.google.zxing.common.HybridBinarizer; import com.google.zxing.qrcode.QRCodeReader;
+public class Decode { public static void main(String[] a) throws Exception {
+  var i = javax.imageio.ImageIO.read(new java.io.File(a[0])); int w = i.getWidth(), h = i.getHeight();
+  System.out.println(new QRCodeReader().decode(new BinaryBitmap(new HybridBinarizer(new RGBLuminanceSource(w, h,
+    i.getRGB(0, 0, w, h, null, 0, w)))), java.util.Map.of(DecodeHintType.TRY_HARDER, true)).getText()); } }
+JAVA
+ours=$(java -cp "$jar" /tmp/Decode.java .evidence/<capture>.png); code=${ours##*code=}
+curl -s -o /tmp/server-qr.png "https://api.put.io/v2/oauth2/oob/qr/$code"
+[ "$ours" = "$(java -cp "$jar" /tmp/Decode.java /tmp/server-qr.png)" ] && echo MATCH
+PUTIO_CLI_PROFILE=devs-auto putio auth approve "$code"
+```
+
+Watch Next: upload a uniquely named video of a few minutes to a uniquely named
+folder with the `devs-auto` CLI, open it with
+`adb shell am start -a android.intent.action.VIEW -d putio://files/<id> io.put.putio.debug`,
+let it play past one 15 s sample, then press Home: the Play Next row shows the
+card with the screenshot and progress. `putio files start-from set <id> <s>`
+places the position for a repeat. Center on the card (or
+`-d putio://continue/<id>`) plays on from the saved position without the
+prompt; playing to the end, Sign out under Account, and trashing the file then
+force-stopping and relaunching the app (the check runs once per process) each
+remove the card. The shell user cannot read another
+package's Watch Next rows, so check the launcher (`uiautomator dump`, Resume
+watching) rather than `content query`.
+
+System search: the provider refuses the shell
+(`content query --uri content://io.put.putio.debug.search/search_suggest_query/<q>`
+reports the `GLOBAL_SEARCH` denial). `TvGlobalSearchProofTest` queries it from
+the app's own process against the signed-in session, which also covers the
+quiet restore in a fresh process; it makes one search request:
+
+```bash
+./gradlew :tv:assembleProductionDebugAndroidTest
+adb -s emulator-5558 install -r tv/build/outputs/apk/androidTest/production/debug/tv-production-debug-androidTest.apk
+adb -s emulator-5558 shell am instrument -w -r -e class io.putdotio.android.tv.TvGlobalSearchProofTest \
+  -e putio.tv.globalSearch.query <unique name part> -e putio.tv.globalSearch.fileId <id> \
+  io.put.putio.debug.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The system search UI on the `putio-tv` image is Google Assistant: without a
+Google account it starts this app for the provider (logcat: `Start proc ...
+for content provider ... TvSearchSuggestionsProvider`) but shows "Sorry, I
+didn't understand." instead of app results, so a result row in the system UI
+is unproven here. Remove the fixture folder and the trashed video afterwards.
+
 ## TV safe-area proof
 
 `TvSafeAreaProofTest` (TV instrumentation, synthetic account, no API calls)

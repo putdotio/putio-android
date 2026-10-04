@@ -195,6 +195,7 @@ public fun PutioFile.toFilesItem(): FilesItem =
         playback = toPlaybackProgress(),
         isShared = isShared,
         folderType = folderType,
+        screenshotUrl = screenshot?.takeIf(String::isNotBlank),
     )
 
 // Only media rows carry a position. Malformed server values drop the indicator instead of

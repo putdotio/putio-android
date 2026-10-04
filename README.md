@@ -75,6 +75,12 @@ TV:
   Diagnostics dialog, and Sign out
 - Trash from Account: Restore or Delete permanently per row, Restore all and
   Empty trash, each confirmed and checked until put.io confirms it
+- A QR code beside the activation code opens put.io/link with the code filled in
+- Videos in progress on this TV appear in the launcher's Watch Next row and
+  continue from the saved position; finished videos, sign-out and deleted files
+  remove them
+- Android TV system search lists put.io files through a suggestions provider; a
+  chosen result plays or opens in Files
 
 Not started: Chromecast and the Play release lane.
 
