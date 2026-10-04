@@ -11,7 +11,9 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.account.InactiveAccountNotice
-import io.putdotio.android.account.text
+import io.putdotio.android.account.daysUntilFilesDeleted
+import io.putdotio.android.account.deactivatedAccountNoticeText
+import io.putdotio.android.account.familyPlanExpiredNoticeText
 
 /** The inactive-account banner above every pane; plain text, so nothing here takes D-pad focus. */
 @Composable
@@ -19,7 +21,10 @@ internal fun TvInactiveAccountNotice(
     notice: InactiveAccountNotice,
     modifier: Modifier = Modifier,
 ) {
-    val text = notice.text()
+    val text = when (notice) {
+        is InactiveAccountNotice.Deactivated -> deactivatedAccountNoticeText(notice.daysUntilFilesDeleted())
+        InactiveAccountNotice.FamilyPlanExpired -> familyPlanExpiredNoticeText()
+    }
     Column(
         modifier = modifier
             .fillMaxWidth()

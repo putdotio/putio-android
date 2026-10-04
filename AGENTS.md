@@ -12,7 +12,7 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
 | Module | Owns |
 | --- | --- |
 | `core/common` | API rejection reasons, timestamps, avatar URLs, account storage keys, `SessionScopedHolder` |
-| `core/design` | `PutioTheme`, generated design tokens, file-type and shared Phosphor drawables, `BasePutioActivity` |
+| `core/design` | `PutioTheme`, generated design tokens, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words |
 | `domain/<name>` | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `transfers`, `trash` |
 | `mobile` | Phone and tablet app: touch UI, shell, navigation, offline downloads, services and session wiring |
 | `tv` | Android TV app: D-pad UI, shell and session wiring |
