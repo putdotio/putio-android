@@ -558,4 +558,17 @@
     <string name="mobile_public_links_refused_daily">You have reached the daily public link creation limit.</string>
     <!-- en.json files_public_share_error_weekly_total_link_count_exceeded. -->
     <string name="mobile_public_links_refused_weekly">You have reached the weekly public link creation limit.</string>
+    <string name="mobile_transfers_drop_title">Drop to add a transfer</string>
+    <string name="mobile_transfers_drop_message">Links, magnet links and .torrent files open Add transfer.</string>
+    <!-- Keyboard Shortcuts Helper (Meta + /) and hardware-keyboard shortcuts. -->
+    <string name="mobile_shortcuts_files">Files</string>
+    <string name="mobile_shortcuts_player">Player</string>
+    <string name="mobile_shortcut_open">Open the focused item</string>
+    <string name="mobile_shortcut_back">Go up a folder or back</string>
+    <string name="mobile_shortcut_search">Search</string>
+    <string name="mobile_shortcut_refresh">Refresh</string>
+    <string name="mobile_shortcut_delete">Move the focused item to trash, or delete it</string>
+    <string name="mobile_shortcut_play_pause">Play or pause</string>
+    <string name="mobile_shortcut_seek_back">Back 10 seconds</string>
+    <string name="mobile_shortcut_seek_forward">Forward 10 seconds</string>
 </resources>

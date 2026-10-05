@@ -244,9 +244,9 @@ class MobileTransferDraftTest {
             MobileSharedTransfer(torrent = torrent)
         }
         try {
-            draft.receiveLater(read(TORRENT, stuck = true))
+            draft.receiveLater(read = read(TORRENT, stuck = true))
             while (running.get() == 0) Thread.sleep(5)
-            draft.receiveLater(read(other, stuck = false))
+            draft.receiveLater(read = read(other, stuck = false))
             repeat(10) { shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(10) }
             assertEquals(1, mostRunning.get())
             release.countDown()
@@ -257,6 +257,47 @@ class MobileTransferDraftTest {
             }
             assertSame(other, draft.state.value.torrent)
             assertEquals(1, mostRunning.get())
+        } finally {
+            release.countDown()
+            pool.shutdownNow()
+        }
+    }
+
+    @Test
+    fun aReadSupersededBeforeItBeganStillReportsItIsDone() {
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+        val draft = MobileTransferDraft(pool.asCoroutineDispatcher())
+        val release = java.util.concurrent.CountDownLatch(1)
+        val started = java.util.concurrent.CountDownLatch(1)
+        val done = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val other = TorrentUpload("Other.torrent", TORRENT.content)
+        try {
+            draft.receiveLater(
+                read = {
+                    started.countDown()
+                    while (!awaitIgnoringInterrupts(release)) Unit
+                    MobileSharedTransfer(torrent = TORRENT)
+                },
+                onDone = { done += "first" },
+            )
+            check(started.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            // Waits behind the first read, which ignores interrupts, then a third intake supersedes it.
+            draft.receiveLater(read = { MobileSharedTransfer(torrent = TORRENT) }, onDone = { done += "second" })
+            shadowOf(Looper.getMainLooper()).idle()
+            draft.receiveLater(read = { MobileSharedTransfer(torrent = other) }, onDone = { done += "third" })
+            val deadline = System.nanoTime() + 5_000_000_000L
+            while ("second" !in done && System.nanoTime() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(10)
+            }
+            assertTrue("A drop's grant goes even when its read never ran", "second" in done)
+            release.countDown()
+            while (draft.state.value.torrent == null && System.nanoTime() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(10)
+            }
+            assertSame(other, draft.state.value.torrent)
+            assertEquals(setOf("first", "second", "third"), done.toSet())
         } finally {
             release.countDown()
             pool.shutdownNow()

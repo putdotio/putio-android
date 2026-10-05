@@ -2,6 +2,8 @@ package io.putdotio.android
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.KeyboardShortcutGroup
+import android.view.Menu
 import androidx.activity.compose.setContent
 import androidx.browser.auth.AuthTabIntent
 import androidx.lifecycle.ViewModel
@@ -12,9 +14,8 @@ import io.putdotio.android.share.MobileResumedActivity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import io.putdotio.android.transfers.MobileTransferDraft
-import io.putdotio.android.transfers.MobileIncomingTransfer
 import io.putdotio.android.transfers.consumeMobileIncomingTransfer
-import io.putdotio.android.transfers.readMobileTorrent
+import io.putdotio.android.transfers.receive
 import io.putdotio.android.auth.handleAuthTabActivityResult
 
 class MainActivity : BasePutioActivity() {
@@ -80,6 +81,12 @@ class MainActivity : BasePutioActivity() {
         super.onPause()
     }
 
+    /** Fills the system Keyboard Shortcuts Helper (Meta + /) with the shortcuts the app takes. */
+    override fun onProvideKeyboardShortcuts(data: MutableList<KeyboardShortcutGroup>, menu: Menu?, deviceId: Int) {
+        super.onProvideKeyboardShortcuts(data, menu, deviceId)
+        data += mobileKeyboardShortcutGroups(this)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -95,14 +102,7 @@ class MainActivity : BasePutioActivity() {
         launch.shareLaunchConsumed = true
         val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
         if (consumed || fromHistory) return
-        when (incoming) {
-            is MobileIncomingTransfer.Ready -> transferDraft.receive(incoming.transfer)
-            is MobileIncomingTransfer.Torrent -> {
-                val resolver = applicationContext.contentResolver
-                val ownPackage = packageName
-                transferDraft.receiveLater { resolver.readMobileTorrent(incoming.uri, ownPackage) }
-            }
-        }
+        transferDraft.receive(incoming, applicationContext.contentResolver, packageName)
     }
 
     private fun consumeDeepLink(intent: Intent?, restoredConsumed: Boolean, freshIntent: Boolean = false) {

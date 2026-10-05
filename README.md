@@ -54,6 +54,11 @@ Mobile, on the emulator harness against the live API:
 - Exclusive access: create, copy, share and revoke public links to your own
   files and folders from their action sheet; Account lists every link with
   revoke
+- Tablets and keyboards, proven on a tablet-size emulator with faked data so
+  far: keyboard navigation and shortcuts in Files and the player, listed in the
+  Keyboard Shortcuts Helper; files drag out to other apps, and links, magnet
+  links and `.torrent` files drag in to Add transfer; split screen, freeform
+  resizing and a keyboard arriving keep navigation and the playing video
 - System file picker, proven on the emulator with a faked account so far: while
   signed in, put.io is a read-only location in other apps' pickers with paged
   folders and search; files stream from put.io, or open from a completed audio

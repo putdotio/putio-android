@@ -14,6 +14,7 @@ import io.putdotio.android.downloads.OfflinePlaybackPositions
 import io.putdotio.android.downloads.PositionRemote
 import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.MobileMoveTargetStore
+import io.putdotio.android.share.MobileFileDrags
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
@@ -190,6 +191,7 @@ class MobileOAuthRuntime internal constructor(
                 applicationScope = applicationScope,
                 onSessionLeft = { session ->
                     MobileFileShareService.endSession(context, session)
+                    MobileFileDrags.endSession(session)
                     MobileDocumentsProvider.sessionLeft(context)
                 },
                 onSessionStarted = { MobileDocumentsProvider.sessionStarted(context) },

@@ -12,5 +12,10 @@
             android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|assetsPaths"
             android:exported="false"
             android:supportsPictureInPicture="true" />
+        <!-- The tablet proof's shell host: MainActivity's configuration changes, plus the test host's assets. -->
+        <activity
+            android:name=".MobileTabletProofActivity"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|assetsPaths"
+            android:exported="false" />
     </application>
 </manifest>

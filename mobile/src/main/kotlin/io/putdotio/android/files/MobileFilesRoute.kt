@@ -17,6 +17,7 @@ import io.putdotio.android.AuthoritativeSessionFailureEffect
 import io.putdotio.android.authoritativeSessionFailure
 import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.playback.dispatch
+import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.sharing.MobilePublicLinkSheet
 import io.putdotio.android.sharing.MobilePublicLinks
 
@@ -34,6 +35,7 @@ internal fun MobileFilesRoute(
     onViewTrash: (() -> Unit)? = null,
     moveTargetStore: FilesMoveTargetStore? = null,
     publicLinks: MobilePublicLinks? = null,
+    fileDragOut: MobileFileDragOut? = null,
 ) {
     key(repository, state.current.folder.id.value) {
         var movingItemId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -58,6 +60,7 @@ internal fun MobileFilesRoute(
             onViewTrash = onViewTrash,
             onCopyItem = if (repository == null) null else { item -> copyingItemId = item.id.value },
             onPublicLinkItem = publicLinks?.let { { item -> publicLinkItemId = item.id.value } },
+            fileDragOut = fileDragOut,
         )
         if (movingItem != null && repository != null) {
             MobileFilesMoveSession(

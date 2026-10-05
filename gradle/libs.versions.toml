@@ -67,6 +67,8 @@ robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectr
 # The SDK 35 runtime every Robolectric test pins with @Config(sdk = [35]); its version is the one
 # the robolectric release above expects, and a mismatch fails offline tests by name.
 robolectric-android-all = { module = "org.robolectric:android-all-instrumented", version = "15-robolectric-13954326-i7" }
+# minSdk's runtime, for the few tests that pin behaviour below API 28 with @Config(sdk = [26]); same instrumentation.
+robolectric-android-all-api26 = { module = "org.robolectric:android-all-instrumented", version = "8.0.0_r4-robolectric-r1-i7" }
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 detekt-gradle-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
 

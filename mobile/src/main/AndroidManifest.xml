@@ -29,11 +29,12 @@
         android:label="@string/app_name"
         android:supportsRtl="false"
         android:theme="@style/Theme.Putio">
-        <!-- Picture-in-picture resizes the window; handling those changes keeps the video's
-             Activity, and its player, alive through entering and leaving the window. -->
+        <!-- Picture-in-picture, split-screen and freeform resizing, rotation and a keyboard arriving
+             reach Compose instead of recreating the Activity, so navigation and the playing video's
+             player stay as they are. -->
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize"
+            android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:exported="true"
             android:launchMode="singleTask"
             android:supportsPictureInPicture="true">
@@ -118,6 +119,12 @@
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
         </provider>
+        <!-- Files dragged out of Files; only a drop's read grant reaches it. -->
+        <provider
+            android:name=".share.MobileDragProvider"
+            android:authorities="${applicationId}.drag"
+            android:exported="false"
+            android:grantUriPermissions="true" />
         <service
             android:name=".downloads.MobileDownloadService"
             android:exported="false"
