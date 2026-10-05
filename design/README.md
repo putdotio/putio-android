@@ -15,7 +15,10 @@ SRI, and pins the SHA-256 of every source asset and of every written file.
 The Compose color schemes and the TV overscan ratios (`tv.overscan.x/y`) are
 generated from the JSON at build time by `:core:design:generateDesignTokens` (task
 class in `build-logic/`), which records the locked version in the generated
-header. Never hand-edit the generated Kotlin, the JSON, or the icons.
+header. The same task writes `@color/putio_<css-name>` resources for the tokens in
+`RESOURCE_TOKENS`, for XML that Compose cannot reach: the home-screen widget's
+RemoteViews layout and the adaptive shortcut icons. Never hand-edit the generated
+Kotlin, the JSON, or the icons.
 
 Syncing downloads that one tarball, verifies it and each source asset before
 use, and writes the files only when every output matches the lock. Icon

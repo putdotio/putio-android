@@ -42,7 +42,9 @@ Mobile, on the emulator harness against the live API:
   under Account shows the queue in start order with each row's place, a 1–4
   concurrency limit (default 3), paused, failed and missing rows with retry,
   storage used, and multi-select delete of local copies only. Finished and
-  failed downloads notify and open their row when notifications are allowed.
+  failed downloads notify and open their row when notifications are allowed,
+  with Play for a finished one and Try again for a failed one, each acting only
+  for the account that downloaded it.
   Completed downloads play without a connection and resume where this device
   left off; positions saved offline reach put.io once it answers again
 - Transfer intake: tapped magnet links, opened or shared `.torrent` files, shared
@@ -54,6 +56,11 @@ Mobile, on the emulator harness against the live API:
 - Exclusive access: create, copy, share and revoke public links to your own
   files and folders from their action sheet; Account lists every link with
   revoke
+- Launcher shortcuts: Search, Add transfer (an empty sheet; nothing is added
+  until Add) and Downloads, each waiting for sign-in when signed out
+- A Transfers home-screen widget, proven on the emulator with a faked account so
+  far: active transfers with progress, refreshed every 30 minutes, on sign-in,
+  from the Transfers screen and on demand; sign-out clears it at once
 - Tablets and keyboards, proven on a tablet-size emulator with faked data so
   far: keyboard navigation and shortcuts in Files and the player, listed in the
   Keyboard Shortcuts Helper; files drag out to other apps, and links, magnet

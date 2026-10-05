@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher shortcut icon: the Phosphor glyph on the brand yellow, in the launcher's own shape. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/putio_yellow_solid" />
+    <foreground>
+        <inset
+            android:drawable="@drawable/ic_ph_arrow_circle_down"
+            android:inset="32%" />
+    </foreground>
+</adaptive-icon>

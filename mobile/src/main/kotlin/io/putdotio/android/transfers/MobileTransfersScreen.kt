@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.text.format.DateUtils
 import android.text.format.Formatter
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -758,25 +759,27 @@ private fun retryOutcomeMessage(outcome: TransferRetryOutcome): String =
     }
 
 @Composable
-private fun TransferItem.statusLabel(): String =
-    stringResource(
-        when (status) {
-            AppTransferStatus.Waiting -> R.string.mobile_transfer_status_waiting
-            AppTransferStatus.PreparingDownload -> R.string.mobile_transfer_status_preparing
-            AppTransferStatus.Queued -> R.string.mobile_transfer_status_queued
-            AppTransferStatus.Downloading -> R.string.mobile_transfer_status_downloading
-            AppTransferStatus.WaitingForCompleteQueue,
-            AppTransferStatus.Completing,
-            -> R.string.mobile_transfer_status_finishing
-            AppTransferStatus.WaitingForDownloader -> R.string.mobile_transfer_status_waiting_for_downloader
-            AppTransferStatus.Stopping -> R.string.mobile_transfer_status_stopping
-            AppTransferStatus.Seeding -> R.string.mobile_transfer_status_seeding
-            AppTransferStatus.PreparingSeed -> R.string.mobile_transfer_status_preparing_seed
-            AppTransferStatus.Completed -> completedStatusResource()
-            AppTransferStatus.Failed -> R.string.mobile_transfer_status_failed
-            is AppTransferStatus.Unknown -> R.string.mobile_transfer_status_updating
-        },
-    )
+private fun TransferItem.statusLabel(): String = stringResource(statusLabelRes())
+
+/** The status a row shows; the home-screen widget shows the same words. */
+@StringRes
+internal fun TransferItem.statusLabelRes(): Int =
+    when (status) {
+        AppTransferStatus.Waiting -> R.string.mobile_transfer_status_waiting
+        AppTransferStatus.PreparingDownload -> R.string.mobile_transfer_status_preparing
+        AppTransferStatus.Queued -> R.string.mobile_transfer_status_queued
+        AppTransferStatus.Downloading -> R.string.mobile_transfer_status_downloading
+        AppTransferStatus.WaitingForCompleteQueue,
+        AppTransferStatus.Completing,
+        -> R.string.mobile_transfer_status_finishing
+        AppTransferStatus.WaitingForDownloader -> R.string.mobile_transfer_status_waiting_for_downloader
+        AppTransferStatus.Stopping -> R.string.mobile_transfer_status_stopping
+        AppTransferStatus.Seeding -> R.string.mobile_transfer_status_seeding
+        AppTransferStatus.PreparingSeed -> R.string.mobile_transfer_status_preparing_seed
+        AppTransferStatus.Completed -> completedStatusResource()
+        AppTransferStatus.Failed -> R.string.mobile_transfer_status_failed
+        is AppTransferStatus.Unknown -> R.string.mobile_transfer_status_updating
+    }
 
 private fun TransferItem.completedStatusResource(): Int =
     when {

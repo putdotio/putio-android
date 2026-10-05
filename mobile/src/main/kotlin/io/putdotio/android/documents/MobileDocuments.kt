@@ -8,6 +8,7 @@ import io.putdotio.android.PutioResult
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileSessionKey
+import io.putdotio.android.auth.isSettled
 import io.putdotio.android.auth.sessionKey
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -205,17 +206,6 @@ internal class MobileDocuments(
         val RESOLVE_TIMEOUT: Duration = 15.seconds
     }
 }
-
-/** Signed in, signed out or waiting on the viewer; the restore and validation states still change on their own. */
-private fun MobileAuthState.isSettled(): Boolean =
-    when (this) {
-        MobileAuthState.Initializing,
-        MobileAuthState.RestoringSession,
-        is MobileAuthState.ValidatingSession,
-        MobileAuthState.SigningOut,
-        -> false
-        else -> true
-    }
 
 /**
  * Runs [block] on this thread until it returns, [timeout] passes (null), or [signal] cancels it, which throws

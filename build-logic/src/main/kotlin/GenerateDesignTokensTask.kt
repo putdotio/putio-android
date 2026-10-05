@@ -10,7 +10,7 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 
-/** Writes PutioDesignTokens.kt from the vendored DTCG token graph. */
+/** Writes PutioDesignTokens.kt and the XML color resources from the vendored DTCG token graph. */
 @CacheableTask
 abstract class GenerateDesignTokensTask : DefaultTask() {
 
@@ -25,6 +25,10 @@ abstract class GenerateDesignTokensTask : DefaultTask() {
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
 
+    /** An Android resource directory holding `values/putio_design_colors.xml`. */
+    @get:OutputDirectory
+    abstract val resOutputDir: DirectoryProperty
+
     @TaskAction
     fun generate() {
         val source = tokensFile.get().asFile.readText()
@@ -32,5 +36,8 @@ abstract class GenerateDesignTokensTask : DefaultTask() {
         val target = outputDir.get().asFile.resolve("io/putdotio/android/design/PutioDesignTokens.kt")
         target.parentFile.mkdirs()
         target.writeText(code)
+        val colors = resOutputDir.get().asFile.resolve("values/putio_design_colors.xml")
+        colors.parentFile.mkdirs()
+        colors.writeText(DesignTokenCodegen.generateColorResources(source, designVersion.get()))
     }
 }

@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget picker's preview of widget_transfers.xml (Android 12 and later): sample transfers in the
+     signed-in layout. It is inflated as is, so it has no ids and nothing is set at run time. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:layout_marginEnd="40dp"
+            android:maxLines="1"
+            android:text="@string/mobile_destination_transfers"
+            android:textColor="@color/putio_text"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="end|center_vertical"
+            android:contentDescription="@string/mobile_widget_refresh"
+            android:padding="6dp"
+            android:src="@drawable/ic_ph_arrow_clockwise"
+            android:tint="@color/putio_text_secondary" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/mobile_widget_preview_first"
+                android:textColor="@color/putio_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:maxLines="1"
+                android:text="@string/mobile_widget_preview_first_status"
+                android:textColor="@color/putio_text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ProgressBar
+            style="@android:style/Widget.Material.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="4dp"
+            android:progress="42"
+            android:indeterminateTint="@color/putio_yellow_solid"
+            android:max="100"
+            android:progressBackgroundTint="@color/putio_component_bg"
+            android:progressTint="@color/putio_yellow_solid" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/mobile_widget_preview_second"
+                android:textColor="@color/putio_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:maxLines="1"
+                android:text="@string/mobile_transfer_status_queued"
+                android:textColor="@color/putio_text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ProgressBar
+            style="@android:style/Widget.Material.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="4dp"
+            android:indeterminate="true"
+            android:indeterminateTint="@color/putio_yellow_solid"
+            android:max="100"
+            android:progressBackgroundTint="@color/putio_component_bg"
+            android:progressTint="@color/putio_yellow_solid" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/mobile_widget_preview_third"
+                android:textColor="@color/putio_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:maxLines="1"
+                android:text="@string/mobile_widget_preview_third_status"
+                android:textColor="@color/putio_text_secondary"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ProgressBar
+            style="@android:style/Widget.Material.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="4dp"
+            android:progress="100"
+            android:indeterminateTint="@color/putio_yellow_solid"
+            android:max="100"
+            android:progressBackgroundTint="@color/putio_component_bg"
+            android:progressTint="@color/putio_yellow_solid" />
+    </LinearLayout>
+</LinearLayout>

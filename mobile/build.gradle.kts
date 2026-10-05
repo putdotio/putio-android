@@ -61,6 +61,21 @@ android {
     }
 }
 
+androidComponents {
+    onVariants { variant ->
+        // Static shortcuts name their target package literally, and each channel and build type
+        // installs under its own application id.
+        val shortcuts = tasks.register<GenerateShortcutsTask>(
+            "generate${variant.name.replaceFirstChar(Char::titlecase)}Shortcuts",
+        ) {
+            template.set(layout.projectDirectory.file("src/main/shortcuts.xml"))
+            applicationId.set(variant.applicationId)
+            outputDir.set(layout.buildDirectory.dir("generated/shortcuts/${variant.name}"))
+        }
+        variant.sources.res?.addGeneratedSourceDirectory(shortcuts, GenerateShortcutsTask::outputDir)
+    }
+}
+
 val launchSmokeTest = "io.putdotio.android.LaunchSmokeTest#shellLaunchesStaysResumedAndRenders"
 
 tasks.register<VerifyInstrumentationProofTask>("verifyLaunchProof") {

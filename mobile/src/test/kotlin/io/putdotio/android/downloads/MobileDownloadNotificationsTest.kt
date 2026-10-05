@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Application
 import android.app.Notification
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import androidx.media3.common.util.UnstableApi
@@ -16,6 +17,8 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.MainActivity
+import io.putdotio.android.MobileDeepLink
+import io.putdotio.android.parseMobileDeepLink
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
@@ -75,13 +78,69 @@ class MobileDownloadNotificationsTest {
         assertEquals(null, finished.publicVersion.extras.getString(Notification.EXTRA_TEXT))
         val opened = shadowOf(finished.contentIntent).savedIntent
         assertEquals(Intent.ACTION_VIEW, opened.action)
-        assertEquals(Uri.parse("putio://downloads/10"), opened.data)
+        assertEquals(Uri.parse("putio://downloads/10?user=$USER"), opened.data)
         assertEquals(MainActivity::class.java.name, opened.component?.className)
 
         val failed = posted.single { it.extras.getString(Notification.EXTRA_TITLE) == "Download failed" }
         assertTrue(failed.extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString().contains("Tears.mkv"))
         assertTrue(failed.extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString().contains("Retry"))
-        assertEquals(Uri.parse("putio://downloads/11"), shadowOf(failed.contentIntent).savedIntent.data)
+        assertEquals(Uri.parse("putio://downloads/11?user=$USER"), shadowOf(failed.contentIntent).savedIntent.data)
+    }
+
+    @Test
+    fun aFinishedDownloadOffersPlayAndAFailedOneRetryEachForItsOwnAccountOnly() {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        notifications.changed(download(10L, Download.STATE_COMPLETED))
+        notifications.changed(download(11L, Download.STATE_FAILED), UnknownHostException("offline"))
+
+        val posted = shadowOf(manager).allNotifications
+        val finished = posted.single { it.extras.getString(Notification.EXTRA_TITLE) == "Download finished" }
+        assertEquals(listOf("Play", "Open in Downloads"), finished.actions.map { it.title.toString() })
+        val play = shadowOf(finished.actions[0].actionIntent)
+        assertTrue(play.isActivity && play.isImmutable)
+        assertEquals(ComponentName(context, MainActivity::class.java), play.savedIntent.component)
+        assertEquals(Uri.parse("putio://downloads/10/play?user=$USER"), play.savedIntent.data)
+        assertEquals(
+            MobileDeepLink.Downloads(FilesItemId(10L), play = true, userId = USER),
+            parseMobileDeepLink(play.savedIntent.data),
+        )
+        val open = shadowOf(finished.actions[1].actionIntent)
+        assertTrue(open.isActivity && open.isImmutable)
+        assertEquals(Uri.parse("putio://downloads/10?user=$USER"), open.savedIntent.data)
+
+        val failed = posted.single { it.extras.getString(Notification.EXTRA_TITLE) == "Download failed" }
+        assertEquals(listOf("Try again", "Open in Downloads"), failed.actions.map { it.title.toString() })
+        val retry = shadowOf(failed.actions[0].actionIntent)
+        // A broadcast to the app's own unexported receiver: nothing opens and no other app can send it.
+        assertTrue(retry.isBroadcast && retry.isImmutable)
+        assertEquals(ComponentName(context, MobileDownloadActionReceiver::class.java), retry.savedIntent.component)
+        assertEquals(MobileDownloadActionReceiver.ACTION_RETRY, retry.savedIntent.action)
+        assertEquals(Uri.parse("putio://downloads/11?user=$USER"), retry.savedIntent.data)
+        assertTrue(failed.actions.none { it.title.toString() == "Play" })
+        // No token or URL of the file reaches any intent.
+        for (action in finished.actions + failed.actions) {
+            assertTrue(shadowOf(action.actionIntent).savedIntent.extras?.isEmpty != false)
+        }
+    }
+
+    @Test
+    fun aSessionEndRemovesEveryOtherAccountsOutcomes() {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        notifications.changed(download(10L, Download.STATE_COMPLETED))
+        runBlocking { MobileDownloadStore(context, OTHER).upsert(row(20L, "Other.mkv")) }
+        signedIn = OTHER
+        notifications.changed(download(20L, Download.STATE_COMPLETED, user = OTHER))
+        assertEquals(2, shadowOf(manager).allNotifications.size)
+
+        // OTHER is already signed in when the collector reports USER's session as ended.
+        MobileDownloadNotifications.cancelOtherAccounts(context, signedInUser = OTHER)
+        assertEquals(listOf("Other.mkv"), shadowOf(manager).allNotifications.map {
+            it.extras.getString(Notification.EXTRA_TEXT)
+        })
+
+        MobileDownloadNotifications.cancelOtherAccounts(context, signedInUser = null)
+        assertTrue(shadowOf(manager).allNotifications.isEmpty())
     }
 
     @Test
@@ -145,8 +204,8 @@ class MobileDownloadNotificationsTest {
         createdAt = fileId, accepted = true,
     )
 
-    private fun download(fileId: Long, state: Int) = Download(
-        DownloadRequest.Builder("$USER:$fileId", Uri.parse("https://api.put.io/v2/files/$fileId/stream")).build(),
+    private fun download(fileId: Long, state: Int, user: Long = USER) = Download(
+        DownloadRequest.Builder("$user:$fileId", Uri.parse("https://api.put.io/v2/files/$fileId/stream")).build(),
         state,
         0L,
         0L,

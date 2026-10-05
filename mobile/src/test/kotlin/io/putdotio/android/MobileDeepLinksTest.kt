@@ -5,7 +5,9 @@ import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -67,12 +69,43 @@ class MobileDeepLinksTest {
     }
 
     @Test
-    fun routeUrisRoundTripWithoutQueries() {
+    fun routeUrisRoundTripWithOnlyTheDownloadsAccount() {
         val links = listOf(
             MobileDeepLink.Files, MobileDeepLink.File(FilesItemId(42L)), MobileDeepLink.Transfers,
-            MobileDeepLink.Search, MobileDeepLink.History, MobileDeepLink.Trash, MobileDeepLink.Downloads(),
-            MobileDeepLink.Downloads(FilesItemId(42L)),
+            MobileDeepLink.AddTransfer, MobileDeepLink.Search, MobileDeepLink.History, MobileDeepLink.Trash,
+            MobileDeepLink.Downloads(), MobileDeepLink.Downloads(FilesItemId(42L)),
+            MobileDeepLink.Downloads(FilesItemId(42L), userId = 7L),
+            MobileDeepLink.Downloads(FilesItemId(42L), play = true, userId = 7L),
         )
         for (link in links) assertEquals(link, parseMobileDeepLink(link.toRouteUri()))
+        assertEquals("putio://downloads/42/play?user=7", links.last().toRouteUri().toString())
+    }
+
+    @Test
+    fun theAddTransferShortcutAndNotificationActionsHaveTheirOwnLinks() {
+        assertEquals(MobileDeepLink.AddTransfer, parseMobileDeepLink("putio://transfers/add".toUri()))
+        assertNull(parseMobileDeepLink("putio://transfers/remove".toUri()))
+        assertEquals(
+            MobileDeepLink.Downloads(FilesItemId(42L), play = true, userId = 7L),
+            parseMobileDeepLink("putio://downloads/42/play?user=7".toUri()),
+        )
+        // Only Downloads links read an account; anywhere else the query is ignored as before.
+        assertEquals(MobileDeepLink.Search, parseMobileDeepLink("putio://search?user=7".toUri()))
+        // A malformed account voids the link rather than widening it to any account.
+        assertNull(parseMobileDeepLink("putio://downloads/42?user=abc".toUri()))
+        assertNull(parseMobileDeepLink("putio://downloads/42?user=0".toUri()))
+        assertNull(parseMobileDeepLink("putio://downloads/42/stop".toUri()))
+        assertNull(parseMobileDeepLink("putio://downloads/42/play/1".toUri()))
+        // An opaque URI has no query to read; it opens Files as before instead of throwing.
+        val opaque = Intent(Intent.ACTION_VIEW, "putio:downloads?user=7".toUri())
+        assertEquals(MobileDeepLink.Files, opaque.consumeMobileDeepLink())
+    }
+
+    @Test
+    fun aLinkScopedToAnAccountBelongsOnlyToThatAccount() {
+        assertTrue(MobileDeepLink.Downloads(FilesItemId(42L), userId = 7L).belongsTo(7L))
+        assertFalse(MobileDeepLink.Downloads(FilesItemId(42L), play = true, userId = 7L).belongsTo(8L))
+        assertTrue(MobileDeepLink.Downloads(FilesItemId(42L)).belongsTo(8L))
+        assertTrue(MobileDeepLink.AddTransfer.belongsTo(8L))
     }
 }

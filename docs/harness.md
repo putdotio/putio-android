@@ -1422,6 +1422,55 @@ synthetic proof. Follow the [Evidence](#evidence) contract.
   granted, restores the concurrency setting and removes only its own index
   rows. Screenshots land in `downloads-queue-proof-<UUID>/`.
 
+## Shortcuts, widget and notification actions proof
+
+Behaviour: [App shortcuts](./behavior.md#app-shortcuts),
+[Transfers widget](./behavior.md#transfers-widget) and the notifications under
+[Downloads and offline playback](./behavior.md#downloads-and-offline-playback);
+`MobileShortcutsTest`, `MobileShellLinkActionsTest`, `MobileTransfersWidgetTest`,
+`MobileDownloadNotificationsTest` and `MobileDownloadActionReceiverTest` pin
+them on the JVM. Run this lane on an emulator you booted, for example
+`scripts/emulator.sh create phone --name <name>` then
+`scripts/emulator.sh boot phone --name <name> --headless`: it places a widget on
+the launcher's home screen and leaves it there, and it grants
+POST_NOTIFICATIONS.
+
+Shortcuts need no session. `adb shell dumpsys shortcut` must list `search`,
+`add-transfer` and `downloads` for the package, each with
+`cmp=<package>/io.putdotio.android.MainActivity`; a resource reference in place
+of the package would show as `cmp=@<id>/...` and open nothing. Long-press the
+icon with `adb shell "input motionevent DOWN <x> <y>; sleep 1.5; input
+motionevent UP <x> <y>"` (`input swipe` in place does not open the menu on the
+API 37 launcher), capture the menu, then tap Add transfer: signed out it opens
+sign-in.
+
+`MobileHomeScreenProofTest` drives the real launcher and notification shade
+over a controlled session and synthetic rows; it makes no API calls, so report
+it as synthetic proof. Follow the [Evidence](#evidence) contract with
+`putio.homescreen.enabled=true` and `putio.homescreen.runId=<UUID>`, one
+selector at a time, and require `OK (1 test)` for each. Start
+`scripts/evidence.sh record --seconds 75` just before the notification selector.
+Screenshots land in `homescreen-proof-<UUID>/`:
+
+- `theTransfersWidgetFollowsTheSessionAndForgetsItOnSignOut` pins the widget
+  through the launcher's dialog the first time, swipes to the home page the
+  launcher put it on, then captures
+  `01-widget-signed-out`, `02-widget-signed-in` (three rows and `1 more`),
+  `03-widget-cleared-on-sign-out` (no row name anywhere on screen) and
+  `04-widget-next-account`
+- `downloadNotificationActionsActOnlyForTheirOwnAccount` captures
+  `01-failed-offers-try-again` and `02-retried-for-its-account` (the owner's
+  Try again reached the receiver and replaced the outcome),
+  `03-another-accounts-outcome` and `04-another-account-refused` (Try again on
+  an earlier account's notification retried nothing and removed it), then
+  `05-finished-offers-play` and `06-play-opens-the-app`: Play opened
+  MainActivity holding `putio://downloads/<id>/play?user=<id>`, which waits at
+  sign-in on a signed-out install. The receiver's Media3 start is a stand-in;
+  routing after sign-in is `MobileShellLinkActionsTest`
+
+`am force-stop` cancels every pending intent the app made, the widget's
+included, so after one the widget's taps do nothing until its next update.
+
 ## Shared-with-me items proof
 
 Behaviour: [Shared-with-me items](./behavior.md#shared-with-me-items).

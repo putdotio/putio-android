@@ -1,9 +1,7 @@
 package io.putdotio.android.downloads
 
 import android.Manifest
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.annotation.StringRes
@@ -11,12 +9,13 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
-import io.putdotio.android.MainActivity
+import io.putdotio.android.MobileDeepLink
 import io.putdotio.android.R
+import io.putdotio.android.design.R as DesignR
+import io.putdotio.android.pendingIntent
 import io.putdotio.android.files.FilesItemId
 
 /** What a finished transfer tells the viewer; Media3 reports both on its process-wide manager. */
@@ -29,10 +28,10 @@ internal sealed interface DownloadOutcome {
 /**
  * Tells the viewer when a download finishes or fails, with or without the app open. The name
  * comes from the owner's index row; no URL or token reaches a notification. Each file has one
- * slot, replaced by its next outcome and cleared by a retry or a delete; a tap opens the row in
- * Downloads. Nothing is posted while the app's notifications are off, the channel is blocked,
- * or, from Android 13, POST_NOTIFICATIONS is not granted, nor for an account other than the one
- * signed in now.
+ * slot, replaced by its next outcome and cleared by a retry, a delete or the owner's sign-out; a
+ * tap opens the row in Downloads, and its actions play a finished copy or retry a failed one.
+ * Nothing is posted while the app's notifications are off, the channel is blocked, or, from
+ * Android 13, POST_NOTIFICATIONS is not granted, nor for an account other than the one signed in now.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadNotifications(
@@ -82,7 +81,7 @@ internal class MobileDownloadNotifications(
                     .setDescription(context.getString(R.string.mobile_downloads_updates_channel_description))
                     .build(),
             )
-            val notification = outcomeNotification(context, entry, outcome).build()
+            val notification = outcomeNotification(context, userId, entry, outcome).build()
             // The grant can be revoked between the check and this call.
             try {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -100,12 +99,24 @@ internal class MobileDownloadNotifications(
             NotificationManagerCompat.from(context).cancel(tag(userId, fileId), NOTIFICATION_ID)
         }
 
+        /** A session ended: outcomes of every account but [signedInUser], who may already be the next one, go. */
+        fun cancelOtherAccounts(context: Context, signedInUser: Long?) {
+            val manager = NotificationManagerCompat.from(context)
+            for (posted in manager.activeNotifications) {
+                val owner = posted.tag?.takeIf { it.startsWith(TAG_PREFIX) }?.removePrefix(TAG_PREFIX)
+                    ?.substringBefore(':')?.toLongOrNull() ?: continue
+                if (posted.id == NOTIFICATION_ID && owner != signedInUser) manager.cancel(posted.tag, posted.id)
+            }
+        }
+
         /**
-         * One outcome's notification. Actions such as Play or Retry (#41) belong on this builder
-         * so the posting, permission and slot rules stay in one place.
+         * One outcome's notification. Its tap and actions carry [userId], so they do nothing under
+         * another account: Play and Open route through MainActivity's product links, Retry through
+         * [MobileDownloadActionReceiver], which only this app can reach.
          */
         internal fun outcomeNotification(
             context: Context,
+            userId: Long,
             entry: DownloadEntry,
             outcome: DownloadOutcome,
         ): NotificationCompat.Builder {
@@ -132,6 +143,19 @@ internal class MobileDownloadNotifications(
                 .setSmallIcon(icon)
                 .setContentTitle(title)
                 .build()
+            val openRow = MobileDeepLink.Downloads(entry.fileId, userId = userId).pendingIntent(context)
+            val primary = when (outcome) {
+                DownloadOutcome.Completed -> NotificationCompat.Action(
+                    DesignR.drawable.ic_ph_play_fill,
+                    context.getString(R.string.mobile_downloads_play),
+                    MobileDeepLink.Downloads(entry.fileId, play = true, userId = userId).pendingIntent(context),
+                )
+                is DownloadOutcome.Failed -> NotificationCompat.Action(
+                    R.drawable.ic_ph_arrow_clockwise,
+                    context.getString(R.string.mobile_action_retry),
+                    MobileDownloadActionReceiver.retry(context, userId, entry.fileId),
+                )
+            }
             return NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(icon)
                 .setContentTitle(title)
@@ -142,21 +166,18 @@ internal class MobileDownloadNotifications(
                 .setPublicVersion(public)
                 .setOnlyAlertOnce(true)
                 .setAutoCancel(true)
-                .setContentIntent(openRow(context, entry.fileId))
+                .setContentIntent(openRow)
+                .addAction(primary)
+                .addAction(
+                    R.drawable.ic_ph_arrow_circle_down,
+                    context.getString(R.string.mobile_downloads_notification_open),
+                    openRow,
+                )
         }
 
-        private fun openRow(context: Context, fileId: FilesItemId): PendingIntent =
-            PendingIntent.getActivity(
-                context,
-                0,
-                // Each file's link is distinct data, so each row keeps its own pending intent.
-                Intent(Intent.ACTION_VIEW, "putio://downloads/${fileId.value}".toUri())
-                    .setClass(context, MainActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
+        private const val TAG_PREFIX = "download:"
 
-        private fun tag(userId: Long, fileId: FilesItemId): String = "download:$userId:${fileId.value}"
+        private fun tag(userId: Long, fileId: FilesItemId): String = "$TAG_PREFIX$userId:${fileId.value}"
     }
 }
 

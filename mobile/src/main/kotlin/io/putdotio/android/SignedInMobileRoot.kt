@@ -71,6 +71,7 @@ import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MobileTrashViewModel
 import io.putdotio.android.trash.SdkTrashRepository
 import io.putdotio.android.trash.TrashController
+import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -253,6 +254,7 @@ private fun SignedInMobileSession(
     val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
     val historyState by searchHistorySession.history.state.collectAsStateWithLifecycle()
     val transfersState by transfersController.state.collectAsStateWithLifecycle()
+    TransfersWidgetEffect(transfersState.content, MobileSessionKey(account.userId, sessionId))
     val publicLinksState = publicLinksController?.state?.collectAsStateWithLifecycle()?.value
     val navigationFailure by searchHistorySession.navigationFailure.collectAsStateWithLifecycle()
     val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
@@ -447,3 +449,17 @@ internal fun TransfersState.authoritativeSessionFailure(): PutioFailure? =
         (mutation as? TransferMutation.Failed)?.failure,
         (retryOutcome as? TransferRetryOutcome.Failed)?.failure,
     ).firstOrNull { it is PutioFailure.AuthenticationRequired }
+
+/** What the Transfers screen reads reaches the home-screen widget without another request. */
+@Composable
+private fun TransfersWidgetEffect(content: TransfersContent, session: MobileSessionKey) {
+    val appContext = LocalContext.current.applicationContext
+    LaunchedEffect(content, session) {
+        val items = when (content) {
+            is TransfersContent.Ready -> content.items
+            TransfersContent.Empty -> emptyList()
+            else -> return@LaunchedEffect
+        }
+        MobileWidgets.transfers(appContext).show(session, items)
+    }
+}

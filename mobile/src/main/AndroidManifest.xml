@@ -94,7 +94,30 @@
                 <data android:host="trash" />
                 <data android:host="downloads" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
+        <!-- A failed download notification's Retry; only this app's own pending intent reaches it. -->
+        <receiver
+            android:name=".downloads.MobileDownloadActionReceiver"
+            android:exported="false" />
+        <!-- The home-screen Transfers widget; the system delivers its updates. -->
+        <receiver
+            android:name=".widgets.MobileTransfersWidgetProvider"
+            android:exported="true"
+            android:label="@string/mobile_widget_transfers_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/transfers_widget_info" />
+        </receiver>
+        <!-- The widget's refresh button; only the widget's own pending intent reaches it. -->
+        <receiver
+            android:name=".widgets.MobileWidgetActionReceiver"
+            android:exported="false" />
         <service
             android:name=".share.MobileFileShareService"
             android:exported="false"
