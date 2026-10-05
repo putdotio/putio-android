@@ -1584,3 +1584,5 @@ adb -s <serial> uninstall io.putdotio.android.transfers.test
 
 Label results with the device and build; emulator numbers depend on host load.
 Results live in [Behaviour](./behavior.md#transfers-polling).
+
+[seeded broken link](does-not-exist.md)
