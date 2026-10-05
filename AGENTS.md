@@ -138,8 +138,7 @@ names the tests that pin it; a new device lane gets a section in
 ## Delivery and CI
 
 Open pull requests against `main`; the repository squash-merges. A push to
-`main` runs [CI](.github/workflows/ci.yml) and
-[Links](.github/workflows/links.yml) and nothing else: `verify` compiles
+`main` runs [CI](.github/workflows/ci.yml) and nothing else: `verify` compiles
 the release variants unsigned, and nothing signs, publishes, or uploads to
 Play. CI runs `./gradlew verify` plus all four debug
 assembles on every `main` push and on pull requests that change more than
@@ -150,8 +149,8 @@ runs `verify` with them excluded plus the debug assembles. When either command
 changes, compare their `--dry-run` task lists with the full command's; together
 they must run exactly the same tasks. A pull request that changes Markdown also
 runs `Check Markdown` (`./gradlew markdownCheck`), so docs-only changes still
-get the formatting check. Links checks relative Markdown links and anchors on
-every pull request. CI holds no secrets and keeps
+get the formatting check. `Detect code changes` runs on every event and
+checks relative Markdown links and anchors offline. CI holds no secrets and keeps
 failed unit-test XML as the `failed-unit-test-reports` artifact. A new push to
 a pull request cancels its running check; `main` runs never replace each other.
 
@@ -160,9 +159,10 @@ and `StaleOAuthCallbackTest` on a Gradle Managed Device weekly and on dispatch.
 It is not a pull-request gate because shared-runner emulator boots are too slow
 and flaky; `scripts/prove.sh` stays the local proof.
 
-[Scan](.github/workflows/scan.yml) runs the shared put.io scan weekly and on
-every pull request: Gitleaks and TruffleHog look for secrets, and Actionlint
-and Zizmor audit `.github/` when a pull request changes it.
+`Detect code changes` also runs the shared put.io scan on each `main` push:
+Actionlint and Zizmor audit `.github/` when the pushed range changes it, and a
+manual dispatch of CI audits every workflow. GitHub secret scanning and push
+protection catch secrets at push time.
 
 To reproduce a CI failure, check out the app SHA from the run summary in a
 detached worktree with `sdk.dir` set and `putioSdkKotlinPath` unset, then run

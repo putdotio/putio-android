@@ -28,7 +28,9 @@ jobs:
     # Pushes and dispatches verify everything. A pull request whose every path
     # is docs skips verify; unlisted paths count as code. `verify` also checks
     # Markdown; `markdown` covers pull requests that change Markdown, including
-    # the docs-only ones that skip verify.
+    # the docs-only ones that skip verify. This job runs on every event, so it
+    # also checks Markdown links and scans each pushed range (full history on
+    # dispatch).
     outputs:
       code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
       markdown: ${{ github.event_name == 'pull_request' && steps.filter.outputs.markdown == 'true' }}
@@ -48,6 +50,16 @@ jobs:
               - '!LICENSE'
             markdown:
               - '**/*.md'
+
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: putdotio/.github/.github/actions/links@c1830f7938b7dc98f085082e988d3c46437bb15c # v1.2.0
+
+      - if: ${{ !cancelled() }}
+        uses: putdotio/.github/.github/actions/scan@c1830f7938b7dc98f085082e988d3c46437bb15c # v1.2.0
 
   markdown:
     name: Check Markdown
