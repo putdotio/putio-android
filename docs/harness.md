@@ -1214,6 +1214,54 @@ device's one-time immersive-mode hint is acknowledged if it shows. `am instrumen
 app first, and Home, the taps and the relaunch act on the whole device, so use an emulator you
 booted with no other proof running. Remove the fixture and the screenshot directories afterwards.
 
+## Tablet proof
+
+Behaviour: [Keyboard and shortcuts](./behavior.md#keyboard-and-shortcuts),
+[Drag and drop](./behavior.md#drag-and-drop) and
+[Multi-window](./behavior.md#multi-window). `MobileTabletPowerProofTest` mounts
+the production shell in the debug-only `MobileTabletProofActivity`, which takes
+MainActivity's configuration changes, over faked Files, a local video, and a
+controlled session whose drag-out reads stream a generated JPEG from an
+in-process download source.
+It makes no API calls, so report it as synthetic proof. The other app is the
+androidTest package's `DragProbeActivity`: it runs in the test package's own
+process, so it is written in Java against the framework only, and its torrent
+provider uses an authority outside the app's prefix, because put.io refuses
+torrents from providers named after its own package.
+
+The harness has no tablet AVD. Create and boot your own phone AVD
+(`scripts/emulator.sh create phone --name <name>`, then `boot`), with a
+hardware keyboard and a tablet-size display:
+
+```bash
+sed -i '' 's/^hw.keyboard=no$/hw.keyboard=yes/' ~/.android/avd/<name>.avd/config.ini   # before booting
+adb -s <serial> shell wm size 2560x1600 && adb -s <serial> shell wm density 320          # 1280x800 dp
+```
+
+Restore with `wm size reset` and `wm density reset`. Push a landscape MP4 under
+the app's external files directory, for example `ffmpeg -f lavfi -i
+testsrc2=size=1280x720:rate=30:duration=90 -f lavfi -i
+sine=frequency=440:duration=90 -c:v libx264 -pix_fmt yuv420p -c:a aac
+-shortest tablet-proof.mp4`. Install both APKs and run each selector with
+`putio.tablet.enabled=true`, `putio.tablet.runId=<UUID>` and
+`putio.tablet.video=<absolute device path>`; require `OK (1 test)`:
+
+- `keyboardDrivesFilesSearchTrashAndThePlayer`: Tab into the listing, Enter
+  into a folder, Backspace up, Ctrl+F and Escape, F5, Delete to Trash with focus
+  kept in the listing, the Keyboard Shortcuts Helper, then Enter on the video,
+  Space, Right twice, Space and Escape back to its row.
+- `dragAndDropWithAnotherAppInSplitScreenKeepsTheVideoAndShell`: plays the
+  video, opens the probe beside put.io with `FLAG_ACTIVITY_LAUNCH_ADJACENT`, and
+  checks the same Activity and player play on in the split. It then drags
+  `poster.jpg` into the probe, which reports the bytes and that it could not
+  read before requesting the drop's permissions, could not write, and could not
+  read after releasing them; then it drags the probe's `.torrent` and magnet
+  link into put.io.
+
+Screenshots land in `tablet-proof-<UUID>/`. Android's one-time "Viewing full
+screen" hint takes key focus from the player, so the proof answers it. The
+emulator may still show the on-screen keyboard beside the hardware one.
+
 ## Mobile share-in proof
 
 Behaviour: [Share-in](./behavior.md#share-in). Never use real credentials in

@@ -15,6 +15,7 @@ import io.putdotio.android.downloads.OfflinePlaybackPositions
 import io.putdotio.android.downloads.PositionRemote
 import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.MobileMoveTargetStore
+import io.putdotio.android.share.MobileFileDrags
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.PutioClient
@@ -204,6 +205,7 @@ class MobileOAuthRuntime internal constructor(
                 applicationScope = applicationScope,
                 onSessionLeft = { session ->
                     MobileFileShareService.endSession(context, session)
+                    MobileFileDrags.endSession(session)
                     MobileDocumentsProvider.sessionLeft(context)
                     // The collector can lag the next sign-in; that account's outcomes stay.
                     MobileDownloadNotifications.cancelOtherAccounts(

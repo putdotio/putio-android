@@ -2548,6 +2548,135 @@ class MobilePlayerAudioTest {
     }
 }
 
+/** Hardware keys through the real input stages, and a split-screen window pausing around the player. */
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], qualifiers = "en-rUS")
+class MobilePlayerKeyboardTest {
+    @get:Rule
+    val compose = androidx.compose.ui.test.junit4.createAndroidComposeRule<androidx.activity.ComponentActivity>()
+
+    @Test
+    fun spaceTogglesPlaybackArrowsSeekAndEscapeLeavesBeforeAnyControlIsFocused() {
+        lateinit var player: RecordingPlayer
+        var backs = 0
+        setPlayer(onBack = { backs += 1 }) { RecordingPlayer(durationMillis = 60_000L).also { player = it } }
+        compose.runOnIdle { assertTrue(player.playWhenReady) }
+
+        compose.activity.pressHardwareKey(android.view.KeyEvent.KEYCODE_SPACE)
+        compose.runOnIdle { assertFalse(player.playWhenReady) }
+        compose.activity.pressHardwareKey(android.view.KeyEvent.KEYCODE_SPACE)
+        compose.runOnIdle { assertTrue(player.playWhenReady) }
+
+        compose.activity.pressHardwareKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.activity.pressHardwareKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.activity.pressHardwareKey(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+        compose.runOnIdle { assertEquals(listOf(30_000L, 40_000L, 30_000L), player.seekPositions) }
+        // Shift and Ctrl arrows are not seeks.
+        compose.activity.pressHardwareKey(
+            android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
+            android.view.KeyEvent.META_SHIFT_ON or android.view.KeyEvent.META_SHIFT_LEFT_ON,
+        )
+        compose.runOnIdle { assertEquals(3, player.seekPositions.size) }
+
+        compose.activity.pressHardwareKey(android.view.KeyEvent.KEYCODE_ESCAPE)
+        compose.runOnIdle { assertEquals(1, backs) }
+    }
+
+    @Test
+    fun aHeldArrowKeepsSeekingWhileAHeldSpaceTogglesOnce() {
+        lateinit var player: RecordingPlayer
+        setPlayer { RecordingPlayer(durationMillis = 60_000L).also { player = it } }
+
+        compose.activity.pressHardwareKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT, repeats = 2)
+        compose.activity.pressHardwareKey(android.view.KeyEvent.KEYCODE_SPACE, repeats = 3)
+
+        compose.runOnIdle {
+            assertEquals(listOf(30_000L, 40_000L, 50_000L), player.seekPositions)
+            assertFalse(player.playWhenReady)
+        }
+    }
+
+    @Test
+    fun videoKeepsPlayingWhileItsSplitScreenWindowIsPausedAndStopsWithIt() {
+        val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
+        val players = mutableListOf<RecordingPlayer>()
+        shadowOf(compose.activity).setInMultiWindowMode(true)
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                PutioTheme {
+                    MobilePlayerScreen(
+                        state = state(PlaybackContent.Ready(videoSource())),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also(players::add) },
+                    )
+                }
+            }
+        }
+        compose.runOnIdle { assertTrue(players.single().playWhenReady) }
+
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.STARTED) }
+        compose.runOnIdle { assertTrue(players.single().playWhenReady) }
+
+        compose.runOnIdle {
+            lifecycleOwner.moveTo(Lifecycle.State.CREATED)
+            assertTrue(players.single().released)
+        }
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
+        compose.runOnIdle { assertTrue(players.last().playWhenReady) }
+
+        // A full-screen window still pauses the video when it pauses.
+        shadowOf(compose.activity).setInMultiWindowMode(false)
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.STARTED) }
+        compose.runOnIdle { assertFalse(players.last().playWhenReady) }
+    }
+
+    @Test
+    fun aPauseMadeWhileTheSplitScreenPaneIsStartedSurvivesItsResume() {
+        val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
+        val players = mutableListOf<RecordingPlayer>()
+        shadowOf(compose.activity).setInMultiWindowMode(true)
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                PutioTheme {
+                    MobilePlayerScreen(
+                        state = state(PlaybackContent.Ready(videoSource())),
+                        onRetry = {},
+                        onPlayerFailure = { _, _ -> },
+                        onBack = {},
+                        playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also(players::add) },
+                    )
+                }
+            }
+        }
+        compose.runOnIdle { assertTrue(players.single().playWhenReady) }
+
+        // The other pane takes focus, then a headset or the notification pauses the video.
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.STARTED) }
+        compose.runOnIdle { players.single().pause() }
+        compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
+
+        compose.runOnIdle { assertFalse(players.single().playWhenReady) }
+    }
+
+    private fun setPlayer(onBack: () -> Unit = {}, create: () -> RecordingPlayer) {
+        compose.setContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = readyState(startFromSeconds = 20.0),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = onBack,
+                    playerFactory = MobilePlayerFactory { _, _ -> create() },
+                )
+            }
+        }
+        compose.waitForIdle()
+    }
+}
+
 private fun state(
     content: PlaybackContent,
     target: PlaybackTarget = Target,

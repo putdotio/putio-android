@@ -91,11 +91,15 @@ class MobileTransferDraft private constructor(
      * Reads a shared `.torrent` off the main thread; the result arrives like any other share. A newer
      * intake or a session change cancels the read so none lands out of order. A provider may ignore the
      * interrupt, so the lock is held until the read actually returns: at most one runs at a time.
+     * [onDone] runs once the read has finished, failed or been cancelled.
      */
-    internal fun receiveLater(read: () -> MobileSharedTransfer) {
+    internal fun receiveLater(onDone: () -> Unit = {}, read: () -> MobileSharedTransfer) {
         pendingRead?.cancel()
         pendingRead = viewModelScope.launch {
             deliver(readLock.withLock { runInterruptible(ioDispatcher) { read() } })
+        }.apply {
+            // Also when a newer intake cancels this read before it began.
+            invokeOnCompletion { onDone() }
         }
     }
 

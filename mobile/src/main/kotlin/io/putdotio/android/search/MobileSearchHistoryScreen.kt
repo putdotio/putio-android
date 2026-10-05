@@ -30,6 +30,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -37,6 +38,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -87,8 +90,12 @@ internal fun MobileSearchHistoryScreen(
     onRecentRetry: () -> Unit,
     onHistoryEvent: (HistoryEvent) -> Unit,
     modifier: Modifier = Modifier,
+    focusSearch: Boolean = false,
+    onSearchFocused: () -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(SEARCH_TAB) }
+    // Ctrl+F lands on the Search tab even when History was open.
+    LaunchedEffect(focusSearch) { if (focusSearch) selectedTab = SEARCH_TAB }
     Column(modifier = modifier.fillMaxSize()) {
         PrimaryTabRow(selectedTabIndex = selectedTab) {
             Tab(
@@ -115,6 +122,8 @@ internal fun MobileSearchHistoryScreen(
                 recentSearchFailure = recentSearchFailure,
                 onRecentRetry = onRecentRetry,
                 modifier = Modifier.weight(1f),
+                focusField = focusSearch,
+                onFieldFocused = onSearchFocused,
             )
         } else {
             MobileHistoryContent(
@@ -139,7 +148,16 @@ private fun MobileSearchContent(
     recentSearchFailure: PutioFailure?,
     onRecentRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    focusField: Boolean = false,
+    onFieldFocused: () -> Unit = {},
 ) {
+    val fieldFocus = remember { FocusRequester() }
+    LaunchedEffect(focusField) {
+        if (focusField) {
+            fieldFocus.requestFocus()
+            onFieldFocused()
+        }
+    }
     Column(modifier = modifier.fillMaxSize()) {
         OutlinedTextField(
             value = state.query,
@@ -147,6 +165,7 @@ private fun MobileSearchContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
+                .focusRequester(fieldFocus)
                 .testTag(MOBILE_SEARCH_FIELD_TAG),
             label = { Text(stringResource(R.string.mobile_search_label)) },
             placeholder = { Text(stringResource(R.string.mobile_search_placeholder)) },

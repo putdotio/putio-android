@@ -57,7 +57,7 @@ import okhttp3.Request
  * whatever earlier processes left.
  */
 class MobileFileShareService : Service() {
-    private val dependencies by lazy { dependenciesForTest ?: MobileShareDependencies.from(this) }
+    private val dependencies by lazy { shareDependencies(this) }
     private val scope by lazy { CoroutineScope(SupervisorJob() + dependencies.main) }
     private val exporter by lazy { MobileShareExporter(this, dependencies) }
     private val notifications = MobileShareNotifications(this)
@@ -198,6 +198,10 @@ class MobileFileShareService : Service() {
         @androidx.annotation.VisibleForTesting
         @Volatile
         internal var dependenciesForTest: MobileShareDependencies? = null
+
+        /** The network, session and clock the service and the drag provider share. */
+        internal fun shareDependencies(context: Context): MobileShareDependencies =
+            dependenciesForTest ?: MobileShareDependencies.from(context)
 
         fun start(context: Context, fileId: FilesItemId, name: String) {
             val intent = Intent(context, MobileFileShareService::class.java)
