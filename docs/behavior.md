@@ -975,11 +975,14 @@ under another account they open nothing (see [Deep links](#deep-links)). Try
 again is an explicit, immutable broadcast to an unexported receiver, so no
 other app can send it. It hands the download back to Media3 without opening
 the app, and the row follows Media3's state as after any background change,
-but only for the account that owns it, once the session settles (a stored one
-is restored first, for up to 15 s), and only while the row is still failed or
-missing. Under another account or none, or for a row that is gone, it removes
-the notification instead; while the session cannot be confirmed it does
-nothing. Each file has one slot, cleared by a retry, a delete or the end of
+but only for the account that owns it, once the session settles, and only while
+the row is still failed or missing. A stored session is restored first, for up
+to 5 s: Android lets an app start its download service for about 10 s after a
+notification tap. Under another account or none, or for a row that is gone, it
+removes the notification instead. While the session cannot be confirmed, or
+when the system refuses to start the service, it does nothing and the
+notification stays; the notification goes only once the service has the
+request, and a second tap finds the session restored. Each file has one slot, cleared by a retry, a delete or the end of
 its account's session: when a session ends, every outcome of an account other
 than the one signed in then is removed. Only the account signed in now is
 notified, so one account's
@@ -1014,7 +1017,7 @@ copies, concurrency, progress polling while shown), `MobileDownloadsScreenTest`
 shown and hidden events), `MobileShellDownloadsTest` (bulk delete never reaches
 put.io, notification links, the subtitle setting a Files download carries),
 `MobileDownloadStoreTest` (unreadable rows kept), `MobileDownloadActionReceiverTest` (Try again for the
-owner only), `MobileDownloadEngineTest` (queue order and limit
+owner only, a refused start keeps the notification), `BroadcastHoldTest`, `MobileDownloadEngineTest` (queue order and limit
 across process recreation, recovery of every row state, rows rebuilt for
 downloads an unreadable index lost, low-storage pause, reconcile, sign-out parking, account
 isolation, close before reconcile, in-memory progress and its denominator, the
@@ -1037,7 +1040,8 @@ one; a footer says when the rows were read and how many more are running. With
 none it reads No active transfers. A tap opens Transfers through
 `putio://transfers`, and a refresh button reads again. Signed out it reads Sign
 in to put.io to see your transfers, with no refresh button, and a tap opens
-sign-in, then Transfers.
+sign-in, then Transfers. On Android 12 and later the widget picker previews it
+with sample rows.
 
 It reads the transfers through the SDK in the signed-in session, never with a
 token of its own: when it is placed, every 30 minutes (`updatePeriodMillis`,
@@ -1046,7 +1050,9 @@ whenever the Transfers screen loads rows, which it shows without a request of
 its own. With no widget placed nothing is read. A refresh replaces one still
 running and gives up after 25 s. In a process the app has not started it
 restores the stored session first, for up to 15 s, as the download service
-does. A 401 signs the session out as anywhere else. A failed read keeps rows
+does. The broadcast that asked for it ends after 8 s at the latest, within the
+10 s a foreground-queue broadcast gets, and a refresh still running then goes
+on best-effort; the next update tries again if the process dies first. A 401 signs the session out as anywhere else. A failed read keeps rows
 already shown, with the time they were read; with none shown, or when the
 session cannot be confirmed, it reads Couldn't reach put.io.
 
@@ -1064,7 +1070,8 @@ generated design tokens' XML colors (`@color/putio_*`).
 Tests: `MobileTransfersWidgetTest` (each auth state against Robolectric's
 widget host, which reapplies views as launchers do: sign-out, a read that
 outlives its session, an account switch, a 401, failed reads, no widget, the
-Transfers screen's rows, intents).
+Transfers screen's rows, intents), `BroadcastHoldTest` (the broadcast ends
+by 8 s, once).
 
 ## TV Back
 

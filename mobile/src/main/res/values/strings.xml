@@ -448,6 +448,12 @@
         <item quantity="other">Updated %1$s · %2$d more</item>
     </plurals>
     <string name="mobile_widget_refresh">Refresh</string>
+    <!-- The widget picker's preview: sample transfers, not anyone's. -->
+    <string name="mobile_widget_preview_first" translatable="false">ubuntu-26.04-desktop-amd64.iso</string>
+    <string name="mobile_widget_preview_first_status">Downloading · 42%</string>
+    <string name="mobile_widget_preview_second" translatable="false">Big Buck Bunny (2008) 1080p</string>
+    <string name="mobile_widget_preview_third" translatable="false">Sintel (2010) 4K</string>
+    <string name="mobile_widget_preview_third_status">Seeding · 100%</string>
     <!-- Launcher shortcuts: long-press the app icon. -->
     <string name="mobile_shortcut_search_short">Search</string>
     <string name="mobile_shortcut_search_long">Search put.io</string>

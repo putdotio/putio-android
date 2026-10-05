@@ -1,6 +1,8 @@
 package io.putdotio.android.downloads
 
+import android.Manifest
 import android.app.Application
+import android.app.NotificationManager
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -21,6 +23,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class MobileDownloadActionReceiverTest {
     private val context: Application = ApplicationProvider.getApplicationContext()
+    private val notifications = context.getSystemService(NotificationManager::class.java)
     private var account: SignedInAccount = SignedInAccount.User(USER)
     private val rows = mutableMapOf<Pair<Long, Long>, DownloadEntry>()
     private val started = mutableListOf<Pair<Long, FilesItemId>>()
@@ -35,6 +38,7 @@ class MobileDownloadActionReceiverTest {
     @After
     fun tearDown() {
         MobileDownloadActionReceiver.retriesForTest = null
+        notifications.cancelAll()
     }
 
     @Test
@@ -82,6 +86,35 @@ class MobileDownloadActionReceiverTest {
 
         assertTrue(started.isEmpty())
         assertEquals(listOf(12L, 13L, 14L).map { USER to FilesItemId(it) }, dismissed)
+    }
+
+    @Test
+    fun aStartTheSystemRefusesKeepsTheNotificationForAnotherTry() = runBlocking {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val failed = row(11L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
+        val sent = mutableListOf<String>()
+        var refuse = true
+        val withService = DownloadNotificationRetries(
+            signedIn = { SignedInAccount.User(USER) },
+            find = { _, _ -> failed },
+            start = { userId, entry ->
+                sendDownloadRequest(context, userId, entry) { request ->
+                    // Android 12+ refuses a foreground service start once the tap's allowance has passed.
+                    check(!refuse) { "ForegroundServiceStartNotAllowedException" }
+                    sent += request.id
+                }
+            },
+            dismiss = { userId, fileId -> MobileDownloadNotifications.cancel(context, userId, fileId) },
+        )
+        MobileDownloadNotifications.post(context, USER, failed, DownloadOutcome.Failed(DownloadFailureReason.NETWORK))
+
+        assertEquals(DownloadRetryOutcome.UNCONFIRMED, withService.retry(USER, FilesItemId(11L)))
+        assertEquals(1, notifications.activeNotifications.size)
+
+        refuse = false
+        assertEquals(DownloadRetryOutcome.STARTED, withService.retry(USER, FilesItemId(11L)))
+        assertEquals(listOf("$USER:11"), sent)
+        assertTrue(notifications.activeNotifications.isEmpty())
     }
 
     @Test

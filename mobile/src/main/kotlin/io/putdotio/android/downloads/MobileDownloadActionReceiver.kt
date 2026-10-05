@@ -8,6 +8,7 @@ import io.putdotio.android.MobileDeepLink
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.holdBroadcast
 import io.putdotio.android.parseMobileDeepLink
 import io.putdotio.android.toRouteUri
 import kotlin.time.Duration.Companion.seconds
@@ -28,13 +29,12 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
         val fileId = link?.fileId
         if (userId == null || fileId == null) return
         val retries = retriesForTest ?: production(context.applicationContext)
-        // Null when called outside a broadcast, as a test may.
-        val pending: PendingResult? = goAsync()
+        val hold = holdBroadcast()
         scope.launch {
             try {
                 retries.retry(userId, fileId)
             } finally {
-                pending?.finish()
+                hold.release()
             }
         }
     }
@@ -48,8 +48,12 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
 
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-        /** Restoring a session in a cold process reads put.io; past this the tap does nothing. */
-        private val SESSION_TIMEOUT = 15.seconds
+        /**
+         * Restoring a session in a cold process reads put.io. Android lets an app start a foreground
+         * service for about 10 s after a notification tap, so past this the tap does nothing and the
+         * notification stays for another tap, which finds the session already restored.
+         */
+        private val SESSION_TIMEOUT = 5.seconds
 
         /** An explicit, immutable broadcast; the data keeps one pending intent per account and file. */
         fun retry(context: Context, userId: Long, fileId: FilesItemId): PendingIntent =

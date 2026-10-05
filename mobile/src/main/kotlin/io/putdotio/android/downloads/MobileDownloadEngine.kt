@@ -243,18 +243,26 @@ internal class MobileDownloadEngine(
 
 /**
  * Hands [userId]'s download to Media3 through the download service: a new request, or a failed or
- * missing one again, which joins the back of the queue. Its last outcome notification goes.
+ * missing one again, which joins the back of the queue. Its last outcome notification goes once the
+ * service has the request; a start the system refuses throws and leaves it, Try again included.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun sendDownloadRequest(context: Context, userId: Long, entry: DownloadEntry) {
+internal fun sendDownloadRequest(
+    context: Context,
+    userId: Long,
+    entry: DownloadEntry,
+    send: (DownloadRequest) -> Unit = {
+        DownloadService.sendAddDownload(context, MobileDownloadService::class.java, it, true)
+    },
+) {
     val url = entry.artifact.apiUrl(entry.fileId, subtitlesHidden = entry.subtitlesHidden == true)
     val request = DownloadRequest.Builder(downloadContentId(userId, entry.fileId), url.toUri())
         .setMimeType(if (entry.artifact == DownloadArtifact.HLS) MimeTypes.APPLICATION_M3U8 else null)
         // The name rides along so a row lost from the app's index can be rebuilt with it.
         .setData(entry.name.encodeToByteArray())
         .build()
+    send(request)
     MobileDownloadNotifications.cancel(context, userId, entry.fileId)
-    DownloadService.sendAddDownload(context, MobileDownloadService::class.java, request, true)
 }
 
 /** This user's file id in a `userId:fileId` request id; null for another account's request. */

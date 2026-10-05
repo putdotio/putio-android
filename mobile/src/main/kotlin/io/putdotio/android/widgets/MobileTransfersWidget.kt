@@ -15,6 +15,7 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.auth.sessionKey
+import io.putdotio.android.holdBroadcast
 import io.putdotio.android.transfers.TransferItem
 import io.putdotio.android.transfers.SdkTransfersRepository
 import kotlin.time.Duration
@@ -27,12 +28,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** The home-screen Transfers widget. The system asks for an update every 30 minutes and when one is placed. */
+/**
+ * The home-screen Transfers widget. The system asks for an update every 30 minutes and when one is
+ * placed; the broadcast ends after 8 s at the latest, and a refresh still running goes on best-effort.
+ */
 class MobileTransfersWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        // Null when called outside a broadcast, as a test may.
-        val pending: PendingResult? = goAsync()
-        MobileWidgets.transfers(context).refresh { pending?.finish() }
+        MobileWidgets.transfers(context).refresh(holdBroadcast()::release)
     }
 }
 
@@ -40,8 +42,7 @@ class MobileTransfersWidgetProvider : AppWidgetProvider() {
 internal class MobileWidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_REFRESH) return
-        val pending: PendingResult? = goAsync()
-        MobileWidgets.transfers(context).refresh { pending?.finish() }
+        MobileWidgets.transfers(context).refresh(holdBroadcast()::release)
     }
 
     internal companion object {

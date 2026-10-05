@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Home-screen Transfers widget, drawn by the launcher through RemoteViews. Colors are the generated
-     design tokens; MobileTransfersWidgetViews sets every text, so a pushed state never keeps another's.
-     These defaults are the state a newly placed widget shows until its first update. -->
+<!-- The widget picker's preview of widget_transfers.xml (Android 12 and later): sample transfers in the
+     signed-in layout. It is inflated as is, so it has no ids and nothing is set at run time. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
@@ -10,13 +9,11 @@
     android:orientation="vertical"
     android:padding="12dp">
 
-    <!-- The refresh button is its own tap target, so it is not a compound drawable of the title. -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
         <TextView
-            android:id="@+id/widget_transfers_title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="center_vertical"
@@ -28,33 +25,20 @@
             android:textStyle="bold" />
 
         <ImageView
-            android:id="@+id/widget_transfers_refresh"
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:layout_gravity="end|center_vertical"
             android:contentDescription="@string/mobile_widget_refresh"
             android:padding="6dp"
             android:src="@drawable/ic_ph_arrow_clockwise"
-            android:tint="@color/putio_text_secondary"
-            android:visibility="gone" />
+            android:tint="@color/putio_text_secondary" />
     </FrameLayout>
 
-    <TextView
-        android:id="@+id/widget_transfers_message"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="@string/mobile_widget_transfers_loading"
-        android:textColor="@color/putio_text_secondary"
-        android:textSize="14sp" />
-
     <LinearLayout
-        android:id="@+id/widget_transfers_row_0"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:orientation="vertical"
-        android:visibility="gone">
+        android:orientation="vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -62,44 +46,42 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/widget_transfers_row_0_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
+                android:text="@string/mobile_widget_preview_first"
                 android:textColor="@color/putio_text"
                 android:textSize="14sp" />
 
             <TextView
-                android:id="@+id/widget_transfers_row_0_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:maxLines="1"
+                android:text="@string/mobile_widget_preview_first_status"
                 android:textColor="@color/putio_text_secondary"
                 android:textSize="12sp" />
         </LinearLayout>
 
         <ProgressBar
-            android:id="@+id/widget_transfers_row_0_progress"
             style="@android:style/Widget.Material.ProgressBar.Horizontal"
             android:layout_width="match_parent"
             android:layout_height="4dp"
             android:layout_marginTop="4dp"
-            android:max="100"
+            android:progress="42"
             android:indeterminateTint="@color/putio_yellow_solid"
+            android:max="100"
             android:progressBackgroundTint="@color/putio_component_bg"
             android:progressTint="@color/putio_yellow_solid" />
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/widget_transfers_row_1"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:orientation="vertical"
-        android:visibility="gone">
+        android:orientation="vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -107,44 +89,42 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/widget_transfers_row_1_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
+                android:text="@string/mobile_widget_preview_second"
                 android:textColor="@color/putio_text"
                 android:textSize="14sp" />
 
             <TextView
-                android:id="@+id/widget_transfers_row_1_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:maxLines="1"
+                android:text="@string/mobile_transfer_status_queued"
                 android:textColor="@color/putio_text_secondary"
                 android:textSize="12sp" />
         </LinearLayout>
 
         <ProgressBar
-            android:id="@+id/widget_transfers_row_1_progress"
             style="@android:style/Widget.Material.ProgressBar.Horizontal"
             android:layout_width="match_parent"
             android:layout_height="4dp"
             android:layout_marginTop="4dp"
-            android:max="100"
+            android:indeterminate="true"
             android:indeterminateTint="@color/putio_yellow_solid"
+            android:max="100"
             android:progressBackgroundTint="@color/putio_component_bg"
             android:progressTint="@color/putio_yellow_solid" />
     </LinearLayout>
 
     <LinearLayout
-        android:id="@+id/widget_transfers_row_2"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:orientation="vertical"
-        android:visibility="gone">
+        android:orientation="vertical">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -152,44 +132,34 @@
             android:orientation="horizontal">
 
             <TextView
-                android:id="@+id/widget_transfers_row_2_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
+                android:text="@string/mobile_widget_preview_third"
                 android:textColor="@color/putio_text"
                 android:textSize="14sp" />
 
             <TextView
-                android:id="@+id/widget_transfers_row_2_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:maxLines="1"
+                android:text="@string/mobile_widget_preview_third_status"
                 android:textColor="@color/putio_text_secondary"
                 android:textSize="12sp" />
         </LinearLayout>
 
         <ProgressBar
-            android:id="@+id/widget_transfers_row_2_progress"
             style="@android:style/Widget.Material.ProgressBar.Horizontal"
             android:layout_width="match_parent"
             android:layout_height="4dp"
             android:layout_marginTop="4dp"
-            android:max="100"
+            android:progress="100"
             android:indeterminateTint="@color/putio_yellow_solid"
+            android:max="100"
             android:progressBackgroundTint="@color/putio_component_bg"
             android:progressTint="@color/putio_yellow_solid" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/widget_transfers_footer"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:maxLines="1"
-        android:textColor="@color/putio_text_secondary"
-        android:textSize="12sp"
-        android:visibility="gone" />
 </LinearLayout>
