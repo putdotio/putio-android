@@ -122,7 +122,7 @@ that matches. Report skipped or unavailable proof.
 
 | Change                              | Proof                                                                                                             |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Docs only                           | `./gradlew markdownCheck`; check the links and commands you touched. Pull-request CI runs only `Check Markdown`   |
+| Docs only                           | `./gradlew markdownCheck`; check web links and commands. Pull-request CI checks relative links, skips builds      |
 | Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module |
 | App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                              |
 | UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md)    |
@@ -149,20 +149,20 @@ runs `verify` with them excluded plus the debug assembles. When either command
 changes, compare their `--dry-run` task lists with the full command's; together
 they must run exactly the same tasks. A pull request that changes Markdown also
 runs `Check Markdown` (`./gradlew markdownCheck`), so docs-only changes still
-get the formatting check. `Detect code changes` runs on every event and
-checks relative Markdown links and anchors offline. CI holds no secrets and keeps
-failed unit-test XML as the `failed-unit-test-reports` artifact. A new push to
-a pull request cancels its running check; `main` runs never replace each other.
+get the formatting check. CI holds no secrets and keeps failed unit-test XML as
+the `failed-unit-test-reports` artifact. A new push to a pull request cancels
+its running check; `main` runs never replace each other.
+
+`Detect code changes` runs on every event. It checks relative Markdown links and
+anchors offline, then runs the shared put.io scan: on a `main` push, Actionlint
+and Zizmor audit `.github/` when the pushed range changes it, and a manual
+dispatch of CI audits every workflow. GitHub secret scanning and push
+protection catch secrets at push time.
 
 [Emulator smoke](.github/workflows/emulator-smoke.yml) runs `LaunchSmokeTest`
 and `StaleOAuthCallbackTest` on a Gradle Managed Device weekly and on dispatch.
 It is not a pull-request gate because shared-runner emulator boots are too slow
 and flaky; `scripts/prove.sh` stays the local proof.
-
-`Detect code changes` also runs the shared put.io scan on each `main` push:
-Actionlint and Zizmor audit `.github/` when the pushed range changes it, and a
-manual dispatch of CI audits every workflow. GitHub secret scanning and push
-protection catch secrets at push time.
 
 To reproduce a CI failure, check out the app SHA from the run summary in a
 detached worktree with `sdk.dir` set and `putioSdkKotlinPath` unset, then run
