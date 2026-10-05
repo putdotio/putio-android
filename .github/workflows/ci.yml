@@ -29,8 +29,9 @@ jobs:
     # is docs skips verify; unlisted paths count as code. `verify` also checks
     # Markdown; `markdown` covers pull requests that change Markdown, including
     # the docs-only ones that skip verify. This job runs on every event, so it
-    # also checks Markdown links and scans each pushed range (full history on
-    # dispatch).
+    # also checks Markdown links and scans each pushed range. A link or scan
+    # failure fails this job without skipping the jobs below, which use
+    # `!cancelled()`.
     outputs:
       code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
       markdown: ${{ github.event_name == 'pull_request' && steps.filter.outputs.markdown == 'true' }}
@@ -56,15 +57,17 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: putdotio/.github/.github/actions/links@c1830f7938b7dc98f085082e988d3c46437bb15c # v1.2.0
+      - name: Check Markdown links
+        uses: putdotio/.github/.github/actions/links@c1830f7938b7dc98f085082e988d3c46437bb15c # v1.2.0
 
-      - if: ${{ !cancelled() }}
+      - name: Scan secrets and workflows
+        if: ${{ !cancelled() }}
         uses: putdotio/.github/.github/actions/scan@c1830f7938b7dc98f085082e988d3c46437bb15c # v1.2.0
 
   markdown:
     name: Check Markdown
     needs: changes
-    if: needs.changes.outputs.markdown == 'true'
+    if: ${{ !cancelled() && needs.changes.outputs.markdown == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -94,7 +97,7 @@ jobs:
   release:
     name: Build release
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
 
@@ -125,7 +128,7 @@ jobs:
   verify:
     name: Verify Android app
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
 
