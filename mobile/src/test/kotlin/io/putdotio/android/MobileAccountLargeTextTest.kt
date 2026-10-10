@@ -83,8 +83,8 @@ class MobileAccountLargeTextTest {
         )
         assertValueAndDescription(
             "Strictly necessary", "Always on",
-            "Sign-in, your files, transfers, playback, and these privacy choices. " +
-                "Always on; nothing optional is collected here.",
+            "Required for login, security, account access, transfers, downloads, playback, " +
+                "billing operations, and remembering your choices. These cannot be turned off.",
         )
         compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG)
             .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ToggleableState))
