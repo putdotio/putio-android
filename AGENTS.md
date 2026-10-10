@@ -103,7 +103,7 @@ icon and design-asset lock checks, the script contract tests, the
 `build-logic` tests, and `markdownCheck`. The script checks need `bash` 3.2+,
 `python3`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
 encoder on PATH. `markdownCheck` runs oxfmt through `npx` at the version
-[package.json](package.json) pins for Dependabot;
+[package.json](package.json) pins for Renovate;
 `npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
 
 - Fix lint and detekt findings at the source; suppress only the narrowest
