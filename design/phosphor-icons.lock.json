@@ -198,13 +198,6 @@
     },
     {
       "resDir": "mobile/src/main/res",
-      "resource": "ic_ph_lifebuoy",
-      "asset": "assets/regular/lifebuoy.svg",
-      "sourceSha256": "450ce5b7ec604f37c2d3dfc0f2972d35557121a050e83854135429376c3b95f0",
-      "outputSha256": "8cabc249ef22af0239f8b36bf22faa2216f4394e62618299e516b5a7d8fc6333"
-    },
-    {
-      "resDir": "mobile/src/main/res",
       "resource": "ic_ph_shield_check",
       "asset": "assets/regular/shield-check.svg",
       "sourceSha256": "bb04d552c0baaaabd90f7eb60760cb0c7ddb7e9f47e4b76e9599ddd7dfd8eaa7",

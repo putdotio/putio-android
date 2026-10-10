@@ -53,8 +53,7 @@ class SdkAccountSettingsRepositoryTest {
             repository.save(AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, true))
             repository.save(AccountSettingsChange(AccountSettingsKey.ResumePlayback, false))
             repository.save(AccountSettingsChange(AccountSettingsKey.Diagnostics, false))
-            repository.save(AccountSettingsChange(AccountSettingsKey.ProductAnalytics, false))
-            repository.save(AccountSettingsChange(AccountSettingsKey.SupportWidget, false))
+            repository.save(AccountSettingsChange(AccountSettingsKey.ProductAnalytics, true))
 
             assertEquals(AccountSettingsPatch(historyEnabled = false), patches[0])
             assertEquals(AccountSettingsPatch(trashEnabled = true), patches[1])
@@ -62,8 +61,7 @@ class SdkAccountSettingsRepositoryTest {
             assertEquals(AccountSettingsPatch(dontAutoselectSubtitles = false), patches[3])
             assertEquals(AccountSettingsPatch(useStartFrom = false), patches[4])
             assertEquals(AccountSettingsPatch(diagnosticsEnabled = false), patches[5])
-            assertEquals(AccountSettingsPatch(productAnalyticsEnabled = false), patches[6])
-            assertEquals(AccountSettingsPatch(supportWidgetEnabled = false), patches[7])
+            assertEquals(AccountSettingsPatch(productAnalyticsEnabled = true), patches[6])
         }
 
     @Test
@@ -244,24 +242,32 @@ class SdkAccountSettingsRepositoryTest {
         }
 
     @Test
-    fun mapsPrivacyControlsFromServerAndDefaultsThemOn() =
+    fun mapsPrivacyControlsFromServer() =
         runBlocking {
-            val loaded = repository(settings = Settings).load() as AccountSettingsRepositoryResult.Success
-            assertTrue(loaded.value.diagnosticsEnabled)
-            assertTrue(loaded.value.productAnalyticsEnabled)
-            assertTrue(loaded.value.supportWidgetEnabled)
+            val optedIn = repository(
+                settings = Settings.copy(diagnosticsEnabled = true, productAnalyticsEnabled = true),
+            ).load() as AccountSettingsRepositoryResult.Success
+            assertTrue(optedIn.value.diagnosticsEnabled)
+            assertTrue(optedIn.value.productAnalyticsEnabled)
 
             val optedOut = repository(
-                settings = Settings.copy(
-                    diagnosticsEnabled = false,
-                    productAnalyticsEnabled = false,
-                    supportWidgetEnabled = false,
-                ),
+                settings = Settings.copy(diagnosticsEnabled = false, productAnalyticsEnabled = false),
             ).load() as AccountSettingsRepositoryResult.Success
             assertFalse(optedOut.value.diagnosticsEnabled)
             assertFalse(optedOut.value.productAnalyticsEnabled)
-            assertFalse(optedOut.value.supportWidgetEnabled)
         }
+
+    @Test
+    fun productAnalyticsIsOptInWhileDiagnosticsStayOnByDefault() {
+        val defaults = AccountSettingsPreferences(
+            historyEnabled = true,
+            trashEnabled = true,
+            showSubtitles = true,
+            autoSelectSubtitles = true,
+        )
+        assertTrue(defaults.diagnosticsEnabled)
+        assertFalse(defaults.productAnalyticsEnabled)
+    }
 
     @Test
     fun mapsDefaultSortFromServerAndPatchesTheExactApiValue() =
@@ -381,6 +387,8 @@ class SdkAccountSettingsRepositoryTest {
                 hideSubtitles = true,
                 dontAutoselectSubtitles = true,
                 useStartFrom = false,
+                diagnosticsEnabled = true,
+                productAnalyticsEnabled = false,
             )
     }
 }

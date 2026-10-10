@@ -432,7 +432,7 @@ private fun LazyListScope.accountSettingsItems(
 }
 
 // Purpose-based opt-outs per the frontend analytics contract. Strictly necessary
-// processing is disclosed, never toggled; the three account keys are cross-client.
+// processing is disclosed, never toggled; both account keys are cross-client.
 private fun LazyListScope.privacyControlsItems(
     preferences: AccountSettingsPreferences,
     mutation: AccountSettingsMutation,
@@ -464,18 +464,6 @@ private fun LazyListScope.privacyControlsItems(
             icon = R.drawable.ic_ph_chart_line,
             checked = preferences.productAnalyticsEnabled,
             key = AccountSettingsKey.ProductAnalytics,
-            mutation = mutation,
-            onRetry = onRetryChange,
-            onChange = onChange,
-        )
-    }
-    item(key = AccountSettingsKey.SupportWidget) {
-        MobileAccountSettingRow(
-            title = R.string.mobile_settings_support_widget,
-            description = R.string.mobile_settings_support_widget_description,
-            icon = R.drawable.ic_ph_lifebuoy,
-            checked = preferences.supportWidgetEnabled,
-            key = AccountSettingsKey.SupportWidget,
             mutation = mutation,
             onRetry = onRetryChange,
             onChange = onChange,
