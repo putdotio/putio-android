@@ -979,6 +979,16 @@ with what is used either way.
 Tests: `PutioAuthSessionGatewayTest`, `PutioTvSessionGatewayTest`,
 `MobileAccountScreenTest`, `TvAccountScreenTest`.
 
+## Privacy controls
+
+Mobile Settings shows two account-wide privacy controls, shared with every
+put.io app: Diagnostics (`diagnostics_enabled`, on by default) and Product
+analytics (`product_analytics_enabled`, opt-in and off by default). Strictly
+necessary processing is disclosed beside them and has no toggle. The app reads
+and writes no support-widget setting.
+
+Tests: `SdkAccountSettingsRepositoryTest`, `MobileAccountScreenTest`.
+
 ## Recent searches
 
 Recent searches are the account's `/config` `searchHistory` list, newest first

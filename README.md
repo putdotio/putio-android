@@ -34,8 +34,8 @@ Mobile, on the emulator harness against the live API:
   Choices survive player recreation; unavailable audio tracks fall back to automatic selection
 - Account settings: subtitles, history, Trash, resume playback, proxy route,
   and default sort order, each saved to the account and shared across devices
-- Privacy controls for the support chat widget, shared across put.io apps,
-  with a strictly-necessary storage disclosure
+- Privacy controls for diagnostics (on by default) and product analytics
+  (opt-in), shared across put.io apps, with a strictly-necessary storage disclosure
 - About section with copyable app, Android, device, and player info
 - Downloads: video saves the same HLS rendition it streams (without subtitles
   for accounts that hide them), audio saves the original. A Downloads screen

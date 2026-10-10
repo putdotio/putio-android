@@ -20,10 +20,10 @@ public data class AccountSettingsPreferences(
     // Account-wide `sort_by`: folders without their own sort use it. Null means the
     // server reported a value this app does not know.
     val defaultSort: FilesSort? = null,
-    // Privacy controls per the frontend analytics contract; the server defaults all three to true.
+    // Privacy controls per the frontend analytics contract: diagnostics are on by
+    // default, product analytics is opt-in.
     val diagnosticsEnabled: Boolean = true,
-    val productAnalyticsEnabled: Boolean = true,
-    val supportWidgetEnabled: Boolean = true,
+    val productAnalyticsEnabled: Boolean = false,
 )
 
 /** Server route identifier. `default` is the direct Amsterdam route and what a null setting means. */
@@ -56,7 +56,6 @@ public enum class AccountSettingsKey {
     DefaultSort,
     Diagnostics,
     ProductAnalytics,
-    SupportWidget,
 }
 
 public sealed interface AccountSettingsChange {

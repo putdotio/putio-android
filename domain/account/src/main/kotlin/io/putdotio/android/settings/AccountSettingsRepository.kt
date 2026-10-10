@@ -144,7 +144,6 @@ private fun AccountSettings.toPreferences(): AccountSettingsPreferences =
         defaultSort = FilesSort.fromApiValue(sortBy),
         diagnosticsEnabled = diagnosticsEnabled,
         productAnalyticsEnabled = productAnalyticsEnabled,
-        supportWidgetEnabled = supportWidgetEnabled,
     )
 
 private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
@@ -159,7 +158,6 @@ private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
             AccountSettingsKey.ResumePlayback -> AccountSettingsPatch(useStartFrom = enabled)
             AccountSettingsKey.Diagnostics -> AccountSettingsPatch(diagnosticsEnabled = enabled)
             AccountSettingsKey.ProductAnalytics -> AccountSettingsPatch(productAnalyticsEnabled = enabled)
-            AccountSettingsKey.SupportWidget -> AccountSettingsPatch(supportWidgetEnabled = enabled)
             AccountSettingsKey.TunnelRoute,
             AccountSettingsKey.DefaultSort,
             -> error("$key is not a toggle")

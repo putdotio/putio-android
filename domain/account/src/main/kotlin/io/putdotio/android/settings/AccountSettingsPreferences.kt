@@ -23,7 +23,6 @@ private fun AccountSettingsPreferences.toggleValue(key: AccountSettingsKey): Boo
         AccountSettingsKey.ResumePlayback -> resumePlayback
         AccountSettingsKey.Diagnostics -> diagnosticsEnabled
         AccountSettingsKey.ProductAnalytics -> productAnalyticsEnabled
-        AccountSettingsKey.SupportWidget -> supportWidgetEnabled
         AccountSettingsKey.TunnelRoute,
         AccountSettingsKey.DefaultSort,
         -> error("$key is not a toggle")
@@ -40,7 +39,6 @@ private fun AccountSettingsPreferences.applyingToggle(
         AccountSettingsKey.ResumePlayback -> copy(resumePlayback = change.enabled)
         AccountSettingsKey.Diagnostics -> copy(diagnosticsEnabled = change.enabled)
         AccountSettingsKey.ProductAnalytics -> copy(productAnalyticsEnabled = change.enabled)
-        AccountSettingsKey.SupportWidget -> copy(supportWidgetEnabled = change.enabled)
         AccountSettingsKey.TunnelRoute,
         AccountSettingsKey.DefaultSort,
         -> error("${change.key} is not a toggle")

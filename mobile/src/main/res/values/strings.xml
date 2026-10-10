@@ -170,8 +170,6 @@
     <string name="mobile_settings_diagnostics_description">Send crash and playback error reports so we can fix problems. They never include file names or content.</string>
     <string name="mobile_settings_product_analytics">Product analytics</string>
     <string name="mobile_settings_product_analytics_description">Share which features you use so we can improve the app.</string>
-    <string name="mobile_settings_support_widget">Support chat</string>
-    <string name="mobile_settings_support_widget_description">Load in-app support chat and share account context with the support team when you open it.</string>
     <string name="mobile_settings_privacy_controls_note">These choices apply to every put.io app you sign in to.</string>
     <string name="mobile_settings_section_playback">Playback</string>
     <string name="mobile_settings_section_about">About</string>

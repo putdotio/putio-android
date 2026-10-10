@@ -4,6 +4,7 @@ import android.content.Context
 import android.text.format.Formatter
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -242,21 +243,30 @@ class MobileAccountScreenTest {
             SemanticsMatcher.keyNotDefined(SemanticsProperties.ToggleableState),
         )
 
-        for ((label, key) in listOf(
-            "Diagnostics" to AccountSettingsKey.Diagnostics,
-            "Product analytics" to AccountSettingsKey.ProductAnalytics,
-            "Support chat" to AccountSettingsKey.SupportWidget,
-        )) {
-            compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(label))
-            compose.onNodeWithText(label).assertIsOn().performClick()
-            compose.runOnIdle {
-                assertEquals(
-                    AccountSettingsEvent.ChangeRequested(AccountSettingsChange(key, enabled = false)),
-                    events.last(),
-                )
-            }
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Diagnostics"))
+        compose.onNodeWithText("Diagnostics").assertIsOn().performClick()
+        compose.runOnIdle {
+            assertEquals(
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.Diagnostics, enabled = false),
+                ),
+                events.last(),
+            )
         }
-        compose.runOnIdle { assertEquals(3, events.size) }
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Product analytics"))
+        compose.onNodeWithText("Product analytics").assertIsOff().performClick()
+        compose.runOnIdle {
+            assertEquals(
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.ProductAnalytics, enabled = true),
+                ),
+                events.last(),
+            )
+        }
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG)
+            .performScrollToNode(hasText("These choices apply to every put.io app you sign in to."))
+        compose.onAllNodesWithText("Support chat").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(2, events.size) }
     }
 
     @Test
