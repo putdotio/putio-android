@@ -48,11 +48,17 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 }
             }
 
+            // Diagnostics (docs/behavior.md#diagnostics): only a release build made with
+            // `putioSentryDsn` reports to Sentry. Debug builds, unit tests and every build without
+            // it keep the empty default, which leaves Sentry off.
+            defaultConfig.buildConfigField("String", "PUTIO_SENTRY_DSN", "\"\"")
+
             buildTypes {
                 getByName("debug") {
                     applicationIdSuffix = ".debug"
                 }
                 getByName("release") {
+                    buildConfigField("String", "PUTIO_SENTRY_DSN", "\"${sentryDsn()}\"")
                     isMinifyEnabled = true
                     isShrinkResources = true
                     proguardFiles(
@@ -105,5 +111,25 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 tasks.named("check") { dependsOn(launcherManifest) }
             }
         }
+    }
+
+    /**
+     * The `putioSentryDsn` Gradle property, or `PUTIO_SENTRY_DSN` from the environment. It is
+     * embedded in a Java string, so anything but an empty value or a plain
+     * `https://<key>@<host>/<project id>` fails the build; the value itself is never printed.
+     */
+    private fun Project.sentryDsn(): String {
+        val dsn = providers.gradleProperty("putioSentryDsn")
+            .orElse(providers.environmentVariable("PUTIO_SENTRY_DSN"))
+            .getOrElse("")
+            .trim()
+        require(dsn.isEmpty() || SENTRY_DSN.matches(dsn)) {
+            "putioSentryDsn must be empty or https://<key>@<host>/<project id>"
+        }
+        return dsn
+    }
+
+    private companion object {
+        val SENTRY_DSN = Regex("""https://[A-Za-z0-9]+@[A-Za-z0-9.-]+/[0-9]+""")
     }
 }

@@ -989,6 +989,47 @@ and writes no support-widget setting.
 
 Tests: `SdkAccountSettingsRepositoryTest`, `MobileAccountScreenTest`.
 
+## Diagnostics
+
+Mobile and TV report crashes, ANRs and player failures to Sentry only while
+the account's Diagnostics control is on, and only from a release build made
+with the `putioSentryDsn` Gradle property (or `PUTIO_SENTRY_DSN` in the
+environment). Debug builds, unit tests and every build without it never start
+Sentry; leaving the DSN out is the kill switch that needs no code change.
+
+- Signed out, or before any account answered, counts as on. The device keeps
+  the last account's answer, so a cold launch honours an opt-out before the
+  session restores. Restoring, validating and signing out keep it; signed out,
+  diagnostics are on again and the answer is forgotten.
+- The answer read at sign-in applies first; each settings read and the mobile
+  Privacy toggle supersede it in the running app. An opt-out stops capture at
+  once, before put.io confirms it; an opt-in waits for the confirmation.
+- Turning diagnostics off, or launching with it off, closes the SDK and deletes
+  everything waiting for upload. While off, a transport gate holds every
+  upload, and nothing recorded before an opt-in, such as an ANR from the
+  opt-out period that Android reports later, is sent after it.
+- Events post through `relay.put.io`, which forwards only allowlisted Sentry
+  projects; the app swaps the DSN's host for it. The `surface` tag says
+  `mobile` or `tv`, the environment is the channel flavor, and the release is
+  `<application id>@<version name>+<version code>`.
+- Every event and breadcrumb, the SDK's automatic ones included, passes the
+  redaction boundary in `core/telemetry`: URLs keep only their host;
+  credentials, file paths and media filenames are removed; request data,
+  extras and user fields other than the installation id are dropped; only
+  allowlisted tags and device contexts remain. Player failures are reported as
+  putio-web's `playback_failure` identifiers (failure mode, Media3 error code,
+  source kind, HTTP status, file id), never as error text. Only
+  `core/telemetry` imports Sentry, which detekt's `ForbiddenImport` enforces.
+- The SDK is `sentry-android-core` alone: JVM crashes, ANRs and release-health
+  sessions, with no NDK, replay, tracing, logs or metrics. Release builds
+  upload no R8 mapping yet, so their stack traces stay obfuscated.
+
+Tests: `DiagnosticsGateTest`, `SentryBoundaryTest`, `TelemetryRedactionTest`,
+`SentryConfigurationTest`, `AccountSettingsDiagnosticsTest`,
+`PlaybackTelemetryTest`, `MobileDiagnosticsSessionTest`,
+`TvDiagnosticsSessionTest`, `PutioAuthSessionGatewayTest`,
+`PutioTvSessionGatewayTest`.
+
 ## Recent searches
 
 Recent searches are the account's `/config` `searchHistory` list, newest first

@@ -140,7 +140,7 @@ private val MEDIA_UNSUPPORTED_ERROR_CODES = setOf(
 
 private val RELAYED_RESPONSE_CODE = Regex("""Response code: (\d{3})""")
 
-private fun String.relayedResponseCode(): Int? = RELAYED_RESPONSE_CODE.find(this)?.groupValues?.get(1)?.toIntOrNull()
+internal fun String.relayedResponseCode(): Int? = RELAYED_RESPONSE_CODE.find(this)?.groupValues?.get(1)?.toIntOrNull()
 
 public fun Double.toPlaybackMillis(): Long =
     (this * MILLIS_PER_SECOND)

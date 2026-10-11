@@ -263,6 +263,23 @@ public fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
     return ConfirmedDefaultSort(ready.preferences.defaultSort).takeUnless { unsettledWrite }
 }
 
+/**
+ * Whether crash and error reports may leave the device, or null while the settings are unloaded.
+ * While a Diagnostics write is unsettled or failed, off wins: an opt-out stops reporting before
+ * put.io confirms it, and an opt-in waits for the confirmation.
+ */
+public fun AccountSettingsState.diagnosticsAllowed(): Boolean? {
+    val ready = content as? AccountSettingsContent.Ready ?: return null
+    val (change, previous) = when (val current = mutation) {
+        AccountSettingsMutation.Idle -> null to null
+        is AccountSettingsMutation.Saving -> current.change to current.previousPreferences
+        is AccountSettingsMutation.Failed -> current.change to current.previousPreferences
+    }
+    val unsettled = (change as? AccountSettingsChange.Toggle)?.takeIf { it.key == AccountSettingsKey.Diagnostics }
+    return ready.preferences.diagnosticsEnabled &&
+        (unsettled == null || unsettled.enabled && previous?.diagnosticsEnabled == true)
+}
+
 // Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed".
 @JvmInline
 public value class ConfirmedDefaultSort(internal val sort: FilesSort?)

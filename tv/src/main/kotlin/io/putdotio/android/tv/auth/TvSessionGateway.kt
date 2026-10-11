@@ -24,6 +24,8 @@ data class TvAccount(
     val historyEnabled: Boolean = false,
     val avatarUrl: String? = null,
     val inactiveNotice: InactiveAccountNotice? = null,
+    /** The account's `diagnostics_enabled` at sign-in; the session's settings answers supersede it. */
+    val diagnosticsEnabled: Boolean = true,
 )
 
 internal sealed interface TvSessionValidation {
@@ -117,6 +119,7 @@ internal fun AccountInfo.toTvAccount(): TvAccount =
         historyEnabled = settings.historyEnabled,
         avatarUrl = avatarUrl.takeIf { it.isNotBlank() },
         inactiveNotice = inactiveAccountNotice(),
+        diagnosticsEnabled = settings.diagnosticsEnabled,
     )
 
 enum class TvLinkFailure {

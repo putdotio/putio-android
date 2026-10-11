@@ -52,12 +52,14 @@ import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
+import io.putdotio.android.settings.diagnosticsAllowed
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.sharing.MobilePublicLinksViewModel
 import io.putdotio.android.sharing.PublicLinksController
 import io.putdotio.android.sharing.SdkPublicLinksRepository
+import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersViewModel
 import io.putdotio.android.transfers.SdkTransfersRepository
@@ -237,6 +239,7 @@ private fun SignedInMobileSession(
         ) ?: streaming
     }
     RememberResumeSettingEffect(runtime, account.userId, accountSettingsController)
+    DiagnosticsAnswerEffect(accountSettingsController, MobileSessionKey(account.userId, sessionId))
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
     }
@@ -369,6 +372,16 @@ private fun RememberResumeSettingEffect(
     val confirmed = settings.confirmedResumePlayback()
     LaunchedEffect(runtime, userId, confirmed) {
         confirmed?.let { runtime.offlinePositions?.store(userId)?.rememberResumeSetting(it) }
+    }
+}
+
+/** Every answer the account gives, the Privacy toggle included, reaches diagnostics at once. */
+@Composable
+private fun DiagnosticsAnswerEffect(accountSettingsController: AccountSettingsController, session: MobileSessionKey) {
+    LaunchedEffect(accountSettingsController, session) {
+        accountSettingsController.state.collect { state ->
+            state.diagnosticsAllowed()?.let { PutioDiagnostics.accountAnswered(session, it) }
+        }
     }
 }
 

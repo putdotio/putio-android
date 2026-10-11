@@ -38,6 +38,8 @@ import io.putdotio.android.settings.AccountSettingsController
 import io.putdotio.android.settings.AccountSettingsRepository
 import io.putdotio.android.settings.AndroidAppConfigController
 import io.putdotio.android.settings.AndroidAppConfigRepository
+import io.putdotio.android.settings.diagnosticsAllowed
+import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
@@ -114,6 +116,8 @@ internal class TvSession internal constructor(
     sessionCurrent: () -> Boolean,
     parentScope: CoroutineScope,
     private val watchNext: TvWatchNextRecorder = TvWatchNextRecorder.None,
+    /** Each answer the account's settings give for diagnostics; see `docs/behavior.md#diagnostics`. */
+    onDiagnosticsAnswer: (Boolean) -> Unit = {},
 ) {
     private val recentSearches = dependencies.recentSearchStore(parentScope)
     val files = FilesBrowserController(dependencies.filesRepository, parentScope)
@@ -202,6 +206,9 @@ internal class TvSession internal constructor(
         // A card whose file put.io no longer has, or that another device finished, leaves the row.
         scope.launch {
             watchNext.reconcile(filesItemResolver::resolveItem)?.let { mutableFileActionFailure.value = it }
+        }
+        scope.launch {
+            settings.state.collect { state -> state.diagnosticsAllowed()?.let(onDiagnosticsAnswer) }
         }
     }
 
@@ -384,6 +391,7 @@ internal class TvSessionViewModel(
                 sessionCurrent = { authState.value.sessionKey() == key },
                 parentScope = viewModelScope,
                 watchNext = dependencies.watchNext(account.userId, sessionId),
+                onDiagnosticsAnswer = { enabled -> PutioDiagnostics.accountAnswered(key, enabled) },
             )
         }
     }

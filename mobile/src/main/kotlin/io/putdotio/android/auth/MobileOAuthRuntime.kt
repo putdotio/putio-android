@@ -17,6 +17,7 @@ import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileDrags
 import io.putdotio.android.share.MobileFileShareService
+import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
@@ -199,6 +200,10 @@ class MobileOAuthRuntime internal constructor(
                 ),
                 clearAccountLocalState = { MobileMoveTargetStore.clearAll(context) },
             )
+            // Sessions also change without a UI, so the process scope tells diagnostics.
+            applicationScope.launch {
+                authController.state.collect { PutioDiagnostics.sessionChanged(it.diagnosticsSession()) }
+            }
             return MobileOAuthRuntime(
                 putioClient = putioClient,
                 authController = authController,
