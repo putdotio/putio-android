@@ -469,14 +469,6 @@ private fun LazyListScope.privacyControlsItems(
             onChange = onChange,
         )
     }
-    item(key = PRIVACY_CONTROLS_NOTE_KEY) {
-        Text(
-            text = stringResource(R.string.mobile_settings_privacy_controls_note),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
 }
 
 @Composable
@@ -1115,7 +1107,6 @@ private const val SUBTITLES_HEADER_KEY = "account-settings-subtitles-header"
 private const val PRIVACY_STORAGE_HEADER_KEY = "account-settings-privacy-storage-header"
 private const val PRIVACY_CONTROLS_HEADER_KEY = "account-settings-privacy-controls-header"
 private const val STRICTLY_NECESSARY_KEY = "account-settings-strictly-necessary"
-private const val PRIVACY_CONTROLS_NOTE_KEY = "account-settings-privacy-controls-note"
 private const val PLAYBACK_HEADER_KEY = "app-config-playback-header"
 private const val APP_CONFIG_LOADING_KEY = "app-config-loading"
 private const val APP_CONFIG_ERROR_KEY = "app-config-error"

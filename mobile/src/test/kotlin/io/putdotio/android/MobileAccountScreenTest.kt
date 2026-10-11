@@ -263,8 +263,6 @@ class MobileAccountScreenTest {
                 events.last(),
             )
         }
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG)
-            .performScrollToNode(hasText("These choices apply to every put.io app you sign in to."))
         compose.onAllNodesWithText("Support chat").assertCountEquals(0)
         compose.runOnIdle { assertEquals(2, events.size) }
     }
