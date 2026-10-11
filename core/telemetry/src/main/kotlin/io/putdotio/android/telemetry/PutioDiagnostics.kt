@@ -41,14 +41,17 @@ public object PutioDiagnostics {
     }
 }
 
-private class PreferencesConsentStore(context: Context) : DiagnosticsConsentStore {
+private class PreferencesConsentStore(private val context: Context) : DiagnosticsConsentStore {
     private val preferences = context.getSharedPreferences("io.put.diagnostics", Context.MODE_PRIVATE)
 
     @set:SuppressLint("ApplySharedPref")
     override var answer: Boolean
         get() = preferences.getBoolean(ANSWER, true)
         set(value) {
-            preferences.edit().putBoolean(ANSWER, value).commit()
+            val written = preferences.edit().putBoolean(ANSWER, value).commit()
+            // An opt-out that never reaches disk leaves the next launch reading on, so if the process
+            // dies before the queued purge, what is cached would upload; purge now instead.
+            if (!written && !value) purgeDiagnosticsCache(context.cacheDir)
         }
 
     @set:SuppressLint("ApplySharedPref")
