@@ -1004,22 +1004,27 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
 - The answer read at sign-in applies first; each settings read and the mobile
   Privacy toggle supersede it in the running app. An opt-out stops capture at
   once, before put.io confirms it; an opt-in waits for the confirmation.
-- Turning diagnostics off, or launching with it off, closes the SDK and deletes
-  everything waiting for upload. While off, a transport gate holds every
-  upload, and nothing recorded before an opt-in, such as an ANR from the
-  opt-out period that Android reports later, is sent after it.
+- Sentry starts in `Application.onCreate`, before any screen or service;
+  content providers start earlier and are not covered. Turning diagnostics off,
+  or launching with it off, closes the SDK and deletes everything waiting for
+  upload. While off, a transport gate holds every upload; an SDK still closing
+  never reopens it, and nothing recorded before an opt-in, such as an ANR from
+  the opt-out period that Android reports later, is sent after it.
 - Events post through `relay.put.io`, which forwards only allowlisted Sentry
   projects; the app swaps the DSN's host for it. The `surface` tag says
   `mobile` or `tv`, the environment is the channel flavor, and the release is
   `<application id>@<version name>+<version code>`.
 - Every event and breadcrumb, the SDK's automatic ones included, passes the
-  redaction boundary in `core/telemetry`: URLs keep only their host;
-  credentials, file paths and media filenames are removed; request data,
-  extras and user fields other than the installation id are dropped; only
-  allowlisted tags and device contexts remain. Player failures are reported as
-  putio-web's `playback_failure` identifiers (failure mode, Media3 error code,
-  source kind, HTTP status, file id), never as error text. Only
-  `core/telemetry` imports Sentry, which detekt's `ForbiddenImport` enforces.
+  redaction boundary in `core/telemetry`. Exception messages are dropped,
+  since a media title has no shape to detect; the exception type and stack
+  trace stay. Elsewhere URLs keep only their host; credentials, file paths and
+  media filenames are removed; request data, extras and user fields other than
+  the installation id are dropped; only allowlisted tags and device contexts
+  remain. Player failures are reported as putio-web's `playback_failure`
+  identifiers (failure mode, Media3 error code, source kind, HTTP status, file
+  id), never as error text: video from the player screen, audio from the
+  background audio service. Only `core/telemetry` imports Sentry, which
+  detekt's `ForbiddenImport` enforces.
 - The SDK is `sentry-android-core` alone: JVM crashes, ANRs and release-health
   sessions, with no NDK, replay, tracing, logs or metrics. Release builds
   upload no R8 mapping yet, so their stack traces stay obfuscated.

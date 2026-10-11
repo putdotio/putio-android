@@ -28,9 +28,9 @@ class DiagnosticsGateTest {
     fun noAnswerYetCountsAsOn() {
         val gate = gate().apply { start() }
 
-        assertEquals(listOf("start"), runtime.calls)
+        assertEquals(listOf("start at launch"), runtime.calls)
         assertTrue(gate.isCapturing)
-        assertTrue(gate.admits(clock))
+        assertTrue(runtime.filters.single().admits(clock))
     }
 
     @Test
@@ -41,15 +41,31 @@ class DiagnosticsGateTest {
 
         gate.accountAnswered(SESSION, enabled = false)
         assertFalse(gate.isCapturing)
-        assertFalse(gate.admits(recordedWhileOn))
-        assertEquals(listOf("start", "stop"), runtime.calls)
+        assertFalse(runtime.filters.single().admits(recordedWhileOn))
+        assertEquals(listOf("start at launch", "stop"), runtime.calls)
 
         val recordedWhileOff = ++clock
         clock += 1_000
         gate.accountAnswered(SESSION, enabled = true)
-        assertEquals(listOf("start", "stop", "start"), runtime.calls)
-        assertTrue(gate.admits(clock))
-        assertFalse("a report from the opt-out period left after opting in", gate.admits(recordedWhileOff))
+        assertEquals(listOf("start at launch", "stop", "start"), runtime.calls)
+        val reopened = runtime.filters.last()
+        assertTrue(reopened.admits(clock))
+        assertFalse("a report from the opt-out period left after opting in", reopened.admits(recordedWhileOff))
+    }
+
+    @Test
+    fun anSdkStillClosingAfterAnOptOutCannotUploadThroughALaterOptIn() {
+        val gate = gate().apply { start() }
+        gate.update(DiagnosticsSession.SignedIn(SESSION, diagnosticsEnabled = true))
+        val closing = runtime.filters.single()
+
+        gate.accountAnswered(SESSION, enabled = false)
+        gate.accountAnswered(SESSION, enabled = true)
+
+        assertTrue(gate.isCapturing)
+        assertFalse("the closing SDK's transport reopened", closing.isCapturing)
+        assertFalse(closing.admits(clock))
+        assertTrue(runtime.filters.last().isCapturing)
     }
 
     @Test
@@ -58,7 +74,7 @@ class DiagnosticsGateTest {
         gate.update(DiagnosticsSession.SignedIn(SESSION, diagnosticsEnabled = false))
 
         assertFalse(gate.isCapturing)
-        assertEquals(listOf("start", "stop"), runtime.calls)
+        assertEquals(listOf("start at launch", "stop"), runtime.calls)
         assertEquals(false, store.answer)
     }
 
@@ -73,7 +89,7 @@ class DiagnosticsGateTest {
         gate.update(DiagnosticsSession.SignedOut)
         assertTrue(gate.isCapturing)
         assertNull("the signed-out device kept the departed account's answer", store.answer)
-        assertEquals(listOf("start", "stop", "start"), runtime.calls)
+        assertEquals(listOf("start at launch", "stop", "start"), runtime.calls)
     }
 
     @Test
@@ -104,7 +120,7 @@ class DiagnosticsGateTest {
         gate.update(DiagnosticsSession.SignedIn("next", diagnosticsEnabled = true))
         gate.accountAnswered(SESSION, enabled = false)
         assertTrue(gate.isCapturing)
-        assertEquals(listOf("start"), runtime.calls)
+        assertEquals(listOf("start at launch"), runtime.calls)
     }
 
     private fun gate(configuration: SentryConfiguration? = this.configuration) =
@@ -117,10 +133,12 @@ class DiagnosticsGateTest {
 
     private class RecordingRuntime : DiagnosticsRuntime {
         val calls = mutableListOf<String>()
+        val filters = mutableListOf<DiagnosticsFilter>()
 
-        override fun start(configuration: SentryConfiguration, filter: DiagnosticsFilter) {
+        override fun start(configuration: SentryConfiguration, filter: DiagnosticsFilter, launch: Boolean) {
             assertTrue("started while the filter refuses", filter.isCapturing)
-            calls += "start"
+            filters += filter
+            calls += if (launch) "start at launch" else "start"
         }
 
         override fun stopAndPurge() {

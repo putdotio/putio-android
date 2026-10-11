@@ -106,13 +106,15 @@ internal object SentryBoundary {
             params = message.params?.map(TelemetryRedaction::scrub)
         }
 
+    // A throwable's message can quote anything, a media title included, and titles have no
+    // shape to scrub; the exception's type and stack trace identify the crash without it.
     private fun redact(exception: SentryException) {
-        exception.value = exception.value?.let(TelemetryRedaction::scrub)
+        exception.value = null
         exception.type = exception.type?.let(TelemetryRedaction::scrub)
         exception.module = exception.module?.let(TelemetryRedaction::scrub)
         exception.unknown = null
         exception.mechanism?.apply {
-            description = description?.let(TelemetryRedaction::scrub)
+            description = null
             helpLink = null
             meta = meta?.let(TelemetryRedaction::scrubMap)
             data = data?.let(TelemetryRedaction::scrubMap)

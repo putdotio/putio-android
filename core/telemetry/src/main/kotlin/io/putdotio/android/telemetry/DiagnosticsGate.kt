@@ -1,6 +1,6 @@
 package io.putdotio.android.telemetry
 
-/** What Sentry's callbacks ask before anything leaves the process. */
+/** What one started SDK's callbacks and transport ask before anything leaves the process. */
 internal interface DiagnosticsFilter {
     val isCapturing: Boolean
 
@@ -9,7 +9,8 @@ internal interface DiagnosticsFilter {
 }
 
 internal interface DiagnosticsRuntime {
-    fun start(configuration: SentryConfiguration, filter: DiagnosticsFilter)
+    /** [launch] starts before `Application.onCreate` returns, so a crash right after launch is caught. */
+    fun start(configuration: SentryConfiguration, filter: DiagnosticsFilter, launch: Boolean)
 
     /** Closes the SDK and deletes every event, crash report, and session waiting for upload. */
     fun stopAndPurge()
@@ -24,13 +25,24 @@ internal class DiagnosticsGate(
     private val configuration: SentryConfiguration?,
     private val consent: DiagnosticsConsent,
     private val runtime: DiagnosticsRuntime,
-) : DiagnosticsFilter {
-    @Volatile
-    override var isCapturing: Boolean = false
-        private set
+) {
+    /**
+     * One uninterrupted on-period. Each start gets its own, and an ended period never reopens,
+     * so an SDK still closing after an opt-out cannot upload through a later opt-in.
+     */
+    private inner class OnPeriod(private val since: Long) : DiagnosticsFilter {
+        override val isCapturing: Boolean
+            get() = current === this
+
+        // Exit-info reports (ANRs, native crashes) are read back at start, stamped when they happened.
+        override fun admits(timestampMillis: Long): Boolean = isCapturing && timestampMillis >= since
+    }
 
     @Volatile
-    private var capturingSince: Long = Long.MAX_VALUE
+    private var current: OnPeriod? = null
+
+    val isCapturing: Boolean
+        get() = current != null
 
     @Synchronized
     fun start() = apply(launch = true)
@@ -45,17 +57,15 @@ internal class DiagnosticsGate(
         if (consent.accountAnswered(key, enabled)) apply()
     }
 
-    // Exit-info reports (ANRs, native crashes) are read back at start, stamped when they happened.
-    override fun admits(timestampMillis: Long): Boolean = isCapturing && timestampMillis >= capturingSince
-
     private fun apply(launch: Boolean = false) {
         val capturing = configuration != null && consent.isEnabled
         if (!launch && capturing == isCapturing) return
-        capturingSince = consent.enabledSince ?: Long.MAX_VALUE
-        isCapturing = capturing
         if (configuration != null && capturing) {
-            runtime.start(configuration, this)
+            val period = OnPeriod(consent.enabledSince ?: Long.MAX_VALUE)
+            current = period
+            runtime.start(configuration, period, launch)
         } else {
+            current = null
             runtime.stopAndPurge()
         }
     }

@@ -4,7 +4,10 @@ import android.app.Application
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.telemetry.SentryConfiguration
 
-/** Starts diagnostics before any screen, service or provider, so a crash at launch is reported too. */
+/**
+ * Starts diagnostics before any screen or service, so a crash right after launch is reported
+ * too. Content providers are created before this runs and stay outside it.
+ */
 class PutioApplication : Application() {
     override fun onCreate() {
         super.onCreate()

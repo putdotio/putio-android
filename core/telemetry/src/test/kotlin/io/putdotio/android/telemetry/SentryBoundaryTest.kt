@@ -124,6 +124,7 @@ class SentryBoundaryTest {
         assertEquals("Android", event.contexts.operatingSystem?.name)
         assertEquals("synthetic-installation", event.user?.id)
         assertEquals("IOException", event.exceptions?.single()?.type)
+        assertNull("an exception message left the device", event.exceptions?.single()?.value)
         assertEquals("[url:media.example.invalid]", event.breadcrumbs?.single()?.getData("url"))
         assertNull(event.request)
         assertNull(event.extras)
@@ -295,12 +296,12 @@ class SentryBoundaryTest {
     private fun leakyException(): SentryException =
         SentryException().apply {
             type = "IOException"
-            value = "Cannot open ${Synthetic.FILE_PATH} at ${Synthetic.SIGNED_URL}"
+            value = "Could not render ${Synthetic.TITLE} from ${Synthetic.FILE_PATH} at ${Synthetic.SIGNED_URL}"
             module = "io.putdotio ${Synthetic.FILE_NAME}"
             unknown = mapOf("title" to Synthetic.TITLE)
             mechanism = Mechanism().apply {
                 type = "generic"
-                description = "token=${Synthetic.TOKEN}"
+                description = "Cannot decode ${Synthetic.TITLE}, token=${Synthetic.TOKEN}"
                 helpLink = Synthetic.SIGNED_URL
                 data = mapOf("url" to Synthetic.SIGNED_URL, "title" to Synthetic.TITLE)
                 meta = mapOf("detail" to Synthetic.FILE_PATH)

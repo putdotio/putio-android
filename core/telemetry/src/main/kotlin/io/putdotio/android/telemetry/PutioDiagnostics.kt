@@ -70,33 +70,38 @@ private class PreferencesConsentStore(context: Context) : DiagnosticsConsentStor
 }
 
 /**
- * Starts and closes the SDK on one background thread, in the order the gate asked. Closing
- * flushes through the closed transport gate, so pending envelopes land on disk, and the purge
- * after it deletes them.
+ * Starts the SDK at launch on the calling thread, so the crash handler is in place before the
+ * first screen or service; every later start and close runs on one background thread, in the
+ * order the gate asked. Closing flushes through the ended period's transport gate, so pending
+ * envelopes land on disk, and the purge after it deletes them.
  */
 private class SentryRuntime(private val context: Context) : DiagnosticsRuntime {
-    override fun start(configuration: SentryConfiguration, filter: DiagnosticsFilter) = enqueue {
-        SentryAndroid.init(context) { options ->
-            SentryBoundary.configure(options, configuration, filter, diagnosticsCacheDir(context.cacheDir).path)
-            options.isAttachScreenshot = false
-            options.isAttachViewHierarchy = false
+    override fun start(configuration: SentryConfiguration, filter: DiagnosticsFilter, launch: Boolean) {
+        val step = {
+            SentryAndroid.init(context) { options ->
+                SentryBoundary.configure(options, configuration, filter, diagnosticsCacheDir(context.cacheDir).path)
+                options.isAttachScreenshot = false
+                options.isAttachViewHierarchy = false
+            }
         }
+        if (launch) guarded(step) else executor.execute { guarded(step) }
     }
 
-    override fun stopAndPurge() = enqueue {
-        if (Sentry.isEnabled()) Sentry.close()
-        purgeDiagnosticsCache(context.cacheDir)
-    }
+    override fun stopAndPurge() =
+        executor.execute {
+            guarded {
+                if (Sentry.isEnabled()) Sentry.close()
+                purgeDiagnosticsCache(context.cacheDir)
+            }
+        }
 
     // Diagnostics must never take the app down; a failed step is logged and the next one runs.
     @Suppress("TooGenericExceptionCaught")
-    private fun enqueue(step: () -> Unit) {
-        executor.execute {
-            try {
-                step()
-            } catch (error: Exception) {
-                Log.w(LOG_TAG, "diagnostics step failed: ${error.javaClass.simpleName}")
-            }
+    private fun guarded(step: () -> Unit) {
+        try {
+            step()
+        } catch (error: Exception) {
+            Log.w(LOG_TAG, "diagnostics step failed: ${error.javaClass.simpleName}")
         }
     }
 

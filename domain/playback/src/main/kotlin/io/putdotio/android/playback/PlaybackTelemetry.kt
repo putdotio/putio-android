@@ -1,6 +1,8 @@
 package io.putdotio.android.playback
 
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.datasource.HttpDataSource
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.telemetry.TelemetryFailure
@@ -12,7 +14,29 @@ import io.putdotio.sdk.files.PlaybackSourceKind
  * `playback_failure` contract (schema 1) in identifiers only. The exception's message and
  * cause chain, which can quote media URLs, never leave the device.
  */
-public fun PlaybackState.playerFailureTelemetry(failure: PlaybackFailure): TelemetryFailure {
+public fun PlaybackState.playerFailureTelemetry(failure: PlaybackFailure): TelemetryFailure =
+    playbackFailureTelemetry(
+        failure = failure,
+        fileId = target.fileId.value,
+        mediaType = target.mediaType,
+        sourceKind = (content as? PlaybackContent.Ready)?.source?.kind,
+    )
+
+/** The same report for a player no [PlaybackState] follows, such as the background audio service's. */
+public fun Player.playerFailureTelemetry(error: PlaybackException, mediaType: PlaybackMediaType): TelemetryFailure {
+    val item = currentMediaItem
+    val sourceKind = item?.localConfiguration?.let { local ->
+        if (local.mimeType == MimeTypes.APPLICATION_M3U8) PlaybackSourceKind.HLS else PlaybackSourceKind.MP4
+    }
+    return playbackFailureTelemetry(error.toPlaybackFailure(), item?.mediaId?.toLongOrNull(), mediaType, sourceKind)
+}
+
+internal fun playbackFailureTelemetry(
+    failure: PlaybackFailure,
+    fileId: Long?,
+    mediaType: PlaybackMediaType,
+    sourceKind: PlaybackSourceKind?,
+): TelemetryFailure {
     val causes = generateSequence(failure.cause) { it.cause }.take(MAX_CAUSES).toList()
     val exception = causes.filterIsInstance<PlaybackException>().firstOrNull()
     val status = causes.firstNotNullOfOrNull { cause ->
@@ -29,10 +53,10 @@ public fun PlaybackState.playerFailureTelemetry(failure: PlaybackFailure): Telem
         put(TelemetryTag.PlaybackFailureMode, mode)
         put(TelemetryTag.EngineErrorCategory, exception?.errorCode?.let(::errorCategory) ?: "none")
         put(TelemetryTag.EngineErrorCode, code)
-        put(TelemetryTag.SourceKind, sourceKind())
+        put(TelemetryTag.SourceKind, sourceKind.tagValue())
         status?.let { put(TelemetryTag.SourceRequestStatus, it.toString()) }
-        put(TelemetryTag.MediaType, target.mediaType.name)
-        put(TelemetryTag.FileId, target.fileId.value.toString())
+        put(TelemetryTag.MediaType, mediaType.name)
+        fileId?.let { put(TelemetryTag.FileId, it.toString()) }
     }
     return TelemetryFailure(EVENT, listOf(mode, code), tags)
 }
@@ -68,8 +92,8 @@ private fun errorCategory(code: Int): String =
         else -> "other"
     }
 
-private fun PlaybackState.sourceKind(): String =
-    when ((content as? PlaybackContent.Ready)?.source?.kind) {
+private fun PlaybackSourceKind?.tagValue(): String =
+    when (this) {
         PlaybackSourceKind.HLS -> "hls"
         PlaybackSourceKind.MP4, PlaybackSourceKind.ORIGINAL -> "direct"
         null -> "unknown"
