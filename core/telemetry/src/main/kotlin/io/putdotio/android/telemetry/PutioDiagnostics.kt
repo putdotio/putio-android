@@ -45,7 +45,7 @@ public object PutioDiagnostics {
     }
 }
 
-private class PreferencesConsentStore(context: Context) : DiagnosticsConsentStore {
+private class PreferencesConsentStore(private val context: Context) : DiagnosticsConsentStore {
     private val preferences = context.getSharedPreferences("io.put.diagnostics", Context.MODE_PRIVATE)
 
     // commit(), not apply(): see the setter.
@@ -57,7 +57,8 @@ private class PreferencesConsentStore(context: Context) : DiagnosticsConsentStor
             if (value == null) editor.remove(ANSWER) else editor.putBoolean(ANSWER, value)
             // On disk before the purge is even queued: a process killed in between must still
             // launch with the opt-out, or Sentry would upload what the purge was meant to delete.
-            editor.commit()
+            // When the write fails, the purge cannot wait for the queue.
+            if (!editor.commit() && value == false) purgeDiagnosticsCache(context.cacheDir)
         }
 
     @set:SuppressLint("ApplySharedPref")

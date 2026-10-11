@@ -95,6 +95,16 @@ class DiagnosticsGateTest {
     }
 
     @Test
+    fun repeatedAnswersWriteTheStoreOnce() {
+        val gate = gate().apply { start() }
+        gate.update(DiagnosticsSession.SignedIn(SESSION, diagnosticsEnabled = true))
+        repeat(3) { gate.accountAnswered(SESSION, enabled = true) }
+        repeat(2) { gate.update(DiagnosticsSession.SignedOut) }
+
+        assertEquals(2, store.answerWrites)
+    }
+
+    @Test
     fun aColdLaunchHonoursTheLastAnswerUntilTheSessionResolves() {
         store.answer = false
         val gate = gate().apply { start() }
@@ -129,7 +139,12 @@ class DiagnosticsGateTest {
         DiagnosticsGate(configuration, DiagnosticsConsent(store) { clock }, runtime)
 
     private class MemoryStore : DiagnosticsConsentStore {
+        var answerWrites = 0
         override var answer: Boolean? = null
+            set(value) {
+                answerWrites++
+                field = value
+            }
         override var enabledSince: Long? = null
     }
 

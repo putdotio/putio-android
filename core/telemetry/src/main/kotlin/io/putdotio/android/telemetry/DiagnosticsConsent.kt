@@ -53,7 +53,7 @@ internal class DiagnosticsConsent(
             }
             DiagnosticsSession.SignedOut -> {
                 signedInKey = null
-                store.answer = null
+                if (store.answer != null) store.answer = null
                 apply(true)
             }
             is DiagnosticsSession.SignedIn -> {
@@ -69,8 +69,9 @@ internal class DiagnosticsConsent(
     fun accountAnswered(key: Any, enabled: Boolean): Boolean =
         key == signedInKey && answer(enabled)
 
+    // The store writes synchronously, so an unchanged answer skips it.
     private fun answer(enabled: Boolean): Boolean {
-        store.answer = enabled
+        if (store.answer != enabled) store.answer = enabled
         return apply(enabled)
     }
 
