@@ -46,7 +46,6 @@ class MobilePlaybackService : MediaSessionService() {
                     if (taskRemoved && player.stopsWithTask()) stopSelf()
                 }
 
-                // The service owns the audio player, screen or not, so it reports audio failures.
                 override fun onPlayerError(error: PlaybackException) {
                     PutioDiagnostics.capture(player.playerFailureTelemetry(error, PlaybackMediaType.AUDIO))
                 }

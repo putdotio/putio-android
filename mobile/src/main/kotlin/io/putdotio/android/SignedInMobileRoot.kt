@@ -239,7 +239,6 @@ private fun SignedInMobileSession(
         ) ?: streaming
     }
     RememberResumeSettingEffect(runtime, account.userId, accountSettingsController)
-    // Each settings read and the Privacy toggle reach diagnostics at once.
     LaunchedEffect(accountSettingsController) {
         accountSettingsController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
     }

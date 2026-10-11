@@ -7,14 +7,7 @@ import io.putdotio.android.telemetry.SentryConfiguration
 class PutioApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        PutioDiagnostics.start(
-            this,
-            SentryConfiguration.of(
-                dsn = BuildConfig.PUTIO_SENTRY_DSN,
-                environment = BuildConfig.FLAVOR,
-                release = "${BuildConfig.APPLICATION_ID}@${BuildConfig.VERSION_NAME}+${BuildConfig.VERSION_CODE}",
-                surface = "mobile",
-            ),
-        )
+        val configuration = SentryConfiguration.of(BuildConfig.PUTIO_SENTRY_DSN, BuildConfig.FLAVOR, surface = "mobile")
+        PutioDiagnostics.start(this, configuration)
     }
 }

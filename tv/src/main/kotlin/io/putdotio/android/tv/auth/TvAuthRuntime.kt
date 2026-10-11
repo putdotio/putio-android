@@ -102,7 +102,7 @@ class TvAuthRuntime internal constructor(
     }
 }
 
-/** Null while restoring, validating or signing out, so the last answer stands; linking is signed out, so on. */
+/** Null while restoring, validating, signing out, or unable to read or clear the token, so the last answer stands. */
 internal fun TvAuthState.diagnosticsAllowed(): Boolean? =
     when (this) {
         TvAuthState.Initializing,
@@ -112,6 +112,6 @@ internal fun TvAuthState.diagnosticsAllowed(): Boolean? =
         TvAuthState.SigningOut,
         -> null
 
-        is TvAuthState.Linking -> true
+        is TvAuthState.Linking -> true.takeUnless { phase == TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable) }
         is TvAuthState.SignedIn -> account.diagnosticsEnabled
     }

@@ -16,7 +16,7 @@ public object PutioDiagnostics {
     private lateinit var preferences: SharedPreferences
     private var configuration: SentryConfiguration? = null
 
-    internal val allowed: Boolean get() = preferences.getBoolean(ALLOWED, true)
+    private val allowed: Boolean get() = preferences.getBoolean(ALLOWED, true)
 
     /** Once per process, from `Application.onCreate`; a null [configuration] keeps Sentry off. */
     @Synchronized
@@ -27,7 +27,6 @@ public object PutioDiagnostics {
         apply(allowed, launch = true)
     }
 
-    /** Each answer the session gives: the account's, or true once signed out. */
     @Synchronized
     @SuppressLint("ApplySharedPref")
     public fun update(allowed: Boolean) {

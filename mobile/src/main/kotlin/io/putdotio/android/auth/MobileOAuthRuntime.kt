@@ -255,7 +255,7 @@ internal fun oauthRuntimeFailureLog(error: Exception): String =
 
 private const val MOBILE_OAUTH_LOG_TAG = "PutioOAuth"
 
-/** Null while restoring, validating or signing out, so the last answer stands; signed out, diagnostics are on. */
+/** Null while restoring, validating, signing out, or unable to read or clear the token, so the last answer stands. */
 internal fun MobileAuthState.diagnosticsAllowed(): Boolean? =
     when (this) {
         MobileAuthState.Initializing,
@@ -265,6 +265,7 @@ internal fun MobileAuthState.diagnosticsAllowed(): Boolean? =
         MobileAuthState.SigningOut,
         -> null
 
-        is MobileAuthState.SignedOut, MobileAuthState.AwaitingOAuthCallback -> true
+        is MobileAuthState.SignedOut -> true.takeUnless { reason == MobileSignedOutReason.SecureStorageUnavailable }
+        MobileAuthState.AwaitingOAuthCallback -> true
         is MobileAuthState.SignedIn -> account.diagnosticsEnabled
     }

@@ -999,8 +999,9 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
 
 - Signed out, or before any account answered, counts as on. The device keeps
   the last account's answer, so a cold launch honours an opt-out before the
-  session restores. Restoring, validating and signing out keep it; signed out,
-  diagnostics are on again.
+  session restores. Restoring, validating, signing out, and a secure store that
+  cannot be read or cleared keep it, since the token may still be on the
+  device; signed out, diagnostics are on again.
 - The answer read at sign-in applies first; each settings read and the mobile
   Privacy toggle supersede it in the running app. An opt-out stops capture at
   once, before put.io confirms it; an opt-in waits for the confirmation.
@@ -1011,7 +1012,8 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
   closing never reopens it. A start after an opt-in drops events stamped before
   it, such as an ANR from the opt-out period that Android reports later; if the
   app dies before that start reads Android's exit history, the next launch can
-  still report the ANR.
+  still report the ANR. So can the first launch of a build with a DSN after
+  one without, since a build without a DSN never reads that history.
 - Events post through `relay.put.io`, which forwards only allowlisted Sentry
   projects; the app swaps the DSN's host for it. The `surface` tag says
   `mobile` or `tv`, the environment is the channel flavor, and the release is

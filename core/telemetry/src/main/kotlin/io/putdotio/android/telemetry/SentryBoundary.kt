@@ -32,7 +32,8 @@ internal object SentryBoundary {
     private val executor = Executors.newSingleThreadExecutor()
 
     @Volatile
-    private var current: Period? = null
+    var current: Period? = null
+        private set
 
     /** One uninterrupted on-period. Each SDK checks its own, so one still closing never reopens. */
     class Period(val since: Long) {
@@ -50,7 +51,6 @@ internal object SentryBoundary {
         if (launch) runCatching(init) else executor.submit(init)
     }
 
-    /** Closes the SDK, then deletes every event, crash report and session it kept for upload. */
     fun stop(cacheDir: File): Future<*> {
         current = null
         executor.submit { Sentry.close() }
@@ -68,7 +68,6 @@ internal object SentryBoundary {
     fun configure(options: SentryOptions, configuration: SentryConfiguration, period: Period, cacheDir: File) {
         options.dsn = configuration.dsn
         options.environment = configuration.environment
-        options.release = configuration.release
         options.cacheDirPath = cacheDir.path
         options.maxBreadcrumbs = 0
         // Cached envelopes and sessions upload without passing beforeSend.

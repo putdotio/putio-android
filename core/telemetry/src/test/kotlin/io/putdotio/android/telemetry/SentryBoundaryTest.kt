@@ -87,18 +87,19 @@ class SentryBoundaryTest {
         assertTrue(closing.transportGate.isConnected)
 
         SentryBoundary.stop(cacheDir).get()
+        assertFalse("an opt-out left the transport open", closing.transportGate.isConnected)
+        assertFalse("pending envelopes would upload at the next start", pending.exists())
         val reopened = configured(SentryBoundary.open(launch = false), cacheDir)
 
         assertNull(closing.beforeSend?.execute(SentryEvent(), Hint()))
         assertFalse("the closing SDK's transport reopened", closing.transportGate.isConnected)
-        assertFalse("pending envelopes would upload at the next start", pending.exists())
         assertNull("an ANR from the opted-out period left", reopened.beforeSend?.execute(SentryEvent(Date(0)), Hint()))
         assertNotNull(reopened.beforeSend?.execute(SentryEvent(), Hint()))
     }
 
     private fun configured(period: SentryBoundary.Period, cacheDir: File = File("/nonexistent")): SentryOptions =
         SentryOptions().also { options ->
-            val configuration = SentryConfiguration.of("https://synthetickey@o0.example.invalid/1", "n", "r", "tv")
+            val configuration = SentryConfiguration.of("https://synthetickey@o0.example.invalid/1", "n", "tv")
             SentryBoundary.configure(options, checkNotNull(configuration), period, cacheDir)
         }
 

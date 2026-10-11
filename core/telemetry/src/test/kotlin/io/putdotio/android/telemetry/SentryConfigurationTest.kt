@@ -10,11 +10,10 @@ class SentryConfigurationTest {
         val configuration = SentryConfiguration.of(
             dsn = "https://synthetickey@o0.ingest.example.invalid/4500000000000001",
             environment = "nightly",
-            release = "r",
             surface = "tv",
         )
 
         assertEquals("https://synthetickey@relay.put.io/4500000000000001", configuration?.dsn)
-        assertNull(SentryConfiguration.of("", "production", "r", "mobile"))
+        assertNull(SentryConfiguration.of("", "production", "mobile"))
     }
 }

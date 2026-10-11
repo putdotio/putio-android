@@ -13,6 +13,7 @@ class TvDiagnosticsTest {
             TvAuthState.ValidatingSession(TvSessionValidationSource.RESTORE),
             TvAuthState.ValidationUnavailable(TvSessionValidationSource.RETRY),
             TvAuthState.SigningOut,
+            TvAuthState.Linking(TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable)),
         ).forEach { state -> assertNull("$state", state.diagnosticsAllowed()) }
         assertEquals(true, TvAuthState.Linking(TvLinkPhase.RequestingCode, sessionExpired = true).diagnosticsAllowed())
 

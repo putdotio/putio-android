@@ -13,6 +13,7 @@ class MobileDiagnosticsTest {
             MobileAuthState.ValidatingSession(SessionValidationSource.RESTORE),
             MobileAuthState.ValidationUnavailable(SessionValidationSource.RETRY),
             MobileAuthState.SigningOut,
+            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
         ).forEach { state -> assertNull("$state", state.diagnosticsAllowed()) }
         assertEquals(true, MobileAuthState.SignedOut(MobileSignedOutReason.SessionExpired).diagnosticsAllowed())
         assertEquals(true, MobileAuthState.AwaitingOAuthCallback.diagnosticsAllowed())

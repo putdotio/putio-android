@@ -268,15 +268,10 @@ public fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
  * While a Diagnostics write is unsettled or failed, off wins: an opt-out stops reporting before
  * put.io confirms it, and an opt-in waits for the confirmation.
  */
-public fun AccountSettingsState.diagnosticsAllowed(): Boolean? {
-    val ready = content as? AccountSettingsContent.Ready ?: return null
-    val unsettled = when (val current = mutation) {
-        AccountSettingsMutation.Idle -> null
-        is AccountSettingsMutation.Saving -> current.change
-        is AccountSettingsMutation.Failed -> current.change
+public fun AccountSettingsState.diagnosticsAllowed(): Boolean? =
+    (content as? AccountSettingsContent.Ready)?.let {
+        confirmedPreferences(AccountSettingsKey.Diagnostics)?.diagnosticsEnabled == true
     }
-    return ready.preferences.diagnosticsEnabled && unsettled?.key != AccountSettingsKey.Diagnostics
-}
 
 // Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed".
 @JvmInline
