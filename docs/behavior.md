@@ -1014,22 +1014,21 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
   projects; the app swaps the DSN's host for it. The `surface` tag says
   `mobile` or `tv`, the environment is the channel flavor, and the release is
   `<application id>@<version name>+<version code>`.
-- Every event and breadcrumb, the SDK's automatic ones included, passes the
-  redaction boundary in `core/telemetry`. Exception messages are dropped,
-  since a media title has no shape to detect; the exception type and stack
-  trace stay. Elsewhere URLs keep only their host; credentials, file paths and
-  media filenames are removed; request data, extras and user fields other than
-  the installation id are dropped; only allowlisted tags and device contexts
-  remain. Player failures are reported as putio-web's `playback_failure`
-  identifiers (failure mode, Media3 error code, source kind, HTTP status, file
-  id), never as error text: video from the player screen, audio from the
-  background audio service. Only `core/telemetry` imports Sentry, which
-  detekt's `ForbiddenImport` enforces.
+- Every event, crashes and ANRs included, leaves as a new one built from an
+  allowlist in `core/telemetry`: exception types and stack frames, level,
+  release metadata, the installation id, a few OS and device facts, and the
+  `surface` and player-failure tags. Exception messages, request data, extras,
+  threads, and any field a Sentry upgrade adds stay on the device; the SDK
+  keeps no breadcrumbs and takes no screenshots. Player failures are reported
+  as putio-web's `playback_failure` codes (failure mode, Media3 error code,
+  source kind, HTTP status, file id), never as error text: video from the
+  player screen, audio from the background audio service. Only `core/telemetry`
+  imports Sentry, which detekt's `ForbiddenImport` enforces.
 - The SDK is `sentry-android-core` alone: JVM crashes, ANRs and release-health
   sessions, with no NDK, replay, tracing, logs or metrics. Release builds
   upload no R8 mapping yet, so their stack traces stay obfuscated.
 
-Tests: `DiagnosticsGateTest`, `SentryBoundaryTest`, `TelemetryRedactionTest`,
+Tests: `DiagnosticsGateTest`, `SentryBoundaryTest`,
 `SentryConfigurationTest`, `AccountSettingsDiagnosticsTest`,
 `PlaybackTelemetryTest`, `MobileDiagnosticsSessionTest`,
 `TvDiagnosticsSessionTest`, `PutioAuthSessionGatewayTest`,

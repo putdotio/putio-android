@@ -4,7 +4,10 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import io.sentry.Hint
 import io.sentry.Sentry
+import io.sentry.SentryEvent
+import io.sentry.SentryLevel
 import io.sentry.android.core.SentryAndroid
 import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
@@ -12,10 +15,8 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 /**
- * The apps' only way to Sentry; `docs/behavior.md#diagnostics` describes the rules. Sentry runs
- * only while the build carries a DSN and the account allows diagnostics: the apps report every
- * session change and every answer the account gives, and the gate starts or stops the SDK in the
- * running process.
+ * The apps' only way to Sentry (`docs/behavior.md#diagnostics`). The apps report every session
+ * change and every answer the account gives; the gate starts or stops the SDK in the running process.
  */
 public object PutioDiagnostics {
     @Volatile
@@ -26,7 +27,7 @@ public object PutioDiagnostics {
     public fun start(application: Application, configuration: SentryConfiguration?) {
         gate = DiagnosticsGate(
             configuration = configuration,
-            consent = DiagnosticsConsent(PreferencesConsentStore(application)),
+            store = PreferencesConsentStore(application),
             runtime = SentryRuntime(application),
         ).also(DiagnosticsGate::start)
     }
@@ -48,7 +49,6 @@ public object PutioDiagnostics {
 private class PreferencesConsentStore(private val context: Context) : DiagnosticsConsentStore {
     private val preferences = context.getSharedPreferences("io.put.diagnostics", Context.MODE_PRIVATE)
 
-    // commit(), not apply(): see the setter.
     @set:SuppressLint("ApplySharedPref")
     override var answer: Boolean?
         get() = if (preferences.contains(ANSWER)) preferences.getBoolean(ANSWER, true) else null
@@ -86,8 +86,6 @@ private class SentryRuntime(private val context: Context) : DiagnosticsRuntime {
         val step = {
             SentryAndroid.init(context) { options ->
                 SentryBoundary.configure(options, configuration, filter, diagnosticsCacheDir(context.cacheDir).path)
-                options.isAttachScreenshot = false
-                options.isAttachViewHierarchy = false
             }
         }
         if (launch) guarded(step) else executor.execute { guarded(step) }
@@ -106,7 +104,12 @@ private class SentryRuntime(private val context: Context) : DiagnosticsRuntime {
 
     // Queued behind any start, so a failure right after an opt-in reaches the new SDK.
     override fun capture(failure: TelemetryFailure) =
-        executor.execute { guarded { Sentry.captureEvent(SentryBoundary.event(failure)) } }
+        executor.execute {
+            guarded {
+                val hint = Hint().apply { set(SentryBoundary.FAILURE_HINT, failure) }
+                Sentry.captureEvent(SentryEvent().apply { level = SentryLevel.ERROR }, hint)
+            }
+        }
 
     // Diagnostics must never take the app down; a failed step is logged and the next one runs.
     @Suppress("TooGenericExceptionCaught")

@@ -32,7 +32,7 @@ class PlaybackTelemetryTest {
 
         val telemetry = playing(PlaybackSourceKind.HLS).playerFailureTelemetry(error.toPlaybackFailure())
 
-        assertEquals(listOf("playback_failure", "source_gone", "io_bad_http_status"), telemetry.fingerprint)
+        assertEquals("source_gone, io_bad_http_status", telemetry.code)
         assertEquals(
             mapOf(
                 "telemetry_event" to "playback_failure",
@@ -64,10 +64,7 @@ class PlaybackTelemetryTest {
         assertEquals("decode", mode(PlaybackException.ERROR_CODE_DECODER_INIT_FAILED))
         assertEquals("unknown", mode(PlaybackException.ERROR_CODE_UNSPECIFIED))
         assertEquals("direct", report(PlaybackException.ERROR_CODE_UNSPECIFIED).tags["source_kind"])
-        assertEquals(
-            "playback_failure (decode, decoder_init_failed)",
-            report(PlaybackException.ERROR_CODE_DECODER_INIT_FAILED).message,
-        )
+        assertEquals("decode, decoder_init_failed", report(PlaybackException.ERROR_CODE_DECODER_INIT_FAILED).code)
     }
 
     @Test

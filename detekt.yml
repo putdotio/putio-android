@@ -27,5 +27,5 @@ style:
     active: true
     imports:
       - value: 'io.sentry.*'
-        reason: 'Report through core/telemetry, so every event passes its redaction boundary.'
+        reason: 'Report through core/telemetry, so every event passes its allowlist.'
     excludes: ['**/core/telemetry/**']

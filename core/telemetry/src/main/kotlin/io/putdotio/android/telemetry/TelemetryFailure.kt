@@ -2,7 +2,7 @@ package io.putdotio.android.telemetry
 
 /**
  * The tags a reported failure may carry, named after putio-web's `playback_failure` contract so
- * one Sentry search covers every put.io player. The redaction boundary drops every other tag.
+ * one Sentry search covers every put.io player.
  */
 public enum class TelemetryTag(internal val key: String) {
     TelemetryEvent("telemetry_event"),
@@ -20,25 +20,24 @@ public enum class TelemetryTag(internal val key: String) {
 }
 
 /**
- * A failure an app reports, reduced to identifiers: lowercase letters, digits, `_`, `.` and
- * `-`, at most 64 of them. Anything else becomes `unknown`, so error text, URLs, paths,
- * filenames and media titles cannot get here. Events group by [event] and [reasons], never
- * by message text.
+ * A failure an app reports, sent as one exception: [type], with [code] as its value, plus [tags].
+ * Every part must be a code of lowercase letters, digits and `_`, or it is sent as `unknown`.
+ * That shape rejects error text, URLs, paths and filenames but not a one-word name, so callers
+ * pass codes and ids only.
  */
 public class TelemetryFailure(
-    event: String,
+    type: String,
     reasons: List<String>,
     tags: Map<TelemetryTag, String>,
 ) {
-    public val fingerprint: List<String> = (listOf(event) + reasons).map(::identifier)
+    public val type: String = code(type)
 
-    /** The issue title, such as `playback_failure (network, io_network_connection_failed)`. */
-    public val message: String =
-        fingerprint.first() + if (reasons.isEmpty()) "" else fingerprint.drop(1).joinToString(", ", " (", ")")
+    /** Such as `network, io_network_connection_failed`; Sentry groups failures by type and code. */
+    public val code: String = reasons.joinToString(", ", transform = ::code)
 
-    public val tags: Map<String, String> = tags.entries.associate { (tag, value) -> tag.key to identifier(value) }
+    public val tags: Map<String, String> = tags.entries.associate { (tag, value) -> tag.key to code(value) }
 }
 
-private val IDENTIFIER = Regex("[a-z0-9_.-]{1,64}")
+private val CODE = Regex("[a-z0-9_]{1,64}")
 
-private fun identifier(value: String): String = value.lowercase().takeIf(IDENTIFIER::matches) ?: "unknown"
+private fun code(value: String): String = value.takeIf(CODE::matches) ?: "unknown"

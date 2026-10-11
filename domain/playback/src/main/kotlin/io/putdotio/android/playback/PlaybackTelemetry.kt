@@ -11,8 +11,8 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 
 /**
  * The diagnostics report for a player failure while this state plays: putio-web's
- * `playback_failure` contract (schema 1) in identifiers only. The exception's message and
- * cause chain, which can quote media URLs, never leave the device.
+ * `playback_failure` contract (schema 1) in codes only. The exception's message and cause chain,
+ * which can quote media URLs, never leave the device.
  */
 public fun PlaybackState.playerFailureTelemetry(failure: PlaybackFailure): TelemetryFailure =
     playbackFailureTelemetry(
@@ -43,7 +43,7 @@ internal fun playbackFailureTelemetry(
         (cause as? HttpDataSource.InvalidResponseCodeException)?.responseCode ?: cause.message?.relayedResponseCode()
     }
     val mode = failureMode(failure, exception?.errorCode, status)
-    val code = exception?.errorCodeName?.removePrefix("ERROR_CODE_") ?: "none"
+    val code = exception?.errorCodeName?.removePrefix("ERROR_CODE_")?.lowercase() ?: "none"
     val tags = buildMap {
         put(TelemetryTag.TelemetryEvent, EVENT)
         put(TelemetryTag.SchemaVersion, "1")
@@ -55,7 +55,7 @@ internal fun playbackFailureTelemetry(
         put(TelemetryTag.EngineErrorCode, code)
         put(TelemetryTag.SourceKind, sourceKind.tagValue())
         status?.let { put(TelemetryTag.SourceRequestStatus, it.toString()) }
-        put(TelemetryTag.MediaType, mediaType.name)
+        put(TelemetryTag.MediaType, mediaType.name.lowercase())
         fileId?.let { put(TelemetryTag.FileId, it.toString()) }
     }
     return TelemetryFailure(EVENT, listOf(mode, code), tags)
