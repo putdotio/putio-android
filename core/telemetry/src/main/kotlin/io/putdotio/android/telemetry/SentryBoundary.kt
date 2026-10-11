@@ -13,6 +13,7 @@ import io.sentry.protocol.Message
 import io.sentry.protocol.OperatingSystem
 import io.sentry.protocol.SentryException
 import io.sentry.protocol.SentryRuntime
+import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.User
 
 /**
@@ -20,7 +21,7 @@ import io.sentry.protocol.User
  * connectivity ones, passes [redact] before it can leave; while diagnostics are off they are
  * dropped instead. Fields not rewritten here pass through on purpose: SDK-maintained metadata
  * (`eventId`, `timestamp`, `level`, `platform`, `release`, `environment`, `dist`, `sdk`,
- * `modules`) and code identifiers (`threads` stack traces, `debugMeta`).
+ * `modules`) and code identifiers (stack frames, held locks, `debugMeta`).
  * `SentryBoundaryTest` fails when a Sentry upgrade adds a field this has not reviewed.
  */
 internal object SentryBoundary {
@@ -86,6 +87,7 @@ internal object SentryBoundary {
             threads?.forEach { thread ->
                 thread.name = thread.name?.let(TelemetryRedaction::scrub)
                 thread.unknown = null
+                thread.stacktrace?.let { redact(it) }
             }
             breadcrumbs = breadcrumbs?.map { redact(it) }
             unknown = null
@@ -113,12 +115,26 @@ internal object SentryBoundary {
         exception.type = exception.type?.let(TelemetryRedaction::scrub)
         exception.module = exception.module?.let(TelemetryRedaction::scrub)
         exception.unknown = null
+        exception.stacktrace?.let { redact(it) }
         exception.mechanism?.apply {
             description = null
             helpLink = null
             meta = meta?.let(TelemetryRedaction::scrubMap)
             data = data?.let(TelemetryRedaction::scrubMap)
             unknown = null
+        }
+    }
+
+    // Frames keep code identifiers. Source lines and local variables, which the JVM SDK leaves
+    // empty, are dropped in case an integration fills them.
+    private fun redact(stacktrace: SentryStackTrace) {
+        stacktrace.unknown = null
+        stacktrace.frames?.forEach { frame ->
+            frame.contextLine = null
+            frame.preContext = null
+            frame.postContext = null
+            frame.vars = null
+            frame.unknown = null
         }
     }
 

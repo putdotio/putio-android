@@ -14,6 +14,8 @@ internal interface DiagnosticsRuntime {
 
     /** Closes the SDK and deletes every event, crash report, and session waiting for upload. */
     fun stopAndPurge()
+
+    fun capture(failure: TelemetryFailure)
 }
 
 /**
@@ -55,6 +57,10 @@ internal class DiagnosticsGate(
     @Synchronized
     fun accountAnswered(key: Any, enabled: Boolean) {
         if (consent.accountAnswered(key, enabled)) apply()
+    }
+
+    fun capture(failure: TelemetryFailure) {
+        if (isCapturing) runtime.capture(failure)
     }
 
     private fun apply(launch: Boolean = false) {

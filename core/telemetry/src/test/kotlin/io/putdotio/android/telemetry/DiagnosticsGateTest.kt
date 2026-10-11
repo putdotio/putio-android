@@ -40,14 +40,16 @@ class DiagnosticsGateTest {
         val recordedWhileOn = clock
 
         gate.accountAnswered(SESSION, enabled = false)
+        gate.capture(FAILURE)
         assertFalse(gate.isCapturing)
         assertFalse(runtime.filters.single().admits(recordedWhileOn))
-        assertEquals(listOf("start at launch", "stop"), runtime.calls)
+        assertEquals("a failure was captured while off", listOf("start at launch", "stop"), runtime.calls)
 
         val recordedWhileOff = ++clock
         clock += 1_000
         gate.accountAnswered(SESSION, enabled = true)
-        assertEquals(listOf("start at launch", "stop", "start"), runtime.calls)
+        gate.capture(FAILURE)
+        assertEquals(listOf("start at launch", "stop", "start", "capture"), runtime.calls)
         val reopened = runtime.filters.last()
         assertTrue(reopened.admits(clock))
         assertFalse("a report from the opt-out period left after opting in", reopened.admits(recordedWhileOff))
@@ -144,9 +146,14 @@ class DiagnosticsGateTest {
         override fun stopAndPurge() {
             calls += "stop"
         }
+
+        override fun capture(failure: TelemetryFailure) {
+            calls += "capture"
+        }
     }
 
     private companion object {
         const val SESSION = "session-1"
+        val FAILURE = TelemetryFailure("playback_failure", listOf("network"), emptyMap())
     }
 }

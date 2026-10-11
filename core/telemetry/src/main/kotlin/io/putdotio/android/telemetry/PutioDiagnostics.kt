@@ -40,7 +40,7 @@ public object PutioDiagnostics {
     }
 
     public fun capture(failure: TelemetryFailure) {
-        if (gate?.isCapturing == true) Sentry.captureEvent(SentryBoundary.event(failure))
+        gate?.capture(failure)
     }
 }
 
@@ -90,10 +90,17 @@ private class SentryRuntime(private val context: Context) : DiagnosticsRuntime {
     override fun stopAndPurge() =
         executor.execute {
             guarded {
-                if (Sentry.isEnabled()) Sentry.close()
-                purgeDiagnosticsCache(context.cacheDir)
+                try {
+                    if (Sentry.isEnabled()) Sentry.close()
+                } finally {
+                    purgeDiagnosticsCache(context.cacheDir)
+                }
             }
         }
+
+    // Queued behind any start, so a failure right after an opt-in reaches the new SDK.
+    override fun capture(failure: TelemetryFailure) =
+        executor.execute { guarded { Sentry.captureEvent(SentryBoundary.event(failure)) } }
 
     // Diagnostics must never take the app down; a failed step is logged and the next one runs.
     @Suppress("TooGenericExceptionCaught")

@@ -7,6 +7,7 @@ import io.sentry.JsonSerializer
 import io.sentry.SentryBaseEvent
 import io.sentry.SentryEvent
 import io.sentry.SentryLevel
+import io.sentry.SentryLockReason
 import io.sentry.SentryOptions
 import io.sentry.protocol.App
 import io.sentry.protocol.Contexts
@@ -20,6 +21,8 @@ import io.sentry.protocol.Request
 import io.sentry.protocol.Response
 import io.sentry.protocol.SentryException
 import io.sentry.protocol.SentryRuntime
+import io.sentry.protocol.SentryStackFrame
+import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.SentryThread
 import io.sentry.protocol.User
 import java.io.File
@@ -61,6 +64,19 @@ class SentryBoundaryTest {
             "synthetic", "thread", "type", "unknown",
         ),
         Message::class.java to setOf("formatted", "message", "params", "unknown"),
+        SentryThread::class.java to setOf(
+            "crashed", "current", "daemon", "heldLocks", "id", "main", "name", "priority", "stacktrace", "state",
+            "unknown",
+        ),
+        SentryStackTrace::class.java to setOf(
+            "frames", "instructionAddressAdjustment", "registers", "snapshot", "unknown",
+        ),
+        SentryStackFrame::class.java to setOf(
+            "_native", "_package", "absPath", "addrMode", "colno", "contextLine", "filename", "framesOmitted",
+            "function", "imageAddr", "inApp", "instructionAddr", "lineno", "lock", "module", "platform",
+            "postContext", "preContext", "rawFunction", "symbol", "symbolAddr", "unknown", "vars",
+        ),
+        SentryLockReason::class.java to setOf("address", "className", "packageName", "threadId", "type", "unknown"),
         Request::class.java to setOf(
             "apiTarget", "bodySize", "cookies", "data", "env", "fragment", "headers", "method", "other",
             "queryString", "unknown", "url",
@@ -250,6 +266,7 @@ class SentryBoundaryTest {
                 SentryThread().apply {
                     name = "download ${Synthetic.FILE_NAME}"
                     unknown = mapOf("t" to Synthetic.TITLE)
+                    stacktrace = leakyStacktrace()
                 },
             )
             breadcrumbs = listOf(leakyBreadcrumb())
@@ -299,6 +316,7 @@ class SentryBoundaryTest {
             value = "Could not render ${Synthetic.TITLE} from ${Synthetic.FILE_PATH} at ${Synthetic.SIGNED_URL}"
             module = "io.putdotio ${Synthetic.FILE_NAME}"
             unknown = mapOf("title" to Synthetic.TITLE)
+            stacktrace = leakyStacktrace()
             mechanism = Mechanism().apply {
                 type = "generic"
                 description = "Cannot decode ${Synthetic.TITLE}, token=${Synthetic.TOKEN}"
@@ -308,6 +326,21 @@ class SentryBoundaryTest {
                 unknown = mapOf("title" to Synthetic.TITLE)
             }
         }
+
+    private fun leakyStacktrace(): SentryStackTrace =
+        SentryStackTrace(
+            listOf(
+                SentryStackFrame().apply {
+                    function = "play"
+                    module = "io.putdotio.android.playback.PlaybackController"
+                    contextLine = "play(\"${Synthetic.TITLE}\")"
+                    preContext = listOf(Synthetic.SIGNED_URL)
+                    postContext = listOf(Synthetic.FILE_PATH)
+                    vars = mapOf("title" to Synthetic.TITLE)
+                    unknown = mapOf("t" to Synthetic.TITLE)
+                },
+            ),
+        ).apply { unknown = mapOf("t" to Synthetic.TITLE) }
 
     private fun leakyBreadcrumb(): Breadcrumb =
         Breadcrumb().apply {
