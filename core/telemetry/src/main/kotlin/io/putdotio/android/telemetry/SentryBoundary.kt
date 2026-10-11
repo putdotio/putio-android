@@ -7,6 +7,7 @@ import io.sentry.protocol.App
 import io.sentry.protocol.Device
 import io.sentry.protocol.Mechanism
 import io.sentry.protocol.OperatingSystem
+import io.sentry.protocol.SdkVersion
 import io.sentry.protocol.SentryException
 import io.sentry.protocol.SentryStackFrame
 import io.sentry.protocol.SentryStackTrace
@@ -56,7 +57,7 @@ internal object SentryBoundary {
             release = event.release
             environment = event.environment
             dist = event.dist
-            sdk = event.sdk
+            sdk = event.sdk?.let { sdk -> SdkVersion(sdk.name, sdk.version) }
             user = event.user?.id?.let { id -> User().apply { this.id = id } }
             tags = mapOf(SURFACE_TAG to surface) + failure?.tags.orEmpty()
             exceptions = if (failure == null) {

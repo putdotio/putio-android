@@ -18,6 +18,7 @@ import io.sentry.protocol.Message
 import io.sentry.protocol.OperatingSystem
 import io.sentry.protocol.Request
 import io.sentry.protocol.Response
+import io.sentry.protocol.SdkVersion
 import io.sentry.protocol.SentryException
 import io.sentry.protocol.SentryStackFrame
 import io.sentry.protocol.SentryStackTrace
@@ -120,6 +121,7 @@ class SentryBoundaryTest {
         SentryEvent().apply {
             level = SentryLevel.FATAL
             release = "io.put.putio@0.1.0+1"
+            sdk = SdkVersion("sentry.java.android", "8.60.0").apply { unknown = mapOf(LEAK to LEAK) }
             message = Message().apply {
                 formatted = LEAK
                 message = LEAK
