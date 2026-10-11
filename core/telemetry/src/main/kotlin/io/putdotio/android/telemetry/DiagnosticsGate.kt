@@ -51,27 +51,34 @@ internal class DiagnosticsGate(
 
     @Synchronized
     fun update(session: DiagnosticsSession) {
-        if (consent.update(session)) apply()
+        if (consent.update(session)) apply() else consent.persist()
     }
 
     @Synchronized
     fun accountAnswered(key: Any, enabled: Boolean) {
-        if (consent.accountAnswered(key, enabled)) apply()
+        if (consent.accountAnswered(key, enabled)) apply() else consent.persist()
     }
 
     fun capture(failure: TelemetryFailure) {
         if (isCapturing) runtime.capture(failure)
     }
 
+    // Capture stops before the answer is written; the purge is queued once it is on disk, so a
+    // process killed in between still launches with the opt-out.
     private fun apply(launch: Boolean = false) {
         val capturing = configuration != null && consent.isEnabled
-        if (!launch && capturing == isCapturing) return
+        if (!launch && capturing == isCapturing) {
+            consent.persist()
+            return
+        }
         if (configuration != null && capturing) {
+            consent.persist()
             val period = OnPeriod(consent.enabledSince ?: Long.MAX_VALUE)
             current = period
             runtime.start(configuration, period, launch)
         } else {
             current = null
+            consent.persist()
             runtime.stopAndPurge()
         }
     }

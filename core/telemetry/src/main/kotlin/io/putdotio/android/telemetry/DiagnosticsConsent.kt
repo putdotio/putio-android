@@ -27,22 +27,29 @@ internal interface DiagnosticsConsentStore {
  * Whether crash and error reports may leave the device: the signed-in account's
  * `diagnostics_enabled`, and on while signed out or before any account answered. The last
  * answer is kept so a cold launch honours an opt-out before the session restores.
+ *
+ * Answers apply in memory first; [persist] writes them, so the gate can stop capture before
+ * the blocking write and queue the purge after it.
  */
 internal class DiagnosticsConsent(
     private val store: DiagnosticsConsentStore,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
-    var isEnabled: Boolean = store.answer ?: true
+    private var answer: Boolean? = store.answer
+
+    var isEnabled: Boolean = answer ?: true
+        private set
+
+    /** When the current uninterrupted on-period began, in epoch milliseconds; null while off. */
+    var enabledSince: Long? = store.enabledSince
         private set
 
     private var signedInKey: Any? = null
 
     init {
         recordOnPeriod()
+        persist()
     }
-
-    val enabledSince: Long?
-        get() = store.enabledSince
 
     /** Applies the session's answer; true when [isEnabled] changed. */
     fun update(session: DiagnosticsSession): Boolean =
@@ -53,7 +60,7 @@ internal class DiagnosticsConsent(
             }
             DiagnosticsSession.SignedOut -> {
                 signedInKey = null
-                if (store.answer != null) store.answer = null
+                answer = null
                 apply(true)
             }
             is DiagnosticsSession.SignedIn -> {
@@ -69,9 +76,14 @@ internal class DiagnosticsConsent(
     fun accountAnswered(key: Any, enabled: Boolean): Boolean =
         key == signedInKey && answer(enabled)
 
-    // The store writes synchronously, so an unchanged answer skips it.
+    /** Writes what changed since the last write; the store writes synchronously. */
+    fun persist() {
+        if (store.answer != answer) store.answer = answer
+        if (store.enabledSince != enabledSince) store.enabledSince = enabledSince
+    }
+
     private fun answer(enabled: Boolean): Boolean {
-        if (store.answer != enabled) store.answer = enabled
+        answer = enabled
         return apply(enabled)
     }
 
@@ -84,8 +96,8 @@ internal class DiagnosticsConsent(
 
     private fun recordOnPeriod() {
         when {
-            !isEnabled -> store.enabledSince = null
-            store.enabledSince == null -> store.enabledSince = now()
+            !isEnabled -> enabledSince = null
+            enabledSince == null -> enabledSince = now()
         }
     }
 }

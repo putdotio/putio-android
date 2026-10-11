@@ -95,6 +95,21 @@ class DiagnosticsGateTest {
     }
 
     @Test
+    fun anOptOutStopsCaptureBeforeItsWriteAndQueuesThePurgeAfter() {
+        lateinit var gate: DiagnosticsGate
+        store.onAnswerWrite = { runtime.calls += "write ${store.answer}, capturing ${gate.isCapturing}" }
+        gate = gate().apply { start() }
+        gate.update(DiagnosticsSession.SignedIn(SESSION, diagnosticsEnabled = true))
+
+        gate.accountAnswered(SESSION, enabled = false)
+
+        assertEquals(
+            listOf("start at launch", "write true, capturing true", "write false, capturing false", "stop"),
+            runtime.calls,
+        )
+    }
+
+    @Test
     fun repeatedAnswersWriteTheStoreOnce() {
         val gate = gate().apply { start() }
         gate.update(DiagnosticsSession.SignedIn(SESSION, diagnosticsEnabled = true))
@@ -140,10 +155,12 @@ class DiagnosticsGateTest {
 
     private class MemoryStore : DiagnosticsConsentStore {
         var answerWrites = 0
+        var onAnswerWrite: () -> Unit = {}
         override var answer: Boolean? = null
             set(value) {
                 answerWrites++
                 field = value
+                onAnswerWrite()
             }
         override var enabledSince: Long? = null
     }

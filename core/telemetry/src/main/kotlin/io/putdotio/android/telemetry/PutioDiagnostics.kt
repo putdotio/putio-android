@@ -55,9 +55,8 @@ private class PreferencesConsentStore(private val context: Context) : Diagnostic
         set(value) {
             val editor = preferences.edit()
             if (value == null) editor.remove(ANSWER) else editor.putBoolean(ANSWER, value)
-            // On disk before the purge is even queued: a process killed in between must still
-            // launch with the opt-out, or Sentry would upload what the purge was meant to delete.
-            // When the write fails, the purge cannot wait for the queue.
+            // On disk before the purge is queued (see DiagnosticsGate); when the write fails, the
+            // purge cannot wait for the queue.
             if (!editor.commit() && value == false) purgeDiagnosticsCache(context.cacheDir)
         }
 
