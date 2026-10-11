@@ -48,6 +48,7 @@ import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.mobilePlaybackViewModelFactory
+import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberPictureInPictureMode
 import io.putdotio.android.playback.subtitleStartupPolicy
@@ -65,6 +66,7 @@ import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.sharing.MobilePublicLinks
 import io.putdotio.android.sharing.MobilePublicLinksScreen
+import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.transfers.TransfersEvent
@@ -295,7 +297,13 @@ private fun MobilePlaybackRoute(
         onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
         onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },
         onPlayerFailure = { failure, positionMillis ->
-            controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))
+            val playing = controller.state.value
+            // Audio plays on the session service's player, which reports its own failures.
+            if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) &&
+                playing.target.mediaType == PlaybackMediaType.VIDEO
+            ) {
+                PutioDiagnostics.capture(playing.playerFailureTelemetry(failure))
+            }
         },
         onBack = onBack,
         subtitleStartupPolicy = subtitleStartupPolicy,

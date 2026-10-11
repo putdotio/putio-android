@@ -38,6 +38,8 @@ import io.putdotio.android.settings.AccountSettingsController
 import io.putdotio.android.settings.AccountSettingsRepository
 import io.putdotio.android.settings.AndroidAppConfigController
 import io.putdotio.android.settings.AndroidAppConfigRepository
+import io.putdotio.android.settings.diagnosticsAllowed
+import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
@@ -202,6 +204,9 @@ internal class TvSession internal constructor(
         // A card whose file put.io no longer has, or that another device finished, leaves the row.
         scope.launch {
             watchNext.reconcile(filesItemResolver::resolveItem)?.let { mutableFileActionFailure.value = it }
+        }
+        scope.launch {
+            settings.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
         }
     }
 

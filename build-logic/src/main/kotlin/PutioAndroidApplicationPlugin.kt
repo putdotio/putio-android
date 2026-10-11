@@ -48,11 +48,14 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 }
             }
 
+            defaultConfig.buildConfigField("String", "PUTIO_SENTRY_DSN", "\"\"")
+
             buildTypes {
                 getByName("debug") {
                     applicationIdSuffix = ".debug"
                 }
                 getByName("release") {
+                    buildConfigField("String", "PUTIO_SENTRY_DSN", "\"${sentryDsn()}\"")
                     isMinifyEnabled = true
                     isShrinkResources = true
                     proguardFiles(
@@ -105,5 +108,24 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 tasks.named("check") { dependsOn(launcherManifest) }
             }
         }
+    }
+
+    /**
+     * Embedded in a Java string literal, so anything but empty or `https://<key>@<host>/<project id>`
+     * fails the build, without printing the value.
+     */
+    private fun Project.sentryDsn(): String {
+        val dsn = providers.gradleProperty("putioSentryDsn")
+            .orElse(providers.environmentVariable("PUTIO_SENTRY_DSN"))
+            .getOrElse("")
+            .trim()
+        require(dsn.isEmpty() || SENTRY_DSN.matches(dsn)) {
+            "putioSentryDsn must be empty or https://<key>@<host>/<project id>"
+        }
+        return dsn
+    }
+
+    private companion object {
+        val SENTRY_DSN = Regex("""https://[A-Za-z0-9]+@[A-Za-z0-9.-]+/[0-9]+""")
     }
 }

@@ -59,6 +59,13 @@ class PutioTvSessionGatewayTest {
     }
 
     @Test
+    fun `an account that opted out of diagnostics carries its answer`() = runBlocking {
+        val optedOut = PutioTvSessionGateway(FakeBoundary(diagnosticsEnabled = false)).validateSession()
+
+        assertEquals(false, (optedOut as TvSessionValidation.Valid).account.diagnosticsEnabled)
+    }
+
+    @Test
     fun `a false verdict rejects without loading the account`() = runBlocking {
         val boundary = FakeBoundary(validateResult = false)
 
@@ -91,6 +98,7 @@ class PutioTvSessionGatewayTest {
         private val validateResult: Boolean = true,
         private val validationFailure: PutioException? = null,
         private val accountStatus: String = "active",
+        private val diagnosticsEnabled: Boolean = true,
     ) : TvSdkBoundary {
         val calls = mutableListOf<String>()
 
@@ -114,7 +122,11 @@ class PutioTvSessionGatewayTest {
                 mail = "user@example.com",
                 avatarUrl = "https://example.com/avatar.png",
                 disk = AccountDisk(available = 1, size = 2, used = 1),
-                settings = AccountSettings(sortBy = "NAME_ASC", showOptimisticUsage = true),
+                settings = AccountSettings(
+                    sortBy = "NAME_ASC",
+                    showOptimisticUsage = true,
+                    diagnosticsEnabled = diagnosticsEnabled,
+                ),
                 accountStatus = accountStatus,
                 filesWillBeDeletedAt = "2026-10-15T08:00:00".takeIf { accountStatus == "inactive" },
             )

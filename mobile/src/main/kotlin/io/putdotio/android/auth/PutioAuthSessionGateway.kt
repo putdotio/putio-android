@@ -124,4 +124,5 @@ private fun AccountInfo.toMobileAccount(): MobileAccount =
         avatarUrl = avatarUrl,
         storage = toAccountStorage(),
         inactiveNotice = inactiveAccountNotice(),
+        diagnosticsEnabled = settings.diagnosticsEnabled,
     )

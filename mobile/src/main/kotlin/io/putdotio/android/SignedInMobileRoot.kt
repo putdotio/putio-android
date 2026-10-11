@@ -52,12 +52,14 @@ import io.putdotio.android.settings.SdkAndroidAppConfigRepository
 import io.putdotio.android.settings.authoritativeSessionFailure
 import io.putdotio.android.settings.confirmedHistoryEnabled
 import io.putdotio.android.settings.confirmedResumePlayback
+import io.putdotio.android.settings.diagnosticsAllowed
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.sharing.MobilePublicLinksViewModel
 import io.putdotio.android.sharing.PublicLinksController
 import io.putdotio.android.sharing.SdkPublicLinksRepository
+import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersViewModel
 import io.putdotio.android.transfers.SdkTransfersRepository
@@ -237,6 +239,9 @@ private fun SignedInMobileSession(
         ) ?: streaming
     }
     RememberResumeSettingEffect(runtime, account.userId, accountSettingsController)
+    LaunchedEffect(accountSettingsController) {
+        accountSettingsController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
+    }
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
     }

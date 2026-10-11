@@ -9,14 +9,15 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
 
 ## Where code lives
 
-| Module          | Owns                                                                                                                                                                                                                                                                          |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core/common`   | The put.io failure and result kernel (`PutioFailure`, `PutioResult`, `putioRequest`, API rejection reasons), Files ids, cursors and sort order, the download-token account read, timestamps, avatar URLs, account storage keys, `SessionScopedHolder`                         |
-| `core/design`   | `PutioTheme`, generated design tokens, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words                                                                                                                                      |
-| `domain/<name>` | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `sharing` (public links; mobile only so far), `transfers`, `trash` |
-| `mobile`        | Phone and tablet app: touch UI, shell, navigation, offline downloads, the system file picker's documents provider, launcher shortcuts, the home-screen widget, services and session wiring                                                                                    |
-| `tv`            | Android TV app: D-pad UI, shell and session wiring                                                                                                                                                                                                                            |
-| `build-logic`   | Convention plugins (`putio.android.application`, `putio.android.library`), design-token codegen, launcher-manifest check, proof tasks                                                                                                                                         |
+| Module           | Owns                                                                                                                                                                                                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core/common`    | The put.io failure and result kernel (`PutioFailure`, `PutioResult`, `putioRequest`, API rejection reasons), Files ids, cursors and sort order, the download-token account read, timestamps, avatar URLs, account storage keys, `SessionScopedHolder`                         |
+| `core/design`    | `PutioTheme`, generated design tokens, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words                                                                                                                                      |
+| `core/telemetry` | Sentry behind the account's `diagnostics_enabled`: the consent gate, the event allowlist, `TelemetryFailure` and `PutioDiagnostics`, the apps' only way to report ([Diagnostics](docs/behavior.md#diagnostics))                                                               |
+| `domain/<name>`  | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `sharing` (public links; mobile only so far), `transfers`, `trash` |
+| `mobile`         | Phone and tablet app: touch UI, shell, navigation, offline downloads, the system file picker's documents provider, launcher shortcuts, the home-screen widget, services and session wiring                                                                                    |
+| `tv`             | Android TV app: D-pad UI, shell and session wiring                                                                                                                                                                                                                            |
+| `build-logic`    | Convention plugins (`putio.android.application`, `putio.android.library`), design-token codegen, launcher-manifest check, proof tasks                                                                                                                                         |
 
 - Dependencies point from the apps to `domain` to `core`; `history`, `search`
   and `trash` also build on `files` for `FilesItem`. A domain failure with
@@ -27,6 +28,11 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
   declaration stays `internal` unless another module uses it, and a new public
   one needs an explicit `public`. Fakes other modules' tests reuse live in the
   owning module's `src/testFixtures`.
+- Only `core/telemetry` imports Sentry; detekt's `ForbiddenImport` rejects
+  `io.sentry` anywhere else. Report a failure as a `TelemetryFailure` of codes,
+  never as a raw error or message. `SentryBoundary` builds every outgoing event
+  from an allowlist and drops its attachments; a field it does not copy never
+  leaves the device.
 - Mobile and TV share data, domain, theme, and component foundations; their
   shells diverge where input differs. TV should feel like Android TV: Compose
   for TV, D-pad focus, system media sessions, and platform search.

@@ -5,6 +5,7 @@ import io.putdotio.android.auth.KeystoreAuthTokenStore
 import io.putdotio.android.auth.PendingTokenRevocations
 import io.putdotio.android.auth.PutioAuthTokenRevoker
 import io.putdotio.android.search.SdkSearchRepository
+import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.tv.search.TvGlobalSearch
 import io.putdotio.android.tv.search.tvGlobalSearch
 import io.putdotio.android.tv.watchnext.TvProviderWatchNextStore
@@ -16,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Process-wide TV session: one SDK client, one controller, one application scope, and the
@@ -81,6 +83,10 @@ class TvAuthRuntime internal constructor(
                 scope = applicationScope,
                 legacySession = AsyncStorageLegacyTvSession(context),
             )
+            // Sessions also change without a UI, so the process scope tells diagnostics.
+            applicationScope.launch {
+                authController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
+            }
             return TvAuthRuntime(
                 putioClient = putioClient,
                 authController = authController,
@@ -95,3 +101,17 @@ class TvAuthRuntime internal constructor(
         }
     }
 }
+
+/** Null while restoring, validating, signing out, or unable to read or clear the token, so the last answer stands. */
+internal fun TvAuthState.diagnosticsAllowed(): Boolean? =
+    when (this) {
+        TvAuthState.Initializing,
+        TvAuthState.RestoringSession,
+        is TvAuthState.ValidatingSession,
+        is TvAuthState.ValidationUnavailable,
+        TvAuthState.SigningOut,
+        -> null
+
+        is TvAuthState.Linking -> true.takeUnless { phase == TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable) }
+        is TvAuthState.SignedIn -> account.diagnosticsEnabled
+    }

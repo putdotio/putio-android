@@ -103,6 +103,11 @@ TV:
 - Android TV system search lists put.io files through a suggestions provider; a
   chosen result plays or opens in Files
 
+Both apps report crashes and player failures to Sentry only while the
+account's Diagnostics control is on, sending exception types, stack frames,
+device facts and failure codes only ([Diagnostics](docs/behavior.md#diagnostics)).
+No build reports yet: only a release build with a DSN does, and nothing supplies one.
+
 Not started: Chromecast and the Play release lane.
 
 ## Direction

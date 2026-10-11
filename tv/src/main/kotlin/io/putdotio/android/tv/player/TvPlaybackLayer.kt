@@ -11,7 +11,9 @@ import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.SubtitleStartupPolicy
+import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
+import io.putdotio.android.telemetry.PutioDiagnostics
 
 /**
  * Playback replaces the signed-in shell rather than covering it, so no shell control can
@@ -62,7 +64,10 @@ internal fun TvPlaybackRoute(
         onResume = { controller.dispatch(PlaybackEvent.Resume) },
         onRestart = { controller.dispatch(PlaybackEvent.Restart) },
         onPlayerFailure = { failure, positionMillis ->
-            controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))
+            val telemetry = controller.state.value.playerFailureTelemetry(failure)
+            if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))) {
+                PutioDiagnostics.capture(telemetry)
+            }
         },
         onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
         onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },

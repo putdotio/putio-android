@@ -42,6 +42,7 @@ tasks.register<VerifyInstrumentationProofTask>("verifyLaunchProof") {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:design"))
+    implementation(project(":core:telemetry"))
     implementation(project(":domain:account"))
     implementation(project(":domain:auth"))
     implementation(project(":domain:files"))

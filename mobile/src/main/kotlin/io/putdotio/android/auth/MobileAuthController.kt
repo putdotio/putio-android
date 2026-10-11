@@ -19,6 +19,8 @@ data class MobileAccount(
     val avatarUrl: String? = null,
     val storage: AccountStorage = AccountStorage(),
     val inactiveNotice: InactiveAccountNotice? = null,
+    /** The account's `diagnostics_enabled` at sign-in; the settings controller's answers supersede it. */
+    val diagnosticsEnabled: Boolean = true,
 )
 
 @JvmInline

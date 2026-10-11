@@ -53,6 +53,13 @@ class PutioAuthSessionGatewayTest {
     }
 
     @Test
+    fun `an account that opted out of diagnostics carries its answer`() = runBlocking {
+        val optedOut = PutioAuthSessionGateway(FakePutioSdkAuthBoundary(diagnosticsEnabled = false)).validateSession()
+
+        assertEquals(false, (optedOut as SessionValidationResult.Valid).account.diagnosticsEnabled)
+    }
+
+    @Test
     fun `false validation rejects without loading account`() = runBlocking {
         val boundary = FakePutioSdkAuthBoundary(validateResult = false)
         val result = PutioAuthSessionGateway(boundary).validateSession()
@@ -89,6 +96,7 @@ class PutioAuthSessionGatewayTest {
         private val validationFailure: PutioOperationException? = null,
         private val accountStatus: String = "active",
         private val subAccount: Boolean = false,
+        private val diagnosticsEnabled: Boolean = true,
     ) : PutioSdkAuthBoundary {
         val calls = mutableListOf<String>()
 
@@ -106,7 +114,12 @@ class PutioAuthSessionGatewayTest {
 
         override suspend fun getAccountInfo(): AccountInfo {
             calls += "account"
-            return accountInfo().copy(accountStatus = accountStatus, isSubAccount = subAccount)
+            val info = accountInfo()
+            return info.copy(
+                accountStatus = accountStatus,
+                isSubAccount = subAccount,
+                settings = info.settings.copy(diagnosticsEnabled = diagnosticsEnabled),
+            )
         }
     }
 

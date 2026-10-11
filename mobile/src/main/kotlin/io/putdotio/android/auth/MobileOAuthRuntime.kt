@@ -17,6 +17,7 @@ import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.MobileMoveTargetStore
 import io.putdotio.android.share.MobileFileDrags
 import io.putdotio.android.share.MobileFileShareService
+import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
@@ -199,6 +200,10 @@ class MobileOAuthRuntime internal constructor(
                 ),
                 clearAccountLocalState = { MobileMoveTargetStore.clearAll(context) },
             )
+            // Sessions also change without a UI, so the process scope tells diagnostics.
+            applicationScope.launch {
+                authController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
+            }
             return MobileOAuthRuntime(
                 putioClient = putioClient,
                 authController = authController,
@@ -249,3 +254,18 @@ internal fun oauthRuntimeFailureLog(error: Exception): String =
         "error_type=${error.javaClass.simpleName}"
 
 private const val MOBILE_OAUTH_LOG_TAG = "PutioOAuth"
+
+/** Null while restoring, validating, signing out, or unable to read or clear the token, so the last answer stands. */
+internal fun MobileAuthState.diagnosticsAllowed(): Boolean? =
+    when (this) {
+        MobileAuthState.Initializing,
+        MobileAuthState.RestoringSession,
+        is MobileAuthState.ValidatingSession,
+        is MobileAuthState.ValidationUnavailable,
+        MobileAuthState.SigningOut,
+        -> null
+
+        is MobileAuthState.SignedOut -> true.takeUnless { reason == MobileSignedOutReason.SecureStorageUnavailable }
+        MobileAuthState.AwaitingOAuthCallback -> true
+        is MobileAuthState.SignedIn -> account.diagnosticsEnabled
+    }

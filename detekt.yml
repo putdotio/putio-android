@@ -23,3 +23,9 @@ style:
     excludes: ['**/test/**', '**/testFixtures/**', '**/androidTest/**', '**/commonTest/**', '**/jvmTest/**', '**/androidUnitTest/**', '**/androidInstrumentedTest/**', '**/jsTest/**', '**/iosTest/**']
   UnusedPrivateMember:
     ignoreAnnotated: ['Preview']
+  ForbiddenImport:
+    active: true
+    imports:
+      - value: 'io.sentry.*'
+        reason: 'Report through core/telemetry, so every event passes its allowlist.'
+    excludes: ['**/core/telemetry/**']
