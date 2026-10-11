@@ -1,5 +1,6 @@
 package io.putdotio.android.telemetry
 
+import io.sentry.Attachment
 import io.sentry.Breadcrumb
 import io.sentry.Hint
 import io.sentry.JsonSerializer
@@ -39,11 +40,14 @@ class SentryBoundaryTest {
     @Test
     fun anEventLeavesWithItsAllowlistedFieldsOnly() {
         val options = configured(Filter(isCapturing = true))
+        val hint = leakyHint()
 
-        val sent = checkNotNull(options.beforeSend?.execute(leakyEvent(), Hint()))
+        val sent = checkNotNull(options.beforeSend?.execute(leakyEvent(), hint))
 
         val json = StringWriter().also { JsonSerializer(SentryOptions()).serialize(sent, it) }.toString()
         assertEquals(json, emptyList<String>(), LEAKS.filter(json::contains))
+        val attachments = listOfNotNull(hint.screenshot, hint.viewHierarchy, hint.threadDump, hint.tombstone)
+        assertEquals(emptyList<Attachment>(), hint.attachments + attachments)
         assertTrue(Scope(options).apply { addBreadcrumb(leakyBreadcrumb()) }.breadcrumbs.isEmpty())
         assertEquals(SentryLevel.FATAL, sent.level)
         assertEquals("io.put.putio@0.1.0+1", sent.release)
@@ -53,6 +57,7 @@ class SentryBoundaryTest {
         assertEquals("play", sent.exceptions?.single()?.stacktrace?.frames?.single()?.function)
         assertEquals("Pixel", sent.contexts.device?.model)
         assertEquals("16", sent.contexts.operatingSystem?.version)
+        assertEquals("r8-mapping", sent.debugMeta?.images?.single()?.uuid)
     }
 
     @Test
@@ -159,7 +164,16 @@ class SentryBoundaryTest {
                     stacktrace = leakyStacktrace()
                 },
             )
-            debugMeta = DebugMeta().apply { images = listOf(DebugImage().apply { codeFile = LEAK }) }
+            debugMeta = DebugMeta().apply {
+                images = listOf(
+                    DebugImage().apply {
+                        type = DebugImage.PROGUARD
+                        uuid = "r8-mapping"
+                        codeFile = LEAK
+                    },
+                    DebugImage().apply { codeFile = LEAK },
+                )
+            }
             breadcrumbs = listOf(leakyBreadcrumb())
             unknown = mapOf(LEAK to LEAK)
         }
@@ -224,6 +238,16 @@ class SentryBoundaryTest {
                 },
             ),
         ).apply { unknown = mapOf(LEAK to LEAK) }
+
+    private fun leakyHint(): Hint {
+        val attachment = Attachment(LEAK.toByteArray(), LEAK)
+        return Hint.withAttachment(attachment).apply {
+            screenshot = attachment
+            viewHierarchy = attachment
+            threadDump = attachment
+            tombstone = attachment
+        }
+    }
 
     private fun leakyBreadcrumb(): Breadcrumb =
         Breadcrumb().apply {

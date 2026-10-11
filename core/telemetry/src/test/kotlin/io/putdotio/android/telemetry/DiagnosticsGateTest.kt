@@ -2,7 +2,6 @@ package io.putdotio.android.telemetry
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -46,7 +45,6 @@ class DiagnosticsGateTest {
         assertEquals(
             listOf(
                 "start at launch",
-                "write true, capturing true",
                 "write false, capturing false",
                 "stop",
                 "write true, capturing false",
@@ -81,7 +79,6 @@ class DiagnosticsGateTest {
         gate.accountAnswered(SESSION, enabled = false)
 
         assertTrue(gate.isCapturing)
-        assertNull("the signed-out device kept the departed account's answer", store.answer)
         assertEquals(listOf("start at launch", "stop", "start"), runtime.calls)
     }
 
@@ -90,7 +87,7 @@ class DiagnosticsGateTest {
 
     private class MemoryStore : DiagnosticsConsentStore {
         var onAnswerWrite: () -> Unit = {}
-        override var answer: Boolean? = null
+        override var answer: Boolean = true
             set(value) {
                 field = value
                 onAnswerWrite()

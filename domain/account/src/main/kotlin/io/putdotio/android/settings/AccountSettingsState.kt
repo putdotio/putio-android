@@ -270,14 +270,12 @@ public fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
  */
 public fun AccountSettingsState.diagnosticsAllowed(): Boolean? {
     val ready = content as? AccountSettingsContent.Ready ?: return null
-    val (change, previous) = when (val current = mutation) {
-        AccountSettingsMutation.Idle -> null to null
-        is AccountSettingsMutation.Saving -> current.change to current.previousPreferences
-        is AccountSettingsMutation.Failed -> current.change to current.previousPreferences
+    val unsettled = when (val current = mutation) {
+        AccountSettingsMutation.Idle -> null
+        is AccountSettingsMutation.Saving -> current.change
+        is AccountSettingsMutation.Failed -> current.change
     }
-    val unsettled = (change as? AccountSettingsChange.Toggle)?.takeIf { it.key == AccountSettingsKey.Diagnostics }
-    return ready.preferences.diagnosticsEnabled &&
-        (unsettled == null || unsettled.enabled && previous?.diagnosticsEnabled == true)
+    return ready.preferences.diagnosticsEnabled && unsettled?.key != AccountSettingsKey.Diagnostics
 }
 
 // Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed".

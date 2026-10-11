@@ -1000,7 +1000,7 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
 - Signed out, or before any account answered, counts as on. The device keeps
   the last account's answer, so a cold launch honours an opt-out before the
   session restores. Restoring, validating and signing out keep it; signed out,
-  diagnostics are on again and the answer is forgotten.
+  diagnostics are on again.
 - The answer read at sign-in applies first; each settings read and the mobile
   Privacy toggle supersede it in the running app. An opt-out stops capture at
   once, before put.io confirms it; an opt-in waits for the confirmation.
@@ -1016,10 +1016,10 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
   `<application id>@<version name>+<version code>`.
 - Every event, crashes and ANRs included, leaves as a new one built from an
   allowlist in `core/telemetry`: exception types and stack frames, level,
-  release metadata, the installation id, a few OS and device facts, and the
-  `surface` and player-failure tags. Exception messages, request data, extras,
-  threads, and any field a Sentry upgrade adds stay on the device; the SDK
-  keeps no breadcrumbs and takes no screenshots. Player failures are reported
+  release metadata, the R8 mapping id, the installation id, a few OS and device
+  facts, and the `surface` and player-failure tags. Exception messages, request
+  data, extras, threads, attachments, and any field a Sentry upgrade adds stay
+  on the device; the SDK keeps no breadcrumbs. Player failures are reported
   as putio-web's `playback_failure` codes (failure mode, Media3 error code,
   source kind, HTTP status, file id), never as error text: video from the
   player screen, audio from the background audio service. Only `core/telemetry`

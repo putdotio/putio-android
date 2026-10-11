@@ -14,10 +14,6 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
-/**
- * The apps' only way to Sentry (`docs/behavior.md#diagnostics`). The apps report every session
- * change and every answer the account gives; the gate starts or stops the SDK in the running process.
- */
 public object PutioDiagnostics {
     @Volatile
     private var gate: DiagnosticsGate? = null
@@ -36,7 +32,6 @@ public object PutioDiagnostics {
         gate?.update(session)
     }
 
-    /** The account behind [sessionKey] answered from its settings or the Privacy toggle. */
     public fun accountAnswered(sessionKey: Any, diagnosticsEnabled: Boolean) {
         gate?.accountAnswered(sessionKey, diagnosticsEnabled)
     }
@@ -46,18 +41,14 @@ public object PutioDiagnostics {
     }
 }
 
-private class PreferencesConsentStore(private val context: Context) : DiagnosticsConsentStore {
+private class PreferencesConsentStore(context: Context) : DiagnosticsConsentStore {
     private val preferences = context.getSharedPreferences("io.put.diagnostics", Context.MODE_PRIVATE)
 
     @set:SuppressLint("ApplySharedPref")
-    override var answer: Boolean?
-        get() = if (preferences.contains(ANSWER)) preferences.getBoolean(ANSWER, true) else null
+    override var answer: Boolean
+        get() = preferences.getBoolean(ANSWER, true)
         set(value) {
-            val editor = preferences.edit()
-            if (value == null) editor.remove(ANSWER) else editor.putBoolean(ANSWER, value)
-            // On disk before the purge is queued (see DiagnosticsGate); when the write fails, the
-            // purge cannot wait for the queue.
-            if (!editor.commit() && value == false) purgeDiagnosticsCache(context.cacheDir)
+            preferences.edit().putBoolean(ANSWER, value).commit()
         }
 
     @set:SuppressLint("ApplySharedPref")
@@ -95,7 +86,7 @@ private class SentryRuntime(private val context: Context) : DiagnosticsRuntime {
         executor.execute {
             guarded {
                 try {
-                    if (Sentry.isEnabled()) Sentry.close()
+                    Sentry.close()
                 } finally {
                     purgeDiagnosticsCache(context.cacheDir)
                 }
@@ -123,8 +114,6 @@ private class SentryRuntime(private val context: Context) : DiagnosticsRuntime {
 
     private companion object {
         const val LOG_TAG = "PutioDiagnostics"
-
-        // One thread at most, alive only while there is work, shared by every start in the process.
         val executor = ThreadPoolExecutor(0, 1, 10, TimeUnit.SECONDS, LinkedBlockingQueue())
     }
 }

@@ -17,8 +17,8 @@ public sealed interface DiagnosticsSession {
 
 /** Writes synchronously, so an opt-out is on disk before its purge is queued. */
 internal interface DiagnosticsConsentStore {
-    /** The last signed-in account's answer; null when none is kept. */
-    var answer: Boolean?
+    /** The last signed-in account's answer; true once signed out. */
+    var answer: Boolean
 
     /** When the current uninterrupted on-period began, in epoch milliseconds; null while off. */
     var enabledSince: Long?
@@ -28,7 +28,6 @@ internal interface DiagnosticsConsentStore {
 internal interface DiagnosticsFilter {
     val isCapturing: Boolean
 
-    /** Whether an event recorded at [timestampMillis] may be sent now. */
     fun admits(timestampMillis: Long): Boolean
 }
 
@@ -69,7 +68,7 @@ internal class DiagnosticsGate(
 
     @Volatile
     private var current: OnPeriod? = null
-    private var answer: Boolean? = store.answer
+    private var answer: Boolean = store.answer
     private var enabledSince: Long? = store.enabledSince
     private var signedInKey: Any? = null
 
@@ -84,7 +83,7 @@ internal class DiagnosticsGate(
         signedInKey = (session as? DiagnosticsSession.SignedIn)?.key
         when (session) {
             DiagnosticsSession.Unresolved -> Unit
-            DiagnosticsSession.SignedOut -> answer = null
+            DiagnosticsSession.SignedOut -> answer = true
             is DiagnosticsSession.SignedIn -> answer = session.diagnosticsEnabled
         }
         apply()
@@ -105,7 +104,7 @@ internal class DiagnosticsGate(
     // Capture stops before the answer is written; the purge is queued once it is on disk, so a
     // process killed in between still launches with the opt-out.
     private fun apply(launch: Boolean = false) {
-        enabledSince = if (answer == false) null else enabledSince ?: now()
+        enabledSince = if (answer) enabledSince ?: now() else null
         val since = enabledSince
         val capturing = configuration != null && since != null
         if (!launch && capturing == isCapturing) {

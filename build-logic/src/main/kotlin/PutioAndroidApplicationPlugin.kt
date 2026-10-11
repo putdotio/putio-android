@@ -3,7 +3,6 @@ import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.HostTestBuilder
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
-import java.net.URI
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -49,9 +48,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 }
             }
 
-            // Diagnostics (docs/behavior.md#diagnostics): only a release build made with
-            // `putioSentryDsn` reports to Sentry. Debug builds, unit tests and every build without
-            // it keep the empty default, which leaves Sentry off.
             defaultConfig.buildConfigField("String", "PUTIO_SENTRY_DSN", "\"\"")
 
             buildTypes {
@@ -115,16 +111,15 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     }
 
     /**
-     * The `putioSentryDsn` Gradle property, or `PUTIO_SENTRY_DSN` from the environment. It is
-     * embedded in a Java string, so anything but an empty value or a plain
-     * `https://<key>@<host>/<project id>` fails the build; the value itself is never printed.
+     * Embedded in a Java string literal, so anything but empty or `https://<key>@<host>/<project id>`
+     * fails the build, without printing the value.
      */
     private fun Project.sentryDsn(): String {
         val dsn = providers.gradleProperty("putioSentryDsn")
             .orElse(providers.environmentVariable("PUTIO_SENTRY_DSN"))
             .getOrElse("")
             .trim()
-        require(dsn.isEmpty() || SENTRY_DSN.matches(dsn) && URI(dsn).host != null) {
+        require(dsn.isEmpty() || SENTRY_DSN.matches(dsn)) {
             "putioSentryDsn must be empty or https://<key>@<host>/<project id>"
         }
         return dsn

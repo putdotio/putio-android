@@ -4,6 +4,8 @@ import io.sentry.IConnectionStatusProvider.ConnectionStatus
 import io.sentry.SentryEvent
 import io.sentry.SentryOptions
 import io.sentry.protocol.App
+import io.sentry.protocol.DebugImage
+import io.sentry.protocol.DebugMeta
 import io.sentry.protocol.Device
 import io.sentry.protocol.Mechanism
 import io.sentry.protocol.OperatingSystem
@@ -14,14 +16,13 @@ import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.User
 
 /**
- * Every event leaves as a new one built by [allowed]: exception types and stack frames, release
- * metadata, the installation id, a few device facts, and the tags put.io sets. A field not copied
- * there, including any a Sentry upgrade adds, never leaves the device.
+ * Every event leaves as a new one built by [allowed], without attachments: exception types and
+ * stack frames, release metadata, the installation id, a few device facts, and the tags put.io
+ * sets. A field not copied there, including any a Sentry upgrade adds, never leaves the device.
  */
 internal object SentryBoundary {
     const val SURFACE_TAG: String = "surface"
 
-    /** Carries a [TelemetryFailure] from capture to `beforeSend`; Sentry never sends hints. */
     const val FAILURE_HINT: String = "io.put.failure"
 
     fun configure(
@@ -41,6 +42,12 @@ internal object SentryBoundary {
                 options.connectionStatusProvider.connectionStatus != ConnectionStatus.DISCONNECTED
         }
         options.setBeforeSend { event, hint ->
+            // Sentry sends the hint's attachments with whatever event this returns.
+            hint.clearAttachments()
+            hint.screenshot = null
+            hint.viewHierarchy = null
+            hint.threadDump = null
+            hint.tombstone = null
             if (filter.admits(event.timestamp.time)) {
                 allowed(event, configuration.surface, hint.getAs(FAILURE_HINT, TelemetryFailure::class.java))
             } else {
@@ -49,7 +56,7 @@ internal object SentryBoundary {
         }
     }
 
-    fun allowed(event: SentryEvent, surface: String, failure: TelemetryFailure?): SentryEvent =
+    private fun allowed(event: SentryEvent, surface: String, failure: TelemetryFailure?): SentryEvent =
         SentryEvent(event.timestamp).apply {
             eventId = event.eventId
             level = event.level
@@ -70,6 +77,7 @@ internal object SentryBoundary {
                     },
                 )
             }
+            debugMeta = event.debugMeta?.let(::allowed)
             event.contexts.app?.let { app -> contexts.setApp(App().apply { inForeground = app.inForeground }) }
             event.contexts.operatingSystem?.let { os ->
                 contexts.setOperatingSystem(
@@ -94,6 +102,17 @@ internal object SentryBoundary {
                         isLowMemory = device.isLowMemory
                     },
                 )
+            }
+        }
+
+    // Sentry picks the R8 mapping that deobfuscates the frames by this id.
+    private fun allowed(debugMeta: DebugMeta): DebugMeta =
+        DebugMeta().apply {
+            images = debugMeta.images?.filter { it.type == DebugImage.PROGUARD }?.map { image ->
+                DebugImage().apply {
+                    type = DebugImage.PROGUARD
+                    uuid = image.uuid
+                }
             }
         }
 

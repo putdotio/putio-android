@@ -31,7 +31,8 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
 - Only `core/telemetry` imports Sentry; detekt's `ForbiddenImport` rejects
   `io.sentry` anywhere else. Report a failure as a `TelemetryFailure` of codes,
   never as a raw error or message. `SentryBoundary` builds every outgoing event
-  from an allowlist; a field it does not copy never leaves the device.
+  from an allowlist and drops its attachments; a field it does not copy never
+  leaves the device.
 - Mobile and TV share data, domain, theme, and component foundations; their
   shells diverge where input differs. TV should feel like Android TV: Compose
   for TV, D-pad focus, system media sessions, and platform search.
