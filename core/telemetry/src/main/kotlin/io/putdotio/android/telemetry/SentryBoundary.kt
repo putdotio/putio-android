@@ -1,9 +1,15 @@
 package io.putdotio.android.telemetry
 
+import android.content.Context
+import io.sentry.Hint
 import io.sentry.IConnectionStatusProvider.ConnectionStatus
+import io.sentry.Sentry
 import io.sentry.SentryEvent
+import io.sentry.SentryLevel
 import io.sentry.SentryOptions
+import io.sentry.android.core.SentryAndroid
 import io.sentry.protocol.App
+import io.sentry.protocol.Contexts
 import io.sentry.protocol.DebugImage
 import io.sentry.protocol.DebugMeta
 import io.sentry.protocol.Device
@@ -14,32 +20,60 @@ import io.sentry.protocol.SentryException
 import io.sentry.protocol.SentryStackFrame
 import io.sentry.protocol.SentryStackTrace
 import io.sentry.protocol.User
+import java.io.File
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 
-/**
- * Every event leaves as a new one built by [allowed], without attachments: exception types and
- * stack frames, release metadata, the installation id, a few device facts, and the tags put.io
- * sets. A field not copied there, including any a Sentry upgrade adds, never leaves the device.
- */
 internal object SentryBoundary {
-    const val SURFACE_TAG: String = "surface"
-
     const val FAILURE_HINT: String = "io.put.failure"
 
-    fun configure(
-        options: SentryOptions,
-        configuration: SentryConfiguration,
-        filter: DiagnosticsFilter,
-        cacheDirPath: String,
-    ) {
+    // Steps after launch run in order off the caller's thread, since closing flushes. submit, not
+    // execute: a step that throws is dropped instead of crashing the app.
+    private val executor = Executors.newSingleThreadExecutor()
+
+    @Volatile
+    private var current: Period? = null
+
+    /** One uninterrupted on-period. Each SDK checks its own, so one still closing never reopens. */
+    class Period(val since: Long) {
+        val isCurrent: Boolean get() = current === this
+    }
+
+    // A start after launch drops events stamped before it: Android hands the SDK ANRs from its exit
+    // history, which can date from an opted-out period, and Sentry marks a dropped one as reported.
+    fun open(launch: Boolean): Period = Period(if (launch) 0 else System.currentTimeMillis()).also { current = it }
+
+    fun start(context: Context, configuration: SentryConfiguration, launch: Boolean) {
+        val period = open(launch)
+        val init = { SentryAndroid.init(context) { configure(it, configuration, period, cacheDir(context)) } }
+        // At launch on the caller's thread, so the crash handler is in place before the first screen.
+        if (launch) runCatching(init) else executor.submit(init)
+    }
+
+    /** Closes the SDK, then deletes every event, crash report and session it kept for upload. */
+    fun stop(cacheDir: File): Future<*> {
+        current = null
+        executor.submit { Sentry.close() }
+        return executor.submit { cacheDir.deleteRecursively() }
+    }
+
+    fun capture(failure: TelemetryFailure) {
+        if (current == null) return
+        val hint = Hint().apply { set(FAILURE_HINT, failure) }
+        executor.submit { Sentry.captureEvent(SentryEvent().apply { level = SentryLevel.ERROR }, hint) }
+    }
+
+    fun cacheDir(context: Context): File = File(context.cacheDir, "io.put.diagnostics")
+
+    fun configure(options: SentryOptions, configuration: SentryConfiguration, period: Period, cacheDir: File) {
         options.dsn = configuration.dsn
         options.environment = configuration.environment
         options.release = configuration.release
-        options.cacheDirPath = cacheDirPath
+        options.cacheDirPath = cacheDir.path
         options.maxBreadcrumbs = 0
         // Cached envelopes and sessions upload without passing beforeSend.
         options.setTransportGate {
-            filter.isCapturing &&
-                options.connectionStatusProvider.connectionStatus != ConnectionStatus.DISCONNECTED
+            period.isCurrent && options.connectionStatusProvider.connectionStatus != ConnectionStatus.DISCONNECTED
         }
         options.setBeforeSend { event, hint ->
             // Sentry sends the hint's attachments with whatever event this returns.
@@ -48,97 +82,88 @@ internal object SentryBoundary {
             hint.viewHierarchy = null
             hint.threadDump = null
             hint.tombstone = null
-            if (filter.admits(event.timestamp.time)) {
-                allowed(event, configuration.surface, hint.getAs(FAILURE_HINT, TelemetryFailure::class.java))
-            } else {
-                null
+            val failure = hint.getAs(FAILURE_HINT, TelemetryFailure::class.java)
+            val admitted = period.isCurrent && event.timestamp.time >= period.since
+            if (admitted) allowlisted(event, configuration.surface, failure) else null
+        }
+    }
+}
+
+/**
+ * Copies listed fields into a new event, so unlisted ones, including any a Sentry upgrade adds,
+ * stay on the device. A throwable's message can quote a media title, so exceptions keep their type.
+ */
+private fun allowlisted(event: SentryEvent, surface: String, failure: TelemetryFailure?) =
+    SentryEvent(event.timestamp).apply {
+        eventId = event.eventId
+        level = event.level
+        platform = event.platform
+        release = event.release
+        environment = event.environment
+        dist = event.dist
+        sdk = event.sdk?.let { SdkVersion(it.name, it.version) }
+        user = event.user?.id?.let { id -> User().apply { this.id = id } }
+        tags = mapOf("surface" to surface) + failure?.tags.orEmpty()
+        exceptions = failure?.let { listOf(it.exception()) } ?: event.exceptions?.map(::allowlisted)
+        // Sentry picks the R8 mapping that deobfuscates the frames by this id.
+        debugMeta = event.debugMeta?.images?.filter { it.type == DebugImage.PROGUARD }?.let { images ->
+            DebugMeta().apply { this.images = images.map(::allowlisted) }
+        }
+        allowlisted(event.contexts, contexts)
+    }
+
+private fun allowlisted(from: Contexts, to: Contexts) {
+    from.app?.let { app -> to.setApp(App().apply { inForeground = app.inForeground }) }
+    from.operatingSystem?.let { os ->
+        to.setOperatingSystem(
+            OperatingSystem().apply {
+                name = os.name
+                version = os.version
+            },
+        )
+    }
+    from.device?.let { device ->
+        to.setDevice(
+            Device().apply {
+                manufacturer = device.manufacturer
+                model = device.model
+            },
+        )
+    }
+}
+
+private fun allowlisted(exception: SentryException) =
+    SentryException().apply {
+        type = exception.type
+        module = exception.module
+        mechanism = exception.mechanism?.let { from ->
+            Mechanism().apply {
+                type = from.type
+                isHandled = from.isHandled
             }
+        }
+        stacktrace = exception.stacktrace?.frames?.let { frames ->
+            SentryStackTrace(
+                frames.map { from ->
+                    SentryStackFrame().apply {
+                        module = from.module
+                        function = from.function
+                        lineno = from.lineno
+                        isInApp = from.isInApp
+                    }
+                },
+            )
         }
     }
 
-    private fun allowed(event: SentryEvent, surface: String, failure: TelemetryFailure?): SentryEvent =
-        SentryEvent(event.timestamp).apply {
-            eventId = event.eventId
-            level = event.level
-            platform = event.platform
-            release = event.release
-            environment = event.environment
-            dist = event.dist
-            sdk = event.sdk?.let { sdk -> SdkVersion(sdk.name, sdk.version) }
-            user = event.user?.id?.let { id -> User().apply { this.id = id } }
-            tags = mapOf(SURFACE_TAG to surface) + failure?.tags.orEmpty()
-            exceptions = if (failure == null) {
-                event.exceptions?.map(::allowed)
-            } else {
-                listOf(
-                    SentryException().apply {
-                        type = failure.type
-                        value = failure.code
-                    },
-                )
-            }
-            debugMeta = event.debugMeta?.let(::allowed)
-            event.contexts.app?.let { app -> contexts.setApp(App().apply { inForeground = app.inForeground }) }
-            event.contexts.operatingSystem?.let { os ->
-                contexts.setOperatingSystem(
-                    OperatingSystem().apply {
-                        name = os.name
-                        version = os.version
-                        build = os.build
-                    },
-                )
-            }
-            event.contexts.device?.let { device ->
-                contexts.setDevice(
-                    Device().apply {
-                        manufacturer = device.manufacturer
-                        brand = device.brand
-                        family = device.family
-                        model = device.model
-                        archs = device.archs
-                        isSimulator = device.isSimulator
-                        memorySize = device.memorySize
-                        freeMemory = device.freeMemory
-                        isLowMemory = device.isLowMemory
-                    },
-                )
-            }
-        }
+private fun allowlisted(image: DebugImage) =
+    DebugImage().apply {
+        type = image.type
+        uuid = image.uuid
+    }
 
-    // Sentry picks the R8 mapping that deobfuscates the frames by this id.
-    private fun allowed(debugMeta: DebugMeta): DebugMeta =
-        DebugMeta().apply {
-            images = debugMeta.images?.filter { it.type == DebugImage.PROGUARD }?.map { image ->
-                DebugImage().apply {
-                    type = DebugImage.PROGUARD
-                    uuid = image.uuid
-                }
-            }
-        }
-
-    // A throwable's message can quote anything, a media title included, so its value stays behind.
-    private fun allowed(exception: SentryException): SentryException =
-        SentryException().apply {
-            type = exception.type
-            module = exception.module
-            mechanism = exception.mechanism?.let { mechanism ->
-                Mechanism().apply {
-                    type = mechanism.type
-                    isHandled = mechanism.isHandled
-                }
-            }
-            stacktrace = exception.stacktrace?.frames?.let { frames ->
-                SentryStackTrace(
-                    frames.map { frame ->
-                        SentryStackFrame().apply {
-                            module = frame.module
-                            function = frame.function
-                            lineno = frame.lineno
-                            isInApp = frame.isInApp
-                            isNative = frame.isNative
-                        }
-                    },
-                )
-            }
-        }
-}
+private fun TelemetryFailure.exception() =
+    SentryException().also {
+        it.type = type
+        it.value = code
+    }

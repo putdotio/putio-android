@@ -6,13 +6,11 @@ import androidx.media3.common.Player
 import androidx.media3.datasource.HttpDataSource
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.telemetry.TelemetryFailure
-import io.putdotio.android.telemetry.TelemetryTag
 import io.putdotio.sdk.files.PlaybackSourceKind
 
 /**
- * The diagnostics report for a player failure while this state plays: putio-web's
- * `playback_failure` contract (schema 1) in codes only. The exception's message and cause chain,
- * which can quote media URLs, never leave the device.
+ * A player failure as putio-web's `playback_failure` report (schema 1), in codes only: the
+ * exception's message and cause chain can quote media URLs.
  */
 public fun PlaybackState.playerFailureTelemetry(failure: PlaybackFailure): TelemetryFailure =
     playbackFailureTelemetry(
@@ -31,7 +29,7 @@ public fun Player.playerFailureTelemetry(error: PlaybackException, mediaType: Pl
     return playbackFailureTelemetry(error.toPlaybackFailure(), item?.mediaId?.toLongOrNull(), mediaType, sourceKind)
 }
 
-internal fun playbackFailureTelemetry(
+private fun playbackFailureTelemetry(
     failure: PlaybackFailure,
     fileId: Long?,
     mediaType: PlaybackMediaType,
@@ -44,20 +42,18 @@ internal fun playbackFailureTelemetry(
     }
     val mode = failureMode(failure, exception?.errorCode, status)
     val code = exception?.errorCodeName?.removePrefix("ERROR_CODE_")?.lowercase() ?: "none"
-    val tags = buildMap {
-        put(TelemetryTag.TelemetryEvent, EVENT)
-        put(TelemetryTag.SchemaVersion, "1")
-        put(TelemetryTag.Player, "media3")
-        put(TelemetryTag.PlaybackOutcome, "failed")
-        put(TelemetryTag.PlaybackTerminal, "true")
-        put(TelemetryTag.PlaybackFailureMode, mode)
-        put(TelemetryTag.EngineErrorCategory, exception?.errorCode?.let(::errorCategory) ?: "none")
-        put(TelemetryTag.EngineErrorCode, code)
-        put(TelemetryTag.SourceKind, sourceKind.tagValue())
-        status?.let { put(TelemetryTag.SourceRequestStatus, it.toString()) }
-        put(TelemetryTag.MediaType, mediaType.name.lowercase())
-        fileId?.let { put(TelemetryTag.FileId, it.toString()) }
-    }
+    val tags = mapOf(
+        "telemetry_event" to EVENT,
+        "schema_version" to "1",
+        "player" to "media3",
+        "playback_outcome" to "failed",
+        "playback_terminal" to "true",
+        "playback_failure_mode" to mode,
+        "engine_error_category" to (exception?.errorCode?.let(::errorCategory) ?: "none"),
+        "engine_error_code" to code,
+        "source_kind" to sourceKind.tagValue(),
+        "media_type" to mediaType.name.lowercase(),
+    ) + listOfNotNull(status?.let { "source_request_status" to "$it" }, fileId?.let { "file_id" to "$it" })
     return TelemetryFailure(EVENT, listOf(mode, code), tags)
 }
 

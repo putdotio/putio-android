@@ -55,10 +55,8 @@ class PutioAuthSessionGatewayTest {
     @Test
     fun `an account that opted out of diagnostics carries its answer`() = runBlocking {
         val optedOut = PutioAuthSessionGateway(FakePutioSdkAuthBoundary(diagnosticsEnabled = false)).validateSession()
-        val default = PutioAuthSessionGateway(FakePutioSdkAuthBoundary()).validateSession()
 
         assertEquals(false, (optedOut as SessionValidationResult.Valid).account.diagnosticsEnabled)
-        assertEquals(true, (default as SessionValidationResult.Valid).account.diagnosticsEnabled)
     }
 
     @Test

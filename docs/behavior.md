@@ -1007,19 +1007,21 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
 - Sentry starts in `Application.onCreate`, before any screen or service;
   content providers start earlier and are not covered. Turning diagnostics off,
   or launching with it off, closes the SDK and deletes everything waiting for
-  upload. While off, a transport gate holds every upload; an SDK still closing
-  never reopens it, and nothing recorded before an opt-in, such as an ANR from
-  the opt-out period that Android reports later, is sent after it.
+  upload. While off, a transport gate holds every upload, and an SDK still
+  closing never reopens it. A start after an opt-in drops events stamped before
+  it, such as an ANR from the opt-out period that Android reports later; if the
+  app dies before that start reads Android's exit history, the next launch can
+  still report the ANR.
 - Events post through `relay.put.io`, which forwards only allowlisted Sentry
   projects; the app swaps the DSN's host for it. The `surface` tag says
   `mobile` or `tv`, the environment is the channel flavor, and the release is
   `<application id>@<version name>+<version code>`.
 - Every event, crashes and ANRs included, leaves as a new one built from an
   allowlist in `core/telemetry`: exception types and stack frames, level,
-  release metadata, the R8 mapping id, the installation id, a few OS and device
-  facts, and the `surface` and player-failure tags. Exception messages, request
-  data, extras, threads, attachments, and any field a Sentry upgrade adds stay
-  on the device; the SDK keeps no breadcrumbs. Player failures are reported
+  release metadata, the R8 mapping id, the installation id, the OS version, the
+  device model, and the `surface` and player-failure tags. Exception messages,
+  request data, extras, threads, attachments, and any field a Sentry upgrade
+  adds stay on the device; the SDK keeps no breadcrumbs. Player failures are reported
   as putio-web's `playback_failure` codes (failure mode, Media3 error code,
   source kind, HTTP status, file id), never as error text: video from the
   player screen, audio from the background audio service. Only `core/telemetry`
@@ -1028,10 +1030,9 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
   sessions, with no NDK, replay, tracing, logs or metrics. Release builds
   upload no R8 mapping yet, so their stack traces stay obfuscated.
 
-Tests: `DiagnosticsGateTest`, `SentryBoundaryTest`,
-`SentryConfigurationTest`, `AccountSettingsDiagnosticsTest`,
-`PlaybackTelemetryTest`, `MobileDiagnosticsSessionTest`,
-`TvDiagnosticsSessionTest`, `PutioAuthSessionGatewayTest`,
+Tests: `SentryBoundaryTest`, `PutioDiagnosticsTest`, `SentryConfigurationTest`,
+`DebugSentryDsnTest`, `AccountSettingsDiagnosticsTest`, `PlaybackTelemetryTest`,
+`MobileDiagnosticsTest`, `TvDiagnosticsTest`, `PutioAuthSessionGatewayTest`,
 `PutioTvSessionGatewayTest`.
 
 ## Recent searches

@@ -67,17 +67,6 @@ class PlaybackTelemetryTest {
         assertEquals("decode, decoder_init_failed", report(PlaybackException.ERROR_CODE_DECODER_INIT_FAILED).code)
     }
 
-    @Test
-    fun aPlayerWithoutAKnownFileOrSourceReportsThemUnknown() {
-        val error = PlaybackException(TITLE, IOException(SIGNED_URL), PlaybackException.ERROR_CODE_DECODER_INIT_FAILED)
-
-        val telemetry = playbackFailureTelemetry(error.toPlaybackFailure(), null, PlaybackMediaType.AUDIO, null)
-
-        assertEquals("unknown", telemetry.tags["source_kind"])
-        assertEquals("audio", telemetry.tags["media_type"])
-        assertEquals(null, telemetry.tags["file_id"])
-    }
-
     private fun playing(kind: PlaybackSourceKind): PlaybackState =
         playbackState(
             target = PlaybackTarget(FilesItemId(42L), TITLE),

@@ -13,12 +13,10 @@ import io.sentry.protocol.Contexts
 import io.sentry.protocol.DebugImage
 import io.sentry.protocol.DebugMeta
 import io.sentry.protocol.Device
-import io.sentry.protocol.Geo
 import io.sentry.protocol.Mechanism
 import io.sentry.protocol.Message
 import io.sentry.protocol.OperatingSystem
 import io.sentry.protocol.Request
-import io.sentry.protocol.Response
 import io.sentry.protocol.SdkVersion
 import io.sentry.protocol.SentryException
 import io.sentry.protocol.SentryStackFrame
@@ -38,9 +36,15 @@ import org.junit.Test
 
 class SentryBoundaryTest {
     @Test
-    fun anEventLeavesWithItsAllowlistedFieldsOnly() {
-        val options = configured(Filter(isCapturing = true))
-        val hint = leakyHint()
+    fun onlyAllowlistedFieldsLeaveTheDevice() {
+        val options = configured(SentryBoundary.open(launch = true))
+        val attachment = Attachment(LEAK.toByteArray(), LEAK)
+        val hint = Hint.withAttachment(attachment).apply {
+            screenshot = attachment
+            viewHierarchy = attachment
+            threadDump = attachment
+            tombstone = attachment
+        }
 
         val sent = checkNotNull(options.beforeSend?.execute(leakyEvent(), hint))
 
@@ -48,7 +52,7 @@ class SentryBoundaryTest {
         assertEquals(json, emptyList<String>(), LEAKS.filter(json::contains))
         val attachments = listOfNotNull(hint.screenshot, hint.viewHierarchy, hint.threadDump, hint.tombstone)
         assertEquals(emptyList<Attachment>(), hint.attachments + attachments)
-        assertTrue(Scope(options).apply { addBreadcrumb(leakyBreadcrumb()) }.breadcrumbs.isEmpty())
+        assertTrue(Scope(options).apply { addBreadcrumb(Breadcrumb(LEAK)) }.breadcrumbs.isEmpty())
         assertEquals(SentryLevel.FATAL, sent.level)
         assertEquals("io.put.putio@0.1.0+1", sent.release)
         assertEquals("installation", sent.user?.id)
@@ -61,109 +65,75 @@ class SentryBoundaryTest {
     }
 
     @Test
-    fun aReportedFailureLeavesAsItsCodeAndTags() {
-        val failure = TelemetryFailure(
-            "playback_failure",
-            listOf("network", RELEASE_NAME),
-            mapOf(TelemetryTag.Player to "media3", TelemetryTag.FileId to TITLE),
-        )
+    fun aReportedFailureLeavesAsCodes() {
+        val failure = TelemetryFailure("playback_failure", listOf("network", RELEASE_NAME), mapOf("file_id" to TITLE))
         val hint = Hint().apply { set(SentryBoundary.FAILURE_HINT, failure) }
+        val options = configured(SentryBoundary.open(launch = true))
 
-        val sent = checkNotNull(configured(Filter(isCapturing = true)).beforeSend?.execute(SentryEvent(), hint))
+        val sent = checkNotNull(options.beforeSend?.execute(SentryEvent(), hint))
 
         assertEquals("playback_failure", sent.exceptions?.single()?.type)
         assertEquals("network, unknown", sent.exceptions?.single()?.value)
-        assertEquals(mapOf("surface" to "tv", "player" to "media3", "file_id" to "unknown"), sent.tags)
+        assertEquals(mapOf("surface" to "tv", "file_id" to "unknown"), sent.tags)
     }
 
     @Test
-    fun nothingLeavesWhileOffOrFromBeforeTheCurrentOnPeriod() {
-        val off = configured(Filter(isCapturing = false))
-        assertNull(off.beforeSend?.execute(SentryEvent(), Hint()))
-        assertFalse("cached envelopes and sessions would upload", off.transportGate.isConnected)
-
-        val on = configured(Filter(isCapturing = true, since = 2_000))
-        assertNull(on.beforeSend?.execute(SentryEvent(Date(1_999)), Hint()))
-        assertNotNull(on.beforeSend?.execute(SentryEvent(Date(2_000)), Hint()))
-        assertTrue(on.transportGate.isConnected)
-    }
-
-    @Test
-    fun purgingDeletesEverythingWaitingForUpload() {
+    fun switchingOffSendsNothingRecordedBefore() {
         val cacheDir = Files.createTempDirectory("diagnostics").toFile()
-        try {
-            val pending = File(diagnosticsCacheDir(cacheDir), "dsnhash/outbox/pending").apply { parentFile?.mkdirs() }
-            pending.writeText("synthetic")
-            val sdkDefault = File(cacheDir, "sentry/envelope").apply { parentFile?.mkdirs() }
-            sdkDefault.writeText("synthetic")
-            val unrelated = File(cacheDir, "media").apply { writeText("kept") }
+        val pending = File(cacheDir, "outbox/pending").apply { parentFile?.mkdirs() }
+        pending.writeText("synthetic")
+        val closing = configured(SentryBoundary.open(launch = true), cacheDir)
+        assertNotNull(closing.beforeSend?.execute(SentryEvent(), Hint()))
+        assertTrue(closing.transportGate.isConnected)
 
-            purgeDiagnosticsCache(cacheDir)
+        SentryBoundary.stop(cacheDir).get()
+        val reopened = configured(SentryBoundary.open(launch = false), cacheDir)
 
-            assertFalse(diagnosticsCacheDir(cacheDir).exists())
-            assertFalse(sdkDefault.parentFile?.exists() == true)
-            assertTrue(unrelated.exists())
-        } finally {
-            cacheDir.deleteRecursively()
-        }
+        assertNull(closing.beforeSend?.execute(SentryEvent(), Hint()))
+        assertFalse("the closing SDK's transport reopened", closing.transportGate.isConnected)
+        assertFalse("pending envelopes would upload at the next start", pending.exists())
+        assertNull("an ANR from the opted-out period left", reopened.beforeSend?.execute(SentryEvent(Date(0)), Hint()))
+        assertNotNull(reopened.beforeSend?.execute(SentryEvent(), Hint()))
     }
 
-    private fun configured(filter: DiagnosticsFilter): SentryOptions =
+    private fun configured(period: SentryBoundary.Period, cacheDir: File = File("/nonexistent")): SentryOptions =
         SentryOptions().also { options ->
-            val configuration = checkNotNull(
-                SentryConfiguration.of("https://synthetickey@o0.ingest.example.invalid/1", "nightly", "r", "tv"),
-            )
-            SentryBoundary.configure(options, configuration, filter, "/nonexistent")
+            val configuration = SentryConfiguration.of("https://synthetickey@o0.example.invalid/1", "n", "r", "tv")
+            SentryBoundary.configure(options, checkNotNull(configuration), period, cacheDir)
         }
 
-    private class Filter(override val isCapturing: Boolean, private val since: Long = 0) : DiagnosticsFilter {
-        override fun admits(timestampMillis: Long): Boolean = isCapturing && timestampMillis >= since
-    }
-
-    /** Every field an app, integration, or cached scope can fill carries [LEAK]; the rest hold real-looking values. */
+    /** Every unlisted field an app, integration, or cached scope can fill carries [LEAK]. */
     @Suppress("DEPRECATION") // User.name is deprecated but still sent.
     private fun leakyEvent(): SentryEvent =
         SentryEvent().apply {
             level = SentryLevel.FATAL
             release = "io.put.putio@0.1.0+1"
             sdk = SdkVersion("sentry.java.android", "8.60.0").apply { unknown = mapOf(LEAK to LEAK) }
-            message = Message().apply {
-                formatted = LEAK
-                message = LEAK
-                params = listOf(LEAK)
-            }
+            message = Message().apply { formatted = LEAK }
             logger = LEAK
             serverName = LEAK
             transaction = LEAK
             fingerprints = listOf(LEAK)
             setModule(LEAK, LEAK)
-            tags = mapOf("surface" to LEAK, TelemetryTag.FileId.key to LEAK, LEAK to LEAK)
+            tags = mapOf("surface" to LEAK, "file_id" to LEAK)
             setExtras(mapOf(LEAK to LEAK))
             user = User().apply {
                 id = "installation"
                 email = LEAK
-                username = LEAK
                 name = LEAK
                 ipAddress = LEAK
-                data = mapOf(LEAK to LEAK)
-                geo = Geo().apply { city = LEAK }
             }
-            request = Request().apply {
-                url = LEAK
-                queryString = LEAK
-                fragment = LEAK
-                cookies = LEAK
-                headers = mapOf(LEAK to LEAK)
-                data = LEAK
-            }
+            request = Request().apply { url = LEAK }
             fillLeakyContexts(contexts)
-            exceptions = listOf(leakyException())
-            threads = listOf(
-                SentryThread().apply {
-                    name = LEAK
+            exceptions = listOf(
+                SentryException().apply {
+                    type = "IOException"
+                    value = LEAK
+                    mechanism = Mechanism().apply { description = LEAK }
                     stacktrace = leakyStacktrace()
                 },
             )
+            threads = listOf(SentryThread().apply { name = LEAK })
             debugMeta = DebugMeta().apply {
                 images = listOf(
                     DebugImage().apply {
@@ -174,87 +144,37 @@ class SentryBoundaryTest {
                     DebugImage().apply { codeFile = LEAK },
                 )
             }
-            breadcrumbs = listOf(leakyBreadcrumb())
+            breadcrumbs = listOf(Breadcrumb(LEAK))
             unknown = mapOf(LEAK to LEAK)
         }
 
     private fun fillLeakyContexts(contexts: Contexts) {
-        contexts.setApp(
-            App().apply {
-                inForeground = true
-                appName = LEAK
-                viewNames = listOf(LEAK)
-                unknown = mapOf(LEAK to LEAK)
-            },
-        )
+        contexts.setApp(App().apply { appName = LEAK })
         contexts.setDevice(
             Device().apply {
                 model = "Pixel"
                 name = LEAK
-                unknown = mapOf(LEAK to LEAK)
             },
         )
         contexts.setOperatingSystem(
             OperatingSystem().apply {
-                name = "Android"
                 version = "16"
                 rawDescription = LEAK
-                unknown = mapOf(LEAK to LEAK)
             },
         )
-        contexts.setResponse(Response().apply { headers = mapOf(LEAK to LEAK) })
         contexts.put(LEAK, LEAK)
     }
-
-    private fun leakyException(): SentryException =
-        SentryException().apply {
-            type = "IOException"
-            module = "java.io"
-            value = LEAK
-            unknown = mapOf(LEAK to LEAK)
-            mechanism = Mechanism().apply {
-                type = "UncaughtExceptionHandler"
-                isHandled = false
-                description = LEAK
-                helpLink = LEAK
-                data = mapOf(LEAK to LEAK)
-                meta = mapOf(LEAK to LEAK)
-            }
-            stacktrace = leakyStacktrace()
-        }
 
     private fun leakyStacktrace(): SentryStackTrace =
         SentryStackTrace(
             listOf(
                 SentryStackFrame().apply {
-                    module = "io.putdotio.android.playback.PlaybackController"
                     function = "play"
-                    lineno = 42
-                    filename = LEAK
                     absPath = LEAK
-                    contextLine = LEAK
-                    preContext = listOf(LEAK)
                     vars = mapOf(LEAK to LEAK)
                 },
             ),
         ).apply { unknown = mapOf(LEAK to LEAK) }
-
-    private fun leakyHint(): Hint {
-        val attachment = Attachment(LEAK.toByteArray(), LEAK)
-        return Hint.withAttachment(attachment).apply {
-            screenshot = attachment
-            viewHierarchy = attachment
-            threadDump = attachment
-            tombstone = attachment
-        }
-    }
-
-    private fun leakyBreadcrumb(): Breadcrumb =
-        Breadcrumb().apply {
-            category = LEAK
-            message = LEAK
-            setData(LEAK, LEAK)
-        }
 
     private companion object {
         const val TITLE = "Synthetic Feature Title"

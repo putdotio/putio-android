@@ -202,7 +202,7 @@ class MobileOAuthRuntime internal constructor(
             )
             // Sessions also change without a UI, so the process scope tells diagnostics.
             applicationScope.launch {
-                authController.state.collect { PutioDiagnostics.sessionChanged(it.diagnosticsSession()) }
+                authController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
             }
             return MobileOAuthRuntime(
                 putioClient = putioClient,
@@ -254,3 +254,17 @@ internal fun oauthRuntimeFailureLog(error: Exception): String =
         "error_type=${error.javaClass.simpleName}"
 
 private const val MOBILE_OAUTH_LOG_TAG = "PutioOAuth"
+
+/** Null while restoring, validating or signing out, so the last answer stands; signed out, diagnostics are on. */
+internal fun MobileAuthState.diagnosticsAllowed(): Boolean? =
+    when (this) {
+        MobileAuthState.Initializing,
+        MobileAuthState.RestoringSession,
+        is MobileAuthState.ValidatingSession,
+        is MobileAuthState.ValidationUnavailable,
+        MobileAuthState.SigningOut,
+        -> null
+
+        is MobileAuthState.SignedOut, MobileAuthState.AwaitingOAuthCallback -> true
+        is MobileAuthState.SignedIn -> account.diagnosticsEnabled
+    }

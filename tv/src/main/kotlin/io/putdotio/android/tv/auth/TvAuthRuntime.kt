@@ -85,7 +85,7 @@ class TvAuthRuntime internal constructor(
             )
             // Sessions also change without a UI, so the process scope tells diagnostics.
             applicationScope.launch {
-                authController.state.collect { PutioDiagnostics.sessionChanged(it.diagnosticsSession()) }
+                authController.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
             }
             return TvAuthRuntime(
                 putioClient = putioClient,
@@ -101,3 +101,17 @@ class TvAuthRuntime internal constructor(
         }
     }
 }
+
+/** Null while restoring, validating or signing out, so the last answer stands; linking is signed out, so on. */
+internal fun TvAuthState.diagnosticsAllowed(): Boolean? =
+    when (this) {
+        TvAuthState.Initializing,
+        TvAuthState.RestoringSession,
+        is TvAuthState.ValidatingSession,
+        is TvAuthState.ValidationUnavailable,
+        TvAuthState.SigningOut,
+        -> null
+
+        is TvAuthState.Linking -> true
+        is TvAuthState.SignedIn -> account.diagnosticsEnabled
+    }

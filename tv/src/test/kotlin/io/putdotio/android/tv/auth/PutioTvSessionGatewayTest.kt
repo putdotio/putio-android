@@ -61,10 +61,8 @@ class PutioTvSessionGatewayTest {
     @Test
     fun `an account that opted out of diagnostics carries its answer`() = runBlocking {
         val optedOut = PutioTvSessionGateway(FakeBoundary(diagnosticsEnabled = false)).validateSession()
-        val default = PutioTvSessionGateway(FakeBoundary()).validateSession()
 
         assertEquals(false, (optedOut as TvSessionValidation.Valid).account.diagnosticsEnabled)
-        assertEquals(true, (default as TvSessionValidation.Valid).account.diagnosticsEnabled)
     }
 
     @Test

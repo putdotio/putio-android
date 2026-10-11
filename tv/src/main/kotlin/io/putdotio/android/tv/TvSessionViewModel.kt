@@ -116,8 +116,6 @@ internal class TvSession internal constructor(
     sessionCurrent: () -> Boolean,
     parentScope: CoroutineScope,
     private val watchNext: TvWatchNextRecorder = TvWatchNextRecorder.None,
-    /** Each answer the account's settings give for diagnostics; see `docs/behavior.md#diagnostics`. */
-    onDiagnosticsAnswer: (Boolean) -> Unit = {},
 ) {
     private val recentSearches = dependencies.recentSearchStore(parentScope)
     val files = FilesBrowserController(dependencies.filesRepository, parentScope)
@@ -208,7 +206,7 @@ internal class TvSession internal constructor(
             watchNext.reconcile(filesItemResolver::resolveItem)?.let { mutableFileActionFailure.value = it }
         }
         scope.launch {
-            settings.state.collect { state -> state.diagnosticsAllowed()?.let(onDiagnosticsAnswer) }
+            settings.state.collect { state -> state.diagnosticsAllowed()?.let(PutioDiagnostics::update) }
         }
     }
 
@@ -391,7 +389,6 @@ internal class TvSessionViewModel(
                 sessionCurrent = { authState.value.sessionKey() == key },
                 parentScope = viewModelScope,
                 watchNext = dependencies.watchNext(account.userId, sessionId),
-                onDiagnosticsAnswer = { enabled -> PutioDiagnostics.accountAnswered(key, enabled) },
             )
         }
     }
