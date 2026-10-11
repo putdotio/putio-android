@@ -3,6 +3,7 @@ import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.HostTestBuilder
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
+import java.net.URI
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -123,7 +124,7 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             .orElse(providers.environmentVariable("PUTIO_SENTRY_DSN"))
             .getOrElse("")
             .trim()
-        require(dsn.isEmpty() || SENTRY_DSN.matches(dsn)) {
+        require(dsn.isEmpty() || SENTRY_DSN.matches(dsn) && URI(dsn).host != null) {
             "putioSentryDsn must be empty or https://<key>@<host>/<project id>"
         }
         return dsn

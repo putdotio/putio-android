@@ -1,5 +1,6 @@
 package io.putdotio.android.telemetry
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.util.Log
@@ -47,20 +48,25 @@ public object PutioDiagnostics {
 private class PreferencesConsentStore(context: Context) : DiagnosticsConsentStore {
     private val preferences = context.getSharedPreferences("io.put.diagnostics", Context.MODE_PRIVATE)
 
+    // commit(), not apply(): see the setter.
+    @set:SuppressLint("ApplySharedPref")
     override var answer: Boolean?
         get() = if (preferences.contains(ANSWER)) preferences.getBoolean(ANSWER, true) else null
         set(value) {
             val editor = preferences.edit()
             if (value == null) editor.remove(ANSWER) else editor.putBoolean(ANSWER, value)
-            editor.apply()
+            // On disk before the purge is even queued: a process killed in between must still
+            // launch with the opt-out, or Sentry would upload what the purge was meant to delete.
+            editor.commit()
         }
 
+    @set:SuppressLint("ApplySharedPref")
     override var enabledSince: Long?
         get() = if (preferences.contains(ENABLED_SINCE)) preferences.getLong(ENABLED_SINCE, 0) else null
         set(value) {
             val editor = preferences.edit()
             if (value == null) editor.remove(ENABLED_SINCE) else editor.putLong(ENABLED_SINCE, value)
-            editor.apply()
+            editor.commit()
         }
 
     private companion object {
