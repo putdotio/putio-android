@@ -20,7 +20,9 @@ import io.putdotio.android.transfers.TransfersRowRefresh
 import io.putdotio.android.transfers.mobileTransfersViewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,9 +59,9 @@ class MobileTransfersViewModelTest {
         val store = ViewModelStore()
         val viewModel = viewModel(store, authState)
 
-        assertTrue(viewModel.controllerFor(USER_ID, SessionOne, EmptyTransfersRepository) != null)
-        assertTrue(viewModel.controllerFor(USER_ID, SessionTwo, EmptyTransfersRepository) == null)
-        assertTrue(viewModel.controllerFor(USER_ID + 1, SessionOne, EmptyTransfersRepository) == null)
+        assertNotNull(viewModel.controllerFor(USER_ID, SessionOne, EmptyTransfersRepository))
+        assertNull(viewModel.controllerFor(USER_ID, SessionTwo, EmptyTransfersRepository))
+        assertNull(viewModel.controllerFor(USER_ID + 1, SessionOne, EmptyTransfersRepository))
 
         store.clear()
     }

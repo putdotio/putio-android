@@ -45,7 +45,9 @@ internal class MobileShareExporter(
             dependencies.http.newCall(request).executeCancellable { response ->
                 if (!response.isSuccessful) throw IOException("Download failed with ${response.code}")
                 val body = response.body ?: throw IOException("Empty body")
-                body.byteStream().copyWithProgress(target, body.contentLength(), onProgress)
+                body.byteStream().use { input ->
+                    target.outputStream().use { input.streamTo(it, body.contentLength(), onProgress) }
+                }
             }
             complete = true
             target
@@ -75,10 +77,6 @@ private suspend fun <T> Call.executeCancellable(block: suspend (Response) -> T):
     } finally {
         canceller.cancel()
     }
-}
-
-private suspend fun InputStream.copyWithProgress(target: File, total: Long, onProgress: (Int) -> Unit) {
-    use { input -> target.outputStream().use { output -> input.streamTo(output, total, onProgress) } }
 }
 
 private suspend fun InputStream.streamTo(output: OutputStream, total: Long, onProgress: (Int) -> Unit) {

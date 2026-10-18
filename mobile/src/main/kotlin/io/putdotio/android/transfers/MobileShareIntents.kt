@@ -3,6 +3,8 @@ package io.putdotio.android.transfers
 import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
+import android.os.BadParcelableException
+import android.os.Bundle
 import androidx.core.content.IntentCompat
 
 internal enum class MobileShareValidation {
@@ -46,12 +48,12 @@ internal fun Intent.consumeMobileIncomingTransfer(): MobileIncomingTransfer? {
             IncomingKind.Magnet -> MobileIncomingTransfer.Ready(parseMobileMagnetLink(viewedUri.toString()))
             IncomingKind.Torrent -> sharedTorrent(viewedUri)
         }
-    } catch (_: android.os.BadParcelableException) {
+    } catch (_: BadParcelableException) {
         MobileIncomingTransfer.Ready(MobileSharedTransfer(validation = kind.malformed))
     } catch (_: ClassCastException) {
         MobileIncomingTransfer.Ready(MobileSharedTransfer(validation = kind.malformed))
     } finally {
-        replaceExtras(android.os.Bundle())
+        replaceExtras(Bundle())
         clipData = null
         setDataAndType(null, type)
         selector = null
@@ -142,5 +144,5 @@ internal fun CharSequence.fitsMobileTransferInputLimit(): Boolean =
 
 internal const val MOBILE_TRANSFER_INPUT_LIMIT = 16 * 1024
 private const val MAGNET_SCHEME = "magnet"
-private val SharedWhitespace = Regex("[\\s\\p{Z}\\u0085]+")
+internal val SharedWhitespace = Regex("[\\s\\p{Z}\\u0085]+")
 private const val MAX_ASCII_CODE_POINT = 0x7F

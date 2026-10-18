@@ -1,21 +1,33 @@
 package io.putdotio.android
 
 import android.content.ClipData
+import android.content.ContentProvider
+import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
+import android.database.Cursor
+import android.database.MatrixCursor
+import android.net.Uri
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
+import android.provider.OpenableColumns
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import io.putdotio.android.transfers.MOBILE_TRANSFER_INPUT_LIMIT
-import io.putdotio.android.transfers.MobileShareValidation
 import io.putdotio.android.transfers.MAX_TORRENT_BYTES
+import io.putdotio.android.transfers.MOBILE_TRANSFER_INPUT_LIMIT
 import io.putdotio.android.transfers.MobileIncomingTransfer
+import io.putdotio.android.transfers.MobileShareValidation
 import io.putdotio.android.transfers.MobileSharedTransfer
 import io.putdotio.android.transfers.consumeMobileIncomingTransfer
-import io.putdotio.android.transfers.parseMobileMagnetLink
+import io.putdotio.android.transfers.fitsMobileTransferInputLimit
 import io.putdotio.android.transfers.isOwnProviderAuthority
+import io.putdotio.android.transfers.parseMobileMagnetLink
+import io.putdotio.android.transfers.parseMobileSharedTransfer
 import io.putdotio.android.transfers.readMobileTorrent
 import io.putdotio.android.transfers.torrentFileName
-import io.putdotio.android.transfers.fitsMobileTransferInputLimit
-import io.putdotio.android.transfers.parseMobileSharedTransfer
+import java.io.File
+import java.io.IOException
+import java.io.InputStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -24,14 +36,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
-import android.content.ContentProvider
-import android.content.ContentValues
-import android.database.Cursor
-import android.database.MatrixCursor
-import android.net.Uri
-import android.os.ParcelFileDescriptor
-import android.provider.OpenableColumns
-import androidx.test.core.app.ApplicationProvider
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -185,8 +189,8 @@ class MobileShareIntentsTest {
             .putExtra(Intent.EXTRA_HTML_TEXT, "<a href='$raw'>file</a>")
             .putExtra(Intent.EXTRA_SUBJECT, raw)
         intent.clipData = ClipData.newPlainText("shared", raw)
-        intent.setDataAndType(android.net.Uri.parse(raw), "text/plain")
-        intent.selector = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(raw))
+        intent.setDataAndType(Uri.parse(raw), "text/plain")
+        intent.selector = Intent(Intent.ACTION_VIEW, Uri.parse(raw))
         val consumed = requireNotNull(intent.consumeShared())
         assertEquals(raw, consumed.input)
         assertEquals(Intent.ACTION_SEND, intent.action)
@@ -213,7 +217,7 @@ class MobileShareIntentsTest {
     @Test
     fun tappedMagnetLinksOpenTheDraftAndLeaveNothingInTheIntent() {
         val magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Harbor%20film"
-        val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(magnet))
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(magnet))
         val draft = intent.consumeShared()
         assertEquals(magnet, draft.input)
         assertNull(draft.validation)
@@ -224,7 +228,7 @@ class MobileShareIntentsTest {
     @Test
     fun malformedMagnetLinksStayVisibleButCanNotBeSubmitted() {
         for (link in listOf("magnet:?dn=missing-hash", "magnet:xt=urn:btih:abc", "MAGNET:?xt=")) {
-            val parsed = requireNotNull(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)).consumeShared())
+            val parsed = requireNotNull(Intent(Intent.ACTION_VIEW, Uri.parse(link)).consumeShared())
             assertEquals(link, parsed.input)
             assertEquals(MobileShareValidation.InvalidLink, parsed.validation)
         }
@@ -239,7 +243,7 @@ class MobileShareIntentsTest {
 
     @Test
     fun torrentViewsAndSendsHandOverOnlyTheirContentUri() {
-        val uri = android.net.Uri.parse("content://downloads.example/torrents/7")
+        val uri = Uri.parse("content://downloads.example/torrents/7")
         val viewed = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/x-bittorrent")
         val sent = Intent(Intent.ACTION_SEND).setType("application/x-bittorrent").putExtra(Intent.EXTRA_STREAM, uri)
         for (intent in listOf(viewed, sent)) {
@@ -248,7 +252,7 @@ class MobileShareIntentsTest {
             assertTrue(intent.extras?.isEmpty ?: true)
         }
         val fileUri = Intent(Intent.ACTION_SEND).setType("application/x-bittorrent")
-            .putExtra(Intent.EXTRA_STREAM, android.net.Uri.parse("file:///sdcard/a.torrent"))
+            .putExtra(Intent.EXTRA_STREAM, Uri.parse("file:///sdcard/a.torrent"))
         assertEquals(MobileShareValidation.InvalidTorrent, fileUri.consumeShared().validation)
         val missing = Intent(Intent.ACTION_SEND).setType("application/x-bittorrent")
         assertEquals(MobileShareValidation.InvalidTorrent, missing.consumeShared().validation)
@@ -271,10 +275,10 @@ class MobileShareIntentsTest {
         assertEquals(MobileShareValidation.InvalidTorrent, readMobileTorrent("a.torrent") { null }.validation)
         assertEquals(
             MobileShareValidation.InvalidTorrent,
-            readMobileTorrent("a.torrent") { throw java.io.IOException("revoked") }.validation,
+            readMobileTorrent("a.torrent") { throw IOException("revoked") }.validation,
         )
         var served = 0L
-        val endless = object : java.io.InputStream() {
+        val endless = object : InputStream() {
             override fun read(): Int = 'd'.code.also { served++ }
         }
         assertEquals(MobileShareValidation.TorrentTooLarge, readMobileTorrent("a.torrent") { endless }.validation)
@@ -283,7 +287,7 @@ class MobileShareIntentsTest {
 
     @Test
     fun torrentProvidersAreUntrustedAndThisAppsOwnAreRefused() {
-        val resolver = ApplicationProvider.getApplicationContext<android.content.Context>().contentResolver
+        val resolver = ApplicationProvider.getApplicationContext<Context>().contentResolver
         Robolectric.buildContentProvider(TorrentProvider::class.java).create("test.torrents")
         Robolectric.buildContentProvider(TorrentProvider::class.java).create("io.put.sample.share")
         Robolectric.buildContentProvider(BrokenProvider::class.java).create("test.broken")
@@ -323,8 +327,8 @@ class MobileShareIntentsTest {
             Intent(Intent.ACTION_SEND_MULTIPLE).setType("text/plain"),
             Intent(Intent.ACTION_SEND).setType("image/png"),
             Intent(MobilePlaybackService.ACTION_OPEN_NOW_PLAYING),
-            Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://app.put.io/files/1")),
-            Intent(Intent.ACTION_VIEW, android.net.Uri.parse("putio://transfers")),
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://app.put.io/files/1")),
+            Intent(Intent.ACTION_VIEW, Uri.parse("putio://transfers")),
         )) {
             intent.putExtra("existing", "preserved")
             assertNull(intent.consumeMobileIncomingTransfer())
@@ -349,7 +353,7 @@ private open class TorrentProvider : ContentProvider() {
         MatrixCursor(arrayOf(OpenableColumns.DISPLAY_NAME)).apply { addRow(arrayOf("Harbor film.torrent")) }
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
-        val file = java.io.File.createTempFile("torrent", ".torrent").apply {
+        val file = File.createTempFile("torrent", ".torrent").apply {
             writeBytes("d8:announce3:url4:infod4:name5:Harbore".toByteArray())
             deleteOnExit()
         }

@@ -36,11 +36,5 @@ internal class MobileTransfersViewModel(
     }
 }
 
-internal fun mobileTransfersViewModelFactory(
-    authState: StateFlow<MobileAuthState>,
-): ViewModelProvider.Factory =
-    viewModelFactory {
-        initializer {
-            MobileTransfersViewModel(authState)
-        }
-    }
+internal fun mobileTransfersViewModelFactory(authState: StateFlow<MobileAuthState>): ViewModelProvider.Factory =
+    viewModelFactory { initializer { MobileTransfersViewModel(authState) } }

@@ -103,10 +103,8 @@ internal class MobileTransferDraftEditor(
 }
 
 private fun MobileTransferDraftState.linkProblem(): MobileShareValidation =
-    if (input.split(LinkSeparator).count(String::isNotEmpty) > MAX_TRANSFER_LINKS) {
+    if (input.split(SharedWhitespace).count(String::isNotEmpty) > MAX_TRANSFER_LINKS) {
         MobileShareValidation.TooManyLinks
     } else {
         MobileShareValidation.InvalidLink
     }
-
-private val LinkSeparator = Regex("[\\s\\p{Z}\\u0085]+")

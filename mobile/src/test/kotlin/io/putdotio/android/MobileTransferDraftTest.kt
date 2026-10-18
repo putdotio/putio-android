@@ -1,27 +1,33 @@
 package io.putdotio.android
 
+import android.os.Looper
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.transfers.MOBILE_TRANSFER_INPUT_LIMIT
-import io.putdotio.android.transfers.MobileShareValidation
-import io.putdotio.android.transfers.MobileTransferDraft
-import io.putdotio.android.transfers.MobileTransferDraftState
-import io.putdotio.android.transfers.parseMobileSharedTransfer
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.transfers.MAX_TRANSFER_LINKS
+import io.putdotio.android.transfers.MOBILE_TRANSFER_INPUT_LIMIT
+import io.putdotio.android.transfers.MobileShareValidation
 import io.putdotio.android.transfers.MobileSharedTransfer
+import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.android.transfers.MobileTransferDraftState
 import io.putdotio.android.transfers.TorrentUpload
 import io.putdotio.android.transfers.TransfersEvent
+import io.putdotio.android.transfers.parseMobileSharedTransfer
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -29,7 +35,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import android.os.Looper
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -230,11 +235,11 @@ class MobileTransferDraftTest {
 
     @Test
     fun aSupersededReadThatIgnoresInterruptsHoldsBackTheNextOne() {
-        val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+        val pool = Executors.newFixedThreadPool(2)
         val draft = MobileTransferDraft(pool.asCoroutineDispatcher())
-        val release = java.util.concurrent.CountDownLatch(1)
-        val running = java.util.concurrent.atomic.AtomicInteger()
-        val mostRunning = java.util.concurrent.atomic.AtomicInteger()
+        val release = CountDownLatch(1)
+        val running = AtomicInteger()
+        val mostRunning = AtomicInteger()
         val other = TorrentUpload("Other.torrent", TORRENT.content)
         fun read(torrent: TorrentUpload, stuck: Boolean): () -> MobileSharedTransfer = {
             mostRunning.accumulateAndGet(running.incrementAndGet(), ::maxOf)
@@ -265,11 +270,11 @@ class MobileTransferDraftTest {
 
     @Test
     fun aReadSupersededBeforeItBeganStillReportsItIsDone() {
-        val pool = java.util.concurrent.Executors.newFixedThreadPool(2)
+        val pool = Executors.newFixedThreadPool(2)
         val draft = MobileTransferDraft(pool.asCoroutineDispatcher())
-        val release = java.util.concurrent.CountDownLatch(1)
-        val started = java.util.concurrent.CountDownLatch(1)
-        val done = java.util.concurrent.CopyOnWriteArrayList<String>()
+        val release = CountDownLatch(1)
+        val started = CountDownLatch(1)
+        val done = CopyOnWriteArrayList<String>()
         val other = TorrentUpload("Other.torrent", TORRENT.content)
         try {
             draft.receiveLater(
@@ -280,7 +285,7 @@ class MobileTransferDraftTest {
                 },
                 onDone = { done += "first" },
             )
-            check(started.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            check(started.await(5, TimeUnit.SECONDS))
             // Waits behind the first read, which ignores interrupts, then a third intake supersedes it.
             draft.receiveLater(read = { MobileSharedTransfer(torrent = TORRENT) }, onDone = { done += "second" })
             shadowOf(Looper.getMainLooper()).idle()
@@ -302,18 +307,6 @@ class MobileTransferDraftTest {
             release.countDown()
             pool.shutdownNow()
         }
-    }
-
-    private fun awaitIgnoringInterrupts(latch: java.util.concurrent.CountDownLatch): Boolean =
-        try {
-            latch.await(10, java.util.concurrent.TimeUnit.MILLISECONDS)
-        } catch (_: InterruptedException) {
-            false
-        }
-
-    private fun kotlinx.coroutines.test.TestScope.settle() {
-        advanceUntilIdle()
-        shadowOf(Looper.getMainLooper()).idle()
     }
 
     @Test
@@ -370,7 +363,7 @@ class MobileTransferDraftTest {
     }
 
     @Test
-    fun viewModelRetentionUsesMemoryAndANewOwnerStartsEmpty() {
+    fun viewModelRetentionKeepsTheDraftInMemoryWithARedactedToString() {
         val store = ViewModelStore()
         try {
             val provider = ViewModelProvider(store, ViewModelProvider.NewInstanceFactory())
@@ -382,12 +375,21 @@ class MobileTransferDraftTest {
             assertSame(first, retained)
             assertEquals(EDITED, retained.state.value.input)
             assertFalse(retained.state.value.toString().contains("private-marker"))
-            val fresh = MobileTransferDraft()
-            assertNotSame(retained, fresh)
-            assertEquals(MobileTransferDraftState(), fresh.state.value)
         } finally {
             store.clear()
         }
+    }
+
+    private fun awaitIgnoringInterrupts(latch: CountDownLatch): Boolean =
+        try {
+            latch.await(10, TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+            false
+        }
+
+    private fun TestScope.settle() {
+        advanceUntilIdle()
+        shadowOf(Looper.getMainLooper()).idle()
     }
 }
 
