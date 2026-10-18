@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import androidx.activity.ComponentActivity
+import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
@@ -23,9 +24,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolder
@@ -99,24 +98,22 @@ class TvPlaybackLayerTest {
         // The first Back hides the controls, the second leaves playback.
         var shellBacks = 0
         var playing by mutableStateOf(true)
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlaybackLayer(
-                    playing = playing,
-                    player = {
-                        TvPlayerScreen(
-                            state = readyState(),
-                            onBack = { playing = false },
-                            onRetry = {},
-                            onResume = {},
-                            onRestart = {},
-                            onPlayerFailure = { _, _ -> },
-                            playerFactory = { _, _ -> FakePlayer() },
-                        )
-                    },
-                ) {
-                    BackHandler { shellBacks += 1 }
-                }
+        compose.setTvContent {
+            TvPlaybackLayer(
+                playing = playing,
+                player = {
+                    TvPlayerScreen(
+                        state = readyState(),
+                        onBack = { playing = false },
+                        onRetry = {},
+                        onResume = {},
+                        onRestart = {},
+                        onPlayerFailure = { _, _ -> },
+                        playerFactory = { _, _ -> FakePlayer() },
+                    )
+                },
+            ) {
+                BackHandler { shellBacks += 1 }
             }
         }
         compose.back()
@@ -131,16 +128,14 @@ class TvPlaybackLayerTest {
         var playing by mutableStateOf(false)
         // A fresh shell would read the next value; a restored one keeps the first.
         var nextValue = 3
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlaybackLayer(
-                    playing = playing,
-                    player = { Text("Player") },
-                ) {
-                    // Stands in for the shell's saved destination.
-                    val saved by rememberSaveable { mutableIntStateOf(nextValue++) }
-                    Text("Shell $saved", modifier = Modifier.testTag("shell"))
-                }
+        compose.setTvContent {
+            TvPlaybackLayer(
+                playing = playing,
+                player = { Text("Player") },
+            ) {
+                // Stands in for the shell's saved destination.
+                val saved by rememberSaveable { mutableIntStateOf(nextValue++) }
+                Text("Shell $saved", modifier = Modifier.testTag("shell"))
             }
         }
         compose.onNodeWithText("Shell 3").assertIsDisplayed()
@@ -158,37 +153,35 @@ class TvPlaybackLayerTest {
         playing: () -> FilesItem?,
         onPlaying: (FilesItem?) -> Unit,
     ) {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlaybackLayer(
-                    playing = playing() != null,
-                    player = {
-                        val item = checkNotNull(playing())
-                        TvPlayerScreen(
-                            state = readyState(name = item.name),
-                            onBack = { onPlaying(null) },
-                            onRetry = {},
-                            onResume = {},
-                            onRestart = {},
-                            onPlayerFailure = { _, _ -> },
-                            playerFactory = { _, _ -> player },
+        compose.setTvContent {
+            TvPlaybackLayer(
+                playing = playing() != null,
+                player = {
+                    val item = checkNotNull(playing())
+                    TvPlayerScreen(
+                        state = readyState(name = item.name),
+                        onBack = { onPlaying(null) },
+                        onRetry = {},
+                        onResume = {},
+                        onRestart = {},
+                        onPlayerFailure = { _, _ -> },
+                        playerFactory = { _, _ -> player },
+                    )
+                },
+            ) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    filesPane = { paneFocus ->
+                        TvFilesScreen(
+                            state = files,
+                            onEvent = { true },
+                            onPlayMedia = { onPlaying(it) },
+                            modifier = Modifier.focusRequester(paneFocus),
+                            focusMemory = focusMemory,
                         )
                     },
-                ) {
-                    TvShell(
-                        account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                        onSignOut = {},
-                        filesPane = { paneFocus ->
-                            TvFilesScreen(
-                                state = files,
-                                onEvent = { true },
-                                onPlayMedia = { onPlaying(it) },
-                                modifier = Modifier.focusRequester(paneFocus),
-                                focusMemory = focusMemory,
-                            )
-                        },
-                    )
-                }
+                )
             }
         }
     }

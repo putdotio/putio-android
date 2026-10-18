@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import androidx.activity.ComponentActivity
+import io.putdotio.android.tv.setTvContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -19,8 +20,6 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PLAYBACK_REPORTING_LEASE_KEY
 import io.putdotio.android.playback.PlaybackContent
@@ -61,20 +60,18 @@ class TvPlayerResumeTest {
     @Test
     fun aSavedPositionWithoutADurationContinuesWithoutAsking() {
         var resumes = 0
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlayerScreen(
-                    state = readyState().copyForTest(
-                        content = PlaybackContent.AwaitingResume(source(startFromSeconds = 30.0)),
-                    ),
-                    onBack = {},
-                    onRetry = {},
-                    onResume = { resumes += 1 },
-                    onRestart = { error("Nothing was offered") },
-                    onPlayerFailure = { _, _ -> },
-                    playerFactory = { _, _ -> error("No player before the choice") },
-                )
-            }
+        compose.setTvContent {
+            TvPlayerScreen(
+                state = readyState().copyForTest(
+                    content = PlaybackContent.AwaitingResume(source(startFromSeconds = 30.0)),
+                ),
+                onBack = {},
+                onRetry = {},
+                onResume = { resumes += 1 },
+                onRestart = { error("Nothing was offered") },
+                onPlayerFailure = { _, _ -> },
+                playerFactory = { _, _ -> error("No player before the choice") },
+            )
         }
         compose.runOnIdle { assertEquals(1, resumes) }
         compose.onNodeWithText(CONTINUE_LABEL).assertDoesNotExist()
@@ -93,18 +90,16 @@ class TvPlayerResumeTest {
                 ),
             ),
         ).state
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlayerScreen(
-                    state = pending,
-                    onBack = {},
-                    onRetry = {},
-                    onResume = { error("The choice is offered") },
-                    onRestart = { error("The choice is offered") },
-                    onPlayerFailure = { _, _ -> },
-                    playerFactory = { _, _ -> error("No player before the choice") },
-                )
-            }
+        compose.setTvContent {
+            TvPlayerScreen(
+                state = pending,
+                onBack = {},
+                onRetry = {},
+                onResume = { error("The choice is offered") },
+                onRestart = { error("The choice is offered") },
+                onPlayerFailure = { _, _ -> },
+                playerFactory = { _, _ -> error("No player before the choice") },
+            )
         }
         compose.onNodeWithText(CONTINUE_LABEL).assertIsDisplayed()
         assertResumeProgress(SAVED_SECONDS / DURATION_SECONDS)
@@ -178,20 +173,18 @@ class TvPlayerResumeTest {
         val writes = mutableListOf<Pair<Long, Double>>()
         val reporting = reporting(writes)
         var showing by mutableStateOf(true)
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                if (showing) {
-                    TvPlayerScreen(
-                        state = readyState(useStartFrom = true),
-                        onBack = { showing = false },
-                        onRetry = {},
-                        onResume = {},
-                        onRestart = {},
-                        onPlayerFailure = { _, _ -> },
-                        playerFactory = { _, _ -> player },
-                        reporter = reporting,
-                    )
-                }
+        compose.setTvContent {
+            if (showing) {
+                TvPlayerScreen(
+                    state = readyState(useStartFrom = true),
+                    onBack = { showing = false },
+                    onRetry = {},
+                    onResume = {},
+                    onRestart = {},
+                    onPlayerFailure = { _, _ -> },
+                    playerFactory = { _, _ -> player },
+                    reporter = reporting,
+                )
             }
         }
         compose.runOnIdle {
@@ -217,20 +210,18 @@ class TvPlayerResumeTest {
         val writes = mutableListOf<Pair<Long, Double>>()
         val reporting = reporting(writes)
         var showing by mutableStateOf(true)
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                if (showing) {
-                    TvPlayerScreen(
-                        state = readyState(useStartFrom = false),
-                        onBack = { showing = false },
-                        onRetry = {},
-                        onResume = {},
-                        onRestart = {},
-                        onPlayerFailure = { _, _ -> },
-                        playerFactory = { _, _ -> player },
-                        reporter = reporting,
-                    )
-                }
+        compose.setTvContent {
+            if (showing) {
+                TvPlayerScreen(
+                    state = readyState(useStartFrom = false),
+                    onBack = { showing = false },
+                    onRetry = {},
+                    onResume = {},
+                    onRestart = {},
+                    onPlayerFailure = { _, _ -> },
+                    playerFactory = { _, _ -> player },
+                    reporter = reporting,
+                )
             }
         }
         compose.runOnIdle {
@@ -257,15 +248,13 @@ class TvPlayerResumeTest {
             },
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlaybackRoute(
-                    controller = controller,
-                    onExit = onExit,
-                    onSessionRejected = {},
-                    playerFactory = { _, _ -> player },
-                )
-            }
+        compose.setTvContent {
+            TvPlaybackRoute(
+                controller = controller,
+                onExit = onExit,
+                onSessionRejected = {},
+                playerFactory = { _, _ -> player },
+            )
         }
         compose.waitForIdle()
     }

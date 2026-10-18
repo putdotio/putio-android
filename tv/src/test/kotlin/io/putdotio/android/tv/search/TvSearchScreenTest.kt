@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.search
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -25,8 +26,6 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.FilesFailure
 import io.putdotio.android.PutioFailure
@@ -419,10 +418,8 @@ class TvSearchScreenTest {
         notice: () -> FilesFailure? = { null },
         sessionKey: () -> Any? = { null },
     ) {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = state(), actions = actions, notice = notice(), sessionKey = sessionKey())
-            }
+        compose.setTvContent {
+            TvSearchScreen(state = state(), actions = actions, notice = notice(), sessionKey = sessionKey())
         }
     }
 

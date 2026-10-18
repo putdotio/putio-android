@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import android.os.Looper
+import io.putdotio.android.tv.setTvContent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,8 +24,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.playback.PlaybackMediaType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,19 +57,17 @@ class TvPlayerMediaSessionTest {
                 return java.io.Closeable { events += "unpublished released=${player.released}" }
             }
         }
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                if (showing) {
-                    TvPlayerScreen(
-                        state = readyState(),
-                        onBack = {},
-                        onRetry = {},
-                        onResume = {},
-                        onRestart = {},
-                        onPlayerFailure = { _, _ -> },
-                        playerFactory = factory,
-                    )
-                }
+        compose.setTvContent {
+            if (showing) {
+                TvPlayerScreen(
+                    state = readyState(),
+                    onBack = {},
+                    onRetry = {},
+                    onResume = {},
+                    onRestart = {},
+                    onPlayerFailure = { _, _ -> },
+                    playerFactory = factory,
+                )
             }
         }
         compose.runOnIdle { assertEquals(listOf("published 9"), events) }

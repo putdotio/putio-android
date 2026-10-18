@@ -1,6 +1,9 @@
 package io.putdotio.android.tv.player
 
 import android.os.Looper
+import io.putdotio.android.design.putioTvDarkColorScheme
+import androidx.tv.material3.MaterialTheme
+import io.putdotio.android.tv.setTvContent
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
@@ -43,10 +46,8 @@ import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
@@ -426,19 +427,17 @@ class TvPlayerOptionsTest {
         onBack: () -> Unit = {},
     ) {
         compose.mainClock.autoAdvance = false
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlayerScreen(
-                    state = state,
-                    onBack = onBack,
-                    onRetry = {},
-                    onResume = {},
-                    onRestart = {},
-                    onPlayerFailure = { _, _ -> },
-                    playerFactory = { _, _ -> player },
-                    subtitleStartupPolicy = policyProvider(),
-                )
-            }
+        compose.setTvContent {
+            TvPlayerScreen(
+                state = state,
+                onBack = onBack,
+                onRetry = {},
+                onResume = {},
+                onRestart = {},
+                onPlayerFailure = { _, _ -> },
+                playerFactory = { _, _ -> player },
+                subtitleStartupPolicy = policyProvider(),
+            )
         }
         settle()
     }

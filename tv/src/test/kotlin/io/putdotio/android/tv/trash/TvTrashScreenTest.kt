@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.trash
 
 import android.content.res.Configuration
+import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,9 +20,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.PutioFailure
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.trash.TrashAction
@@ -271,10 +270,8 @@ class TvTrashScreenTest {
     }
 
     private fun show(state: () -> TrashState) {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvTrashScreen(state = state(), onEvent = { events += it; true })
-            }
+        compose.setTvContent {
+            TvTrashScreen(state = state(), onEvent = { events += it; true })
         }
         compose.onNodeWithText("Trash").assertIsDisplayed()
     }

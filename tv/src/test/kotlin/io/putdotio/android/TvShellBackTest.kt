@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import androidx.activity.compose.BackHandler
+import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
@@ -66,21 +67,19 @@ class TvShellBackTest {
             ),
             nextRequestValue = 10L,
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = files,
-                            onEvent = { true },
-                            onPlayMedia = {},
-                            modifier = Modifier.focusRequester(paneFocus),
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                filesPane = { paneFocus ->
+                    TvFilesScreen(
+                        state = files,
+                        onEvent = { true },
+                        onPlayMedia = {},
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+            )
         }
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
@@ -163,22 +162,20 @@ class TvShellBackTest {
             ),
             nextRequestValue = 10L,
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    onFilesBack = { events += FilesBrowserEvent.NavigateBack },
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = nested,
-                            onEvent = { events += it; true },
-                            onPlayMedia = {},
-                            modifier = Modifier.focusRequester(paneFocus),
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                onFilesBack = { events += FilesBrowserEvent.NavigateBack },
+                filesPane = { paneFocus ->
+                    TvFilesScreen(
+                        state = nested,
+                        onEvent = { events += it; true },
+                        onPlayMedia = {},
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+            )
         }
         compose.onNodeWithContentDescription("inner.txt").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionLeft)
@@ -199,14 +196,12 @@ class TvShellBackTest {
 
     @Test
     fun backOnTheDrawerOverAPaneWithNothingToFocusReturnsToFiles() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    historyPane = { paneFocus -> Text("Nothing to focus here.", Modifier.focusRequester(paneFocus)) },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                historyPane = { paneFocus -> Text("Nothing to focus here.", Modifier.focusRequester(paneFocus)) },
+            )
         }
         compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
@@ -281,31 +276,29 @@ class TvShellBackTest {
 
     @Test
     fun accountOpensTrashFromItsRowAndBackReturnsToThatRow() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    accountPane = { paneFocus ->
-                        TvAccountScreen(
-                            account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                            settingsState = readySettings(),
-                            appConfigState = AndroidAppConfigReducer.start().state,
-                            onSettingsEvent = { true },
-                            onAppConfigEvent = { true },
-                            onSignOut = {},
-                            paneFocus = paneFocus,
-                            trashPane = { trashFocus ->
-                                TvTrashScreen(
-                                    state = TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0)),
-                                    onEvent = { true },
-                                    modifier = Modifier.focusRequester(trashFocus),
-                                )
-                            },
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                accountPane = { paneFocus ->
+                    TvAccountScreen(
+                        account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                        settingsState = readySettings(),
+                        appConfigState = AndroidAppConfigReducer.start().state,
+                        onSettingsEvent = { true },
+                        onAppConfigEvent = { true },
+                        onSignOut = {},
+                        paneFocus = paneFocus,
+                        trashPane = { trashFocus ->
+                            TvTrashScreen(
+                                state = TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0)),
+                                onEvent = { true },
+                                modifier = Modifier.focusRequester(trashFocus),
+                            )
+                        },
+                    )
+                },
+            )
         }
         compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {

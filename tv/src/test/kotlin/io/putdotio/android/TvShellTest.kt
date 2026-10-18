@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import androidx.compose.ui.test.assertCountEquals
+import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -15,8 +16,6 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -70,10 +69,8 @@ class TvShellTest {
 
     @Test
     fun linkScreenShowsCodeAndLinkUrlWithNewCodeFocused() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvLinkScreen(phase = TvLinkPhase.AwaitingLink("GIQTKN"), sessionExpired = false, onRequestNewCode = {})
-            }
+        compose.setTvContent {
+            TvLinkScreen(phase = TvLinkPhase.AwaitingLink("GIQTKN"), sessionExpired = false, onRequestNewCode = {})
         }
 
         compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
@@ -83,10 +80,8 @@ class TvShellTest {
 
     @Test
     fun anExpiredSessionIsExplainedWhileTheNewCodeIsLive() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvLinkScreen(phase = TvLinkPhase.AwaitingLink("GIQTKN"), sessionExpired = true, onRequestNewCode = {})
-            }
+        compose.setTvContent {
+            TvLinkScreen(phase = TvLinkPhase.AwaitingLink("GIQTKN"), sessionExpired = true, onRequestNewCode = {})
         }
 
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
@@ -96,14 +91,12 @@ class TvShellTest {
     @Test
     fun expiredCodeExplainsAndOffersANewOne() {
         var requests = 0
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvLinkScreen(
-                    phase = TvLinkPhase.Stopped(TvLinkStop.CodeExpired),
-                    sessionExpired = true,
-                    onRequestNewCode = { requests += 1 },
-                )
-            }
+        compose.setTvContent {
+            TvLinkScreen(
+                phase = TvLinkPhase.Stopped(TvLinkStop.CodeExpired),
+                sessionExpired = true,
+                onRequestNewCode = { requests += 1 },
+            )
         }
 
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
@@ -116,18 +109,16 @@ class TvShellTest {
     fun inactiveAccountNoticeShowsAboveEveryPaneWithoutTakingFocusOrBack() {
         val zone = java.time.ZoneId.systemDefault()
         val deletion = java.time.LocalDate.now(zone).plusDays(14).atTime(12, 0).atZone(zone).toInstant()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(
-                        userId = 1,
-                        username = "user",
-                        email = "user@example.com",
-                        inactiveNotice = InactiveAccountNotice.Deactivated(deletion),
-                    ),
-                    onSignOut = {},
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(
+                    userId = 1,
+                    username = "user",
+                    email = "user@example.com",
+                    inactiveNotice = InactiveAccountNotice.Deactivated(deletion),
+                ),
+                onSignOut = {},
+            )
         }
         compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
         compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
@@ -158,10 +149,8 @@ class TvShellTest {
 
     @Test
     fun shellListsDestinationsAndDpadMovesBetweenDrawerAndPane() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(account = TvAccount(userId = 1, username = "user", email = "user@example.com"), onSignOut = {})
-            }
+        compose.setTvContent {
+            TvShell(account = TvAccount(userId = 1, username = "user", email = "user@example.com"), onSignOut = {})
         }
 
         compose.onNodeWithText("put.io").assertIsDisplayed()
@@ -197,18 +186,16 @@ class TvShellTest {
             recent = TvRecentSearchActions(onSearch = {}, onEdit = {}, onRetry = {}),
         )
         var requested by mutableStateOf<TvDestination?>(null)
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    searchPane = { paneFocus ->
-                        TvSearchScreen(state = search, actions = actions, modifier = Modifier.focusRequester(paneFocus))
-                    },
-                    requestedDestination = requested,
-                    onDestinationRequestHandled = { requested = null },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                searchPane = { paneFocus ->
+                    TvSearchScreen(state = search, actions = actions, modifier = Modifier.focusRequester(paneFocus))
+                },
+                requestedDestination = requested,
+                onDestinationRequestHandled = { requested = null },
+            )
         }
         compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
@@ -247,22 +234,20 @@ class TvShellTest {
         )
         val events = mutableListOf<HistoryEvent>()
         var requested by mutableStateOf<TvDestination?>(null)
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    historyPane = { paneFocus ->
-                        TvHistoryScreen(
-                            state = history,
-                            onEvent = { events += it; true },
-                            modifier = Modifier.focusRequester(paneFocus),
-                        )
-                    },
-                    requestedDestination = requested,
-                    onDestinationRequestHandled = { requested = null },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                historyPane = { paneFocus ->
+                    TvHistoryScreen(
+                        state = history,
+                        onEvent = { events += it; true },
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+                requestedDestination = requested,
+                onDestinationRequestHandled = { requested = null },
+            )
         }
         compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {

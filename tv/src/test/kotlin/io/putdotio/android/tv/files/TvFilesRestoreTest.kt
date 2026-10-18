@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.files
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.setTvContent
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -12,8 +13,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
@@ -75,10 +74,8 @@ class TvFilesRestoreTest {
         val memory = mutableMapOf<Long, Long>()
         var shown by mutableStateOf(true)
         val root = ready(item(1, "first.txt", PutioFileType.TEXT), item(2, "second.txt", PutioFileType.TEXT))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                if (shown) TvFilesScreen(state = root, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
-            }
+        compose.setTvContent {
+            if (shown) TvFilesScreen(state = root, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
         }
         compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("second.txt").assertIsFocused()
@@ -94,10 +91,8 @@ class TvFilesRestoreTest {
         val memory = mutableMapOf<Long, Long>()
         var shown by mutableStateOf(true)
         val paged = ready(item(1, "first.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c")))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                if (shown) TvFilesScreen(state = paged, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
-            }
+        compose.setTvContent {
+            if (shown) TvFilesScreen(state = paged, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
         }
         compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused()
@@ -115,10 +110,8 @@ class TvFilesRestoreTest {
         var state by mutableStateOf(
             ready(item(1, "first.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c"))),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                if (shown) TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
-            }
+        compose.setTvContent {
+            if (shown) TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {}, focusMemory = memory)
         }
         compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused()

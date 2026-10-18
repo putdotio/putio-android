@@ -12,13 +12,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
 import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeReader
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.tv.auth.TvLinkPhase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -74,10 +72,8 @@ class TvLinkQrTest {
     }
 
     private fun show(phase: TvLinkPhase) {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvLinkScreen(phase = phase, sessionExpired = false, onRequestNewCode = {})
-            }
+        compose.setTvContent {
+            TvLinkScreen(phase = phase, sessionExpired = false, onRequestNewCode = {})
         }
     }
 

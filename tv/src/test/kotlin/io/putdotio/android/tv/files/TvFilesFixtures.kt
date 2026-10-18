@@ -1,8 +1,6 @@
 package io.putdotio.android.tv.files
 
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
@@ -18,6 +16,7 @@ import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.android.files.filesBrowserState
+import io.putdotio.android.tv.setTvContent
 
 internal fun ready(
     vararg items: FilesItem,
@@ -60,7 +59,7 @@ internal fun item(
 
 internal fun networkFailure() = PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))
 
-/** [TvFilesScreen] in the TV theme; the lambdas are read during composition so tests can swap their values. */
+/** [TvFilesScreen]; the lambdas are read during composition so tests can swap their values. */
 internal fun ComposeContentTestRule.showFiles(
     state: () -> FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Boolean = { true },
@@ -70,17 +69,15 @@ internal fun ComposeContentTestRule.showFiles(
     onOpenInVlc: (FilesItem) -> Unit = {},
     onSetWatched: (FilesItem, Boolean) -> Unit = { _, _ -> },
 ) {
-    setContent {
-        MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-            TvFilesScreen(
-                state = state(),
-                onEvent = onEvent,
-                onPlayMedia = onPlayMedia,
-                confirmedTrashEnabled = confirmedTrashEnabled(),
-                watchedToggleEnabled = watchedToggleEnabled,
-                onOpenInVlc = onOpenInVlc,
-                onSetWatched = onSetWatched,
-            )
-        }
+    setTvContent {
+        TvFilesScreen(
+            state = state(),
+            onEvent = onEvent,
+            onPlayMedia = onPlayMedia,
+            confirmedTrashEnabled = confirmedTrashEnabled(),
+            watchedToggleEnabled = watchedToggleEnabled,
+            onOpenInVlc = onOpenInVlc,
+            onSetWatched = onSetWatched,
+        )
     }
 }

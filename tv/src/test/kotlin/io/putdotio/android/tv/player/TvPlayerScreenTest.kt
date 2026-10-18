@@ -1,6 +1,9 @@
 package io.putdotio.android.tv.player
 
 import android.view.KeyEvent as AndroidKeyEvent
+import io.putdotio.android.design.putioTvDarkColorScheme
+import androidx.tv.material3.MaterialTheme
+import io.putdotio.android.tv.setTvContent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,8 +23,6 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackFailure
 import org.junit.Assert.assertEquals
@@ -48,18 +49,16 @@ class TvPlayerScreenTest {
     fun readySourcePlaysAndCenterTogglesPauseWithTheControlsShown() {
         val player = FakePlayer()
         compose.mainClock.autoAdvance = false
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlayerScreen(
-                    state = readyState(resumePositionMillis = 42_000L),
-                    onBack = {},
-                    onRetry = {},
-                    onResume = {},
-                    onRestart = {},
-                    onPlayerFailure = { _, _ -> },
-                    playerFactory = { _, _ -> player },
-                )
-            }
+        compose.setTvContent {
+            TvPlayerScreen(
+                state = readyState(resumePositionMillis = 42_000L),
+                onBack = {},
+                onRetry = {},
+                onResume = {},
+                onRestart = {},
+                onPlayerFailure = { _, _ -> },
+                playerFactory = { _, _ -> player },
+            )
         }
         compose.settle()
         compose.runOnIdle {
@@ -99,22 +98,20 @@ class TvPlayerScreenTest {
         val player = FakePlayer()
         var backs = 0
         var showing by mutableStateOf(true)
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                if (showing) {
-                    TvPlayerScreen(
-                        state = readyState(),
-                        onBack = {
-                            backs += 1
-                            showing = false
-                        },
-                        onRetry = {},
-                        onResume = {},
-                        onRestart = {},
-                        onPlayerFailure = { _, _ -> },
-                        playerFactory = { _, _ -> player },
-                    )
-                }
+        compose.setTvContent {
+            if (showing) {
+                TvPlayerScreen(
+                    state = readyState(),
+                    onBack = {
+                        backs += 1
+                        showing = false
+                    },
+                    onRetry = {},
+                    onResume = {},
+                    onRestart = {},
+                    onPlayerFailure = { _, _ -> },
+                    playerFactory = { _, _ -> player },
+                )
             }
         }
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
@@ -169,18 +166,16 @@ class TvPlayerScreenTest {
         var reported: Pair<PlaybackFailure, Long>? = null
         var retries = 0
         var state by mutableStateOf(readyState())
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlayerScreen(
-                    state = state,
-                    onBack = {},
-                    onRetry = { retries += 1 },
-                    onResume = {},
-                    onRestart = {},
-                    onPlayerFailure = { failure, position -> reported = failure to position },
-                    playerFactory = { _, _ -> player },
-                )
-            }
+        compose.setTvContent {
+            TvPlayerScreen(
+                state = state,
+                onBack = {},
+                onRetry = { retries += 1 },
+                onResume = {},
+                onRestart = {},
+                onPlayerFailure = { failure, position -> reported = failure to position },
+                playerFactory = { _, _ -> player },
+            )
         }
         compose.runOnIdle { player.fail(positionMillis = 61_000L) }
         compose.waitForIdle()

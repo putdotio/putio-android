@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import androidx.activity.ComponentActivity
+import io.putdotio.android.tv.setTvContent
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -8,8 +9,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
@@ -58,18 +57,16 @@ class TvPlayerSafeAreaTest {
 
     private fun showControls() {
         compose.mainClock.autoAdvance = false
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlayerScreen(
-                    state = readyState(),
-                    onBack = {},
-                    onRetry = {},
-                    onResume = {},
-                    onRestart = {},
-                    onPlayerFailure = { _, _ -> },
-                    playerFactory = { _, _ -> TrackPlayer() },
-                )
-            }
+        compose.setTvContent {
+            TvPlayerScreen(
+                state = readyState(),
+                onBack = {},
+                onRetry = {},
+                onResume = {},
+                onRestart = {},
+                onPlayerFailure = { _, _ -> },
+                playerFactory = { _, _ -> TrackPlayer() },
+            )
         }
         compose.mainClock.advanceTimeBy(SETTLE_MILLIS)
         compose.waitForIdle()

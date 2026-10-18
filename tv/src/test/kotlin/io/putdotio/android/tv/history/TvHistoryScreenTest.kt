@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.history
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -16,10 +17,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.FilesFailure
 import io.putdotio.android.PutioFailure
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
@@ -232,15 +231,13 @@ class TvHistoryScreenTest {
     private fun show(state: HistoryState, notice: FilesFailure? = null) = show(notice) { state }
 
     private fun show(notice: FilesFailure? = null, state: () -> HistoryState) {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvHistoryScreen(
-                    state = state(),
-                    onEvent = { log += it; true },
-                    notice = notice,
-                    clock = clock,
-                )
-            }
+        compose.setTvContent {
+            TvHistoryScreen(
+                state = state(),
+                onEvent = { log += it; true },
+                notice = notice,
+                clock = clock,
+            )
         }
         compose.onNodeWithText("History").assertIsDisplayed()
     }

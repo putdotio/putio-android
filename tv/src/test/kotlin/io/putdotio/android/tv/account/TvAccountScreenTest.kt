@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.account
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -11,7 +12,6 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -23,8 +23,6 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.settings.AccountSettingsChange
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
@@ -306,22 +304,20 @@ class TvAccountScreenTest {
             )
         },
     ) {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                val paneFocus = remember { FocusRequester() }
-                TvAccountScreen(
-                    account = account(),
-                    settingsState = settingsState(),
-                    appConfigState = appConfigState(),
-                    onSettingsEvent = { settingsEvents += it; true },
-                    onAppConfigEvent = { appConfigEvents += it; true },
-                    onSignOut = onSignOut,
-                    paneFocus = paneFocus,
-                    trashSizeBytes = 0,
-                    trashPane = {},
-                    loadTunnelRoutes = loadTunnelRoutes,
-                )
-            }
+        compose.setTvContent {
+            val paneFocus = remember { FocusRequester() }
+            TvAccountScreen(
+                account = account(),
+                settingsState = settingsState(),
+                appConfigState = appConfigState(),
+                onSettingsEvent = { settingsEvents += it; true },
+                onAppConfigEvent = { appConfigEvents += it; true },
+                onSignOut = onSignOut,
+                paneFocus = paneFocus,
+                trashSizeBytes = 0,
+                trashPane = {},
+                loadTunnelRoutes = loadTunnelRoutes,
+            )
         }
     }
 }
