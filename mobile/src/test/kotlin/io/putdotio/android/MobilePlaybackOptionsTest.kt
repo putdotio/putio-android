@@ -329,9 +329,9 @@ class MobilePlaybackOptionsTest {
             .assertIsFocused()
         compose.waitForIdle()
         compose.onNodeWithText("1.25×").performKeyInput {
-                keyDown(Key.Enter)
-                keyUp(Key.Enter)
-            }
+            keyDown(Key.Enter)
+            keyUp(Key.Enter)
+        }
         compose.runOnIdle {
             assertEquals(1.25f, player.playbackParameters.speed)
             assertTrue(keyboardEvents > 0)

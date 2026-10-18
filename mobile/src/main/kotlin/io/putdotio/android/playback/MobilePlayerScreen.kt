@@ -169,9 +169,7 @@ internal fun MobilePlayerScreen(
                     keyboardNavigationActive = keyboardNavigationActive,
                     onKeyboardNavigation = { keyboardNavigationActive = true },
                     onPointerNavigation = { keyboardNavigationActive = false },
-                    onPlayerFailure = { failure, positionMillis ->
-                        onPlayerFailure(failure, positionMillis)
-                    },
+                    onPlayerFailure = onPlayerFailure,
                     autoplayNextVideo = autoplayNextVideo,
                     onPlaybackEnded = onPlaybackEnded,
                     playerFactory = playerFactory,

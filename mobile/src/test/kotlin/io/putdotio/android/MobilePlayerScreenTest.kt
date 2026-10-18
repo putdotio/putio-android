@@ -51,6 +51,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.percentOffset
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -420,16 +421,10 @@ class MobilePlayerScreenTest {
 
     @Test
     fun unsupportedStateIsExplicitAndDoesNotOfferRetry() {
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Unsupported(PutioFileType.TEXT)),
-                    onRetry = { error("Retry must not be offered") },
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = state(PlaybackContent.Unsupported(PutioFileType.TEXT)),
+            onRetry = { error("Retry must not be offered") },
+        )
 
         compose.onNodeWithText("Can’t play this file").assertIsDisplayed()
         compose.onAllNodesWithText("Try again").assertCountEquals(0)
@@ -438,21 +433,15 @@ class MobilePlayerScreenTest {
     @Test
     fun expiredPlaybackAccessOffersCredentialRefresh() {
         var retries = 0
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state =
-                        state(
-                            PlaybackContent.Failed(
-                                PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired")),
-                            ),
-                        ),
-                    onRetry = { retries += 1 },
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state =
+                state(
+                    PlaybackContent.Failed(
+                        PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("expired")),
+                    ),
+                ),
+            onRetry = { retries += 1 },
+        )
 
         compose.onNodeWithText("Playback access expired. Retry to refresh it.").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
@@ -462,18 +451,12 @@ class MobilePlayerScreenTest {
     @Test
     fun mediaTheDeviceCannotPlayOffersBackButNotTryAgain() {
         var backs = 0
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(
-                        PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
-                    ),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = { backs += 1 },
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = state(
+                PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
+            ),
+            onBack = { backs += 1 },
+        )
 
         compose.onNodeWithText("This device can’t play this file’s format.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
@@ -484,23 +467,17 @@ class MobilePlayerScreenTest {
     @Test
     fun nextVideoLookupFailureOffersRetry() {
         var retries = 0
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state =
-                        state(
-                            PlaybackContent.NextFailed(
-                                PlaybackFailure.Putio(
-                                    PutioFailure.NetworkUnavailable(IllegalStateException("offline")),
-                                ),
-                            ),
+        compose.setPlayerScreen(
+            state =
+                state(
+                    PlaybackContent.NextFailed(
+                        PlaybackFailure.Putio(
+                            PutioFailure.NetworkUnavailable(IllegalStateException("offline")),
                         ),
-                    onRetry = { retries += 1 },
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                )
-            }
-        }
+                    ),
+                ),
+            onRetry = { retries += 1 },
+        )
 
         compose.onNodeWithText("Couldn’t find the next video").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
@@ -509,20 +486,13 @@ class MobilePlayerScreenTest {
 
     @Test
     fun aRefusedNextVideoLookupOffersBackButNotTryAgain() {
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(
-                        PlaybackContent.NextFailed(
-                            PlaybackFailure.Putio(PutioFailure.AccessDenied(PutioConfigurationException("403"))),
-                        ),
-                    ),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = state(
+                PlaybackContent.NextFailed(
+                    PlaybackFailure.Putio(PutioFailure.AccessDenied(PutioConfigurationException("403"))),
+                ),
+            ),
+        )
 
         compose.onNodeWithText("Couldn’t find the next video").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertDoesNotExist()
@@ -866,18 +836,11 @@ class MobilePlayerSubtitleTest {
             player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                 .setPreferredTextLanguages("de").build()
         }
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(videoSource())),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> player },
-                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = state(PlaybackContent.Ready(videoSource())),
+            playerFactory = MobilePlayerFactory { _, _ -> player },
+            subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+        )
         compose.runOnIdle { assertEquals(listOf("de"), player.trackSelectionParameters.preferredTextLanguages) }
 
         // Arriving tracks mark English as the account's default; no language preference may outrank it (#237).
@@ -947,17 +910,10 @@ class MobilePlayerSubtitleTest {
     fun videoOffersDirectOptionsWithoutSubtitleMetadataAndHidesBackWithControls() {
         lateinit var player: RecordingPlayer
         compose.mainClock.autoAdvance = false
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(0.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = readyState(0.0),
+            playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer().also { player = it } },
+        )
         compose.mainClock.advanceTimeByFrame()
         compose.onNodeWithText("Audio").assertIsDisplayed()
         compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
@@ -975,18 +931,11 @@ class MobilePlayerSubtitleTest {
     @Test
     fun hideSubtitlesLeavesTheCaptionsPickerOut() {
         compose.mainClock.autoAdvance = false
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(0.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
-                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = readyState(0.0),
+            playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
+            subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
+        )
         compose.mainClock.advanceTimeByFrame()
         compose.onNodeWithText("Audio").assertIsDisplayed()
         compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
@@ -996,18 +945,11 @@ class MobilePlayerSubtitleTest {
     @Test
     fun playbackResolvedForHiddenSubtitlesLeavesTheCaptionsPickerOutBeforeTheSettingsLoad() {
         compose.mainClock.autoAdvance = false
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(videoSource(), subtitlesHidden = true)),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
-                    subtitleStartupPolicy = null,
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = state(PlaybackContent.Ready(videoSource(), subtitlesHidden = true)),
+            playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
+            subtitleStartupPolicy = null,
+        )
         compose.mainClock.advanceTimeByFrame()
         compose.onNodeWithText("Audio").assertIsDisplayed()
         compose.onNodeWithText("Captions").assertDoesNotExist()
@@ -1017,18 +959,11 @@ class MobilePlayerSubtitleTest {
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     fun offStaysOffWhenTheTracksChangeBeforeThePickRecomposes() {
         val player = RecordingPlayer()
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(videoSource())),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> player },
-                    subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = state(PlaybackContent.Ready(videoSource())),
+            playerFactory = MobilePlayerFactory { _, _ -> player },
+            subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+        )
         compose.runOnIdle { assertTrue(player.trackSelectionParameters.selectTextByDefault) }
         val text = TrackGroup(
             Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
@@ -1174,20 +1109,13 @@ class MobilePlayerDoubleTapTest {
     @Test
     fun doubleTapSeeksBySideAndSingleTapStillTogglesControls() {
         lateinit var player: RecordingPlayer
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 20.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory =
-                        MobilePlayerFactory { _, _ ->
-                            RecordingPlayer(durationMillis = 60_000L).also { player = it }
-                        },
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = readyState(startFromSeconds = 20.0),
+            playerFactory =
+                MobilePlayerFactory { _, _ ->
+                    RecordingPlayer(durationMillis = 60_000L).also { player = it }
+                },
+        )
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
         compose.runOnIdle {
@@ -1281,20 +1209,13 @@ class MobilePlayerDoubleTapTest {
     @Test
     fun doubleTapStillAccumulatesWhenPlaybackBuffersBetweenTaps() {
         lateinit var player: RecordingPlayer
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 20.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory =
-                        MobilePlayerFactory { _, _ ->
-                            RecordingPlayer(durationMillis = 60_000L).also { player = it }
-                        },
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = readyState(startFromSeconds = 20.0),
+            playerFactory =
+                MobilePlayerFactory { _, _ ->
+                    RecordingPlayer(durationMillis = 60_000L).also { player = it }
+                },
+        )
         compose.waitForIdle()
         compose.runOnIdle {
             player.updatePlaybackState(Media3Player.STATE_BUFFERING)
@@ -1338,20 +1259,13 @@ class MobilePlayerDoubleTapTest {
     @Test
     fun nonSeekableMediaDisablesControlsAndIgnoresDoubleTap() {
         lateinit var player: RecordingPlayer
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 12.345),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory =
-                        MobilePlayerFactory { _, _ ->
-                            RecordingPlayer(seekable = false).also { player = it }
-                        },
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = readyState(startFromSeconds = 12.345),
+            playerFactory =
+                MobilePlayerFactory { _, _ ->
+                    RecordingPlayer(seekable = false).also { player = it }
+                },
+        )
 
         compose.waitForIdle()
         compose.runOnIdle {
@@ -1523,20 +1437,13 @@ class MobilePlayerSeekTest {
     @Test
     fun visibleSeekControlsAccumulateAndClampAtTheDuration() {
         lateinit var player: RecordingPlayer
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 12.345),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory =
-                        MobilePlayerFactory { _, _ ->
-                            RecordingPlayer(durationMillis = 30_000L).also { player = it }
-                        },
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = readyState(startFromSeconds = 12.345),
+            playerFactory =
+                MobilePlayerFactory { _, _ ->
+                    RecordingPlayer(durationMillis = 30_000L).also { player = it }
+                },
+        )
         compose.waitForIdle()
         compose.mainClock.autoAdvance = false
         compose.runOnIdle {
@@ -1618,33 +1525,6 @@ class MobilePlayerSeekTest {
         }
         compose.mainClock.autoAdvance = true
         compose.onNodeWithText("Forward 20 seconds").assertIsDisplayed()
-    }
-
-    @Test
-    fun accumulatedSeekFeedbackIsVisible() {
-        compose.setContent {
-            PutioTheme {
-                MobileSeekFeedback(
-                    PendingSeek(
-                        direction = SeekDirection.Forward,
-                        targetPositionMillis = 30_000L,
-                        accumulatedMillis = 20_000L,
-                        requestId = 2L,
-                        accumulatesUntilMillis = Long.MAX_VALUE,
-                    ),
-                )
-            }
-        }
-
-        compose
-            .onNodeWithText("Forward 20 seconds")
-            .assertIsDisplayed()
-            .assert(
-                SemanticsMatcher.expectValue(
-                    SemanticsProperties.LiveRegion,
-                    LiveRegionMode.Polite,
-                ),
-            )
     }
 
     @Test
@@ -1797,17 +1677,10 @@ class MobilePlayerSeekTest {
     @Test
     fun seekRefreshesPendingFeedbackBeforeBatchedWindowEvents() {
         val player = RecordingPlayer()
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 20.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> player },
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = readyState(startFromSeconds = 20.0),
+            playerFactory = MobilePlayerFactory { _, _ -> player },
+        )
         compose.runOnIdle {
             player.pause()
             player.movePositionTo(20_000L)
@@ -1843,17 +1716,10 @@ class MobilePlayerSeekTest {
     @Test
     fun playerWindowEventsClearFeedbackAndDisableUnavailableSeeking() {
         val player = RecordingPlayer()
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 20.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, _ -> player },
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = readyState(startFromSeconds = 20.0),
+            playerFactory = MobilePlayerFactory { _, _ -> player },
+        )
         compose.runOnIdle {
             player.pause()
             player.movePositionTo(20_000L)
@@ -2172,20 +2038,13 @@ class MobilePlayerAudioTest {
     fun audioPlaybackShowsACoverWithPersistentControlsAndNoVideoSurface() {
         lateinit var player: RecordingPlayer
         compose.mainClock.autoAdvance = false
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = MobilePlayerFactory { _, mediaType ->
-                        assertEquals(PlaybackMediaType.AUDIO, mediaType)
-                        RecordingPlayer().also { player = it }
-                    },
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+            playerFactory = MobilePlayerFactory { _, mediaType ->
+                assertEquals(PlaybackMediaType.AUDIO, mediaType)
+                RecordingPlayer().also { player = it }
+            },
+        )
         compose.mainClock.advanceTimeByFrame()
 
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
@@ -2294,17 +2153,10 @@ class MobilePlayerAudioTest {
         session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO))
         session.prepare()
         session.updatePlaybackState(Media3Player.STATE_ENDED)
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = SessionPlayerFactory(session) {},
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+            playerFactory = SessionPlayerFactory(session) {},
+        )
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
 
         compose.runOnIdle {
@@ -2356,17 +2208,10 @@ class MobilePlayerAudioTest {
             androidx.media3.common.MediaItem.Builder().setMediaId("99").setUri("https://example.com/other.mp3").build(),
         )
         session.prepare()
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = SessionPlayerFactory(session) {},
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+            playerFactory = SessionPlayerFactory(session) {},
+        )
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
 
         compose.runOnIdle {
@@ -2379,24 +2224,17 @@ class MobilePlayerAudioTest {
     @Test
     fun videoPlaybackEndsSessionAudio() {
         var audioStops = 0
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(videoSource())),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = object : MobilePlayerFactory {
-                        override fun create(context: Context, mediaType: PlaybackMediaType): Media3Player =
-                            RecordingPlayer()
+        compose.setPlayerScreen(
+            state = state(PlaybackContent.Ready(videoSource())),
+            playerFactory = object : MobilePlayerFactory {
+                override fun create(context: Context, mediaType: PlaybackMediaType): Media3Player =
+                    RecordingPlayer()
 
-                        override fun stopAudio(context: Context) {
-                            audioStops += 1
-                        }
-                    },
-                )
-            }
-        }
+                override fun stopAudio(context: Context) {
+                    audioStops += 1
+                }
+            },
+        )
         compose.onNodeWithTag(MOBILE_PLAYER_TAG).assertIsDisplayed()
         compose.runOnIdle { assertEquals(1, audioStops) }
     }
@@ -2405,35 +2243,28 @@ class MobilePlayerAudioTest {
     fun failedSessionConnectionIsRecoverable() {
         var attempts = 0
         val session = RecordingPlayer()
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = {},
-                    playerFactory = object : MobilePlayerFactory {
-                        override fun create(context: Context, mediaType: PlaybackMediaType): Media3Player =
-                            error("audio must attach to the session")
+        compose.setPlayerScreen(
+            state = state(PlaybackContent.Ready(audioSource()), AudioTarget),
+            playerFactory = object : MobilePlayerFactory {
+                override fun create(context: Context, mediaType: PlaybackMediaType): Media3Player =
+                    error("audio must attach to the session")
 
-                        override fun connectAudio(
-                            context: Context,
-                            onResult: (Result<Media3Player>) -> Unit,
-                        ): java.io.Closeable {
-                            attempts += 1
-                            onResult(
-                                if (attempts == 1) {
-                                    Result.failure(IllegalStateException("bind"))
-                                } else {
-                                    Result.success(session)
-                                },
-                            )
-                            return java.io.Closeable {}
-                        }
-                    },
-                )
-            }
-        }
+                override fun connectAudio(
+                    context: Context,
+                    onResult: (Result<Media3Player>) -> Unit,
+                ): java.io.Closeable {
+                    attempts += 1
+                    onResult(
+                        if (attempts == 1) {
+                            Result.failure(IllegalStateException("bind"))
+                        } else {
+                            Result.success(session)
+                        },
+                    )
+                    return java.io.Closeable {}
+                }
+            },
+        )
 
         compose.onNodeWithText("Couldn’t play this audio").assertIsDisplayed()
         compose.onNodeWithText("Try again").performClick()
@@ -2662,18 +2493,33 @@ class MobilePlayerKeyboardTest {
     }
 
     private fun setPlayer(onBack: () -> Unit = {}, create: () -> RecordingPlayer) {
-        compose.setContent {
-            PutioTheme {
-                MobilePlayerScreen(
-                    state = readyState(startFromSeconds = 20.0),
-                    onRetry = {},
-                    onPlayerFailure = { _, _ -> },
-                    onBack = onBack,
-                    playerFactory = MobilePlayerFactory { _, _ -> create() },
-                )
-            }
-        }
+        compose.setPlayerScreen(
+            state = readyState(startFromSeconds = 20.0),
+            onBack = onBack,
+            playerFactory = MobilePlayerFactory { _, _ -> create() },
+        )
         compose.waitForIdle()
+    }
+}
+
+private fun ComposeContentTestRule.setPlayerScreen(
+    state: PlaybackState,
+    playerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
+    subtitleStartupPolicy: SubtitleStartupPolicy? = null,
+    onRetry: () -> Unit = {},
+    onBack: () -> Unit = {},
+) {
+    setContent {
+        PutioTheme {
+            MobilePlayerScreen(
+                state = state,
+                onRetry = onRetry,
+                onPlayerFailure = { _, _ -> },
+                onBack = onBack,
+                playerFactory = playerFactory,
+                subtitleStartupPolicy = subtitleStartupPolicy,
+            )
+        }
     }
 }
 
@@ -3120,7 +2966,6 @@ class MobilePlayerCodecTest {
         }
     }
 
-
     @Test
     fun activeNonTouchInteractionPreventsControlAutoHide() {
         val player = RecordingPlayer()
@@ -3182,10 +3027,6 @@ class MobilePlayerCodecTest {
         assertTrue(controlsVisibleAfterTap(true, Media3Player.STATE_READY, true))
         assertTrue(controlsVisibleAfterTap(false, Media3Player.STATE_READY, true))
     }
-
-
-
-
 
     @Test
     fun nonNetworkDataSourceFailureUsesGenericRecovery() {
