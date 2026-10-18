@@ -44,6 +44,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.putdotio.android.account.InactiveAccountNotice
+import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileInactiveAccountNotice
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
@@ -177,6 +178,7 @@ internal fun MobileShell(
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
     val isDownloads = backStackEntry?.destination?.route == MOBILE_DOWNLOADS_ROUTE
     val isPublicLinks = backStackEntry?.destination?.route == MOBILE_PUBLIC_LINKS_ROUTE
+    val isPrivacyControls = backStackEntry?.destination?.route == MOBILE_PRIVACY_CONTROLS_ROUTE
     val publicLinks = publicLinksController?.let { controller ->
         val state = controller.state.collectAsStateWithLifecycle().value
         remember(controller, state) { MobilePublicLinks(state, controller::dispatch) }
@@ -249,7 +251,7 @@ internal fun MobileShell(
     BackHandler(enabled = !isPlayback && filesOwnsBack, onBack = onFilesBack)
     SubpageBackHandler(
         enabled = !isPlayback,
-        onSubpage = isTrash || isDownloads || isPublicLinks,
+        onSubpage = isTrash || isDownloads || isPublicLinks || isPrivacyControls,
         protectTrashRecovery = trashState?.hasPendingMutation == true && !filesOwnsBack,
         navController = navController,
     )
@@ -834,6 +836,7 @@ private fun accountSubpageTitle(route: String?): Int? =
         MOBILE_TRASH_ROUTE -> R.string.mobile_trash_title
         MOBILE_DOWNLOADS_ROUTE -> R.string.mobile_downloads_title
         MOBILE_PUBLIC_LINKS_ROUTE -> R.string.mobile_public_links_manage
+        MOBILE_PRIVACY_CONTROLS_ROUTE -> R.string.mobile_settings_privacy_controls
         else -> null
     }
 

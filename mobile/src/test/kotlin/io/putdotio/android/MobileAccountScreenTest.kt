@@ -4,8 +4,6 @@ import android.content.Context
 import android.text.format.Formatter
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.runtime.getValue
@@ -79,7 +77,7 @@ import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG
 import io.putdotio.android.account.MOBILE_DEFAULT_SORT_DIALOG_TAG
 import io.putdotio.android.account.MOBILE_DEFAULT_SORT_ROW_TAG
-import io.putdotio.android.account.MOBILE_STRICTLY_NECESSARY_TAG
+import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROW_TAG
 import io.putdotio.android.account.MOBILE_TUNNEL_ROUTE_RETRY_TAG
 import io.putdotio.android.account.MOBILE_TUNNEL_ROUTE_ROW_TAG
 import io.putdotio.android.account.MobileAccountScreen
@@ -94,7 +92,7 @@ class MobileAccountScreenTest {
     @Test
     fun settingsSectionsSupportHeadingNavigation() {
         compose.setAccountContent(state = readyAccountSettingsState(), events = mutableListOf())
-        listOf("Files", "Playback", "Privacy controls", "About").forEach { title ->
+        listOf("Files", "Playback", "About").forEach { title ->
             compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(title))
             compose.onNodeWithText(title).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
         }
@@ -233,40 +231,41 @@ class MobileAccountScreenTest {
     }
 
     @Test
-    fun privacyControlsDiscloseStrictlyNecessaryAndToggleEachAccountKey() {
+    fun privacyControlsAreOneRowThatShowsTheirStateAndOpensThePage() {
         val events = mutableListOf<AccountSettingsEvent>()
-        compose.setAccountContent(state = readyAccountSettingsState(), events = events)
-
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_STRICTLY_NECESSARY_TAG))
-        compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG).assertTextContains("Always on")
-        compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG).assert(
-            SemanticsMatcher.keyNotDefined(SemanticsProperties.ToggleableState),
+        var opened = 0
+        compose.setAccountContent(
+            state = readyAccountSettingsState(),
+            events = events,
+            callbacks = AccountScreenCallbacks(onPrivacyControls = { opened += 1 }),
         )
 
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Diagnostics"))
-        compose.onNodeWithText("Diagnostics").assertIsOn().performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG)
+            .assertTextContains("Privacy controls")
+            .assertTextContains("Diagnostics on · Product analytics off")
+            .performClick()
+        compose.onAllNodesWithText("Strictly necessary").assertCountEquals(0)
+        compose.onAllNodesWithText("Diagnostics").assertCountEquals(0)
+        compose.onAllNodesWithText("Product analytics").assertCountEquals(0)
         compose.runOnIdle {
-            assertEquals(
-                AccountSettingsEvent.ChangeRequested(
-                    AccountSettingsChange(AccountSettingsKey.Diagnostics, enabled = false),
-                ),
-                events.last(),
-            )
+            assertEquals(1, opened)
+            assertTrue(events.isEmpty())
         }
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Product analytics"))
-        compose.onNodeWithText("Product analytics").assertIsOff().performClick()
-        compose.runOnIdle {
-            assertEquals(
-                AccountSettingsEvent.ChangeRequested(
-                    AccountSettingsChange(AccountSettingsKey.ProductAnalytics, enabled = true),
-                ),
-                events.last(),
-            )
-        }
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG)
-            .performScrollToNode(hasText("These choices apply to every put.io app you sign in to."))
-        compose.onAllNodesWithText("Support chat").assertCountEquals(0)
-        compose.runOnIdle { assertEquals(2, events.size) }
+    }
+
+    @Test
+    fun privacyControlsRowFollowsTheAccountState() {
+        compose.setAccountContent(
+            state = readyAccountSettingsState(
+                DefaultAccountSettingsPreferences.copy(diagnosticsEnabled = false, productAnalyticsEnabled = true),
+            ),
+            events = mutableListOf(),
+        )
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG))
+        compose.onNodeWithTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG)
+            .assertTextContains("Diagnostics off · Product analytics on")
     }
 
     @Test
@@ -902,6 +901,7 @@ class MobileAccountAboutTest {
 private class AccountScreenCallbacks(
     val onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
     val onSignOut: () -> Unit = {},
+    val onPrivacyControls: () -> Unit = {},
     val loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Success(emptyList())
     },
@@ -923,6 +923,7 @@ private fun ComposeContentTestRule.setAccountContent(
                 onSettingsEvent = events::add,
                 onAppConfigEvent = callbacks.onAppConfigEvent,
                 onSignOut = callbacks.onSignOut,
+                onPrivacyControls = callbacks.onPrivacyControls,
                 loadTunnelRoutes = callbacks.loadTunnelRoutes,
             )
         }

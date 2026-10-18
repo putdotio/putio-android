@@ -337,9 +337,11 @@ class MobileShellAccessibilityProofTest {
 
     private fun checkSettings() {
         proofStage = "settings"
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Strictly necessary"))
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Privacy controls"))
+        compose.onNodeWithText("Privacy controls").assertIsDisplayed().performClick()
         compose.onNodeWithText("Always on").assertIsDisplayed()
         capture("settings-privacy")
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Video playback"))
         compose.onNodeWithText("Video playback").assertIsDisplayed().performClick()
         compose.onNodeWithText("Direct MP4").performScrollTo().assertIsDisplayed()

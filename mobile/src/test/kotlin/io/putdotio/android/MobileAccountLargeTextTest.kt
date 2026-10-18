@@ -18,8 +18,10 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
+import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_LIST_TAG
 import io.putdotio.android.account.MOBILE_STRICTLY_NECESSARY_TAG
 import io.putdotio.android.account.MobileAccountScreen
+import io.putdotio.android.account.MobilePrivacyControlsScreen
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
@@ -81,18 +83,27 @@ class MobileAccountLargeTextTest {
             "Choose your proxy", "a-long-regional-proxy-name",
             "Route streams and downloads through a put.io proxy closer to you.",
         )
-        assertValueAndDescription(
-            "Strictly necessary", "Always on",
-            "Required for login, security, account access, transfers, downloads, playback, " +
-                "billing operations, and remembering your choices. These cannot be turned off.",
-        )
-        compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG)
-            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ToggleableState))
-            .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
         assertValueAndDescription("Video playback", "HLS stream", "Choose how this app streams videos.")
         assertValueAndDescription(
             "App info", BuildConfig.VERSION_NAME, "Version, build, and device details for support.",
         )
+    }
+
+    @Test
+    fun privacyControlsPageKeepsStrictlyNecessaryReadableAndUntoggleable() {
+        compose.setContent {
+            PutioTheme {
+                MobilePrivacyControlsScreen(settingsState = readyAccountSettingsState(), onSettingsEvent = {})
+            }
+        }
+        assertValueAndDescription(
+            "Strictly necessary", "Always on",
+            "Needed for sign-in, security, transfers, downloads, playback, billing, and saving your choices.",
+            list = MOBILE_PRIVACY_CONTROLS_LIST_TAG,
+        )
+        compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG)
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.ToggleableState))
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
     }
 
     @Test
@@ -171,8 +182,13 @@ class MobileAccountLargeTextTest {
         compose.onNodeWithText("Try again").performClick()
     }
 
-    private fun assertValueAndDescription(title: String, value: String, description: String) {
-        scrollTo(description)
+    private fun assertValueAndDescription(
+        title: String,
+        value: String,
+        description: String,
+        list: String = MOBILE_ACCOUNT_LIST_TAG,
+    ) {
+        compose.onNodeWithTag(list).performScrollToNode(hasText(description))
         val heading = compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         val selected = compose.onNodeWithText(value, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         val supporting = compose.onNodeWithText(description, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot

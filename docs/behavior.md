@@ -981,13 +981,21 @@ Tests: `PutioAuthSessionGatewayTest`, `PutioTvSessionGatewayTest`,
 
 ## Privacy controls
 
-Mobile Settings shows two account-wide privacy controls, shared with every
-put.io app: Diagnostics (`diagnostics_enabled`, on by default) and Product
-analytics (`product_analytics_enabled`, opt-in and off by default). Strictly
-necessary processing is disclosed beside them and has no toggle. The app reads
+Mobile has two account-wide privacy controls, shared with every put.io app:
+Diagnostics (`diagnostics_enabled`, on by default) and Product analytics
+(`product_analytics_enabled`, opt-in and off by default). Account shows them as
+one Privacy controls row with their current state ("Diagnostics on · Product
+analytics off"), which opens a Privacy controls page. The page discloses
+Strictly necessary processing as Always on, with no toggle, then the two
+toggles, a footer that says neither sends filenames, media titles, URLs, search
+text, or tokens, and links to the Privacy policy and Services we use. Each row's
+description is part of that row's accessibility node, so TalkBack reads it with
+the control. The copy is the legal-approved set from
+[support#135](https://github.com/putdotio/support/issues/135). The app reads
 and writes no support-widget setting.
 
-Tests: `SdkAccountSettingsRepositoryTest`, `MobileAccountScreenTest`.
+Tests: `SdkAccountSettingsRepositoryTest`, `MobileAccountScreenTest`,
+`MobilePrivacyControlsScreenTest`, `MobileAccountLargeTextTest`.
 
 ## Diagnostics
 
