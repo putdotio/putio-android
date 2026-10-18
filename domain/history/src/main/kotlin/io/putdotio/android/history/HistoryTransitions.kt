@@ -1,5 +1,7 @@
 package io.putdotio.android.history
 
+import io.putdotio.android.PutioFailure
+
 internal fun HistoryState.setEnabled(enabled: Boolean): HistoryTransition {
     val currentlyEnabled = content !is HistoryContent.Disabled
     val retainedClearing = clearing.takeIf { it is HistoryClearing.Clearing } ?: HistoryClearing.Idle
@@ -13,19 +15,7 @@ internal fun HistoryState.setEnabled(enabled: Boolean): HistoryTransition {
                     consumedBefore = emptySet(),
                 ),
             )
-        else -> {
-            val requestId = HistoryRequestId(nextRequestValue)
-            HistoryTransition(
-                state =
-                    copy(
-                        content = HistoryContent.Loading(requestId),
-                        clearing = retainedClearing,
-                        consumedBefore = emptySet(),
-                        nextRequestValue = requestId.value + 1,
-                    ),
-                effect = HistoryEffect.Load(before = null, requestId),
-            )
-        }
+        else -> copy(clearing = retainedClearing, consumedBefore = emptySet()).reloadInitial()
     }
 }
 
@@ -64,7 +54,7 @@ private fun HistoryState.loadingPage(
     )
 }
 
-private fun HistoryState.reloadInitial(): HistoryTransition {
+internal fun HistoryState.reloadInitial(): HistoryTransition {
     val requestId = HistoryRequestId(nextRequestValue)
     return HistoryTransition(
         copy(content = HistoryContent.Loading(requestId), nextRequestValue = nextRequestValue + 1),
@@ -114,7 +104,7 @@ private fun List<HistoryItem>.toContent(
     }
 
 internal fun HistoryState.loadFailed(event: HistoryEvent.LoadFailed): HistoryTransition {
-    (event.failure as? io.putdotio.android.PutioFailure.AuthenticationRequired)?.let {
+    (event.failure as? PutioFailure.AuthenticationRequired)?.let {
         return HistoryTransition(copy(authoritativeFailure = it))
     }
     val initial = content as? HistoryContent.Loading

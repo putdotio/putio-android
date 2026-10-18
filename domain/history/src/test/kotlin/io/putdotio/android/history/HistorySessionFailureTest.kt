@@ -10,22 +10,15 @@ class HistorySessionFailureTest {
     fun `history paging failure does not mask an authoritative clear failure`() {
         val pagingFailure = PutioFailure.Misconfigured(PutioConfigurationException("missing client"))
         val authFailure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
-        val state =
-            HistoryState(
-                content =
-                    HistoryContent.Ready(
-                        items =
-                            listOf(
-                                HistoryItem(
-                                    id = HistoryEventId(1L),
-                                    createdAt = "2026-08-30T00:00:00Z",
-                                    kind = HistoryEventKind.File(HistoryFileId(2L), "file.mkv"),
-                                ),
-                            ),
-                        paging = HistoryPaging.Failed(HistoryEventId(1L), pagingFailure),
-                    ),
-                clearing = HistoryClearing.Failed(authFailure),
-            )
+        val item = HistoryItem(
+            HistoryEventId(1L),
+            "2026-08-30T00:00:00Z",
+            HistoryEventKind.File(HistoryFileId(2L), "file.mkv"),
+        )
+        val state = HistoryState(
+            content = HistoryContent.Ready(listOf(item), HistoryPaging.Failed(HistoryEventId(1L), pagingFailure)),
+            clearing = HistoryClearing.Failed(authFailure),
+        )
 
         assertSame(authFailure, state.authoritativeSessionFailure())
     }
@@ -33,11 +26,7 @@ class HistorySessionFailureTest {
     @Test
     fun `history preserves an authoritative failure while disabled`() {
         val authFailure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
-        val state =
-            HistoryState(
-                content = HistoryContent.Disabled,
-                authoritativeFailure = authFailure,
-            )
+        val state = HistoryState(HistoryContent.Disabled, authoritativeFailure = authFailure)
 
         assertSame(authFailure, state.authoritativeSessionFailure())
     }
