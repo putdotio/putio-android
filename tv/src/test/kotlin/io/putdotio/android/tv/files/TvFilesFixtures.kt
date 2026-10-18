@@ -66,8 +66,6 @@ internal fun ComposeContentTestRule.showFiles(
     onPlayMedia: (FilesItem) -> Unit = {},
     confirmedTrashEnabled: () -> Boolean? = { null },
     watchedToggleEnabled: Boolean = false,
-    onOpenInVlc: (FilesItem) -> Unit = {},
-    onSetWatched: (FilesItem, Boolean) -> Unit = { _, _ -> },
 ) {
     setTvContent {
         TvFilesScreen(
@@ -76,8 +74,6 @@ internal fun ComposeContentTestRule.showFiles(
             onPlayMedia = onPlayMedia,
             confirmedTrashEnabled = confirmedTrashEnabled(),
             watchedToggleEnabled = watchedToggleEnabled,
-            onOpenInVlc = onOpenInVlc,
-            onSetWatched = onSetWatched,
         )
     }
 }

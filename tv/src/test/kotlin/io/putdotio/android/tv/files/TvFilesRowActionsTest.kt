@@ -2,6 +2,7 @@ package io.putdotio.android.tv.files
 
 import androidx.compose.runtime.getValue
 import io.putdotio.android.tv.pressCenter
+import io.putdotio.android.tv.setTvContent
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -58,19 +59,20 @@ class TvFilesRowActionsTest {
         val events = mutableListOf<FilesBrowserEvent>()
         val toggled = mutableListOf<Pair<Long, Boolean>>()
         val opened = mutableListOf<Long>()
-        compose.showFiles(
-            state = {
-                ready(
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(
                     item(2, "clip.mp4", PutioFileType.VIDEO, playback = FilesPlaybackProgress(0.0, 120.0)),
                     item(3, "notes.txt", PutioFileType.TEXT),
-                )
-            },
-            onEvent = { events += it; true },
-            confirmedTrashEnabled = { true },
-            watchedToggleEnabled = true,
-            onOpenInVlc = { opened += it.id.value },
-            onSetWatched = { item, watched -> toggled += item.id.value to watched },
-        )
+                ),
+                onEvent = { events += it; true },
+                onPlayMedia = {},
+                confirmedTrashEnabled = true,
+                watchedToggleEnabled = true,
+                onOpenInVlc = { opened += it.id.value },
+                onSetWatched = { item, watched -> toggled += item.id.value to watched },
+            )
+        }
 
         compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
