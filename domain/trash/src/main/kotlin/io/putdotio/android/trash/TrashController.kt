@@ -61,34 +61,20 @@ public class TrashController(
     }
 
     private suspend fun execute(request: TrashRequest): (TrashMachine) -> TrashMachine = when (request) {
-        is TrashRequest.ListPage -> {
-            val result = safely {
-                if (request.cursor == null) repository.load() else repository.loadNextPage(request.cursor)
+        is TrashRequest.ListPage -> safely {
+            if (request.cursor == null) repository.load() else repository.loadNextPage(request.cursor)
+        }.let { result -> { it.completeList(request, result) } }
+        is TrashRequest.Restore ->
+            safely { repository.restore(request.item.id) }.let { result -> { it.completeRestore(request, result) } }
+        is TrashRequest.Check ->
+            safely { repository.resolveItem(request.item.id) }.let { result -> { it.completeCheck(request, result) } }
+        is TrashRequest.Act -> safely {
+            when (val action = request.action) {
+                is TrashAction.DeleteItem -> repository.deleteItem(action.item.id)
+                TrashAction.RestoreAll -> repository.restoreAll(checkNotNull(request.selection))
+                TrashAction.Empty -> repository.empty()
             }
-            val completion: (TrashMachine) -> TrashMachine = { it.completeList(request, result) }
-            completion
-        }
-        is TrashRequest.Restore -> {
-            val result = safely { repository.restore(request.item.id) }
-            val completion: (TrashMachine) -> TrashMachine = { it.completeRestore(request, result) }
-            completion
-        }
-        is TrashRequest.Check -> {
-            val result = safely { repository.resolveItem(request.item.id) }
-            val completion: (TrashMachine) -> TrashMachine = { it.completeCheck(request, result) }
-            completion
-        }
-        is TrashRequest.Act -> {
-            val result = safely {
-                when (val action = request.action) {
-                    is TrashAction.DeleteItem -> repository.deleteItem(action.item.id)
-                    TrashAction.RestoreAll -> repository.restoreAll(checkNotNull(request.selection))
-                    TrashAction.Empty -> repository.empty()
-                }
-            }
-            val completion: (TrashMachine) -> TrashMachine = { it.completeAction(request, result) }
-            completion
-        }
+        }.let { result -> { it.completeAction(request, result) } }
     }
 
     // Injected repositories must preserve the same cancellation contract as the SDK adapter.
