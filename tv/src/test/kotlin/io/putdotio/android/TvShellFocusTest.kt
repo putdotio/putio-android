@@ -1,6 +1,8 @@
 package io.putdotio.android
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.setTvContent
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -17,8 +19,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFolder
@@ -68,22 +68,20 @@ class TvShellFocusTest {
             ),
             nextRequestValue = 10L,
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = files,
-                            onEvent = { true },
-                            onPlayMedia = {},
-                            modifier = Modifier.focusRequester(paneFocus),
-                            focusMemory = memory,
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                filesPane = { paneFocus ->
+                    TvFilesScreen(
+                        state = files,
+                        onEvent = { true },
+                        onPlayMedia = {},
+                        modifier = Modifier.focusRequester(paneFocus),
+                        focusMemory = memory,
+                    )
+                },
+            )
         }
         compose.onNodeWithContentDescription("first.txt").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
@@ -96,8 +94,7 @@ class TvShellFocusTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithText("Sign out").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionLeft)
@@ -106,8 +103,7 @@ class TvShellFocusTest {
             pressKey(Key.DirectionUp)
             pressKey(Key.DirectionUp)
             pressKey(Key.DirectionUp)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithContentDescription("third.txt").assertIsFocused()
     }
@@ -126,21 +122,19 @@ class TvShellFocusTest {
             ),
             nextRequestValue = 10L,
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = files,
-                            onEvent = { true },
-                            onPlayMedia = {},
-                            modifier = Modifier.focusRequester(paneFocus),
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                filesPane = { paneFocus ->
+                    TvFilesScreen(
+                        state = files,
+                        onEvent = { true },
+                        onPlayMedia = {},
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+            )
         }
         compose.onNodeWithContentDescription("first.txt").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
@@ -161,21 +155,19 @@ class TvShellFocusTest {
             ),
             nextRequestValue = 10L,
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = files,
-                            onEvent = { true },
-                            onPlayMedia = {},
-                            modifier = Modifier.focusRequester(paneFocus),
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                filesPane = { paneFocus ->
+                    TvFilesScreen(
+                        state = files,
+                        onEvent = { true },
+                        onPlayMedia = {},
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+            )
         }
         compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused().performKeyInput {
@@ -195,21 +187,19 @@ class TvShellFocusTest {
             ),
             nextRequestValue = 10L,
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = files,
-                            onEvent = { true },
-                            onPlayMedia = {},
-                            modifier = Modifier.focusRequester(paneFocus),
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                filesPane = { paneFocus ->
+                    TvFilesScreen(
+                        state = files,
+                        onEvent = { true },
+                        onPlayMedia = {},
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+            )
         }
         compose.onNodeWithContentDescription("first.txt")
             .assertIsFocused()
@@ -234,21 +224,19 @@ class TvShellFocusTest {
                 nextRequestValue = 10L,
             ),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = files,
-                            onEvent = { true },
-                            onPlayMedia = {},
-                            modifier = Modifier.focusRequester(paneFocus),
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                filesPane = { paneFocus ->
+                    TvFilesScreen(
+                        state = files,
+                        onEvent = { true },
+                        onPlayMedia = {},
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+            )
         }
         compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
@@ -278,21 +266,19 @@ class TvShellFocusTest {
                 nextRequestValue = 10L,
             ),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = files,
-                            onEvent = { true },
-                            onPlayMedia = {},
-                            modifier = Modifier.focusRequester(paneFocus),
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                filesPane = { paneFocus ->
+                    TvFilesScreen(
+                        state = files,
+                        onEvent = { true },
+                        onPlayMedia = {},
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+            )
         }
         compose.onNode(hasText("Refresh") and hasClickAction())
             .assertIsFocused()
@@ -323,21 +309,19 @@ class TvShellFocusTest {
                 nextRequestValue = 10L,
             ),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = files,
-                            onEvent = { true },
-                            onPlayMedia = {},
-                            modifier = Modifier.focusRequester(paneFocus),
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                filesPane = { paneFocus ->
+                    TvFilesScreen(
+                        state = files,
+                        onEvent = { true },
+                        onPlayMedia = {},
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+            )
         }
         compose.onNode(hasText("Refresh") and hasClickAction())
             .assertIsFocused()
@@ -376,27 +360,24 @@ class TvShellFocusTest {
                 ),
             ),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    historyPane = { paneFocus ->
-                        TvHistoryScreen(
-                            state = history,
-                            onEvent = { true },
-                            modifier = Modifier.focusRequester(paneFocus),
-                        )
-                    },
-                )
-            }
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                historyPane = { paneFocus ->
+                    TvHistoryScreen(
+                        state = history,
+                        onEvent = { true },
+                        modifier = Modifier.focusRequester(paneFocus),
+                    )
+                },
+            )
         }
         compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionLeft)

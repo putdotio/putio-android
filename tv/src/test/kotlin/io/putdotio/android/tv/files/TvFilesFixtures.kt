@@ -1,5 +1,7 @@
 package io.putdotio.android.tv.files
 
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
+import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.PutioFailure
@@ -14,6 +16,7 @@ import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.android.files.filesBrowserState
+import io.putdotio.android.tv.setTvContent
 
 internal fun ready(
     vararg items: FilesItem,
@@ -55,3 +58,22 @@ internal fun item(
     )
 
 internal fun networkFailure() = PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))
+
+/** [TvFilesScreen]; the lambdas are read during composition so tests can swap their values. */
+internal fun ComposeContentTestRule.showFiles(
+    state: () -> FilesBrowserState,
+    onEvent: (FilesBrowserEvent) -> Boolean = { true },
+    onPlayMedia: (FilesItem) -> Unit = {},
+    confirmedTrashEnabled: () -> Boolean? = { null },
+    watchedToggleEnabled: Boolean = false,
+) {
+    setTvContent {
+        TvFilesScreen(
+            state = state(),
+            onEvent = onEvent,
+            onPlayMedia = onPlayMedia,
+            confirmedTrashEnabled = confirmedTrashEnabled(),
+            watchedToggleEnabled = watchedToggleEnabled,
+        )
+    }
+}

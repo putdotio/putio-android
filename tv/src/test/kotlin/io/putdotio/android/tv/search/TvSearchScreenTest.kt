@@ -1,6 +1,8 @@
 package io.putdotio.android.tv.search
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.setTvContent
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -24,8 +26,6 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.FilesFailure
 import io.putdotio.android.PutioFailure
@@ -35,6 +35,7 @@ import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchRequestId
+import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.search.searchState
 import io.putdotio.sdk.errors.PutioConfigurationException
@@ -70,11 +71,7 @@ class TvSearchScreenTest {
 
     @Test
     fun idleShowsThePlaceholderAndTypingReportsTheQuery() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = searchState(SearchContent.Idle), actions = actions)
-            }
-        }
+        show(state = { searchState(SearchContent.Idle) })
 
         compose.onNodeWithText("Tap to start typing").assertIsDisplayed()
         compose.onNodeWithText("Search your files by name or keyword.").assertIsDisplayed()
@@ -87,17 +84,14 @@ class TvSearchScreenTest {
 
     @Test
     fun recentChipsReplayTheTermAsTyped() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(
-                    state = searchState(
-                        SearchContent.Idle,
-                        recent = listOf(SearchTerm("Tears Of Steel"), SearchTerm("sintel")),
-                    ),
-                    actions = actions,
+        show(
+            state = {
+                searchState(
+                    SearchContent.Idle,
+                    recent = listOf(SearchTerm("Tears Of Steel"), SearchTerm("sintel")),
                 )
-            }
-        }
+            },
+        )
 
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
@@ -105,33 +99,29 @@ class TvSearchScreenTest {
             pressKey(Key.DirectionRight)
         }
         compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         assertEquals(listOf("recent:sintel"), log)
     }
 
     @Test
     fun resultsAreStandardRowsReachedWithDownAndCenterOpensOne() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(
-                    state = searchState(
-                        SearchContent.Ready(
-                            SearchTerm("tears"),
-                            listOf(
-                                item(1, "Tears of Steel.webm", PutioFileType.VIDEO),
-                                item(2, "tears", PutioFileType.FOLDER),
-                            ),
-                            SearchPaging.Available(FilesCursor("c1")),
+        show(
+            state = {
+                searchState(
+                    SearchContent.Ready(
+                        SearchTerm("tears"),
+                        listOf(
+                            item(1, "Tears of Steel.webm", PutioFileType.VIDEO),
+                            item(2, "tears", PutioFileType.FOLDER),
                         ),
-                        recent = listOf(SearchTerm("tears")),
-                        query = "tears",
+                        SearchPaging.Available(FilesCursor("c1")),
                     ),
-                    actions = actions,
+                    recent = listOf(SearchTerm("tears")),
+                    query = "tears",
                 )
-            }
-        }
+            },
+        )
 
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
@@ -143,14 +133,10 @@ class TvSearchScreenTest {
             pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
             pressKey(Key.DirectionUp)
         }
-        compose.onNodeWithContentDescription("Open tears").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Open tears").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf("next", "open:tears"), log)
     }
 
@@ -159,11 +145,7 @@ class TvSearchScreenTest {
         var state by mutableStateOf(
             searchState(SearchContent.Loading(SearchTerm("x"), SearchRequestId(1)), query = "x"),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = state, actions = actions)
-            }
-        }
+        show(state = { state })
         compose.onNodeWithText("Searching").assertIsDisplayed()
 
         state = searchState(SearchContent.Empty(SearchTerm("x"), SearchPaging.Complete), query = "x")
@@ -176,10 +158,7 @@ class TvSearchScreenTest {
         compose.onNodeWithText("Couldn’t search").assertIsDisplayed()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         state = searchState(SearchContent.Loading(SearchTerm("x"), SearchRequestId(2)), query = "x")
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
         assertEquals(listOf("retry"), log)
@@ -188,18 +167,11 @@ class TvSearchScreenTest {
     @Test
     fun aRecentSearchFailureOffersRetryAndABlockedOpenExplainsItself() {
         var notice by mutableStateOf<FilesFailure?>(PutioFailure.Misconfigured(PutioConfigurationException("boom")))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = searchState(SearchContent.Idle), actions = actions, notice = notice)
-            }
-        }
+        show(state = { searchState(SearchContent.Idle) }, notice = { notice })
         compose.onNodeWithText("Couldn’t update recent searches.").assertIsDisplayed()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf("recent-retry"), log)
 
         notice = FilesFailure.NavigationBlocked
@@ -209,20 +181,13 @@ class TvSearchScreenTest {
     @Test
     fun loadMoreKeepsFocusThroughLoadingAndHandsOffToTheLastRowWhenComplete() {
         var state by mutableStateOf(oneRowSearch(SearchPaging.Available(FilesCursor("c1"))))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = state, actions = actions)
-            }
-        }
+        show(state = { state })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         state = oneRowSearch(SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)))
         compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused()
 
@@ -230,10 +195,7 @@ class TvSearchScreenTest {
             SearchPaging.Failed(FilesCursor("c1"), PutioFailure.Misconfigured(PutioConfigurationException("boom"))),
         )
         compose.onNodeWithText("Couldn’t load more results.").assertIsDisplayed()
-        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
 
         state = oneRowSearch(SearchPaging.Complete, item(2, "two.mkv", PutioFileType.VIDEO))
         compose.onNodeWithContentDescription("Play two.mkv").assertIsFocused()
@@ -243,20 +205,13 @@ class TvSearchScreenTest {
     @Test
     fun aLastPageLandingAfterLeavingLoadMoreDoesNotStealFocus() {
         var state by mutableStateOf(oneRowSearch(SearchPaging.Available(FilesCursor("c1"))))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = state, actions = actions)
-            }
-        }
+        show(state = { state })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         state = oneRowSearch(SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)))
         compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
@@ -283,11 +238,7 @@ class TvSearchScreenTest {
                 onRetry = {},
             ),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = searchState(SearchContent.Idle, recent = recent), actions = removing)
-            }
-        }
+        show(state = { searchState(SearchContent.Idle, recent = recent) }, actions = removing)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
         // The D-pad hold-to-long-press timing belongs to the TV surface; the wiring is what
@@ -307,11 +258,7 @@ class TvSearchScreenTest {
     @Test
     fun aTermDroppedByTheCapWhileFocusIsOnTheFieldDoesNotPullFocusBack() {
         var recent by mutableStateOf((1..5).map { SearchTerm("term-$it") })
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = searchState(SearchContent.Idle, recent = recent), actions = actions)
-            }
-        }
+        show(state = { searchState(SearchContent.Idle, recent = recent) })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("Search again for term-1").assertIsFocused().performKeyInput {
@@ -331,16 +278,11 @@ class TvSearchScreenTest {
     @Test
     fun aChipReplayRewritesTheFieldAndAStaleQueryDoesNotOverwriteTyping() {
         var state by mutableStateOf(searchState(SearchContent.Idle, recent = listOf(SearchTerm("Tears Of Steel"))))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = state, actions = actions)
-            }
-        }
+        show(state = { state })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel"))
         assertEquals(listOf("recent:Tears Of Steel"), log)
@@ -364,17 +306,10 @@ class TvSearchScreenTest {
             onQueryChanged = {}, onSubmit = {}, onResult = {}, onNextPage = {}, onRetry = {},
             recent = TvRecentSearchActions(onSearch = {}, onEdit = {}, onRetry = { notice = null }),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = searchState(SearchContent.Idle), actions = retrying, notice = notice)
-            }
-        }
+        show(state = { searchState(SearchContent.Idle) }, actions = retrying, notice = { notice })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Try again").assertCountEquals(0)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
     }
@@ -382,11 +317,7 @@ class TvSearchScreenTest {
     @Test
     fun aLaggingQueryDoesNotOverwriteTypedTextOnBlur() {
         var state by mutableStateOf(searchState(SearchContent.Idle, recent = listOf(SearchTerm("x"))))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = state, actions = actions)
-            }
-        }
+        show(state = { state })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("ab")
         // The controller has only seen the first edit when the user moves on.
@@ -401,11 +332,7 @@ class TvSearchScreenTest {
     @Test
     fun aNewSessionStartsWithAnEmptyField() {
         var session by mutableStateOf(1)
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = searchState(SearchContent.Idle), actions = actions, sessionKey = session)
-            }
-        }
+        show(state = { searchState(SearchContent.Idle) }, sessionKey = { session })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("private")
         session = 2
@@ -422,19 +349,12 @@ class TvSearchScreenTest {
                 query = "r",
             ),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = state, actions = actions)
-            }
-        }
+        show(state = { state })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
             repeat(page.size + 1) { pressKey(Key.DirectionDown) }
         }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         val more = (13..30).map { item(it.toLong(), "row-$it.mkv", PutioFileType.VIDEO) }
         state = searchState(SearchContent.Ready(SearchTerm("r"), page + more, SearchPaging.Complete), query = "r")
         compose.onNodeWithContentDescription("Play row-30.mkv").assertIsFocused()
@@ -444,17 +364,10 @@ class TvSearchScreenTest {
     @Test
     fun replayingTheTermAlreadyInTheFieldDoesNotSwallowTheNextEdit() {
         var state by mutableStateOf(searchState(SearchContent.Idle, recent = listOf(SearchTerm("ab")), query = "ab"))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = state, actions = actions)
-            }
-        }
+        show(state = { state })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("Search again for ab").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Search again for ab").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("c")
         state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "abc")
@@ -466,53 +379,48 @@ class TvSearchScreenTest {
     @Test
     fun settingsOfferTvNativeHistoryToggleAndClearOnceTheSettingHasLoaded() {
         var state by mutableStateOf(searchState(SearchContent.Idle, recent = listOf(SearchTerm("tears"))))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvSearchScreen(state = state, actions = actions)
-            }
-        }
+        show(state = { state })
         compose.onAllNodesWithText("Settings").assertCountEquals(0)
 
         state = searchState(SearchContent.Idle, recent = listOf(SearchTerm("tears")), historyEnabled = true)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Search settings").assertIsDisplayed()
         compose.onNode(hasText("Disable search history") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Clear search history") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onAllNodesWithText("Search settings").assertCountEquals(0)
-        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onNode(hasText("Disable search history") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
 
         // Off: nothing to clear, and the toggle turns it back on.
         state = searchState(SearchContent.Idle, historyEnabled = false)
-        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Clear search history").assertCountEquals(0)
         compose.onNode(hasText("Show search history") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         assertEquals(
             listOf("edit:Clear", "edit:SetEnabled(enabled=false)", "edit:SetEnabled(enabled=true)"),
             log,
         )
+    }
+
+    private fun show(
+        state: () -> SearchState,
+        actions: TvSearchActions = this.actions,
+        notice: () -> FilesFailure? = { null },
+        sessionKey: () -> Any? = { null },
+    ) {
+        compose.setTvContent {
+            TvSearchScreen(state = state(), actions = actions, notice = notice(), sessionKey = sessionKey())
+        }
     }
 
     private fun searchState(

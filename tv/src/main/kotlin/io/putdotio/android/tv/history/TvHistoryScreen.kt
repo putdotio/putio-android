@@ -70,6 +70,7 @@ import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.flow.first
 import io.putdotio.android.FilesFailure
+import io.putdotio.android.tv.FULL_WIDTH_FOCUSED_SCALE
 
 internal const val TV_HISTORY_LIST_TAG = "tv-history-list"
 internal const val TV_HISTORY_ROW_TAG = "tv-history-row"
@@ -521,6 +522,4 @@ private fun TvHistoryPaging(
     }
 }
 
-/** Full-width rows scale less than compact surfaces so they stay inside the safe area. */
-private const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
 private const val TV_HISTORY_PAGING_KEY = "tv-history-paging"

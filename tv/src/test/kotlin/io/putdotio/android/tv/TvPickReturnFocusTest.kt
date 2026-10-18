@@ -24,8 +24,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.history.HistoryContent
@@ -185,27 +183,25 @@ class TvPickReturnFocusTest {
 
     private fun mount(start: TvDestination, panes: Panes.() -> Unit) {
         val chosen = Panes().apply(panes)
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                var requested by remember { mutableStateOf<TvDestination?>(start) }
-                TvPlaybackLayer(
-                    playing = playing,
-                    player = {
-                        val focus = remember { FocusRequester() }
-                        BackHandler { playing = false }
-                        Box(Modifier.fillMaxSize().testTag(PLAYER_TAG).focusRequester(focus).focusable())
-                        LaunchedEffect(Unit) { focus.requestFocus() }
-                    },
-                ) {
-                    TvShell(
-                        account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                        onSignOut = {},
-                        searchPane = chosen.searchPane,
-                        historyPane = chosen.historyPane,
-                        requestedDestination = requested,
-                        onDestinationRequestHandled = { requested = null },
-                    )
-                }
+        compose.setTvContent {
+            var requested by remember { mutableStateOf<TvDestination?>(start) }
+            TvPlaybackLayer(
+                playing = playing,
+                player = {
+                    val focus = remember { FocusRequester() }
+                    BackHandler { playing = false }
+                    Box(Modifier.fillMaxSize().testTag(PLAYER_TAG).focusRequester(focus).focusable())
+                    LaunchedEffect(Unit) { focus.requestFocus() }
+                },
+            ) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    searchPane = chosen.searchPane,
+                    historyPane = chosen.historyPane,
+                    requestedDestination = requested,
+                    onDestinationRequestHandled = { requested = null },
+                )
             }
         }
     }

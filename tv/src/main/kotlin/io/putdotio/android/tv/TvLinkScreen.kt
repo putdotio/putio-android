@@ -35,10 +35,10 @@ import io.putdotio.android.tv.auth.TvLinkPhase
 import io.putdotio.android.tv.auth.TvLinkStop
 
 /**
- * Device-code sign-in, after the tv-native oracle (01-auth-code, 02-auth-logging-in):
- * code tiles, put.io/link, and a single "Get new code" action that is the only
- * focusable thing on screen. The only chrome is the copy. Beside the code, a QR code
- * of put.io's `/link?code=` page lets a phone open the approval with the code filled in.
+ * Device-code sign-in per the oracle (01-auth-code, 02-auth-logging-in): code tiles,
+ * put.io/link, and a "Get new code" action that is the only focusable thing on screen. Beside
+ * the code, a QR code of put.io's `/link?code=` page lets a phone open the approval with the
+ * code filled in.
  */
 @Composable
 internal fun TvLinkScreen(

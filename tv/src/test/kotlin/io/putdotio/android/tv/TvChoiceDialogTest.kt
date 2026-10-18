@@ -6,8 +6,6 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,16 +37,14 @@ class TvChoiceDialogTest {
     }
 
     private fun show(selected: String) {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvChoiceDialog(
-                    title = TITLE,
-                    choices = CHOICES.map { TvChoice(it, it) },
-                    selected = selected,
-                    onSelect = {},
-                    onDismiss = {},
-                )
-            }
+        compose.setTvContent {
+            TvChoiceDialog(
+                title = TITLE,
+                choices = CHOICES.map { TvChoice(it, it) },
+                selected = selected,
+                onSelect = {},
+                onDismiss = {},
+            )
         }
         compose.waitForIdle()
     }

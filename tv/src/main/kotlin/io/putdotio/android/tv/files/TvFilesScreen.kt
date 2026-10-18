@@ -72,6 +72,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import io.putdotio.android.tv.FULL_WIDTH_FOCUSED_SCALE
 import io.putdotio.android.tv.TvStatusScreen
 import io.putdotio.android.tv.refocusAfterDialog
 import kotlin.math.roundToInt
@@ -351,23 +352,16 @@ private fun TvFilesDeleteStatus(
         intent != null && operation is FilesFolderOperation.Loading -> TvFilesNotice(
             text = stringResource(operation.phase.tvDeleteProgress(intent.mode)),
         )
-        intent != null && operation is FilesFolderOperation.Failed -> TvFilesNotice(
-            text = stringResource(
-                if (operation.phase == FilesFolderOperationPhase.RELOADING) {
-                    R.string.tv_files_delete_reload_error
-                } else {
-                    R.string.tv_files_delete_unknown
-                },
-            ),
-            action = stringResource(
-                if (operation.phase == FilesFolderOperationPhase.RELOADING) {
-                    R.string.tv_files_retry
-                } else {
-                    R.string.tv_files_check_status
-                },
-            ),
-            onAction = { onEvent(FilesBrowserEvent.Retry) },
-        )
+        intent != null && operation is FilesFolderOperation.Failed -> {
+            val reloading = operation.phase == FilesFolderOperationPhase.RELOADING
+            TvFilesNotice(
+                text = stringResource(
+                    if (reloading) R.string.tv_files_delete_reload_error else R.string.tv_files_delete_unknown,
+                ),
+                action = stringResource(if (reloading) R.string.tv_files_retry else R.string.tv_files_check_status),
+                onAction = { onEvent(FilesBrowserEvent.Retry) },
+            )
+        }
         operation == FilesFolderOperation.Idle &&
             current.deleteOutcome?.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH ->
             TvFilesTrashLimitStatus(checkNotNull(current.deleteOutcome), current, onEvent)
@@ -781,5 +775,4 @@ private fun TvUnsupportedFileScreen(
     }
 }
 
-private const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
 private const val PERCENT_SCALE = 100f

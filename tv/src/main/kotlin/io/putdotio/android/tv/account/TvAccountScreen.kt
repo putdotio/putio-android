@@ -943,16 +943,12 @@ private fun TvAccountRow(
     onClick: () -> Unit,
     owner: TvPaneFocusOwner,
     modifier: Modifier = Modifier,
-    value: String? = null,
 ) {
     val focus = remember { FocusRequester() }
     ListItem(
         selected = false,
         onClick = onClick,
         headlineContent = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = if (value == null) null else ({
-            Text(value, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }),
         leadingContent = { TvRowIcon(icon) },
         scale = ListItemDefaults.scale(focusedScale = FULL_WIDTH_FOCUSED_SCALE),
         modifier = modifier

@@ -18,18 +18,7 @@ internal fun AccountSettingsFailure.tvMessageText(): String = apiReason ?: strin
 internal fun AccountSettingsFailure.tvMessage(): Int =
     when (this) {
         is AccountSettingsFailure.RouteUnavailable -> R.string.tv_account_error_route_unavailable
-        is AccountSettingsFailure.Putio -> when (failure) {
-            is PutioFailure.AuthenticationRequired -> R.string.tv_error_session
-            is PutioFailure.AccessDenied -> R.string.tv_account_error_access_denied
-            is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
-            is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
-            is PutioFailure.ServerUnavailable,
-            is PutioFailure.ApiRejected,
-            is PutioFailure.InvalidResponse,
-            is PutioFailure.Misconfigured,
-            is PutioFailure.Unexpected,
-            -> R.string.tv_error_unavailable
-        }
+        is AccountSettingsFailure.Putio -> failure.tvAppConfigMessage()
     }
 
 /** put.io's reason for a refused request, else this failure's copy. */

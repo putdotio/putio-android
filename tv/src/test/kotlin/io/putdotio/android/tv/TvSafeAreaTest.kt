@@ -17,9 +17,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
 import io.putdotio.android.design.PutioDesignTokens
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.tv.auth.TvAccount
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -71,10 +69,8 @@ class TvSafeAreaTest {
     }
 
     private fun showShell() {
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvShell(account = TvAccount(userId = 1, username = "user", email = "user@example.com"), onSignOut = {})
-            }
+        compose.setTvContent {
+            TvShell(account = TvAccount(userId = 1, username = "user", email = "user@example.com"), onSignOut = {})
         }
         compose.waitForIdle()
     }

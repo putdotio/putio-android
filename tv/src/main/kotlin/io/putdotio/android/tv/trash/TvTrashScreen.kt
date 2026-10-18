@@ -66,6 +66,7 @@ import io.putdotio.android.trash.TrashRestoreOutcome
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
 import io.putdotio.android.parsePutioTimestamp
+import io.putdotio.android.tv.FULL_WIDTH_FOCUSED_SCALE
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvStatusScreen
@@ -669,6 +670,4 @@ private fun TvTrashPaging(
     }
 }
 
-/** Full-width rows scale less than compact surfaces so they stay inside the safe area. */
-private const val FULL_WIDTH_FOCUSED_SCALE = 1.02f
 private const val TV_TRASH_PAGING_KEY = "tv-trash-paging"

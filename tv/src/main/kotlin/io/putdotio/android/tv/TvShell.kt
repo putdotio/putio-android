@@ -175,9 +175,7 @@ private fun TvPlaceholderPane(
             TvDestination.History -> R.string.tv_placeholder_history
             TvDestination.Account -> R.string.tv_destination_account
         }
-        // The single focus target keeps D-pad entry deterministic before the
-        // pane has real content; the row is a Material list item so it scales
-        // like every other full-width row (1.02) rather than a stock 1.1 button.
+        // A list item, so it scales like every other full-width row rather than as a stock button.
         ListItem(
             selected = false,
             onClick = {},
@@ -190,7 +188,7 @@ private fun TvPlaceholderPane(
     }
 }
 
-/** The Account pane before the settings screen is wired in: who is signed in, and Sign out. */
+/** The default Account pane: who is signed in, and Sign out. */
 @Composable
 private fun TvAccountFallbackPane(
     account: TvAccount,

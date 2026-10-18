@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import androidx.activity.ComponentActivity
+import io.putdotio.android.tv.setTvContent
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertTextEquals
@@ -8,8 +9,6 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackMediaType
@@ -61,15 +60,13 @@ class TvPlayerConversionTest {
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
         compose.mainClock.autoAdvance = false
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlaybackRoute(
-                    controller = controller,
-                    onExit = {},
-                    onSessionRejected = {},
-                    playerFactory = { _, _ -> player },
-                )
-            }
+        compose.setTvContent {
+            TvPlaybackRoute(
+                controller = controller,
+                onExit = {},
+                onSessionRejected = {},
+                playerFactory = { _, _ -> player },
+            )
         }
         compose.settle()
         compose.onNodeWithTag(TV_CONVERSION_STATUS_TAG).assertTextEquals("In queue…")
@@ -109,15 +106,13 @@ class TvPlayerConversionTest {
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
         compose.mainClock.autoAdvance = false
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlaybackRoute(
-                    controller = controller,
-                    onExit = {},
-                    onSessionRejected = {},
-                    playerFactory = { _, _ -> player },
-                )
-            }
+        compose.setTvContent {
+            TvPlaybackRoute(
+                controller = controller,
+                onExit = {},
+                onSessionRejected = {},
+                playerFactory = { _, _ -> player },
+            )
         }
         compose.settle()
         repeat(2) { poll ->

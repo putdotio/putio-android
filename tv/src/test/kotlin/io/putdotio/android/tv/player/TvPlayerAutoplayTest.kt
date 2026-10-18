@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import androidx.activity.ComponentActivity
+import io.putdotio.android.tv.setTvContent
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
@@ -9,8 +10,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.media3.common.util.UnstableApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PLAYBACK_REPORTING_LEASE_KEY
 import io.putdotio.android.playback.PlaybackController
@@ -159,17 +158,15 @@ class TvPlayerAutoplayTest {
             },
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvPlaybackRoute(
-                    controller = controller,
-                    onExit = onExit,
-                    onSessionRejected = {},
-                    playerFactory = { _, _ -> FakePlayer().also { players += it } },
-                    reporter = reporting,
-                    autoplayNextVideo = autoplay,
-                )
-            }
+        compose.setTvContent {
+            TvPlaybackRoute(
+                controller = controller,
+                onExit = onExit,
+                onSessionRejected = {},
+                playerFactory = { _, _ -> FakePlayer().also { players += it } },
+                reporter = reporting,
+                autoplayNextVideo = autoplay,
+            )
         }
         compose.waitForIdle()
         return lookups

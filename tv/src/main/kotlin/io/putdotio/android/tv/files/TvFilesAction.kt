@@ -20,6 +20,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.canStartOperation
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvDialog
+import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.sdk.files.PutioFileType
 
 /** What a row offers besides opening it, per the oracle's files-actions state. */
@@ -142,14 +143,12 @@ internal fun TvFilesActionsDialog(
         actions.forEachIndexed { index, action ->
             TvButton(
                 onClick = { onAction(action) },
-                modifier = Modifier.fillMaxWidth().then(if (index == 0) Modifier.focusRequester(focus) else Modifier),
+                modifier = Modifier.fillMaxWidth().focusRequesterIf(index == 0, focus),
             ) { Text(action.label()) }
         }
         TvButton(
             onClick = onDismiss,
-            modifier = Modifier.fillMaxWidth().then(
-                if (actions.isEmpty()) Modifier.focusRequester(focus) else Modifier,
-            ),
+            modifier = Modifier.fillMaxWidth().focusRequesterIf(actions.isEmpty(), focus),
         ) { Text(stringResource(R.string.tv_files_cancel)) }
     }
 }
