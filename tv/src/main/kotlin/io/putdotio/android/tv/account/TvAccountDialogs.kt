@@ -26,6 +26,7 @@ import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvChoice
 import io.putdotio.android.tv.TvChoiceDialog
 import io.putdotio.android.tv.TvDialog
+import io.putdotio.android.tv.focusRequesterIf
 
 /**
  * The proxy picker per oracle 10. Routes load when it opens: the list depends on the account's CDN
@@ -66,7 +67,7 @@ internal fun TvTunnelRouteDialog(
             }
             TvButton(
                 onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth().then(if (retryable) Modifier else Modifier.focusRequester(focus)),
+                modifier = Modifier.fillMaxWidth().focusRequesterIf(!retryable, focus),
             ) { Text(stringResource(R.string.tv_account_cancel)) }
         }
         is AccountSettingsRepositoryResult.Success -> TvChoiceDialog(

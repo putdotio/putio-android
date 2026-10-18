@@ -13,6 +13,7 @@ import io.putdotio.android.trash.TrashItem
 import io.putdotio.android.trash.TrashState
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvDialog
+import io.putdotio.android.tv.focusRequesterIf
 
 /**
  * Center on a row: the item's actions as a choice dialog, Restore first. An action the
@@ -36,7 +37,7 @@ internal fun TvTrashItemDialog(
             enabled = canRestore,
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (canRestore) Modifier.focusRequester(focus) else Modifier),
+                .focusRequesterIf(canRestore, focus),
         ) {
             Text(stringResource(R.string.tv_trash_restore))
         }
@@ -48,7 +49,7 @@ internal fun TvTrashItemDialog(
             enabled = canDelete,
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (!canRestore && canDelete) Modifier.focusRequester(focus) else Modifier),
+                .focusRequesterIf(!canRestore && canDelete, focus),
         ) {
             Text(stringResource(R.string.tv_trash_delete))
         }
@@ -56,7 +57,7 @@ internal fun TvTrashItemDialog(
             onClick = onDismiss,
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (!canRestore && !canDelete) Modifier.focusRequester(focus) else Modifier),
+                .focusRequesterIf(!canRestore && !canDelete, focus),
         ) {
             Text(stringResource(R.string.tv_trash_cancel))
         }
