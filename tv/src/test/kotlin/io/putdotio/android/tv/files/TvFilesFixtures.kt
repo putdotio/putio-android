@@ -1,5 +1,9 @@
 package io.putdotio.android.tv.files
 
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
+import androidx.tv.material3.MaterialTheme
+import io.putdotio.android.design.putioTvDarkColorScheme
+import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.PutioFailure
@@ -55,3 +59,28 @@ internal fun item(
     )
 
 internal fun networkFailure() = PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))
+
+/** [TvFilesScreen] in the TV theme; the lambdas are read during composition so tests can swap their values. */
+internal fun ComposeContentTestRule.showFiles(
+    state: () -> FilesBrowserState,
+    onEvent: (FilesBrowserEvent) -> Boolean = { true },
+    onPlayMedia: (FilesItem) -> Unit = {},
+    confirmedTrashEnabled: () -> Boolean? = { null },
+    watchedToggleEnabled: Boolean = false,
+    onOpenInVlc: (FilesItem) -> Unit = {},
+    onSetWatched: (FilesItem, Boolean) -> Unit = { _, _ -> },
+) {
+    setContent {
+        MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
+            TvFilesScreen(
+                state = state(),
+                onEvent = onEvent,
+                onPlayMedia = onPlayMedia,
+                confirmedTrashEnabled = confirmedTrashEnabled(),
+                watchedToggleEnabled = watchedToggleEnabled,
+                onOpenInVlc = onOpenInVlc,
+                onSetWatched = onSetWatched,
+            )
+        }
+    }
+}

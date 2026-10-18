@@ -40,11 +40,7 @@ class TvFilesRestoreTest {
     fun returningToTheMountOffsetIsReportedAgain() {
         val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(state = ready(*rows.toTypedArray()), onEvent = { events += it; true }, onPlayMedia = {})
-            }
-        }
+        compose.showFiles(state = { ready(*rows.toTypedArray()) }, onEvent = { events += it; true })
         compose.onNodeWithContentDescription("file-1.txt").assertIsFocused().performKeyInput {
             repeat(12) { pressKey(Key.DirectionDown) }
         }
@@ -63,15 +59,10 @@ class TvFilesRestoreTest {
     fun aProgrammaticScrollToTheFocusedRowReportsTheViewport() {
         val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = state(FilesContent.Ready(rows, FilesPaging.Complete, FilesViewportPosition(30, 0))),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                )
-            }
-        }
+        compose.showFiles(
+            state = { state(FilesContent.Ready(rows, FilesPaging.Complete, FilesViewportPosition(30, 0))) },
+            onEvent = { events += it; true },
+        )
         compose.onNodeWithContentDescription("file-1.txt").assertIsFocused()
         assertEquals(
             listOf<FilesBrowserEvent>(FilesBrowserEvent.ViewportChanged(FilesViewportPosition(0, 0))),
@@ -142,15 +133,9 @@ class TvFilesRestoreTest {
     @Test
     fun aRestoredViewportWithoutFocusMemoryScrollsToAndFocusesTheFirstRow() {
         val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = state(FilesContent.Ready(rows, FilesPaging.Complete, FilesViewportPosition(30, 0))),
-                    onEvent = { true },
-                    onPlayMedia = {},
-                )
-            }
-        }
+        compose.showFiles(
+            state = { state(FilesContent.Ready(rows, FilesPaging.Complete, FilesViewportPosition(30, 0))) },
+        )
         compose.onNodeWithContentDescription("file-1.txt").assertIsFocused()
     }
 }

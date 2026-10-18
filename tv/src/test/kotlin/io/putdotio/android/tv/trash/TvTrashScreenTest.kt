@@ -67,7 +67,9 @@ class TvTrashScreenTest {
 
         compose.onNodeWithText("Heads up: Files in trash have an expiry date of 14 days.").assertIsDisplayed()
         compose.onNodeWithText("10 B · Deleted Sep 6, 2026 · Expires Sep 20, 2026").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused().performKeyInput {
+            pressCenter()
+        }
         compose.onNodeWithText("Restore").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<TrashEvent>(TrashEvent.SelectRestore(FilesItemId(7))), events)
         compose.onAllNodesWithText("Delete permanently").assertCountEquals(0)
@@ -127,7 +129,9 @@ class TvTrashScreenTest {
         var state by mutableStateOf(TrashState(content = loaded, restoredItemIds = setOf(FilesItemId(7))))
         show { state }
 
-        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithContentDescription("Actions for smoke-two.txt").assertIsFocused().performKeyInput {
+            pressCenter()
+        }
         compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
         // Restore is disabled: it can be reached and seen as such, but Center does nothing.
         compose.onNodeWithText("Restore").assertIsFocused().performKeyInput { pressCenter() }

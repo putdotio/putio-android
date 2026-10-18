@@ -105,7 +105,9 @@ class TvSearchScreenTest {
         compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionRight)
         }
-        compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused().performKeyInput {
+            pressCenter()
+        }
         assertEquals(listOf("recent:sintel"), log)
     }
 
@@ -317,7 +319,9 @@ class TvSearchScreenTest {
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused().performKeyInput {
+            pressCenter()
+        }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel"))
         assertEquals(listOf("recent:Tears Of Steel"), log)
         state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel")
@@ -448,16 +452,22 @@ class TvSearchScreenTest {
         compose.onNode(hasText("Disable search history") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
-        compose.onNode(hasText("Clear search history") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Clear search history") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+        }
         compose.onAllNodesWithText("Search settings").assertCountEquals(0)
         compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNode(hasText("Disable search history") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Disable search history") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+        }
 
         // Off: nothing to clear, and the toggle turns it back on.
         state = searchState(SearchContent.Idle, historyEnabled = false)
         compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Clear search history").assertCountEquals(0)
-        compose.onNode(hasText("Show search history") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Show search history") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressCenter()
+        }
         assertEquals(
             listOf("edit:Clear", "edit:SetEnabled(enabled=false)", "edit:SetEnabled(enabled=true)"),
             log,

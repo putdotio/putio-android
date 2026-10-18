@@ -114,7 +114,9 @@ class TvAccountScreenTest {
         show(settingsState = { ready(preferences) })
 
         compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Remember current place in video files").assertIsFocused().assertIsOn().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Remember current place in video files").assertIsFocused().assertIsOn().performKeyInput {
+            pressCenter()
+        }
         compose.onNodeWithText("Show subtitles").assertIsOn()
         compose.onNodeWithText("Do not select subtitles by default").assertIsOn().performKeyInput {
             pressKey(Key.DirectionDown)
@@ -190,7 +192,9 @@ class TvAccountScreenTest {
         compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput {
             repeat(6) { pressKey(Key.DirectionDown) }
         }
-        compose.onNodeWithText("Move deleted files to trash").assertIsFocused().assertIsOn().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Move deleted files to trash").assertIsFocused().assertIsOn().performKeyInput {
+            pressCenter()
+        }
         compose.onNodeWithText("Turn off trash?").assertIsDisplayed()
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNodeWithText("Turn off").assertIsFocused().performKeyInput { pressCenter() }

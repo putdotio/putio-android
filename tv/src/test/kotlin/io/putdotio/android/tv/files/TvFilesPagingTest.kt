@@ -14,8 +14,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.tv.material3.MaterialTheme
-import io.putdotio.android.design.putioTvDarkColorScheme
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesCursor
@@ -41,15 +39,10 @@ class TvFilesPagingTest {
     fun aFailedPageOffersRetryAndLoadingKeepsAFocusOwner() {
         val events = mutableListOf<FilesBrowserEvent>()
         var paging by mutableStateOf<FilesPaging>(FilesPaging.Failed(FilesCursor("c"), networkFailure()))
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = ready(item(1, "a.txt", PutioFileType.TEXT), paging = paging),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                )
-            }
-        }
+        compose.showFiles(
+            state = { ready(item(1, "a.txt", PutioFileType.TEXT), paging = paging) },
+            onEvent = { events += it; true },
+        )
         compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
@@ -64,11 +57,7 @@ class TvFilesPagingTest {
         var content by mutableStateOf<FilesContent>(
             FilesContent.Ready(listOf(item(1, "a.txt", PutioFileType.TEXT)), FilesPaging.Available(FilesCursor("c"))),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(state = state(content), onEvent = { true }, onPlayMedia = {})
-            }
-        }
+        compose.showFiles(state = { state(content) })
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused()
 
@@ -85,11 +74,7 @@ class TvFilesPagingTest {
         var content by mutableStateOf<FilesContent>(
             FilesContent.Ready(firstPage, FilesPaging.Available(FilesCursor("c"))),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(state = state(content), onEvent = { true }, onPlayMedia = {})
-            }
-        }
+        compose.showFiles(state = { state(content) })
         compose.onNodeWithContentDescription("file-1.txt").performKeyInput { repeat(8) { pressKey(Key.DirectionDown) } }
         compose.onNodeWithText("Load more").assertIsFocused()
 
@@ -103,15 +88,10 @@ class TvFilesPagingTest {
     @Test
     fun anEmptyPageThatFailedOffersRetryWithFocus() {
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = state(FilesContent.Empty(FilesPaging.Failed(FilesCursor("c"), networkFailure()))),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
-                )
-            }
-        }
+        compose.showFiles(
+            state = { state(FilesContent.Empty(FilesPaging.Failed(FilesCursor("c"), networkFailure()))) },
+            onEvent = { events += it; true },
+        )
         compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
@@ -122,11 +102,7 @@ class TvFilesPagingTest {
         var state by mutableStateOf(
             ready(item(1, "a.txt", PutioFileType.TEXT), paging = FilesPaging.Available(FilesCursor("c1"))),
         )
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {})
-            }
-        }
+        compose.showFiles(state = { state })
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused()
 
@@ -141,18 +117,15 @@ class TvFilesPagingTest {
     @Test
     fun aPagedFolderOffersLoadMoreAfterTheLastRow() {
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
-            MaterialTheme(colorScheme = putioTvDarkColorScheme()) {
-                TvFilesScreen(
-                    state = ready(
-                        item(1, "a.txt", PutioFileType.TEXT),
-                        paging = FilesPaging.Available(FilesCursor("c")),
-                    ),
-                    onEvent = { events += it; true },
-                    onPlayMedia = {},
+        compose.showFiles(
+            state = {
+                ready(
+                    item(1, "a.txt", PutioFileType.TEXT),
+                    paging = FilesPaging.Available(FilesCursor("c")),
                 )
-            }
-        }
+            },
+            onEvent = { events += it; true },
+        )
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events)
