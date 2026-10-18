@@ -1342,7 +1342,7 @@ deep the history is. More rows are read from 1,000-row list pages until all are
 found. A row the API no longer has (404 by id, or absent from the list) leaves
 the list. Any other failure keeps the rows for the next poll; only a rejected
 session surfaces. Measured CPU cost per poll:
-<NOTION:android-transfers-polling-cpu-benchmark>.
+[Android Transfers polling CPU benchmark](https://app.notion.com/p/3fdd546ba2f581fbaaa4ef35b3deb1c7) (put.io Notion).
 
 Tests: `SdkTransfersRepositoryTest`, `TransfersRefreshCostTest` (request and row
 counts per poll against 10k and 50k histories), `TransfersControllerTest`,
