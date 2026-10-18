@@ -65,10 +65,9 @@ class PutioAuthSessionGatewayTest {
         val result = PutioAuthSessionGateway(boundary).validateSession()
 
         assertEquals(listOf("validate"), boundary.calls)
-        assertTrue(result is SessionValidationResult.Rejected)
         assertEquals(
             SessionRejectionReason.ValidateReturnedFalse,
-            (result as SessionValidationResult.Rejected).reason,
+            (result as? SessionValidationResult.Rejected)?.reason,
         )
     }
 
@@ -78,8 +77,7 @@ class PutioAuthSessionGatewayTest {
             val boundary = FakePutioSdkAuthBoundary(validationFailure = apiOperationFailure(statusCode))
             val result = PutioAuthSessionGateway(boundary).validateSession()
 
-            assertTrue(result is SessionValidationResult.Rejected)
-            assertEquals(SessionRejectionReason.Unauthorized, (result as SessionValidationResult.Rejected).reason)
+            assertEquals(SessionRejectionReason.Unauthorized, (result as? SessionValidationResult.Rejected)?.reason)
         }
     }
 

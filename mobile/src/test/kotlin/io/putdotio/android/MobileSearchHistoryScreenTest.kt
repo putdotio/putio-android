@@ -27,6 +27,7 @@ import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.historyState
+import io.putdotio.android.search.RecentSearchEdit
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
@@ -68,7 +69,7 @@ class MobileSearchHistoryScreenTest {
     @Test
     fun recentSearchCanRunAndBeCleared() {
         val searches = mutableListOf<SearchTerm>()
-        val edits = mutableListOf<io.putdotio.android.search.RecentSearchEdit>()
+        val edits = mutableListOf<RecentSearchEdit>()
         setScreen(
             search = searchState(SearchContent.Idle, listOf(SearchTerm("documentary"))),
             actions = MobileSearchHistoryActions(onRecentSearch = searches::add, onRecentEdit = edits::add),
@@ -78,12 +79,12 @@ class MobileSearchHistoryScreenTest {
         compose.onNodeWithText("Clear").performClick()
 
         assertEquals(listOf(SearchTerm("documentary")), searches)
-        assertEquals(listOf(io.putdotio.android.search.RecentSearchEdit.Clear), edits)
+        assertEquals(listOf(RecentSearchEdit.Clear), edits)
     }
 
     @Test
     fun recentSearchRemovalIdentifiesTheTermToAccessibilityServices() {
-        val edits = mutableListOf<io.putdotio.android.search.RecentSearchEdit>()
+        val edits = mutableListOf<RecentSearchEdit>()
         val first = SearchTerm("documentary")
         val second = SearchTerm("concert")
         setScreen(
@@ -94,7 +95,7 @@ class MobileSearchHistoryScreenTest {
         compose.onAllNodesWithText("Remove").assertCountEquals(0)
         compose.onNodeWithContentDescription("Remove documentary from recent searches").assertIsDisplayed()
         compose.onNodeWithContentDescription("Remove concert from recent searches").performClick()
-        assertEquals(listOf(io.putdotio.android.search.RecentSearchEdit.Remove(second)), edits)
+        assertEquals(listOf(RecentSearchEdit.Remove(second)), edits)
     }
 
     @Test

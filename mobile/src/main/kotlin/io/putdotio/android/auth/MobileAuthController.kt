@@ -118,9 +118,7 @@ class MobileAuthController internal constructor(
 
     suspend fun beginSignIn(): OAuthLaunchResult = operationMutex.withLock {
         val signedOutState = mutableState.value as? MobileAuthState.SignedOut
-        if (signedOutState == null) {
-            return@withLock OAuthLaunchResult.NotAllowed
-        }
+            ?: return@withLock OAuthLaunchResult.NotAllowed
         // Reset and sign in: the clear is best effort, since the new token overwrites
         // the record anyway and a store that still fails surfaces again on write.
         if (signedOutState.reason == MobileSignedOutReason.SecureStorageUnavailable) {
@@ -204,10 +202,7 @@ class MobileAuthController internal constructor(
 
     suspend fun retryValidation(): Boolean = operationMutex.withLock {
         val unavailableState = mutableState.value as? MobileAuthState.ValidationUnavailable
-        if (unavailableState == null) {
-            return@withLock false
-        }
-
+            ?: return@withLock false
         try {
             val accessToken = readStoredToken() ?: return@withLock false
             configureSession(accessToken)
@@ -239,12 +234,7 @@ class MobileAuthController internal constructor(
         mutableState.value = MobileAuthState.SigningOut
         withContext(NonCancellable) {
             (sessionToken ?: storedTokenOrNull())?.let { tokenRevocations.revoke(it) }
-            val cleared = clearLocalSession()
-            mutableState.value = if (cleared) {
-                MobileAuthState.SignedOut()
-            } else {
-                MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
-            }
+            mutableState.value = signedOutAfterClear(clearLocalSession(), reason = null)
         }
     }
 
@@ -290,12 +280,7 @@ class MobileAuthController internal constructor(
     }
 
     private suspend fun handleRejectedSession() = withContext(NonCancellable) {
-        val cleared = clearLocalSession()
-        mutableState.value = if (cleared) {
-            MobileAuthState.SignedOut(MobileSignedOutReason.SessionExpired)
-        } else {
-            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
-        }
+        mutableState.value = signedOutAfterClear(clearLocalSession(), MobileSignedOutReason.SessionExpired)
     }
 
     private suspend fun readStoredToken(): AccessToken? =
@@ -352,11 +337,7 @@ class MobileAuthController internal constructor(
             val hasPendingAttempt = currentState == MobileAuthState.AwaitingOAuthCallback ||
                 oauthAttempts.exists()
             if (hasPendingAttempt) {
-                mutableState.value = if (oauthAttempts.clear()) {
-                    MobileAuthState.SignedOut(reason)
-                } else {
-                    MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable)
-                }
+                mutableState.value = signedOutAfterClear(oauthAttempts.clear(), reason)
             }
             hasPendingAttempt
         } catch (_: PendingOAuthAttemptStorageException) {
@@ -376,6 +357,9 @@ class MobileAuthController internal constructor(
         }
     }
 }
+
+private fun signedOutAfterClear(cleared: Boolean, reason: MobileSignedOutReason?): MobileAuthState.SignedOut =
+    MobileAuthState.SignedOut(if (cleared) reason else MobileSignedOutReason.SecureStorageUnavailable)
 
 private fun MobileOAuthConfiguration.initialSignedOutState(): MobileAuthState.SignedOut =
     MobileAuthState.SignedOut(

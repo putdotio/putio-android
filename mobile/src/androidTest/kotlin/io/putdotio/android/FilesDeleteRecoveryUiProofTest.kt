@@ -75,18 +75,8 @@ class FilesDeleteRecoveryUiProofTest {
 
     @Test
     fun uncertainDeleteKeepsItemAndOffersStatusCheck() {
-        // Controlled reducer/UI evidence only: effects are recorded, never executed against an API.
         val preview = DeleteRecoveryPreview()
-        compose.setContent {
-            PutioTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MobileFilesScreen(
-                        preview.state, { preview.dispatch(it) }, onPlayMedia = {}, confirmedTrashEnabled = true,
-                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
-                    )
-                }
-            }
-        }
+        show(preview)
         compose.runOnIdle {
             preview.dispatch(FilesBrowserEvent.Delete(preview.folder.id, preview.item.id, FilesDeleteMode.TRASH))
             assertTrue(preview.effects.single() is FilesBrowserEffect.Delete)
@@ -118,18 +108,8 @@ class FilesDeleteRecoveryUiProofTest {
 
     @Test
     fun folderTooLargeForTrashOffersConfirmedPermanentDelete() {
-        // Controlled reducer/UI evidence only: effects are recorded, never executed against an API.
         val preview = DeleteRecoveryPreview(itemName = "Sample folder")
-        compose.setContent {
-            PutioTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MobileFilesScreen(
-                        preview.state, { preview.dispatch(it) }, onPlayMedia = {}, confirmedTrashEnabled = true,
-                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
-                    )
-                }
-            }
-        }
+        show(preview)
         compose.runOnIdle {
             preview.dispatch(FilesBrowserEvent.Delete(preview.folder.id, preview.item.id, FilesDeleteMode.TRASH))
             preview.refuseTrashForFolderSize()
@@ -165,6 +145,18 @@ class FilesDeleteRecoveryUiProofTest {
         // The dialog window's exit animation runs outside Compose idling.
         SystemClock.sleep(1_000)
         deleteProofScreenshot("synthetic-trash-limit-deleted")
+    }
+
+    // Controlled reducer/UI evidence only: effects are recorded, never executed against an API.
+    private fun show(preview: DeleteRecoveryPreview) = compose.setContent {
+        PutioTheme {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                MobileFilesScreen(
+                    preview.state, { preview.dispatch(it) }, onPlayMedia = {}, confirmedTrashEnabled = true,
+                    modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+                )
+            }
+        }
     }
 
     private fun assertNavigationRetainsRecovery(preview: DeleteRecoveryPreview) {

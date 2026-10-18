@@ -41,20 +41,17 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 
 /**
- * Exports one original file into private storage, then hands a content URI to the
- * system chooser. The chooser payload is the stream only: no text, no URL, no
- * credential. The API request carries the session header; the CDN redirect it
- * follows is never surfaced. Every earlier copy is pruned before an export and
- * copies older than a day on launch. A service
- * cannot start an Activity from the background, so the chooser opens from the
- * resumed Activity: immediately when one exists, otherwise from the next one to
- * resume, which a "ready" notification brings back. An export nobody returns for
- * within the timeout is deleted. Each export belongs to the session that started it and
- * lives under that session's directory: leaving that session cancels the export, deletes
- * it and never opens the chooser. The service runs one export at a time, so its own
- * cleanup clears the whole root; the auth runtime's session-exit cleanup can run after
- * the next session started, so it clears only the departed session's directory and
- * whatever earlier processes left.
+ * Exports one original file into private storage, then hands a content URI to the system chooser.
+ * The chooser payload is the stream only: no text, no URL, no credential. The API request carries
+ * the session header; the CDN redirect it follows is never surfaced. Every earlier copy is pruned
+ * before an export, and copies older than a day on launch. A service cannot start an Activity from
+ * the background, so the chooser opens from the resumed Activity: immediately when one exists,
+ * otherwise from the next one to resume, which a "ready" notification brings back. An export nobody
+ * returns for within the timeout is deleted. Each export belongs to the session that started it and
+ * lives under that session's directory: leaving that session cancels the export, deletes it and
+ * never opens the chooser. The service runs one export at a time, so its own cleanup clears the
+ * whole root; the auth runtime's session-exit cleanup can run after the next session started, so it
+ * clears only the departed session's directory and whatever earlier processes left.
  */
 class MobileFileShareService : Service() {
     private val dependencies by lazy { shareDependencies(this) }

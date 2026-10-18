@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -42,7 +41,6 @@ import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PutioFileType
-import java.io.File
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
@@ -196,13 +194,8 @@ class MobileFilesTrashPagingProofTest {
     private fun screenshot(label: String) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val runId = UUID.fromString(requireNotNull(InstrumentationRegistry.getArguments().getString("putio.files.runId")))
-        val directory = File(requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)), "files-proof-$runId")
-        check(directory.mkdirs() || directory.isDirectory)
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-        } finally { bitmap.recycle() }
+        saveProofScreenshot(proofDirectory("files-proof-$runId"), label)
     }
 
     private companion object {

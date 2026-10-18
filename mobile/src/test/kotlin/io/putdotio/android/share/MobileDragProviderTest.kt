@@ -26,6 +26,7 @@ import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -75,9 +76,6 @@ class MobileDragProviderTest {
         listOf("token", "oauth", "api.put.io", "http").forEach { assertFalse(everything.contains(it)) }
 
         assertEquals(View.DRAG_FLAG_GLOBAL or View.DRAG_FLAG_GLOBAL_URI_READ, MOBILE_FILE_DRAG_FLAGS)
-        val wider = View.DRAG_FLAG_GLOBAL_URI_WRITE or View.DRAG_FLAG_GLOBAL_PERSISTABLE_URI_PERMISSION or
-            View.DRAG_FLAG_GLOBAL_PREFIX_URI_PERMISSION
-        assertEquals(0, MOBILE_FILE_DRAG_FLAGS and wider)
     }
 
     @Test
@@ -142,7 +140,7 @@ class MobileDragProviderTest {
         MobileFileDrags.endSession(SESSION.sessionId)
 
         assertNull(MobileFileDrags[untaken])
-        assertTrue(MobileFileDrags[later] != null)
+        assertNotNull(MobileFileDrags[later])
         assertTrue(requests.isEmpty())
     }
 

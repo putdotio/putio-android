@@ -3,7 +3,6 @@ package io.putdotio.android
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.res.Configuration
-import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
 import android.os.Build
@@ -334,16 +333,7 @@ class MobilePictureInPictureProofTest {
     private fun screenshot(label: String) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "pip-proof-${runId()}")
-        check(directory.mkdirs() || directory.isDirectory)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use {
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-        } finally {
-            bitmap.recycle()
-        }
+        saveProofScreenshot(proofDirectory("pip-proof-${runId()}"), label)
     }
 
     private fun runId(): UUID = UUID.fromString(requireNotNull(arguments.getString("putio.pip.runId")))
@@ -365,12 +355,12 @@ class MobilePictureInPictureProofTest {
     }
 }
 
+private class MenuButtons(val action: Rect, val expand: Rect, val close: Rect)
+
 /**
  * Production renderers and audio attributes over a local file, which the production player's
  * download-cache HTTP source cannot read; positions go through the real observer to a recorder.
  */
-private class MenuButtons(val action: Rect, val expand: Rect, val close: Rect)
-
 private class PictureInPictureProofPlayerFactory(private val lease: String) : MobilePlayerFactory {
     var player: Player? = null
         private set

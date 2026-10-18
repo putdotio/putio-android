@@ -4,22 +4,22 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.common.util.UnstableApi
-import androidx.core.content.ContextCompat
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionToken
+import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.design.R as DesignR
+import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackPositionObserver
-import io.putdotio.android.auth.MobileOAuthRuntime
-import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.telemetry.PutioDiagnostics
 

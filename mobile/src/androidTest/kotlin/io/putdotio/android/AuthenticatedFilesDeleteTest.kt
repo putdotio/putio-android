@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import android.graphics.Bitmap
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasAnyAncestor
@@ -32,7 +31,6 @@ import io.putdotio.sdk.files.FilesSearchQuery
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.trash.TrashContinueQuery
 import io.putdotio.sdk.trash.TrashListQuery
-import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assume.assumeTrue
@@ -250,12 +248,6 @@ internal fun deleteProofScreenshot(label: String) {
     val runId = InstrumentationRegistry.getArguments().getString("putio.delete.runId")
     require(runId != null && runId.matches(Regex("[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}")))
     val instrumentation = InstrumentationRegistry.getInstrumentation()
-    val directory = File(requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)), "delete-proof-$runId")
-    check(directory.mkdirs() || directory.isDirectory)
     instrumentation.uiAutomation.waitForIdle(100, 3_000)
-    val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-    try {
-        File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-    }
-    finally { bitmap.recycle() }
+    saveProofScreenshot(proofDirectory("delete-proof-$runId"), label)
 }

@@ -651,8 +651,7 @@ private fun MobileAddTransferSheet(
                 val message = validation?.messageResource()?.let { stringResource(it) }
                     ?: failure?.failure?.mobileMessage()
                 if (message != null) {
-                    Text(message, color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall)
+                    Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             } else OutlinedTextField(
                 value = input,

@@ -1,7 +1,6 @@
 package io.putdotio.android
 
 import android.app.UiAutomation
-import android.graphics.Bitmap
 import android.os.Build
 import android.provider.Settings
 import androidx.test.platform.app.InstrumentationRegistry
@@ -60,10 +59,7 @@ internal fun accessibilityProofDirectory(): File {
     val runId = UUID.fromString(requireNotNull(
         InstrumentationRegistry.getArguments().getString("putio.accessibility.runId"),
     ))
-    val context = InstrumentationRegistry.getInstrumentation().targetContext
-    return File(requireNotNull(context.getExternalFilesDir(null)), "accessibility-proof-$runId").also {
-        check(it.mkdirs() || it.isDirectory)
-    }
+    return proofDirectory("accessibility-proof-$runId")
 }
 
 internal fun accessibilityProofScreenshot(
@@ -72,12 +68,7 @@ internal fun accessibilityProofScreenshot(
 ) {
     require(label.matches(Regex("[a-z0-9-]+")))
     automation.waitForIdle(100, 3_000)
-    val bitmap = requireNotNull(automation.takeScreenshot())
-    try {
-        File(accessibilityProofDirectory(), "$label.png").outputStream().use {
-            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-    } finally { bitmap.recycle() }
+    saveProofScreenshot(accessibilityProofDirectory(), label, automation)
 }
 
 internal fun accessibilityFiles(): FilesBrowserState = filesBrowserState(listOf(FilesFolderState(

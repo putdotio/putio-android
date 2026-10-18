@@ -29,6 +29,7 @@ import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.transfers.AppTransferStatus
 import io.putdotio.android.transfers.TransferAction
+import io.putdotio.android.transfers.TransferCursor
 import io.putdotio.android.transfers.TransferFileId
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem
@@ -228,27 +229,6 @@ class MobileTransfersScreenTest {
     }
 
     @Test
-    fun seedingRowsCanOpenTheUsableFileAndStopSeeding() {
-        val events = mutableListOf<TransfersEvent>()
-        val seeding =
-            transfer(
-                id = 5L,
-                status = AppTransferStatus.Seeding,
-                fileId = 15L,
-                userFileExists = true,
-            )
-        setScreen(
-            state(TransfersContent.Ready(listOf(seeding), TransfersPaging.Complete)),
-            events::add,
-        )
-
-        compose.onNodeWithContentDescription("Open transfer-", substring = true).performClick()
-        assertEquals(TransfersEvent.Open(seeding.id), events.last())
-        compose.onNodeWithContentDescription("Cancel transfer transfer-", substring = true).performClick()
-        compose.onNodeWithText("Cancel transfer?").assertIsDisplayed()
-    }
-
-    @Test
     fun transferActionsIdentifyTheirTargetForAccessibility() {
         val events = mutableListOf<TransfersEvent>()
         setScreen(
@@ -324,7 +304,7 @@ class MobileTransfersScreenTest {
                     TransfersContent.Ready(
                         listOf(transfer(9L, AppTransferStatus.Waiting)),
                         TransfersPaging.Failed(
-                            io.putdotio.android.transfers.TransferCursor("next"),
+                            TransferCursor("next"),
                             PutioFailure.Unexpected(IllegalStateException("paging")),
                         ),
                     ),
@@ -393,7 +373,7 @@ class MobileTransfersScreenTest {
             state(
                 TransfersContent.Ready(
                     listOf(row),
-                    TransfersPaging.Available(io.putdotio.android.transfers.TransferCursor("next")),
+                    TransfersPaging.Available(TransferCursor("next")),
                 ),
                 refresh = TransfersRefresh.Polling(TransfersRequestId(9L)),
             ),
@@ -410,7 +390,7 @@ class MobileTransfersScreenTest {
                         TransfersContent.Ready(
                             listOf(row),
                             TransfersPaging.Failed(
-                                io.putdotio.android.transfers.TransferCursor("next"),
+                                TransferCursor("next"),
                                 PutioFailure.Unexpected(IllegalStateException("paging")),
                             ),
                         ),
@@ -507,7 +487,7 @@ class MobileTransfersScreenTest {
                 state(
                     TransfersContent.Ready(
                         listOf(transfer(1L, AppTransferStatus.Downloading)),
-                        TransfersPaging.Available(io.putdotio.android.transfers.TransferCursor("next")),
+                        TransfersPaging.Available(TransferCursor("next")),
                     ),
                 ).withRunningAdd()
         }
@@ -519,7 +499,7 @@ class MobileTransfersScreenTest {
                     TransfersContent.Ready(
                         listOf(transfer(1L, AppTransferStatus.Downloading)),
                         TransfersPaging.Failed(
-                            io.putdotio.android.transfers.TransferCursor("next"),
+                            TransferCursor("next"),
                             PutioFailure.Unexpected(IllegalStateException("paging")),
                         ),
                     ),

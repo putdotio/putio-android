@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import android.graphics.Bitmap
 import android.text.format.Formatter
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -189,17 +188,7 @@ class MobileCopyProofTest {
         compose.waitForIdle()
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         automation.waitForIdle(100, 3_000)
-        val directory = File(
-            requireNotNull(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null)),
-            "copy-proof-${runId()}",
-        )
-        check(directory.mkdirs() || directory.isDirectory)
-        val bitmap = requireNotNull(automation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-        } finally {
-            bitmap.recycle()
-        }
+        saveProofScreenshot(proofDirectory("copy-proof-${runId()}"), label)
     }
 
     private fun size(bytes: Long) =

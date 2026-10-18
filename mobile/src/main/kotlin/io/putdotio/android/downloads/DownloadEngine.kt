@@ -14,7 +14,6 @@ internal interface DownloadEngine {
     /** Removes cached bytes and any in-flight transfer; the index row goes when the engine confirms. */
     fun remove(fileId: FilesItemId)
 
-    /** True while a removal is still in progress for this file. */
     fun isRemoving(fileId: FilesItemId): Boolean = false
 
     /** Mirrors live byte progress into the store; the controller calls it while the Downloads screen is visible. */

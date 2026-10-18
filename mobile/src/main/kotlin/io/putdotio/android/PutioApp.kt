@@ -73,7 +73,7 @@ private fun MobileAuthRoot(
     runtime: MobileOAuthRuntime,
     oauthBrowser: AuthTabOAuthBrowser?,
     nowPlayingRequests: NowPlayingRequests,
-    deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
+    deepLinkRequests: MobileDeepLinkRequests,
 ) {
     val context = LocalContext.current
     val authController = runtime.authController
@@ -141,8 +141,7 @@ private fun MobileAuthRoot(
                     rootScope.launch {
                         when (val authorization = authController.beginSignIn()) {
                             is OAuthLaunchResult.Ready -> {
-                                val launchResult = oauthBrowser?.launch(authorization)
-                                if (launchResult !is OAuthBrowserLaunchResult.Launched) {
+                                if (oauthBrowser?.launch(authorization) !is OAuthBrowserLaunchResult.Launched) {
                                     authController.failSignIn()
                                 }
                             }

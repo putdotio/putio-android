@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.content.pm.PackageManager
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
-import android.graphics.Bitmap
 import android.net.Uri
 import android.os.SystemClock
 import androidx.compose.foundation.layout.fillMaxSize
@@ -277,15 +276,8 @@ class MobileDownloadsQueueProofTest {
 
     private fun screenshot(label: String) {
         val runId = UUID.fromString(arguments.getString("putio.downloads.queue.runId"))
-        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "downloads-queue-proof-$runId")
-        check(directory.mkdirs() || directory.isDirectory)
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use {
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-        } finally { bitmap.recycle() }
+        saveProofScreenshot(proofDirectory("downloads-queue-proof-$runId"), label)
     }
 
     private inner class ProofDatabase : SQLiteOpenHelper(context, DATABASE, null, 1) {

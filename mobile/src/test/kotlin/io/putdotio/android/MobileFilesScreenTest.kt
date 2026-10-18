@@ -373,7 +373,7 @@ class MobileFilesScreenTest {
         val file = filesItem(1L, "movie.mkv").copy(createdAt = "2026-04-20T10:00:00")
         val folder = filesItem(2L, "Shows", PutioFileType.FOLDER).copy(createdAt = "2026-04-21T10:00:00")
         val state = browserState(FilesContent.Ready(listOf(file, folder), FilesPaging.Complete))
-        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = { true }, onPlayMedia = {}) } }
+        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
         compose.onNode(hasText("movie.mkv") and hasText("Apr 20, 2026", substring = true)).assertIsDisplayed()
         compose.onNode(hasText("Shows") and hasText("Apr 21, 2026", substring = true)).assertIsDisplayed()
     }
@@ -387,7 +387,7 @@ class MobileFilesScreenTest {
         val fresh = filesItem(3L, "fresh.mkv", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 100.0))
         val plain = filesItem(4L, "plain.txt")
         val state = browserState(FilesContent.Ready(listOf(partly, unknown, fresh, plain), FilesPaging.Complete))
-        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = { true }, onPlayMedia = {}) } }
+        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
         compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true).assertCountEquals(2)
         // One merged row node carries name, metadata, and watched label together.
         compose.onNode(hasText("partly.mkv") and hasText("128 B", substring = true) and hasText("25% watched"))
@@ -727,7 +727,7 @@ class MobileFilesListTest {
                 content = content,
                 operation = FilesFolderOperation.Loading(
                     requestId = FilesRequestId(3L),
-                    intent = FilesFolderOperationIntent.Sort(io.putdotio.android.files.FilesSort.NAME_ASCENDING),
+                    intent = FilesFolderOperationIntent.Sort(FilesSort.NAME_ASCENDING),
                     phase = FilesFolderOperationPhase.PERSISTING_SORT,
                 ),
             )
@@ -742,7 +742,6 @@ class MobileFilesListTest {
         compose.runOnIdle { events.clear() }
         compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).performTouchInput { swipeDown() }
         compose.runOnIdle { assertTrue(FilesBrowserEvent.Refresh !in events) }
-
     }
 
     @Test
@@ -784,7 +783,6 @@ class MobileFilesListTest {
 
         compose.onNodeWithText("Try again").performClick()
         assertEquals(FilesBrowserEvent.Retry, events.last())
-
     }
 
     @Test
@@ -806,9 +804,7 @@ class MobileFilesListTest {
                 content = content,
                 operation = FilesFolderOperation.Failed(
                     failure = PutioFailure.Unexpected(IllegalStateException("offline")),
-                    intent = FilesFolderOperationIntent.Sort(
-                        io.putdotio.android.files.FilesSort.NAME_ASCENDING,
-                    ),
+                    intent = FilesFolderOperationIntent.Sort(FilesSort.NAME_ASCENDING),
                     phase = FilesFolderOperationPhase.RELOADING,
                 ),
             )
@@ -820,9 +816,7 @@ class MobileFilesListTest {
                 content = content,
                 operation = FilesFolderOperation.Failed(
                     failure = PutioFailure.Unexpected(IllegalStateException("offline")),
-                    intent = FilesFolderOperationIntent.Sort(
-                        io.putdotio.android.files.FilesSort.NAME_ASCENDING,
-                    ),
+                    intent = FilesFolderOperationIntent.Sort(FilesSort.NAME_ASCENDING),
                     phase = FilesFolderOperationPhase.PERSISTING_SORT,
                 ),
             )

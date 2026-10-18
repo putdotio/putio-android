@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -25,7 +24,6 @@ import io.putdotio.android.files.copyForTest
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
-import java.io.File
 import java.util.UUID
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -97,14 +95,8 @@ class MobileRefusedRequestProofTest {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val runId =
             UUID.fromString(requireNotNull(InstrumentationRegistry.getArguments().getString("putio.refused.runId")))
-        val directory =
-            File(requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)), "refused-proof-$runId")
-        check(directory.mkdirs() || directory.isDirectory)
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-        } finally { bitmap.recycle() }
+        saveProofScreenshot(proofDirectory("refused-proof-$runId"), label)
     }
 }
 

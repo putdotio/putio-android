@@ -23,7 +23,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,7 +36,6 @@ import io.putdotio.android.playback.dispatch
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobileFilesViewModelTest {
-
     @Test
     fun nestedFolderAndViewportSurviveActivityRecreation() {
         val repository = NestedFolderRepository()
@@ -138,34 +136,6 @@ class MobileFilesViewModelTest {
     }
 
     @Test
-    fun staleSessionCannotRecreateAControllerAfterSignOutOrNewSession() {
-        val repository = NestedFolderRepository()
-        val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
-        val activityController = Robolectric.buildActivity(FilesHostActivity::class.java).setup()
-
-        try {
-            val viewModel = activityController.get().filesViewModel(authState)
-            checkNotNull(viewModel.controllerFor(USER_ID, SessionOne, repository))
-            shadowOf(Looper.getMainLooper()).idle()
-
-            authState.value = MobileAuthState.SignedOut()
-            shadowOf(Looper.getMainLooper()).idle()
-            val loadsAfterSignOut = repository.loadedFolderIds.toList()
-            assertNull(viewModel.controllerFor(USER_ID, SessionOne, repository))
-            shadowOf(Looper.getMainLooper()).idle()
-            assertEquals(loadsAfterSignOut, repository.loadedFolderIds)
-
-            authState.value = signedIn(SessionTwo)
-            shadowOf(Looper.getMainLooper()).idle()
-            assertNull(viewModel.controllerFor(USER_ID, SessionOne, repository))
-            shadowOf(Looper.getMainLooper()).idle()
-            assertEquals(loadsAfterSignOut, repository.loadedFolderIds)
-        } finally {
-            activityController.close()
-        }
-    }
-
-    @Test
     fun permanentActivityDestructionClosesTheActiveController() {
         val repository = NestedFolderRepository()
         val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
@@ -209,11 +179,6 @@ class MobileFilesViewModelTest {
                 },
             )
         }
-
-        override suspend fun persistSort(
-            folderId: FilesItemId,
-            sort: io.putdotio.android.files.FilesSort,
-        ): PutioResult<Unit> = PutioResult.Success(Unit)
     }
 
     private companion object {

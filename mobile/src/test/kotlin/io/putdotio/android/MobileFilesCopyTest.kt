@@ -67,19 +67,19 @@ class MobileFilesCopyTest {
     private val friend = item(9L, "friend", PutioFileType.FOLDER, PutioFolderType.SHARED_FRIEND, isShared = true)
     private val owned = item(10L, "Owned notes.txt", PutioFileType.TEXT)
     private val destination = item(11L, "Sample folder", PutioFileType.FOLDER)
+    private val repository = object : StubFilesRepository() {
+        override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
+            error("Unexpected source read")
+
+        override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
+            PutioResult.Success(
+                FilesPage(if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null),
+            )
+    }
 
     @Test
     fun sharedItemsOfferMakeACopyIntoAFolderPickedFromRoot() {
         val events = mutableListOf<FilesBrowserEvent>()
-        val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
-                error("Unexpected source read")
-
-            override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-                PutioResult.Success(
-                    FilesPage(if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null),
-                )
-        }
         compose.setContent {
             PutioTheme {
                 val state = loaded(listOf(sharedVideo, sharedFolder, friend, owned))
@@ -124,14 +124,6 @@ class MobileFilesCopyTest {
     fun makeACopyOpensAtTheRememberedFolderUntilRememberIsTurnedOff() {
         val remembered = listOf(FilesFolder(destination.id, destination.name))
         val store = InMemoryMoveTargetStore(FilesMoveTargetMemory(remember = true, lastTarget = remembered))
-        val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
-                error("Unexpected source read")
-            override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-                PutioResult.Success(
-                    FilesPage(if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null),
-                )
-        }
         compose.setContent {
             PutioTheme {
                 MobileFilesRoute(loaded(listOf(sharedVideo)), repository, { true }, {}, true, {},
@@ -157,14 +149,6 @@ class MobileFilesCopyTest {
     @Test
     fun copyHereWithRememberOnRecordsTheFolderTheNextPickerOpensAt() {
         val store = InMemoryMoveTargetStore(FilesMoveTargetMemory(remember = true))
-        val repository = object : StubFilesRepository() {
-            override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
-                error("Unexpected source read")
-            override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
-                PutioResult.Success(
-                    FilesPage(if (folderId == FilesFolder.Root.id) listOf(destination) else emptyList(), null),
-                )
-        }
         compose.setContent {
             PutioTheme {
                 MobileFilesRoute(loaded(listOf(sharedVideo)), repository, { true }, {}, true, {},

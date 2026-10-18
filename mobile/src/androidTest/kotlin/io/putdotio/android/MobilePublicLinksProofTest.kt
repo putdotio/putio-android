@@ -1,7 +1,6 @@
 package io.putdotio.android
 
 import android.accessibilityservice.AccessibilityService
-import android.graphics.Bitmap
 import android.os.SystemClock
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,7 +34,6 @@ import io.putdotio.android.sharing.FakePublicLinksRepository
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_LIST_TAG
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINK_CREATE_TAG
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINK_REVOKE_CONFIRM_TAG
-import io.putdotio.android.sharing.MOBILE_PUBLIC_LINK_SHEET_TAG
 import io.putdotio.android.sharing.MobilePublicLinks
 import io.putdotio.android.sharing.MobilePublicLinksScreen
 import io.putdotio.android.sharing.PublicLinksController
@@ -47,7 +45,6 @@ import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.PutioFileType
-import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -176,18 +173,11 @@ class MobilePublicLinksProofTest {
         val runId = UUID.fromString(
             requireNotNull(InstrumentationRegistry.getArguments().getString("putio.publiclinks.runId")),
         )
-        val directory = File(
-            requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)), "public-links-proof-$runId",
-        )
-        check(directory.mkdirs() || directory.isDirectory)
         compose.waitForIdle()
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
         // Holds each state long enough for a screen recording to show it.
         SystemClock.sleep(STEP_PAUSE_MS)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-        } finally { bitmap.recycle() }
+        saveProofScreenshot(proofDirectory("public-links-proof-$runId"), label)
     }
 }
 

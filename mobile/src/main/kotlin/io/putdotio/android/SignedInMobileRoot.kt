@@ -349,9 +349,7 @@ private fun SignedInMobileSession(
                 onHistoryEvent = { searchHistorySession.history.dispatch(it) },
             ),
         onTransfersEvent = transfersController::dispatch,
-        resolveTransferFile = { fileId ->
-            filesRepository.resolveItem(FilesItemId(fileId.value))
-        },
+        resolveTransferFile = { fileId -> filesRepository.resolveItem(FilesItemId(fileId.value)) },
         onTransferAuthenticationRequired = authController::rejectAuthoritativeSession,
         contentNavigation = searchHistorySession.navigation,
         navigationFailure = navigationFailure,
@@ -435,9 +433,7 @@ internal fun AuthoritativeSessionFailureEffect(
     onReject: suspend () -> Unit,
 ) {
     LaunchedEffect(shouldReject) {
-        if (shouldReject) {
-            onReject()
-        }
+        if (shouldReject) onReject()
     }
 }
 

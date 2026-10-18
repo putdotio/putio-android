@@ -3,6 +3,7 @@ package io.putdotio.android.transfers
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.InterruptedIOException
@@ -49,7 +50,7 @@ internal fun readMobileTorrent(displayName: String?, open: () -> InputStream?): 
 
 /** Returns at most [limit] + 1 bytes so an oversized stream is detected without reading it all. */
 private fun InputStream.readBounded(limit: Int): ByteArray {
-    val buffer = java.io.ByteArrayOutputStream()
+    val buffer = ByteArrayOutputStream()
     val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
     while (buffer.size() <= limit) {
         // A superseded read is interrupted; stop between chunks instead of holding up to the limit.

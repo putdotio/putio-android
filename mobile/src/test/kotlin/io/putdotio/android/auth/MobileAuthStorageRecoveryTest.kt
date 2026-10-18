@@ -3,6 +3,13 @@ package io.putdotio.android.auth
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
+import io.putdotio.android.auth.AuthControllerTestValues.ACCOUNT
+import io.putdotio.android.auth.AuthControllerTestValues.AUTHORIZATION_URL
+import io.putdotio.android.auth.AuthControllerTestValues.NOW_EPOCH_MILLIS
+import io.putdotio.android.auth.AuthControllerTestValues.OAUTH_STATE
+import io.putdotio.android.auth.AuthControllerTestValues.SIGNED_IN
+import io.putdotio.android.auth.AuthControllerTestValues.TOKEN
+import io.putdotio.android.auth.AuthControllerTestValues.VALID_CALLBACK
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -114,15 +121,5 @@ class MobileAuthStorageRecoveryTest {
         override fun clearAccessToken() = Unit
 
         override suspend fun validateSession(): SessionValidationResult = SessionValidationResult.Valid(ACCOUNT)
-    }
-
-    private companion object {
-        const val TOKEN = "token-value"
-        const val OAUTH_STATE = "fixed-oauth-state"
-        const val AUTHORIZATION_URL = "https://app.put.io/authenticate?state=fixed-oauth-state"
-        const val VALID_CALLBACK = "putio://auth?state=$OAUTH_STATE#access_token=$TOKEN&state=$OAUTH_STATE"
-        const val NOW_EPOCH_MILLIS = 1_788_000_000_000L
-        val ACCOUNT = MobileAccount(userId = 42, username = "user", email = "user@example.com")
-        val SIGNED_IN = MobileAuthState.SignedIn(account = ACCOUNT, sessionId = MobileAuthSessionId(1L))
     }
 }

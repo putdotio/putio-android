@@ -11,6 +11,7 @@ import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.playback.dispatch
+import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigPreferences
@@ -162,9 +163,7 @@ class MobileAndroidAppConfigViewModelTest {
             return PutioResult.Success(Preferences)
         }
 
-        override suspend fun save(
-            change: io.putdotio.android.settings.AndroidAppConfigChange,
-        ): PutioResult<Unit> = PutioResult.Success(Unit)
+        override suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit> = PutioResult.Success(Unit)
     }
 
     private class SuspendingRepository : AndroidAppConfigRepository {
@@ -180,9 +179,7 @@ class MobileAndroidAppConfigViewModelTest {
             }
         }
 
-        override suspend fun save(
-            change: io.putdotio.android.settings.AndroidAppConfigChange,
-        ): PutioResult<Unit> = error("Save is not expected")
+        override suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit> = error("Save is not expected")
     }
 
     private companion object {

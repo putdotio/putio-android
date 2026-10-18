@@ -89,14 +89,14 @@ class MobileDeepLinksTest {
             MobileDeepLink.Downloads(FilesItemId(42L), play = true, userId = 7L),
             parseMobileDeepLink("putio://downloads/42/play?user=7".toUri()),
         )
-        // Only Downloads links read an account; anywhere else the query is ignored as before.
+        // Only Downloads links read an account; anywhere else the query is ignored.
         assertEquals(MobileDeepLink.Search, parseMobileDeepLink("putio://search?user=7".toUri()))
         // A malformed account voids the link rather than widening it to any account.
         assertNull(parseMobileDeepLink("putio://downloads/42?user=abc".toUri()))
         assertNull(parseMobileDeepLink("putio://downloads/42?user=0".toUri()))
         assertNull(parseMobileDeepLink("putio://downloads/42/stop".toUri()))
         assertNull(parseMobileDeepLink("putio://downloads/42/play/1".toUri()))
-        // An opaque URI has no query to read; it opens Files as before instead of throwing.
+        // An opaque URI has no query to read; it opens Files instead of throwing.
         val opaque = Intent(Intent.ACTION_VIEW, "putio:downloads?user=7".toUri())
         assertEquals(MobileDeepLink.Files, opaque.consumeMobileDeepLink())
     }

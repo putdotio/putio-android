@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,6 +48,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -177,7 +177,7 @@ class MobileLiveAudioAttachmentProofTest {
         awaitPreservedOptions(live, selected, fileId)
         awaitPlayer(live) { it.isPlaying && it.currentPosition > position + 500 }
         compose.runOnIdle {
-            assertTrue(!pending.value)
+            assertFalse(pending.value)
             assertEquals(0, repository.resolveCalls.get())
         }
     }
@@ -247,16 +247,7 @@ class MobileLiveAudioAttachmentProofTest {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.waitForIdleSync()
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        val directory = File(
-            requireNotNull(context.getExternalFilesDir(null)), "live-audio-attachment-proof-${runId()}",
-        )
-        check(directory.mkdirs() || directory.isDirectory)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use {
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-        } finally { bitmap.recycle() }
+        saveProofScreenshot(proofDirectory("live-audio-attachment-proof-${runId()}"), label)
     }
 
     private fun runId(): UUID = UUID.fromString(requireNotNull(arguments.getString("putio.audio.attach.runId")))

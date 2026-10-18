@@ -29,24 +29,21 @@ class AuthTabOAuthBrowserTest {
     fun `supported provider is pinned with the custom redirect scheme`() {
         var launch: Triple<Uri, String, String>? = null
         val browser = browser(
-            resolveProvider = { "com.example.browser" },
+            resolveProvider = { BROWSER_PACKAGE },
             launchAuthTab = { uri, scheme, provider -> launch = Triple(uri, scheme, provider) },
         )
 
         val result = browser.launch(OAuthLaunchResult.Ready(AUTHORIZATION_URL))
 
         assertEquals(OAuthBrowserLaunchResult.Launched, result)
-        assertEquals(
-            Triple(Uri.parse(AUTHORIZATION_URL), "putio", "com.example.browser"),
-            launch,
-        )
+        assertEquals(Triple(Uri.parse(AUTHORIZATION_URL), "putio", BROWSER_PACKAGE), launch)
     }
 
     @Test
     fun `Auth Tab intent is explicitly bound to the verified provider`() {
-        val authTab = buildPinnedAuthTabIntent("com.example.browser")
+        val authTab = buildPinnedAuthTabIntent(BROWSER_PACKAGE)
 
-        assertEquals("com.example.browser", authTab.intent.`package`)
+        assertEquals(BROWSER_PACKAGE, authTab.intent.`package`)
     }
 
     @Test
@@ -96,7 +93,7 @@ class AuthTabOAuthBrowserTest {
         val browser = browser(
             resolveProvider = {
                 providerResolved = true
-                "com.example.browser"
+                BROWSER_PACKAGE
             },
         )
 
@@ -110,7 +107,7 @@ class AuthTabOAuthBrowserTest {
     fun `Auth Tab launch exception is returned to the auth flow`() {
         val failure = ActivityNotFoundException("browser disappeared")
         val browser = browser(
-            resolveProvider = { "com.example.browser" },
+            resolveProvider = { BROWSER_PACKAGE },
             launchAuthTab = { _, _, _ -> throw failure },
         )
 
@@ -124,15 +121,9 @@ class AuthTabOAuthBrowserTest {
     fun `Auth Tab results distinguish callback cancellation and failure`() {
         assertEquals(
             OAuthBrowserResult.Callback("putio://auth#state=s&access_token=t"),
-            classifyAuthTabResult(
-                AuthTabIntent.RESULT_OK,
-                "putio://auth#state=s&access_token=t",
-            ),
+            classifyAuthTabResult(AuthTabIntent.RESULT_OK, "putio://auth#state=s&access_token=t"),
         )
-        assertEquals(
-            OAuthBrowserResult.Cancelled,
-            classifyAuthTabResult(AuthTabIntent.RESULT_CANCELED, null),
-        )
+        assertEquals(OAuthBrowserResult.Cancelled, classifyAuthTabResult(AuthTabIntent.RESULT_CANCELED, null))
         listOf(
             AuthTabIntent.RESULT_VERIFICATION_FAILED,
             AuthTabIntent.RESULT_VERIFICATION_TIMED_OUT,
@@ -148,7 +139,7 @@ class AuthTabOAuthBrowserTest {
         launchAuthTab: (Uri, String, String) -> Unit = { _, _, _ -> },
     ): AuthTabOAuthBrowser =
         AuthTabOAuthBrowser(
-            context = RuntimeEnvironment.getApplication(),
+            context = applicationContext,
             resolveProvider = resolveProvider,
             launchAuthTab = launchAuthTab,
         )

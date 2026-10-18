@@ -7,36 +7,19 @@ import org.junit.Test
 class OAuthCallbackParserTest {
     @Test
     fun `valid callback parses fragment token after matching state`() {
-        val result = OAuthCallbackParser.parse(
-            rawCallbackUri = "putio://auth?state=expected-state#access_token=token%2Bvalue&state=expected-state",
-            expectedState = "expected-state",
-        )
-
-        assertTrue(result is OAuthCallbackParseResult.Success)
-        assertEquals("token+value", (result as OAuthCallbackParseResult.Success).accessToken.reveal())
+        assertToken("token+value", "putio://auth?state=expected-state#access_token=token%2Bvalue&state=expected-state")
     }
 
     @Test
     fun `callback preserves literal and percent encoded plus characters`() {
         listOf("token+value", "token%2Bvalue").forEach { encodedToken ->
-            val result = OAuthCallbackParser.parse(
-                rawCallbackUri = "putio://auth#access_token=$encodedToken&state=expected-state",
-                expectedState = EXPECTED_STATE,
-            )
-
-            assertTrue(result is OAuthCallbackParseResult.Success)
-            assertEquals("token+value", (result as OAuthCallbackParseResult.Success).accessToken.reveal())
+            assertToken("token+value", "putio://auth#access_token=$encodedToken&state=expected-state")
         }
     }
 
     @Test
     fun `callback accepts token character boundaries and rejects values outside them`() {
-        val boundaryResult = OAuthCallbackParser.parse(
-            rawCallbackUri = "putio://auth#access_token=!token~&state=expected-state",
-            expectedState = EXPECTED_STATE,
-        )
-        assertTrue(boundaryResult is OAuthCallbackParseResult.Success)
-        assertEquals("!token~", (boundaryResult as OAuthCallbackParseResult.Success).accessToken.reveal())
+        assertToken("!token~", "putio://auth#access_token=!token~&state=expected-state")
 
         listOf("token%20value", "token%7Fvalue", "token%C3%A9value").forEach { encodedToken ->
             assertFailure<OAuthCallbackFailure.MissingAccessToken>(
@@ -64,11 +47,7 @@ class OAuthCallbackParserTest {
 
     @Test
     fun `callback permits only an optional matching state query`() {
-        val withoutQuery = OAuthCallbackParser.parse(
-            "putio://auth#access_token=token&state=expected-state",
-            EXPECTED_STATE,
-        )
-        assertTrue(withoutQuery is OAuthCallbackParseResult.Success)
+        assertToken("token", "putio://auth#access_token=token&state=expected-state")
 
         listOf(
             "putio://auth?source=browser#access_token=token&state=expected-state",
@@ -119,6 +98,11 @@ class OAuthCallbackParserTest {
         assertFailure<OAuthCallbackFailure.StateMismatch>(
             "putio://auth#access_token=token&state=other-state",
         )
+    }
+
+    private fun assertToken(expected: String, callback: String) {
+        val result = OAuthCallbackParser.parse(callback, EXPECTED_STATE)
+        assertEquals(expected, (result as? OAuthCallbackParseResult.Success)?.accessToken?.reveal())
     }
 
     private inline fun <reified T : OAuthCallbackFailure> assertFailure(

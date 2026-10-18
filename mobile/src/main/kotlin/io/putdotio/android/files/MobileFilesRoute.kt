@@ -174,10 +174,8 @@ private fun MobileFilesMoveSession(
         }
     }
     val destination by controller.state.collectAsState()
-    AuthoritativeSessionFailureEffect(
-        shouldReject = destination.current.content.authoritativeSessionFailure() != null,
-        onReject = onAuthenticationRequired,
-    )
+    val sessionFailure = destination.current.content.authoritativeSessionFailure() != null
+    AuthoritativeSessionFailureEffect(shouldReject = sessionFailure, onReject = onAuthenticationRequired)
     MobileFilesMoveDestination(
         state = destination,
         onEvent = { controller.dispatch(it) },
@@ -185,7 +183,7 @@ private fun MobileFilesMoveSession(
             finished = true
             onDismiss()
         },
-        canSubmit = canSubmit && !finished && destination.current.content.authoritativeSessionFailure() == null,
+        canSubmit = canSubmit && !finished && !sessionFailure,
         onConfirm = {
             val current = controller.state.value
             if (!finished && canSubmit && current.confirmable) {

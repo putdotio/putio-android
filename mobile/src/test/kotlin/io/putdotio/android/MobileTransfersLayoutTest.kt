@@ -127,6 +127,7 @@ class MobileTransfersLayoutTest {
         compose.onNodeWithText("Add").performScrollTo().assertIsDisplayed().performClick()
         assertEquals(listOf(TransfersEvent.Add("https://example.com/concert.mp4")), events)
     }
+
     private fun setScreen(
         fontScale: Float = 2f,
         mutation: TransferMutation = TransferMutation.Idle,
@@ -182,5 +183,4 @@ class MobileTransfersLayoutTest {
     private companion object {
         const val TRANSFER_NAME = "Concert recording.mp4"
     }
-
 }

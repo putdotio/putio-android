@@ -178,16 +178,16 @@ private fun MobileRefreshableFilesContent(
     content: FilesContent,
     onEvent: (FilesBrowserEvent) -> Unit,
     onPlayMedia: (FilesItem) -> Unit,
-    modifier: Modifier = Modifier,
-    confirmedTrashEnabled: Boolean? = null,
-    onMoveItem: ((FilesItem) -> Unit)? = null,
-    downloads: DownloadsState = DownloadsState(),
-    onDownloadItem: ((FilesItem) -> Unit)? = null,
-    onShareItem: ((FilesItem) -> Unit)? = null,
-    onViewTrash: (() -> Unit)? = null,
-    onCopyItem: ((FilesItem) -> Unit)? = null,
-    onPublicLinkItem: ((FilesItem) -> Unit)? = null,
-    fileDragOut: MobileFileDragOut? = null,
+    modifier: Modifier,
+    confirmedTrashEnabled: Boolean?,
+    onMoveItem: ((FilesItem) -> Unit)?,
+    downloads: DownloadsState,
+    onDownloadItem: ((FilesItem) -> Unit)?,
+    onShareItem: ((FilesItem) -> Unit)?,
+    onViewTrash: (() -> Unit)?,
+    onCopyItem: ((FilesItem) -> Unit)?,
+    onPublicLinkItem: ((FilesItem) -> Unit)?,
+    fileDragOut: MobileFileDragOut?,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -432,13 +432,12 @@ private fun MobileEmptyFilesContent(
     paging: FilesPaging,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     LoadNextPageNow(
         nextPage = (paging as? FilesPaging.Available)?.takeIf { pagingEnabled },
         onLoadNextPage = { onEvent(FilesBrowserEvent.LoadNextPage) },
     )
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize()) {
         BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
@@ -619,11 +618,10 @@ private fun MobileFilesList(
     onActions: (FilesItem) -> Unit,
     hasActions: (FilesItem) -> Boolean,
     operation: FilesFolderOperation,
-    modifier: Modifier = Modifier,
-    downloads: DownloadsState = DownloadsState(),
-    onItemFocusChanged: (FilesItemId, Boolean) -> Unit = { _, _ -> },
-    fileDragOut: MobileFileDragOut? = null,
-    onDragStarted: () -> Unit = {},
+    downloads: DownloadsState,
+    onItemFocusChanged: (FilesItemId, Boolean) -> Unit,
+    fileDragOut: MobileFileDragOut?,
+    onDragStarted: () -> Unit,
 ) {
     val viewport = content.viewport
     val listState = rememberLazyListState(
@@ -662,7 +660,7 @@ private fun MobileFilesList(
 
     LazyColumn(
         state = listState,
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .testTag(MOBILE_FILES_LIST_TAG),
     ) {
@@ -821,21 +819,15 @@ private fun MobileFilesListRow(
 }
 
 private fun FilesFolderOperation.pendingItemId(): FilesItemId? {
-    val pendingIntent = when (this) {
-        is FilesFolderOperation.Loading -> intent.takeIf {
-            phase == FilesFolderOperationPhase.RELOADING || it is FilesFolderOperationIntent.Delete ||
-                it is FilesFolderOperationIntent.Move
-        }
-        is FilesFolderOperation.Failed -> intent.takeIf {
-            phase == FilesFolderOperationPhase.RELOADING || it is FilesFolderOperationIntent.Delete ||
-                it is FilesFolderOperationIntent.Move
-        }
-        FilesFolderOperation.Idle -> null
+    val (intent, phase) = when (this) {
+        is FilesFolderOperation.Loading -> intent to phase
+        is FilesFolderOperation.Failed -> intent to phase
+        FilesFolderOperation.Idle -> return null
     }
-    return when (pendingIntent) {
-        is FilesFolderOperationIntent.Rename -> pendingIntent.itemId
-        is FilesFolderOperationIntent.Delete -> pendingIntent.itemId
-        is FilesFolderOperationIntent.Move -> pendingIntent.itemId
+    return when (intent) {
+        is FilesFolderOperationIntent.Rename -> intent.itemId.takeIf { phase == FilesFolderOperationPhase.RELOADING }
+        is FilesFolderOperationIntent.Delete -> intent.itemId
+        is FilesFolderOperationIntent.Move -> intent.itemId
         else -> null
     }
 }
@@ -1030,8 +1022,7 @@ private fun MobileFilesPaging(
                 }
             }
 
-        is FilesPaging.Loading -> {
-            val loadingMessage = stringResource(R.string.mobile_files_loading_more)
+        is FilesPaging.Loading ->
             Row(
                 modifier = modifier
                     .padding(16.dp)
@@ -1045,9 +1036,8 @@ private fun MobileFilesPaging(
                         .clearAndSetSemantics {},
                     strokeWidth = 2.dp,
                 )
-                Text(loadingMessage)
+                Text(stringResource(R.string.mobile_files_loading_more))
             }
-        }
 
         is FilesPaging.Failed ->
             Column(

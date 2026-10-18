@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -43,7 +42,6 @@ import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.mobileFilesMoveFolderTag
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
-import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -150,14 +148,9 @@ class MobileSharedItemsProofTest {
     private fun screenshot(label: String) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val runId = UUID.fromString(requireNotNull(InstrumentationRegistry.getArguments().getString("putio.shared.runId")))
-        val directory = File(requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)), "shared-proof-$runId")
-        check(directory.mkdirs() || directory.isDirectory)
         compose.waitForIdle()
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-        } finally { bitmap.recycle() }
+        saveProofScreenshot(proofDirectory("shared-proof-$runId"), label)
     }
 }
 
