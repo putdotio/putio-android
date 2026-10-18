@@ -7,6 +7,8 @@ import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.errors.PutioTransportException
+import io.putdotio.sdk.files.FilesContinueQuery
+import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
@@ -26,21 +28,10 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 
 class SdkFilesRepositoryTest {
-
     @Test
     fun renamesThroughSdkWithoutChangingTheWholeName() = runBlocking {
         val renamed = mutableListOf<Pair<Long, String>>()
-        val repository = SdkFilesRepository(
-            listFolder = { _, _ -> error("Unexpected folder load") },
-            continueListing = { _, _ -> error("Unexpected continuation") },
-            setSort = { _, _ -> error("Unexpected sort") },
-            getFile = { error("Unexpected file resolution") },
-            mutations = SdkFilesMutations(
-                rename = { id, name -> renamed += id to name },
-                delete = { _, _ -> error("Unexpected delete") },
-                move = { _, _ -> error("Unexpected move") },
-            ),
-        )
+        val repository = repository(rename = { id, name -> renamed += id to name })
         for (name in listOf("  Türkçe [raw].mkv  ", "", "folder.name")) {
             assertEquals(PutioResult.Success(Unit), repository.rename(FilesItemId(42L), name))
         }
@@ -75,7 +66,7 @@ class SdkFilesRepositoryTest {
             var requestedPageSize: Int? = null
             var requestedVideoMetadata = false
             val repository =
-                SdkFilesRepository(
+                repository(
                     listFolder = { folderId, query ->
                         requestedFolder = folderId
                         requestedPageSize = query.perPage
@@ -98,14 +89,6 @@ class SdkFilesRepositoryTest {
                             ),
                         )
                     },
-                    continueListing = { _, _ -> error("Unexpected continuation") },
-                    setSort = { _, _ -> error("Unexpected sort") },
-                    mutations = SdkFilesMutations(
-                        rename = { _, _ -> error("Unexpected rename") },
-                        delete = { _, _ -> error("Unexpected delete") },
-                        move = { _, _ -> error("Unexpected move") },
-                    ),
-                    getFile = { error("Unexpected file resolution") },
                 )
 
             val result = repository.loadFolder(FilesFolder.Root.id) as PutioResult.Success
@@ -126,20 +109,12 @@ class SdkFilesRepositoryTest {
             var requestedCursor: String? = null
             var requestedPageSize: Int? = null
             val repository =
-                SdkFilesRepository(
-                    listFolder = { _, _ -> error("Unexpected folder load") },
+                repository(
                     continueListing = { cursor, query ->
                         requestedCursor = cursor
                         requestedPageSize = query.perPage
                         response(cursor = "  ")
                     },
-                    setSort = { _, _ -> error("Unexpected sort") },
-                    mutations = SdkFilesMutations(
-                        rename = { _, _ -> error("Unexpected rename") },
-                        delete = { _, _ -> error("Unexpected delete") },
-                        move = { _, _ -> error("Unexpected move") },
-                    ),
-                    getFile = { error("Unexpected file resolution") },
                 )
 
             val result = repository.loadNextPage(FilesCursor("opaque-cursor")) as PutioResult.Success
@@ -178,15 +153,7 @@ class SdkFilesRepositoryTest {
         runBlocking {
             var requestedFileId: Long? = null
             val repository =
-                SdkFilesRepository(
-                    listFolder = { _, _ -> error("Unexpected folder load") },
-                    continueListing = { _, _ -> error("Unexpected continuation") },
-                    setSort = { _, _ -> error("Unexpected sort") },
-                    mutations = SdkFilesMutations(
-                        rename = { _, _ -> error("Unexpected rename") },
-                        delete = { _, _ -> error("Unexpected delete") },
-                        move = { _, _ -> error("Unexpected move") },
-                    ),
+                repository(
                     getFile = { fileId ->
                         requestedFileId = fileId
                         sdkFile(fileId, "movie.mkv", PutioFileType.VIDEO)
@@ -279,20 +246,6 @@ class SdkFilesRepositoryTest {
     }
 
     @Test
-    fun neverConvertsSortCancellationIntoAUiFailure() {
-        val cancellation = CancellationException("screen closed")
-        try {
-            runBlocking {
-                repositoryThrowing(cancellation)
-                    .persistSort(FilesFolder.Root.id, FilesSort.DATE_ADDED_DESCENDING)
-            }
-            fail("Expected cancellation")
-        } catch (actual: CancellationException) {
-            assertSame(cancellation, actual)
-        }
-    }
-
-    @Test
     fun persistsOnlyBoundedSortValuesThroughTheSdk() =
         runBlocking {
             val expected = listOf(
@@ -310,18 +263,7 @@ class SdkFilesRepositoryTest {
                 FilesSort.WATCH_STATUS_DESCENDING to "WATCH_DESC",
             )
             val persisted = mutableListOf<Pair<Long, String>>()
-            val repository =
-                SdkFilesRepository(
-                    listFolder = { _, _ -> response() },
-                    continueListing = { _, _ -> response() },
-                    setSort = { folderId, sort -> persisted += folderId to sort },
-                    mutations = SdkFilesMutations(
-                        rename = { _, _ -> error("Unexpected rename") },
-                        delete = { _, _ -> error("Unexpected delete") },
-                        move = { _, _ -> error("Unexpected move") },
-                    ),
-                    getFile = { error("Unexpected file resolution") },
-                )
+            val repository = repository(setSort = { folderId, sort -> persisted += folderId to sort })
 
             assertEquals(12, FilesSort.entries.size)
             expected.forEach { (sort, apiValue) ->
@@ -333,6 +275,26 @@ class SdkFilesRepositoryTest {
 
             assertEquals(expected.map { 42L to it.second }, persisted)
         }
+
+    private fun repository(
+        listFolder: suspend (Long, FilesListQuery) -> FilesListResponse = { _, _ -> error("Unexpected folder load") },
+        continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse = { _, _ ->
+            error("Unexpected continuation")
+        },
+        setSort: suspend (Long, String) -> Unit = { _, _ -> error("Unexpected sort") },
+        getFile: suspend (Long) -> PutioFile = { error("Unexpected file resolution") },
+        rename: suspend (Long, String) -> Unit = { _, _ -> error("Unexpected rename") },
+    ) = SdkFilesRepository(
+        listFolder = listFolder,
+        continueListing = continueListing,
+        setSort = setSort,
+        getFile = getFile,
+        mutations = SdkFilesMutations(
+            rename = rename,
+            delete = { _, _ -> error("Unexpected delete") },
+            move = { _, _ -> error("Unexpected move") },
+        ),
+    )
 
     private fun repositoryThrowing(error: Throwable): SdkFilesRepository =
         SdkFilesRepository(

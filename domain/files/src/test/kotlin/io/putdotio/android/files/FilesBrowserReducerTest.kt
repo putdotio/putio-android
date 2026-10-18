@@ -10,7 +10,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FilesBrowserReducerTest {
-
     @Test
     fun startsByLoadingRootFolderZero() {
         val transition = FilesBrowserReducer.start()

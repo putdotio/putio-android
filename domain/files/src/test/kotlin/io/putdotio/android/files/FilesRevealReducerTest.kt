@@ -199,7 +199,7 @@ class FilesRevealReducerTest {
 
         val reveal = FilesBrowserReducer.reduce(loaded, FilesBrowserEvent.RevealItem(FilesFolder.Root.id, target.id))
 
-        assertTrue(reveal.current().content is FilesContent.Loading)
+        assertTrue(reveal.state.current.content is FilesContent.Loading)
         val (settled, reads) = drive(reveal, pages)
         assertEquals(listOf(FilesCursor("page-1")), reads)
         val content = settled.current.content as FilesContent.Ready
@@ -225,8 +225,6 @@ class FilesRevealReducerTest {
         assertFalse(elsewhere.consumed)
         assertNull(elsewhere.effect)
     }
-
-    private fun FilesBrowserTransition.current(): FilesFolderState = state.current
 
     /** Answers every listing request from [pages] and returns the settled state and the cursors read. */
     private fun drive(

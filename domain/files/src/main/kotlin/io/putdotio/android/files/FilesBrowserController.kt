@@ -32,7 +32,7 @@ public class FilesBrowserController(
     }
 
     public fun dispatch(event: FilesBrowserEvent): Boolean {
-        val (transition, removedJobs) =
+        val (transition, supersededJobs) =
             synchronized(lock) {
                 if (closed) {
                     return false
@@ -42,18 +42,16 @@ public class FilesBrowserController(
                 val next = FilesBrowserReducer.reduce(previousState, event)
                 mutableState.value = next.state
                 val completedRequestId = event.completedRequestId()
-                val removedJobs =
+                val superseded =
                     jobs.keys
                         .filter { requestId ->
                             previousState.hasRequest(requestId) && !next.state.hasRequest(requestId)
                         }.mapNotNull { requestId ->
-                            jobs.remove(requestId)?.let { requestId to it }
+                            jobs.remove(requestId)?.takeIf { requestId != completedRequestId }
                         }
-                next to RemovedJobs(completedRequestId, removedJobs)
+                next to superseded
             }
-        removedJobs.jobs
-            .filterNot { (requestId) -> requestId == removedJobs.completedRequestId }
-            .forEach { (_, job) -> job.cancel() }
+        supersededJobs.forEach { it.cancel() }
         transition.effect?.let(::launchEffect)
         return transition.consumed
     }
@@ -91,11 +89,6 @@ public class FilesBrowserController(
             FilesBrowserEvent.Retry,
             -> null
         }
-
-    private data class RemovedJobs(
-        val completedRequestId: FilesRequestId?,
-        val jobs: List<Pair<FilesRequestId, Job>>,
-    )
 
     override fun close() {
         synchronized(lock) {

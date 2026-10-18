@@ -15,8 +15,9 @@ public val FilesBrowserState.canStartMove: Boolean
 
 private fun FilesBrowserState.move(event: FilesBrowserEvent.Move): FilesBrowserTransition {
     val item = current.content.items().firstOrNull { it.id == event.itemId && it.id.value > 0L }
-    if (event.folderId != current.folder.id || item == null || !canStartMove
-    ) return FilesBrowserTransition(this, consumed = false)
+    if (event.folderId != current.folder.id || item == null || !canStartMove) {
+        return FilesBrowserTransition(this, consumed = false)
+    }
     val sameParent = event.destinationId == current.folder.id || event.destinationId == item.parentId
     val invalidDestination = event.destinationId.value < 0L || sameParent || event.destinationId == item.id
     return if (invalidDestination) {
