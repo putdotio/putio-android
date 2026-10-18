@@ -19,11 +19,11 @@ import org.junit.Test
 class DownloadsControllerTest {
     private val video = DownloadRequest(FilesItemId(7L), "Sintel.mkv", PutioFileType.VIDEO, 1_000L)
     private val audio = DownloadRequest(FilesItemId(8L), "Track.flac", PutioFileType.AUDIO, 2_000L)
+    private val store = FakeDownloadStore()
+    private val engine = FakeDownloadEngine()
 
     @Test
     fun startPersistsQueuedRowThenHandsItToTheEngine() = runBlocking {
-        val store = FakeDownloadStore()
-        val engine = FakeDownloadEngine()
         var now = 42L
         DownloadsController(store, engine, this) { now++ }.use { controller ->
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
@@ -44,8 +44,6 @@ class DownloadsControllerTest {
 
     @Test
     fun foldersAndDuplicatesAreRejected() = runBlocking {
-        val store = FakeDownloadStore()
-        val engine = FakeDownloadEngine()
         DownloadsController(store, engine, this).use { controller ->
             assertFalse(controller.dispatch(DownloadsEvent.Start(video.copy(type = PutioFileType.FOLDER))))
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
@@ -58,8 +56,6 @@ class DownloadsControllerTest {
 
     @Test
     fun retryOnlyAppliesToFailedRowsAndRequeuesThem() = runBlocking {
-        val store = FakeDownloadStore()
-        val engine = FakeDownloadEngine()
         DownloadsController(store, engine, this).use { controller ->
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
             store.await { it.size == 1 }
@@ -74,8 +70,6 @@ class DownloadsControllerTest {
 
     @Test
     fun removalNeedsConfirmationAndClearsEngineThenStore() = runBlocking {
-        val store = FakeDownloadStore()
-        val engine = FakeDownloadEngine()
         DownloadsController(store, engine, this).use { controller ->
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
             store.await { it.size == 1 }
@@ -110,8 +104,6 @@ class DownloadsControllerTest {
 
     @Test
     fun bulkRemovalDeletesOnlyTheLocalCopiesAndMarksThemBeforeTheEngineRuns() = runBlocking<Unit> {
-        val store = FakeDownloadStore()
-        val engine = FakeDownloadEngine()
         val third = video.copy(fileId = FilesItemId(9L), name = "Tears.mkv")
         DownloadsController(store, engine, this).use { controller ->
             for (request in listOf(video, audio, third)) assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
@@ -138,8 +130,6 @@ class DownloadsControllerTest {
 
     @Test
     fun retriedAndMissingRowsJoinTheBackOfTheQueue() = runBlocking {
-        val store = FakeDownloadStore()
-        val engine = FakeDownloadEngine()
         var now = 100L
         DownloadsController(store, engine, this) { now++ }.use { controller ->
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
@@ -158,8 +148,6 @@ class DownloadsControllerTest {
 
     @Test
     fun aMissingCopyStopsCountingAsOfflineAndCanBeDownloadedAgain() = runBlocking {
-        val store = FakeDownloadStore()
-        val engine = FakeDownloadEngine()
         DownloadsController(store, engine, this).use { controller ->
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
             store.await { it.size == 1 }
@@ -179,8 +167,7 @@ class DownloadsControllerTest {
 
     @Test
     fun theConcurrencyChoiceReachesTheEngineWithinTheOfferedRange() = runBlocking {
-        val engine = FakeDownloadEngine()
-        DownloadsController(FakeDownloadStore(), engine, this).use { controller ->
+        DownloadsController(store, engine, this).use { controller ->
             assertEquals(DOWNLOAD_CONCURRENCY_DEFAULT, controller.state.value.concurrency)
             assertFalse(controller.dispatch(DownloadsEvent.SetConcurrency(0)))
             assertFalse(controller.dispatch(DownloadsEvent.SetConcurrency(5)))
@@ -193,8 +180,6 @@ class DownloadsControllerTest {
 
     @Test
     fun aStartCarriesTheConfirmedSubtitleSettingAndSavedPosition() = runBlocking {
-        val store = FakeDownloadStore()
-        val engine = FakeDownloadEngine()
         DownloadsController(store, engine, this).use { controller ->
             val request = video.copy(subtitlesHidden = true, startFromSeconds = 42.0, durationSeconds = 600.0)
             assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
@@ -208,8 +193,7 @@ class DownloadsControllerTest {
 
     @Test
     fun progressRefreshesEverySecondOnlyWhileTheScreenIsShown() = runTest {
-        val engine = FakeDownloadEngine()
-        val controller = DownloadsController(FakeDownloadStore(), engine, backgroundScope)
+        val controller = DownloadsController(store, engine, backgroundScope)
         runCurrent()
         advanceTimeBy(3_000L)
         assertEquals(0, engine.progressRefreshes)

@@ -121,10 +121,11 @@ internal class MobileDownloadEngine(
                 continue
             }
             known[fileId] = download
-            if (download.state == Download.STATE_REMOVING) synchronized(removing) { removing += fileId }
-            // A download whose row was lost stays visible, playable and deletable; only a
-            // confirmed delete removes bytes.
-            if (download.state != Download.STATE_REMOVING) {
+            if (download.state == Download.STATE_REMOVING) {
+                synchronized(removing) { removing += fileId }
+            } else {
+                // A download whose row was lost stays visible, playable and deletable; only a
+                // confirmed delete removes bytes.
                 store.addBlocking(download.recoveredEntry(fileId, standInName))
             }
             if (download.stopReason == STOP_REASON_OTHER_USER) {
@@ -266,7 +267,7 @@ internal fun sendDownloadRequest(
 }
 
 /** This user's file id in a `userId:fileId` request id; null for another account's request. */
-private fun fileIdOf(userId: Long, contentId: String): FilesItemId? {
+internal fun fileIdOf(userId: Long, contentId: String): FilesItemId? {
     if (contentId.substringBefore(':', missingDelimiterValue = "").toLongOrNull() != userId) return null
     return contentId.substringAfter(':').toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
 }

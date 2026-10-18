@@ -11,6 +11,7 @@ import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -61,10 +62,7 @@ class OfflinePlaybackPositionsTest {
 
     @Test
     fun aPositionAnotherDeviceSavedSinceWinsOverTheOfflineOne() = runTest {
-        remote.online = false
-        val positions = positions(backgroundScope)
-        positions.resumePosition(USER, sintel)
-        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+        val positions = playedOffline()
 
         remote.online = true
         remote.positions[FILE] = 900.0
@@ -77,10 +75,7 @@ class OfflinePlaybackPositionsTest {
 
     @Test
     fun aWriteThatLandedWithoutAReplyIsNotMistakenForAnotherDevice() = runTest {
-        remote.online = false
-        val positions = positions(backgroundScope)
-        positions.resumePosition(USER, sintel)
-        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+        val positions = playedOffline()
 
         remote.online = true
         remote.landButFail = true
@@ -99,10 +94,7 @@ class OfflinePlaybackPositionsTest {
 
     @Test
     fun aNewerPlayerWriteDuringTheReadIsNeverOverwrittenByTheOlderOfflinePosition() = runTest {
-        remote.online = false
-        val positions = positions(backgroundScope)
-        positions.resumePosition(USER, sintel)
-        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+        val positions = playedOffline()
 
         remote.online = true
         // The read sees the old server value; the online player's newer write lands right after it.
@@ -120,10 +112,7 @@ class OfflinePlaybackPositionsTest {
 
     @Test
     fun aPlayerWriteAcceptedDuringTheSyncWriteKeepsItsNewerPosition() = runTest {
-        remote.online = false
-        val positions = positions(backgroundScope)
-        positions.resumePosition(USER, sintel)
-        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+        val positions = playedOffline()
 
         remote.online = true
         remote.duringWrite = { positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit)) }
@@ -137,10 +126,7 @@ class OfflinePlaybackPositionsTest {
 
     @Test
     fun aFileDeletedOrNoLongerAccessibleStopsCostingAReadWhileANetworkFailureKeepsWaiting() = runTest {
-        remote.online = false
-        val positions = positions(backgroundScope)
-        positions.resumePosition(USER, sintel)
-        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+        val positions = playedOffline()
         remote.online = true
 
         remote.readFailure = NetworkFailure.failure
@@ -160,10 +146,7 @@ class OfflinePlaybackPositionsTest {
 
     @Test
     fun resumeTurnedOffOnTheAccountDropsWhatWasPlayedOffline() = runTest {
-        remote.online = false
-        val positions = positions(backgroundScope)
-        positions.resumePosition(USER, sintel)
-        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+        val positions = playedOffline()
 
         remote.online = true
         remote.resume = false
@@ -176,10 +159,7 @@ class OfflinePlaybackPositionsTest {
 
     @Test
     fun onlyTheSignedInOwnersPositionsAreSentAndOnlyForDownloadedFiles() = runTest {
-        remote.online = false
-        val positions = positions(backgroundScope)
-        positions.resumePosition(USER, sintel)
-        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+        val positions = playedOffline()
         // A streamed file was never opened offline; its failed write is not kept.
         positions.afterWrite(USER, 99L, 40.0, NetworkFailure)
         assertNull(positions.store(USER).pending(99L))
@@ -189,6 +169,15 @@ class OfflinePlaybackPositionsTest {
         positions.syncNow(USER)
         assertTrue(remote.writes.isEmpty())
         assertEquals(250.0, positions.store(USER).pending(FILE)?.seconds)
+    }
+
+    /** Opened offline, then played to 250 s while put.io could not take it. */
+    private suspend fun TestScope.playedOffline(): OfflinePlaybackPositions {
+        remote.online = false
+        val positions = positions(backgroundScope)
+        positions.resumePosition(USER, sintel)
+        positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
+        return positions
     }
 
     private fun positions(scope: CoroutineScope) =

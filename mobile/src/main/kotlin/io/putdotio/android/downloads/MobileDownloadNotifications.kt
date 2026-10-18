@@ -51,7 +51,7 @@ internal class MobileDownloadNotifications(
             else -> return
         }
         val userId = download.request.ownerUserId()?.takeIf { it == signedInUser() } ?: return
-        val fileId = download.request.id.substringAfter(':').toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
+        val fileId = fileIdOf(userId, download.request.id)
         // A row being deleted, or one this device never indexed, stays quiet.
         val entry = fileId?.let { MobileDownloadStore.peek(context, userId, it) }
         if (entry?.removing == false) post(context, userId, entry, outcome)

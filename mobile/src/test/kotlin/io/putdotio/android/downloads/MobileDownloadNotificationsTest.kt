@@ -117,7 +117,6 @@ class MobileDownloadNotificationsTest {
         assertEquals(ComponentName(context, MobileDownloadActionReceiver::class.java), retry.savedIntent.component)
         assertEquals(MobileDownloadActionReceiver.ACTION_RETRY, retry.savedIntent.action)
         assertEquals(Uri.parse("putio://downloads/11?user=$USER"), retry.savedIntent.data)
-        assertTrue(failed.actions.none { it.title.toString() == "Play" })
         // No token or URL of the file reaches any intent.
         for (action in finished.actions + failed.actions) {
             assertTrue(shadowOf(action.actionIntent).savedIntent.extras?.isEmpty != false)

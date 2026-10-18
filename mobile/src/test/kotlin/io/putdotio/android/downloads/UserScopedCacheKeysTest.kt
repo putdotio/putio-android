@@ -6,7 +6,6 @@ import androidx.media3.datasource.DataSpec
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,7 +21,6 @@ class UserScopedCacheKeysTest {
         val key = UserScopedCacheKeys(42L).buildCacheKey(DataSpec(Uri.parse(signed)))
 
         assertEquals("u42|https://cdn.put.io/hls/7/seg-1.ts?range=0-99&tag=a&tag=b", key)
-        assertFalse(key.contains("oauth_token") || key.contains("secret"))
     }
 
     @Test

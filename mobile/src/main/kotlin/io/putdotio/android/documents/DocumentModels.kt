@@ -84,7 +84,7 @@ internal fun FilesItem.toDocumentRow(userId: Long): DocumentRow =
         lastModified = parsePutioTimestamp(updatedAt ?: createdAt)?.toEpochMilli(),
     )
 
-/** By extension, as FileProvider types its files; SDK 1.0.0 does not carry the API's `content_type`. */
+/** By extension, as FileProvider types its files; the SDK does not carry the API's `content_type`. */
 internal fun mimeTypeOf(name: String): String =
     name.substringAfterLast('.', "").lowercase().takeIf { it.isNotEmpty() }
         ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
