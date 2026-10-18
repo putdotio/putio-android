@@ -51,8 +51,8 @@ parse_profile_args() {
 require_matching_avd_image() {
   local expected_image current_image stop_command delete_command recreate_command
   expected_image="$(image_for "${PROFILE}")"
-  stop_command="$(avd_stop_command "${PROFILE}" "${NAME}")"
-  delete_command="$(avd_delete_command "${PROFILE}" "${NAME}")"
+  stop_command="$(avd_command stop "${PROFILE}" "${NAME}")"
+  delete_command="$(avd_command delete "${PROFILE}" "${NAME}")"
   recreate_command="$(avd_recreate_command "${PROFILE}" "${NAME}")"
   current_image="$(avd_image_for_name "${NAME}")" || \
     die "could not determine the system image for existing AVD ${NAME}; explicitly run ${stop_command}, then ${delete_command}, then ${recreate_command}"

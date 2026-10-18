@@ -17,6 +17,14 @@ duration() {
   ffprobe -v error -show_entries format=duration \
     -of default=noprint_wrappers=1:nokey=1 "$1"
 }
+assert_duration() {
+  local value
+  value="$(duration "$1")"
+  awk -v value="${value}" -v min="$2" -v max="$3" 'BEGIN { exit !(value >= min && value <= max) }' || {
+    echo "$4, got ${value}s" >&2
+    exit 1
+  }
+}
 
 ffmpeg -hide_banner -loglevel error \
   -f lavfi -i 'color=c=gray:s=320x240:r=30:d=4' \
@@ -25,12 +33,7 @@ ffmpeg -hide_banner -loglevel error \
   -filter_complex '[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]' -map '[v]' \
   -c:v libx264 -pix_fmt yuv420p "${tmpdir}/idle-edges.mp4"
 normalize_recording "${tmpdir}/idle-edges.mp4" "${tmpdir}/idle-edges.mp4.normalized.pending"
-normalized_duration="$(duration "${tmpdir}/idle-edges.mp4.normalized.pending")"
-awk -v value="${normalized_duration}" \
-  'BEGIN { exit !(value >= 3 && value <= 5) }' || {
-  echo "expected idle-edge clip to normalize to 3-5s, got ${normalized_duration}s" >&2
-  exit 1
-}
+assert_duration "${tmpdir}/idle-edges.mp4.normalized.pending" 3 5 "expected idle-edge clip to normalize to 3-5s"
 
 real_ffmpeg="$(command -v ffmpeg)"
 real_ffprobe="$(command -v ffprobe)"
@@ -49,11 +52,7 @@ EOF
 chmod +x "${locale_bin}/ffmpeg" "${locale_bin}/ffprobe"
 PATH="${locale_bin}:${PATH}" REAL_FFMPEG="${real_ffmpeg}" REAL_FFPROBE="${real_ffprobe}" LC_ALL=POSIX \
   normalize_recording "${tmpdir}/idle-edges.mp4" "${tmpdir}/idle-edges-locale-normalized.mp4"
-locale_safe_duration="$(duration "${tmpdir}/idle-edges-locale-normalized.mp4")"
-awk -v value="${locale_safe_duration}" 'BEGIN { exit !(value >= 3 && value <= 5) }' || {
-  echo "expected locale-safe normalization to produce 3-5s, got ${locale_safe_duration}s" >&2
-  exit 1
-}
+assert_duration "${tmpdir}/idle-edges-locale-normalized.mp4" 3 5 "expected locale-safe normalization to produce 3-5s"
 
 ffmpeg -hide_banner -loglevel error -f lavfi \
   -i 'color=c=gray:s=320x240:r=30:d=6' -c:v libx264 -pix_fmt yuv420p \
@@ -90,11 +89,7 @@ ffmpeg -hide_banner -loglevel error \
   -filter_complex '[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]' -map '[v]' \
   -c:v libx264 -pix_fmt yuv420p "${tmpdir}/interior-freeze.mp4"
 normalize_recording "${tmpdir}/interior-freeze.mp4" "${tmpdir}/interior-freeze-normalized.mp4"
-interior_duration="$(duration "${tmpdir}/interior-freeze-normalized.mp4")"
-awk -v value="${interior_duration}" 'BEGIN { exit !(value >= 7.9 && value <= 8.1) }' || {
-  echo "expected interior freeze clip to preserve all 8s, got ${interior_duration}s" >&2
-  exit 1
-}
+assert_duration "${tmpdir}/interior-freeze-normalized.mp4" 7.9 8.1 "expected interior freeze clip to preserve all 8s"
 
 # A short visible action is still action. The caller's existing minimum-
 # duration integrity policy may reject it, but normalization must not call it idle.
@@ -104,11 +99,7 @@ ffmpeg -hide_banner -loglevel error \
   -filter_complex '[0:v][1:v]concat=n=2:v=1:a=0[v]' -map '[v]' \
   -c:v libx264 -pix_fmt yuv420p "${tmpdir}/short-action.mp4"
 normalize_recording "${tmpdir}/short-action.mp4" "${tmpdir}/short-action-normalized.mp4"
-short_action_duration="$(duration "${tmpdir}/short-action-normalized.mp4")"
-awk -v value="${short_action_duration}" 'BEGIN { exit !(value >= 1.2 && value <= 1.4) }' || {
-  echo "expected short action to survive normalization, got ${short_action_duration}s" >&2
-  exit 1
-}
+assert_duration "${tmpdir}/short-action-normalized.mp4" 1.2 1.4 "expected short action to survive normalization"
 
 # Motion before an open freeze, even in the first 250ms, is evidence.
 ffmpeg -hide_banner -loglevel error \
@@ -117,11 +108,7 @@ ffmpeg -hide_banner -loglevel error \
   -filter_complex '[0:v][1:v]concat=n=2:v=1:a=0[v]' -map '[v]' \
   -c:v libx264 -pix_fmt yuv420p "${tmpdir}/early-open-action.mp4"
 normalize_recording "${tmpdir}/early-open-action.mp4" "${tmpdir}/early-open-action-normalized.mp4"
-early_open_duration="$(duration "${tmpdir}/early-open-action-normalized.mp4")"
-awk -v value="${early_open_duration}" 'BEGIN { exit !(value >= 1.6 && value <= 1.8) }' || {
-  echo "expected early action before open freeze to survive, got ${early_open_duration}s" >&2
-  exit 1
-}
+assert_duration "${tmpdir}/early-open-action-normalized.mp4" 1.6 1.8 "expected early action before open freeze to survive"
 
 # Motion before a closed freeze must not be cropped when later motion exists.
 ffmpeg -hide_banner -loglevel error \
@@ -131,11 +118,7 @@ ffmpeg -hide_banner -loglevel error \
   -filter_complex '[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]' -map '[v]' \
   -c:v libx264 -pix_fmt yuv420p "${tmpdir}/early-closed-action.mp4"
 normalize_recording "${tmpdir}/early-closed-action.mp4" "${tmpdir}/early-closed-action-normalized.mp4"
-early_closed_duration="$(duration "${tmpdir}/early-closed-action-normalized.mp4")"
-awk -v value="${early_closed_duration}" 'BEGIN { exit !(value >= 4.6 && value <= 4.8) }' || {
-  echo "expected action around closed freeze to preserve all 4.7s, got ${early_closed_duration}s" >&2
-  exit 1
-}
+assert_duration "${tmpdir}/early-closed-action-normalized.mp4" 4.6 4.8 "expected action around closed freeze to preserve all 4.7s"
 
 # A small Android-sized control change must break a global freeze. Use the
 # same 48x48 region cited by review in a 1920x1080 frame.
@@ -144,21 +127,13 @@ ffmpeg -hide_banner -loglevel error -f lavfi \
   -vf "drawbox=x=100:y=100:w=48:h=48:color=white:t=fill:enable='between(t,1,1.2)'" \
   -c:v libx264 -pix_fmt yuv420p "${tmpdir}/localized-action.mp4"
 normalize_recording "${tmpdir}/localized-action.mp4" "${tmpdir}/localized-action-normalized.mp4"
-localized_duration="$(duration "${tmpdir}/localized-action-normalized.mp4")"
-awk -v value="${localized_duration}" 'BEGIN { exit !(value >= 3.9 && value <= 4.1) }' || {
-  echo "expected localized action to preserve the 4s clip, got ${localized_duration}s" >&2
-  exit 1
-}
+assert_duration "${tmpdir}/localized-action-normalized.mp4" 3.9 4.1 "expected localized action to preserve the 4s clip"
 
 ffmpeg -hide_banner -loglevel error -f lavfi \
   -i 'testsrc2=s=320x240:r=30:d=5' -c:v libx264 -pix_fmt yuv420p \
   "${tmpdir}/active.mp4"
 normalize_recording "${tmpdir}/active.mp4" "${tmpdir}/active-normalized.mp4"
-active_duration="$(duration "${tmpdir}/active-normalized.mp4")"
-awk -v value="${active_duration}" 'BEGIN { exit !(value >= 4.9 && value <= 5.1) }' || {
-  echo "expected active clip to remain 5s, got ${active_duration}s" >&2
-  exit 1
-}
+assert_duration "${tmpdir}/active-normalized.mp4" 4.9 5.1 "expected active clip to remain 5s"
 
 # Exercise evidence.sh's publication boundary with adb stubbed at the SDK
 # boundary. The real ffmpeg pipeline still classifies and validates fixtures.
@@ -217,11 +192,7 @@ normalized_path="$(ANDROID_HOME="${fake_sdk}" EVIDENCE_DIR="${normalized_gate_di
   echo "expected the default record path to publish normalized output" >&2
   exit 1
 }
-caller_duration="$(duration "${normalized_path}")"
-awk -v value="${caller_duration}" 'BEGIN { exit !(value >= 3 && value <= 5) }' || {
-  echo "expected caller-normalized output to be 3-5s, got ${caller_duration}s" >&2
-  exit 1
-}
+assert_duration "${normalized_path}" 3 5 "expected caller-normalized output to be 3-5s"
 pending_count="$(find "${normalized_gate_dir}" -maxdepth 1 -type f \( -name '*.pending' -o -name '*.raw' \) | wc -l | tr -d ' ')"
 [[ "${pending_count}" -eq 0 ]] || {
   echo "default normalized publication left pending or raw artifacts" >&2
@@ -238,11 +209,7 @@ short_path="$(ANDROID_HOME="${fake_sdk}" EVIDENCE_DIR="${short_gate_dir}" ADB_FI
   echo "expected a short visible action to publish after trimming" >&2
   exit 1
 }
-short_published_duration="$(duration "${short_path}")"
-awk -v value="${short_published_duration}" 'BEGIN { exit !(value >= 1.2 && value <= 1.4) }' || {
-  echo "expected published short action to be 1.2-1.4s, got ${short_published_duration}s" >&2
-  exit 1
-}
+assert_duration "${short_path}" 1.2 1.4 "expected published short action to be 1.2-1.4s"
 short_leftovers="$(find "${short_gate_dir}" -maxdepth 1 -type f \( -name '*.pending' -o -name '*.raw' \) | wc -l | tr -d ' ')"
 [[ "${short_leftovers}" -eq 0 ]] || {
   echo "short-action publication left pending or raw artifacts" >&2
@@ -296,11 +263,7 @@ validated_path="$(ANDROID_HOME="${validation_sdk}" EVIDENCE_DIR="${validation_di
   echo "imported recording did not validate or raw input was removed" >&2
   exit 1
 }
-validated_duration="$(duration "${validated_path}")"
-awk -v value="${validated_duration}" 'BEGIN { exit !(value >= 3 && value <= 5) }' || {
-  echo "imported recording bypassed normalization" >&2
-  exit 1
-}
+assert_duration "${validated_path}" 3 5 "imported recording bypassed normalization"
 if ANDROID_HOME="${validation_sdk}" EVIDENCE_DIR="${validation_dir}" \
   "${BASH_SOURCE[0]%/*}/evidence.sh" validate-recording --input "${tmpdir}/static.mp4" --label idle \
   >"${tmpdir}/idle-import-output" 2>/dev/null; then

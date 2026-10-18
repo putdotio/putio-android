@@ -107,16 +107,10 @@ bootstrap_command_for() {
   esac
 }
 
-avd_delete_command() {
-  local profile="$1" name="$2" command
-  command="scripts/emulator.sh delete ${profile}"
-  [[ "${name}" == "$(avd_name_for "${profile}")" ]] || command+=" --name ${name}"
-  echo "${command}"
-}
-
-avd_stop_command() {
-  local profile="$1" name="$2" command
-  command="scripts/emulator.sh stop ${profile}"
+# The emulator.sh command line that runs <verb> against an AVD of <profile>.
+avd_command() {
+  local verb="$1" profile="$2" name="$3" command
+  command="scripts/emulator.sh ${verb} ${profile}"
   [[ "${name}" == "$(avd_name_for "${profile}")" ]] || command+=" --name ${name}"
   echo "${command}"
 }
@@ -191,7 +185,6 @@ avd_image_for_name() {
       print value
     }
   ' "${path}/config.ini")" || return 1
-  [[ -n "${image}" ]] || return 1
   sed -E 's#/$##; s#/#;#g' <<<"${image}"
 }
 
@@ -237,7 +230,7 @@ prepare_device() {
 
   [[ "${profile}" == "phone" ]] || return 0
 
-  delete_command="$(avd_delete_command "${profile}" "${avd_name}")"
+  delete_command="$(avd_command delete "${profile}" "${avd_name}")"
   recreate_command="$(avd_recreate_command "${profile}" "${avd_name}")"
   recovery="explicitly run scripts/emulator.sh stop ${serial}, then ${delete_command}, then ${recreate_command}"
   local api_level role_holders auth_tab_services chrome_version

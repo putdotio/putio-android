@@ -295,6 +295,8 @@ reset_runtime() {
   : > "${state}/adb-calls"
 }
 
+phone_recovery="explicitly run scripts/emulator.sh stop phone, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh"
+serial_recovery="explicitly run scripts/emulator.sh stop emulator-5554, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh"
 legacy_image="system-images;android-36;google_apis;$(sdk_arch)"
 non_play_image="system-images;android-37.0;google_apis;$(sdk_arch)"
 
@@ -311,8 +313,7 @@ fi
   fail "post-create validation mutated the wrong registration"
 [[ "$(wc -l < "${state}/avd-operations" | tr -d ' ')" == "1" ]] || \
   fail "post-create validation performed an unexpected AVD mutation"
-grep -Fq "explicitly run scripts/emulator.sh stop phone, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh" \
-  "${tmpdir}/wrong-create.log" || fail "post-create validation omitted its recovery command"
+grep -Fq "${phone_recovery}" "${tmpdir}/wrong-create.log" || fail "post-create validation omitted its recovery command"
 rm "${state}/create-image-override"
 
 rm -rf "${state}/avds"
@@ -333,16 +334,14 @@ fi
 [[ "$(avd_image_for_name "${PHONE_AVD}")" == "${legacy_image}" ]] || \
   fail "mismatched AVD refusal changed its image"
 [[ ! -s "${state}/avd-operations" ]] || fail "mismatched AVD refusal mutated state"
-grep -Fq "explicitly run scripts/emulator.sh stop phone, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh" \
-  "${mismatch_out}" || fail "mismatched AVD refusal omitted its recovery command"
+grep -Fq "${phone_recovery}" "${mismatch_out}" || fail "mismatched AVD refusal omitted its recovery command"
 
 reset_avd "${PHONE_AVD}" "${target_image}" 0
 rm "${state}/avds/${PHONE_AVD}/config.ini"
 if "${REPO_ROOT}/scripts/emulator.sh" create phone >"${mismatch_out}" 2>&1; then
   fail "AVD with unreadable image metadata passed provisioning"
 fi
-grep -Fq "explicitly run scripts/emulator.sh stop phone, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh" \
-  "${mismatch_out}" || fail "unknown AVD image omitted its recovery command"
+grep -Fq "${phone_recovery}" "${mismatch_out}" || fail "unknown AVD image omitted its recovery command"
 [[ ! -e "${state}/avds/${PHONE_AVD}/config.ini" ]] || \
   fail "unknown AVD image metadata was replaced"
 [[ ! -s "${state}/avd-operations" ]] || fail "unknown AVD image refusal mutated state"
@@ -449,16 +448,14 @@ printf '0\n' > "${state}/api-query-succeeds"
 if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
   fail "failed API query passed readiness"
 fi
-grep -Fq "explicitly run scripts/emulator.sh stop emulator-5554, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh" \
-  "${tmpdir}/runtime-readiness.log" || fail "failed API query omitted its recovery command"
+grep -Fq "${serial_recovery}" "${runtime_out}" || fail "failed API query omitted its recovery command"
 
 reset_runtime 37 0
 if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
   fail "missing Chrome passed readiness"
 fi
 grep -q "add-role-holder" "${state}/adb-calls" && fail "missing Chrome reached role assignment"
-grep -Fq "explicitly run scripts/emulator.sh stop emulator-5554, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh" \
-  "${runtime_out}" || fail "runtime readiness failure omitted its recovery command"
+grep -Fq "${serial_recovery}" "${runtime_out}" || fail "runtime readiness failure omitted its recovery command"
 
 reset_runtime 37 1 1 comxandroid.chrome
 if (prepare_device emulator-5554 phone) >/dev/null 2>&1; then
@@ -477,8 +474,7 @@ printf '0\n' > "${state}/role-query-succeeds"
 if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
   fail "failed browser role query passed readiness"
 fi
-grep -Fq "explicitly run scripts/emulator.sh stop emulator-5554, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh" \
-  "${runtime_out}" || fail "failed role query omitted its recovery command"
+grep -Fq "${serial_recovery}" "${runtime_out}" || fail "failed role query omitted its recovery command"
 
 reset_runtime
 printf '0\n' > "${state}/version-query-succeeds"
@@ -496,8 +492,7 @@ printf '0\n' > "${state}/auth-tab-query-succeeds"
 if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
   fail "failed Auth Tab service query passed readiness"
 fi
-grep -Fq "explicitly run scripts/emulator.sh stop emulator-5554, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh" \
-  "${runtime_out}" || fail "failed Auth Tab query omitted its recovery command"
+grep -Fq "${serial_recovery}" "${runtime_out}" || fail "failed Auth Tab query omitted its recovery command"
 grep -q " install " "${state}/adb-calls" && fail "failed Auth Tab query reached app install"
 
 reset_runtime 36
@@ -596,8 +591,7 @@ fi
   fail "provisioning replaced a mismatched phone AVD"
 [[ "$(<"${state}/avd-operations")" == "create:${TV_AVD}:${tv_target_image}" ]] || \
   fail "provisioning performed unexpected AVD operations"
-grep -Fq "explicitly run scripts/emulator.sh stop phone, then scripts/emulator.sh delete phone, then scripts/bootstrap.sh" \
-  "${provision_out}" || fail "provisioning omitted the phone recovery command"
+grep -Fq "${phone_recovery}" "${provision_out}" || fail "provisioning omitted the phone recovery command"
 grep -Fq "AVD provisioning failed for: phone" "${provision_out}" || \
   fail "provisioning did not name the refused profile"
 
