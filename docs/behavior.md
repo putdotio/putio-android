@@ -367,6 +367,28 @@ Tests: `PlaybackReducerTest`, `PlaybackControllerTest`, `MobilePlayerScreenTest`
 prompt), `PlaybackPositionWriterTest`, `PlaybackPositionObserverTest`,
 `SdkPlaybackRepositoryTest`, `MobilePlaybackReportingTest`.
 
+## Mobile video player
+
+Video opens in immersive fullscreen. On phones, a landscape video turns the
+window to sensor landscape; a portrait video keeps the window's orientation.
+Tablets and multi-window use the available window. Back restores the shell's
+orientation and system bars. Controls auto-hide during playback; a tap reveals
+them, and an edge swipe still reaches system navigation. TalkBack and keyboard
+navigation keep the controls visible.
+
+The overlay has a back arrow and the raw file name, screen-centred play/pause
+and ten-second seek buttons, and a compact timeline with inline timestamps.
+Audio, Speed and Captions share a centred row of 20dp icons and labels; choice
+sheets are Material 3, and controls have at least 48dp touch targets. Captions
+are always offered unless the account hides subtitles (`hide_subtitles`):
+Media3's supported tracks make the list, including embedded tracks absent from
+the API's subtitle metadata. Speed, audio and caption choices survive player
+recreation.
+
+Tests: `MobileVideoWindowTest`, `MobilePlayerScreenTest`, device proof
+`MobileFullscreenVideoProofTest`
+([Harness](./harness.md#immersive-landscape-video-proof)).
+
 ## Picture-in-picture
 
 Mobile video moves into a picture-in-picture window when the viewer leaves the app while it
@@ -1321,29 +1343,8 @@ such rows are read by id, so a poll costs one small request per row however
 deep the history is. More rows are read from 1,000-row list pages until all are
 found. A row the API no longer has (404 by id, or absent from the list) leaves
 the list. Any other failure keeps the rows for the next poll; only a rejected
-session surfaces.
-
-CPU per poll, emulator numbers: `TransfersPollingCpuBenchmark` replayed the
-same fake 10k and 50k histories on the `putio-phone` emulator (API 37,
-arm64-v8a, debuggable build) and took the median thread CPU time of 15 polls
-after 5 warmup polls. Before is the list walk this path replaced.
-
-| History, polled rows                          | Before, CPU ms        | After, CPU ms |
-| --------------------------------------------- | --------------------- | ------------- |
-| 10k, 1 recent running                         | 27.3                  | 0.37          |
-| 10k, 1 old running (position 9,500)           | 239                   | 0.36          |
-| 10k, 1 deleted                                | 223                   | 0.65          |
-| 10k, 3 recent + 1 old                         | 236                   | 0.59          |
-| 10k, 11 recent (list walk both)               | 24.1                  | 31.2          |
-| 50k, 1 recent running                         | 25.1                  | 0.38          |
-| 50k, 1 running past the cap (position 20,000) | 228, reported missing | 0.33          |
-| 50k, 1 deleted                                | 239                   | 0.68          |
-
-The host was shared with other emulators, so absolute times vary by about 2x
-between runs; a second run measured the 11-row list walk at 16.6 ms before and
-16.5 ms after. At 12 polls a minute, one old running row cost about 2.9 s of
-CPU per minute before and about 4 ms after. A physical phone measurement waits
-on [#51](https://github.com/putdotio/putio-android/issues/51).
+session surfaces. Measured CPU cost per poll:
+<NOTION:android-transfers-polling-cpu-benchmark>.
 
 Tests: `SdkTransfersRepositoryTest`, `TransfersRefreshCostTest` (request and row
 counts per poll against 10k and 50k histories), `TransfersControllerTest`,
