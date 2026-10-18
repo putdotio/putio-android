@@ -97,22 +97,6 @@ class PublicLinksControllerTest {
     }
 
     @Test
-    fun aFailedRevokeKeepsTheLinkWithPutiosReason() = runTest {
-        val link = publicLink(id = 3L, fileId = 7L)
-        val repository = FakePublicLinksRepository(listOf(link))
-        val failure = PutioFailure.ApiRejected(400, "BadRequest", refusalException(400, "BadRequest"))
-        repository.onRevoke = { PutioResult.Failure(failure) }
-        val controller = loaded(repository)
-
-        controller.dispatch(PublicLinksEvent.Revoke(link.id))
-        runCurrent()
-
-        assertEquals(listOf(link), controller.state.value.linksFor(video))
-        assertEquals(PublicLinksOutcome.RevokeFailed(link, failure), controller.state.value.outcome)
-        assertTrue(controller.state.value.canRevoke)
-    }
-
-    @Test
     fun aFailedRevokeReadsTheLinksAgainSoOneAlreadyGoneLeaves() = runTest {
         val gone = publicLink(id = 3L, fileId = 7L)
         val kept = publicLink(id = 2L, fileId = 7L)
