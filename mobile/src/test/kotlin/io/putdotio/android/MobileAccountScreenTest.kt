@@ -54,6 +54,7 @@ import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigRequestId
+import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.VideoPlaybackType
 import io.putdotio.android.settings.accountSettingsState
 import io.putdotio.android.settings.androidAppConfigState
@@ -91,7 +92,7 @@ class MobileAccountScreenTest {
 
     @Test
     fun settingsSectionsSupportHeadingNavigation() {
-        compose.setAccountContent(state = readyAccountSettingsState(), events = mutableListOf())
+        compose.setAccountContent()
         listOf("Files", "Playback", "About").forEach { title ->
             compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(title))
             compose.onNodeWithText(title).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
@@ -103,9 +104,8 @@ class MobileAccountScreenTest {
         var signedOut = false
         val events = mutableListOf<AccountSettingsEvent>()
         compose.setAccountContent(
-            state = readyAccountSettingsState(),
             events = events,
-            callbacks = AccountScreenCallbacks(onSignOut = { signedOut = true }),
+            options = AccountScreenOptions(onSignOut = { signedOut = true }),
         )
 
         compose.onNodeWithText("putio-user").assertIsDisplayed()
@@ -140,9 +140,7 @@ class MobileAccountScreenTest {
     @Test
     fun quotaStatesWhatIsFreeWhenTheAccountShowsOptimisticUsage() {
         compose.setAccountContent(
-            state = readyAccountSettingsState(),
-            events = mutableListOf(),
-            account = Account.copy(storage = Account.storage.copy(showOptimisticUsage = true)),
+            account = { Account.copy(storage = Account.storage.copy(showOptimisticUsage = true)) },
         )
 
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -157,9 +155,7 @@ class MobileAccountScreenTest {
     @Test
     fun malformedHttpsAvatarUsesDeterministicFallback() {
         compose.setAccountContent(
-            state = readyAccountSettingsState(),
-            events = mutableListOf(),
-            account = Account.copy(avatarUrl = "https://example.com:invalid/avatar.png"),
+            account = { Account.copy(avatarUrl = "https://example.com:invalid/avatar.png") },
         )
 
         compose.onNodeWithTag(
@@ -189,19 +185,7 @@ class MobileAccountScreenTest {
         var account by mutableStateOf(
             Account.copy(storage = AccountStorage(availableBytes = -1, sizeBytes = 0, usedBytes = 10)),
         )
-        compose.setContent {
-            PutioTheme {
-                MobileAccountScreen(
-                    account = account,
-                    sessionId = SessionOne,
-                    settingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    onSettingsEvent = {},
-                    onAppConfigEvent = {},
-                    onSignOut = {},
-                )
-            }
-        }
+        compose.setAccountContent(account = { account })
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG)
             .assertRangeInfoEquals(ProgressBarRangeInfo(0f, 0f..1f))
@@ -220,10 +204,7 @@ class MobileAccountScreenTest {
     @Test
     @Config(sdk = [35], qualifiers = "w360dp-h240dp")
     fun compactAccountIdentityRemainsVisible() {
-        compose.setAccountContent(
-            state = readyAccountSettingsState(),
-            events = mutableListOf(),
-        )
+        compose.setAccountContent()
 
         compose.onNodeWithText("putio-user").assertIsDisplayed()
         compose.onNodeWithText("user@example.com").assertIsDisplayed()
@@ -235,9 +216,8 @@ class MobileAccountScreenTest {
         val events = mutableListOf<AccountSettingsEvent>()
         var opened = 0
         compose.setAccountContent(
-            state = readyAccountSettingsState(),
             events = events,
-            callbacks = AccountScreenCallbacks(onPrivacyControls = { opened += 1 }),
+            options = AccountScreenOptions(onPrivacyControls = { opened += 1 }),
         )
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG))
@@ -257,10 +237,11 @@ class MobileAccountScreenTest {
     @Test
     fun privacyControlsRowFollowsTheAccountState() {
         compose.setAccountContent(
-            state = readyAccountSettingsState(
-                DefaultAccountSettingsPreferences.copy(diagnosticsEnabled = false, productAnalyticsEnabled = true),
-            ),
-            events = mutableListOf(),
+            state = {
+                readyAccountSettingsState(
+                    DefaultAccountSettingsPreferences.copy(diagnosticsEnabled = false, productAnalyticsEnabled = true),
+                )
+            },
         )
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG))
@@ -271,10 +252,7 @@ class MobileAccountScreenTest {
     @Test
     fun turningOffTrashRequiresConfirmation() {
         val events = mutableListOf<AccountSettingsEvent>()
-        compose.setAccountContent(
-            state = readyAccountSettingsState(),
-            events = events,
-        )
+        compose.setAccountContent(events = events)
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Move deleted files to Trash"))
         compose.onNodeWithText("Move deleted files to Trash").performClick()
@@ -301,19 +279,7 @@ class MobileAccountScreenTest {
                 nextRequestValue = 2L,
             ),
         )
-        compose.setContent {
-            PutioTheme {
-                MobileAccountScreen(
-                    account = Account,
-                    sessionId = SessionOne,
-                    settingsState = state,
-                    appConfigState = readyAndroidAppConfigState(),
-                    onSettingsEvent = events::add,
-                    onAppConfigEvent = {},
-                    onSignOut = {},
-                )
-            }
-        }
+        compose.setAccountContent(state = { state }, events = events)
         compose.onNodeWithText("Loading account settings").assertIsDisplayed()
 
         compose.runOnIdle {
@@ -339,17 +305,13 @@ class MobileAccountScreenTest {
     fun authenticationLoadFailureHasNoRetryAction() {
         val events = mutableListOf<AccountSettingsEvent>()
         compose.setAccountContent(
-            state =
+            state = {
                 accountSettingsState(
-                    content =
-                        AccountSettingsContent.Failed(
-                            AccountSettingsFailure.Putio(PutioFailure.AuthenticationRequired(
-                                PutioConfigurationException("invalid token"),
-                            )),
-                        ),
+                    content = AccountSettingsContent.Failed(ExpiredSessionFailure),
                     mutation = AccountSettingsMutation.Idle,
                     nextRequestValue = 2L,
-                ),
+                )
+            },
             events = events,
         )
 
@@ -362,65 +324,25 @@ class MobileAccountScreenTest {
     @Config(sdk = [35], qualifiers = "w360dp-h240dp")
     fun recoverableMutationFailureStaysVisibleWithoutDisablingRows() {
         val events = mutableListOf<AccountSettingsEvent>()
-        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         compose.setAccountContent(
-            state =
-                readyAccountSettingsState(
-                    mutation =
-                        AccountSettingsMutation.Failed(
-                            change =
-                                AccountSettingsChange(
-                                    AccountSettingsKey.ShowSubtitles,
-                                    enabled = false,
-                                ),
-                            failure = failure,
-                            previousPreferences = DefaultAccountSettingsPreferences,
-                            operation = AccountSettingsMutation.Operation.Save,
-                        ),
-                ),
+            state = { readyAccountSettingsState(mutation = failedChange(SubtitlesOff)) },
             events = events,
         )
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Couldn’t save this setting"))
-        compose.onNode(
-            SemanticsMatcher.expectValue(
-                SemanticsProperties.LiveRegion,
-                LiveRegionMode.Polite,
-            ),
-        ).assertExists()
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+            .assertExists()
         compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
         compose.onNodeWithText("Show subtitles").assertIsEnabled().performClick()
 
-        assertEquals(
-            AccountSettingsEvent.ChangeRequested(
-                AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
-            ),
-            events.single(),
-        )
+        assertEquals(AccountSettingsEvent.ChangeRequested(SubtitlesOff), events.single())
     }
 
     @Test
     fun authoritativeMutationFailureDisablesRowsAndHidesRetry() {
         val events = mutableListOf<AccountSettingsEvent>()
-        val failure =
-            AccountSettingsFailure.Putio(PutioFailure.AuthenticationRequired(
-                PutioConfigurationException("invalid token"),
-            ))
         compose.setAccountContent(
-            state =
-                readyAccountSettingsState(
-                    mutation =
-                        AccountSettingsMutation.Failed(
-                            change =
-                                AccountSettingsChange(
-                                    AccountSettingsKey.ShowSubtitles,
-                                    enabled = false,
-                                ),
-                            failure = failure,
-                            previousPreferences = DefaultAccountSettingsPreferences,
-                            operation = AccountSettingsMutation.Operation.Save,
-                        ),
-                ),
+            state = { readyAccountSettingsState(mutation = failedChange(SubtitlesOff, ExpiredSessionFailure)) },
             events = events,
         )
 
@@ -432,23 +354,13 @@ class MobileAccountScreenTest {
     @Test
     fun refreshFailureUsesConfirmationCopyAndRetriesTheRefresh() {
         val events = mutableListOf<AccountSettingsEvent>()
-        val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
         compose.setAccountContent(
-            state =
+            state = {
                 readyAccountSettingsState(
                     preferences = DefaultAccountSettingsPreferences.copy(showSubtitles = false),
-                    mutation =
-                        AccountSettingsMutation.Failed(
-                            change =
-                                AccountSettingsChange(
-                                    AccountSettingsKey.ShowSubtitles,
-                                    enabled = false,
-                                ),
-                            failure = failure,
-                            previousPreferences = DefaultAccountSettingsPreferences,
-                            operation = AccountSettingsMutation.Operation.Refresh,
-                        ),
-                ),
+                    mutation = failedChange(SubtitlesOff, operation = AccountSettingsMutation.Operation.Refresh),
+                )
+            },
             events = events,
         )
 
@@ -464,19 +376,7 @@ class MobileAccountScreenTest {
     @Test
     fun trashConfirmationDoesNotSurviveASessionReplacement() {
         var sessionId by mutableStateOf(SessionOne)
-        compose.setContent {
-            PutioTheme {
-                MobileAccountScreen(
-                    account = Account,
-                    sessionId = sessionId,
-                    settingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    onSettingsEvent = {},
-                    onAppConfigEvent = {},
-                    onSignOut = {},
-                )
-            }
-        }
+        compose.setAccountContent(options = AccountScreenOptions(sessionId = { sessionId }))
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Move deleted files to Trash"))
         compose.onNodeWithText("Move deleted files to Trash").performClick()
@@ -491,9 +391,11 @@ class MobileAccountScreenTest {
     fun defaultSortPickerShowsTheCurrentOrderAndDispatchesTheChosenOne() {
         val events = mutableListOf<AccountSettingsEvent>()
         compose.setAccountContent(
-            state = readyAccountSettingsState(
-                preferences = DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.NAME_ASCENDING),
-            ),
+            state = {
+                readyAccountSettingsState(
+                    preferences = DefaultAccountSettingsPreferences.copy(defaultSort = FilesSort.NAME_ASCENDING),
+                )
+            },
             events = events,
         )
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
@@ -515,15 +417,11 @@ class MobileAccountScreenTest {
     fun unknownDefaultSortIsShownAsNotSetAndFailedSortSavesRetryOnTheirRow() {
         val events = mutableListOf<AccountSettingsEvent>()
         compose.setAccountContent(
-            state = readyAccountSettingsState(
-                preferences = DefaultAccountSettingsPreferences,
-                mutation = AccountSettingsMutation.Failed(
-                    change = AccountSettingsChange.Sort(FilesSort.SIZE_DESCENDING),
-                    failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
-                    previousPreferences = DefaultAccountSettingsPreferences,
-                    operation = AccountSettingsMutation.Operation.Save,
-                ),
-            ),
+            state = {
+                readyAccountSettingsState(
+                    mutation = failedChange(AccountSettingsChange.Sort(FilesSort.SIZE_DESCENDING)),
+                )
+            },
             events = events,
         )
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_DEFAULT_SORT_ROW_TAG))
@@ -545,9 +443,7 @@ class MobileAccountPlaybackSettingsTest {
     fun playbackSettingsChooseFormatAndToggleAutoplay() {
         val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
         compose.setAccountContent(
-            state = readyAccountSettingsState(),
-            events = mutableListOf(),
-            callbacks = AccountScreenCallbacks(onAppConfigEvent = appConfigEvents::add),
+            options = AccountScreenOptions(onAppConfigEvent = appConfigEvents::add),
         )
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Video playback"))
@@ -591,19 +487,10 @@ class MobileAccountPlaybackSettingsTest {
                 nextRequestValue = 2L,
             ),
         )
-        compose.setContent {
-            PutioTheme {
-                MobileAccountScreen(
-                    account = Account,
-                    sessionId = SessionOne,
-                    settingsState = readyAccountSettingsState(),
-                    appConfigState = appConfigState,
-                    onSettingsEvent = {},
-                    onAppConfigEvent = appConfigEvents::add,
-                    onSignOut = {},
-                )
-            }
-        }
+        compose.setAccountContent(
+            appConfigState = { appConfigState },
+            options = AccountScreenOptions(onAppConfigEvent = appConfigEvents::add),
+        )
 
         compose.onNodeWithText("Show subtitles").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Loading playback settings"))
@@ -647,19 +534,10 @@ class MobileAccountPlaybackSettingsTest {
             operation = AndroidAppConfigMutation.Operation.Save,
         )
         var appConfigState by mutableStateOf(readyAndroidAppConfigState(mutation = saveFailure))
-        compose.setContent {
-            PutioTheme {
-                MobileAccountScreen(
-                    account = Account,
-                    sessionId = SessionOne,
-                    settingsState = readyAccountSettingsState(),
-                    appConfigState = appConfigState,
-                    onSettingsEvent = {},
-                    onAppConfigEvent = appConfigEvents::add,
-                    onSignOut = {},
-                )
-            }
-        }
+        compose.setAccountContent(
+            appConfigState = { appConfigState },
+            options = AccountScreenOptions(onAppConfigEvent = appConfigEvents::add),
+        )
 
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Couldn’t save this setting"))
         compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
@@ -700,9 +578,8 @@ class MobileAccountPlaybackSettingsTest {
         val events = mutableListOf<AccountSettingsEvent>()
         var attempts = 0
         compose.setAccountContent(
-            state = readyAccountSettingsState(),
             events = events,
-            callbacks = AccountScreenCallbacks(
+            options = AccountScreenOptions(
                 loadTunnelRoutes = {
                     attempts += 1
                     if (attempts == 1) {
@@ -743,15 +620,17 @@ class MobileAccountPlaybackSettingsTest {
         val events = mutableListOf<AccountSettingsEvent>()
         val failure = AccountSettingsFailure.RouteUnavailable(PutioConfigurationException("UNAVAILABLE_VALUE"))
         compose.setAccountContent(
-            state = readyAccountSettingsState(
-                preferences = DefaultAccountSettingsPreferences,
-                mutation = AccountSettingsMutation.Failed(
-                    change = AccountSettingsChange.Route(TunnelRouteName("cdn77")),
-                    failure = failure,
-                    previousPreferences = DefaultAccountSettingsPreferences,
-                    operation = AccountSettingsMutation.Operation.Save,
-                ),
-            ),
+            state = {
+                readyAccountSettingsState(
+                    preferences = DefaultAccountSettingsPreferences,
+                    mutation = AccountSettingsMutation.Failed(
+                        change = AccountSettingsChange.Route(TunnelRouteName("cdn77")),
+                        failure = failure,
+                        previousPreferences = DefaultAccountSettingsPreferences,
+                        operation = AccountSettingsMutation.Operation.Save,
+                    ),
+                )
+            },
             events = events,
         )
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TUNNEL_ROUTE_ROW_TAG))
@@ -775,7 +654,7 @@ class MobileAccountAboutTest {
 
     @Test
     fun aboutRowOpensAppInfoAndCopiesSupportTextToTheClipboard() {
-        compose.setAccountContent(state = readyAccountSettingsState(), events = mutableListOf())
+        compose.setAccountContent()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).assertTextContains(BuildConfig.VERSION_NAME).performClick()
         compose.onNodeWithTag(MOBILE_ABOUT_DIALOG_TAG).assertIsDisplayed()
@@ -809,19 +688,7 @@ class MobileAccountAboutTest {
     @Test
     fun copiedConfirmationResetsWhenTheSupportTextChanges() {
         var appConfigState by mutableStateOf(readyAndroidAppConfigState())
-        compose.setContent {
-            PutioTheme {
-                MobileAccountScreen(
-                    account = Account,
-                    sessionId = SessionOne,
-                    settingsState = readyAccountSettingsState(),
-                    appConfigState = appConfigState,
-                    onSettingsEvent = {},
-                    onAppConfigEvent = {},
-                    onSignOut = {},
-                )
-            }
-        }
+        compose.setAccountContent(appConfigState = { appConfigState })
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
         val clipboard = ApplicationProvider.getApplicationContext<Context>()
@@ -847,30 +714,22 @@ class MobileAccountAboutTest {
     @Test
     fun aboutDialogReportsTheEffectivePlayerNotAnUnconfirmedSave() {
         val mp4 = DefaultAndroidAppConfigPreferences.copy(videoPlaybackType = VideoPlaybackType.Mp4)
-        compose.setContent {
-            PutioTheme {
-                MobileAccountScreen(
-                    account = Account,
-                    sessionId = SessionOne,
-                    settingsState = readyAccountSettingsState(),
-                    // Optimistic Ready shows MP4, but the save is still pending: playback keeps HLS.
-                    appConfigState = androidAppConfigState(
-                        content = AndroidAppConfigContent.Ready(mp4),
-                        mutation = AndroidAppConfigMutation.Saving(
-                            requestId = AndroidAppConfigRequestId(3L),
-                            change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
-                            previousPreferences = DefaultAndroidAppConfigPreferences,
-                            operation = AndroidAppConfigMutation.Operation.Save,
-                        ),
-                        nextRequestValue = 4L,
-                        confirmedPreferences = DefaultAndroidAppConfigPreferences,
+        compose.setAccountContent(
+            // Optimistic Ready shows MP4, but the save is still pending: playback keeps HLS.
+            appConfigState = {
+                androidAppConfigState(
+                    content = AndroidAppConfigContent.Ready(mp4),
+                    mutation = AndroidAppConfigMutation.Saving(
+                        requestId = AndroidAppConfigRequestId(3L),
+                        change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
+                        previousPreferences = DefaultAndroidAppConfigPreferences,
+                        operation = AndroidAppConfigMutation.Operation.Save,
                     ),
-                    onSettingsEvent = {},
-                    onAppConfigEvent = {},
-                    onSignOut = {},
+                    nextRequestValue = 4L,
+                    confirmedPreferences = DefaultAndroidAppConfigPreferences,
                 )
-            }
-        }
+            },
+        )
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
         compose.onNodeWithText("media3/hls").assertIsDisplayed()
@@ -878,58 +737,66 @@ class MobileAccountAboutTest {
 
     @Test
     fun aboutDialogReportsTheDeviceClassTheShellPassesIn() {
-        compose.setContent {
-            PutioTheme {
-                MobileAccountScreen(
-                    account = Account,
-                    sessionId = SessionOne,
-                    settingsState = readyAccountSettingsState(),
-                    appConfigState = readyAndroidAppConfigState(),
-                    onSettingsEvent = {},
-                    onAppConfigEvent = {},
-                    onSignOut = {},
-                    deviceClass = AppDiagnostics.DeviceClass.Tablet,
-                )
-            }
-        }
+        compose.setAccountContent(options = AccountScreenOptions(deviceClass = AppDiagnostics.DeviceClass.Tablet))
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
         compose.onNodeWithText("Tablet").assertIsDisplayed()
     }
 }
 
-private class AccountScreenCallbacks(
+private class AccountScreenOptions(
     val onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
     val onSignOut: () -> Unit = {},
     val onPrivacyControls: () -> Unit = {},
     val loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Success(emptyList())
     },
+    val deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
+    val sessionId: () -> MobileAuthSessionId = { SessionOne },
 )
 
+// State arguments are read during composition, so tests can drive them from mutableStateOf.
 private fun ComposeContentTestRule.setAccountContent(
-    state: AccountSettingsState,
-    events: MutableList<AccountSettingsEvent>,
-    account: MobileAccount = Account,
-    callbacks: AccountScreenCallbacks = AccountScreenCallbacks(),
+    state: () -> AccountSettingsState = { readyAccountSettingsState() },
+    events: MutableList<AccountSettingsEvent> = mutableListOf(),
+    account: () -> MobileAccount = { Account },
+    appConfigState: () -> AndroidAppConfigState = { readyAndroidAppConfigState() },
+    options: AccountScreenOptions = AccountScreenOptions(),
 ) {
     setContent {
         PutioTheme {
             MobileAccountScreen(
-                account = account,
-                sessionId = SessionOne,
-                settingsState = state,
-                appConfigState = readyAndroidAppConfigState(),
+                account = account(),
+                sessionId = options.sessionId(),
+                settingsState = state(),
+                appConfigState = appConfigState(),
                 onSettingsEvent = events::add,
-                onAppConfigEvent = callbacks.onAppConfigEvent,
-                onSignOut = callbacks.onSignOut,
-                onPrivacyControls = callbacks.onPrivacyControls,
-                loadTunnelRoutes = callbacks.loadTunnelRoutes,
+                onAppConfigEvent = options.onAppConfigEvent,
+                onSignOut = options.onSignOut,
+                onPrivacyControls = options.onPrivacyControls,
+                loadTunnelRoutes = options.loadTunnelRoutes,
+                deviceClass = options.deviceClass,
             )
         }
     }
 }
 
+private fun failedChange(
+    change: AccountSettingsChange,
+    failure: AccountSettingsFailure = OfflineFailure,
+    operation: AccountSettingsMutation.Operation = AccountSettingsMutation.Operation.Save,
+): AccountSettingsMutation.Failed =
+    AccountSettingsMutation.Failed(
+        change = change,
+        failure = failure,
+        previousPreferences = DefaultAccountSettingsPreferences,
+        operation = operation,
+    )
+
+private val OfflineFailure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
+private val ExpiredSessionFailure =
+    AccountSettingsFailure.Putio(PutioFailure.AuthenticationRequired(PutioConfigurationException("invalid token")))
+private val SubtitlesOff = AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false)
 private val Account =
     MobileAccount(
         userId = 42L,

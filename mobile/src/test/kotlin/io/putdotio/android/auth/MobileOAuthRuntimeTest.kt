@@ -35,7 +35,7 @@ class MobileOAuthRuntimeTest {
         val reportedFailure = CompletableDeferred<Exception>()
         val controller = MobileAuthController(
             oauthConfiguration = MobileOAuthConfiguration.Configured("9677"),
-            tokenStore = EmptyAuthTokenStore,
+            tokenStore = FakeAuthTokenStore(null),
             oauthAttempts = OAuthAttempts(FailingPendingOAuthAttemptStore(failure)),
             sessionGateway = UnusedAuthSessionGateway,
             tokenRevocations = NoTokenRevocations,
@@ -141,6 +141,15 @@ class MobileOAuthRuntimeTest {
         assertEquals(listOf("started ${first.value}", "left ${first.value}", "started ${next.value}"), events)
     }
 
+    @Test
+    fun `runtime failure log excludes error messages and callback payloads`() {
+        assertEquals(
+            "event=oauth_auth_tab_result operation=dispatch outcome=failed error_kind=unknown " +
+                "error_type=IllegalStateException",
+            oauthRuntimeFailureLog(IllegalStateException("access_token=secret")),
+        )
+    }
+
     private fun writeExport(context: Context, session: MobileAuthSessionId): File =
         File(MobileFileShareService.sessionShares(context, session), "9/poster.jpg").apply {
             parentFile?.mkdirs()
@@ -156,9 +165,9 @@ class MobileOAuthRuntimeTest {
         var sessionsLeft = 0
         val controller = MobileAuthController(
             oauthConfiguration = MobileOAuthConfiguration.Configured("9677"),
-            tokenStore = StoredAuthTokenStore(checkNotNull(AccessToken.parse("token"))),
+            tokenStore = FakeAuthTokenStore(checkNotNull(AccessToken.parse("token"))),
             oauthAttempts = OAuthAttempts(
-                store = InMemoryPendingOAuthAttemptStore(),
+                store = FakePendingOAuthAttemptStore(),
                 stateGenerator = OAuthStateGenerator { OAUTH_STATE },
             ),
             sessionGateway = FixedAuthSessionGateway(validation),
@@ -177,52 +186,6 @@ class MobileOAuthRuntimeTest {
 
         fun signedInSession(): MobileAuthSessionId =
             checkNotNull((controller.state.value as? MobileAuthState.SignedIn)?.sessionId) { "Not signed in" }
-    }
-
-    @Test
-    fun `runtime failure log excludes error messages and callback payloads`() {
-        val log = oauthRuntimeFailureLog(IllegalStateException("access_token=secret"))
-
-        assertEquals(
-            "event=oauth_auth_tab_result operation=dispatch outcome=failed error_kind=unknown " +
-                "error_type=IllegalStateException",
-            log,
-        )
-        assertFalse(log.contains("secret"))
-    }
-
-    private object EmptyAuthTokenStore : AuthTokenStore {
-        override suspend fun read(): AccessToken? = null
-
-        override suspend fun write(accessToken: AccessToken) = Unit
-
-        override suspend fun clear() = Unit
-    }
-
-    private class StoredAuthTokenStore(private var token: AccessToken?) : AuthTokenStore {
-        override suspend fun read(): AccessToken? = token
-
-        override suspend fun write(accessToken: AccessToken) {
-            token = accessToken
-        }
-
-        override suspend fun clear() {
-            token = null
-        }
-    }
-
-    private class InMemoryPendingOAuthAttemptStore : PendingOAuthAttemptStore {
-        private var attempt: PendingOAuthAttempt? = null
-
-        override suspend fun read(): PendingOAuthAttempt? = attempt
-
-        override suspend fun write(attempt: PendingOAuthAttempt) {
-            this.attempt = attempt
-        }
-
-        override suspend fun clear() {
-            attempt = null
-        }
     }
 
     private class FixedAuthSessionGateway(private val validation: SessionValidationResult) : AuthSessionGateway {

@@ -51,7 +51,7 @@ class MobilePrivacyControlsScreenTest {
     @Test
     fun strictlyNecessaryIsAlwaysOnAndEachToggleChangesItsAccountKey() {
         val events = mutableListOf<AccountSettingsEvent>()
-        compose.setPrivacyContent(readyAccountSettingsState(), events, mutableListOf())
+        compose.setPrivacyContent(events = events)
 
         compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG)
             .assertTextContains("Always on")
@@ -80,7 +80,7 @@ class MobilePrivacyControlsScreenTest {
 
     @Test
     fun screenReadersHearEachDescriptionOnItsControl() {
-        compose.setPrivacyContent(readyAccountSettingsState(), mutableListOf(), mutableListOf())
+        compose.setPrivacyContent()
 
         compose.onNodeWithTag(MOBILE_STRICTLY_NECESSARY_TAG).assertTextContains(STRICTLY_NECESSARY_COPY)
         compose.onNodeWithText("Diagnostics").assertTextContains(DIAGNOSTICS_COPY)
@@ -92,7 +92,7 @@ class MobilePrivacyControlsScreenTest {
     @Test
     fun policyLinksOpenInTheBrowser() {
         val opened = mutableListOf<String>()
-        compose.setPrivacyContent(readyAccountSettingsState(), mutableListOf(), opened)
+        compose.setPrivacyContent(opened = opened)
 
         compose.onNodeWithTag(MOBILE_PRIVACY_CONTROLS_LIST_TAG).performScrollToNode(hasText("Privacy policy"))
         compose.onNodeWithText("Privacy policy").performClick()
@@ -110,8 +110,6 @@ class MobilePrivacyControlsScreenTest {
                 mutation = AccountSettingsMutation.Idle,
                 nextRequestValue = 2L,
             ),
-            mutableListOf(),
-            mutableListOf(),
         )
 
         compose.onAllNodesWithText("Diagnostics").assertCountEquals(0)
@@ -121,9 +119,9 @@ class MobilePrivacyControlsScreenTest {
 }
 
 private fun ComposeContentTestRule.setPrivacyContent(
-    state: AccountSettingsState,
-    events: MutableList<AccountSettingsEvent>,
-    opened: MutableList<String>,
+    state: AccountSettingsState = readyAccountSettingsState(),
+    events: MutableList<AccountSettingsEvent> = mutableListOf(),
+    opened: MutableList<String> = mutableListOf(),
 ) {
     val uriHandler = object : UriHandler {
         override fun openUri(uri: String) {

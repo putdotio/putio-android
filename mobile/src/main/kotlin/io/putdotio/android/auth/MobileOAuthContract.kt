@@ -17,8 +17,6 @@ internal sealed interface MobileOAuthConfiguration {
     ) : MobileOAuthConfiguration
 
     companion object {
-        fun fromClientId(clientId: String?): MobileOAuthConfiguration = fromClientId(clientId, debugOverride = null)
-
         /**
          * [debugOverride] is the ignored local.properties client id. The BuildConfig
          * field exists in every variant but only the debug build type carries the
@@ -28,7 +26,7 @@ internal sealed interface MobileOAuthConfiguration {
          */
         fun fromClientId(
             clientId: String?,
-            debugOverride: String?,
+            debugOverride: String? = null,
         ): MobileOAuthConfiguration {
             val override = debugOverride?.takeUnless { it.isEmpty() }
             val effectiveClientId = override ?: clientId

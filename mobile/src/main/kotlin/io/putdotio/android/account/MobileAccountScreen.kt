@@ -586,12 +586,13 @@ private fun TunnelRouteName.displayName(): String =
 private val AccountSettingsChange.disablesTrash: Boolean
     get() = this is AccountSettingsChange.Toggle && key == AccountSettingsKey.Trash && !enabled
 
-internal fun AccountSettingsState.accountControlsEnabled(): Boolean =
-    when (val currentMutation = mutation) {
+internal fun AccountSettingsState.accountControlsEnabled(): Boolean = mutation.controlsEnabled()
+
+private fun AccountSettingsMutation.controlsEnabled(): Boolean =
+    when (this) {
         AccountSettingsMutation.Idle -> true
         is AccountSettingsMutation.Saving -> false
-        is AccountSettingsMutation.Failed ->
-            currentMutation.failure.putioFailure !is PutioFailure.AuthenticationRequired
+        is AccountSettingsMutation.Failed -> failure.putioFailure !is PutioFailure.AuthenticationRequired
     }
 
 private fun LazyListScope.appConfigItems(
@@ -607,7 +608,7 @@ private fun LazyListScope.appConfigItems(
     when (val content = state.content) {
         is AndroidAppConfigContent.Loading ->
             item(key = APP_CONFIG_LOADING_KEY) {
-                MobileAppConfigLoading()
+                MobileAccountLoadingRow(R.string.mobile_settings_playback_loading)
             }
         is AndroidAppConfigContent.Failed ->
             item(key = APP_CONFIG_ERROR_KEY) {
@@ -795,20 +796,6 @@ private fun VideoPlaybackType.labelResource(): Int =
     }
 
 @Composable
-private fun MobileAppConfigLoading() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(24.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-        Text(stringResource(R.string.mobile_settings_playback_loading))
-    }
-}
-
-@Composable
 private fun MobileAppConfigLoadError(
     failure: PutioFailure,
     onRetry: () -> Unit,
@@ -901,39 +888,23 @@ internal fun MobileAccountSettingRow(
     onRetry: () -> Unit,
     onChange: (AccountSettingsChange) -> Unit,
 ) {
-    val enabled = when (mutation) {
-        AccountSettingsMutation.Idle -> true
-        is AccountSettingsMutation.Saving -> false
-        is AccountSettingsMutation.Failed -> mutation.failure.putioFailure !is PutioFailure.AuthenticationRequired
-    }
+    val enabled = mutation.controlsEnabled()
     val saving = (mutation as? AccountSettingsMutation.Saving)?.change?.key == key
     val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { it.change.key == key }
     Column(modifier = Modifier.fillMaxWidth()) {
         ListItem(
             headlineContent = { Text(stringResource(title)) },
             supportingContent = { Text(stringResource(description)) },
-            leadingContent = {
-                Icon(
-                    painter = painterResource(icon),
-                    contentDescription = null,
-                )
-            },
+            leadingContent = { Icon(painterResource(icon), contentDescription = null) },
             trailingContent = {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (saving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     }
-                    Switch(
-                        checked = checked,
-                        onCheckedChange = null,
-                        enabled = enabled,
-                    )
+                    Switch(checked = checked, onCheckedChange = null, enabled = enabled)
                 }
             },
             modifier = Modifier
@@ -946,17 +917,18 @@ internal fun MobileAccountSettingRow(
                 ),
         )
         failure?.let {
-            MobileAccountMutationError(
-                failure = it.failure,
-                operation = it.operation,
-                onRetry = onRetry,
-            )
+            MobileAccountMutationError(failure = it.failure, operation = it.operation, onRetry = onRetry)
         }
     }
 }
 
 @Composable
 internal fun MobileAccountSettingsLoading() {
+    MobileAccountLoadingRow(R.string.mobile_settings_loading)
+}
+
+@Composable
+private fun MobileAccountLoadingRow(@StringRes text: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -965,7 +937,7 @@ internal fun MobileAccountSettingsLoading() {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-        Text(stringResource(R.string.mobile_settings_loading))
+        Text(stringResource(text))
     }
 }
 

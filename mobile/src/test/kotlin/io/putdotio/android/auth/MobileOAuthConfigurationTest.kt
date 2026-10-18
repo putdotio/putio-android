@@ -8,22 +8,11 @@ import org.junit.Test
 class MobileOAuthConfigurationTest {
     @Test
     fun `registered android mobile client id is wired`() {
-        val configuration = MobileOAuthConfiguration.fromClientId(BuildConfig.PUTIO_MOBILE_OAUTH_CLIENT_ID)
-
         assertEquals("9677", BuildConfig.PUTIO_MOBILE_OAUTH_CLIENT_ID)
-        assertTrue(configuration is MobileOAuthConfiguration.Configured)
-        configuration as MobileOAuthConfiguration.Configured
-        assertEquals("putio://auth", configuration.redirectUri)
-    }
-
-    @Test
-    fun `dedicated numeric client id configures exact redirect`() {
-        val configuration = MobileOAuthConfiguration.fromClientId("9001")
-
-        assertTrue(configuration is MobileOAuthConfiguration.Configured)
-        configuration as MobileOAuthConfiguration.Configured
-        assertEquals("9001", configuration.clientId)
-        assertEquals("putio://auth", configuration.redirectUri)
+        assertEquals(
+            MobileOAuthConfiguration.Configured("9677", redirectUri = "putio://auth"),
+            MobileOAuthConfiguration.fromClientId(BuildConfig.PUTIO_MOBILE_OAUTH_CLIENT_ID),
+        )
     }
 
     @Test
