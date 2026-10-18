@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.account
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -113,10 +114,7 @@ class TvAccountScreenTest {
         show(settingsState = { ready(preferences) })
 
         compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Remember current place in video files").assertIsFocused().assertIsOn().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Remember current place in video files").assertIsFocused().assertIsOn().performKeyInput { pressCenter() }
         compose.onNodeWithText("Show subtitles").assertIsOn()
         compose.onNodeWithText("Do not select subtitles by default").assertIsOn().performKeyInput {
             pressKey(Key.DirectionDown)
@@ -124,10 +122,7 @@ class TvAccountScreenTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithText("Do not select subtitles by default").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Do not select subtitles by default").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(
             listOf<AccountSettingsEvent>(
                 AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.ResumePlayback, false)),
@@ -147,16 +142,10 @@ class TvAccountScreenTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithText("Video playback type").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Video playback type").assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("HLS (default)")[1].assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
         // MP4 sits above the default, as the oracle lists them.
-        compose.onNodeWithText("MP4").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("MP4").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(
             listOf<AndroidAppConfigEvent>(
                 AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)),
@@ -182,16 +171,10 @@ class TvAccountScreenTest {
             },
         )
 
-        compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Amsterdam (Direct)").assertIsDisplayed()
         compose.onAllNodesWithText("cdn77")[1].assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("London").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("London").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(
             listOf<AccountSettingsEvent>(
                 AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(TunnelRouteName("lon"))),
@@ -207,16 +190,10 @@ class TvAccountScreenTest {
         compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput {
             repeat(6) { pressKey(Key.DirectionDown) }
         }
-        compose.onNodeWithText("Move deleted files to trash").assertIsFocused().assertIsOn().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Move deleted files to trash").assertIsFocused().assertIsOn().performKeyInput { pressCenter() }
         compose.onNodeWithText("Turn off trash?").assertIsDisplayed()
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNodeWithText("Turn off").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Turn off").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(
             listOf<AccountSettingsEvent>(
                 AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.Trash, false)),
@@ -244,10 +221,7 @@ class TvAccountScreenTest {
         // Beside its row, below the fold until Try again takes focus and scrolls to it.
         compose.onNodeWithText("Couldn’t save this setting. Check the network and try again.").assertExists()
         compose.onNodeWithText("Keep account history").assertIsOn()
-        compose.onNode(hasText("Try again") and hasClickAction()).requestFocus().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Try again") and hasClickAction()).requestFocus().performKeyInput { pressCenter() }
         assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), settingsEvents)
 
         // The retry removes the notice from under Try again; its row takes the focus back.
@@ -270,10 +244,7 @@ class TvAccountScreenTest {
         // Trash is its own listing and stays reachable without account settings.
         compose.onNodeWithText("Manage your trash").assertIsDisplayed()
         compose.onAllNodesWithText("Sign out")[0].assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryLoad), settingsEvents)
     }
 
@@ -282,20 +253,13 @@ class TvAccountScreenTest {
         var signOuts = 0
         show(settingsState = { ready(preferences) }, onSignOut = { signOuts += 1 })
 
-        compose.onNodeWithText("Diagnostics").requestFocus().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Diagnostics").requestFocus().performKeyInput { pressCenter() }
         compose.onNodeWithText("Device class: TV").assertIsDisplayed()
-        compose.onNodeWithText("OK").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Diagnostics").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onAllNodesWithText("Sign out")[1].assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         assertEquals(1, signOuts)
     }
@@ -305,16 +269,10 @@ class TvAccountScreenTest {
         var settings by mutableStateOf(AccountSettingsReducer.start().state)
         show(settingsState = { settings })
 
-        compose.onNodeWithText("Diagnostics").requestFocus().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Diagnostics").requestFocus().performKeyInput { pressCenter() }
         compose.onNodeWithText("OK").assertIsFocused()
         compose.runOnIdle { settings = ready(preferences) }
-        compose.onNodeWithText("OK").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Diagnostics").assertIsFocused()
     }
 

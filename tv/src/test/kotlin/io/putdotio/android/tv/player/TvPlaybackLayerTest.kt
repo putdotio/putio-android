@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.player
 
 import androidx.activity.ComponentActivity
+import io.putdotio.android.tv.pressCenter
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -77,10 +78,7 @@ class TvPlaybackLayerTest {
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithContentDescription("Play Sintel.mp4").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Play Sintel.mp4").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithTag(TV_PLAYER_TAG).assertIsFocused()
         compose.onNodeWithContentDescription("Play Sintel.mp4").assertDoesNotExist()
         compose.runOnIdle { assertTrue(player.playWhenReady) }

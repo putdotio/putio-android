@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.history
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -66,14 +67,10 @@ class TvHistoryScreenTest {
             pressKey(Key.DirectionDown)
         }
         compose.onNodeWithContentDescription("resume-video.mp4").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(3))), log)
     }
 
@@ -85,8 +82,7 @@ class TvHistoryScreenTest {
             pressKey(Key.DirectionUp)
         }
         compose.onNode(hasText("Clear") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
             pressKey(Key.DirectionDown)
         }
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
@@ -102,10 +98,7 @@ class TvHistoryScreenTest {
 
         compose.onNodeWithText("Clear history?").assertIsDisplayed()
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNodeWithText("Clear history").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Clear history").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.ConfirmClear), log)
 
         compose.runOnIdle {
@@ -130,10 +123,7 @@ class TvHistoryScreenTest {
 
         compose.onNodeWithText("Couldn’t clear history").assertIsDisplayed()
         compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
-        compose.onNodeWithText("OK").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.DismissClear), log)
     }
 
@@ -147,10 +137,7 @@ class TvHistoryScreenTest {
         show { state }
 
         compose.onNodeWithText("Couldn’t load history").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.Retry), log)
 
         compose.runOnIdle { state = historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
@@ -190,10 +177,7 @@ class TvHistoryScreenTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log)
 
         compose.runOnIdle {
@@ -215,10 +199,7 @@ class TvHistoryScreenTest {
             )
         }
         compose.onNodeWithText("Couldn’t load more history.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage, HistoryEvent.Retry), log)
 
         compose.runOnIdle {

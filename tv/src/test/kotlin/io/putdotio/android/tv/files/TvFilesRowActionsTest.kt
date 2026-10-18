@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.files
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -78,20 +79,14 @@ class TvFilesRowActionsTest {
 
         compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Mark as watched").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Mark as watched").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf(2L to true), toggled)
         compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNodeWithText("Open in VLC").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithText("Move to trash").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Move to trash").assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Cancel").assertCountEquals(0)
         assertEquals(
             listOf<FilesBrowserEvent>(
@@ -118,17 +113,11 @@ class TvFilesRowActionsTest {
         }
 
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(
                 listOf<FilesBrowserEvent>(
@@ -159,10 +148,7 @@ class TvFilesRowActionsTest {
         compose.onNodeWithText("Move to trash").assertIsFocused()
         compose.mainClock.autoAdvance = false
         trash = false
-        compose.onNodeWithText("Move to trash").performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Move to trash").performKeyInput { pressCenter() }
         compose.mainClock.autoAdvance = true
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
         compose.onNodeWithText("Delete permanently").assertIsFocused()
@@ -186,10 +172,7 @@ class TvFilesRowActionsTest {
         compose.onAllNodesWithText("Cancel").assertCountEquals(0)
         compose.runOnIdle { trash = false }
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
-        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Delete permanently").assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
         // The setting flipping under an open confirmation withdraws it rather than rewording it.
         compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
@@ -222,10 +205,7 @@ class TvFilesRowActionsTest {
         compose.onNodeWithText("Cancel").assertIsFocused()
         compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
         compose.onAllNodesWithText("Move to trash").assertCountEquals(0)
-        compose.onNodeWithText("Cancel").performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Cancel").performKeyInput { pressCenter() }
         compose.onNodeWithContentDescription("Play clip.mp4").assertIsFocused()
     }
 
@@ -281,10 +261,7 @@ class TvFilesRowActionsTest {
         }
         compose.onNodeWithText("Couldn’t confirm the result. Check the item before trying again.").assertIsDisplayed()
         compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Check status") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Check status") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
 
@@ -308,27 +285,15 @@ class TvFilesRowActionsTest {
         compose.onNodeWithContentDescription("Open Sample folder").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
         }
-        compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText(message).assertIsDisplayed()
-        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText(message).assertCountEquals(0)
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
 
-        compose.onNode(hasText("Delete permanently") and hasClickAction()).performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Delete permanently") and hasClickAction()).performKeyInput { pressCenter() }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNodeWithText("Delete").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(
                 listOf<FilesBrowserEvent>(
@@ -344,10 +309,7 @@ class TvFilesRowActionsTest {
         compose.onNode(hasText("Delete permanently") and hasClickAction()).apply {
             performSemanticsAction(SemanticsActions.RequestFocus)
             assertIsFocused()
-            performKeyInput {
-                keyDown(Key.DirectionCenter)
-                keyUp(Key.DirectionCenter)
-            }
+            performKeyInput { pressCenter() }
         }
         compose.onNodeWithText(message).assertIsDisplayed()
         compose.onAllNodesWithText("Renamed folder").assertCountEquals(2)

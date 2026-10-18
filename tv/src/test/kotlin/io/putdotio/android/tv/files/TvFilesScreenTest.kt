@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.files
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -79,10 +80,7 @@ class TvFilesScreenTest {
         compose.onNodeWithText("33% watched").assertIsDisplayed()
         compose.onNodeWithText("1.1 kB").assertIsDisplayed()
 
-        compose.onNodeWithContentDescription("Open tears_of_steel").performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Open tears_of_steel").performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.OpenFolder(FilesItemId(1))), events)
     }
 
@@ -99,22 +97,13 @@ class TvFilesScreenTest {
             }
         }
 
-        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressCenter() }
         assertEquals(listOf(FilesItemId(2)), played.map { it.id })
 
         compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Unsupported file type").assertIsDisplayed()
-        compose.onNodeWithText("Go back").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithContentDescription("notes.txt").assertIsDisplayed()
     }
 
@@ -131,10 +120,7 @@ class TvFilesScreenTest {
             }
         }
         compose.onNodeWithContentDescription("Play clip.mp4").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("notes.txt").performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressCenter() }
         compose.onNodeWithText("Unsupported file type").assertIsDisplayed()
 
         compose.runOnUiThread { pressSystemBack() }
@@ -177,19 +163,13 @@ class TvFilesScreenTest {
             }
         }
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         operation = FilesFolderOperation.Loading(
             FilesRequestId(3),
             FilesFolderOperationIntent.Refresh,
             FilesFolderOperationPhase.RELOADING,
         )
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Refresh), events)
     }
 
@@ -240,10 +220,7 @@ class TvFilesScreenTest {
         }
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNode(hasText("Refresh") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNode(hasText("Account default") and hasClickAction()).performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Account default") and hasClickAction()).performKeyInput { pressCenter() }
         compose.onNodeWithText("Sort by").assertIsDisplayed()
 
         operation = FilesFolderOperation.Loading(
@@ -268,14 +245,10 @@ class TvFilesScreenTest {
         }
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
             pressKey(Key.DirectionRight)
         }
-        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Account default") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Sort by").assertCountEquals(0)
         assertEquals(emptyList<FilesBrowserEvent>(), events)
     }
@@ -305,15 +278,11 @@ class TvFilesScreenTest {
         compose.onNodeWithText("Couldn’t refresh files.").assertIsDisplayed()
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Load more").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
             pressKey(Key.DirectionUp)
             pressKey(Key.DirectionUp)
         }
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage, FilesBrowserEvent.Retry), events)
     }
 
@@ -330,10 +299,7 @@ class TvFilesScreenTest {
         }
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNode(hasText("Refresh") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNode(hasText("Watched first") and hasClickAction()).performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Watched first") and hasClickAction()).performKeyInput { pressCenter() }
         compose.onNode(hasText("Watched first") and hasClickAction() and hasSelectedState())
             .assertIsFocused()
             .assertIsDisplayed()
@@ -348,10 +314,7 @@ class TvFilesScreenTest {
                 TvFilesScreen(state = state, onEvent = { true }, onPlayMedia = {})
             }
         }
-        compose.onNodeWithContentDescription("notes.txt").performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressCenter() }
         compose.onNodeWithText("Unsupported file type").assertIsDisplayed()
 
         state = state(FilesContent.Loading(FilesRequestId(2)))
@@ -443,24 +406,15 @@ class TvFilesScreenTest {
         }
 
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Refresh), events)
 
         compose.onNode(hasText("Refresh") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNode(hasText("Name, A–Z") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Name, A–Z") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Sort by").assertIsDisplayed()
         compose.onNode(hasText("Name, A–Z") and hasClickAction() and hasSelectedState()).assertIsFocused()
             .performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Name, Z–A") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Name, Z–A") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_DESCENDING), events.last())
     }
 
@@ -479,10 +433,7 @@ class TvFilesScreenTest {
             }
         }
         compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
 

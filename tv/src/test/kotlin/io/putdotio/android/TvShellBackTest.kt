@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import androidx.activity.compose.BackHandler
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
@@ -81,10 +82,7 @@ class TvShellBackTest {
                 )
             }
         }
-        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).assertIsFocused()
 
@@ -189,8 +187,7 @@ class TvShellBackTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithText("Sign out").assertIsFocused()
 
@@ -215,8 +212,7 @@ class TvShellBackTest {
         compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithText("Nothing to focus here.").assertIsDisplayed()
         compose.onNode(hasText("History") and hasClickAction()).assertIsFocused()
@@ -259,8 +255,7 @@ class TvShellBackTest {
             }
             compose.onNode(hasText(drawerEntry) and hasClickAction()).assertIsFocused().performKeyInput {
                 pressKey(Key.DirectionDown)
-                keyDown(Key.DirectionCenter)
-                keyUp(Key.DirectionCenter)
+                pressCenter()
             }
             compose.onNodeWithText(paneTarget).assertIsFocused()
             if (fromDrawer) {
@@ -317,16 +312,12 @@ class TvShellBackTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithText("Choose your proxy").assertIsFocused().performKeyInput {
             repeat(5) { pressKey(Key.DirectionDown) }
         }
-        compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
         compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionLeft)

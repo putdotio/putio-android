@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.files
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -51,10 +52,7 @@ class TvFilesPagingTest {
         }
         compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
 
         paging = FilesPaging.Loading(FilesCursor("c"), FilesRequestId(9))
@@ -115,10 +113,7 @@ class TvFilesPagingTest {
             }
         }
         compose.onNodeWithText("Couldn’t load more files.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
 
@@ -159,10 +154,7 @@ class TvFilesPagingTest {
             }
         }
         compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events)
     }
 }

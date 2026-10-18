@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.search
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -104,10 +105,7 @@ class TvSearchScreenTest {
         compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionRight)
         }
-        compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf("recent:sintel"), log)
     }
 
@@ -143,14 +141,10 @@ class TvSearchScreenTest {
             pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
             pressKey(Key.DirectionUp)
         }
-        compose.onNodeWithContentDescription("Open tears").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Open tears").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf("next", "open:tears"), log)
     }
 
@@ -176,10 +170,7 @@ class TvSearchScreenTest {
         compose.onNodeWithText("Couldn’t search").assertIsDisplayed()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         state = searchState(SearchContent.Loading(SearchTerm("x"), SearchRequestId(2)), query = "x")
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
         assertEquals(listOf("retry"), log)
@@ -196,10 +187,7 @@ class TvSearchScreenTest {
         compose.onNodeWithText("Couldn’t update recent searches.").assertIsDisplayed()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf("recent-retry"), log)
 
         notice = FilesFailure.NavigationBlocked
@@ -219,10 +207,7 @@ class TvSearchScreenTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         state = oneRowSearch(SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)))
         compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused()
 
@@ -230,10 +215,7 @@ class TvSearchScreenTest {
             SearchPaging.Failed(FilesCursor("c1"), PutioFailure.Misconfigured(PutioConfigurationException("boom"))),
         )
         compose.onNodeWithText("Couldn’t load more results.").assertIsDisplayed()
-        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
 
         state = oneRowSearch(SearchPaging.Complete, item(2, "two.mkv", PutioFileType.VIDEO))
         compose.onNodeWithContentDescription("Play two.mkv").assertIsFocused()
@@ -253,10 +235,7 @@ class TvSearchScreenTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         state = oneRowSearch(SearchPaging.Loading(FilesCursor("c1"), SearchRequestId(2)))
         compose.onNode(hasText("Loading more results") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
@@ -338,10 +317,7 @@ class TvSearchScreenTest {
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel"))
         assertEquals(listOf("recent:Tears Of Steel"), log)
         state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel")
@@ -371,10 +347,7 @@ class TvSearchScreenTest {
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Try again").assertCountEquals(0)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
     }
@@ -431,10 +404,7 @@ class TvSearchScreenTest {
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
             repeat(page.size + 1) { pressKey(Key.DirectionDown) }
         }
-        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Load more") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         val more = (13..30).map { item(it.toLong(), "row-$it.mkv", PutioFileType.VIDEO) }
         state = searchState(SearchContent.Ready(SearchTerm("r"), page + more, SearchPaging.Complete), query = "r")
         compose.onNodeWithContentDescription("Play row-30.mkv").assertIsFocused()
@@ -451,10 +421,7 @@ class TvSearchScreenTest {
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("Search again for ab").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Search again for ab").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("c")
         state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "abc")
@@ -476,39 +443,21 @@ class TvSearchScreenTest {
         state = searchState(SearchContent.Idle, recent = listOf(SearchTerm("tears")), historyEnabled = true)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Search settings").assertIsDisplayed()
         compose.onNode(hasText("Disable search history") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
         }
-        compose.onNode(hasText("Clear search history") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Clear search history") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Search settings").assertCountEquals(0)
-        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
-        compose.onNode(hasText("Disable search history") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("Disable search history") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
 
         // Off: nothing to clear, and the toggle turns it back on.
         state = searchState(SearchContent.Idle, historyEnabled = false)
-        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Settings") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Clear search history").assertCountEquals(0)
-        compose.onNode(hasText("Show search history") and hasClickAction()).assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Show search history") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(
             listOf("edit:Clear", "edit:SetEnabled(enabled=false)", "edit:SetEnabled(enabled=true)"),
             log,

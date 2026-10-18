@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import androidx.compose.runtime.getValue
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -96,8 +97,7 @@ class TvShellFocusTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithText("Sign out").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionLeft)
@@ -106,8 +106,7 @@ class TvShellFocusTest {
             pressKey(Key.DirectionUp)
             pressKey(Key.DirectionUp)
             pressKey(Key.DirectionUp)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithContentDescription("third.txt").assertIsFocused()
     }
@@ -395,8 +394,7 @@ class TvShellFocusTest {
         compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionLeft)

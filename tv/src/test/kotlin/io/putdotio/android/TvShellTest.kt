@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import androidx.compose.ui.test.assertCountEquals
+import io.putdotio.android.tv.pressCenter
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
@@ -107,10 +108,7 @@ class TvShellTest {
 
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
         compose.onNodeWithText("That code expired. Get a new one to continue.").assertIsDisplayed()
-        compose.onNodeWithText("Get new code").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithText("Get new code").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(1, requests)
     }
 
@@ -147,8 +145,7 @@ class TvShellTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithText("Sign out").assertIsFocused()
         compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
@@ -182,10 +179,7 @@ class TvShellTest {
             pressKey(Key.DirectionDown)
         }
         compose.onNode(hasText("Account") and hasClickAction()).assertIsFocused()
-        compose.onNode(hasText("Account") and hasClickAction()).performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNode(hasText("Account") and hasClickAction()).performKeyInput { pressCenter() }
         compose.onNodeWithText("Signed in as user").assertIsDisplayed()
         compose.onNodeWithText("Sign out").assertIsFocused()
     }
@@ -219,8 +213,7 @@ class TvShellTest {
         compose.onNodeWithText("Your files will show up here.").performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionDown)
@@ -275,8 +268,7 @@ class TvShellTest {
         compose.onNode(hasText("Files") and hasClickAction()).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
+            pressCenter()
         }
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionLeft)
@@ -284,10 +276,7 @@ class TvShellTest {
         compose.onNode(hasText("History") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionRight)
         }
-        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
-            keyDown(Key.DirectionCenter)
-            keyUp(Key.DirectionCenter)
-        }
+        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(5))), events)
 
         compose.runOnIdle { requested = TvDestination.Files }
