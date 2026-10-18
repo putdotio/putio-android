@@ -882,7 +882,7 @@ it. The video window requests no orientation in multi-window mode.
 Tests: `MobileMultiWindowTest` (resizing, rotation and a keyboard keep the
 Activity; a density change recreates it and keeps its intake; the shell keeps
 its destination across resizing and recreation), `MobilePlayerKeyboardTest`
-(split-screen pause), `MobileAdaptiveNavigationTest`, device proof
+(split-screen pause), `MobileLargeTextNavigationTest` and `MobileOrdinaryNavigationTest` (in `MobileAdaptiveNavigationTest.kt`), device proof
 `MobileTabletPowerProofTest` ([Harness](./harness.md#tablet-proof)).
 
 ## Launcher entry
