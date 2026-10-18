@@ -1,8 +1,7 @@
 # Behaviour
 
-Product behaviour the Android app implements that the harness proves. Each
-section names the JVM tests that pin the rule; [Harness](./harness.md) owns the
-device lanes and live proof.
+Product rules the Android app implements. Each section names the tests that
+pin the rule; [Harness](./harness.md) owns the device lanes and live proof.
 
 ## Stored session recovery
 
@@ -156,11 +155,11 @@ explained in Files. `ACTION_SEARCH` opens Search with the query submitted.
 wait for sign-in and survive process death as their `putio://` form; recents
 replaying the launch intent opens nothing.
 
-Fire TV's Alexa and Video Skill Kit need Amazon catalog integration outside the
-app and are not covered. Google TV surfaces app content through Google's own
-catalog, and the emulator's Assistant answers nothing without a Google account,
-so results shown in the system UI are unverified (see
-[Harness](./harness.md#tv-platform-integration-proof)).
+Fire TV's Alexa and Video Skill Kit would need Amazon catalog integration
+outside the app. Results shown in Google TV's system UI are unverified: Google
+TV surfaces app content through Google's own catalog, and the emulator's
+Assistant answers nothing without a Google account
+([Harness](./harness.md#tv-platform-integration-proof)).
 
 Tests: `TvSearchSuggestionsTest`, `TvLaunchRequestTest`, `TvAuthControllerTest`,
 `TvWatchNextTest`, `TvSessionViewModelTest`, `TvGlobalSearchProofTest` (opt-in
@@ -244,7 +243,7 @@ place of the access copy other 403s get.
 Web keeps both values in its own `/config`, which Android can't read, so
 Android keeps them on the device, per signed-in account, in private
 SharedPreferences. Sign-out and an expired session clear them for every
-account. Android TV has no Move picker.
+account.
 
 Tests: `FilesMoveTargetMemoryTest`, `FilesMoveDestinationControllerTest`,
 `MobileMoveTargetStoreTest`, `MobileAuthControllerSessionTest`, `MobileFilesMoveTest`,
@@ -395,8 +394,7 @@ Mobile video moves into a picture-in-picture window when the viewer leaves the a
 plays: Android 12 and later enter on their own, Android 8 to 11 on the leave hint. The window is
 offered only while the video holds the screen on (playing, not ended, idle or suppressed), so
 never for paused, finished or failed video, the resume prompt, the conversion interstitial or
-audio, which keeps playing through its background service. There is no setting; iOS's player has
-none either. The window takes the video's display shape, held between 1:2.38 and 2.38:1 within
+audio, which keeps playing through its background service. The window takes the video's display shape, held between 1:2.38 and 2.38:1 within
 the platform's default limits, and animates from the letterboxed video rather than the whole
 screen. A device that refuses the shape or the window, and an Activity whose manifest does not
 declare `supportsPictureInPicture`, give the video no window instead of failing.
@@ -404,9 +402,8 @@ declare `supportsPictureInPicture`, give the video no window instead of failing.
 The window shows only the video and its subtitles: the controls, the back button and seek
 feedback leave composition, which also closes an open settings sheet. Its menu carries one
 action, Pause or Play, which drives the screen's own player through Media3's play and pause
-handling. MainActivity handles the orientation, screen size and layout changes the window brings,
-so entering or leaving it never recreates the Activity or its player; rotation anywhere in the
-app no longer recreates it either. Expanding returns a landscape video straight to landscape: the
+handling. Entering or leaving the window never recreates the Activity or its player
+([Multi-window](#multi-window)). Expanding returns a landscape video straight to landscape: the
 phone's landscape lock ignores picture-in-picture's own multi-window mode.
 
 Entering the window pauses the Activity, not the video. On the API 37 emulator the Activity's own
@@ -707,7 +704,7 @@ file count, without put.io's numbers, which the SDK doesn't expose. Web's copy
 for `PUBLIC_SHARE_INSUFFICIENT_DATA` asks to fill out fields of a form the app
 doesn't have, so it isn't ported. That refusal and any other failure follow
 [Refused requests](#refused-requests), and a 401 signs out. Web's Watch together
-option for videos (`utm_campaign=party`) is not ported. TV has no public links.
+option for videos (`utm_campaign=party`) is not ported.
 
 Tests: `PublicLinksControllerTest`, `SdkPublicLinksRepositoryTest`,
 `MobilePublicLinksTest`, `MobilePublicLinksProofTest` (opt-in synthetic device
@@ -1163,32 +1160,33 @@ the delete on the next start.
 
 **Notifications.** When a download finishes or fails, with or without the app
 open, a notification names the file and opens its row in Downloads; the lock
-screen sees the outcome without the name. A finished download's notification
-offers Play, which plays the copy on this device over Downloads (or opens the
-row if the copy is gone), and Open in Downloads; a failed one offers Try again
-and Open in Downloads. Play, Open and the tap are explicit, immutable intents
-for MainActivity carrying `putio://downloads/<id>[/play]?user=<userId>`, so
-under another account they open nothing (see [Deep links](#deep-links)). Try
-again is an explicit, immutable broadcast to an unexported receiver, so no
-other app can send it. It hands the download back to Media3 without opening
-the app, and the row follows Media3's state as after any background change,
-but only for the account that owns it, once the session settles, and only while
-the row is still failed or missing. A stored session is restored first, for up
-to 5 s: Android lets an app start its download service for about 10 s after a
-notification tap. Under another account or none, or for a row that is gone, it
-removes the notification instead. While the session cannot be confirmed, or
-when the system refuses to start the service, it does nothing and the
-notification stays; the notification goes only once the service has the
-request, and a second tap finds the session restored. Each file has one slot, cleared by a retry, a delete or the end of
-its account's session: when a session ends, every outcome of an account other
-than the one signed in then is removed. Only the account signed in now is
-notified, so one account's
-outcome never appears while another is signed in. Nothing is posted while the
-app's notifications or the Finished downloads channel are off, or, on Android
-13 and later, while POST_NOTIFICATIONS is not granted. The first download asks for that permission
-once; afterwards Downloads shows a notice whose Turn on asks again while the
-system allows it and otherwise opens the app's notification settings. Transfers
-post no notifications, so they have no actions.
+screen shows the outcome without the name. A finished download offers Play
+(the copy on this device over Downloads, or its row if the copy is gone) and
+Open in Downloads; a failed one offers Try again and Open in Downloads. Play,
+Open and the tap are explicit, immutable intents for MainActivity carrying
+`putio://downloads/<id>[/play]?user=<userId>`, so under another account they
+open nothing (see [Deep links](#deep-links)).
+
+Try again is an explicit, immutable broadcast to an unexported receiver, so no
+other app can send it. It restores a stored session first, for up to 5 s
+(Android lets an app start its download service for about 10 s after a
+notification tap), then hands the download back to Media3 without opening the
+app, only for the owning account and only while the row is still failed or
+missing; the row then follows Media3's state. Under another account or none,
+or for a row that is gone, it removes the notification instead. While the
+session cannot be confirmed, or when the system refuses to start the service,
+it does nothing and the notification stays; it goes only once the service has
+the request, and a second tap finds the session restored.
+
+Each file has one notification slot, cleared by a retry, a delete or the end of
+its account's session; when a session ends, every outcome of an account other
+than the one then signed in is removed. Only the signed-in account is notified,
+so one account's outcome never appears under another. Nothing is posted while
+the app's notifications or the Finished downloads channel are off, or, on
+Android 13 and later, while POST_NOTIFICATIONS is not granted. The first
+download asks for that permission once; afterwards Downloads shows a notice
+whose Turn on asks again while the system allows it and otherwise opens the
+app's notification settings. Transfers post no notifications.
 
 **Offline resume.** Offline playback resumes like streaming: with the resume
 setting confirmed this session, else the one this device last confirmed, else
