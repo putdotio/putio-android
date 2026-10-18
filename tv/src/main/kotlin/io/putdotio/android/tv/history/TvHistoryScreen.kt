@@ -522,5 +522,4 @@ private fun TvHistoryPaging(
     }
 }
 
-/** Full-width rows scale less than compact surfaces so they stay inside the safe area. */
 private const val TV_HISTORY_PAGING_KEY = "tv-history-paging"

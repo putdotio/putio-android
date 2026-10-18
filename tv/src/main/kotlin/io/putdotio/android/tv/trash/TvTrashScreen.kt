@@ -670,5 +670,4 @@ private fun TvTrashPaging(
     }
 }
 
-/** Full-width rows scale less than compact surfaces so they stay inside the safe area. */
 private const val TV_TRASH_PAGING_KEY = "tv-trash-paging"
