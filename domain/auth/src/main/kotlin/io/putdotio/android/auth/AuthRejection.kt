@@ -1,6 +1,6 @@
 package io.putdotio.android.auth
 
-import io.putdotio.sdk.errors.PutioApiException
+import io.putdotio.android.findPutioApiException
 import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 
@@ -13,21 +13,7 @@ public fun Throwable.isAuthoritativeAuthRejection(): Boolean {
     if (operationReason is PutioOperationErrorReason.StatusCode && operationReason.statusCode.isAuthRejectionStatus()) {
         return true
     }
-
-    val apiException = findPutioApiException()
-    return apiException?.statusCode?.isAuthRejectionStatus() == true
-}
-
-private fun Throwable.findPutioApiException(): PutioApiException? {
-    var current: Throwable? = this
-    val visited = mutableSetOf<Throwable>()
-    while (current != null && visited.add(current)) {
-        if (current is PutioApiException) {
-            return current
-        }
-        current = if (current is PutioOperationException) current.underlyingError else current.cause
-    }
-    return null
+    return findPutioApiException()?.statusCode?.isAuthRejectionStatus() == true
 }
 
 private fun Int.isAuthRejectionStatus(): Boolean = this == HTTP_UNAUTHORIZED || this == HTTP_FORBIDDEN

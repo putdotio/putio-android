@@ -10,6 +10,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:common"))
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)
     testFixturesImplementation(libs.kotlinx.coroutines.android)
