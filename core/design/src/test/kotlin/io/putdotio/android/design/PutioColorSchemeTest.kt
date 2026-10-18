@@ -4,13 +4,8 @@ import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/**
- * Pins the generated scheme to @putdotio/design 3.3.0. A failure here means
- * either the codegen regressed or the vendored token graph changed values —
- * both deliberate events that should update these literals consciously.
- */
+/** Pins the generated scheme to @putdotio/design 3.3.0; a token bump or codegen change must update it. */
 class PutioColorSchemeTest {
-
     @Test
     fun tokensMatchDesign330() {
         assertEquals(Color(0xFFFDCE45), PutioDesignTokens.yellowSolid)

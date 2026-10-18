@@ -69,10 +69,9 @@ public sealed interface PutioFailure : FilesFailure {
 public val PutioFailure.apiReason: String?
     get() = (this as? PutioFailure.ApiRejected)?.cause?.apiRejectionReason()
 
-// Mirrors PutioAuthSessionGateway.isAuthoritativeAuthRejection: a contract-derived
-// 401/403 reason is an auth verdict even when the underlying error is not an API
-// exception, and the wrapper chain is walked with a cycle guard. The envelope's
-// status code classifies the API error; ApiRejected keeps the HTTP status beside it.
+// A contract-derived 401/403 reason anywhere in the wrapper chain is an auth verdict even when the
+// underlying error is not an API exception. The envelope's status code classifies the API error;
+// ApiRejected keeps the HTTP status beside it.
 public fun PutioException.toPutioFailure(): PutioFailure {
     var current: PutioException = this
     val visited = mutableSetOf<PutioException>()

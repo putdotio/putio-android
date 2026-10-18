@@ -5,7 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class FileTypeIconTest {
-
     @Test
     fun everyKnownKindHasItsOwnGlyph() {
         val known = listOf(
