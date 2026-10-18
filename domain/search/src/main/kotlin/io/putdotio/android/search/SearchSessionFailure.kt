@@ -6,10 +6,5 @@ import io.putdotio.android.PutioFailure
 public fun SearchState.authoritativeSessionFailure(): PutioFailure? =
     when (val value = content) {
         is SearchContent.Failed -> value.failure
-        is SearchContent.Empty -> (value.paging as? SearchPaging.Failed)?.failure
-        is SearchContent.Ready -> (value.paging as? SearchPaging.Failed)?.failure
-        SearchContent.Idle,
-        is SearchContent.Debouncing,
-        is SearchContent.Loading,
-        -> null
+        else -> (value.pagingOrNull() as? SearchPaging.Failed)?.failure
     }?.takeIf { it is PutioFailure.AuthenticationRequired }

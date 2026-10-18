@@ -24,7 +24,7 @@ import org.junit.Test
 class SearchControllerTest {
     @Test
     fun debouncesForExactlyThreeHundredMillisecondsAndCancelsOnBlankQuery() =
-        runBlocking {
+        runBlocking<Unit> {
             val delayStarted = CompletableDeferred<Long>()
             val delayCancelled = CompletableDeferred<Unit>()
             var searches = 0
@@ -44,7 +44,7 @@ class SearchControllerTest {
                     },
                 )
 
-            try {
+            controller.use {
                 assertTrue(controller.updateQuery("  movie  "))
                 assertEquals(SEARCH_DEBOUNCE_MILLIS, withTimeout(TIMEOUT) { delayStarted.await() })
                 val debouncing = controller.state.value.content as SearchContent.Debouncing
@@ -55,14 +55,12 @@ class SearchControllerTest {
 
                 assertTrue(controller.state.value.content is SearchContent.Idle)
                 assertEquals(0, searches)
-            } finally {
-                controller.close()
             }
         }
 
     @Test
     fun ignoresAStaleSearchThatReturnsAfterCancellation() =
-        runBlocking {
+        runBlocking<Unit> {
             val oldStarted = CompletableDeferred<Unit>()
             val repository =
                 repository { term ->
@@ -79,7 +77,7 @@ class SearchControllerTest {
                 }
             val controller = controller(repository)
 
-            try {
+            controller.use {
                 controller.updateQuery("old")
                 withTimeout(TIMEOUT) { oldStarted.await() }
                 controller.updateQuery("new")
@@ -87,14 +85,12 @@ class SearchControllerTest {
                 val ready = controller.awaitContent<SearchContent.Ready>()
                 assertEquals(SearchTerm("new"), ready.term)
                 assertEquals(listOf("new.mkv"), ready.items.map(FilesItem::name))
-            } finally {
-                controller.close()
             }
         }
 
     @Test
     fun submitTrimsAndRecordsHistoryBeforeSearching() =
-        runBlocking {
+        runBlocking<Unit> {
             val effects = mutableListOf<String>()
             val store = FakeRecentSearchStore(onRecord = { effects += "record:${it.value}" })
             val controller =
@@ -107,21 +103,19 @@ class SearchControllerTest {
                     delaySearch = { awaitCancellation() },
                 )
 
-            try {
+            controller.use {
                 controller.updateQuery("  documentary  ")
                 assertTrue(controller.submit())
                 controller.awaitContent<SearchContent.Empty>()
 
                 assertEquals("documentary", controller.state.value.query)
                 assertEquals(listOf("record:documentary", "search:documentary"), effects)
-            } finally {
-                controller.close()
             }
         }
 
     @Test
     fun searchesSettledWhileTypingSlowlyAreNotRecorded() =
-        runBlocking {
+        runBlocking<Unit> {
             val store = FakeRecentSearchStore()
             val searched = mutableListOf<String>()
             val controller =
@@ -133,7 +127,7 @@ class SearchControllerTest {
                     store = store,
                 )
 
-            try {
+            controller.use {
                 // Each keystroke lands after the debounce has settled, as D-pad typing on TV does.
                 listOf("m", "ma", "map").forEach { query ->
                     controller.updateQuery(query)
@@ -142,35 +136,12 @@ class SearchControllerTest {
 
                 assertEquals(listOf("m", "ma", "map"), searched)
                 assertEquals(emptyList<SearchTerm>(), store.recorded)
-            } finally {
-                controller.close()
-            }
-        }
-
-    @Test
-    fun openingAResultRecordsTheSearchItCameFrom() =
-        runBlocking {
-            val store = FakeRecentSearchStore()
-            val controller = controller(repository { success(item(9L, "sample.mkv")) }, store = store)
-
-            try {
-                controller.updateQuery("  sample ")
-                controller.awaitContent<SearchContent.Ready>()
-                assertEquals(emptyList<SearchTerm>(), store.recorded)
-
-                assertFalse(controller.openResult(FilesItemId(8L)))
-                assertEquals(emptyList<SearchTerm>(), store.recorded)
-                assertTrue(controller.openResult(FilesItemId(9L)))
-
-                assertEquals(listOf(SearchTerm("sample")), store.recorded)
-            } finally {
-                controller.close()
             }
         }
 
     @Test
     fun retriesPagingAndStopsARepeatedCursor() =
-        runBlocking {
+        runBlocking<Unit> {
             var pagingAttempts = 0
             val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
             val repository =
@@ -189,7 +160,7 @@ class SearchControllerTest {
                 }
             val controller = controller(repository)
 
-            try {
+            controller.use {
                 controller.updateQuery("movie")
                 controller.awaitContent<SearchContent.Ready>()
                 yield()
@@ -202,37 +173,38 @@ class SearchControllerTest {
                 assertEquals(listOf(1L, 2L), ready.items.map { it.id.value })
                 assertEquals(2, pagingAttempts)
                 assertFalse(controller.loadNextPage())
-            } finally {
-                controller.close()
             }
         }
 
     @Test
-    fun emitsOpenResultOnlyForVisibleResults() =
-        runBlocking {
-            val controller = controller(repository { success(item(9L, "movie.mkv")) })
+    fun openingAVisibleResultEmitsItAndRecordsTheSearchItCameFrom() =
+        runBlocking<Unit> {
+            val store = FakeRecentSearchStore()
+            val controller = controller(repository { success(item(9L, "movie.mkv")) }, store = store)
 
-            try {
-                controller.updateQuery("movie")
+            controller.use {
+                controller.updateQuery("  movie ")
                 controller.awaitContent<SearchContent.Ready>()
                 val output = async { withTimeout(TIMEOUT) { controller.outputs.first() } }
+                assertEquals(emptyList<SearchTerm>(), store.recorded)
 
                 assertFalse(controller.openResult(FilesItemId(8L)))
+                assertEquals(emptyList<SearchTerm>(), store.recorded)
                 assertTrue(controller.openResult(FilesItemId(9L)))
                 controller.updateQuery("different query")
+
                 assertEquals(SearchOutput.OpenResult(item(9L, "movie.mkv")), output.await())
-            } finally {
-                controller.close()
+                assertEquals(listOf(SearchTerm("movie")), store.recorded)
             }
         }
 
     @Test
     fun mirrorsRecentTermsAndDelegatesRemoveAndClear() =
-        runBlocking {
+        runBlocking<Unit> {
             val store = FakeRecentSearchStore(listOf(SearchTerm("movie"), SearchTerm("shows")))
             val controller = controller(repository { success() }, store = store)
 
-            try {
+            controller.use {
                 assertEquals(store.terms.value, controller.state.value.recentTerms)
                 assertTrue(controller.editRecentSearches(RecentSearchEdit.Remove(SearchTerm("movie"))))
                 controller.awaitRecentTerms(listOf(SearchTerm("shows")))
@@ -242,18 +214,16 @@ class SearchControllerTest {
                 controller.awaitRecentTerms(emptyList())
                 assertEquals(1, store.clearCount)
                 assertFalse(controller.editRecentSearches(RecentSearchEdit.Clear))
-            } finally {
-                controller.close()
             }
         }
 
     @Test
     fun mirrorsTheHistorySettingAndChangesItOnlyOnceLoaded() =
-        runBlocking {
+        runBlocking<Unit> {
             val store = FakeRecentSearchStore(listOf(SearchTerm("movie")), enabled = null)
             val controller = controller(repository { success() }, store = store)
 
-            try {
+            controller.use {
                 assertEquals(null, controller.state.value.recentSearchesEnabled)
                 assertFalse(controller.editRecentSearches(RecentSearchEdit.SetEnabled(false)))
 
@@ -264,8 +234,6 @@ class SearchControllerTest {
                 withTimeout(TIMEOUT) { controller.state.first { it.recentSearchesEnabled == false } }
 
                 assertEquals(listOf(false), store.enabledChanges)
-            } finally {
-                controller.close()
             }
         }
 
@@ -291,24 +259,7 @@ class SearchControllerTest {
         }
 
     private suspend inline fun <reified T : SearchPaging> SearchController.awaitPaging(): T =
-        withTimeout(TIMEOUT) {
-            state
-                .first {
-                    val paging =
-                        when (val content = it.content) {
-                            is SearchContent.Empty -> content.paging
-                            is SearchContent.Ready -> content.paging
-                            else -> null
-                        }
-                    paging is T
-                }.let {
-                    when (val content = it.content) {
-                        is SearchContent.Empty -> content.paging as T
-                        is SearchContent.Ready -> content.paging as T
-                        else -> error("Expected paged content")
-                    }
-                }
-        }
+        withTimeout(TIMEOUT) { state.first { it.content.pagingOrNull() is T }.content.pagingOrNull() as T }
 
     private suspend fun SearchController.awaitRecentTerms(expected: List<SearchTerm>) {
         withTimeout(TIMEOUT) { state.first { it.recentTerms == expected } }

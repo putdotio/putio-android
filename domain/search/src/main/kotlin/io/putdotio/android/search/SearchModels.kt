@@ -141,3 +141,10 @@ public interface RecentSearchStore {
 }
 
 private const val INITIAL_REQUEST_VALUE = 1L
+
+internal fun SearchContent.pagingOrNull(): SearchPaging? =
+    when (this) {
+        is SearchContent.Empty -> paging
+        is SearchContent.Ready -> paging
+        SearchContent.Idle, is SearchContent.Debouncing, is SearchContent.Loading, is SearchContent.Failed -> null
+    }
