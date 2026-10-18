@@ -1,6 +1,7 @@
 package io.putdotio.android.playback
 
 import android.os.Bundle
+import androidx.media3.common.Format
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.TrackSelectionOverride
@@ -32,7 +33,7 @@ public data class SubtitleTrackIdentity(
     val accessibilityChannel: Int,
 ) {
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-    internal fun exactlyMatches(format: androidx.media3.common.Format): Boolean =
+    internal fun exactlyMatches(format: Format): Boolean =
         id == format.id &&
             language == format.language &&
             label == format.label &&
@@ -76,7 +77,7 @@ public fun Tracks.playbackSubtitleTracks(): List<PlaybackSubtitleTrack> =
         }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-public fun androidx.media3.common.Format.toSubtitleTrackIdentity(): SubtitleTrackIdentity =
+public fun Format.toSubtitleTrackIdentity(): SubtitleTrackIdentity =
     SubtitleTrackIdentity(
         id = id,
         language = language,

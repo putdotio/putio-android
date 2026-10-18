@@ -46,14 +46,7 @@ class PlaybackFailureTest {
     fun anExpiredMediaLinkAndALostNetworkAreRetried() {
         val expired = PlaybackException(
             "expired",
-            HttpDataSource.InvalidResponseCodeException(
-                401,
-                "Unauthorized",
-                null,
-                emptyMap(),
-                DataSpec(android.net.Uri.parse("https://example.invalid/media.m3u8")),
-                ByteArray(0),
-            ),
+            invalidResponse(401),
             PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
         ).toPlaybackFailure()
         assertTrue(expired is PlaybackFailure.MediaCredentialUnavailable)
@@ -80,66 +73,23 @@ class PlaybackFailureTest {
     }
 
     @Test
-    fun mediaRequestUnauthorizedRefreshesThePlaybackCredential() {
-        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
-        val response =
-            HttpDataSource.InvalidResponseCodeException(
-                401,
-                "Unauthorized",
-                IOException("rejected"),
-                emptyMap(),
-                dataSpec,
-                ByteArray(0),
+    fun mediaRequestUnauthorizedOrForbiddenRefreshesThePlaybackCredentialButNotFoundDoesNot() {
+        for (status in listOf(401, 403)) {
+            assertTrue(
+                "$status",
+                IllegalStateException("player failed", invalidResponse(status)).toMediaRequestFailureOrNull() is
+                    PlaybackFailure.MediaCredentialUnavailable,
             )
-
-        assertTrue(
-            IllegalStateException("player failed", response).toMediaRequestFailureOrNull() is
-                PlaybackFailure.MediaCredentialUnavailable,
-        )
-    }
-
-    @Test
-    fun mediaRequestForbiddenRefreshesThePlaybackCredential() {
-        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
-        val response =
-            HttpDataSource.InvalidResponseCodeException(
-                403,
-                "Forbidden",
-                IOException("rejected"),
-                emptyMap(),
-                dataSpec,
-                ByteArray(0),
-            )
-
-        assertTrue(
-            IllegalStateException("player failed", response).toMediaRequestFailureOrNull() is
-                PlaybackFailure.MediaCredentialUnavailable,
-        )
-    }
-
-    @Test
-    fun mediaRequestNotFoundUsesGenericRecovery() {
-        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
-        val response =
-            HttpDataSource.InvalidResponseCodeException(
-                404,
-                "Not Found",
-                IOException("missing"),
-                emptyMap(),
-                dataSpec,
-                ByteArray(0),
-            )
-
-        assertNull(IllegalStateException("player failed", response).toMediaRequestFailureOrNull())
+        }
+        assertNull(IllegalStateException("player failed", invalidResponse(404)).toMediaRequestFailureOrNull())
     }
 
     @Test
     fun mediaRequestTransportFailureReportsNetworkUnavailable() {
-        val dataSpec = DataSpec(Uri.parse("https://example.com/video.mp4"))
         val transport =
             HttpDataSource.HttpDataSourceException(
                 IOException("offline"),
-                dataSpec,
+                mediaDataSpec(),
                 PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
                 HttpDataSource.HttpDataSourceException.TYPE_OPEN,
             )
@@ -149,4 +99,11 @@ class PlaybackFailureTest {
                 PutioFailure.NetworkUnavailable,
         )
     }
+
+    private fun invalidResponse(status: Int) =
+        HttpDataSource.InvalidResponseCodeException(
+            status, "HTTP $status", IOException("rejected"), emptyMap(), mediaDataSpec(), ByteArray(0),
+        )
+
+    private fun mediaDataSpec() = DataSpec(Uri.parse("https://example.invalid/media.m3u8"))
 }

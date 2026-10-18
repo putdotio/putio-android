@@ -142,38 +142,27 @@ class SdkPlaybackRepositoryTest {
     }
 
     @Test
-    fun preservesTheResolvedReadySource() =
+    fun readySourceCarriesTheAccountResumePreference() =
         runBlocking {
-            val source = playbackSource()
-            val repository = SdkPlaybackRepository(
-                playbackPreference = { PlaybackPreference.MP4 },
-                loadAccount = { account(downloadToken = Token, useStartFrom = true) },
-                resolvePlayback = { io.putdotio.sdk.files.PlaybackResolution.Ready(source) },
-            )
+            for (useStartFrom in listOf(true, false)) {
+                val source = playbackSource()
+                var request: PlaybackRequest? = null
+                val repository = SdkPlaybackRepository(
+                    playbackPreference = { PlaybackPreference.MP4 },
+                    loadAccount = { account(downloadToken = Token, useStartFrom = useStartFrom) },
+                    resolvePlayback = {
+                        request = it
+                        io.putdotio.sdk.files.PlaybackResolution.Ready(source)
+                    },
+                )
 
-            val result = repository.resolve(Target) as PlaybackRepositoryResult.Success
+                val ready = (repository.resolve(Target) as PlaybackRepositoryResult.Success).value
+                    as PlaybackResolution.Ready
 
-            assertSame(source, (result.value as PlaybackResolution.Ready).source)
-            assertTrue((result.value as PlaybackResolution.Ready).useStartFrom)
-        }
-
-    @Test
-    fun preservesDisabledAccountResumePreference() =
-        runBlocking {
-            var request: PlaybackRequest? = null
-            val repository = SdkPlaybackRepository(
-                playbackPreference = { PlaybackPreference.MP4 },
-                loadAccount = { account(downloadToken = Token, useStartFrom = false) },
-                resolvePlayback = {
-                    request = it
-                    io.putdotio.sdk.files.PlaybackResolution.Ready(playbackSource())
-                },
-            )
-
-            val result = repository.resolve(Target) as PlaybackRepositoryResult.Success
-
-            assertFalse(requireNotNull(request).useStartFrom)
-            assertFalse((result.value as PlaybackResolution.Ready).useStartFrom)
+                assertEquals(useStartFrom, requireNotNull(request).useStartFrom)
+                assertSame(source, ready.source)
+                assertEquals(useStartFrom, ready.useStartFrom)
+            }
         }
 
     @Test
@@ -598,16 +587,10 @@ class SdkPlaybackRepositoryTest {
         PlaybackSource(
             fileId = Target.fileId.value,
             kind = PlaybackSourceKind.HLS,
-            url = credentialUrl("https://api.put.io/v2/files/42/hls/media.m3u8?token=secret"),
+            url = PutioCredentialUrl.of("https://api.put.io/v2/files/42/hls/media.m3u8?token=secret"),
             startFromSeconds = 12.0,
             subtitles = PlaybackSubtitles.Embedded,
         )
-
-    // Credential URLs can only be minted by the SDK resolver in production.
-    private fun credentialUrl(value: String): PutioCredentialUrl =
-        PutioCredentialUrl::class.java
-            .getDeclaredConstructor(String::class.java)
-            .newInstance(value)
 
     private companion object {
         val Target = PlaybackTarget(FilesItemId(42L), "episode.mkv")

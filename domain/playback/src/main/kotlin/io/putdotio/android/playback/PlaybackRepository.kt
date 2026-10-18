@@ -3,6 +3,7 @@ package io.putdotio.android.playback
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.apiReason
 import io.putdotio.android.toPutioFailure
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.loadMediaAccount
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountInfo
@@ -24,6 +25,7 @@ import io.putdotio.sdk.files.PlaybackConversionState
 import io.putdotio.sdk.files.PlaybackMediaCredential
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
+import io.putdotio.sdk.files.PlaybackSource
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import java.util.concurrent.CancellationException
@@ -258,7 +260,7 @@ internal class SdkPlaybackRepository internal constructor(
                 } else if (foundCurrent) {
                     return PlaybackNextResult.Found(
                         PlaybackTarget(
-                            fileId = io.putdotio.android.files.FilesItemId(file.id),
+                            fileId = FilesItemId(file.id),
                             name = file.name,
                             durationSeconds = file.videoMetadata?.duration?.takeIf { it.isFinite() && it > 0.0 },
                             posterUrl = file.screenshot?.takeIf(String::isNotBlank),
@@ -334,7 +336,7 @@ private fun io.putdotio.sdk.files.PlaybackResolution.toAppResolution(
 
 public sealed interface PlaybackResolution {
     public data class Ready(
-        val source: io.putdotio.sdk.files.PlaybackSource,
+        val source: PlaybackSource,
         val useStartFrom: Boolean = false,
         /** Resolved for a `hide_subtitles` account, whose settings the player may not have yet. */
         val subtitlesHidden: Boolean = false,
@@ -343,11 +345,11 @@ public sealed interface PlaybackResolution {
     ) : PlaybackResolution
 
     public data class Conversion(
-        val state: io.putdotio.sdk.files.PlaybackConversionState,
+        val state: PlaybackConversionState,
     ) : PlaybackResolution
 
     public data class Unsupported(
-        val fileType: io.putdotio.sdk.files.PutioFileType,
+        val fileType: PutioFileType,
     ) : PlaybackResolution
 }
 

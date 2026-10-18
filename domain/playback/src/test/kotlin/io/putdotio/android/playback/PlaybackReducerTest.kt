@@ -182,23 +182,6 @@ class PlaybackReducerTest {
     }
 
     @Test
-    fun readyResolutionPreservesTheResolvedSource() {
-        val start = PlaybackReducer.start(Target)
-        val source = playbackSource()
-
-        val ready = PlaybackReducer.reduce(
-            start.state,
-            PlaybackEvent.ResolveSucceeded(
-                PlaybackRequestId(1L),
-                PlaybackResolution.Ready(source),
-            ),
-        )
-
-        assertTrue(ready.state.content is PlaybackContent.Ready)
-        assertTrue((ready.state.content as PlaybackContent.Ready).source === source)
-    }
-
-    @Test
     fun mediaRequestFailureLeavesReadyStateAndCanRetryResolution() {
         val start = PlaybackReducer.start(Target)
         val ready =
@@ -477,15 +460,12 @@ class PlaybackReducerTest {
     @Test
     fun disabledResumeOrZeroSavedPositionStartsWithoutAPrompt() {
         for ((enabled, seconds) in listOf(false to 12.0, true to 0.0)) {
+            val source = playbackSource().copy(startFromSeconds = seconds)
             val resolved = PlaybackReducer.reduce(
                 PlaybackReducer.start(Target).state,
-                PlaybackEvent.ResolveSucceeded(
-                    PlaybackRequestId(1L),
-                    PlaybackResolution.Ready(playbackSource().copy(startFromSeconds = seconds), enabled),
-                ),
+                PlaybackEvent.ResolveSucceeded(PlaybackRequestId(1L), PlaybackResolution.Ready(source, enabled)),
             )
-            assertTrue(resolved.state.content is PlaybackContent.Ready)
-            assertEquals(enabled, (resolved.state.content as PlaybackContent.Ready).useStartFrom)
+            assertEquals(PlaybackContent.Ready(source, enabled), resolved.state.content)
         }
     }
 
@@ -573,10 +553,7 @@ class PlaybackReducerTest {
         PlaybackSource(
             fileId = Target.fileId.value,
             kind = PlaybackSourceKind.HLS,
-            url =
-                PutioCredentialUrl::class.java
-                    .getDeclaredConstructor(String::class.java)
-                    .newInstance("https://api.put.io/v2/files/42/hls/media.m3u8?token=secret"),
+            url = PutioCredentialUrl.of("https://api.put.io/v2/files/42/hls/media.m3u8?token=secret"),
             startFromSeconds = 12.0,
             subtitles = PlaybackSubtitles.Embedded,
         )

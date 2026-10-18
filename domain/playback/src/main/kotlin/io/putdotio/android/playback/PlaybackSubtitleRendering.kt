@@ -1,5 +1,7 @@
 package io.putdotio.android.playback
 
+import android.content.Context
+import android.view.View.MeasureSpec
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +14,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Constraints
 import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.util.UnstableApi
@@ -57,7 +60,7 @@ public fun SubtitleCueOverlay(
 
 @UnstableApi
 internal class SubtitleCueRenderer(
-    context: android.content.Context,
+    context: Context,
 ) {
     private val subtitleView =
         SubtitleView(context).apply {
@@ -84,8 +87,8 @@ internal class SubtitleCueRenderer(
             renderedWidth = safeWidth
             renderedHeight = safeHeight
             subtitleView.measure(
-                android.view.View.MeasureSpec.makeMeasureSpec(safeWidth, android.view.View.MeasureSpec.EXACTLY),
-                android.view.View.MeasureSpec.makeMeasureSpec(safeHeight, android.view.View.MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(safeWidth, MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(safeHeight, MeasureSpec.EXACTLY),
             )
             subtitleView.layout(0, 0, safeWidth, safeHeight)
         }
@@ -103,10 +106,7 @@ public fun VideoSize.displayAspectRatioOrNull(): Float? =
 private fun Modifier.fitInsideAspectRatio(aspectRatio: Float): Modifier =
     layout { measurable, constraints ->
         val fitted = fitInside(constraints.maxWidth, constraints.maxHeight, aspectRatio)
-        val placeable =
-            measurable.measure(
-                androidx.compose.ui.unit.Constraints.fixed(fitted.width, fitted.height),
-            )
+        val placeable = measurable.measure(Constraints.fixed(fitted.width, fitted.height))
         layout(fitted.width, fitted.height) { placeable.place(0, 0) }
     }
 

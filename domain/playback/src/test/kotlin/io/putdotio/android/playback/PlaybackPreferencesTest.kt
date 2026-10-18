@@ -33,10 +33,7 @@ class PlaybackPreferencesTest {
         assertEquals(
             PlaybackPreference.HLS,
             androidAppConfigState(
-                content =
-                    AndroidAppConfigContent.Failed(
-                        PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
-                    ),
+                content = AndroidAppConfigContent.Failed(Forbidden),
                 mutation = AndroidAppConfigMutation.Idle,
                 nextRequestValue = 2L,
             ).playbackPreference(),
@@ -52,10 +49,7 @@ class PlaybackPreferencesTest {
         val requestId = requireNotNull(saving.effect).requestId
         val saveFailed = AndroidAppConfigReducer.reduce(
             saving.state,
-            AndroidAppConfigEvent.SaveFailed(
-                requestId,
-                PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
-            ),
+            AndroidAppConfigEvent.SaveFailed(requestId, Forbidden),
         )
         val refreshing = AndroidAppConfigReducer.reduce(
             saving.state,
@@ -63,10 +57,7 @@ class PlaybackPreferencesTest {
         )
         val refreshFailed = AndroidAppConfigReducer.reduce(
             refreshing.state,
-            AndroidAppConfigEvent.RefreshFailed(
-                requestId,
-                PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
-            ),
+            AndroidAppConfigEvent.RefreshFailed(requestId, Forbidden),
         )
         for (state in listOf(saving.state, saveFailed.state, refreshing.state, refreshFailed.state)) {
             assertEquals("mutation=${state.mutation}", PlaybackPreference.HLS, state.playbackPreference())
@@ -91,10 +82,7 @@ class PlaybackPreferencesTest {
         val refreshing = AndroidAppConfigReducer.reduce(saving.state, AndroidAppConfigEvent.SaveSucceeded(requestId))
         val refreshFailed = AndroidAppConfigReducer.reduce(
             refreshing.state,
-            AndroidAppConfigEvent.RefreshFailed(
-                requestId,
-                PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
-            ),
+            AndroidAppConfigEvent.RefreshFailed(requestId, Forbidden),
         )
         val autoplaySaving = AndroidAppConfigReducer.reduce(
             refreshFailed.state,
@@ -103,10 +91,7 @@ class PlaybackPreferencesTest {
         val autoplayRequestId = requireNotNull(autoplaySaving.effect).requestId
         val autoplaySaveFailed = AndroidAppConfigReducer.reduce(
             autoplaySaving.state,
-            AndroidAppConfigEvent.SaveFailed(
-                autoplayRequestId,
-                PutioFailure.AccessDenied(PutioConfigurationException("forbidden")),
-            ),
+            AndroidAppConfigEvent.SaveFailed(autoplayRequestId, Forbidden),
         )
         assertEquals(PlaybackPreference.MP4, autoplaySaving.state.playbackPreference())
         assertEquals(PlaybackPreference.MP4, autoplaySaveFailed.state.playbackPreference())
@@ -229,4 +214,8 @@ class PlaybackPreferencesTest {
             nextRequestValue = 2L,
             confirmedPreferences,
         )
+
+    private companion object {
+        val Forbidden = PutioFailure.AccessDenied(PutioConfigurationException("forbidden"))
+    }
 }

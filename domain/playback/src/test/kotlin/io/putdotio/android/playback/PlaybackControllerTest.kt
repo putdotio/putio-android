@@ -365,10 +365,7 @@ class PlaybackControllerTest {
         PlaybackSource(
             fileId = fileId,
             kind = PlaybackSourceKind.HLS,
-            url =
-                PutioCredentialUrl::class.java
-                    .getDeclaredConstructor(String::class.java)
-                    .newInstance("https://api.put.io/v2/files/$fileId/hls/media.m3u8?token=secret"),
+            url = PutioCredentialUrl.of("https://api.put.io/v2/files/$fileId/hls/media.m3u8?token=secret"),
             startFromSeconds = 0.0,
             subtitles = PlaybackSubtitles.Embedded,
         )
