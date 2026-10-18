@@ -17,7 +17,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileAccountScreen
+import io.putdotio.android.account.MobilePrivacyControlsScreen
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.downloads.DownloadRequest
@@ -194,6 +196,15 @@ internal fun MobileNavHost(
                 onManagePublicLinks = publicLinks?.let {
                     { navController.navigate(MOBILE_PUBLIC_LINKS_ROUTE) { launchSingleTop = true } }
                 },
+                onPrivacyControls = {
+                    navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
+                },
+            )
+        }
+        composable(MOBILE_PRIVACY_CONTROLS_ROUTE) {
+            MobilePrivacyControlsScreen(
+                settingsState = accountSettingsState,
+                onSettingsEvent = onAccountSettingsEvent,
             )
         }
         composable(MOBILE_PUBLIC_LINKS_ROUTE) {

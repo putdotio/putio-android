@@ -95,7 +95,6 @@ internal const val MOBILE_MANAGE_DOWNLOADS_TAG = "mobile-manage-downloads"
 internal const val MOBILE_MANAGE_PUBLIC_LINKS_TAG = "mobile-manage-public-links"
 internal const val MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG = "mobile-account-avatar-fallback"
 internal const val MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG = "mobile-account-storage-progress"
-internal const val MOBILE_STRICTLY_NECESSARY_TAG = "mobile-strictly-necessary"
 internal const val MOBILE_TUNNEL_ROUTE_ROW_TAG = "mobile-tunnel-route-row"
 internal const val MOBILE_TUNNEL_ROUTE_RETRY_TAG = "mobile-tunnel-route-retry"
 
@@ -112,6 +111,7 @@ internal fun MobileAccountScreen(
     onManageTrash: () -> Unit = {},
     onManageDownloads: (() -> Unit)? = null,
     onManagePublicLinks: (() -> Unit)? = null,
+    onPrivacyControls: () -> Unit = {},
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Failure(
             AccountSettingsFailure.Putio(
@@ -174,6 +174,7 @@ internal fun MobileAccountScreen(
                         }
                     },
                     onRetryChange = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
+                    onPrivacyControls = onPrivacyControls,
                 )
             }
         }
@@ -371,6 +372,7 @@ private fun LazyListScope.accountSettingsItems(
     mutation: AccountSettingsMutation,
     onChange: (AccountSettingsChange) -> Unit,
     onRetryChange: () -> Unit,
+    onPrivacyControls: () -> Unit,
 ) {
     item(key = SUBTITLES_HEADER_KEY) {
         MobileAccountSectionHeader(R.string.mobile_settings_section_subtitles)
@@ -428,72 +430,7 @@ private fun LazyListScope.accountSettingsItems(
             onChange = onChange,
         )
     }
-    privacyControlsItems(preferences, mutation, onChange, onRetryChange)
-}
-
-// Purpose-based opt-outs per the frontend analytics contract. Strictly necessary
-// processing is disclosed, never toggled; both account keys are cross-client.
-private fun LazyListScope.privacyControlsItems(
-    preferences: AccountSettingsPreferences,
-    mutation: AccountSettingsMutation,
-    onChange: (AccountSettingsChange) -> Unit,
-    onRetryChange: () -> Unit,
-) {
-    item(key = PRIVACY_CONTROLS_HEADER_KEY) {
-        MobileAccountSectionHeader(R.string.mobile_settings_section_privacy_controls)
-    }
-    item(key = STRICTLY_NECESSARY_KEY) {
-        MobileStrictlyNecessaryRow()
-    }
-    item(key = AccountSettingsKey.Diagnostics) {
-        MobileAccountSettingRow(
-            title = R.string.mobile_settings_diagnostics,
-            description = R.string.mobile_settings_diagnostics_description,
-            icon = R.drawable.ic_ph_bug,
-            checked = preferences.diagnosticsEnabled,
-            key = AccountSettingsKey.Diagnostics,
-            mutation = mutation,
-            onRetry = onRetryChange,
-            onChange = onChange,
-        )
-    }
-    item(key = AccountSettingsKey.ProductAnalytics) {
-        MobileAccountSettingRow(
-            title = R.string.mobile_settings_product_analytics,
-            description = R.string.mobile_settings_product_analytics_description,
-            icon = R.drawable.ic_ph_chart_line,
-            checked = preferences.productAnalyticsEnabled,
-            key = AccountSettingsKey.ProductAnalytics,
-            mutation = mutation,
-            onRetry = onRetryChange,
-            onChange = onChange,
-        )
-    }
-    item(key = PRIVACY_CONTROLS_NOTE_KEY) {
-        Text(
-            text = stringResource(R.string.mobile_settings_privacy_controls_note),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
-@Composable
-private fun MobileStrictlyNecessaryRow() {
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.mobile_settings_strictly_necessary)) },
-        supportingContent = {
-            MobileAccountValueDescription(
-                value = stringResource(R.string.mobile_settings_strictly_necessary_state),
-                description = stringResource(R.string.mobile_settings_strictly_necessary_description),
-            )
-        },
-        leadingContent = {
-            Icon(painter = painterResource(R.drawable.ic_ph_shield_check), contentDescription = null)
-        },
-        modifier = Modifier.fillMaxWidth().testTag(MOBILE_STRICTLY_NECESSARY_TAG),
-    )
+    privacyControlsRow(preferences, onOpen = onPrivacyControls)
 }
 
 // Account-wide `use_start_from` sits with the Playback controls even though it is
@@ -954,7 +891,7 @@ private fun MobileAccountSectionHeader(@StringRes title: Int) {
 }
 
 @Composable
-private fun MobileAccountSettingRow(
+internal fun MobileAccountSettingRow(
     @StringRes title: Int,
     @StringRes description: Int,
     @DrawableRes icon: Int,
@@ -1019,7 +956,7 @@ private fun MobileAccountSettingRow(
 }
 
 @Composable
-private fun MobileAccountSettingsLoading() {
+internal fun MobileAccountSettingsLoading() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1033,7 +970,7 @@ private fun MobileAccountSettingsLoading() {
 }
 
 @Composable
-private fun MobileAccountSettingsError(
+internal fun MobileAccountSettingsError(
     failure: AccountSettingsFailure,
     onRetry: () -> Unit,
 ) {
@@ -1113,9 +1050,6 @@ private const val SETTINGS_ERROR_KEY = "account-settings-error"
 private const val FILES_HEADER_KEY = "account-settings-files-header"
 private const val SUBTITLES_HEADER_KEY = "account-settings-subtitles-header"
 private const val PRIVACY_STORAGE_HEADER_KEY = "account-settings-privacy-storage-header"
-private const val PRIVACY_CONTROLS_HEADER_KEY = "account-settings-privacy-controls-header"
-private const val STRICTLY_NECESSARY_KEY = "account-settings-strictly-necessary"
-private const val PRIVACY_CONTROLS_NOTE_KEY = "account-settings-privacy-controls-note"
 private const val PLAYBACK_HEADER_KEY = "app-config-playback-header"
 private const val APP_CONFIG_LOADING_KEY = "app-config-loading"
 private const val APP_CONFIG_ERROR_KEY = "app-config-error"
