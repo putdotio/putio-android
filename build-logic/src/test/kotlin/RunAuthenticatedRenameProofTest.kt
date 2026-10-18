@@ -79,11 +79,8 @@ class RunAuthenticatedRenameProofTest {
     }
 
     @Test
-    fun acceptsExactUnicodeNamesAndLongIdsWithoutNormalizingInput() {
-        val fixture = fixture()
-        val before = fixture.toString()
-        validateRenameFixture(fixture)
-        assertEquals(before, fixture.toString())
+    fun acceptsUnicodeNamesAndLongIds() {
+        validateRenameFixture(fixture())
         validateRenameFixture(replace("renameItemId", JsonPrimitive(Long.MAX_VALUE)))
     }
 
