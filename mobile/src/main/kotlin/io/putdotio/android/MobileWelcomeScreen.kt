@@ -152,27 +152,27 @@ internal fun MobileWelcomeScreen(
                     .padding(horizontal = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-            Spacer(Modifier.height(topSpace))
-            WelcomeHeading(title = stringResource(content.title))
-            content.lede?.let { lede ->
-                Text(
-                    text = stringResource(lede),
-                    style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 1.5.em, letterSpacing = 0.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 16.dp).widthIn(max = 296.dp),
-                )
-            }
-            content.notice?.let { notice ->
-                WelcomeNotice(notice = notice, modifier = Modifier.padding(top = 32.dp))
-            }
-            if (content.showsProgress) {
-                CircularProgressIndicator(
-                    modifier = Modifier.padding(top = 32.dp).size(24.dp).clearAndSetSemantics {},
-                    strokeWidth = 2.5.dp,
-                )
-            }
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(topSpace))
+                WelcomeHeading(title = stringResource(content.title))
+                content.lede?.let { lede ->
+                    Text(
+                        text = stringResource(lede),
+                        style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 1.5.em, letterSpacing = 0.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 16.dp).widthIn(max = 296.dp),
+                    )
+                }
+                content.notice?.let { notice ->
+                    WelcomeNotice(notice = notice, modifier = Modifier.padding(top = 32.dp))
+                }
+                if (content.showsProgress) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(top = 32.dp).size(24.dp).clearAndSetSemantics {},
+                        strokeWidth = 2.5.dp,
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
             }
         }
         content.action?.let { action ->

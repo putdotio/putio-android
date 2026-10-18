@@ -256,7 +256,7 @@ internal fun MobileNavHost(
             // The listing's duration spares resolution a lookup for the near-end rule.
             val durationSeconds = backStackEntry.arguments?.getString("duration")?.toDoubleOrNull()
                 ?.takeIf { it.isFinite() && it > 0.0 }
-            val target = PlaybackTarget(io.putdotio.android.files.FilesItemId(fileId), name, mediaType, durationSeconds)
+            val target = PlaybackTarget(FilesItemId(fileId), name, mediaType, durationSeconds)
             val playbackViewModel: MobilePlaybackViewModel =
                 viewModel(
                     viewModelStoreOwner = backStackEntry,
@@ -292,9 +292,7 @@ private fun MobilePlaybackRoute(
         }?.takeIf { it.putioFailure is PutioFailure.AuthenticationRequired }
 
     LaunchedEffect(authenticationFailure) {
-        if (authenticationFailure != null) {
-            onAuthenticationRequired()
-        }
+        if (authenticationFailure != null) onAuthenticationRequired()
     }
     // A picture-in-picture window never shows the shell: the finished video waits for the viewer to leave it.
     val pictureInPicture by rememberPictureInPictureMode()

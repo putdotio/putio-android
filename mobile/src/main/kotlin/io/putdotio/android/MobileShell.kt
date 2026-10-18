@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -22,6 +23,7 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -279,7 +281,7 @@ internal fun MobileShell(
                         selectedDestination = selectedDestination,
                         filesState = filesState,
                         playbackPlayerFactory = playbackPlayerFactory,
-                        onFilesEvent = { onFilesEvent(it) },
+                        onFilesEvent = onFilesEvent,
                         onFilesBack = onFilesBack,
                         inactiveNotice = account.inactiveNotice,
                     ) { contentModifier ->
@@ -301,7 +303,7 @@ internal fun MobileShell(
                             playbackRepository = playbackRepository,
                             playbackPlayerFactory = playbackPlayerFactory,
                             sessionId = sessionId,
-                            onFilesEvent = { onFilesEvent(it) },
+                            onFilesEvent = onFilesEvent,
                             onAccountSettingsEvent = onAccountSettingsEvent,
                             loadTunnelRoutes = loadTunnelRoutes,
                             deviceClass = if (maxWidth >= 600.dp) AppDiagnostics.DeviceClass.Tablet
@@ -572,31 +574,27 @@ private fun TransferFileNavigationEffect(
 ) {
     LaunchedEffect(resolving?.requestId, transfersSessionId) {
         val resolvingTransfer = resolving ?: return@LaunchedEffect
-        val sessionOnFilesEvent = onFilesEvent
-        val sessionOnTransfersEvent = onTransfersEvent
-        val sessionResolveTransferFile = resolveTransferFile
-        val sessionOnTransferAuthenticationRequired = onTransferAuthenticationRequired
-        val resolved = sessionResolveTransferFile(resolvingTransfer.fileId)
+        val resolved = resolveTransferFile(resolvingTransfer.fileId)
         currentCoroutineContext().ensureActive()
         when (resolved) {
             is PutioResult.Success -> {
                 navController.currentBackStackEntryFlow.first()
                 currentCoroutineContext().ensureActive()
                 val open = FilesBrowserEvent.OpenExternalItem(resolved.value, FilesOpenOrigin.TRANSFERS)
-                if (sessionOnFilesEvent(open)) {
+                if (onFilesEvent(open)) {
                     navController.navigateTo(MobileDestination.Files)
-                    sessionOnTransfersEvent(TransfersEvent.OpenSucceeded(resolvingTransfer.requestId))
+                    onTransfersEvent(TransfersEvent.OpenSucceeded(resolvingTransfer.requestId))
                 } else {
-                    sessionOnTransfersEvent(TransfersEvent.OpenFailed(
+                    onTransfersEvent(TransfersEvent.OpenFailed(
                         resolvingTransfer.requestId, FilesFailure.NavigationBlocked,
                     ))
                 }
             }
             is PutioResult.Failure ->
                 if (resolved.failure is PutioFailure.AuthenticationRequired) {
-                    sessionOnTransferAuthenticationRequired()
+                    onTransferAuthenticationRequired()
                 } else {
-                    sessionOnTransfersEvent(TransfersEvent.OpenFailed(resolvingTransfer.requestId, resolved.failure))
+                    onTransfersEvent(TransfersEvent.OpenFailed(resolvingTransfer.requestId, resolved.failure))
                 }
         }
     }
@@ -633,24 +631,24 @@ private fun MobileNavigationAlerts(
     onTransfersEvent: (TransfersEvent) -> Unit,
 ) {
     if (navigationFailure != null && navigationFailure !is PutioFailure.AuthenticationRequired) {
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = onDismissNavigationFailure,
             title = { Text(stringResource(R.string.mobile_navigation_error_title)) },
             text = { Text(navigationFailure.mobileMessage()) },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = onDismissNavigationFailure) {
+                TextButton(onClick = onDismissNavigationFailure) {
                     Text(stringResource(R.string.mobile_action_ok))
                 }
             },
         )
     }
     (transfersState.navigation as? TransferNavigation.Failed)?.let { failed ->
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { onTransfersEvent(TransfersEvent.DismissNavigationFailure) },
             title = { Text(stringResource(R.string.mobile_navigation_error_title)) },
             text = { Text(failed.failure.mobileMessage()) },
             confirmButton = {
-                androidx.compose.material3.TextButton(
+                TextButton(
                     onClick = { onTransfersEvent(TransfersEvent.DismissNavigationFailure) },
                 ) {
                     Text(stringResource(R.string.mobile_action_ok))
@@ -659,7 +657,7 @@ private fun MobileNavigationAlerts(
         )
     }
     transfersState.notice?.let { notice ->
-        androidx.compose.material3.AlertDialog(
+        AlertDialog(
             onDismissRequest = { onTransfersEvent(TransfersEvent.DismissNotice(notice.requestId)) },
             title = { Text(stringResource(R.string.mobile_transfers_open_unavailable_title)) },
             text = {
@@ -673,7 +671,7 @@ private fun MobileNavigationAlerts(
                 )
             },
             confirmButton = {
-                androidx.compose.material3.TextButton(
+                TextButton(
                     onClick = { onTransfersEvent(TransfersEvent.DismissNotice(notice.requestId)) },
                 ) {
                     Text(stringResource(R.string.mobile_action_ok))

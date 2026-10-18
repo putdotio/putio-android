@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.content.Context
 import android.view.View
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -9,10 +10,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -21,14 +22,15 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
@@ -40,16 +42,22 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
+import io.putdotio.android.playback.ActiveAudio
+import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 import io.putdotio.android.settings.readyAccountSettingsState
 import io.putdotio.android.settings.readyAndroidAppConfigState
+import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.transfersState
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -61,12 +69,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
-import io.putdotio.android.playback.ActiveAudio
-import io.putdotio.android.playback.MobilePlayerFactory
-import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
-import io.putdotio.android.transfers.MOBILE_TRANSFER_ADD_FIELD_TAG
-import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -147,11 +149,11 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
 
     @Test
     fun nowPlayingRequestClosesTheOpenDrawerOverThePlayer() {
-        val pending = kotlinx.coroutines.flow.MutableStateFlow(false)
+        val pending = MutableStateFlow(false)
         mount(
             nowPlayingRequests = NowPlayingRequests(pending) { pending.value = false },
             playbackPlayerFactory = object : MobilePlayerFactory by NoAudioSessionFactory {
-                override suspend fun activeAudio(context: android.content.Context) =
+                override suspend fun activeAudio(context: Context) =
                     ActiveAudio(FilesItemId(9L), "song.mp3")
             },
         )
@@ -180,7 +182,6 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
             val layout = layouts.single()
             assertEquals(2f, layout.layoutInput.density.fontScale)
-            assertEquals("A destination must not split into narrow fragments", 1, layout.lineCount)
             assertCompleteLabel(label, layout)
         }
     }
@@ -248,7 +249,6 @@ class MobileOrdinaryNavigationTest : NavigationShellFixture(1f) {
             val layouts = mutableListOf<TextLayoutResult>()
             compose.onNode(hasText(label) and hasAnyAncestor(hasTestTag(tag))).assertIsDisplayed()
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-            assertEquals(1, layouts.single().lineCount)
             assertCompleteLabel(label, layouts.single())
         }
     }

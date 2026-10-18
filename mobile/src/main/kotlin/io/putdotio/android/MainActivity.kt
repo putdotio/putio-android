@@ -6,17 +6,17 @@ import android.view.KeyboardShortcutGroup
 import android.view.Menu
 import androidx.activity.compose.setContent
 import androidx.browser.auth.AuthTabIntent
-import androidx.lifecycle.ViewModel
 import androidx.core.net.toUri
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import io.putdotio.android.auth.handleAuthTabActivityResult
 import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.share.MobileResumedActivity
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.consumeMobileIncomingTransfer
 import io.putdotio.android.transfers.receive
-import io.putdotio.android.auth.handleAuthTabActivityResult
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 class MainActivity : BasePutioActivity() {
     internal val authTabLauncher = AuthTabIntent.registerActivityResultLauncher(this) { result ->
@@ -98,7 +98,7 @@ class MainActivity : BasePutioActivity() {
 
     private fun consumeShare(intent: Intent?, restoredConsumed: Boolean, freshIntent: Boolean = false) {
         val incoming = intent?.consumeMobileIncomingTransfer() ?: return
-        val consumed = if (freshIntent) false else launch.shareLaunchConsumed || restoredConsumed
+        val consumed = !freshIntent && (launch.shareLaunchConsumed || restoredConsumed)
         launch.shareLaunchConsumed = true
         val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
         if (consumed || fromHistory) return
@@ -107,7 +107,7 @@ class MainActivity : BasePutioActivity() {
 
     private fun consumeDeepLink(intent: Intent?, restoredConsumed: Boolean, freshIntent: Boolean = false) {
         val link = intent?.consumeMobileDeepLink() ?: return
-        val consumed = if (freshIntent) false else launch.deepLinkLaunchConsumed || restoredConsumed
+        val consumed = !freshIntent && (launch.deepLinkLaunchConsumed || restoredConsumed)
         launch.deepLinkLaunchConsumed = true
         val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
         if (!consumed && !fromHistory) deepLinkRequests.receive(link)
