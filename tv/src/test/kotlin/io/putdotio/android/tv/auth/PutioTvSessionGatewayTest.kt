@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 import java.time.Instant
@@ -85,12 +84,9 @@ class PutioTvSessionGatewayTest {
     @Test
     fun `transport and server failures are unavailable and keep the token`() = runBlocking {
         listOf(transportFailure(), apiOperationFailure(HTTP_SERVER_ERROR)).forEach { failure ->
-            val boundary = FakeBoundary(validationFailure = failure)
+            val result = PutioTvSessionGateway(FakeBoundary(validationFailure = failure)).validateSession()
 
-            val result = PutioTvSessionGateway(boundary).validateSession()
-
-            assertTrue(result is TvSessionValidation.Unavailable)
-            assertEquals(failure, (result as TvSessionValidation.Unavailable).cause)
+            assertEquals(TvSessionValidation.Unavailable(failure), result)
         }
     }
 
