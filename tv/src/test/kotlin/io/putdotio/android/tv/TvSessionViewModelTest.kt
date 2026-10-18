@@ -134,16 +134,8 @@ class TvSessionViewModelTest {
         watchedRepository = watched,
         streamUrls = FilesStreamUrls { streamResult(it) },
         filesItemResolver = object : FilesItemResolver {
-            override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(
-                FilesItem(
-                    id = itemId,
-                    parentId = FilesItemId(0L),
-                    name = "resolved-${itemId.value}",
-                    type = PutioFileType.VIDEO,
-                    sizeBytes = 1L,
-                    createdAt = "2026-04-20T10:00:00Z",
-                ),
-            )
+            override suspend fun resolveItem(itemId: FilesItemId) =
+                PutioResult.Success(media(itemId.value, "resolved-${itemId.value}", PutioFileType.VIDEO))
         },
         recentSearchStore = { FakeRecentSearchStore().also { stores += it } },
         playbackRepository = { preference -> playbackRepository.also { it.preference = preference } },
@@ -255,15 +247,7 @@ class TvSessionViewModelTest {
     fun `marking watched writes the duration and the listing row follows`() = runTest {
         val viewModel = TvSessionViewModel(auth)
         val session = checkNotNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
-        val video = FilesItem(
-            id = FilesItemId(9),
-            parentId = FilesItemId(0L),
-            name = "clip.mp4",
-            type = PutioFileType.VIDEO,
-            sizeBytes = 1L,
-            createdAt = "2026-04-20T10:00:00Z",
-            playback = FilesPlaybackProgress(0.0, 120.0),
-        )
+        val video = streamItem.copy(playback = FilesPlaybackProgress(0.0, 120.0))
         session.setWatched(video, watched = true)
         assertEquals(listOf(FilesItemId(9) to 120.0), watched.calls)
         assertNull(session.fileActionFailure.value)
@@ -277,15 +261,7 @@ class TvSessionViewModelTest {
         val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
         watched.failure = rejected
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
-        val video = FilesItem(
-            id = FilesItemId(9),
-            parentId = FilesItemId(0L),
-            name = "clip.mp4",
-            type = PutioFileType.VIDEO,
-            sizeBytes = 1L,
-            createdAt = "2026-04-20T10:00:00Z",
-            playback = FilesPlaybackProgress(30.0, 120.0),
-        )
+        val video = streamItem.copy(playback = FilesPlaybackProgress(30.0, 120.0))
 
         session.setWatched(video, watched = false)
         assertEquals(rejected, session.fileActionFailure.value)
@@ -749,12 +725,5 @@ class TvSessionViewModelTest {
         }
     }
 
-    private val streamItem = FilesItem(
-        id = FilesItemId(9),
-        parentId = FilesItemId(0L),
-        name = "clip.mp4",
-        type = PutioFileType.VIDEO,
-        sizeBytes = 1L,
-        createdAt = "2026-04-20T10:00:00Z",
-    )
+    private val streamItem = media(9, "clip.mp4", PutioFileType.VIDEO)
 }
