@@ -506,7 +506,7 @@ class MobileFilesMoveTest {
 
     private fun destinationRepository() = object : StubFilesRepository() {
         override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
-                error("Unexpected source read")
+            error("Unexpected source read")
         override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
             PutioResult.Success(FilesPage(
                 if (folderId == FilesFolder.Root.id) listOf(source, destination) else emptyList(), null,

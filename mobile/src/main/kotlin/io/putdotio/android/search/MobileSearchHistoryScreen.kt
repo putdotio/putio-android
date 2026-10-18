@@ -147,9 +147,9 @@ private fun MobileSearchContent(
     onRecentEdit: (RecentSearchEdit) -> Unit,
     recentSearchFailure: PutioFailure?,
     onRecentRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-    focusField: Boolean = false,
-    onFieldFocused: () -> Unit = {},
+    modifier: Modifier,
+    focusField: Boolean,
+    onFieldFocused: () -> Unit,
 ) {
     val fieldFocus = remember { FocusRequester() }
     LaunchedEffect(focusField) {
@@ -193,12 +193,9 @@ private fun MobileSearchContent(
                     modifier = Modifier.weight(1f),
                 )
 
-            is SearchContent.Debouncing ->
-                MobileLoadingState(
-                    message = stringResource(R.string.mobile_search_loading),
-                    modifier = Modifier.weight(1f),
-                )
-            is SearchContent.Loading ->
+            is SearchContent.Debouncing,
+            is SearchContent.Loading,
+            ->
                 MobileLoadingState(
                     message = stringResource(R.string.mobile_search_loading),
                     modifier = Modifier.weight(1f),
