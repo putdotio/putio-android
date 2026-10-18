@@ -28,8 +28,8 @@ import io.putdotio.android.tv.TvChoiceDialog
 import io.putdotio.android.tv.TvDialog
 
 /**
- * The proxy picker per oracle 10. Routes load when it opens: the list depends on the
- * account's CDN eligibility and the caller's address, so it is not worth caching.
+ * The proxy picker per oracle 10. Routes load when it opens: the list depends on the account's CDN
+ * eligibility and the caller's address, so it is not worth caching.
  */
 @Composable
 internal fun TvTunnelRouteDialog(
