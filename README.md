@@ -1,15 +1,13 @@
 # putio-android
 
-> **Work in progress.** This is a ground-up rewrite of the put.io Android app
-> and is not on Google Play yet. Expect missing features and breaking changes
-> between commits. The Android TV app on Play today is the existing put.io
-> TV app; it stays there until this app replaces it.
-> [Epic #14](https://github.com/putdotio/putio-android/issues/14) tracks the
+> **Work in progress.** A ground-up rewrite of the put.io Android app, not on
+> Google Play yet; expect missing features and breaking changes between
+> commits. The put.io TV app on Play stays until this app replaces it;
+> [#14](https://github.com/putdotio/putio-android/issues/14) tracks the
 > rollout. Bug reports are welcome; open an issue before sending a pull request.
 
 Native Android app for put.io, built with Kotlin and Jetpack Compose for
-phones, tablets, Android TV, and Fire TV from one codebase. Mobile ships first;
-the TV surface reuses the shared data, domain, theme, and component layers.
+phones, tablets, Android TV, and Fire TV from one codebase.
 
 ## What works today
 
@@ -22,32 +20,30 @@ Mobile, on the emulator harness against the live API:
 - Transfers and search
 - Video playback with subtitles, 10-second touch seek, autoplay next, and
   configurable HLS or MP4
-- Separate audio/video player layouts with a compact timeline and native settings sheets
+- Separate audio and video player layouts with a compact timeline and native
+  settings sheets
 - Audio playback in the background with system media controls and a now-playing bar
-- Picture-in-picture for video: leaving the app while a video plays keeps it playing in a
-  window with Pause and Play, Expand returns to the full-screen player, and closing it stops
-  the video where it was
+- Picture-in-picture: leaving the app mid-video keeps it playing in a window
+  with Pause and Play; Expand returns to the full-screen player, and closing
+  it stops the video where it was
 - Resume or start over from a saved position, with throttled position updates
   while video or background audio plays
-- Playback options for audio and video: 0.75×, 1×, 1.25×, 1.5×, and 2× speed,
-  plus audio-track selection when multiple supported tracks are available.
-  Choices survive player recreation; unavailable audio tracks fall back to automatic selection
+- Playback speed from 0.75× to 2× and audio-track selection when several
+  supported tracks exist; choices survive player recreation, and an unavailable
+  track falls back to automatic selection
 - Account settings: subtitles, history, Trash, resume playback, proxy route,
   and default sort order, each saved to the account and shared across devices
 - A Privacy controls page under Account for diagnostics (on by default) and
   product analytics (opt-in), shared across put.io apps, with a
   strictly-necessary storage disclosure and the privacy policy links
 - About section with copyable app, Android, device, and player info
-- Downloads: video saves the same HLS rendition it streams (without subtitles
-  for accounts that hide them), audio saves the original. A Downloads screen
-  under Account shows the queue in start order with each row's place, a 1–4
-  concurrency limit (default 3), paused, failed and missing rows with retry,
-  storage used, and multi-select delete of local copies only. Finished and
-  failed downloads notify and open their row when notifications are allowed,
-  with Play for a finished one and Try again for a failed one, each acting only
-  for the account that downloaded it.
-  Completed downloads play without a connection and resume where this device
-  left off; positions saved offline reach put.io once it answers again
+- Downloads: video saves the HLS rendition it streams (without subtitles for
+  accounts that hide them), audio the original. Downloads under Account shows
+  the queue with each row's place, a 1–4 concurrency limit, paused, failed and
+  missing rows with retry, storage used, and multi-select delete of local
+  copies. Finished and failed downloads notify with Play or Try again, acting
+  only for the account that downloaded them. Downloads play offline and resume
+  where this device left off; offline positions reach put.io once it answers
 - Transfer intake: tapped magnet links, opened or shared `.torrent` files, shared
   text and several pasted links open the Add transfer sheet, which saves to the
   default download folder or one picked with the move picker
@@ -105,50 +101,35 @@ TV:
   chosen result plays or opens in Files
 
 Both apps report crashes and player failures to Sentry only while the
-account's Diagnostics control is on, sending exception types, stack frames,
-device facts and failure codes only ([Diagnostics](docs/behavior.md#diagnostics)).
-No build reports yet: only a release build with a DSN does, and nothing supplies one.
-
-Not started: Chromecast and the Play release lane.
-
-## Direction
-
-- Compose-first app with `mobile` and `tv` flavors over shared `domain/*`
-  library modules, one per product domain
-- [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) is the
-  API boundary, consumed from Maven Central as `io.put:putio-sdk-kotlin`
-- Mobile-first rollout with touch and tablet-adaptive navigation
-- TV shell built around D-pad focus, Android TV launcher metadata, media
-  sessions, and system search
-- TV behavior matches the current put.io Android TV app; libVLC or
-  original-file playback is a later, separately proven upgrade
-- Colors and component roles come from
-  [`@putdotio/design`](https://github.com/putdotio/putio-design); Phosphor is
-  the icon source
+account's Diagnostics control is on, and send only exception types, stack
+frames, device facts and failure codes ([Diagnostics](docs/behavior.md#diagnostics)).
 
 ## Build and verify
 
-Requires JDK 21, Node 20.19 or newer, `python3`, and, on macOS, Homebrew. Everything else is scripted.
+Requires JDK 21, Node 20.19 or newer, `python3`, and, on macOS, Homebrew.
 
 ```bash
-./scripts/bootstrap.sh   # once per machine; installs the Android SDK, AVDs, local.properties
+./scripts/bootstrap.sh   # once per machine: Android SDK, AVDs, local.properties
 ./gradlew verify
-./gradlew :mobile:assembleProductionDebug
-./gradlew :tv:assembleProductionDebug
+./gradlew :mobile:assembleProductionDebug :tv:assembleProductionDebug
 ./scripts/prove.sh mobile && ./scripts/prove.sh tv   # emulator launch proof with evidence
 ```
 
-Building against an unreleased SDK checkout:
-[Kotlin SDK](./AGENTS.md#kotlin-sdk). What the gate covers:
-[Build and verify](./AGENTS.md#build-and-verify).
+The [Agent guide](./AGENTS.md#build-and-verify) covers what the gate runs and
+[building against an unreleased SDK](./AGENTS.md#kotlin-sdk).
 
 ## Docs
 
-- [Agent guide](./AGENTS.md): where code lives, hazards, setup, build and
-  verify, the proof map, and CI
-- [Harness](./docs/harness.md): emulator lifecycle, recording, proof lanes,
-  live API proof
+- [Behaviour](./docs/behavior.md): product rules and the tests that pin them
+- [Harness](./docs/harness.md): emulators, evidence, device lanes and live API
+  proof
 - [Design system binding](./design/README.md): tokens and icon generation
+- [Agent guide](./AGENTS.md): module layout, hazards, proof map and CI
+
+## Security
+
+Report vulnerabilities through the
+[put.io security policy](https://github.com/putdotio/.github/blob/main/SECURITY.md).
 
 ## License
 

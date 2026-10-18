@@ -102,15 +102,15 @@ built that way records the SDK checkout's SHA and `git status --short`.
 ./gradlew :mobile:assembleProductionDebug :tv:assembleProductionDebug
 ```
 
-The root [`verify` task](build.gradle.kts) runs every module's `check` (lint
-with warnings as errors, detekt, JVM unit tests, launcher-manifest checks),
-unsigned minified release builds of both apps, both instrumentation APKs, the
-icon and design-asset lock checks, the script contract tests, the
-`build-logic` tests, and `markdownCheck`. The script checks need `bash` 3.2+,
+The root [`verify` task](build.gradle.kts) is the gate: every module's `check`
+(lint with warnings as errors, detekt, JVM unit tests, launcher-manifest
+checks), unsigned minified release builds, the instrumentation APKs, the design
+and icon lock checks, the script and `build-logic` tests, and `markdownCheck`;
+its `dependsOn` list is the inventory. The script checks need `bash` 3.2+,
 `python3`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
-encoder on PATH. `markdownCheck` runs oxfmt through `npx` at the version
-[package.json](package.json) pins for Renovate;
-`npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
+encoder on PATH. `markdownCheck` runs oxfmt at the version
+[package.json](package.json) pins; `npx --yes oxfmt@<version> '**/*.md'` fixes
+its findings.
 
 - Fix lint and detekt findings at the source; suppress only the narrowest
   declaration, with a comment naming the constraint. No module has a detekt
@@ -143,27 +143,19 @@ names the tests that pin it; a new device lane gets a section in
 
 ## Delivery and CI
 
-Open pull requests against `main`; the repository squash-merges. A push to
-`main` runs [CI](.github/workflows/ci.yml) and nothing else: `verify` compiles
-the release variants unsigned, and nothing signs, publishes, or uploads to
-Play. CI runs `./gradlew verify` plus all four debug
-assembles on every `main` push and on pull requests that change more than
-Markdown, `docs/`, issue templates, or `LICENSE`; a docs-only pull request
-reports the jobs as skipped. Two parallel jobs split that work: `Build
-release` runs the three minified release assembles, and `Verify Android app`
-runs `verify` with them excluded plus the debug assembles. When either command
-changes, compare their `--dry-run` task lists with the full command's; together
-they must run exactly the same tasks. A pull request that changes Markdown also
-runs `Check Markdown` (`./gradlew markdownCheck`), so docs-only changes still
-get the formatting check. CI holds no secrets and keeps failed unit-test XML as
-the `failed-unit-test-reports` artifact. A new push to a pull request cancels
-its running check; `main` runs never replace each other.
+Open pull requests against `main`; the repository squash-merges. Nothing signs,
+publishes, or uploads to Play: a push to `main` runs only
+[CI](.github/workflows/ci.yml), whose header comments own the triggers and
+path filters. CI holds no secrets.
 
-`Detect code changes` runs on every event. It checks relative Markdown links and
-anchors offline, then runs the shared put.io scan: on a `main` push, Actionlint
-and Zizmor audit `.github/` when the pushed range changes it, and a manual
-dispatch of CI audits every workflow. GitHub secret scanning and push
-protection catch secrets at push time.
+- Docs-only pull requests (Markdown, `docs/`, issue templates, `LICENSE`) skip
+  the build jobs and still run `Check Markdown` and the offline relative-link
+  check.
+- `Build release` and `Verify Android app` split `verify` plus the four debug
+  assembles between them. When either command changes, compare their
+  `--dry-run` task lists with the full command's; together they must run
+  exactly the same tasks.
+- Failed unit-test XML is kept as the `failed-unit-test-reports` artifact.
 
 [Emulator smoke](.github/workflows/emulator-smoke.yml) runs `LaunchSmokeTest`
 and `StaleOAuthCallbackTest` on a Gradle Managed Device weekly and on dispatch.
