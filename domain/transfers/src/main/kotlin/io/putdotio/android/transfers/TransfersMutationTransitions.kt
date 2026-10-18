@@ -33,13 +33,12 @@ internal fun TransfersState.retryTransfer(id: TransferId): TransfersTransition {
     }
 }
 
-internal fun TransfersState.cleanCompleted(): TransfersTransition {
-    return if (content !is TransfersContent.Ready) {
+internal fun TransfersState.cleanCompleted(): TransfersTransition =
+    if (content !is TransfersContent.Ready) {
         TransfersTransition(this, consumed = false)
     } else {
         mutate(TransferAction.Clean)
     }
-}
 
 internal fun TransfersState.mutate(action: TransferAction): TransfersTransition {
     if (
@@ -98,31 +97,11 @@ internal fun TransfersState.mutationSucceeded(
                         retryOutcome
                     },
             )
-        if (content is TransfersContent.Failed && running.action is TransferAction.Add) {
-            val reloadRequestId = TransfersRequestId(nextRequestValue)
-            return TransfersTransition(
-                successful.copy(
-                    content = TransfersContent.InitialLoading(reloadRequestId),
-                    firstPageIds = emptySet(),
-                    consumedCursors = emptySet(),
-                    nextRequestValue = nextRequestValue + 1,
-                ),
-                TransfersEffect.Load(null, reloadRequestId),
-            )
-        }
+        val addedAfterListFailure = content is TransfersContent.Failed && running.action is TransferAction.Add
         val hadMorePages =
             (content as? TransfersContent.Ready)?.paging?.let { it != TransfersPaging.Complete } == true
-        if (items.isEmpty() && hadMorePages) {
-            val reloadRequestId = TransfersRequestId(nextRequestValue)
-            TransfersTransition(
-                successful.copy(
-                    content = TransfersContent.InitialLoading(reloadRequestId),
-                    firstPageIds = emptySet(),
-                    consumedCursors = emptySet(),
-                    nextRequestValue = nextRequestValue + 1,
-                ),
-                TransfersEffect.Load(null, reloadRequestId),
-            )
+        if (addedAfterListFailure || (items.isEmpty() && hadMorePages)) {
+            successful.startInitialLoad()
         } else {
             TransfersTransition(successful)
         }

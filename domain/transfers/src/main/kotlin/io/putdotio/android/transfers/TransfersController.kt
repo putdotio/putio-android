@@ -35,7 +35,7 @@ public class TransfersController internal constructor(
     public val state: StateFlow<TransfersState> = mutableState.asStateFlow()
 
     init {
-        launchEffect(TransfersReducer.start().effect as TransfersEffect.Load)
+        TransfersReducer.start().effect?.let(::launchEffect)
     }
 
     public fun dispatch(event: TransfersEvent): Boolean {
@@ -51,16 +51,10 @@ public class TransfersController internal constructor(
                         candidate
                     }
                 mutableState.value = next.state
-                val cancelActiveRead =
-                    next.consumed &&
-                        (
-                            event is TransfersEvent.VisibilityChanged &&
-                                !event.visible &&
-                                current.refresh.isRunning ||
-                                event is TransfersEvent.Open &&
-                                current.refresh is TransfersRefresh.Polling
-                        )
-                val cancelledRead = readJob.takeIf { cancelActiveRead }
+                val hidDuringRead =
+                    event is TransfersEvent.VisibilityChanged && !event.visible && current.refresh.isRunning
+                val openedDuringPoll = event is TransfersEvent.Open && current.refresh is TransfersRefresh.Polling
+                val cancelledRead = readJob.takeIf { next.consumed && (hidDuringRead || openedDuringPoll) }
                 next to cancelledRead
             }
         readToCancel?.cancel()
@@ -82,23 +76,10 @@ public class TransfersController internal constructor(
 
     private fun launchEffect(effect: TransfersEffect) {
         when (effect) {
-            is TransfersEffect.Load -> launchRead(effect)
-            is TransfersEffect.RefreshRows -> launchRead(effect)
+            is TransfersEffect.Load -> launchRead(effect.requestId) { repository.loadEvent(effect) }
+            is TransfersEffect.RefreshRows ->
+                launchRead(effect.requestId) { repository.refresh(effect.ids).toRowsEvent(effect.requestId) }
             is TransfersEffect.Mutate -> launchMutation(effect)
-        }
-    }
-
-    @Suppress("TooGenericExceptionCaught")
-    private fun launchRead(effect: TransfersEffect.Load) {
-        launchRead(effect.requestId) {
-            repository.loadEvent(effect)
-        }
-    }
-
-    @Suppress("TooGenericExceptionCaught")
-    private fun launchRead(effect: TransfersEffect.RefreshRows) {
-        launchRead(effect.requestId) {
-            repository.refresh(effect.ids).toRowsEvent(effect.requestId)
         }
     }
 

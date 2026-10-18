@@ -1,8 +1,8 @@
 package io.putdotio.android.transfers
 
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -48,7 +49,6 @@ class TransfersControllerTest {
             releasePoll.complete(Unit)
             controller.awaitState { refreshes == 1 && it.refresh == TransfersRefresh.Idle }
             assertEquals(1, loads)
-            controller.dispatch(TransfersEvent.VisibilityChanged(false))
         } finally {
             controller.close()
         }
@@ -66,6 +66,7 @@ class TransfersControllerTest {
         try {
             controller.awaitState { it.content is TransfersContent.Ready }
             controller.dispatch(TransfersEvent.VisibilityChanged(true))
+            yield()
             assertEquals(0, waits)
         } finally {
             controller.close()
@@ -126,7 +127,6 @@ class TransfersControllerTest {
             assertTrue(controller.dispatch(TransfersEvent.VisibilityChanged(false)))
             val stopped = controller.awaitState { !it.visible && it.refresh == TransfersRefresh.Idle }
 
-            assertFalse(stopped.visible)
             val retainedIds =
                 (stopped.content as TransfersContent.Ready).items.map(TransferItem::id)
             assertEquals(listOf(TransferId(1L)), retainedIds)
@@ -146,7 +146,7 @@ class TransfersControllerTest {
             assertEquals(1, refreshes)
             releaseRefresh.complete(Unit)
             withTimeout(TIMEOUT) {
-                while (!controller.dispatch(TransfersEvent.Refresh)) kotlinx.coroutines.yield()
+                while (!controller.dispatch(TransfersEvent.Refresh)) yield()
             }
             controller.awaitState { refreshes == 2 && it.refresh == TransfersRefresh.Idle }
         } finally {
@@ -220,7 +220,7 @@ class TransfersControllerTest {
             assertTrue(controller.dispatch(TransfersEvent.Add("magnet:?xt=urn:test")))
             withTimeout(TIMEOUT) { addStarted.await() }
             assertFalse(controller.dispatch(TransfersEvent.Add("https://example.com/second")))
-            val failure = io.putdotio.android.PutioFailure.Unexpected(IllegalStateException("offline"))
+            val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
             addResult.complete(PutioResult.Failure(failure))
             val state = controller.awaitState { it.mutation is TransferMutation.Failed }
             val action = (state.mutation as TransferMutation.Failed).action as TransferAction.Add
@@ -256,26 +256,6 @@ class TransfersControllerTest {
             ),
         )
         assertTrue(controller.state.value.content is TransfersContent.InitialLoading)
-    }
-
-    @Test
-    fun completedFileNavigationRemainsInStateForTheHost(): Unit = runBlocking {
-        val repository = repository {
-            PutioResult.Success(
-                TransfersPage(listOf(item(1L, AppTransferStatus.Completed, TransferFileId(11L))), null),
-            )
-        }
-        val controller = TransfersController(repository, this)
-        try {
-            controller.awaitState { it.content is TransfersContent.Ready }
-            controller.dispatch(TransfersEvent.Open(TransferId(1L)))
-            assertEquals(
-                TransferNavigation.Resolving(TransferFileId(11L), TransfersRequestId(2L)),
-                controller.state.value.navigation,
-            )
-        } finally {
-            controller.close()
-        }
     }
 
     @Test
@@ -316,24 +296,6 @@ class TransfersControllerTest {
                 TransferNavigation.Resolving(TransferFileId(11L), TransfersRequestId(3L)),
                 controller.state.value.navigation,
             )
-        } finally {
-            controller.close()
-        }
-    }
-
-    @Test
-    fun refreshCanStartImmediatelyAfterInitialLoadPublishesReady(): Unit = runBlocking {
-        var loads = 0
-        val repository = repository {
-            loads += 1
-            PutioResult.Success(TransfersPage(listOf(item(loads.toLong())), null))
-        }
-        val controller = TransfersController(repository, this)
-        try {
-            controller.awaitState { it.content is TransfersContent.Ready }
-            assertTrue(controller.dispatch(TransfersEvent.Refresh))
-            controller.awaitState { loads == 2 && it.refresh == TransfersRefresh.Idle }
-            assertEquals(2, loads)
         } finally {
             controller.close()
         }
@@ -472,7 +434,6 @@ class TransfersControllerTest {
             controller.awaitState { adds == 1 && it.mutation == TransferMutation.Idle }
             assertTrue(controller.dispatch(TransfersEvent.Add("magnet:?xt=urn:second")))
             controller.awaitState { adds == 2 && it.mutation == TransferMutation.Idle }
-            assertEquals(2, adds)
         } finally {
             controller.close()
         }

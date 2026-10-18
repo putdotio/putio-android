@@ -23,6 +23,7 @@ import java.util.concurrent.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -251,7 +252,7 @@ class SdkTransfersRepositoryTest {
 
         repository.add(TransferAddRequest.Links(requireNotNull(TransferSubmission.parseAll("magnet:?xt=urn:one"))))
 
-        assertEquals(null, sent?.saveParentId)
+        assertNull(requireNotNull(sent).saveParentId)
     }
 
     @Test

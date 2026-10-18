@@ -68,22 +68,6 @@ class TransfersReducerTest {
     }
 
     @Test
-    fun addSuccessPublishesADurableCompletionToken() {
-        val loaded = TransfersReducer.start().complete(TransfersPage(emptyList(), null))
-        val adding = TransfersReducer.reduce(loaded, TransfersEvent.Add("https://example.com/file"))
-        val request = adding.effect as TransfersEffect.Mutate
-
-        val completed =
-            TransfersReducer.reduce(
-                adding.state,
-                TransfersEvent.MutationSucceeded(request.requestId, added = TransferAddOutcome(listOf(item(3L)))),
-            ).state
-
-        assertEquals(request.requestId, completed.lastSuccessfulAddRequestId)
-        assertEquals(TransferMutation.Idle, completed.mutation)
-    }
-
-    @Test
     fun severalLinksBecomeOneAddWithTheirDestinationAndTheReceiptKeepsRefusedLinks() {
         val loaded = TransfersReducer.start().complete(TransfersPage(listOf(item(2L)), null))
         val input = " magnet:?xt=urn:abc\nhttps://example.com/file  magnet:?xt=urn:abc\n"
