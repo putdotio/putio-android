@@ -53,34 +53,32 @@ public class HistoryController(
         scope.cancel()
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private fun launchEffect(effect: HistoryEffect) {
         if (effect is HistoryEffect.NavigateToFile) {
             navigationChannel.trySend(effect)
             return
         }
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
-            val event = try {
-                when (effect) {
-                    is HistoryEffect.Load -> repository.load(effect.before).toLoadEvent(effect.requestId)
-                    is HistoryEffect.Clear -> repository.clear().toClearEvent(effect.requestId)
-                    is HistoryEffect.NavigateToFile -> error("Navigation is handled synchronously")
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (unexpected: Exception) {
-                when (effect) {
-                    is HistoryEffect.Load ->
-                        HistoryEvent.LoadFailed(effect.requestId, PutioFailure.Unexpected(unexpected))
-                    is HistoryEffect.Clear ->
-                        HistoryEvent.ClearFailed(effect.requestId, PutioFailure.Unexpected(unexpected))
-                    is HistoryEffect.NavigateToFile -> error("Navigation is handled synchronously")
-                }
+            val event = when (effect) {
+                is HistoryEffect.Load -> safely { repository.load(effect.before) }.toLoadEvent(effect.requestId)
+                is HistoryEffect.Clear -> safely { repository.clear() }.toClearEvent(effect.requestId)
+                is HistoryEffect.NavigateToFile -> error("Navigation is handled synchronously")
             }
             dispatch(event)
         }
     }
 }
+
+// Injected repositories must preserve the same cancellation contract as the SDK adapter.
+@Suppress("TooGenericExceptionCaught")
+private suspend fun <T> safely(block: suspend () -> PutioResult<T>): PutioResult<T> =
+    try {
+        block()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (unexpected: Exception) {
+        PutioResult.Failure(PutioFailure.Unexpected(unexpected))
+    }
 
 private fun PutioResult<HistoryPage>.toLoadEvent(requestId: HistoryRequestId): HistoryEvent =
     when (this) {

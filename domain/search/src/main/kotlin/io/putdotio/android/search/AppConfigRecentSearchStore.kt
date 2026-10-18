@@ -1,13 +1,12 @@
 package io.putdotio.android.search
 
 import io.putdotio.android.PutioFailure
-import io.putdotio.android.toPutioFailure
+import io.putdotio.android.PutioResult
+import io.putdotio.android.putioRequest
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.config.AppConfig
 import io.putdotio.sdk.config.AppConfigUpdate
-import io.putdotio.sdk.errors.PutioException
 import java.io.Closeable
-import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -96,18 +95,13 @@ public class AppConfigRecentSearchStore(
         scope.cancel()
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private suspend fun loadConfigOrNull(): RecentSearchConfig? =
-        try {
-            loadConfig().also { writes.failure.value = null }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: PutioException) {
-            writes.failure.value = error.toPutioFailure()
-            null
-        } catch (unexpected: Exception) {
-            writes.failure.value = PutioFailure.Unexpected(unexpected)
-            null
+        when (val result = putioRequest { loadConfig() }) {
+            is PutioResult.Success -> result.value.also { writes.failure.value = null }
+            is PutioResult.Failure -> {
+                writes.failure.value = result.failure
+                null
+            }
         }
 
     private suspend fun reload(): Boolean = loadConfigOrNull()?.also(writes::load) != null
@@ -164,27 +158,22 @@ private class RecentSearchWrites(
     private suspend fun writeTerms(terms: List<SearchTerm>): Boolean =
         terms == stored.terms || write(stored.copy(terms = terms)) { saveTerms(terms.map(SearchTerm::value)) }
 
-    @Suppress("TooGenericExceptionCaught")
     private suspend fun write(
         next: StoredRecentSearches,
         save: suspend () -> Unit,
     ): Boolean {
         val previous = stored
         publish(next)
-        return try {
-            save()
-            failure.value = null
-            true
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: PutioException) {
-            publish(previous)
-            failure.value = error.toPutioFailure()
-            false
-        } catch (unexpected: Exception) {
-            publish(previous)
-            failure.value = PutioFailure.Unexpected(unexpected)
-            false
+        return when (val result = putioRequest { save() }) {
+            is PutioResult.Success -> {
+                failure.value = null
+                true
+            }
+            is PutioResult.Failure -> {
+                publish(previous)
+                failure.value = result.failure
+                false
+            }
         }
     }
 

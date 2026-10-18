@@ -115,7 +115,6 @@ object DesignTokenCodegen {
     )
 
     private data class RawToken(
-        val path: String,
         val value: String,
         val type: String?,
         val cssName: String?,
@@ -156,12 +155,11 @@ object DesignTokenCodegen {
             for ((key, element) in obj) {
                 if (key.startsWith("$")) continue
                 val child = element as? JsonObject ?: continue
+                val childPath = if (path.isEmpty()) key else "$path.$key"
                 val value = child["\$value"]
                 if (value is JsonPrimitive) {
-                    val childPath = if (path.isEmpty()) key else "$path.$key"
                     val putio = child["\$extensions"]?.jsonObject?.get("putio")?.jsonObject
                     out[childPath] = RawToken(
-                        path = childPath,
                         value = value.content,
                         type = child["\$type"]?.jsonPrimitive?.content,
                         cssName = putio?.get("cssName")?.jsonPrimitive?.content,
@@ -169,7 +167,7 @@ object DesignTokenCodegen {
                         basis = putio?.get("basis")?.jsonPrimitive?.content,
                     )
                 } else {
-                    walk(child, if (path.isEmpty()) key else "$path.$key")
+                    walk(child, childPath)
                 }
             }
         }

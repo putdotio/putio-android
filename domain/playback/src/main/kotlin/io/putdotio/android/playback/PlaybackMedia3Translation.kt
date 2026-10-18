@@ -45,8 +45,6 @@ public fun PlaybackSource.toMediaItem(
         sidecarTracks
             .mapNotNull { subtitle ->
                 val mimeType = subtitle.toSubtitleMimeType() ?: return@mapNotNull null
-                subtitle to mimeType
-            }.map { (subtitle, mimeType) ->
                 MediaItem.SubtitleConfiguration.Builder(subtitle.url.value.toUri())
                     .setId(subtitle.key)
                     .setLabel(subtitle.name)
@@ -147,8 +145,8 @@ public fun Double.toPlaybackMillis(): Long =
         .coerceIn(0.0, Long.MAX_VALUE.toDouble())
         .roundToLong()
 
-private fun String?.toSubtitleMimeType(): String? =
-    when (this?.lowercase()) {
+private fun String.toSubtitleMimeType(): String? =
+    when (lowercase()) {
         "srt", "subrip" -> MimeTypes.APPLICATION_SUBRIP
         "vtt", "webvtt" -> MimeTypes.TEXT_VTT
         "ssa", "ass" -> MimeTypes.TEXT_SSA
@@ -157,8 +155,4 @@ private fun String?.toSubtitleMimeType(): String? =
     }
 
 private fun PlaybackSubtitle.toSubtitleMimeType(): String? =
-    if (format == null) {
-        url.encodedPath.substringAfterLast('.', missingDelimiterValue = "").toSubtitleMimeType()
-    } else {
-        format.toSubtitleMimeType()
-    }
+    (format ?: url.encodedPath.substringAfterLast('.', missingDelimiterValue = "")).toSubtitleMimeType()

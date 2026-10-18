@@ -131,8 +131,7 @@ class AuthenticatedRenameProcessTest {
         val output = runFailure(fixture)
         assertTrue(File(fixture, "state/instrumentation-started").isFile)
         assertUnownedInstrumentationPreserved(fixture, output)
-        val hostPid = File(fixture, "state/instrumentation-host-pid").readText().trim().toLong()
-        assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
+        assertFalse(isAlive(statePid(fixture, "instrumentation-host-pid")))
     }
 
     @Test
@@ -140,8 +139,7 @@ class AuthenticatedRenameProcessTest {
         val fixture = fixture("interrupt-delayed-instrumentation")
         val output = runFailure(fixture)
         assertTrue(File(fixture, "state/instrumentation-started").isFile)
-        val hostPid = File(fixture, "state/instrumentation-host-pid").readText().trim().toLong()
-        assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
+        assertFalse(isAlive(statePid(fixture, "instrumentation-host-pid")))
         assertFalse(File(fixture, "state/recorder").exists())
         assertTrue(File(fixture, "state/remote-files-removed").isFile)
         assertTrue("Guest instrumentation was not checked after its host client exited",
@@ -179,29 +177,20 @@ class AuthenticatedRenameProcessTest {
                 ""
             } else runFailure(fixture)
             for (client in clients) {
-                val pid = File(fixture, "state/$client-client-pid").readText().trim().toLong()
+                val pid = statePid(fixture, "$client-client-pid")
                 assertEquals("Synthetic server must begin as the adb client's direct child", pid,
-                    File(fixture, "state/$client-server-parent").readText().trim().toLong())
-                assertFalse("Owned $client client survived cleanup", ProcessHandle.of(pid).map { it.isAlive }.orElse(false))
+                    statePid(fixture, "$client-server-parent"))
+                assertFalse("Owned $client client survived cleanup", isAlive(pid))
             }
             val killedServers = clients.filter { client ->
-                val pid = File(fixture, "state/$client-server-pid").readText().trim().toLong()
-                !ProcessHandle.of(pid).map { it.isAlive }.orElse(false)
+                !isAlive(statePid(fixture, "$client-server-pid"))
             }
             assertTrue("Shared servers were killed: $killedServers", killedServers.isEmpty())
             assertSafeCommands(fixture)
             return output
         } finally {
             // The test owns these synthetic servers; the proof owns only their adb clients.
-            val names = clients.flatMap { listOf("$it-server-pid", "$it-client-pid") } + "shutdown-jvm-pid"
-            for (name in names) {
-                val pidFile = File(fixture, "state/$name")
-                if (pidFile.isFile) ProcessHandle.of(pidFile.readText().trim().toLong()).ifPresent { process ->
-                    val owned = process.descendants().use { it.toList().asReversed() } + process
-                    owned.forEach { it.destroyForcibly() }
-                    owned.forEach { it.onExit().get(5, TimeUnit.SECONDS) }
-                }
-            }
+            reapPidFiles(fixture, clients.flatMap { listOf("$it-server-pid", "$it-client-pid") } + "shutdown-jvm-pid")
         }
     }
 
@@ -225,20 +214,12 @@ class AuthenticatedRenameProcessTest {
             assertThrows(Exception::class.java) { runner(fixture).withTestKitDir(testKit).build() }
             assertTrue(File(fixture, "state/sdk-command-started").isFile)
             for (name in listOf("sdk-child-pid", "resolver-pid")) {
-                val pid = File(fixture, "state/$name").readText().trim().toLong()
-                assertFalse("Owned $name survived JVM shutdown", ProcessHandle.of(pid).map { it.isAlive }.orElse(false))
+                assertFalse("Owned $name survived JVM shutdown", isAlive(statePid(fixture, name)))
             }
             assertFalse(File(fixture, "state/commands").exists())
         } finally {
             // A failing regression must not leave its isolated JVM or exact helpers behind.
-            for (name in listOf("sdk-child-pid", "resolver-pid", "shutdown-jvm-pid")) {
-                val pidFile = File(fixture, "state/$name")
-                if (pidFile.isFile) ProcessHandle.of(pidFile.readText().trim().toLong()).ifPresent { process ->
-                    val owned = process.descendants().use { it.toList().asReversed() } + process
-                    owned.forEach { it.destroyForcibly() }
-                    owned.forEach { it.onExit().get(5, TimeUnit.SECONDS) }
-                }
-            }
+            reapPidFiles(fixture, listOf("sdk-child-pid", "resolver-pid", "shutdown-jvm-pid"))
         }
     }
 
@@ -257,9 +238,9 @@ class AuthenticatedRenameProcessTest {
         assertTrue(logs, logs.contains("CLEANUP FAIL Authenticated proof shutdown cleanup failed"))
         assertFalse(logs, logs.contains("synthetic-sensitive-removal-detail"))
         for (name in listOf("recorder-host-pid", "instrumentation-host-pid", "shutdown-jvm-pid")) {
-            val pid = File(fixture, "state/$name").readText().trim().toLong()
+            val pid = statePid(fixture, name)
             ProcessHandle.of(pid).ifPresent { it.onExit().get(5, TimeUnit.SECONDS) }
-            assertFalse(ProcessHandle.of(pid).map { it.isAlive }.orElse(false))
+            assertFalse(isAlive(pid))
         }
         assertSafeCommands(fixture)
     }
@@ -278,8 +259,7 @@ class AuthenticatedRenameProcessTest {
         val fixture = fixture("exited-recorder-host")
         val output = runFailure(fixture)
         assertTrue(output, output.contains("Authenticated instrumentation proof failed"))
-        val hostPid = File(fixture, "state/recorder-host-pid").readText().trim().toLong()
-        assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
+        assertFalse(isAlive(statePid(fixture, "recorder-host-pid")))
         val commands = File(fixture, "state/commands").readLines()
         assertEquals(listOf("adb -s $SERIAL shell kill -INT 27182", "adb -s $SERIAL shell kill -KILL 27182"),
             commands.filter { it.contains(" shell kill -") })
@@ -311,8 +291,7 @@ class AuthenticatedRenameProcessTest {
         assertFalse(File(fixture, "state/instrumentation-started").exists())
         assertFalse(File(fixture, "state/commands").readText().contains("kill -"))
         assertFalse(File(fixture, "state/remote-files-removed").exists())
-        val hostPid = File(fixture, "state/recorder-host-pid").readText().trim().toLong()
-        assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
+        assertFalse(isAlive(statePid(fixture, "recorder-host-pid")))
         assertSafeCommands(fixture)
     }
 
@@ -320,8 +299,7 @@ class AuthenticatedRenameProcessTest {
     fun missingRecorderPidAfterHostExitPreservesUnverifiableGuestAndCapture() {
         val fixture = fixture("missing-pid-exited-host")
         val output = runFailure(fixture)
-        val hostPid = File(fixture, "state/recorder-host-pid").readText().trim().toLong()
-        assertFalse(ProcessHandle.of(hostPid).map { it.isAlive }.orElse(false))
+        assertFalse(isAlive(statePid(fixture, "recorder-host-pid")))
         assertTrue(output, output.contains("Recorder exited before capture started"))
         assertTrue(output, output.contains("Authenticated proof cleanup failed"))
         assertTrue(File(fixture, "state/recorder").isFile)
@@ -371,19 +349,13 @@ class AuthenticatedRenameProcessTest {
         try {
             val output = runFailure(fixture)
             for (name in listOf("resolver-pid", "overflow-child-pid")) {
-                val pid = File(fixture, "state/$name").readText().trim().toLong()
-                assertFalse("Owned $name survived output overflow", ProcessHandle.of(pid).map { it.isAlive }.orElse(false))
+                assertFalse("Owned $name survived output overflow", isAlive(statePid(fixture, name)))
             }
             assertTrue(output, output.contains("SDK resolution output exceeded its limit"))
             assertFalse(File(fixture, "state/commands").exists())
         } finally {
             // Clean the exact synthetic helper if this regression catches a leak.
-            val pidFile = File(fixture, "state/overflow-child-pid")
-            if (pidFile.isFile) ProcessHandle.of(pidFile.readText().trim().toLong()).ifPresent { child ->
-                val owned = child.descendants().use { it.toList().asReversed() } + child
-                owned.forEach { it.destroyForcibly() }
-                owned.forEach { it.onExit().get(5, TimeUnit.SECONDS) }
-            }
+            reapPidFiles(fixture, listOf("overflow-child-pid"))
         }
     }
 
@@ -437,6 +409,22 @@ class AuthenticatedRenameProcessTest {
             assertFalse(commands, commands.contains(forbidden))
         }
         assertFalse(commands, commands.contains("PROOF PASS"))
+    }
+
+    private fun statePid(fixture: File, name: String): Long = File(fixture, "state/$name").readText().trim().toLong()
+
+    private fun isAlive(pid: Long): Boolean = ProcessHandle.of(pid).map { it.isAlive }.orElse(false)
+
+    /** Kills each recorded process tree, children first; tests own only these synthetic helpers. */
+    private fun reapPidFiles(fixture: File, names: List<String>) {
+        for (name in names) {
+            val pidFile = File(fixture, "state/$name")
+            if (pidFile.isFile) ProcessHandle.of(pidFile.readText().trim().toLong()).ifPresent { process ->
+                val owned = process.descendants().use { it.toList().asReversed() } + process
+                owned.forEach { it.destroyForcibly() }
+                owned.forEach { it.onExit().get(5, TimeUnit.SECONDS) }
+            }
+        }
     }
 
     // A null tryLock means another process already holds the file, which is still held.

@@ -72,6 +72,18 @@ else
   log "all SDK packages already installed; skipping sdkmanager"
 fi
 
+# apt_install <package> <purpose>: install through apt-get, with sudo unless root.
+apt_install() {
+  local package="$1" purpose="$2" prefix=()
+  if [[ "$(id -u)" -ne 0 ]]; then
+    command -v sudo >/dev/null 2>&1 || die "${package} missing; install it with your system package manager and re-run"
+    prefix=(sudo)
+  fi
+  log "installing ${package} for ${purpose}"
+  ${prefix[@]+"${prefix[@]}"} apt-get update
+  ${prefix[@]+"${prefix[@]}"} apt-get install -y "${package}"
+}
+
 # FFmpeg backs the canonical evidence regression gate as well as runtime
 # integrity checks, so every supported bootstrap path must provision it.
 if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; then
@@ -79,14 +91,7 @@ if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; 
     log "installing ffmpeg for evidence verification"
     brew install ffmpeg
   elif command -v apt-get >/dev/null 2>&1; then
-    apt_prefix=()
-    if [[ "$(id -u)" -ne 0 ]]; then
-      command -v sudo >/dev/null 2>&1 || die "ffmpeg missing; install it with your system package manager and re-run"
-      apt_prefix=(sudo)
-    fi
-    log "installing ffmpeg for evidence verification"
-    ${apt_prefix[@]+"${apt_prefix[@]}"} apt-get update
-    ${apt_prefix[@]+"${apt_prefix[@]}"} apt-get install -y ffmpeg
+    apt_install ffmpeg "evidence verification"
   else
     die "ffmpeg missing; install it with your system package manager and re-run"
   fi
@@ -96,14 +101,7 @@ command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg install did not put ffmpeg on P
 # emulator.sh needs lsof to find a free console port; macOS ships it, Debian images do not.
 if ! command -v lsof >/dev/null 2>&1; then
   if command -v apt-get >/dev/null 2>&1; then
-    apt_prefix=()
-    if [[ "$(id -u)" -ne 0 ]]; then
-      command -v sudo >/dev/null 2>&1 || die "lsof missing; install it with your system package manager and re-run"
-      apt_prefix=(sudo)
-    fi
-    log "installing lsof for emulator port discovery"
-    ${apt_prefix[@]+"${apt_prefix[@]}"} apt-get update
-    ${apt_prefix[@]+"${apt_prefix[@]}"} apt-get install -y lsof
+    apt_install lsof "emulator port discovery"
   else
     die "lsof missing; install it with your system package manager and re-run"
   fi

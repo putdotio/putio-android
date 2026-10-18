@@ -97,6 +97,11 @@ gate_dark_and_publish() {
   mv "${pending}" "${final}"
 }
 
+quarantine_idle() {
+  mv "${pending}" "${out}.idle"
+  die "recording contains no meaningful motion; quarantined as ${out}.idle — pass --keep-idle for an intentional timing capture"
+}
+
 case "${cmd}" in
   screenshot)
     out="${EVIDENCE_DIR}/${STAMP}-${LABEL}.png"
@@ -164,11 +169,7 @@ case "${cmd}" in
       else
         status=$?
         rm -f "${out}.normalized.pending"
-        if [[ "${status}" -eq 2 ]]; then
-          quarantined="${out}.idle"
-          mv "${pending}" "${quarantined}"
-          die "recording contains no meaningful motion; quarantined as ${quarantined} — pass --keep-idle for an intentional timing capture"
-        fi
+        [[ "${status}" -ne 2 ]] || quarantine_idle
         mv "${pending}" "${out}.corrupt"
         die "recording too short (${dur}s — static screen or truncated capture); kept as ${out}.corrupt"
       fi
@@ -188,11 +189,7 @@ case "${cmd}" in
       else
         status=$?
         rm -f "${normalized}"
-        if [[ "${status}" -eq 2 ]]; then
-          quarantined="${out}.idle"
-          mv "${pending}" "${quarantined}"
-          die "recording contains no meaningful motion; quarantined as ${quarantined} — pass --keep-idle for an intentional timing capture"
-        fi
+        [[ "${status}" -ne 2 ]] || quarantine_idle
         mv "${pending}" "${out}.corrupt"
         die "could not normalize recording; kept as ${out}.corrupt"
       fi

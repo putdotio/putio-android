@@ -1,5 +1,7 @@
 package io.putdotio.android.history
 
+import io.putdotio.android.PutioFailure
+
 internal fun HistoryState.requestClear(): HistoryTransition =
     if (content is HistoryContent.Ready && clearing == HistoryClearing.Idle) {
         HistoryTransition(copy(clearing = HistoryClearing.AwaitingConfirmation))
@@ -33,26 +35,12 @@ internal fun HistoryState.clearSucceeded(event: HistoryEvent.ClearSucceeded): Hi
         content is HistoryContent.Disabled -> HistoryTransition(
             copy(clearing = HistoryClearing.Idle, consumedBefore = emptySet()),
         )
-        else -> reloadAfterClear()
+        else -> copy(clearing = HistoryClearing.Idle, consumedBefore = emptySet()).reloadInitial()
     }
 }
 
-private fun HistoryState.reloadAfterClear(): HistoryTransition {
-    val requestId = HistoryRequestId(nextRequestValue)
-    return HistoryTransition(
-        state =
-            copy(
-                content = HistoryContent.Loading(requestId),
-                clearing = HistoryClearing.Idle,
-                consumedBefore = emptySet(),
-                nextRequestValue = requestId.value + 1,
-            ),
-        effect = HistoryEffect.Load(before = null, requestId),
-    )
-}
-
 internal fun HistoryState.clearFailed(event: HistoryEvent.ClearFailed): HistoryTransition {
-    (event.failure as? io.putdotio.android.PutioFailure.AuthenticationRequired)?.let {
+    (event.failure as? PutioFailure.AuthenticationRequired)?.let {
         return HistoryTransition(copy(authoritativeFailure = it))
     }
     val active = clearing as? HistoryClearing.Clearing

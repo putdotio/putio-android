@@ -52,13 +52,10 @@ private fun TrashMachine.rejectPage(completed: TrashRequest.ListPage, failure: P
         completed.cursor == null -> previous.copy(isRefreshing = false, refreshFailure = failure)
         else -> previous.copy(isLoadingMore = false, pageFailure = failure)
     }
-    val rejected = copy(state = state.copy(
-        content = content,
-        confirmation = if (failure.authFailure() != null) null else state.confirmation,
-        confirmationId = if (failure.authFailure() != null) null else state.confirmationId,
-        actionConfirmation = if (failure.authFailure() != null) null else state.actionConfirmation,
-        actionConfirmationId = if (failure.authFailure() != null) null else state.actionConfirmationId,
-        authenticationFailure = failure.authFailure() ?: state.authenticationFailure,
+    val authFailure = failure.authFailure()
+    val rejected = copy(state = if (authFailure == null) state.copy(content = content) else state.copy(
+        content = content, confirmation = null, confirmationId = null,
+        actionConfirmation = null, actionConfirmationId = null, authenticationFailure = authFailure,
     ))
     return if (completed.verifiesAction) rejected.failActionVerification(failure) else rejected
 }

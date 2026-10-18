@@ -131,12 +131,10 @@ public class PlaybackController(
 
 private fun PlaybackState.isActive(effect: PlaybackEffect): Boolean =
     when (effect) {
-        is PlaybackEffect.Resolve ->
-            (content as? PlaybackContent.Loading)?.requestId == effect.requestId ||
-                (content as? PlaybackContent.Conversion)?.refreshRequestId == effect.requestId
+        is PlaybackEffect.Resolve -> isLoading(effect.requestId)
         is PlaybackEffect.StartConversion ->
             (content as? PlaybackContent.Conversion)?.refreshRequestId == effect.requestId
-        is PlaybackEffect.FindNext -> (content as? PlaybackContent.FindingNext)?.requestId == effect.requestId
+        is PlaybackEffect.FindNext -> isFindingNext(effect.requestId)
     }
 
 private fun PlaybackEffect.failureEvent(failure: PlaybackFailure): PlaybackEvent =

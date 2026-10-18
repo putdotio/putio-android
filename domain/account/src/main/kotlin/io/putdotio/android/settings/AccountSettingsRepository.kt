@@ -2,12 +2,12 @@ package io.putdotio.android.settings
 
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.apiReason
+import io.putdotio.android.files.FilesSort
 import io.putdotio.android.findPutioApiException
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountSettings
 import io.putdotio.sdk.account.AccountSettingsPatch
 import io.putdotio.sdk.errors.PutioException
-import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.routes.TunnelRoute
 import java.util.concurrent.CancellationException
 
@@ -87,7 +87,6 @@ public class SdkAccountSettingsRepository(
             listOf(default) + options.filterNot { it.name == TunnelRouteName.DEFAULT }
         }
 
-    // This SDK boundary converts unexpected implementation failures into the app's stable failure taxonomy.
     @Suppress("TooGenericExceptionCaught")
     // `UNAVAILABLE_VALUE` only means an ineligible proxy when the write was a route change;
     // for any other setting it stays a plain API rejection.

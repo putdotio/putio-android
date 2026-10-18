@@ -61,113 +61,80 @@ class AppConfigRecentSearchStoreTest {
 
     @Test
     fun loadsServerTermsThenRecordsNewestFirstDeduplicatesAndCapsAtFive() =
-        runBlocking {
+        runBlocking<Unit> {
             val saved = mutableListOf<List<String>>()
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf(" existing ", "existing", "")) },
-                    saveTerms = { saved += it },
-                    saveEnabled = { error("No setting change") },
-                    parentScope = this,
-                )
-
-            try {
+            store(
+                loadConfig = { RecentSearchConfig(enabled = true, terms = listOf(" existing ", "existing", "")) },
+                saveTerms = { saved += it },
+            ).use { store ->
                 store.awaitTerms("existing")
                 (1..6).forEach { store.record(SearchTerm("term-$it")) }
                 store.record(SearchTerm("term-4"))
 
                 store.awaitTerms("term-4", "term-6", "term-5", "term-3", "term-2")
-                withTimeout(TIMEOUT) {
-                    while (saved.size < 7) delay(1)
-                }
-                assertEquals(
-                    listOf("term-4", "term-6", "term-5", "term-3", "term-2"),
-                    saved.last(),
-                )
-            } finally {
-                store.close()
+                awaitUntil { saved.size >= 7 }
+                assertEquals(listOf("term-4", "term-6", "term-5", "term-3", "term-2"), saved.last())
             }
         }
 
     @Test
     fun removesAndClearsServerTerms() =
-        runBlocking {
+        runBlocking<Unit> {
             val saved = mutableListOf<List<String>>()
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one", "two")) },
-                    saveTerms = { saved += it },
-                    saveEnabled = { error("No setting change") },
-                    parentScope = this,
-                )
-
-            try {
+            store(
+                loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one", "two")) },
+                saveTerms = { saved += it },
+            ).use { store ->
                 store.awaitTerms("one", "two")
                 store.remove(SearchTerm("one"))
                 store.awaitTerms("two")
                 store.clear()
                 store.awaitTerms()
 
-                withTimeout(TIMEOUT) {
-                    while (saved.size < 2) delay(1)
-                }
+                awaitUntil { saved.size >= 2 }
                 assertEquals(listOf(listOf("two"), emptyList()), saved)
-            } finally {
-                store.close()
             }
         }
 
     @Test
     fun disabledServerSettingNeitherLoadsNorRecordsTerms() =
-        runBlocking {
+        runBlocking<Unit> {
             val loaded = CompletableDeferred<Unit>()
             val saved = mutableListOf<List<String>>()
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = {
-                        loaded.complete(Unit)
-                        RecentSearchConfig(enabled = false, terms = listOf("private"))
-                    },
-                    saveTerms = { saved += it },
-                    saveEnabled = { error("No setting change") },
-                    parentScope = this,
-                )
-
-            try {
+            store(
+                loadConfig = {
+                    loaded.complete(Unit)
+                    RecentSearchConfig(enabled = false, terms = listOf("private"))
+                },
+                saveTerms = { saved += it },
+            ).use { store ->
                 withTimeout(TIMEOUT) { loaded.await() }
                 store.record(SearchTerm("ignored"))
                 delay(50)
 
                 assertEquals(emptyList<SearchTerm>(), store.terms.value)
                 assertEquals(emptyList<List<String>>(), saved)
-            } finally {
-                store.close()
             }
         }
 
     @Test
     fun disablingClearsTheTermsFirstAndEnablingTurnsRecordingBackOn() =
-        runBlocking {
+        runBlocking<Unit> {
             val server = FakeConfigServer(RecentSearchConfig(enabled = true, terms = listOf("one")))
-            val writes = server.writes
-            val store = server.store(this)
-
-            try {
+            server.store(this).use { store ->
                 store.awaitTerms("one")
                 assertEquals(true, store.enabled.value)
 
                 store.setEnabled(false)
-                withTimeout(TIMEOUT) { store.enabled.first { it == false } }
+                store.awaitEnabled(false)
                 store.awaitTerms()
                 store.record(SearchTerm("ignored"))
                 store.setEnabled(true)
-                withTimeout(TIMEOUT) { store.enabled.first { it == true } }
+                store.awaitEnabled(true)
                 store.record(SearchTerm("two"))
                 store.awaitTerms("two")
 
-                withTimeout(TIMEOUT) {
-                    while (writes.size < 4) delay(1)
-                }
+                awaitUntil { server.writes.size >= 4 }
                 assertEquals(
                     listOf(
                         "$SEARCH_HISTORY_KEY=[]",
@@ -175,46 +142,33 @@ class AppConfigRecentSearchStoreTest {
                         "$SEARCH_HISTORY_ENABLED_KEY=true",
                         "$SEARCH_HISTORY_KEY=[two]",
                     ),
-                    writes,
+                    server.writes,
                 )
-            } finally {
-                store.close()
             }
         }
 
     @Test
     fun disablingClearsTermsAnotherClientRecordedAfterTheLoad() =
-        runBlocking {
+        runBlocking<Unit> {
             val server = FakeConfigServer(RecentSearchConfig(enabled = true, terms = emptyList()))
-            val store = server.store(this)
-
-            try {
-                withTimeout(TIMEOUT) { store.enabled.first { it == true } }
+            server.store(this).use { store ->
+                store.awaitEnabled(true)
                 server.config = server.config.copy(terms = listOf("from tv"))
 
                 store.setEnabled(false)
 
-                withTimeout(TIMEOUT) {
-                    while (server.writes.size < 2) delay(1)
-                }
-                assertEquals(
-                    listOf("$SEARCH_HISTORY_KEY=[]", "$SEARCH_HISTORY_ENABLED_KEY=false"),
-                    server.writes,
-                )
+                awaitUntil { server.writes.size >= 2 }
+                assertEquals(listOf("$SEARCH_HISTORY_KEY=[]", "$SEARCH_HISTORY_ENABLED_KEY=false"), server.writes)
                 assertEquals(RecentSearchConfig(enabled = false, terms = emptyList()), server.config)
-            } finally {
-                store.close()
             }
         }
 
     @Test
     fun enablingKeepsTermsAnotherClientRecordedAfterTheLoad() =
-        runBlocking {
+        runBlocking<Unit> {
             val server = FakeConfigServer(RecentSearchConfig(enabled = false, terms = emptyList()))
-            val store = server.store(this)
-
-            try {
-                withTimeout(TIMEOUT) { store.enabled.first { it == false } }
+            server.store(this).use { store ->
+                store.awaitEnabled(false)
                 server.config = RecentSearchConfig(enabled = true, terms = listOf("from tv"))
 
                 store.setEnabled(true)
@@ -222,65 +176,47 @@ class AppConfigRecentSearchStoreTest {
                 store.record(SearchTerm("two"))
                 store.awaitTerms("two", "from tv")
 
-                withTimeout(TIMEOUT) {
-                    while (server.writes.isEmpty()) delay(1)
-                }
+                awaitUntil { server.writes.isNotEmpty() }
                 assertEquals(listOf("$SEARCH_HISTORY_KEY=[two, from tv]"), server.writes)
-            } finally {
-                store.close()
             }
         }
 
     @Test
     fun anAccountThatTurnedHistoryOffElsewhereCanTurnItBackOn() =
-        runBlocking {
+        runBlocking<Unit> {
             val savedEnabled = mutableListOf<Boolean>()
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = { RecentSearchConfig(enabled = false, terms = emptyList()) },
-                    saveTerms = { error("Nothing to clear") },
-                    saveEnabled = { savedEnabled += it },
-                    parentScope = this,
-                )
-
-            try {
-                withTimeout(TIMEOUT) { store.enabled.first { it == false } }
+            store(
+                loadConfig = { RecentSearchConfig(enabled = false, terms = emptyList()) },
+                saveEnabled = { savedEnabled += it },
+            ).use { store ->
+                store.awaitEnabled(false)
 
                 store.setEnabled(true)
 
-                withTimeout(TIMEOUT) { store.enabled.first { it == true } }
-                withTimeout(TIMEOUT) {
-                    while (savedEnabled.isEmpty()) delay(1)
-                }
+                store.awaitEnabled(true)
+                awaitUntil { savedEnabled.isNotEmpty() }
                 assertEquals(listOf(true), savedEnabled)
-            } finally {
-                store.close()
             }
         }
 
     @Test
     fun aFailedSettingWriteRollsBackAndRetries() =
-        runBlocking {
+        runBlocking<Unit> {
             var attempts = 0
             val firstAttempt = CompletableDeferred<Unit>()
             val savedEnabled = mutableListOf<Boolean>()
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = { RecentSearchConfig(enabled = true, terms = emptyList()) },
-                    saveTerms = { error("Nothing to clear") },
-                    saveEnabled = {
-                        attempts += 1
-                        if (attempts == 1) {
-                            firstAttempt.complete(Unit)
-                            error("offline")
-                        }
-                        savedEnabled += it
-                    },
-                    parentScope = this,
-                )
-
-            try {
-                withTimeout(TIMEOUT) { store.enabled.first { it == true } }
+            store(
+                loadConfig = { RecentSearchConfig(enabled = true, terms = emptyList()) },
+                saveEnabled = {
+                    attempts += 1
+                    if (attempts == 1) {
+                        firstAttempt.complete(Unit)
+                        error("offline")
+                    }
+                    savedEnabled += it
+                },
+            ).use { store ->
+                store.awaitEnabled(true)
                 store.setEnabled(false)
                 withTimeout(TIMEOUT) { firstAttempt.await() }
                 store.failure.first { it != null }
@@ -288,75 +224,56 @@ class AppConfigRecentSearchStoreTest {
 
                 store.retry()
 
-                withTimeout(TIMEOUT) { store.enabled.first { it == false } }
-                withTimeout(TIMEOUT) {
-                    while (savedEnabled.isEmpty()) delay(1)
-                }
+                store.awaitEnabled(false)
+                awaitUntil { savedEnabled.isNotEmpty() }
                 assertEquals(listOf(false), savedEnabled)
                 assertEquals(null, store.failure.value)
-            } finally {
-                store.close()
             }
         }
 
     @Test
     fun retriesInitialConfigFailureAndAppliesPendingEdit() =
-        runBlocking {
+        runBlocking<Unit> {
             val firstLoadFailed = CompletableDeferred<Unit>()
             var loadCalls = 0
             val saved = mutableListOf<List<String>>()
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = {
-                        loadCalls += 1
-                        if (loadCalls == 1) {
-                            firstLoadFailed.complete(Unit)
-                            error("offline")
-                        }
-                        RecentSearchConfig(enabled = true, terms = listOf("existing"))
-                    },
-                    saveTerms = { saved += it },
-                    saveEnabled = { error("No setting change") },
-                    parentScope = this,
-                )
-
-            try {
+            store(
+                loadConfig = {
+                    loadCalls += 1
+                    if (loadCalls == 1) {
+                        firstLoadFailed.complete(Unit)
+                        error("offline")
+                    }
+                    RecentSearchConfig(enabled = true, terms = listOf("existing"))
+                },
+                saveTerms = { saved += it },
+            ).use { store ->
                 withTimeout(TIMEOUT) { firstLoadFailed.await() }
                 store.record(SearchTerm("new"))
 
                 store.awaitTerms("new", "existing")
-                withTimeout(TIMEOUT) {
-                    while (saved.isEmpty()) delay(1)
-                }
+                awaitUntil { saved.isNotEmpty() }
                 assertEquals(2, loadCalls)
                 assertEquals(listOf("new", "existing"), saved.single())
                 assertEquals(null, store.failure.value)
-            } finally {
-                store.close()
             }
         }
 
     @Test
     fun explicitlyRetriesInitialConfigFailureWithoutAnEdit() =
-        runBlocking {
+        runBlocking<Unit> {
             val firstLoadFailed = CompletableDeferred<Unit>()
             var loadCalls = 0
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = {
-                        loadCalls += 1
-                        if (loadCalls == 1) {
-                            firstLoadFailed.complete(Unit)
-                            error("offline")
-                        }
-                        RecentSearchConfig(enabled = true, terms = listOf("existing"))
-                    },
-                    saveTerms = { error("No edit should be saved") },
-                    saveEnabled = { error("No setting change") },
-                    parentScope = this,
-                )
-
-            try {
+            store(
+                loadConfig = {
+                    loadCalls += 1
+                    if (loadCalls == 1) {
+                        firstLoadFailed.complete(Unit)
+                        error("offline")
+                    }
+                    RecentSearchConfig(enabled = true, terms = listOf("existing"))
+                },
+            ).use { store ->
                 withTimeout(TIMEOUT) { firstLoadFailed.await() }
                 store.failure.first { it != null }
 
@@ -365,63 +282,26 @@ class AppConfigRecentSearchStoreTest {
                 store.awaitTerms("existing")
                 assertEquals(2, loadCalls)
                 assertEquals(null, store.failure.value)
-            } finally {
-                store.close()
-            }
-        }
-
-    @Test
-    fun failedServerWriteRollsBackTheOptimisticEdit() =
-        runBlocking {
-            val attempted = CompletableDeferred<Unit>()
-            val failure = IllegalStateException("offline")
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
-                    saveTerms = {
-                        attempted.complete(Unit)
-                        throw failure
-                    },
-                    saveEnabled = { error("No setting change") },
-                    parentScope = this,
-                )
-
-            try {
-                store.awaitTerms("one")
-                store.record(SearchTerm("two"))
-                withTimeout(TIMEOUT) { attempted.await() }
-                withTimeout(TIMEOUT) {
-                    store.terms.first { it == listOf(SearchTerm("one")) }
-                }
-                assertEquals(listOf(SearchTerm("one")), store.terms.value)
-                assertSame(failure, (store.failure.value as PutioFailure.Unexpected).cause)
-            } finally {
-                store.close()
             }
         }
 
     @Test
     fun retainsFailedWriteAndRetriesItBeforeTheNextEdit() =
-        runBlocking {
+        runBlocking<Unit> {
             var attempts = 0
             val saved = mutableListOf<List<String>>()
             val firstAttempt = CompletableDeferred<Unit>()
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
-                    saveTerms = {
-                        attempts += 1
-                        if (attempts == 1) {
-                            firstAttempt.complete(Unit)
-                            error("offline")
-                        }
-                        saved += it
-                    },
-                    saveEnabled = { error("No setting change") },
-                    parentScope = this,
-                )
-
-            try {
+            store(
+                loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
+                saveTerms = {
+                    attempts += 1
+                    if (attempts == 1) {
+                        firstAttempt.complete(Unit)
+                        error("offline")
+                    }
+                    saved += it
+                },
+            ).use { store ->
                 store.awaitTerms("one")
                 store.record(SearchTerm("two"))
                 withTimeout(TIMEOUT) { firstAttempt.await() }
@@ -430,63 +310,58 @@ class AppConfigRecentSearchStoreTest {
                 store.record(SearchTerm("three"))
 
                 store.awaitTerms("three", "two", "one")
-                withTimeout(TIMEOUT) {
-                    while (saved.size < 2) delay(1)
-                }
-                assertEquals(
-                    listOf(listOf("two", "one"), listOf("three", "two", "one")),
-                    saved,
-                )
+                awaitUntil { saved.size >= 2 }
+                assertEquals(listOf(listOf("two", "one"), listOf("three", "two", "one")), saved)
                 assertEquals(null, store.failure.value)
-            } finally {
-                store.close()
             }
         }
 
     @Test
-    fun explicitlyRetriesTheRetainedFailedWrite() =
-        runBlocking {
+    fun aFailedWriteRollsBackReportsItsCauseAndRetriesExplicitly() =
+        runBlocking<Unit> {
             var attempts = 0
             val saved = mutableListOf<List<String>>()
-            val firstAttempt = CompletableDeferred<Unit>()
-            val store =
-                AppConfigRecentSearchStore(
-                    loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
-                    saveTerms = {
-                        attempts += 1
-                        if (attempts == 1) {
-                            firstAttempt.complete(Unit)
-                            error("offline")
-                        }
-                        saved += it
-                    },
-                    saveEnabled = { error("No setting change") },
-                    parentScope = this,
-                )
-
-            try {
+            val offline = IllegalStateException("offline")
+            store(
+                loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
+                saveTerms = {
+                    attempts += 1
+                    if (attempts == 1) throw offline
+                    saved += it
+                },
+            ).use { store ->
                 store.awaitTerms("one")
                 store.record(SearchTerm("two"))
-                withTimeout(TIMEOUT) { firstAttempt.await() }
-                store.failure.first { it != null }
+                val failure = withTimeout(TIMEOUT) { store.failure.first { it != null } }
+                assertSame(offline, (failure as PutioFailure.Unexpected).cause)
                 store.awaitTerms("one")
 
                 store.retry()
 
                 store.awaitTerms("two", "one")
-                withTimeout(TIMEOUT) {
-                    while (saved.isEmpty()) delay(1)
-                }
+                awaitUntil { saved.isNotEmpty() }
                 assertEquals(listOf(listOf("two", "one")), saved)
                 assertEquals(null, store.failure.value)
-            } finally {
-                store.close()
             }
         }
+
+    private fun CoroutineScope.store(
+        loadConfig: suspend () -> RecentSearchConfig,
+        saveTerms: suspend (List<String>) -> Unit = { error("No terms change") },
+        saveEnabled: suspend (Boolean) -> Unit = { error("No setting change") },
+    ) = AppConfigRecentSearchStore(loadConfig, saveTerms, saveEnabled, parentScope = this)
 
     private suspend fun AppConfigRecentSearchStore.awaitTerms(vararg expected: String) {
         val terms = expected.map(::SearchTerm)
         withTimeout(TIMEOUT) { this@awaitTerms.terms.first { it == terms } }
+    }
+
+    private suspend fun AppConfigRecentSearchStore.awaitEnabled(expected: Boolean) {
+        withTimeout(TIMEOUT) { enabled.first { it == expected } }
+    }
+
+    private suspend fun awaitUntil(condition: () -> Boolean) {
+        withTimeout(TIMEOUT) { while (!condition()) delay(1) }
     }
 
     /** `/config` as the store and other clients see it: each save lands, each load reads it. */

@@ -98,6 +98,7 @@ public class FilesMoveDestinationController private constructor(
         next.start()
     }
 
+    // Any repository may throw; a throw becomes a typed listing failure, cancellation stays control flow.
     @Suppress("TooGenericExceptionCaught")
     private suspend fun load(request: FilesMoveDestinationRequest): PutioResult<FilesPage> = try {
         repository.loadMoveDestinations(request.folderId, request.cursor)
@@ -110,7 +111,6 @@ public class FilesMoveDestinationController private constructor(
     override fun close() {
         synchronized(lock) {
             closed = true
-            job?.cancel()
             scope.cancel()
         }
     }

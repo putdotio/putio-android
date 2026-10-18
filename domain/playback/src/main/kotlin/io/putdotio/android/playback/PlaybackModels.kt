@@ -383,7 +383,7 @@ private fun PlaybackState.resolveFailed(event: PlaybackEvent.ResolveFailed): Pla
     return PlaybackTransition(copy(content = PlaybackContent.Failed(event.failure)))
 }
 
-private fun PlaybackState.isLoading(requestId: PlaybackRequestId): Boolean =
+internal fun PlaybackState.isLoading(requestId: PlaybackRequestId): Boolean =
     (content as? PlaybackContent.Loading)?.requestId == requestId ||
         (content as? PlaybackContent.Conversion)?.refreshRequestId == requestId
 

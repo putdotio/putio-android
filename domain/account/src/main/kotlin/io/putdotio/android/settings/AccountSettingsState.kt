@@ -251,15 +251,7 @@ public fun AccountSettingsState.confirmedShowSubtitles(): Boolean? =
  */
 public fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
     val ready = content as? AccountSettingsContent.Ready ?: return null
-    val unsettledWrite = when (val current = mutation) {
-        AccountSettingsMutation.Idle -> false
-        is AccountSettingsMutation.Saving ->
-            current.change.key == AccountSettingsKey.DefaultSort &&
-                current.operation == AccountSettingsMutation.Operation.Save
-        is AccountSettingsMutation.Failed ->
-            current.change.key == AccountSettingsKey.DefaultSort &&
-                current.operation == AccountSettingsMutation.Operation.Save
-    }
+    val unsettledWrite = mutation.pending == (AccountSettingsKey.DefaultSort to AccountSettingsMutation.Operation.Save)
     return ConfirmedDefaultSort(ready.preferences.defaultSort).takeUnless { unsettledWrite }
 }
 
@@ -281,13 +273,15 @@ public value class ConfirmedDefaultSort(internal val sort: FilesSort?)
 // preferences still reflect the last authoritative read.
 private fun AccountSettingsState.confirmedPreferences(key: AccountSettingsKey): AccountSettingsPreferences? {
     val ready = content as? AccountSettingsContent.Ready ?: return null
-    val pendingKey = when (val current = mutation) {
-        AccountSettingsMutation.Idle -> null
-        is AccountSettingsMutation.Saving -> current.change.key
-        is AccountSettingsMutation.Failed -> current.change.key
-    }
-    return ready.preferences.takeUnless { pendingKey == key }
+    return ready.preferences.takeUnless { mutation.pending?.first == key }
 }
+
+private val AccountSettingsMutation.pending: Pair<AccountSettingsKey, AccountSettingsMutation.Operation>?
+    get() = when (this) {
+        AccountSettingsMutation.Idle -> null
+        is AccountSettingsMutation.Saving -> change.key to operation
+        is AccountSettingsMutation.Failed -> change.key to operation
+    }
 
 private const val INITIAL_REQUEST_VALUE = 1L
 private val NON_TOGGLE_KEYS = setOf(AccountSettingsKey.TunnelRoute, AccountSettingsKey.DefaultSort)

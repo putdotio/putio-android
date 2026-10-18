@@ -10,8 +10,7 @@ internal fun FilesBrowserState.mutationSucceeded(
     val loading = folderState?.operation as? FilesFolderOperation.Loading
     val requiresReadback = loading?.intent is FilesFolderOperationIntent.Delete ||
         loading?.intent is FilesFolderOperationIntent.Move
-    if (loading == null || loading.phase == FilesFolderOperationPhase.RELOADING || requiresReadback
-    ) {
+    if (loading == null || loading.phase == FilesFolderOperationPhase.RELOADING || requiresReadback) {
         return FilesBrowserTransition(this, consumed = false)
     }
 

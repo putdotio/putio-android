@@ -54,5 +54,5 @@ private fun PlaybackState.resolveNext(nextTarget: PlaybackTarget): PlaybackTrans
     )
 }
 
-private fun PlaybackState.isFindingNext(requestId: PlaybackRequestId): Boolean =
+internal fun PlaybackState.isFindingNext(requestId: PlaybackRequestId): Boolean =
     (content as? PlaybackContent.FindingNext)?.requestId == requestId

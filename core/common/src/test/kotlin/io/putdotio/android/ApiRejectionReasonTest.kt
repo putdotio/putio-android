@@ -65,9 +65,7 @@ class ApiRejectionReasonTest {
         assertNull(putioRefusal(400, """{"status":"ERROR","status_code":400}""").apiRejectionReason())
     }
 
-    private fun refusal(status: Int, message: String) = putioRefusal(status, putioErrorBody(status, message))
-
-    private fun refusal(status: Int, message: String, httpStatusCode: Int) =
+    private fun refusal(status: Int, message: String, httpStatusCode: Int = status) =
         putioRefusal(status, putioErrorBody(status, message), httpStatusCode)
 
     private companion object {

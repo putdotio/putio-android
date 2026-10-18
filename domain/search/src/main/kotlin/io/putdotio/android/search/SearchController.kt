@@ -114,7 +114,6 @@ public class SearchController internal constructor(
         return true
     }
 
-    @Suppress("TooGenericExceptionCaught")
     public fun loadNextPage(): Boolean {
         val request =
             synchronized(lock) {
@@ -132,28 +131,17 @@ public class SearchController internal constructor(
                 }
             } ?: return false
         launch(request.requestId) {
-            val result =
-                try {
-                    repository.loadNextPage(request.cursor)
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (unexpected: Exception) {
-                    PutioResult.Failure(PutioFailure.Unexpected(unexpected))
-                }
+            val result = safely { repository.loadNextPage(request.cursor) }
             applyPageResult(lock, mutableState, request.cursor, request.requestId, result)
         }
         return true
     }
 
-    public fun retry(): Boolean {
-        val content = state.value.content
-        return when (content) {
+    public fun retry(): Boolean =
+        when (val content = state.value.content) {
             is SearchContent.Failed -> retryInitial(content.term)
-            is SearchContent.Empty -> if (content.paging is SearchPaging.Failed) loadNextPage() else false
-            is SearchContent.Ready -> if (content.paging is SearchPaging.Failed) loadNextPage() else false
-            else -> false
+            else -> content.pagingOrNull() is SearchPaging.Failed && loadNextPage()
         }
-    }
 
     /** Opening a result is what makes its search worth remembering, as in tv-native. */
     public fun openResult(itemId: FilesItemId): Boolean {
@@ -216,7 +204,6 @@ public class SearchController internal constructor(
         return true
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private fun launchInitial(
         term: SearchTerm,
         requestId: SearchRequestId,
@@ -237,14 +224,7 @@ public class SearchController internal constructor(
                 // A pause while typing is not a search anyone chose; only submit and open record.
                 if (!committed) return@launch
             }
-            val result =
-                try {
-                    repository.search(term)
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (unexpected: Exception) {
-                    PutioResult.Failure(PutioFailure.Unexpected(unexpected))
-                }
+            val result = safely { repository.search(term) }
             applyInitialResult(lock, mutableState, term, requestId, result)
         }
     }
@@ -277,22 +257,6 @@ public class SearchController internal constructor(
 
 }
 
-private data class PageRequest(
-    val cursor: FilesCursor,
-    val requestId: SearchRequestId,
-)
-
-private class SearchRequestIds(
-    private val mutableState: MutableStateFlow<SearchState>,
-) {
-    fun next(): SearchRequestId {
-        val state = mutableState.value
-        val requestId = SearchRequestId(state.nextRequestValue)
-        mutableState.value = state.copy(nextRequestValue = state.nextRequestValue + 1)
-        return requestId
-    }
-}
-
 private fun applyInitialResult(
     lock: Any,
     mutableState: MutableStateFlow<SearchState>,
@@ -301,13 +265,13 @@ private fun applyInitialResult(
     result: PutioResult<SearchPage>,
 ) {
     synchronized(lock) {
-        val content = mutableState.value.content
+        val state = mutableState.value
+        val content = state.content
         if (content !is SearchContent.Loading || content.requestId != requestId || content.term != term) return
         mutableState.value =
             when (result) {
-                is PutioResult.Success -> mutableState.value.withInitialPage(term, result.value)
-                is PutioResult.Failure ->
-                    mutableState.value.copy(content = SearchContent.Failed(term, result.failure))
+                is PutioResult.Success -> state.withInitialPage(term, result.value)
+                is PutioResult.Failure -> state.copy(content = SearchContent.Failed(term, result.failure))
             }
     }
 }
@@ -329,6 +293,32 @@ private fun applyPageResult(
             }
     }
 }
+
+private data class PageRequest(
+    val cursor: FilesCursor,
+    val requestId: SearchRequestId,
+)
+
+private class SearchRequestIds(
+    private val mutableState: MutableStateFlow<SearchState>,
+) {
+    fun next(): SearchRequestId {
+        val state = mutableState.value
+        mutableState.value = state.copy(nextRequestValue = state.nextRequestValue + 1)
+        return SearchRequestId(state.nextRequestValue)
+    }
+}
+
+// Injected repositories may throw; cancellation must still propagate.
+@Suppress("TooGenericExceptionCaught")
+private suspend fun safely(block: suspend () -> PutioResult<SearchPage>): PutioResult<SearchPage> =
+    try {
+        block()
+    } catch (error: CancellationException) {
+        throw error
+    } catch (unexpected: Exception) {
+        PutioResult.Failure(PutioFailure.Unexpected(unexpected))
+    }
 
 private fun SearchState.withInitialPage(
     term: SearchTerm,
@@ -367,22 +357,10 @@ private fun SearchState.withPaging(paging: SearchPaging): SearchState =
     }
 
 private fun SearchContent.availableCursor(): FilesCursor? =
-    when (this) {
-        is SearchContent.Empty ->
-            when (val current = paging) {
-                is SearchPaging.Available -> current.cursor
-                is SearchPaging.Failed -> current.cursor
-                SearchPaging.Complete, is SearchPaging.Loading -> null
-            }
-
-        is SearchContent.Ready ->
-            when (val current = paging) {
-                is SearchPaging.Available -> current.cursor
-                is SearchPaging.Failed -> current.cursor
-                SearchPaging.Complete, is SearchPaging.Loading -> null
-            }
-
-        else -> null
+    when (val paging = pagingOrNull()) {
+        is SearchPaging.Available -> paging.cursor
+        is SearchPaging.Failed -> paging.cursor
+        SearchPaging.Complete, is SearchPaging.Loading, null -> null
     }
 
 private fun SearchContent.items(): List<FilesItem> =
@@ -394,20 +372,13 @@ private fun SearchContent.items(): List<FilesItem> =
 private fun SearchContent.hasPagingRequest(
     cursor: FilesCursor,
     requestId: SearchRequestId,
-): Boolean =
-    when (this) {
-        is SearchContent.Empty -> paging == SearchPaging.Loading(cursor, requestId)
-        is SearchContent.Ready -> paging == SearchPaging.Loading(cursor, requestId)
-        else -> false
-    }
+): Boolean = pagingOrNull() == SearchPaging.Loading(cursor, requestId)
 
 private fun SearchState.hasRequest(requestId: SearchRequestId): Boolean =
     when (val current = content) {
         is SearchContent.Debouncing -> current.requestId == requestId
         is SearchContent.Loading -> current.requestId == requestId
-        is SearchContent.Empty -> (current.paging as? SearchPaging.Loading)?.requestId == requestId
-        is SearchContent.Ready -> (current.paging as? SearchPaging.Loading)?.requestId == requestId
-        is SearchContent.Failed, SearchContent.Idle -> false
+        else -> (current.pagingOrNull() as? SearchPaging.Loading)?.requestId == requestId
     }
 
 internal const val SEARCH_DEBOUNCE_MILLIS = 300L

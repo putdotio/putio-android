@@ -177,9 +177,7 @@ public data class TransferAddOutcome(
 }
 
 private fun URI.hasHttpHost(): Boolean {
-    val serverAuthority =
-        rawAuthority
-            ?.serverAuthority()
+    val serverAuthority = rawAuthority?.serverAuthority()
     val hostFromAuthority = serverAuthority?.httpHost()
     return when {
         hostFromAuthority == null -> false

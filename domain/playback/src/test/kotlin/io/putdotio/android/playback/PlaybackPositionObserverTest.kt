@@ -13,6 +13,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -32,10 +33,7 @@ class PlaybackPositionObserverTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
         player.play()
-        val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
-            snapshots += lease to position
-        }
+        val (observer, snapshots) = observe(player)
         runCurrent()
         repeat(3) { index ->
             advanceTimeBy(4_000L)
@@ -55,10 +53,7 @@ class PlaybackPositionObserverTest {
     fun samplesEveryFifteenSecondsOnlyWhileActuallyPlaying() = runTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
-        val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
-            snapshots += lease to position
-        }
+        val (observer, snapshots) = observe(player)
         advanceTimeBy(30_000L)
         runCurrent()
         assertTrue(snapshots.isEmpty())
@@ -92,10 +87,7 @@ class PlaybackPositionObserverTest {
         val player = PositionPlayer()
         player.replace("first", 12_000L)
         player.play()
-        val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
-            snapshots += lease to position
-        }
+        val (observer, snapshots) = observe(player)
         player.position(23_000L)
         player.pause()
         assertTrue(snapshots.contains("first" to 23_000L))
@@ -120,10 +112,7 @@ class PlaybackPositionObserverTest {
     fun seeksDoNotSubmitImmediatelyAndZeroOrUnleasedItemsNeverSubmit() = runTest {
         val player = PositionPlayer()
         player.replace("first", 10_000L)
-        val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
-            snapshots += lease to position
-        }
+        val (observer, snapshots) = observe(player)
         repeat(20) { player.seekTo((it + 1) * 1_000L) }
         assertTrue(snapshots.isEmpty())
         observer.flush()
@@ -142,10 +131,7 @@ class PlaybackPositionObserverTest {
     fun completionAndErrorsFlushPositivePositionsWithoutResetting() = runTest {
         val player = PositionPlayer()
         player.replace("first", 60_000L)
-        val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
-            snapshots += lease to position
-        }
+        val (observer, snapshots) = observe(player)
         player.end()
         assertEquals(listOf("first" to 60_000L), snapshots)
         player.replace("second", 29_000L)
@@ -162,10 +148,7 @@ class PlaybackPositionObserverTest {
         val player = PositionPlayer()
         player.replace("first", 13_000L)
         player.play()
-        val snapshots = mutableListOf<Pair<String, Long>>()
-        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
-            snapshots += lease to position
-        }
+        val (observer, snapshots) = observe(player)
         runCurrent()
         observer.close()
         assertEquals(listOf("first" to 13_000L), snapshots)
@@ -180,6 +163,16 @@ class PlaybackPositionObserverTest {
         observer.close()
         assertTrue(snapshots.isEmpty())
         player.release()
+    }
+
+    private fun TestScope.observe(
+        player: PositionPlayer,
+    ): Pair<PlaybackPositionObserver, MutableList<Pair<String, Long>>> {
+        val snapshots = mutableListOf<Pair<String, Long>>()
+        val observer = PlaybackPositionObserver(player, backgroundScope) { lease, position ->
+            snapshots += lease to position
+        }
+        return observer to snapshots
     }
 }
 

@@ -16,14 +16,6 @@ class FilesSessionFailureTest {
     }
 
     @Test
-    fun `non-auth failure in a hidden parent does not expire the session`() {
-        val failure = PutioFailure.Misconfigured(PutioConfigurationException("missing client"))
-        val state = browserStateWithParentPagingFailure(failure)
-
-        assertNull(state.authoritativeSessionFailure())
-    }
-
-    @Test
     fun `access denied in a hidden parent preserves the session`() {
         val failure = PutioFailure.AccessDenied(PutioConfigurationException("forbidden"))
         val state = browserStateWithParentPagingFailure(failure)

@@ -63,11 +63,9 @@ internal suspend fun AndroidAppConfigRepository.execute(effect: AndroidAppConfig
 internal fun AppConfig.toAndroidPreferences(): AndroidAppConfigPreferences =
     AndroidAppConfigPreferences(
         videoPlaybackType =
-            when ((this[VIDEO_PLAYBACK_TYPE_KEY] as? JsonPrimitive)?.contentOrNull) {
-                VIDEO_PLAYBACK_TYPE_MP4 -> VideoPlaybackType.Mp4
-                VIDEO_PLAYBACK_TYPE_HLS -> VideoPlaybackType.Hls
-                else -> VideoPlaybackType.Hls
-            },
+            (this[VIDEO_PLAYBACK_TYPE_KEY] as? JsonPrimitive)?.contentOrNull
+                .let { raw -> VideoPlaybackType.entries.firstOrNull { it.wireValue == raw } }
+                ?: VideoPlaybackType.Hls,
         autoplayNextVideo =
             (this[AUTOPLAY_NEXT_VIDEO_KEY] as? JsonPrimitive)
                 ?.takeUnless(JsonPrimitive::isString)
@@ -91,8 +89,6 @@ public fun AndroidAppConfigChange.toUpdate(): AppConfigUpdate =
 
 public const val VIDEO_PLAYBACK_TYPE_KEY: String = "video_playback_type"
 internal const val AUTOPLAY_NEXT_VIDEO_KEY = "autoplay_next_video"
-private const val VIDEO_PLAYBACK_TYPE_HLS = "hls"
-private const val VIDEO_PLAYBACK_TYPE_MP4 = "mp4"
 
 /**
  * [toPutioFailure], except that an `invalid_scope` refusal anywhere in the chain is AccessDenied

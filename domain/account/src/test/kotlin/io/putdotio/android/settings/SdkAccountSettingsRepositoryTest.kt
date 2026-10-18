@@ -1,14 +1,15 @@
 package io.putdotio.android.settings
 
-import io.putdotio.sdk.account.AccountSettings
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesSort
+import io.putdotio.sdk.account.AccountSettings
 import io.putdotio.sdk.account.AccountSettingsPatch
-import io.putdotio.sdk.routes.TunnelRoute
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioRequestData
+import io.putdotio.sdk.routes.TunnelRoute
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -17,13 +18,11 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
-import io.putdotio.android.PutioFailure
 
 class SdkAccountSettingsRepositoryTest {
-
     @Test
     fun loadsOnlyTheAccountWideSettingsOwnedByThisSlice() =
-        runBlocking {
+        runBlocking<Unit> {
             val repository = repository(settings = Settings)
 
             val result = repository.load() as AccountSettingsRepositoryResult.Success
@@ -43,7 +42,7 @@ class SdkAccountSettingsRepositoryTest {
 
     @Test
     fun mapsUiSemanticsToExactAccountSettingsPatchKeys() =
-        runBlocking {
+        runBlocking<Unit> {
             val patches = mutableListOf<AccountSettingsPatch>()
             val repository = repository(onSave = patches::add)
 
@@ -66,7 +65,7 @@ class SdkAccountSettingsRepositoryTest {
 
     @Test
     fun acceptedSaveAndAuthoritativeRefreshRemainSeparateEffects() =
-        runBlocking {
+        runBlocking<Unit> {
             val operations = mutableListOf<String>()
             val reloadedSettings = Settings.copy(historyEnabled = false, trashEnabled = true)
             val repository =
@@ -108,7 +107,7 @@ class SdkAccountSettingsRepositoryTest {
 
     @Test
     fun failedRefreshAfterAcceptedSaveDoesNotReportTheWriteAsFailed() =
-        runBlocking {
+        runBlocking<Unit> {
             var saveCount = 0
             val refreshFailure = IllegalStateException("reload failed")
             val repository =
@@ -123,36 +122,16 @@ class SdkAccountSettingsRepositoryTest {
             val refreshEvent = repository.execute(AccountSettingsEffect.Refresh(requestId))
 
             assertEquals(AccountSettingsEvent.SaveSucceeded(requestId), saveEvent)
-            assertTrue(refreshEvent is AccountSettingsEvent.RefreshFailed)
             val refreshError =
                 (refreshEvent as AccountSettingsEvent.RefreshFailed).failure.putioFailure as PutioFailure.Unexpected
-            assertSame(
-                refreshFailure,
-                refreshError.cause,
-            )
+            assertSame(refreshFailure, refreshError.cause)
             assertEquals(1, saveCount)
         }
 
     @Test
     fun classifiesAuthoritativeAuthenticationFailures() =
-        runBlocking {
-            val apiError =
-                PutioApiException(
-                    request = PutioRequestData("GET", "https://api.put.io/v2/account/settings"),
-                    resolvedStatusCode = 401,
-                    resolvedErrorType = "invalid_token",
-                    envelope = PutioApiErrorEnvelope(statusCode = 401, errorType = "invalid_token"),
-                    responseBody = "{}",
-                    message = "Request rejected",
-                )
-            val operationError =
-                PutioOperationException(
-                    domain = "account",
-                    operation = "getSettings",
-                    contract = null,
-                    reason = PutioOperationErrorReason.StatusCode(401),
-                    underlyingError = apiError,
-                )
+        runBlocking<Unit> {
+            val operationError = operationError("getSettings", 401, "invalid_token")
             val repository = repository(getError = operationError)
 
             val result = repository.load() as AccountSettingsRepositoryResult.Failure
@@ -163,24 +142,8 @@ class SdkAccountSettingsRepositoryTest {
 
     @Test
     fun keepsInvalidScopeAsAccessDeniedWithoutExpiringTheSession() =
-        runBlocking {
-            val apiError =
-                PutioApiException(
-                    request = PutioRequestData("POST", "https://api.put.io/v2/account/settings"),
-                    resolvedStatusCode = 401,
-                    resolvedErrorType = "invalid_scope",
-                    envelope = PutioApiErrorEnvelope(statusCode = 401, errorType = "invalid_scope"),
-                    responseBody = "{}",
-                    message = "Request rejected",
-                )
-            val operationError =
-                PutioOperationException(
-                    domain = "account",
-                    operation = "saveSettings",
-                    contract = null,
-                    reason = PutioOperationErrorReason.StatusCode(401),
-                    underlyingError = apiError,
-                )
+        runBlocking<Unit> {
+            val operationError = operationError("saveSettings", 401, "invalid_scope")
             val repository = repository(getError = operationError)
 
             val result = repository.load() as AccountSettingsRepositoryResult.Failure
@@ -221,7 +184,7 @@ class SdkAccountSettingsRepositoryTest {
 
     @Test
     fun mapsTunnelRouteFromServerAndPatchesTheExactName() =
-        runBlocking {
+        runBlocking<Unit> {
             val direct = repository(settings = Settings.copy(tunnelRouteName = null)).load()
             assertEquals(TunnelRouteName.DEFAULT,
                 (direct as AccountSettingsRepositoryResult.Success).value.tunnelRoute)
@@ -243,7 +206,7 @@ class SdkAccountSettingsRepositoryTest {
 
     @Test
     fun mapsPrivacyControlsFromServer() =
-        runBlocking {
+        runBlocking<Unit> {
             val optedIn = repository(
                 settings = Settings.copy(diagnosticsEnabled = true, productAnalyticsEnabled = true),
             ).load() as AccountSettingsRepositoryResult.Success
@@ -259,19 +222,13 @@ class SdkAccountSettingsRepositoryTest {
 
     @Test
     fun productAnalyticsIsOptInWhileDiagnosticsStayOnByDefault() {
-        val defaults = AccountSettingsPreferences(
-            historyEnabled = true,
-            trashEnabled = true,
-            showSubtitles = true,
-            autoSelectSubtitles = true,
-        )
-        assertTrue(defaults.diagnosticsEnabled)
-        assertFalse(defaults.productAnalyticsEnabled)
+        assertTrue(DefaultAccountSettingsPreferences.diagnosticsEnabled)
+        assertFalse(DefaultAccountSettingsPreferences.productAnalyticsEnabled)
     }
 
     @Test
     fun mapsDefaultSortFromServerAndPatchesTheExactApiValue() =
-        runBlocking {
+        runBlocking<Unit> {
             val unknown = repository(settings = Settings.copy(sortBy = "SOMETHING_NEW")).load()
             assertEquals(null, (unknown as AccountSettingsRepositoryResult.Success).value.defaultSort)
             val known = repository(settings = Settings.copy(sortBy = "DATE_DESC")).load()
@@ -287,24 +244,8 @@ class SdkAccountSettingsRepositoryTest {
 
     @Test
     fun ineligibleProxyRejectionIsRouteUnavailableWithoutExpiringTheSession() =
-        runBlocking {
-            val apiError =
-                PutioApiException(
-                    request = PutioRequestData("POST", "https://api.put.io/v2/account/settings"),
-                    resolvedStatusCode = 403,
-                    resolvedErrorType = "UNAVAILABLE_VALUE",
-                    envelope = PutioApiErrorEnvelope(statusCode = 403, errorType = "UNAVAILABLE_VALUE"),
-                    responseBody = "{}",
-                    message = "Unavailable value: tunnel_route_name",
-                )
-            val operationError =
-                PutioOperationException(
-                    domain = "account",
-                    operation = "saveSettings",
-                    contract = null,
-                    reason = PutioOperationErrorReason.StatusCode(403),
-                    underlyingError = apiError,
-                )
+        runBlocking<Unit> {
+            val operationError = operationError("saveSettings", 403, "UNAVAILABLE_VALUE")
             val repository = repository(onSave = { throw operationError })
 
             val result = repository.save(AccountSettingsChange.Route(TunnelRouteName("cdn77")))
@@ -316,24 +257,8 @@ class SdkAccountSettingsRepositoryTest {
 
     @Test
     fun unavailableValueOnANonRouteSaveIsNotReportedAsAProxyProblem() =
-        runBlocking {
-            val apiError =
-                PutioApiException(
-                    request = PutioRequestData("POST", "https://api.put.io/v2/account/settings"),
-                    resolvedStatusCode = 403,
-                    resolvedErrorType = "UNAVAILABLE_VALUE",
-                    envelope = PutioApiErrorEnvelope(statusCode = 403, errorType = "UNAVAILABLE_VALUE"),
-                    responseBody = "{}",
-                    message = "Unavailable value: sort_by",
-                )
-            val operationError =
-                PutioOperationException(
-                    domain = "account",
-                    operation = "saveSettings",
-                    contract = null,
-                    reason = PutioOperationErrorReason.StatusCode(403),
-                    underlyingError = apiError,
-                )
+        runBlocking<Unit> {
+            val operationError = operationError("saveSettings", 403, "UNAVAILABLE_VALUE")
             val repository = repository(onSave = { throw operationError })
 
             val result = repository.save(AccountSettingsChange.Sort(FilesSort.WATCH_STATUS_ASCENDING))
@@ -347,7 +272,7 @@ class SdkAccountSettingsRepositoryTest {
 
     @Test
     fun tunnelRoutesPutDefaultFirstDropBlankNamesAndRequireDefault() =
-        runBlocking {
+        runBlocking<Unit> {
             val loaded = repository(routes = {
                 listOf(
                     TunnelRoute("cdn77", " CDN "),
@@ -365,18 +290,30 @@ class SdkAccountSettingsRepositoryTest {
             )
             val missingDefault = repository(routes = { listOf(TunnelRoute("cdn77", "CDN")) }).loadTunnelRoutes()
             assertTrue(missingDefault is AccountSettingsRepositoryResult.Failure)
-            val cause = PutioApiException(
-                request = PutioRequestData("GET", "https://api.put.io/v2/tunnel/routes"),
-                resolvedStatusCode = 401,
-                resolvedErrorType = "invalid_token",
-                envelope = PutioApiErrorEnvelope(statusCode = 401, errorType = "invalid_token"),
-                responseBody = "{}",
-                message = "Request rejected",
-            )
+            val cause = apiError(401, "invalid_token")
             val denied = repository(routes = { throw cause }).loadTunnelRoutes()
                 as AccountSettingsRepositoryResult.Failure
             assertTrue(denied.failure.putioFailure is PutioFailure.AuthenticationRequired)
         }
+
+    private fun apiError(status: Int, type: String): PutioApiException =
+        PutioApiException(
+            request = PutioRequestData("POST", "https://api.put.io/v2/account/settings"),
+            resolvedStatusCode = status,
+            resolvedErrorType = type,
+            envelope = PutioApiErrorEnvelope(statusCode = status, errorType = type),
+            responseBody = "{}",
+            message = "Request rejected",
+        )
+
+    private fun operationError(operation: String, status: Int, type: String): PutioOperationException =
+        PutioOperationException(
+            domain = "account",
+            operation = operation,
+            contract = null,
+            reason = PutioOperationErrorReason.StatusCode(status),
+            underlyingError = apiError(status, type),
+        )
 
     private companion object {
         val Settings =

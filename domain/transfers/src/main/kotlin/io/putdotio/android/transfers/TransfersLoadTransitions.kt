@@ -5,13 +5,8 @@ import io.putdotio.android.PutioFailure
 internal fun TransfersState.loadNextPage(): TransfersTransition {
     val ready = content as? TransfersContent.Ready
     val available = ready?.paging as? TransfersPaging.Available
-    val busy =
-        refresh.isRunning ||
-            mutation is TransferMutation.Running ||
-            navigation is TransferNavigation.Resolving
     return when {
-        ready == null || available == null -> TransfersTransition(this, consumed = false)
-        busy -> TransfersTransition(this, consumed = false)
+        ready == null || available == null || isBusyForPaging -> TransfersTransition(this, consumed = false)
         available.cursor in consumedCursors ->
             TransfersTransition(copy(content = ready.copy(paging = TransfersPaging.Complete)))
         else -> {
@@ -40,11 +35,7 @@ internal fun TransfersState.retryLoad(): TransfersTransition =
 
 private fun TransfersState.retryPage(ready: TransfersContent.Ready): TransfersTransition {
     val failed = ready.paging as? TransfersPaging.Failed
-    val busy =
-        refresh.isRunning ||
-            mutation is TransferMutation.Running ||
-            navigation is TransferNavigation.Resolving
-    return if (failed == null || busy) {
+    return if (failed == null || isBusyForPaging) {
         TransfersTransition(this, consumed = false)
     } else {
         val requestId = TransfersRequestId(nextRequestValue)
@@ -58,7 +49,10 @@ private fun TransfersState.retryPage(ready: TransfersContent.Ready): TransfersTr
     }
 }
 
-private fun TransfersState.startInitialLoad(): TransfersTransition {
+private val TransfersState.isBusyForPaging: Boolean
+    get() = refresh.isRunning || mutation is TransferMutation.Running || navigation is TransferNavigation.Resolving
+
+internal fun TransfersState.startInitialLoad(): TransfersTransition {
     val requestId = TransfersRequestId(nextRequestValue)
     return TransfersTransition(
         copy(
@@ -126,40 +120,15 @@ internal fun TransfersState.refreshSucceeded(
     page: TransfersPage,
     reconciledItems: List<TransferItem> = emptyList(),
 ): TransfersTransition {
-    val refreshedFirstPageIds = page.items.mapTo(mutableSetOf(), TransferItem::id)
-    return (content as? TransfersContent.Ready)
-        ?.takeIf { hasRowsBeyondFirstPage }
-        ?.let { ready ->
-            val items = page.items + reconciledItems
-            if (items.isEmpty()) {
-                TransfersTransition(
-                    copy(
-                        content = TransfersContent.Empty,
-                        refresh = TransfersRefresh.Idle,
-                        firstPageIds = emptySet(),
-                        consumedCursors = emptySet(),
-                    ),
-                )
-            } else {
-                val paging = page.nextCursor?.let(TransfersPaging::Available) ?: TransfersPaging.Complete
-                TransfersTransition(
-                    copy(
-                        content = TransfersContent.Ready(items.distinctBy(TransferItem::id), paging),
-                        refresh = TransfersRefresh.Idle,
-                        firstPageIds = refreshedFirstPageIds,
-                        consumedCursors = emptySet(),
-                    ),
-                )
-            }
-        }
-        ?: TransfersTransition(
-            copy(
-                content = page.toContent(),
-                refresh = TransfersRefresh.Idle,
-                firstPageIds = refreshedFirstPageIds,
-                consumedCursors = emptySet(),
-            ),
-        )
+    val items = if (hasRowsBeyondFirstPage) page.items + reconciledItems else page.items
+    return TransfersTransition(
+        copy(
+            content = page.copy(items = items).toContent(),
+            refresh = TransfersRefresh.Idle,
+            firstPageIds = page.items.mapTo(mutableSetOf(), TransferItem::id),
+            consumedCursors = emptySet(),
+        ),
+    )
 }
 
 private val TransfersState.hasRowsBeyondFirstPage: Boolean

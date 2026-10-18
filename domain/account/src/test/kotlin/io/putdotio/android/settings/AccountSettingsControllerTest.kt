@@ -1,30 +1,27 @@
 package io.putdotio.android.settings
 
+import io.putdotio.android.PutioFailure
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import io.putdotio.android.PutioFailure
 
 class AccountSettingsControllerTest {
-
     @Test
     fun loadsSavesAndRetriesThroughTheRepositoryBoundary() =
-        runBlocking {
+        runBlocking<Unit> {
             val repository = RecordingRepository()
             val controller = AccountSettingsController(repository, this)
 
-            try {
+            controller.use {
                 controller.awaitState { it.content is AccountSettingsContent.Ready }
                 val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
                 assertTrue(controller.dispatch(AccountSettingsEvent.ChangeRequested(change)))
@@ -36,15 +33,13 @@ class AccountSettingsControllerTest {
                 controller.awaitState { it.mutation == AccountSettingsMutation.Idle }
 
                 assertEquals(listOf(change, change), repository.savedChanges)
-            } finally {
-                controller.close()
             }
             assertTrue(coroutineContext[Job]?.isActive == true)
         }
 
     @Test
     fun immediateRetryFromTheFailureCollectorStartsANewEffect() =
-        runBlocking {
+        runBlocking<Unit> {
             val repository = RecordingRepository()
             val controller = AccountSettingsController(repository, this)
             val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
@@ -73,12 +68,12 @@ class AccountSettingsControllerTest {
 
     @Test
     fun refreshRetryAfterAcceptedSaveDoesNotRepeatTheMutation() =
-        runBlocking {
+        runBlocking<Unit> {
             val repository = RefreshFailureRepository()
             val controller = AccountSettingsController(repository, this)
             val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
 
-            try {
+            controller.use {
                 controller.awaitState { it.content is AccountSettingsContent.Ready }
                 assertTrue(controller.dispatch(AccountSettingsEvent.ChangeRequested(change)))
                 controller.awaitState {
@@ -92,21 +87,16 @@ class AccountSettingsControllerTest {
 
                 assertEquals(1, repository.saveCount)
                 assertEquals(3, repository.loadCount)
-            } finally {
-                controller.close()
             }
         }
 
     @Test
     fun closeCancelsAnInFlightLoad() =
-        runBlocking {
+        runBlocking<Unit> {
             val started = CompletableDeferred<Unit>()
             val cancelled = CompletableDeferred<Unit>()
             val repository =
                 object : AccountSettingsRepository {
-        override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
-            error("Tunnel routes are not expected")
-
                     override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> {
                         started.complete(Unit)
                         try {
@@ -116,10 +106,11 @@ class AccountSettingsControllerTest {
                         }
                     }
 
-                    override suspend fun save(
-                        change: AccountSettingsChange,
-                    ): AccountSettingsRepositoryResult<Unit> =
+                    override suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<Unit> =
                         error("Save is not expected")
+
+                    override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
+                        error("Tunnel routes are not expected")
                 }
             val controller = AccountSettingsController(repository, this)
 
@@ -142,9 +133,7 @@ class AccountSettingsControllerTest {
         override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> =
             AccountSettingsRepositoryResult.Success(Preferences)
 
-        override suspend fun save(
-            change: AccountSettingsChange,
-        ): AccountSettingsRepositoryResult<Unit> {
+        override suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<Unit> {
             savedChanges += change
             return if (savedChanges.size == 1) {
                 AccountSettingsRepositoryResult.Failure(
@@ -183,12 +172,6 @@ class AccountSettingsControllerTest {
 
     private companion object {
         const val TEST_TIMEOUT_MILLIS = 2_000L
-        val Preferences =
-            AccountSettingsPreferences(
-                historyEnabled = true,
-                trashEnabled = true,
-                showSubtitles = true,
-                autoSelectSubtitles = true,
-            )
+        val Preferences = DefaultAccountSettingsPreferences
     }
 }

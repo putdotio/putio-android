@@ -7,7 +7,7 @@ internal fun TransfersState.poll(): TransfersTransition {
     val ready = content as? TransfersContent.Ready
     val ids = ready?.items?.filter(TransferItem::needsPolling)?.map(TransferItem::id).orEmpty()
     val busy =
-            !visible ||
+        !visible ||
             ids.isEmpty() ||
             refresh != TransfersRefresh.Idle ||
             mutation is TransferMutation.Running ||
@@ -37,17 +37,7 @@ internal fun TransfersState.rowsRefreshed(event: TransfersEvent.RowsRefreshed): 
             .filterNot { it.id in event.missingIds }
             .map { refreshedById[it.id] ?: it }
     return if (items.isEmpty() && ready.paging != TransfersPaging.Complete) {
-        val reloadRequestId = TransfersRequestId(nextRequestValue)
-        TransfersTransition(
-            copy(
-                content = TransfersContent.InitialLoading(reloadRequestId),
-                refresh = TransfersRefresh.Idle,
-                firstPageIds = emptySet(),
-                consumedCursors = emptySet(),
-                nextRequestValue = nextRequestValue + 1,
-            ),
-            TransfersEffect.Load(null, reloadRequestId),
-        )
+        copy(refresh = TransfersRefresh.Idle).startInitialLoad()
     } else {
         TransfersTransition(
             copy(

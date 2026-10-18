@@ -203,16 +203,7 @@ class DesignAssetLockTest(unittest.TestCase):
         return patch.object(design_assets.urllib.request, "urlopen", return_value=Response(archive))
 
     def test_sync_rejects_unlocked_assets_without_writing(self) -> None:
-        archive = tarball({
-            "dist/tokens.dtcg.json": b"tampered",
-            "system/assets/app-icon-nightly-stars.png": self.icon_source,
-            WORDMARK_ASSET: WORDMARK_SVG,
-        })
-        document = json.loads(json.dumps(self.document))
-        document["package"]["integrity"] = "sha512-" + base64.b64encode(
-            hashlib.sha512(archive).digest()
-        ).decode("ascii")
-        self.write_lock(document)
+        archive = self.lock_archive(tokens=b"tampered")
         rendered = self.rendered_icons()
         rendered[Path("mobile/src/nightly/res/drawable-hdpi/putio_icon.png")] = b"resampled"
 
@@ -226,10 +217,10 @@ class DesignAssetLockTest(unittest.TestCase):
         self.assertNotIn("app-icon-nightly-stars.png is", message)
         self.assertEqual((self.repo_root / design_assets.TOKENS_PATH).read_bytes(), self.tokens)
 
-    def lock_archive(self, icon_source: bytes) -> bytes:
+    def lock_archive(self, tokens: bytes | None = None, icon_source: bytes | None = None) -> bytes:
         archive = tarball({
-            "dist/tokens.dtcg.json": self.tokens,
-            "system/assets/app-icon-nightly-stars.png": icon_source,
+            "dist/tokens.dtcg.json": self.tokens if tokens is None else tokens,
+            "system/assets/app-icon-nightly-stars.png": self.icon_source if icon_source is None else icon_source,
             WORDMARK_ASSET: WORDMARK_SVG,
         })
         document = json.loads(json.dumps(self.document))
@@ -253,7 +244,7 @@ class DesignAssetLockTest(unittest.TestCase):
         return paths
 
     def test_sync_rejects_unlocked_nightly_source_without_writing(self) -> None:
-        archive = self.lock_archive(b"tampered art")
+        archive = self.lock_archive(icon_source=b"tampered art")
         paths = self.replace_outputs(b"previous")
 
         with self.fetch(archive), patch.object(
@@ -269,7 +260,7 @@ class DesignAssetLockTest(unittest.TestCase):
         self.assertEqual([path.read_bytes() for path in paths], [b"previous"] * len(paths))
 
     def test_sync_writes_every_locked_output(self) -> None:
-        archive = self.lock_archive(self.icon_source)
+        archive = self.lock_archive()
         self.replace_outputs(b"previous")
 
         with contextlib.redirect_stdout(io.StringIO()), self.fetch(archive), patch.object(
@@ -286,6 +277,7 @@ class DesignAssetLockTest(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "does not match locked sha512 SRI"):
                 design_assets.sync(design_assets.load_lock())
         self.assertEqual((self.repo_root / design_assets.TOKENS_PATH).read_bytes(), self.tokens)
+
 
 if __name__ == "__main__":
     unittest.main()

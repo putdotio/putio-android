@@ -26,7 +26,7 @@ private fun TrashMachine.dismissRestoreOutcome(): TrashMachine? =
     else copy(state = state.copy(restoreOutcome = null))
 
 private fun TrashMachine.selectRestore(event: TrashEvent.SelectRestore): TrashMachine? {
-    val item = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id == event.itemId }
+    val item = loadedItem(event.itemId)
     if (item == null || request != null || !state.canRestore(event.itemId)) return null
     return copy(
         state = state.copy(confirmation = item, confirmationId = nextRequestId, restoreOutcome = null),
@@ -36,8 +36,7 @@ private fun TrashMachine.selectRestore(event: TrashEvent.SelectRestore): TrashMa
 
 private fun TrashMachine.confirmRestore(event: TrashEvent.ConfirmRestore): TrashMachine? {
     val item = state.confirmation ?: return null
-    val current = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id == item.id }
-    val eligible = current == item && state.canRestore(item.id)
+    val eligible = loadedItem(item.id) == item && state.canRestore(item.id)
     return if (!eligible || request != null || event.confirmationId != state.confirmationId) null else copy(
         state = state.copy(
             confirmation = null, confirmationId = null,

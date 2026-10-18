@@ -173,7 +173,6 @@ public class SdkFilesRepository internal constructor(
             require(itemId.value > 0L) { "Delete requires one positive file ID" }
             mutations.delete(itemId.value, mode == FilesDeleteMode.PERMANENT)
         }
-
 }
 
 private fun FilesListResponse.toFilesPage(): FilesPage =

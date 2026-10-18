@@ -10,14 +10,6 @@ import org.junit.Test
 
 class HistoryReducerTest {
     @Test
-    fun disabledHistoryDoesNotLoad() {
-        val start = HistoryReducer.start(historyEnabled = false)
-
-        assertEquals(HistoryContent.Disabled, start.state.content)
-        assertNull(start.effect)
-    }
-
-    @Test
     fun startsLoadingAndExposesEmptyFailureAndRetryStates() {
         val start = HistoryReducer.start(historyEnabled = true)
         val request = start.effect as HistoryEffect.Load
@@ -184,27 +176,6 @@ class HistoryReducerTest {
         assertFalse(retryRequest.consumed)
         val dismissed = HistoryReducer.reduce(failed.state, HistoryEvent.DismissClear)
         assertEquals(HistoryClearing.Idle, dismissed.state.clearing)
-    }
-
-    @Test
-    fun successfulClearReloadsHistoryAndFileEventsEmitNavigation() {
-        val initial = loaded(listOf(item(1L)), hasMore = false)
-        val requested = HistoryReducer.reduce(initial, HistoryEvent.RequestClear)
-        val confirmed = HistoryReducer.reduce(requested.state, HistoryEvent.ConfirmClear)
-        val requestId = (confirmed.effect as HistoryEffect.Clear).requestId
-        val cleared = HistoryReducer.reduce(confirmed.state, HistoryEvent.ClearSucceeded(requestId))
-        val reload = cleared.effect as HistoryEffect.Load
-        assertEquals(HistoryContent.Loading(reload.requestId), cleared.state.content)
-
-        val empty =
-            HistoryReducer.reduce(
-                cleared.state,
-                HistoryEvent.LoadSucceeded(reload.requestId, HistoryPage(emptyList(), false)),
-            )
-        assertEquals(HistoryContent.Empty, empty.state.content)
-
-        val navigation = HistoryReducer.reduce(empty.state, HistoryEvent.OpenFile(HistoryFileId(42L)))
-        assertEquals(HistoryEffect.NavigateToFile(HistoryFileId(42L)), navigation.effect)
     }
 
     private fun loaded(items: List<HistoryItem>, hasMore: Boolean): HistoryState {

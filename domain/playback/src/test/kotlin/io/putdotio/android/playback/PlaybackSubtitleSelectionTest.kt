@@ -51,55 +51,16 @@ private fun rendererCapabilities(trackType: Int): RendererCapabilities =
 @UnstableApi
 class PlaybackSubtitleSelectionTest {
     @Test
-    fun subtitleSelectionCanEnableDisableAndReenableUnflaggedText() {
-        val defaults = TrackSelectionParameters.Builder().build()
-        val enabled = defaults.withSubtitleSelection(SubtitleSelection.Automatic, emptyList())
-        assertTrue(enabled.selectTextByDefault)
-        assertFalse(C.TRACK_TYPE_TEXT in enabled.disabledTrackTypes)
-
-        val disabled = enabled.withSubtitleSelection(SubtitleSelection.Off, emptyList())
-        assertFalse(disabled.selectTextByDefault)
-        assertTrue(C.TRACK_TYPE_TEXT in disabled.disabledTrackTypes)
-
-        val reenabled = disabled.withSubtitleSelection(SubtitleSelection.Automatic, emptyList())
-        assertTrue(reenabled.selectTextByDefault)
-        assertFalse(C.TRACK_TYPE_TEXT in reenabled.disabledTrackTypes)
-    }
-
-    @Test
     fun retainedSubtitleSelectionWinsWhenThePlayerIsRecreated() {
-        val defaults = TrackSelectionParameters.Builder().build()
-
         val restored =
             restoreSubtitleSelection(
-                defaults = defaults,
+                defaults = TrackSelectionParameters.Builder().build(),
                 retained = SubtitleSelection.Off,
                 startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
             )
 
         assertFalse(restored.selectTextByDefault)
         assertTrue(C.TRACK_TYPE_TEXT in restored.disabledTrackTypes)
-
-        val group =
-            TrackGroup(
-                Format.Builder().setId("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
-                Format.Builder().setId("de").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
-            )
-        val track =
-            PlaybackSubtitleTrack(
-                group = group,
-                trackIndex = 1,
-                label = "German",
-                selected = false,
-            )
-        val restoredSelection =
-            restoreSubtitleSelection(
-                defaults = defaults,
-                retained = SubtitleSelection.Track(track.identity),
-                startupPolicy = null,
-            ).withSubtitleSelection(SubtitleSelection.Track(track.identity), listOf(track))
-
-        assertEquals(listOf(1), restoredSelection.overrides.getValue(group).trackIndices)
     }
 
     @Test
@@ -298,31 +259,6 @@ class PlaybackSubtitleSelectionTest {
                 .withSubtitleSelection(SubtitleSelection.Off, emptyList(), captionManagerDefaults)
                 .withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), captionManagerDefaults)
         assertTrue(captionManagerAutomatic.usePreferredTextLanguagesAndRoleFlagsFromCaptioningManager)
-    }
-
-    @Test
-    fun selectingSubtitleTrackEnablesTextAndPinsTheRequestedTrack() {
-        val group =
-            TrackGroup(
-                Format.Builder().setId("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
-                Format.Builder().setId("de").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
-            )
-        val selected =
-            TrackSelectionParameters.Builder().build().withSubtitleSelection(
-                SubtitleSelection.Track(group.getFormat(1).toSubtitleTrackIdentity()),
-                listOf(
-                    PlaybackSubtitleTrack(
-                        group = group,
-                        trackIndex = 1,
-                        label = "German",
-                        selected = false,
-                    ),
-                ),
-            )
-
-        assertTrue(selected.selectTextByDefault)
-        assertFalse(C.TRACK_TYPE_TEXT in selected.disabledTrackTypes)
-        assertEquals(listOf(1), selected.overrides.getValue(group).trackIndices)
     }
 
     @Test

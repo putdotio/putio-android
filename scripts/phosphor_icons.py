@@ -165,13 +165,26 @@ def load_lock() -> tuple[PackageLock, tuple[IconLock, ...]]:
     return package, tuple(icons)
 
 
-def module_drawable_dirs() -> list[Path]:
-    """Every module's drawable directories, so a stale icon left outside the lock's targets still fails."""
-    return sorted(
+def stale_generated_drawables(icons: tuple[IconLock, ...]) -> list[Path]:
+    """Generated icons the lock no longer lists, from every module so one outside the lock's targets still counts."""
+    expected_paths = {icon.output_path for icon in icons}
+    drawable_dirs = sorted(
         path
         for pattern in ("*/src/*/res/drawable", "*/*/src/*/res/drawable")
         for path in REPO_ROOT.glob(pattern)
     )
+    stale: list[Path] = []
+    for drawable_dir in drawable_dirs:
+        for path in drawable_dir.glob("ic_ph_*.xml"):
+            if path in expected_paths:
+                continue
+            try:
+                generated = GENERATED_MARKER in path.read_text(encoding="utf-8")
+            except OSError:
+                generated = False
+            if generated:
+                stale.append(path)
+    return stale
 
 
 def sha256(data: bytes) -> str:
@@ -180,7 +193,6 @@ def sha256(data: bytes) -> str:
 
 def check_outputs(package: PackageLock, icons: tuple[IconLock, ...]) -> None:
     failures: list[str] = []
-    expected_paths = {icon.output_path for icon in icons}
     for icon in icons:
         try:
             actual = sha256(icon.output_path.read_bytes())
@@ -190,16 +202,7 @@ def check_outputs(package: PackageLock, icons: tuple[IconLock, ...]) -> None:
         if not hmac.compare_digest(actual, icon.output_sha256):
             failures.append(f"drifted {icon.output_path.relative_to(REPO_ROOT)}")
 
-    for drawable_dir in module_drawable_dirs():
-        for path in drawable_dir.glob("ic_ph_*.xml"):
-            if path in expected_paths:
-                continue
-            try:
-                generated = GENERATED_MARKER in path.read_text(encoding="utf-8")
-            except OSError:
-                generated = False
-            if generated:
-                failures.append(f"stale {path.relative_to(REPO_ROOT)}")
+    failures += [f"stale {path.relative_to(REPO_ROOT)}" for path in stale_generated_drawables(icons)]
 
     if failures:
         fail("icon drift detected:\n  " + "\n  ".join(sorted(failures)))
@@ -255,7 +258,6 @@ def render_drawable(icon: IconLock, version: str, svg: bytes) -> bytes:
 
 def generate(package: PackageLock, icons: tuple[IconLock, ...]) -> None:
     archive = fetch_package(package)
-    expected_paths = {icon.output_path for icon in icons}
     try:
         package_tar = tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz")
     except tarfile.TarError as error:
@@ -279,17 +281,9 @@ def generate(package: PackageLock, icons: tuple[IconLock, ...]) -> None:
             icon.output_path.write_bytes(output)
             print(f"wrote {icon.output_path.relative_to(REPO_ROOT)}")
 
-    for drawable_dir in module_drawable_dirs():
-        for path in drawable_dir.glob("ic_ph_*.xml"):
-            if path in expected_paths:
-                continue
-            try:
-                generated = GENERATED_MARKER in path.read_text(encoding="utf-8")
-            except OSError:
-                generated = False
-            if generated:
-                path.unlink()
-                print(f"removed {path.relative_to(REPO_ROOT)}")
+    for path in stale_generated_drawables(icons):
+        path.unlink()
+        print(f"removed {path.relative_to(REPO_ROOT)}")
 
 
 def main() -> None:

@@ -30,7 +30,7 @@ private fun TrashMachine.openActionConfirmation(action: TrashAction): TrashMachi
     nextRequestId = nextRequestId + 1L,
 )
 
-private fun TrashMachine.loadedItem(itemId: FilesItemId): TrashItem? =
+internal fun TrashMachine.loadedItem(itemId: FilesItemId): TrashItem? =
     (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id == itemId }
 
 private fun TrashMachine.cancelAction(): TrashMachine? =
@@ -41,7 +41,6 @@ private fun TrashMachine.confirmAction(event: TrashEvent.ConfirmAction): TrashMa
     val action = state.actionConfirmation
         ?.takeIf { request == null && event.confirmationId == state.actionConfirmationId && isEligible(it) }
         ?: return null
-    // Restore all targets the listed snapshot: its cursor when the server issued one, else the loaded IDs.
     val content = state.content as TrashContent.Loaded
     val selection = (action as? TrashAction.RestoreAll)?.let {
         TrashBulkSelection(content.snapshotCursor, content.items.map(TrashItem::id))

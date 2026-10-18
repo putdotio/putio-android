@@ -9,7 +9,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FilesRenameReducerTest {
-
     @Test
     fun failedRenameReloadCannotBeReplacedByRefresh() =
         assertFailedRenameReloadRejects(FilesBrowserEvent.Refresh)
