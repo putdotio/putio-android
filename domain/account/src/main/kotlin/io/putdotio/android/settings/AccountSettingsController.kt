@@ -34,9 +34,7 @@ public class AccountSettingsController(
     public fun dispatch(event: AccountSettingsEvent): Boolean {
         val transition =
             synchronized(lock) {
-                if (closed) {
-                    return false
-                }
+                if (closed) return false
                 AccountSettingsReducer.reduce(mutableState.value, event).also {
                     mutableState.value = it.state
                 }
@@ -47,9 +45,7 @@ public class AccountSettingsController(
 
     override fun close() {
         synchronized(lock) {
-            if (closed) {
-                return
-            }
+            if (closed) return
             closed = true
             activeJob = null
         }
@@ -67,28 +63,11 @@ public class AccountSettingsController(
                     } catch (error: CancellationException) {
                         throw error
                     } catch (unexpected: Exception) {
-                        when (effect) {
-                            is AccountSettingsEffect.Load ->
-                                AccountSettingsEvent.LoadFailed(
-                                    effect.requestId,
-                                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(unexpected)),
-                                )
-                            is AccountSettingsEffect.Save ->
-                                AccountSettingsEvent.SaveFailed(
-                                    effect.requestId,
-                                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(unexpected)),
-                                )
-                            is AccountSettingsEffect.Refresh ->
-                                AccountSettingsEvent.RefreshFailed(
-                                    effect.requestId,
-                                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(unexpected)),
-                                )
-                        }
+                        effect.unexpectedFailure(unexpected)
                     }
                 releaseActiveJob(coroutineContext[Job])
                 dispatch(event)
             }
-
         val shouldStart =
             synchronized(lock) {
                 if (closed || activeJob != null || !mutableState.value.hasRequest(effect.requestId)) {
@@ -102,19 +81,23 @@ public class AccountSettingsController(
             job.cancel()
             return
         }
-
-        job.invokeOnCompletion {
-            releaseActiveJob(job)
-        }
+        job.invokeOnCompletion { releaseActiveJob(job) }
         job.start()
     }
 
     private fun releaseActiveJob(job: Job?) {
         synchronized(lock) {
-            if (activeJob === job) {
-                activeJob = null
-            }
+            if (activeJob === job) activeJob = null
         }
+    }
+}
+
+private fun AccountSettingsEffect.unexpectedFailure(error: Exception): AccountSettingsEvent {
+    val failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(error))
+    return when (this) {
+        is AccountSettingsEffect.Load -> AccountSettingsEvent.LoadFailed(requestId, failure)
+        is AccountSettingsEffect.Save -> AccountSettingsEvent.SaveFailed(requestId, failure)
+        is AccountSettingsEffect.Refresh -> AccountSettingsEvent.RefreshFailed(requestId, failure)
     }
 }
 

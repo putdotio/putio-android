@@ -70,12 +70,7 @@ class AccountSettingsDiagnosticsTest {
     }
 
     private companion object {
-        val Preferences = AccountSettingsPreferences(
-            historyEnabled = true,
-            trashEnabled = true,
-            showSubtitles = true,
-            autoSelectSubtitles = true,
-        )
+        val Preferences = DefaultAccountSettingsPreferences
         val Failure = AccountSettingsFailure.Putio(PutioFailure.Unexpected(PutioConfigurationException("synthetic")))
     }
 }

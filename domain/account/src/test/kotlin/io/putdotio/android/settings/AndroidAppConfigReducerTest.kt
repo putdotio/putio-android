@@ -1,6 +1,7 @@
 package io.putdotio.android.settings
 
 import io.putdotio.android.PutioFailure
+import io.putdotio.android.settings.AndroidAppConfigEvent.ChangeRequested
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -29,11 +30,7 @@ class AndroidAppConfigReducerTest {
             AndroidAppConfigChange.AutoplayNextVideo(enabled = true) to
                 Preferences.copy(autoplayNextVideo = true),
         ).forEach { (change, expected) ->
-            val transition =
-                AndroidAppConfigReducer.reduce(
-                    loadedState(Preferences),
-                    AndroidAppConfigEvent.ChangeRequested(change),
-                )
+            val transition = loadedState(Preferences).reduce(ChangeRequested(change))
 
             val saving = transition.state.mutation as AndroidAppConfigMutation.Saving
             val effect = transition.effect as AndroidAppConfigEffect.Save
@@ -50,28 +47,12 @@ class AndroidAppConfigReducerTest {
     @Test
     fun rejectsNoOpAndConcurrentChanges() {
         val loaded = loadedState(Preferences)
-        val noOp =
-            AndroidAppConfigReducer.reduce(
-                loaded,
-                AndroidAppConfigEvent.ChangeRequested(
-                    AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Hls),
-                ),
-            )
+        val noOp = loaded.reduce(ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Hls)))
         assertFalse(noOp.consumed)
         assertSame(loaded, noOp.state)
 
-        val saving =
-            AndroidAppConfigReducer.reduce(
-                loaded,
-                AndroidAppConfigEvent.ChangeRequested(
-                    AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
-                ),
-            )
-        val concurrent =
-            AndroidAppConfigReducer.reduce(
-                saving.state,
-                AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.AutoplayNextVideo(true)),
-            )
+        val saving = loaded.reduce(ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)))
+        val concurrent = saving.state.reduce(ChangeRequested(AndroidAppConfigChange.AutoplayNextVideo(true)))
         assertFalse(concurrent.consumed)
         assertSame(saving.state, concurrent.state)
     }
@@ -80,27 +61,22 @@ class AndroidAppConfigReducerTest {
     fun failedSaveRollsBackAndRetriesTheExactChange() {
         val change = AndroidAppConfigChange.AutoplayNextVideo(enabled = true)
         val saving = requestChange(change)
-        val requestId = (saving.effect as AndroidAppConfigEffect.Save).requestId
-        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
-        val failed =
-            AndroidAppConfigReducer.reduce(
-                saving.state,
-                AndroidAppConfigEvent.SaveFailed(requestId, failure),
-            )
+        val requestId = saving.saveRequestId()
+        val failed = saving.state.reduce(AndroidAppConfigEvent.SaveFailed(requestId, Offline))
 
         assertEquals(Preferences, failed.state.readyPreferences())
         assertEquals(Preferences, failed.state.confirmedPreferences)
         assertEquals(
             AndroidAppConfigMutation.Failed(
                 change = change,
-                failure = failure,
+                failure = Offline,
                 previousPreferences = Preferences,
                 operation = AndroidAppConfigMutation.Operation.Save,
             ),
             failed.state.mutation,
         )
 
-        val retried = AndroidAppConfigReducer.reduce(failed.state, AndroidAppConfigEvent.RetryChange)
+        val retried = failed.state.reduce(AndroidAppConfigEvent.RetryChange)
         val retryEffect = retried.effect as AndroidAppConfigEffect.Save
         assertTrue(retried.state.readyPreferences().autoplayNextVideo)
         assertEquals(Preferences, retried.state.confirmedPreferences)
@@ -115,13 +91,9 @@ class AndroidAppConfigReducerTest {
     @Test
     fun acceptedSaveRefreshesAuthoritativeConfig() {
         val saving = requestChange(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4))
-        val requestId = (saving.effect as AndroidAppConfigEffect.Save).requestId
+        val requestId = saving.saveRequestId()
 
-        val refreshing =
-            AndroidAppConfigReducer.reduce(
-                saving.state,
-                AndroidAppConfigEvent.SaveSucceeded(requestId),
-            )
+        val refreshing = saving.state.reduce(AndroidAppConfigEvent.SaveSucceeded(requestId))
         assertEquals(AndroidAppConfigEffect.Refresh(requestId), refreshing.effect)
         assertEquals(
             AndroidAppConfigMutation.Operation.Refresh,
@@ -129,11 +101,7 @@ class AndroidAppConfigReducerTest {
         )
 
         val authoritative = Preferences.copy(videoPlaybackType = VideoPlaybackType.Mp4, autoplayNextVideo = true)
-        val refreshed =
-            AndroidAppConfigReducer.reduce(
-                refreshing.state,
-                AndroidAppConfigEvent.RefreshSucceeded(requestId, authoritative),
-            )
+        val refreshed = refreshing.state.reduce(AndroidAppConfigEvent.RefreshSucceeded(requestId, authoritative))
         assertEquals(authoritative, refreshed.state.readyPreferences())
         assertEquals(authoritative, refreshed.state.confirmedPreferences)
         assertEquals(AndroidAppConfigMutation.Idle, refreshed.state.mutation)
@@ -143,18 +111,9 @@ class AndroidAppConfigReducerTest {
     fun failedRefreshRetainsAcceptedValueAndRetriesOnlyTheRead() {
         val change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)
         val saving = requestChange(change)
-        val requestId = (saving.effect as AndroidAppConfigEffect.Save).requestId
-        val refreshing =
-            AndroidAppConfigReducer.reduce(
-                saving.state,
-                AndroidAppConfigEvent.SaveSucceeded(requestId),
-            )
-        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
-        val failed =
-            AndroidAppConfigReducer.reduce(
-                refreshing.state,
-                AndroidAppConfigEvent.RefreshFailed(requestId, failure),
-            )
+        val requestId = saving.saveRequestId()
+        val refreshing = saving.state.reduce(AndroidAppConfigEvent.SaveSucceeded(requestId))
+        val failed = refreshing.state.reduce(AndroidAppConfigEvent.RefreshFailed(requestId, Offline))
 
         assertEquals(VideoPlaybackType.Mp4, failed.state.readyPreferences().videoPlaybackType)
         assertEquals(Preferences, failed.state.confirmedPreferences)
@@ -163,7 +122,7 @@ class AndroidAppConfigReducerTest {
             (failed.state.mutation as AndroidAppConfigMutation.Failed).operation,
         )
 
-        val retried = AndroidAppConfigReducer.reduce(failed.state, AndroidAppConfigEvent.RetryChange)
+        val retried = failed.state.reduce(AndroidAppConfigEvent.RetryChange)
         val retryEffect = retried.effect as AndroidAppConfigEffect.Refresh
         assertTrue(retryEffect.requestId.value > requestId.value)
         assertEquals(VideoPlaybackType.Mp4, retried.state.readyPreferences().videoPlaybackType)
@@ -171,15 +130,10 @@ class AndroidAppConfigReducerTest {
 
     @Test
     fun laterChangeSupersedesOnlyRetryableMutationFailures() {
-        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         val replacement = AndroidAppConfigChange.AutoplayNextVideo(enabled = true)
 
-        listOf(failedSaveState(failure), failedRefreshState(failure)).forEach { failed ->
-            val superseded =
-                AndroidAppConfigReducer.reduce(
-                    failed,
-                    AndroidAppConfigEvent.ChangeRequested(replacement),
-                )
+        listOf(failedSaveState(Offline), failedRefreshState(Offline)).forEach { failed ->
+            val superseded = failed.reduce(ChangeRequested(replacement))
 
             assertTrue(superseded.consumed)
             assertEquals(replacement, (superseded.effect as AndroidAppConfigEffect.Save).change)
@@ -187,95 +141,67 @@ class AndroidAppConfigReducerTest {
             assertEquals(Preferences, superseded.state.confirmedPreferences)
         }
 
-        val authenticationFailure =
-            PutioFailure.AuthenticationRequired(
-                PutioConfigurationException("invalid token"),
-            )
-        val failedAuth = failedSaveState(authenticationFailure)
-        val rejected =
-            AndroidAppConfigReducer.reduce(
-                failedAuth,
-                AndroidAppConfigEvent.ChangeRequested(replacement),
-            )
+        val failedAuth = failedSaveState(InvalidToken)
+        val rejected = failedAuth.reduce(ChangeRequested(replacement))
         assertFalse(rejected.consumed)
         assertSame(failedAuth, rejected.state)
-        assertSame(authenticationFailure, rejected.state.authoritativeSessionFailure())
+        assertSame(InvalidToken, rejected.state.authoritativeSessionFailure())
     }
 
     @Test
     fun retriesOnlyRetryableFailedLoads() {
-        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
-        val failed = failedLoadState(failure)
-        val retry = AndroidAppConfigReducer.reduce(failed, AndroidAppConfigEvent.RetryLoad)
+        val failed = failedLoadState(Offline)
+        val retry = failed.reduce(AndroidAppConfigEvent.RetryLoad)
 
         assertTrue(retry.state.content is AndroidAppConfigContent.Loading)
         assertTrue(retry.effect is AndroidAppConfigEffect.Load)
 
-        val duplicate = AndroidAppConfigReducer.reduce(retry.state, AndroidAppConfigEvent.RetryLoad)
+        val duplicate = retry.state.reduce(AndroidAppConfigEvent.RetryLoad)
         assertFalse(duplicate.consumed)
         assertSame(retry.state, duplicate.state)
 
-        val authenticationFailure =
-            PutioFailure.AuthenticationRequired(
-                PutioConfigurationException("invalid token"),
-            )
-        val failedAuth = failedLoadState(authenticationFailure)
-        val rejected = AndroidAppConfigReducer.reduce(failedAuth, AndroidAppConfigEvent.RetryLoad)
+        val failedAuth = failedLoadState(InvalidToken)
+        val rejected = failedAuth.reduce(AndroidAppConfigEvent.RetryLoad)
         assertFalse(rejected.consumed)
         assertSame(failedAuth, rejected.state)
-        assertSame(authenticationFailure, rejected.state.authoritativeSessionFailure())
+        assertSame(InvalidToken, rejected.state.authoritativeSessionFailure())
     }
 
     @Test
     fun ignoresStaleAndWrongPhaseResults() {
         val start = AndroidAppConfigReducer.start()
         val initialRequestId = (start.effect as AndroidAppConfigEffect.Load).requestId
-        val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
         listOf(
             AndroidAppConfigEvent.LoadSucceeded(AndroidAppConfigRequestId(99L), Preferences),
-            AndroidAppConfigEvent.LoadFailed(AndroidAppConfigRequestId(99L), failure),
+            AndroidAppConfigEvent.LoadFailed(AndroidAppConfigRequestId(99L), Offline),
         ).forEach { staleLoad ->
-            val result = AndroidAppConfigReducer.reduce(start.state, staleLoad)
+            val result = start.state.reduce(staleLoad)
             assertFalse(result.consumed)
             assertSame(start.state, result.state)
         }
 
-        val loaded =
-            AndroidAppConfigReducer.reduce(
-                start.state,
-                AndroidAppConfigEvent.LoadSucceeded(initialRequestId, Preferences),
-            ).state
-        val saving =
-            AndroidAppConfigReducer.reduce(
-                loaded,
-                AndroidAppConfigEvent.ChangeRequested(
-                    AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4),
-                ),
-            )
-        val requestId = (saving.effect as AndroidAppConfigEffect.Save).requestId
+        val loaded = start.state.reduce(AndroidAppConfigEvent.LoadSucceeded(initialRequestId, Preferences)).state
+        val saving = loaded.reduce(ChangeRequested(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)))
+        val requestId = saving.saveRequestId()
         listOf(
             AndroidAppConfigEvent.SaveSucceeded(AndroidAppConfigRequestId(99L)),
-            AndroidAppConfigEvent.SaveFailed(AndroidAppConfigRequestId(99L), failure),
+            AndroidAppConfigEvent.SaveFailed(AndroidAppConfigRequestId(99L), Offline),
             AndroidAppConfigEvent.RefreshSucceeded(requestId, Preferences),
-            AndroidAppConfigEvent.RefreshFailed(requestId, failure),
+            AndroidAppConfigEvent.RefreshFailed(requestId, Offline),
         ).forEach { staleOrWrongPhase ->
-            val result = AndroidAppConfigReducer.reduce(saving.state, staleOrWrongPhase)
+            val result = saving.state.reduce(staleOrWrongPhase)
             assertFalse(result.consumed)
             assertSame(saving.state, result.state)
         }
 
-        val refreshing =
-            AndroidAppConfigReducer.reduce(
-                saving.state,
-                AndroidAppConfigEvent.SaveSucceeded(requestId),
-            )
+        val refreshing = saving.state.reduce(AndroidAppConfigEvent.SaveSucceeded(requestId))
         listOf(
             AndroidAppConfigEvent.SaveSucceeded(requestId),
-            AndroidAppConfigEvent.SaveFailed(requestId, failure),
+            AndroidAppConfigEvent.SaveFailed(requestId, Offline),
             AndroidAppConfigEvent.RefreshSucceeded(AndroidAppConfigRequestId(99L), Preferences),
-            AndroidAppConfigEvent.RefreshFailed(AndroidAppConfigRequestId(99L), failure),
+            AndroidAppConfigEvent.RefreshFailed(AndroidAppConfigRequestId(99L), Offline),
         ).forEach { staleOrWrongPhase ->
-            val result = AndroidAppConfigReducer.reduce(refreshing.state, staleOrWrongPhase)
+            val result = refreshing.state.reduce(staleOrWrongPhase)
             assertFalse(result.consumed)
             assertSame(refreshing.state, result.state)
         }
@@ -283,69 +209,52 @@ class AndroidAppConfigReducerTest {
 
     @Test
     fun onlyAuthenticationFailuresCrossTheAuthoritativeSessionBoundary() {
-        val authenticationFailure =
-            PutioFailure.AuthenticationRequired(
-                PutioConfigurationException("invalid token"),
-            )
-        val retryableFailure = PutioFailure.Unexpected(IllegalStateException("offline"))
-
-        assertSame(authenticationFailure, failedLoadState(authenticationFailure).authoritativeSessionFailure())
-        assertSame(authenticationFailure, failedSaveState(authenticationFailure).authoritativeSessionFailure())
-        assertNull(failedLoadState(retryableFailure).authoritativeSessionFailure())
-        assertNull(failedSaveState(retryableFailure).authoritativeSessionFailure())
+        assertSame(InvalidToken, failedLoadState(InvalidToken).authoritativeSessionFailure())
+        assertSame(InvalidToken, failedSaveState(InvalidToken).authoritativeSessionFailure())
+        assertNull(failedLoadState(Offline).authoritativeSessionFailure())
+        assertNull(failedSaveState(Offline).authoritativeSessionFailure())
     }
 
+    private fun AndroidAppConfigState.reduce(event: AndroidAppConfigEvent): AndroidAppConfigTransition =
+        AndroidAppConfigReducer.reduce(this, event)
+
+    private fun AndroidAppConfigTransition.saveRequestId(): AndroidAppConfigRequestId =
+        (effect as AndroidAppConfigEffect.Save).requestId
+
     private fun requestChange(change: AndroidAppConfigChange): AndroidAppConfigTransition =
-        AndroidAppConfigReducer.reduce(
-            loadedState(Preferences),
-            AndroidAppConfigEvent.ChangeRequested(change),
-        )
+        loadedState(Preferences).reduce(ChangeRequested(change))
 
     private fun failedLoadState(failure: PutioFailure): AndroidAppConfigState {
         val start = AndroidAppConfigReducer.start()
         val requestId = (start.effect as AndroidAppConfigEffect.Load).requestId
-        return AndroidAppConfigReducer.reduce(
-            start.state,
-            AndroidAppConfigEvent.LoadFailed(requestId, failure),
-        ).state
+        return start.state.reduce(AndroidAppConfigEvent.LoadFailed(requestId, failure)).state
     }
 
     private fun failedSaveState(failure: PutioFailure): AndroidAppConfigState {
         val saving = requestChange(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4))
-        val requestId = (saving.effect as AndroidAppConfigEffect.Save).requestId
-        return AndroidAppConfigReducer.reduce(
-            saving.state,
-            AndroidAppConfigEvent.SaveFailed(requestId, failure),
-        ).state
+        val requestId = saving.saveRequestId()
+        return saving.state.reduce(AndroidAppConfigEvent.SaveFailed(requestId, failure)).state
     }
 
     private fun failedRefreshState(failure: PutioFailure): AndroidAppConfigState {
         val saving = requestChange(AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4))
-        val requestId = (saving.effect as AndroidAppConfigEffect.Save).requestId
-        val refreshing =
-            AndroidAppConfigReducer.reduce(
-                saving.state,
-                AndroidAppConfigEvent.SaveSucceeded(requestId),
-            )
-        return AndroidAppConfigReducer.reduce(
-            refreshing.state,
-            AndroidAppConfigEvent.RefreshFailed(requestId, failure),
-        ).state
+        val requestId = saving.saveRequestId()
+        val refreshing = saving.state.reduce(AndroidAppConfigEvent.SaveSucceeded(requestId))
+        return refreshing.state.reduce(AndroidAppConfigEvent.RefreshFailed(requestId, failure)).state
     }
 
     private fun loadedState(preferences: AndroidAppConfigPreferences): AndroidAppConfigState {
         val start = AndroidAppConfigReducer.start()
         val requestId = (start.effect as AndroidAppConfigEffect.Load).requestId
-        return AndroidAppConfigReducer.reduce(
-            start.state,
-            AndroidAppConfigEvent.LoadSucceeded(requestId, preferences),
-        ).state
+        return start.state.reduce(AndroidAppConfigEvent.LoadSucceeded(requestId, preferences)).state
     }
 
     private fun AndroidAppConfigState.readyPreferences(): AndroidAppConfigPreferences =
         (content as AndroidAppConfigContent.Ready).preferences
 
     private companion object {
-        val Preferences = AndroidAppConfigPreferences()
+        val Preferences = DefaultAndroidAppConfigPreferences
+        val Offline = PutioFailure.Unexpected(IllegalStateException("offline"))
+        val InvalidToken = PutioFailure.AuthenticationRequired(PutioConfigurationException("invalid token"))
     }
 }

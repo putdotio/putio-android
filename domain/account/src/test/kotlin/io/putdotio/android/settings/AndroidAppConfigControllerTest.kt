@@ -16,7 +16,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -28,7 +27,7 @@ import org.junit.Test
 
 class AndroidAppConfigControllerTest {
     @Test
-    fun controllerLoadsAndRefreshesSavedPreference() = runBlocking {
+    fun controllerLoadsAndRefreshesSavedPreference() = runBlocking<Unit> {
         val saved = mutableListOf<AndroidAppConfigChange>()
         var preferences = AndroidAppConfigPreferences()
         val repository = object : AndroidAppConfigRepository {
@@ -42,20 +41,18 @@ class AndroidAppConfigControllerTest {
             }
         }
         val controller = AndroidAppConfigController(repository, this)
-        try {
+        controller.use {
             controller.awaitState { it.content is AndroidAppConfigContent.Ready }
             val change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)
             assertTrue(controller.dispatch(AndroidAppConfigEvent.ChangeRequested(change)))
             controller.awaitState { it.mutation == AndroidAppConfigMutation.Idle }
             assertEquals(listOf(change), saved)
             assertEquals(VideoPlaybackType.Mp4, controller.state.value.readyPreferences().videoPlaybackType)
-        } finally {
-            controller.close()
         }
     }
 
     @Test
-    fun simultaneousChangesAcceptOnlyOneSaveWhileRepositoryIsSuspended() = runBlocking {
+    fun simultaneousChangesAcceptOnlyOneSaveWhileRepositoryIsSuspended() = runBlocking<Unit> {
         val repository = SuspendedSaveRepository()
         val controller = AndroidAppConfigController(repository, this)
         val start = CyclicBarrier(2)
@@ -92,7 +89,7 @@ class AndroidAppConfigControllerTest {
     }
 
     @Test
-    fun cancelledParentRejectsChangesWithoutPublishingSavingState() = runBlocking {
+    fun cancelledParentRejectsChangesWithoutPublishingSavingState() = runBlocking<Unit> {
         val parent = Job()
         val controller = AndroidAppConfigController(SaveFailureRepository(), CoroutineScope(coroutineContext + parent))
         try {
@@ -109,17 +106,17 @@ class AndroidAppConfigControllerTest {
     }
 
     @Test
-    fun cancelledParentRejectsLateNonCooperativeLoadResult() = runBlocking {
+    fun cancelledParentRejectsLateNonCooperativeLoadResult() = runBlocking<Unit> {
         assertLateLoadIgnored(closeController = false)
     }
 
     @Test
-    fun closedControllerRejectsLateNonCooperativeLoadResult() = runBlocking {
+    fun closedControllerRejectsLateNonCooperativeLoadResult() = runBlocking<Unit> {
         assertLateLoadIgnored(closeController = true)
     }
 
     @Test
-    fun immediateRetryFromFailureCollectorStartsANewSave() = runBlocking {
+    fun immediateRetryFromFailureCollectorStartsANewSave() = runBlocking<Unit> {
         val repository = SaveFailureRepository()
         val controller = AndroidAppConfigController(repository, this)
         val change = AndroidAppConfigChange.AutoplayNextVideo(enabled = true)
@@ -143,11 +140,11 @@ class AndroidAppConfigControllerTest {
     }
 
     @Test
-    fun refreshRetryAfterAcceptedSaveDoesNotRepeatSave() = runBlocking {
+    fun refreshRetryAfterAcceptedSaveDoesNotRepeatSave() = runBlocking<Unit> {
         val repository = RefreshFailureRepository()
         val controller = AndroidAppConfigController(repository, this)
         val change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)
-        try {
+        controller.use {
             controller.awaitState { it.content is AndroidAppConfigContent.Ready }
             assertTrue(controller.dispatch(AndroidAppConfigEvent.ChangeRequested(change)))
             controller.awaitState {
@@ -160,13 +157,11 @@ class AndroidAppConfigControllerTest {
             assertEquals(1, repository.saveCount)
             assertEquals(3, repository.loadCount)
             assertEquals(VideoPlaybackType.Mp4, controller.state.value.readyPreferences().videoPlaybackType)
-        } finally {
-            controller.close()
         }
     }
 
     @Test
-    fun closedControllerRejectsEventsAndCancelsItsLoad() = runBlocking {
+    fun closedControllerRejectsEventsAndCancelsItsLoad() = runBlocking<Unit> {
         val started = CompletableDeferred<Unit>()
         val cancelled = CompletableDeferred<Unit>()
         val repository = object : AndroidAppConfigRepository {
