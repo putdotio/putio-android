@@ -372,9 +372,7 @@ private fun TvFilesPane(
     paneFocus: FocusRequester,
 ) {
     // A restore from Trash marks its folder stale; the listing reloads when Files shows
-    // again, or once a refresh that was running at that moment has settled.
-    // Keyed like mobile: the folder, the operation, and whether the content is still
-    // loading, so a reload deferred by any of them runs once that settles.
+    // again, or once a refresh or operation running at that moment has settled.
     val current = filesState.current
     LaunchedEffect(
         session,
@@ -390,8 +388,6 @@ private fun TvFilesPane(
             session.files.dispatch(FilesBrowserEvent.ReloadIfStale)
         }
     }
-    // A row's actions: VLC gets the original file; a watched toggle writes the
-    // account's position; deletion runs on the shared browser operation.
     val context = LocalContext.current
     val streamScope = rememberCoroutineScope()
     var filesNotice by remember(session) { mutableStateOf<Int?>(null) }
@@ -641,7 +637,7 @@ private fun tvSearchActions(
             session.search.updateQuery(query)
         },
         onSubmit = { session.search.submit() },
-        onResult = { item: FilesItem -> session.search.openResult(item.id) },
+        onResult = { item -> session.search.openResult(item.id) },
         onNextPage = { session.search.loadNextPage() },
         onRetry = { session.search.retry() },
         recent = TvRecentSearchActions(

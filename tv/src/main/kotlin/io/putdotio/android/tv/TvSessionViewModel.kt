@@ -300,8 +300,7 @@ internal class TvSession internal constructor(
         watchedJobs.remove(item.id)?.cancel()
         // Started lazily so the write is registered before its body can run and compare itself.
         val job = scope.launch(start = CoroutineStart.LAZY) {
-            // A session verdict from any write stays until the session is rejected.
-            mutableFileActionFailure.update { it?.takeIf { failure -> failure is PutioFailure.AuthenticationRequired } }
+            dismissFileActionFailure()
             val result = if (watched) {
                 watchedRepository.setPosition(item.id, seconds)
             } else {
