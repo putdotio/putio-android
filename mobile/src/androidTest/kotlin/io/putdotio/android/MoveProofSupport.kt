@@ -1,8 +1,6 @@
 package io.putdotio.android
 
-import android.graphics.Bitmap
 import androidx.test.platform.app.InstrumentationRegistry
-import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
@@ -18,13 +16,6 @@ internal fun moveProofScreenshot(label: String) {
     require(label in setOf("cancel-picker", "collision", "folder-result", "ancestor-result", "root-result",
         "synthetic-recovery", "synthetic-picker-error", "synthetic-back-files", "synthetic-back-account"))
     val instrumentation = InstrumentationRegistry.getInstrumentation()
-    val directory = File(requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)), "move-proof-$runId")
-    check(directory.mkdirs() || directory.isDirectory)
     instrumentation.uiAutomation.waitForIdle(100, 3_000)
-    val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-    try {
-        File(directory, "$label.png").outputStream().use {
-            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-    } finally { bitmap.recycle() }
+    saveProofScreenshot(proofDirectory("move-proof-$runId"), label)
 }

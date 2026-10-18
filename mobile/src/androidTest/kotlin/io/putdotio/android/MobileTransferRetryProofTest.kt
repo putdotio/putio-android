@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -29,7 +28,6 @@ import io.putdotio.sdk.transfers.Transfer
 import io.putdotio.sdk.transfers.TransferStatus
 import io.putdotio.sdk.transfers.TransfersCleanResponse
 import io.putdotio.sdk.transfers.TransfersListResponse
-import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
@@ -131,14 +129,8 @@ class MobileTransferRetryProofTest {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val runId =
             UUID.fromString(requireNotNull(InstrumentationRegistry.getArguments().getString("putio.transfers.runId")))
-        val directory =
-            File(requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)), "transfers-proof-$runId")
-        check(directory.mkdirs() || directory.isDirectory)
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-        } finally { bitmap.recycle() }
+        saveProofScreenshot(proofDirectory("transfers-proof-$runId"), label)
     }
 }
 

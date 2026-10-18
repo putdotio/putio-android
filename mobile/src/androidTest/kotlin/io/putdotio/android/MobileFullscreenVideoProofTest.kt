@@ -3,17 +3,18 @@ package io.putdotio.android
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
-import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -22,22 +23,31 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.click
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.AudioTrackIdentity
+import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
+import io.putdotio.android.playback.MobilePlayerFactory
+import io.putdotio.android.playback.MobilePlayerScreen
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.playback.SubtitleTrackIdentity
+import io.putdotio.android.playback.audioAttributes
+import io.putdotio.android.playback.playbackAudioTracks
+import io.putdotio.android.playback.playbackRenderersFactory
 import io.putdotio.android.playback.playbackState
+import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -45,6 +55,7 @@ import io.putdotio.sdk.files.PutioCredentialUrl
 import java.io.File
 import java.util.UUID
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -54,16 +65,6 @@ import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
-import io.putdotio.android.playback.SubtitleTrackIdentity
-import io.putdotio.android.playback.playbackSubtitleTracks
-import io.putdotio.android.playback.AudioTrackIdentity
-import io.putdotio.android.playback.playbackAudioTracks
-import androidx.media3.exoplayer.ExoPlayer
-import io.putdotio.android.playback.audioAttributes
-import io.putdotio.android.playback.playbackRenderersFactory
-import io.putdotio.android.playback.MOBILE_PLAYER_GESTURE_TAG
-import io.putdotio.android.playback.MobilePlayerFactory
-import io.putdotio.android.playback.MobilePlayerScreen
 
 /** Real video, tracks, cues, window rotation and insets; saved-state recreation uses the Compose test harness. */
 @RunWith(AndroidJUnit4::class)
@@ -88,28 +89,10 @@ class MobileFullscreenVideoProofTest {
         val factory = FullscreenProofPlayerFactory()
         val state = localVideoState()
         var showingVideo by mutableStateOf(false)
-        compose.runOnUiThread {
-            compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            val window = compose.activity.window
-            WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
-        }
+        showBars(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
         val restoration = StateRestorationTester(compose)
         restoration.setContent {
-            PutioTheme {
-                Surface(Modifier.fillMaxSize()) {
-                    if (showingVideo) {
-                        MobilePlayerScreen(
-                            state = state,
-                            onRetry = { error("Unexpected local video retry") },
-                            onPlayerFailure = { failure, _ -> error("Local video failed: $failure") },
-                            onBack = { showingVideo = false },
-                            playerFactory = factory,
-                        )
-                    } else {
-                        Text("Local video proof")
-                    }
-                }
-            }
+            LocalVideoHost(showingVideo, state, factory, onBack = { showingVideo = false })
         }
         awaitWindow(Configuration.ORIENTATION_PORTRAIT, barsVisible = true)
         compose.runOnIdle { showingVideo = true }
@@ -151,7 +134,7 @@ class MobileFullscreenVideoProofTest {
                 val restored = factory.current()
                 assertTrue("Playback position must survive replacement",
                     restored.currentPosition in positionBeforeRestore..positionBeforeRestore + 1_500L)
-                assertTrue("Paused playback must remain paused", !restored.playWhenReady)
+                assertFalse("Paused playback must remain paused", restored.playWhenReady)
                 restored.play()
             }
             awaitWindow(Configuration.ORIENTATION_LANDSCAPE, barsVisible = false)
@@ -181,27 +164,9 @@ class MobileFullscreenVideoProofTest {
         val factory = FullscreenProofPlayerFactory()
         val state = localVideoState(checkNotNull(fixture))
         var showingVideo by mutableStateOf(false)
-        compose.runOnUiThread {
-            compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            val window = compose.activity.window
-            WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
-        }
+        showBars(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
         compose.setContent {
-            PutioTheme {
-                Surface(Modifier.fillMaxSize()) {
-                    if (showingVideo) {
-                        MobilePlayerScreen(
-                            state = state,
-                            onRetry = { error("Unexpected local video retry") },
-                            onPlayerFailure = { failure, _ -> error("Local video failed: $failure") },
-                            onBack = { showingVideo = false },
-                            playerFactory = factory,
-                        )
-                    } else {
-                        Text("Local video proof")
-                    }
-                }
-            }
+            LocalVideoHost(showingVideo, state, factory, onBack = { showingVideo = false })
         }
         awaitWindow(Configuration.ORIENTATION_PORTRAIT, barsVisible = true)
         compose.runOnIdle { showingVideo = true }
@@ -229,6 +194,36 @@ class MobileFullscreenVideoProofTest {
             }
         } finally {
             compose.runOnUiThread { showingVideo = false }
+        }
+    }
+
+    private fun showBars(requestedOrientation: Int) = compose.runOnUiThread {
+        compose.activity.requestedOrientation = requestedOrientation
+        val window = compose.activity.window
+        WindowCompat.getInsetsController(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
+    }
+
+    @Composable
+    private fun LocalVideoHost(
+        showingVideo: Boolean,
+        state: PlaybackState,
+        factory: FullscreenProofPlayerFactory,
+        onBack: () -> Unit,
+    ) {
+        PutioTheme {
+            Surface(Modifier.fillMaxSize()) {
+                if (showingVideo) {
+                    MobilePlayerScreen(
+                        state = state,
+                        onRetry = { error("Unexpected local video retry") },
+                        onPlayerFailure = { failure, _ -> error("Local video failed: $failure") },
+                        onBack = onBack,
+                        playerFactory = factory,
+                    )
+                } else {
+                    Text("Local video proof")
+                }
+            }
         }
     }
 
@@ -325,14 +320,7 @@ class MobileFullscreenVideoProofTest {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.waitForIdleSync()
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "fullscreen-video-proof-${runId()}")
-        check(directory.mkdirs() || directory.isDirectory)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use {
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-        } finally { bitmap.recycle() }
+        saveProofScreenshot(proofDirectory("fullscreen-video-proof-${runId()}"), label)
     }
 
     private fun runId(): UUID = UUID.fromString(requireNotNull(arguments.getString("putio.video.fullscreen.runId")))
@@ -355,13 +343,14 @@ private class FullscreenProofPlayerFactory : MobilePlayerFactory {
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
         ExoPlayer.Builder(context, playbackRenderersFactory(context))
             .setAudioAttributes(mediaType.audioAttributes(), true)
-            .build().also {
-            player = it
-            renderedFrame = false
-            it.addListener(object : Player.Listener {
-                override fun onRenderedFirstFrame() { renderedFrame = true }
-            })
-        }
+            .build()
+            .also {
+                player = it
+                renderedFrame = false
+                it.addListener(object : Player.Listener {
+                    override fun onRenderedFirstFrame() { renderedFrame = true }
+                })
+            }
     // This private-video proof must not stop an unrelated real audio session.
     override fun stopAudio(context: Context) = Unit
 }

@@ -21,7 +21,7 @@ import android.view.MotionEvent
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -399,12 +399,11 @@ class MobileTabletPowerProofTest {
     private fun rowCenter(name: String): PointF = screenPoint(row(name).fetchSemanticsNode().boundsInWindow.center)
 
     private fun hostCenter(): PointF {
-        val origin = IntArray(2).also(compose.activity.window.decorView::getLocationOnScreen)
         val view = compose.activity.window.decorView
-        return PointF(origin[0] + view.width / 2f, origin[1] + view.height / 2f)
+        return screenPoint(Offset(view.width / 2f, view.height / 2f))
     }
 
-    private fun screenPoint(offset: androidx.compose.ui.geometry.Offset): PointF {
+    private fun screenPoint(offset: Offset): PointF {
         val origin = IntArray(2).also(compose.activity.window.decorView::getLocationOnScreen)
         return PointF(origin[0] + offset.x, origin[1] + offset.y)
     }
@@ -450,14 +449,7 @@ class MobileTabletPowerProofTest {
         uiAutomation.waitForIdle(100, 3_000)
         // Holds each state long enough for a screen recording to show it.
         SystemClock.sleep(STEP_PAUSE_MS)
-        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "tablet-proof-${runId()}")
-        check(directory.mkdirs() || directory.isDirectory)
-        val bitmap = requireNotNull(uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
-        } finally {
-            bitmap.recycle()
-        }
+        saveProofScreenshot(proofDirectory("tablet-proof-${runId()}"), label)
     }
 
     /** The probe's reports, which it broadcasts to this app after each drop. */

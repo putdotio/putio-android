@@ -1,6 +1,5 @@
 package io.putdotio.android
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -30,7 +29,6 @@ import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.accountSettingsState
 import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.android.trash.TrashController
-import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -47,16 +45,8 @@ internal fun trashRestoreScreenshot(label: String) {
     require(label in setOf("cancel-confirmation", "restore-started", "restore-result", "restored-files",
         "synthetic-empty", "synthetic-error", "synthetic-recovery"))
     val instrumentation = InstrumentationRegistry.getInstrumentation()
-    val directory = File(requireNotNull(instrumentation.targetContext.getExternalFilesDir(null)),
-        "trash-restore-proof-$runId")
-    check(directory.mkdirs() || directory.isDirectory)
     instrumentation.uiAutomation.waitForIdle(100, 3_000)
-    val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-    try {
-        File(directory, "$label.png").outputStream().use {
-            check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-        }
-    } finally { bitmap.recycle() }
+    saveProofScreenshot(proofDirectory("trash-restore-proof-$runId"), label)
 }
 
 @Composable

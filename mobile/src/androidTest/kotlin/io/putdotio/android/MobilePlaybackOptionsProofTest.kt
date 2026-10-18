@@ -1,7 +1,6 @@
 package io.putdotio.android
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.KeyEvent
@@ -309,14 +308,7 @@ class MobilePlaybackOptionsProofTest {
         instrumentation.waitForIdleSync()
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
         val runId = UUID.fromString(requireNotNull(arguments.getString("putio.playback.options.runId")))
-        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "playback-options-proof-$runId")
-        check(directory.mkdirs() || directory.isDirectory)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use {
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-        } finally { bitmap.recycle() }
+        saveProofScreenshot(proofDirectory("playback-options-proof-$runId"), label)
     }
 
     private val arguments get() = InstrumentationRegistry.getArguments()

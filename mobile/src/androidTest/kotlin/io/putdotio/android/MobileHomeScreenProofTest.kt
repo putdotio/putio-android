@@ -7,7 +7,6 @@ import android.app.Instrumentation
 import android.app.NotificationManager
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
-import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Build
 import android.os.SystemClock
@@ -42,7 +41,6 @@ import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.android.widgets.TransfersWidgetSource
 import io.putdotio.android.widgets.TransfersWidgetUpdater
 import io.putdotio.sdk.files.PutioFileType
-import java.io.File
 import java.io.FileInputStream
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
@@ -55,7 +53,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
@@ -325,16 +322,7 @@ class MobileHomeScreenProofTest {
     private fun screenshot(label: String) {
         instrumentation.waitForIdleSync()
         instrumentation.uiAutomation.waitForIdle(IDLE_MS, TIMEOUT_MS)
-        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "homescreen-proof-${runId()}")
-        check(directory.mkdirs() || directory.isDirectory)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use {
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-        } finally {
-            bitmap.recycle()
-        }
+        saveProofScreenshot(proofDirectory("homescreen-proof-${runId()}"), label)
     }
 
     private fun runId(): UUID = UUID.fromString(requireNotNull(arguments.getString("putio.homescreen.runId")))

@@ -19,8 +19,9 @@ import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.proofDirectory
+import io.putdotio.android.saveProofScreenshot
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -125,16 +126,7 @@ class MobileShareSessionProofTest {
     private fun screenshot(label: String) {
         instrumentation.waitForIdleSync()
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "share-session-proof-${runId()}")
-        check(directory.mkdirs() || directory.isDirectory)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use {
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-        } finally {
-            bitmap.recycle()
-        }
+        saveProofScreenshot(proofDirectory("share-session-proof-${runId()}"), label)
     }
 
     private fun runId(): UUID = UUID.fromString(requireNotNull(arguments.getString("putio.share.session.runId")))

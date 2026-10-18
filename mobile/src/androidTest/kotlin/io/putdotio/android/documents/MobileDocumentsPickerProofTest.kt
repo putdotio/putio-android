@@ -31,12 +31,13 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.StubFilesRepository
+import io.putdotio.android.proofDirectory
+import io.putdotio.android.saveProofScreenshot
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.sdk.files.PutioFileType
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
 import java.util.UUID
@@ -57,6 +58,7 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -176,7 +178,7 @@ class MobileDocumentsPickerProofTest {
                 picker.open()
                 showRoots()
                 SystemClock.sleep(SETTLE_MS)
-                assertTrue("The put.io root must be gone", !hasText(ROOT_SUMMARY))
+                assertFalse("The put.io root must be gone", hasText(ROOT_SUMMARY))
                 screenshot("08-signed-out-no-root")
                 // Back closes the roots drawer first, then cancels the picker.
                 repeat(2) { if (activeWindowPackage() != context.packageName) back() }
@@ -301,16 +303,7 @@ class MobileDocumentsPickerProofTest {
     private fun screenshot(label: String) {
         instrumentation.waitForIdleSync()
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "documents-proof-${runId()}")
-        check(directory.mkdirs() || directory.isDirectory)
-        val bitmap = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
-        try {
-            File(directory, "$label.png").outputStream().use {
-                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-            }
-        } finally {
-            bitmap.recycle()
-        }
+        saveProofScreenshot(proofDirectory("documents-proof-${runId()}"), label)
     }
 
     private fun runId(): UUID = UUID.fromString(requireNotNull(arguments.getString("putio.documents.runId")))

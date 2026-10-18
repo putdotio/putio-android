@@ -311,7 +311,6 @@ private class TrashRestoreCountingRepository(
         private set
     @Volatile var startedAt = 0L
         private set
-    // Reserve the fifteenth exact-ID GET for the host's independent final readback.
     private var lastCheckAt = 0L
 
     override suspend fun restore(itemId: FilesItemId): PutioResult<Unit> {
@@ -330,6 +329,7 @@ private class TrashRestoreCountingRepository(
 
     override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
         if (itemId.value == ownedRestoreId && restores > 0) {
+            // Reserve the fifteenth exact-ID GET for the host's independent final readback.
             check(checks < 14) { "Restore check budget exhausted; retain fixture" }
             val remainingSpacing = 2_000 - (SystemClock.elapsedRealtime() - lastCheckAt)
             if (checks > 0 && remainingSpacing > 0) delay(remainingSpacing)
