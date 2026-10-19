@@ -470,9 +470,9 @@ mount the shell on controlled repositories. Screenshots:
 ### Live audio attachment without source resolution
 
 `MobileLiveAudioAttachmentProofTest#shellRequestReopensLiveAudioWithoutResolvingItsSource`
-uses the real `MobilePlaybackService` and MediaController with a local
-two-track audio fixture, a controlled account and a playback repository that
-always fails resolution. Opening the controls and reopening after Back through
+uses the real `MobilePlaybackService` and MediaController with a local two-track
+audio fixture, a controlled account and a playback repository that always fails
+resolution. Opening the controls and reopening after Back through
 `NowPlayingRequests` must make zero resolver calls and keep position, speed,
 track and Play/Pause. It does not tap the notification, deliver a MainActivity
 intent or simulate process death.
@@ -504,15 +504,14 @@ Behaviour: [Mobile video player](./behavior.md#mobile-video-player).
 `MobileFullscreenVideoProofTest#landscapePlaybackUsesDirectControlsAndRestoresThePreviousWindow`
 plays local Media3 video in a debug-only Activity that handles orientation
 changes, so the production window policy rotates the real window: portrait with
-bars becomes landscape without them, and Back restores both. It opens the
-Audio, Captions and speed controls, picks the second track, 1.5× and captions,
-checks tracks and cue text survive saved-state recreation
-(`StateRestorationTester`, not Activity or process recreation), and that Off
-and Automatic clear and restore cues. The source declares
-`PlaybackSubtitles.None`, so captions must come from player-discovered tracks.
-Its player factory builds ExoPlayer with the production renderers, because the
-production player streams through the download cache's HTTP source, which
-cannot read a local file.
+bars becomes landscape without them, and Back restores both. It opens the Audio,
+Captions and speed controls, picks the second track, 1.5× and captions, checks
+tracks and cue text survive saved-state recreation (`StateRestorationTester`,
+not Activity or process recreation), and that Off and Automatic clear and
+restore cues. The source declares `PlaybackSubtitles.None`, so captions must
+come from player-discovered tracks. Its player factory builds ExoPlayer with the
+production renderers, because the production player streams through the download
+cache's HTTP source, which cannot read a local file.
 
 Arguments: `putio.video.fullscreen.enabled`, `.runId` and `.fixture`: a 180 s
 landscape MP4 with AAC `eng`/`deu` audio tracks and an `eng` mov_text caption
@@ -657,11 +656,12 @@ by `MobileDocumentsProviderTest`, not this lane.
 
 ### Downloads and offline playback proof
 
-Behaviour: [Downloads and offline playback](./behavior.md#downloads-and-offline-playback);
-`DownloadsControllerTest`, `MobileDownloadStoreTest`, `MobileDownloadEngineTest`,
-`MobileDownloadNotificationsTest`, `OfflinePlaybackPositionsTest`,
-`UserScopedCacheKeysTest` and `OfflinePlaybackRepositoryTest` pin the rules on
-the JVM.
+Behaviour:
+[Downloads and offline playback](./behavior.md#downloads-and-offline-playback);
+`DownloadsControllerTest`, `MobileDownloadStoreTest`,
+`MobileDownloadEngineTest`, `MobileDownloadNotificationsTest`,
+`OfflinePlaybackPositionsTest`, `UserScopedCacheKeysTest` and
+`OfflinePlaybackRepositoryTest` pin the rules on the JVM.
 
 Live, with `devs-auto`:
 
@@ -830,8 +830,9 @@ The shell appears within one 3 s poll. Get new code requests another; Sign out
 under Account returns to a fresh code at once and revokes in the background. A
 force-stop and relaunch must land in the shell (the Keystore restore);
 `pm clear io.put.putio.debug` drops the token. The emulator has no Fire TV
-feature flag, so it links as the Android TV client (6221); Fire TV (6233)
-needs the physical device from [#51](https://github.com/putdotio/putio-android/issues/51).
+feature flag, so it links as the Android TV client (6221); Fire TV (6233) needs
+the physical device from
+[#51](https://github.com/putdotio/putio-android/issues/51).
 
 ### TV platform integration proof
 
@@ -864,13 +865,12 @@ Watch Next: upload a uniquely named video of a few minutes with `devs-auto`,
 open it with
 `adb shell am start -a android.intent.action.VIEW -d putio://files/<id> io.put.putio.debug`,
 play past one 15 s sample and press Home: Play Next shows the card with the
-screenshot and progress. `putio files start-from set <id> <s>` places a
-position for a repeat. Center on the card (or `-d putio://continue/<id>`)
-continues without the prompt; playing to the end, Sign out, and trashing the
-file then force-stopping and relaunching (the check runs once per process)
-each remove the card. The shell user cannot read another package's Watch Next
-rows, so check the launcher (`uiautomator dump`, Resume watching), not
-`content query`.
+screenshot and progress. `putio files start-from set <id> <s>` places a position
+for a repeat. Center on the card (or `-d putio://continue/<id>`) continues
+without the prompt; playing to the end, Sign out, and trashing the file then
+force-stopping and relaunching (the check runs once per process) each remove the
+card. The shell user cannot read another package's Watch Next rows, so check the
+launcher (`uiautomator dump`, Resume watching), not `content query`.
 
 System search: the provider refuses the shell (`content query --uri
 content://io.put.putio.debug.search/search_suggest_query/<q>` reports the
@@ -920,8 +920,8 @@ calling a run 4K.
 These lanes run on the signed-in `putio-tv` after device-code sign-in. The
 shared identity's files, settings, history and Trash are the fixture: create
 throwaway items, read state before a proof, and restore what you change.
-"Oracle" is the 34-capture TV behaviour oracle that
-[#33](https://github.com/putdotio/putio-android/issues/33) gates parity on.
+"Oracle" is the 34-capture TV behaviour oracle in
+[#33](https://github.com/putdotio/putio-android/issues/33).
 
 ```bash
 adb -s emulator-5554 exec-out uiautomator dump /dev/tty | grep -oE 'content-desc="(Open|Play|Search again for) [^"]+"' | head
@@ -970,10 +970,11 @@ KEYCODE_ENTER` types without the IME for headless proof.
   does, grouped under Today, Yesterday, Last week, Last month and Earlier, each
   with its kind and relative time, or its date past a week. Focus enters on the
   first event; Up reaches Clear, Left the drawer. Center on an event naming a
-  file opens it as a Search result does; any other event is a resting row. Clear confirms with Cancel focused and removes the account's whole
-  history, so clear only on a proof account. With `history_enabled` off the
-  pane names Account's Keep account history switch; TV's own toggle flips it at
-  once, a change elsewhere on the next session validation.
+  file opens it as a Search result does; any other event is a resting row. Clear
+  confirms with Cancel focused and removes the account's whole history, so clear
+  only on a proof account. With `history_enabled` off the pane names Account's
+  Keep account history switch; TV's own toggle flips it at once, a change
+  elsewhere on the next session validation.
 
 ### TV player proof
 

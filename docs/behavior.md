@@ -42,7 +42,7 @@ Tests: `PendingTokenRevocationsTest`, `KeystoreAuthTokenStoreTest`,
 ## Upgrade from tv-native
 
 Android TV replaces the React Native TV app (putio-web `apps/tv-native`) under
-the same application id, so its data survives the update (#244). tv-native kept
+the same application id, so its data survives the update. tv-native kept
 the token as a raw string under `@putio:auth_token` in React Native AsyncStorage
 1.23.1, whose Android backend is the SQLite database `RKStorage`, table
 `catalystLocalStorage`. On a start with no Keystore session, TV reads that token
@@ -67,9 +67,10 @@ no `video_playback_type` key maps `playbackType` `hls` or `mp4` to it, writes it
 and plays that type; an existing `video_playback_type`, even one the app cannot
 parse, is never overwritten. A 401 on that write fails the read and expires the
 session like any `/config` 401; any other failed write still applies to that
-read, and the next read writes again. tv-native's `bufferSize` is not carried over: Android TV
-has no buffer setting and always buffers as tv-native's default `medium` (see
-[TV playback](#tv-playback)); the key is left untouched in `/config`.
+read, and the next read writes again. tv-native's `bufferSize` is not carried
+over: Android TV has no buffer setting and always buffers as tv-native's default
+`medium` (see [TV playback](#tv-playback)); the key is left untouched in
+`/config`.
 
 Tests: `TvAuthControllerTest`, `AsyncStorageLegacyTvSessionTest` (a fixture
 AsyncStorage database), `TvNativeConfigMigrationTest` (fixture `/config` blobs).
@@ -92,7 +93,7 @@ Tests: `TvLinkQrTest` (decodes the drawn pixels with ZXing's reader).
 
 Videos played on this TV appear in the launcher's Watch Next row (Play Next on
 Android TV, Continue watching on Google TV) while they are in progress: put.io
-holds a position above 0 and below 95 % of the duration (#38), and more than
+holds a position above 0 and below 95 % of the duration, and more than
 10 s before the end, which the player would start over (see
 [Resume](#resume-and-position-reporting)). The card follows put.io's saved
 position: it is published whenever a playback position write succeeds (every
@@ -199,27 +200,27 @@ only Open in VLC, as tv-native does, and Menu on any other shared item opens
 nothing.
 
 On mobile, a friend's shared file or folder, and anything inside one, offers
-Make a copy, as web and iOS do; the shared root and each friend's folder
-offer nothing, so they have no actions button. The Files move picker
-chooses the destination among the viewer's own folders, root included, and
-opens where Move's does (see [Move and copy target folder](#move-and-copy-target-folder)).
-put.io copies in the background
-(`POST /v2/sharing/clone`), so a line under the folder shows the copy until
-it is dismissed and stays across folder navigation. The app checks the copy
-every 1.5 s, as web does, for up to 200 checks. A finished copy reloads the
-destination if it is already open in the stack. A failed copy shows put.io's
-reason under the [refused-request](#refused-requests) rules, or web's copy for
-the concurrency and too-many-files limits. A copy
-whose start gets no clear answer (a lost or unreadable response, or a server
-fault), whose check fails, or that is still running after the last check, is
-reported as unconfirmed, because it may still land. Only one copy runs at a
-time. Rotation keeps the copy and its checks; process death discards them, so
-the line is gone and another copy can start while put.io may still run the
-first. TV doesn't offer Make a copy, because tv-native and tv-vite don't.
+Make a copy, as web and iOS do; the shared root and each friend's folder offer
+nothing, so they have no actions button. The Files move picker chooses the
+destination among the viewer's own folders, root included, and opens where
+Move's does (see [Move and copy target folder](#move-and-copy-target-folder)).
+put.io copies in the background (`POST /v2/sharing/clone`), so a line under the
+folder shows the copy until it is dismissed and stays across folder navigation.
+The app checks the copy every 1.5 s, as web does, for up to 200 checks. A
+finished copy reloads the destination if it is already open in the stack. A
+failed copy shows put.io's reason under the [refused-request](#refused-requests)
+rules, or web's copy for the concurrency and too-many-files limits. A copy whose
+start gets no clear answer (a lost or unreadable response, or a server fault),
+whose check fails, or that is still running after the last check, is reported as
+unconfirmed, because it may still land. Only one copy runs at a time. Rotation
+keeps the copy and its checks; process death discards them, so the line is gone
+and another copy can start while put.io may still run the first. TV doesn't
+offer Make a copy, because tv-native and tv-vite don't.
 
-Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`, `TvFilesRowActionsTest`,
-`FilesCopyTest`, `MobileFilesCopyTest`, `MobilePublicLinksTest`, `MobileSharedItemsProofTest` (opt-in
-synthetic device proof; see [Harness](./harness.md#shared-with-me-items-proof)).
+Tests: `SdkFilesRepositoryTest`, `MobileFilesScreenTest`,
+`TvFilesRowActionsTest`, `FilesCopyTest`, `MobileFilesCopyTest`,
+`MobilePublicLinksTest`, `MobileSharedItemsProofTest` (opt-in synthetic device
+proof; see [Harness](./harness.md#shared-with-me-items-proof)).
 
 ## Move and copy target folder
 
@@ -336,30 +337,31 @@ and retained player-error recovery bypass the prompt. Start over starts locally
 at zero; it does not immediately reset the server position.
 
 One observer belongs to each actual player: the private video owner or the audio
-service on mobile, the player screen on TV. Screens and notification controllers do not duplicate audio reporting.
-The observer samples advancing playback every 15 seconds and captures positive
-positions on pause, stop, end, error, item replacement and owner exit. Buffering
-and same-item seek events do not send immediate writes. The
-application writer deduplicates positions within the same second, permits one
-request in flight and one latest pending snapshot, and times out a request after
-15 seconds. A position offered while a request is in flight is written after it,
-so the final one wins. Under slow requests or rapid file switches, newer
-snapshots can replace intermediate queued exit positions, and reopening a file
-drops its previous opening's queued snapshot. Failed writes keep their typed
-cause and wait for a new position; there is no immediate retry loop or
-completion reset: a finished item's real final position is written.
+service on mobile, the player screen on TV. Screens and notification controllers
+do not duplicate audio reporting. The observer samples advancing playback every
+15 seconds and captures positive positions on pause, stop, end, error, item
+replacement and owner exit. Buffering and same-item seek events do not send
+immediate writes. The application writer deduplicates positions within the same
+second, permits one request in flight and one latest pending snapshot, and times
+out a request after 15 seconds. A position offered while a request is in flight
+is written after it, so the final one wins. Under slow requests or rapid file
+switches, newer snapshots can replace intermediate queued exit positions, and
+reopening a file drops its previous opening's queued snapshot. Failed writes
+keep their typed cause and wait for a new position; there is no immediate retry
+loop or completion reset: a finished item's real final position is written.
 
 Reporting requires an app-issued item lease, the same signed-in session, and a
 confirmed enabled resume setting. Pending/failed resume-setting writes suspend
 reporting; unrelated setting writes do not. A downloaded file whose settings
 never loaded this session reports under the last confirmed setting, and keeps a
-position put.io cannot take ([offline resume](#downloads-and-offline-playback)). Session exit or disabled/unconfirmed
-policy cancels requests and discards pending positions without flushing. The
-application owns this policy subscription so task removal does not stop audio
-updates. A source resolved with resume disabled receives no reporting lease.
-An authoritative authentication failure from a position write expires only the
-session that issued it. Rejection runs outside the cancellable reporting job,
-and checks the session identity again under the authentication controller's lock.
+position put.io cannot take ([offline resume](#downloads-and-offline-playback)).
+Session exit or disabled/unconfirmed policy cancels requests and discards
+pending positions without flushing. The application owns this policy
+subscription so task removal does not stop audio updates. A source resolved with
+resume disabled receives no reporting lease. An authoritative authentication
+failure from a position write expires only the session that issued it. Rejection
+runs outside the cancellable reporting job, and checks the session identity
+again under the authentication controller's lock.
 
 Tests: `PlaybackReducerTest`, `PlaybackControllerTest`, `MobilePlayerScreenTest`
 (the prompt, recreation and Start over), `TvPlayerResumeTest` (Back on the
@@ -390,65 +392,69 @@ Tests: `MobileVideoWindowTest`, `MobilePlayerScreenTest`, device proof
 
 ## Picture-in-picture
 
-Mobile video moves into a picture-in-picture window when the viewer leaves the app while it
-plays: Android 12 and later enter on their own, Android 8 to 11 on the leave hint. The window is
-offered only while the video holds the screen on (playing, not ended, idle or suppressed), so
-never for paused, finished or failed video, the resume prompt, the conversion interstitial or
-audio, which keeps playing through its background service. The window takes the video's display shape, held between 1:2.38 and 2.38:1 within
-the platform's default limits, and animates from the letterboxed video rather than the whole
-screen. A device that refuses the shape or the window, and an Activity whose manifest does not
-declare `supportsPictureInPicture`, give the video no window instead of failing.
+Mobile video moves into a picture-in-picture window when the viewer leaves the
+app while it plays: Android 12 and later enter on their own, Android 8 to 11 on
+the leave hint. The window is offered only while the video holds the screen on
+(playing, not ended, idle or suppressed), so never for paused, finished or
+failed video, the resume prompt, the conversion interstitial or audio, which
+keeps playing through its background service. The window takes the video's
+display shape, held between 1:2.38 and 2.38:1 within the platform's default
+limits, and animates from the letterboxed video rather than the whole screen. A
+device that refuses the shape or the window, and an Activity whose manifest does
+not declare `supportsPictureInPicture`, give the video no window instead of
+failing.
 
-The window shows only the video and its subtitles: the controls, the back button and seek
-feedback leave composition, which also closes an open settings sheet. Its menu carries one
-action, Pause or Play, which drives the screen's own player through Media3's play and pause
-handling. Entering or leaving the window never recreates the Activity or its player
-([Multi-window](#multi-window)). Expanding returns a landscape video straight to landscape: the
-phone's landscape lock ignores picture-in-picture's own multi-window mode.
+The window shows only the video and its subtitles: the controls, the back button
+and seek feedback leave composition, which also closes an open settings sheet.
+Its menu carries one action, Pause or Play, which drives the screen's own player
+through Media3's play and pause handling. Entering or leaving the window never
+recreates the Activity or its player ([Multi-window](#multi-window)). Expanding
+returns a landscape video straight to landscape: the phone's landscape lock
+ignores picture-in-picture's own multi-window mode.
 
-Entering the window pauses the Activity, not the video. On the API 37 emulator the Activity's own
-picture-in-picture flag is already set when the pause arrives, before mode listeners hear it;
-where a pause still beats the flag, the window resumes what it stopped. In the window the started
-Activity counts as the foreground: a pause or play there is what Expand keeps, and autoplay next
-starts the next video playing in the window. When autoplay finds nothing more, the window goes
-blank and the route returns only once the window closes or expands, so the window never shows
-the shell. The screen-on hold follows playback as it does full screen, and position
-reporting is unchanged: the observer samples every 15 seconds while the window plays.
+Entering the window pauses the Activity, not the video. On the API 37 emulator
+the Activity's own picture-in-picture flag is already set when the pause
+arrives, before mode listeners hear it; where a pause still beats the flag, the
+window resumes what it stopped. In the window the started Activity counts as the
+foreground: a pause or play there is what Expand keeps, and autoplay next starts
+the next video playing in the window. When autoplay finds nothing more, the
+window goes blank and the route returns only once the window closes or expands,
+so the window never shows the shell. The screen-on hold follows playback as it
+does full screen, and position reporting is unchanged: the observer samples
+every 15 seconds while the window plays.
 
-Expand returns to the full-screen player where the window was. Closing the window stops the
-Activity, which releases the player and writes its position as leaving the app does; whichever
-order the stop and the mode change arrive in, the next visit finds the video paused at that
-position instead of playing on.
+Expand returns to the full-screen player where the window was. Closing the
+window stops the Activity, which releases the player and writes its position as
+leaving the app does; whichever order the stop and the mode change arrive in,
+the next visit finds the video paused at that position instead of playing on.
 
 Tests: `MobilePictureInPictureTest`,
-`MobileShellPlaybackTest.terminalAutoplayInPictureInPictureWaitsForTheWindowToClose`; device
-proof `MobilePictureInPictureProofTest` ([Harness](./harness.md#picture-in-picture-proof)).
+`MobileShellPlaybackTest.terminalAutoplayInPictureInPictureWaitsForTheWindowToClose`;
+device proof `MobilePictureInPictureProofTest`
+([Harness](./harness.md#picture-in-picture-proof)).
 
 ## MP4 conversion
 
 Both surfaces resolve a video that needs MP4 conversion to the same shared
-conversion state. The SDK resolves a conversion only for a video the server marks
-`need_convert`, and its MP4 status reads not available until a conversion is
-requested ([live check](https://github.com/putdotio/putio-android/pull/222#issuecomment-5904428342):
-a not-available video converted and played).
-Opening such a video starts its conversion through the SDK's
-`startMp4Conversion` without a tap, as putio-web, tv-native, tv-vite and iOS do,
-and the interstitial says the conversion has started. Only the first conversion
-status read of an opening can start one, including one that follows a Retry after
-the opening's resolve failed: a first read of queued, running, completed or failed
-is only read, so opening the file again while it converts requests nothing, and
-after that first read, polls, Check again and retries never start one, even across
-a failed read.
-The SDK's consumer guide asks for the same
-([putio-sdk-kotlin#59](https://github.com/putdotio/putio-sdk-kotlin/pull/59),
-[#236](https://github.com/putdotio/putio-android/issues/236)).
-A queued or running conversion is read again every 3 s while the app is in the
-foreground, keeping the interstitial up, and plays on its own once it resolves.
-Completed is read once more at once; if it stays completed, Check again waits for
-the viewer, as does an unknown status. Convert again after a failed one starts it
-again. A start the server accepted reads as queued once, so a status read that
-has not caught up polls again; if the status still reads not available after
-that, the video cannot be converted and offers only Back.
+conversion state. The SDK resolves a conversion only for a video the server
+marks `need_convert`, and its MP4 status reads not available until a conversion
+is requested
+([live check](https://github.com/putdotio/putio-android/pull/222#issuecomment-5904428342):
+a not-available video converted and played). Opening such a video starts its
+conversion through the SDK's `startMp4Conversion` without a tap, as putio-web,
+tv-native, tv-vite and iOS do, and the interstitial says the conversion has
+started. Only the first conversion status read of an opening can start one,
+including one that follows a Retry after the opening's resolve failed: a first
+read of queued, running, completed or failed is only read, so opening the file
+again while it converts requests nothing, and after that first read, polls,
+Check again and retries never start one, even across a failed read. A queued or
+running conversion is read again every 3 s while the app is in the foreground,
+keeping the interstitial up, and plays on its own once it resolves. Completed is
+read once more at once; if it stays completed, Check again waits for the viewer,
+as does an unknown status. Convert again after a failed one starts it again. A
+start the server accepted reads as queued once, so a status read that has not
+caught up polls again; if the status still reads not available after that, the
+video cannot be converted and offers only Back.
 
 Tests: `PlaybackConversionReducerTest`, `PlaybackReducerTest`, `PlaybackControllerTest`,
 `SdkPlaybackRepositoryTest`, `MobilePlayerScreenTest`, `TvPlaybackStatesTest`,
@@ -467,10 +473,11 @@ the row that was playing. Playback belongs to the session: sign-out ends it.
 The overlay shows the raw file name, the option buttons, a seek bar, position
 and duration. Any key reveals it for three seconds of playback; it stays while
 paused, scrubbing or picking. The seek bar shows where playback starts before
-the stream reports its duration, using the listing's duration until then. Center, Enter or the remote's play/pause key toggles playback, and
-leaving the app pauses it and shows the paused controls. If the activity is
-recreated (a remote or keyboard connecting, a locale change), playback
-continues paused from where it stopped.
+the stream reports its duration, using the listing's duration until then.
+Center, Enter or the remote's play/pause key toggles playback, and leaving the
+app pauses it and shows the paused controls. If the activity is recreated (a
+remote or keyboard connecting, a locale change), playback continues paused from
+where it stopped.
 
 Left, Right, rewind and fast-forward scrub, as the RN player did: the first
 press pauses and the seek bar shows a pending target. Each press moves it
@@ -487,7 +494,7 @@ button's name shows above it while focused. Left and Right scrub only on the
 seek bar; rewind and fast-forward scrub from anywhere and pull focus back to it.
 Center opens the button's centred picker with focus on the current choice:
 Audio tracks, Subtitles (Off, then the tracks) or Playback speed (0.25× to 2×
-in quarter steps). Only the choices scroll, so the title stays in view (#224).
+in quarter steps). Only the choices scroll, so the title stays in view.
 A track shows its name, else its language; MP4 subtitles read `LANGUAGE - name`,
 as the RN player relabelled its sidecar tracks. Speed and audio start over with
 each file. Choices survive a rebuilt player.
@@ -495,7 +502,7 @@ each file. Choices survive a rebuilt player.
 Subtitles start from the account's settings, as on mobile: gone with
 `hide_subtitles`, forced tracks only with `dont_autoselect_subtitles`,
 otherwise selected automatically. Hidden means gone, as in every reference
-player (#237): playback asks put.io for no subtitles (`max_subtitle_count=0`
+player: playback asks put.io for no subtitles (`max_subtitle_count=0`
 for HLS, no subtitle list for MP4 and original sources), and neither surface
 shows its subtitle picker. Playback resolved for such an account says so, so
 the picker stays out even before the settings load; hiding also outranks a pick
@@ -506,14 +513,14 @@ the MP4 subtitle list names it `default`. It outranks the system caption
 language; without a default, Media3 picks by the system caption setting as
 before. Until the settings load, and after a failed load, subtitles start off
 whatever the system caption setting, so a `hide_subtitles` account never sees
-them early; settings that arrive later still decide until the viewer picks
-(#229). Once the viewer picks, the pick decides (#45), short of hiding: a
+them early; settings that arrive later still decide until the viewer picks.
+Once the viewer picks, the pick decides, short of hiding: a
 picked track is found again after track changes, and Off keeps the text type
 disabled and draws nothing, whatever cues the renderer last delivered, across
 seeks and track changes. Cues, bitmap (PGS) ones included, draw with the system
 caption style through the same overlay as mobile.
 
-Back dismisses the topmost layer (#9): an open picker first (no change; focus
+Back dismisses the topmost layer: an open picker first (no change; focus
 back on its button), then seek mode (no seek; playback resumes only if the
 scrub paused it), then the controls (pause state untouched; they come back on
 the seek bar), and only then leaves playback, once. A held Back is one press.
@@ -530,7 +537,7 @@ player did.
 
 With Account's Autoplay next video on (the confirmed `autoplay_next_video`), a
 finished video plays the next one in its folder by the shared rules mobile
-uses (#248): the folder's videos in name order, stopping after the last without
+uses: the folder's videos in name order, stopping after the last without
 wrapping or crossing folders, never a video already played in that run, and
 never after audio. The finished video's end is reported to the shared
 position writer under its own lease, as on mobile. The next video resolves
@@ -743,7 +750,7 @@ is past those 30 s. The picker sorts rows itself.
 
 A document id is `<userId>:<fileId>`, the root being file 0. Rows carry the
 name, a MIME type from the extension (`application/octet-stream` when unknown,
-since SDK 1.0.0 does not expose the API's `content_type`), the size of files,
+since the SDK does not expose the API's `content_type`), the size of files,
 the last-modified time from `updated_at` (else `created_at`) and no flags;
 icons are the picker's own, by MIME type.
 
@@ -882,8 +889,9 @@ it. The video window requests no orientation in multi-window mode.
 Tests: `MobileMultiWindowTest` (resizing, rotation and a keyboard keep the
 Activity; a density change recreates it and keeps its intake; the shell keeps
 its destination across resizing and recreation), `MobilePlayerKeyboardTest`
-(split-screen pause), `MobileLargeTextNavigationTest` and `MobileOrdinaryNavigationTest` (in `MobileAdaptiveNavigationTest.kt`), device proof
-`MobileTabletPowerProofTest` ([Harness](./harness.md#tablet-proof)).
+(split-screen pause), `MobileLargeTextNavigationTest` and
+`MobileOrdinaryNavigationTest` (in `MobileAdaptiveNavigationTest.kt`), device
+proof `MobileTabletPowerProofTest` ([Harness](./harness.md#tablet-proof)).
 
 ## Launcher entry
 
@@ -903,19 +911,17 @@ against each merged manifest in `check`.
 unverified installs still open through the app chooser or an explicit package)
 and `putio://{files,transfers,search,history,trash,downloads}`, plus
 `putio://transfers/add`, which opens Transfers with an empty Add transfer sheet,
-`putio://downloads/<id>`, which a download notification opens to show that
-row's actions, and `putio://downloads/<id>/play`, which plays that row's copy
-on this device over Downloads or, without one, opens the row. Links a download
+`putio://downloads/<id>`, which a download notification opens to show that row's
+actions, and `putio://downloads/<id>/play`, which plays that row's copy on this
+device over Downloads or, without one, opens the row. Links a download
 notification builds add `?user=<userId>`: under any other account the shell
 drops them unopened, and a `user` that is not an account id voids the link. No
-other query is read. `putio://auth`
-stays with the OAuth receiver. A link is consumed once per Activity intent, any
-put.io URI is removed from the retained intent, and routing waits for sign-in;
-an unrouted link survives process death as its token-free `putio://` form,
-`user` included. A file
-id resolves through the item resolver, opens as under
-[History opens](#timestamps-and-history-opens) with Back staying in Files, and
-reuses the navigation-failure dialog.
+other query is read. `putio://auth` stays with the OAuth receiver. A link is
+consumed once per Activity intent, any put.io URI is removed from the retained
+intent, and routing waits for sign-in; an unrouted link survives process death
+as its token-free `putio://` form, `user` included. A file id resolves through
+the item resolver, opens as under [History opens](#timestamps-and-history-opens)
+with Back staying in Files, and reuses the navigation-failure dialog.
 
 Tests: `MobileDeepLinksTest`, `MainActivityDeepLinkTest`, `MobileShellLinkActionsTest`.
 
@@ -963,11 +969,11 @@ TV focuses the first row. A failed page shows the rows read so far with Retry.
 
 That folder sits on top of the viewer's Files location instead of replacing it;
 the kept location reloads when Back returns to it, since changes made above can
-reach its listing.
-Back from it returns to Search (mobile shows History there too), History on TV,
-or Transfers, whose file opens the same way without playing, with TV focus back
-on the chosen row; after a product link it returns to the Files location. A later outside open replaces the earlier
-one rather than stacking, and Files refuses it while a move or deletion settles.
+reach its listing. Back from it returns to Search (mobile shows History there
+too), History on TV, or Transfers, whose file opens the same way without
+playing, with TV focus back on the chosen row; after a product link it returns
+to the Files location. A later outside open replaces the earlier one rather than
+stacking, and Files refuses it while a move or deletion settles.
 
 Tests: `PutioTimestampTest`, `MobileSearchHistoryViewModelTest`,
 `MobileSearchHistoryScreenTest`, `MobileFilesScreenTest`, `TvSessionViewModelTest`,
@@ -1053,8 +1059,7 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
   adds stay on the device; the SDK keeps no breadcrumbs. Player failures are reported
   as putio-web's `playback_failure` codes (failure mode, Media3 error code,
   source kind, HTTP status, file id), never as error text: video from the
-  player screen, audio from the background audio service. Only `core/telemetry`
-  imports Sentry, which detekt's `ForbiddenImport` enforces.
+  player screen, audio from the background audio service.
 - The SDK is `sentry-android-core` alone: JVM crashes, ANRs and release-health
   sessions, with no NDK, replay, tracing, logs or metrics. Release builds
   upload no R8 mapping yet, so their stack traces stay obfuscated.
@@ -1095,26 +1100,27 @@ asks for every subtitle rendition, or for none when the account's confirmed
 the row, so a cold offline start, which cannot read settings, still hides the
 Captions picker for a download made without subtitles; a row started before
 settings confirmed keeps the old all-subtitles request and the player's usual
-rule (#237). Media3 owns bytes, resume and the foreground notification, which
+rule. Media3 owns bytes, resume and the foreground notification, which
 shows a count and progress only. The app's index in private SharedPreferences
 holds file id, name, type, rendition, status, queue time, a pending-delete mark,
 the confirmed subtitle setting, the listing's saved position and whether the
 row was rebuilt per user; it never holds a URL.
 
-Requests carry the token-free API URL and the file's name, and a resolving
-data source adds the session header for `api.put.io` hosts. The app builds that URL itself: the
-SDK's URL builders always embed `oauth_token`, which Media3 would persist; it
-takes the subtitle count from the SDK's `HLS_ALL_SUBTITLES`. Playlist bodies from the server embed
-`oauth_token` in their child URLs; the cache key factory strips that query and
-prefixes the owning user id, so the Media3 index stays token-free and two
-accounts never share cached bytes. There is one `DownloadManager`; request ids
-are `userId:fileId`, each request downloads under its owner's keys, and a
-sign-out parks that user's transfers with a stop reason until the owner signs in
-again. Playback reads through the same cache with a null write sink, so
-streaming never fills the download directory. Offline playback replays the URL
-Media3 recorded for the request, so a download keeps playing after the app
-changes the URL it builds for new ones. Closing the engine cancels its start-up
-reconcile, so a sign-out right after sign-in cannot un-park the transfers.
+Requests carry the token-free API URL and the file's name, and a resolving data
+source adds the session header for `api.put.io` hosts. The app builds that URL
+itself: the SDK's URL builders always embed `oauth_token`, which Media3 would
+persist; it takes the subtitle count from the SDK's `HLS_ALL_SUBTITLES`.
+Playlist bodies from the server embed `oauth_token` in their child URLs; the
+cache key factory strips that query and prefixes the owning user id, so the
+Media3 index stays token-free and two accounts never share cached bytes. There
+is one `DownloadManager`; request ids are `userId:fileId`, each request
+downloads under its owner's keys, and a sign-out parks that user's transfers
+with a stop reason until the owner signs in again. Playback reads through the
+same cache with a null write sink, so streaming never fills the download
+directory. Offline playback replays the URL Media3 recorded for the request, so
+a download keeps playing after the app changes the URL it builds for new ones.
+Closing the engine cancels its start-up reconcile, so a sign-out right after
+sign-in cannot un-park the transfers.
 
 **Queue.** Media3 runs up to the device-wide concurrency limit at once, 1 to 4,
 default 3 (iOS main's choices), and starts the rest oldest first by its own
@@ -1138,17 +1144,16 @@ failed or paused while the UI was dead reads that way after relaunch. A row
 Media3 has no record of is never dropped silently: a finished one reads missing,
 a failed one keeps its reason, and an unfinished one goes back in the queue. A
 finished row whose bytes are gone from the cache, found at reconcile or when
-offline playback opens it, reads missing: it stops counting as on this device
-in Files and Downloads, streams instead, and offers Download again. The
-reverse, a download of this user that Media3 lists but the index does not,
-comes back as a row: video for an HLS request, audio for an original, the name
-the request carried (requests carry the file name from #53 on) or "Downloaded
-file", the subtitle setting its URL asked for, and Media3's state. It plays and
-deletes like any row. The index reads rows one by one: a row this build cannot
-read, such as a newer build's, costs only that row and is written back
-untouched, and a document that is not a list is copied aside under
-`<key>.unreadable` before the next write. Bytes leave the device only through a
-confirmed delete.
+offline playback opens it, reads missing: it stops counting as on this device in
+Files and Downloads, streams instead, and offers Download again. The reverse, a
+download of this user that Media3 lists but the index does not, comes back as a
+row: video for an HLS request, audio for an original, the name the request
+carried or, for a request made before requests carried names, "Downloaded file",
+the subtitle setting its URL asked for, and Media3's state. It plays and deletes
+like any row. The index reads rows one by one: a row this build cannot read,
+such as a newer build's, costs only that row and is written back untouched, and
+a document that is not a list is copied aside under `<key>.unreadable` before
+the next write. Bytes leave the device only through a confirmed delete.
 
 **Removal.** Deleting removes only local copies; Downloads has no path to the
 put.io originals. One row's sheet or a multi-select asks first, saying the
@@ -1208,20 +1213,22 @@ drops its waiting position instead of being read on every pass.
 
 Tests: `DownloadsControllerTest` (intents, bulk removal, retry order, missing
 copies, concurrency, progress polling while shown), `MobileDownloadsScreenTest`
-(queue order and places, the limit, the notification notice, selection,
-shown and hidden events), `MobileShellDownloadsTest` (bulk delete never reaches
+(queue order and places, the limit, the notification notice, selection, shown
+and hidden events), `MobileShellDownloadsTest` (bulk delete never reaches
 put.io, notification links, the subtitle setting a Files download carries),
-`MobileDownloadStoreTest` (unreadable rows kept), `MobileDownloadActionReceiverTest` (Try again for the
-owner only, a refused start keeps the notification), `BroadcastHoldTest`, `MobileDownloadEngineTest` (queue order and limit
-across process recreation, recovery of every row state, rows rebuilt for
-downloads an unreadable index lost, low-storage pause, reconcile, sign-out parking, account
-isolation, close before reconcile, in-memory progress and its denominator, the
-recorded request URL and the local-copy check against a real Media3 manager and
-cache), `MobileDownloadNotificationsTest` (granted, denied and disabled states,
+`MobileDownloadStoreTest` (unreadable rows kept),
+`MobileDownloadActionReceiverTest` (Try again for the owner only, a refused
+start keeps the notification), `BroadcastHoldTest`, `MobileDownloadEngineTest`
+(queue order and limit across process recreation, recovery of every row state,
+rows rebuilt for downloads an unreadable index lost, low-storage pause,
+reconcile, sign-out parking, account isolation, close before reconcile,
+in-memory progress and its denominator, the recorded request URL and the
+local-copy check against a real Media3 manager and cache),
+`MobileDownloadNotificationsTest` (granted, denied and disabled states,
 signed-in account only, actions and their intents, other accounts' outcomes at a
-session's end), `OfflinePlaybackPositionsTest` (sync rules, the
-player's write racing a pass, refused files), `MobilePlaybackReportingTest`
-(cold offline start), `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
+session's end), `OfflinePlaybackPositionsTest` (sync rules, the player's write
+racing a pass, refused files), `MobilePlaybackReportingTest` (cold offline
+start), `UserScopedCacheKeysTest` (token-free, user-scoped cache keys),
 `OfflinePlaybackRepositoryTest`, `MobileDeepLinksTest`.
 
 ## Transfers widget
@@ -1239,17 +1246,18 @@ sign-in, then Transfers. On Android 12 and later the widget picker previews it
 with sample rows.
 
 It reads the transfers through the SDK in the signed-in session, never with a
-token of its own: when it is placed, every 30 minutes (`updatePeriodMillis`,
-the platform's shortest period), on sign-in, on its refresh button, and
-whenever the Transfers screen loads rows, which it shows without a request of
-its own. With no widget placed nothing is read. A refresh replaces one still
-running and gives up after 25 s. In a process the app has not started it
-restores the stored session first, for up to 15 s, as the download service
-does. The broadcast that asked for it ends after 8 s at the latest, within the
-10 s a foreground-queue broadcast gets, and a refresh still running then goes
-on best-effort; the next update tries again if the process dies first. A 401 signs the session out as anywhere else. A failed read keeps rows
-already shown, with the time they were read; with none shown, or when the
-session cannot be confirmed, it reads Couldn't reach put.io.
+token of its own: when it is placed, every 30 minutes (`updatePeriodMillis`, the
+platform's shortest period), on sign-in, on its refresh button, and whenever the
+Transfers screen loads rows, which it shows without a request of its own. With
+no widget placed nothing is read. A refresh replaces one still running and gives
+up after 25 s. In a process the app has not started it restores the stored
+session first, for up to 15 s, as the download service does. The broadcast that
+asked for it ends after 8 s at the latest, within the 10 s a foreground-queue
+broadcast gets, and a refresh still running then goes on best-effort; the next
+update tries again if the process dies first. A 401 signs the session out as
+anywhere else. A failed read keeps rows already shown, with the time they were
+read; with none shown, or when the session cannot be confirmed, it reads
+Couldn't reach put.io.
 
 Rows belong to the session that read them. A read is shown only while that
 session is still signed in, checked under one lock with sign-out, so a read
@@ -1288,7 +1296,7 @@ Tests: `TvShellBackTest`, `TvShellFocusTest`, and on an emulator
 The signed-in TV shell paints its background to the screen edges and keeps
 the drawer and pane inside the overscan safe area: `tv.overscan.x` of the
 viewport width on the left and right, `tv.overscan.y` of its height on the top
-and bottom (4% and 2% in `@putdotio/design` 3.3.0). The fractions are generated
+and bottom. The fractions are generated
 from the token graph and applied to whatever viewport the shell fills, so 720p,
 1080p and 4K panels keep the same proportion clear. The pane adds 16dp from the
 drawer and the safe edges. The player's control scrim also reaches the screen
@@ -1337,12 +1345,13 @@ Tests: `SdkTransfersRepositoryTest`, `TransfersReducerTest`,
 
 While Transfers is shown, rows that are still running, or completed without a
 file yet, refresh every 5 s; polling pauses while the screen is hidden. Up to 10
-such rows are read by id, so a poll costs one small request per row however
-deep the history is. More rows are read from 1,000-row list pages until all are
+such rows are read by id, so a poll costs one small request per row however deep
+the history is. More rows are read from 1,000-row list pages until all are
 found. A row the API no longer has (404 by id, or absent from the list) leaves
 the list. Any other failure keeps the rows for the next poll; only a rejected
 session surfaces. Measured CPU cost per poll:
-[Android Transfers polling CPU benchmark](https://app.notion.com/p/3fdd546ba2f581fbaaa4ef35b3deb1c7) (put.io Notion).
+[Android Transfers polling CPU benchmark](https://app.notion.com/p/3fdd546ba2f581fbaaa4ef35b3deb1c7)
+(put.io Notion).
 
 Tests: `SdkTransfersRepositoryTest`, `TransfersRefreshCostTest` (request and row
 counts per poll against 10k and 50k histories), `TransfersControllerTest`,
