@@ -90,7 +90,7 @@ CI signs with the upload key. The
 signs release builds when `ANDROID_KEYSTORE_PATH` is set and leaves them
 unsigned otherwise. The upload refuses to run unless both bundles and APKs are
 signed only by `UPLOAD_CERT_SHA256` in [play.ts](../scripts/play.ts), the
-upload certificate Google Play holds. Builds that sign run without the
+upload certificate Google Play holds, with every bundle entry signed. Builds that sign run without the
 configuration cache, so no signing password lands on disk.
 
 Uploads also require `PUTIO_SENTRY_DSN`, since a release build without it

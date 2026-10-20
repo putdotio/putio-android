@@ -172,10 +172,16 @@ const bundleSigners = (aab: string): string[] =>
     ].map((match) => (match[1] ?? "").replaceAll(":", "").toLowerCase()),
   );
 
+// keytool names a bundle's signers, not whether they cover every entry.
+const bundleFullySigned = (aab: string): boolean => {
+  const output = run("jarsigner", ["-verify", aab]);
+  return output.includes("jar verified.") && !output.includes("unsigned entries");
+};
+
 // Names each output that is not signed by the upload certificate alone.
 const uploadSignatureProblems = (): string[] =>
-  APPS.flatMap((app) =>
-    Object.entries({
+  APPS.flatMap((app) => [
+    ...Object.entries({
       [`${app} bundle`]: bundleSigners(aabPath(app)),
       [`${app} APK`]: apkSigners(apkPath(app)),
     }).flatMap(([label, signers]) =>
@@ -183,7 +189,8 @@ const uploadSignatureProblems = (): string[] =>
         ? []
         : [`${label} is signed by ${signers.length === 0 ? "nothing" : signers.join(", ")}`],
     ),
-  );
+    ...(bundleFullySigned(aabPath(app)) ? [] : [`${app} bundle has unsigned entries`]),
+  ]);
 
 // One Gradle run per app: the version code property applies to every project.
 const buildRelease = (versionName: string, codes: VersionCodes, env: NodeJS.ProcessEnv): void => {
@@ -290,7 +297,8 @@ const upload = async (versionName: string, requested: number | undefined): Promi
     fail(`Refusing to upload: ${problems.join("; ")}. Expected ${UPLOAD_CERT_SHA256}`);
 
   // The checked bundles alone, not a rebuild: GPP uploads every bundle in the
-  // directory as one release. Play keeps release names to 50 characters.
+  // directory as one release. Play keeps release names to 50 characters, and
+  // TV's code always follows mobile's.
   const artifactDir = mkdtempSync(join(tmpdir(), "putio-play-"));
   for (const app of APPS) copyFileSync(aabPath(app), join(artifactDir, `${app}.aab`));
   gradle([
@@ -302,7 +310,7 @@ const upload = async (versionName: string, requested: number | undefined): Promi
     "--release-status",
     "completed",
     "--release-name",
-    `${versionName} (${codes.mobile}, ${codes.tv}) ${sha.slice(0, 12)}`,
+    `${versionName} (${codes.mobile}) ${sha.slice(0, 12)}`,
   ]);
 
   githubOutput({ mobile_version_code: codes.mobile, tv_version_code: codes.tv });
