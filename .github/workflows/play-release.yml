@@ -1,0 +1,138 @@
+name: Google Play Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Full SHA of the current main commit
+        required: true
+        type: string
+      version_code:
+        description: A version code in the internal release to promote, or in the production release whose rollout to change
+        required: true
+        type: string
+      from_track:
+        description: internal promotes that track's only release to production; production changes its production rollout
+        required: true
+        type: choice
+        options: [internal, production]
+        default: internal
+      rollout_percent:
+        description: Share of production users, 1 to 100; below 100 is a staged rollout
+        required: true
+        type: string
+        default: "10"
+      publish_listing:
+        description: Also replace the Google Play listing with mobile/src/main/play/listings
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: play-delivery
+  cancel-in-progress: false
+
+# Explicit bash runs with -o pipefail; GitHub's default shell does not.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ref:
+    name: Validate ref
+    uses: ./.github/workflows/delivery-ref.yml # zizmor: ignore[self-repository]
+    permissions:
+      actions: read
+      contents: read
+    with:
+      expected_sha: ${{ inputs.expected_sha }}
+
+  release:
+    name: Release to production
+    needs: ref
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: read
+    steps:
+      - name: Validate inputs
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+          FROM_TRACK: ${{ inputs.from_track }}
+          ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
+        run: |
+          if ! [[ "$VERSION_CODE" =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "version_code must be a positive integer" >&2
+            exit 1
+          fi
+          if [ "$FROM_TRACK" != internal ] && [ "$FROM_TRACK" != production ]; then
+            echo "from_track must be internal or production" >&2
+            exit 1
+          fi
+          if ! [[ "$ROLLOUT_PERCENT" =~ ^[1-9][0-9]?$|^100$ ]]; then
+            echo "rollout_percent must be an integer from 1 to 100" >&2
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ref.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      # Gradle Play Publisher runs inside the Android project, so only the
+      # listing needs Java and Gradle.
+      - if: ${{ inputs.publish_listing }}
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - if: ${{ inputs.publish_listing }}
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          validate-wrappers: true
+          cache-disabled: true
+      - name: Replace the listing
+        if: ${{ inputs.publish_listing }}
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: ./gradlew --no-daemon --no-configuration-cache :mobile:publishProductionReleaseListing
+      - name: Promote the internal release
+        id: promote
+        if: ${{ inputs.from_track == 'internal' }}
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
+        run: node scripts/play.ts promote --version-code "$VERSION_CODE" --percent "$ROLLOUT_PERCENT"
+      - name: Change the production rollout
+        if: ${{ inputs.from_track == 'production' }}
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
+        run: node scripts/play.ts rollout --version-code "$VERSION_CODE" --percent "$ROLLOUT_PERCENT"
+      - name: Summarize
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+          PROMOTED: ${{ steps.promote.outputs.version_codes }}
+          FROM_TRACK: ${{ inputs.from_track }}
+          ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
+          SHA: ${{ needs.ref.outputs.sha }}
+          LISTING: ${{ inputs.publish_listing }}
+        run: |
+          {
+            echo "### Google Play release"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Commit | \`$SHA\` |"
+            echo "| Version codes | ${PROMOTED:-$VERSION_CODE} |"
+            echo "| From track | $FROM_TRACK |"
+            echo "| Production rollout | $ROLLOUT_PERCENT% |"
+            echo "| Listing replaced | $LISTING |"
+            echo "| Run | [$GITHUB_RUN_ID]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) |"
+          } >> "$GITHUB_STEP_SUMMARY"

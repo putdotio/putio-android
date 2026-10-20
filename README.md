@@ -106,7 +106,7 @@ frames, device facts and failure codes ([Diagnostics](docs/behavior.md#diagnosti
 
 ## Build and verify
 
-Requires JDK 21, Node 20.19 or newer, `python3`, and, on macOS, Homebrew.
+Requires JDK 21, Node 24, `python3`, and, on macOS, Homebrew.
 
 ```bash
 ./scripts/bootstrap.sh   # once per machine: Android SDK, AVDs, local.properties
@@ -123,6 +123,7 @@ The [Agent guide](./AGENTS.md#build-and-verify) covers what the gate runs and
 - [Behaviour](./docs/behavior.md): product rules and the tests that pin them
 - [Harness](./docs/harness.md): emulators, evidence, device lanes and live API
   proof
+- [Distribution](./docs/distribution.md): Google Play delivery for both apps
 - [Design system binding](./design/README.md): tokens and icon generation
 - [Agent guide](./AGENTS.md): module layout, hazards, proof map and CI
 

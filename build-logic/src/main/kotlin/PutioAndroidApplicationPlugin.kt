@@ -27,8 +27,8 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             defaultConfig {
                 minSdk = PutioAndroidSdk.MIN
                 targetSdk = PutioAndroidSdk.TARGET
-                versionCode = 1
-                versionName = "0.1.0"
+                versionCode = putioVersionCode()
+                versionName = putioVersionName()
                 testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
             }
 
@@ -49,6 +49,18 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             }
 
             defaultConfig.buildConfigField("String", "PUTIO_SENTRY_DSN", "\"\"")
+
+            // Delivery signs with the Play upload key (docs/distribution.md#signing); without it,
+            // release builds stay unsigned and Google Play rejects them.
+            providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull?.let { keystore ->
+                val upload = signingConfigs.create("upload") {
+                    storeFile = file(keystore)
+                    storePassword = requiredEnvironment("ANDROID_KEYSTORE_PASSWORD")
+                    keyAlias = requiredEnvironment("ANDROID_KEY_ALIAS")
+                    keyPassword = requiredEnvironment("ANDROID_KEY_PASSWORD")
+                }
+                buildTypes.getByName("release").signingConfig = upload
+            }
 
             buildTypes {
                 getByName("debug") {
@@ -111,6 +123,29 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     }
 
     /**
+     * Both apps share `io.put.putio`, so delivery passes each its own code; the defaults are for
+     * local builds.
+     */
+    private fun Project.putioVersionCode(): Int {
+        val value = providers.gradleProperty("putioVersionCode").getOrElse("1").trim()
+        val code = value.toIntOrNull()
+        require(code != null && code in 1..MAX_VERSION_CODE) {
+            "putioVersionCode must be an integer from 1 to $MAX_VERSION_CODE, got '$value'"
+        }
+        return code
+    }
+
+    private fun Project.putioVersionName(): String {
+        val value = providers.gradleProperty("putioVersionName").getOrElse("3.0.0").trim()
+        require(VERSION_NAME.matches(value)) { "putioVersionName must look like 3.0.0, got '$value'" }
+        return value
+    }
+
+    private fun Project.requiredEnvironment(name: String): String =
+        providers.environmentVariable(name).orNull?.takeIf { it.isNotEmpty() }
+            ?: error("ANDROID_KEYSTORE_PATH is set, so $name must be too")
+
+    /**
      * Embedded in a Java string literal, so anything but empty or `https://<key>@<host>/<project id>`
      * fails the build, without printing the value.
      */
@@ -126,6 +161,9 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     }
 
     private companion object {
+        // Google Play's ceiling.
+        const val MAX_VERSION_CODE = 2_100_000_000
+        val VERSION_NAME = Regex("""\d{1,4}\.\d{1,4}\.\d{1,4}""")
         val SENTRY_DSN = Regex("""https://[A-Za-z0-9]+@[A-Za-z0-9.-]+/[0-9]+""")
     }
 }
