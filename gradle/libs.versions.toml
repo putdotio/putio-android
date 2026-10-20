@@ -11,6 +11,7 @@ lifecycle = "2.11.0"
 navigationCompose = "2.10.2"
 media3 = "1.11.1"
 okhttp = "5.5.0"
+playPublisher = "4.1.1"
 putioSdkKotlin = "2.0.0"
 sentry = "8.60.0"
 tvMaterial = "1.1.0"
@@ -73,6 +74,7 @@ robolectric-android-all = { module = "org.robolectric:android-all-instrumented",
 robolectric-android-all-api26 = { module = "org.robolectric:android-all-instrumented", version = "8.0.0_r4-robolectric-r1-i7" }
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 detekt-gradle-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
+play-publisher-gradle-plugin = { module = "com.github.triplet.gradle:play-publisher", version.ref = "playPublisher" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -80,3 +82,4 @@ android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+play-publisher = { id = "com.github.triplet.play", version.ref = "playPublisher" }

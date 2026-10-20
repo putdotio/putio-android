@@ -1,0 +1,183 @@
+name: Google Play Internal
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Full SHA of the main commit to ship
+        required: true
+        type: string
+      version_name:
+        description: Version name of both apps, for example 3.0.0
+        required: true
+        type: string
+      version_code:
+        description: Mobile version code, TV takes the next; blank takes the lowest above every code Google Play has seen
+        required: false
+        type: string
+        default: ""
+      dry_run:
+        description: Build with a throwaway key, without secrets, and upload nothing
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: play-delivery
+  cancel-in-progress: false
+
+# Explicit bash runs with -o pipefail; GitHub's default shell does not.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ref:
+    name: Validate ref
+    uses: ./.github/workflows/delivery-ref.yml # zizmor: ignore[self-repository]
+    permissions:
+      actions: read
+      contents: read
+    with:
+      expected_sha: ${{ inputs.expected_sha }}
+
+  inputs:
+    name: Validate inputs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      version_name: ${{ steps.inputs.outputs.version_name }}
+      version_code: ${{ steps.inputs.outputs.version_code }}
+    steps:
+      - name: Validate inputs
+        id: inputs
+        env:
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          if ! [[ "$VERSION_NAME" =~ ^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}$ ]]; then
+            echo "version_name must look like 3.0.0" >&2
+            exit 1
+          fi
+          if [ -n "$VERSION_CODE" ] && ! [[ "$VERSION_CODE" =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "version_code must be blank or a positive integer" >&2
+            exit 1
+          fi
+          {
+            echo "version_name=$VERSION_NAME"
+            echo "version_code=$VERSION_CODE"
+          } >> "$GITHUB_OUTPUT"
+
+  upload:
+    name: Upload to the internal track
+    if: ${{ !inputs.dry_run }}
+    needs: [ref, inputs]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: read
+    outputs:
+      mobile_version_code: ${{ steps.upload.outputs.mobile_version_code }}
+      tv_version_code: ${{ steps.upload.outputs.tv_version_code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ref.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      # Signed jobs build from scratch; only the secretless dry run shares caches.
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          validate-wrappers: true
+          cache-disabled: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - name: Build, sign and upload
+        id: upload
+        env:
+          PUTIO_VERSION_NAME: ${{ needs.inputs.outputs.version_name }}
+          PUTIO_VERSION_CODE: ${{ needs.inputs.outputs.version_code }}
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          PUTIO_SENTRY_DSN: ${{ vars.PUTIO_SENTRY_DSN }}
+        run: node scripts/play.ts upload --version-name "$PUTIO_VERSION_NAME" ${PUTIO_VERSION_CODE:+--version-code "$PUTIO_VERSION_CODE"}
+
+  tag:
+    name: Tag the uploaded commit
+    needs: [ref, inputs, upload]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: release
+    permissions: {}
+    steps:
+      - name: Mint a putio-ci token for tagging
+        id: token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.PUTIO_CI_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PUTIO_CI_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+      - name: Create v${{ needs.inputs.outputs.version_name }}+${{ needs.upload.outputs.mobile_version_code }}
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          VERSION: ${{ needs.inputs.outputs.version_name }}
+          SHA: ${{ needs.ref.outputs.sha }}
+          MOBILE_CODE: ${{ needs.upload.outputs.mobile_version_code }}
+          TV_CODE: ${{ needs.upload.outputs.tv_version_code }}
+        run: |
+          tag="v$VERSION+$MOBILE_CODE"
+          ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>/dev/null || true)"
+          if [ -n "$ref" ]; then
+            existing="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$(jq -r .object.sha <<< "$ref")")"
+            if [ "$(jq -r .object.type <<< "$ref")" != tag ] || [ "$(jq -r .object.sha <<< "$existing")" != "$SHA" ]; then
+              echo "$tag already exists for another commit" >&2
+              exit 1
+            fi
+          else
+            object="$(gh api --method POST "repos/$GITHUB_REPOSITORY/git/tags" -f tag="$tag" -f object="$SHA" -f type=commit \
+              -f message="$(printf 'put.io Android %s\n\nMobile-Version-Code: %s\nTV-Version-Code: %s' "$VERSION" "$MOBILE_CODE" "$TV_CODE")" | jq -r .sha)"
+            gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$object" > /dev/null
+          fi
+          echo "- Tagged \`$tag\` at \`$SHA\`" >> "$GITHUB_STEP_SUMMARY"
+
+  build-check:
+    name: Dry run without secrets
+    if: ${{ inputs.dry_run }}
+    needs: [ref, inputs]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ref.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          validate-wrappers: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - name: Build release outputs with a throwaway key
+        env:
+          PUTIO_VERSION_NAME: ${{ needs.inputs.outputs.version_name }}
+          PUTIO_VERSION_CODE: ${{ needs.inputs.outputs.version_code }}
+        run: node scripts/play.ts build-check --version-name "$PUTIO_VERSION_NAME" ${PUTIO_VERSION_CODE:+--version-code "$PUTIO_VERSION_CODE"}

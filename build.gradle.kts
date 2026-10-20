@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.detekt) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.play.publisher) apply false
 }
 
 // Script checks are deterministic in the repository files they read and the host
@@ -14,7 +15,7 @@ plugins {
 val scriptCheckTools = providers.exec {
     commandLine(
         "sh", "-c",
-        "for tool in bash python3 ffmpeg ffprobe; do \"\$tool\" --version 2>&1 | head -1; done",
+        "for tool in bash python3 ffmpeg ffprobe node; do \"\$tool\" --version 2>&1 | head -1; done",
     )
     isIgnoreExitValue = true
 }.standardOutput.asText
@@ -89,6 +90,12 @@ val testTalkBackInput = tasks.register<Exec>("testTalkBackInput") {
     commandLine("python3", "-B", "scripts/test_talkback_input.py")
 }
 
+val testPlayScripts = tasks.register<Exec>("testPlayScripts") {
+    description = "Test the Google Play delivery scripts' version codes and production rollouts"
+    cacheableCheck()
+    commandLine("node", "--test", "scripts/play.test.ts")
+}
+
 // package.json pins oxfmt so Renovate can bump it; needs Node on PATH.
 val oxfmtVersion =
     providers.fileContents(layout.projectDirectory.file("package.json")).asText.map { text ->
@@ -122,6 +129,7 @@ tasks.register("verify") {
         testEmulatorHarness,
         testEvidence,
         testIconPipeline,
+        testPlayScripts,
         testTalkBackInput,
         gradle.includedBuild("build-logic").task(":test"),
     )

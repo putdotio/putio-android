@@ -20,12 +20,14 @@ fun localMobileOAuthClientIdOverride(): String {
 plugins {
     id("putio.android.application")
     id("putio.build-logic")
+    alias(libs.plugins.play.publisher)
 }
 
 android {
     defaultConfig {
-        applicationId = "io.put.putio.mobile"
-        versionNameSuffix = "-mobile"
+        // Shared with the TV app: one Google Play listing serves both, phones get this bundle and
+        // TVs the TV one (docs/distribution.md#one-listing-two-apps).
+        applicationId = "io.put.putio"
         // Dedicated public Android mobile OAuth client from #47.
         buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"9677\"")
         // Local harness proof only: an ignored local.properties may point debug
@@ -37,11 +39,19 @@ android {
 
     buildTypes {
         debug {
+            // Keeps debug installs beside the TV app's on one device, under the harness's ids.
+            applicationIdSuffix = ".mobile.debug"
             buildConfigField(
                 "String",
                 "PUTIO_MOBILE_OAUTH_CLIENT_ID_DEBUG_OVERRIDE",
                 "\"${localMobileOAuthClientIdOverride()}\"",
             )
+        }
+    }
+
+    playConfigs {
+        register("productionRelease") {
+            enabled.set(true)
         }
     }
 
@@ -74,6 +84,14 @@ androidComponents {
         }
         variant.sources.res?.addGeneratedSourceDirectory(shortcuts, GenerateShortcutsTask::outputDir)
     }
+}
+
+// Google Play delivery runs from this module for both apps: scripts/play.ts stages the mobile
+// and TV bundles together for --artifact-dir, so each upload is one release carrying both.
+play {
+    enabled.set(false)
+    defaultToAppBundles.set(true)
+    track.set("internal")
 }
 
 val launchSmokeTest = "io.putdotio.android.LaunchSmokeTest#shellLaunchesStaysResumedAndRenders"

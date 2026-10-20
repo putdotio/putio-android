@@ -5,7 +5,8 @@ phones and tablets (`mobile`) and Android TV / Fire TV (`tv`) from one
 codebase. It is not on Google Play yet; [#14](https://github.com/putdotio/putio-android/issues/14)
 tracks the rollout. The [README](README.md) lists what works,
 [Behaviour](docs/behavior.md) the product rules and the tests that pin them,
-and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
+[Harness](docs/harness.md) the emulator lanes, evidence, and live proof, and
+[Distribution](docs/distribution.md) the Google Play lanes.
 
 ## Where code lives
 
@@ -15,7 +16,7 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
 | `core/design`    | `PutioTheme`, generated design tokens, file-type and shared Phosphor drawables, `BasePutioActivity`, the inactive-account notice's words                                                                                                                                      |
 | `core/telemetry` | Sentry behind the account's `diagnostics_enabled`: the consent gate, the event allowlist, `TelemetryFailure` and `PutioDiagnostics`, the apps' only way to report ([Diagnostics](docs/behavior.md#diagnostics))                                                               |
 | `domain/<name>`  | One domain's models, SDK repository, reducer and controller, shared by both surfaces: `account` (account settings, app config, inactive-account notice), `auth`, `files`, `history`, `playback`, `search`, `sharing` (public links; mobile only so far), `transfers`, `trash` |
-| `mobile`         | Phone and tablet app: touch UI, shell, navigation, offline downloads, the system file picker's documents provider, launcher shortcuts, the home-screen widget, services and session wiring                                                                                    |
+| `mobile`         | Phone and tablet app: touch UI, shell, navigation, offline downloads, the system file picker's documents provider, launcher shortcuts, the home-screen widget, services and session wiring, and the Google Play listing and publisher both apps share                         |
 | `tv`             | Android TV app: D-pad UI, shell and session wiring                                                                                                                                                                                                                            |
 | `build-logic`    | Convention plugins (`putio.android.application`, `putio.android.library`), design-token codegen, launcher-manifest check, proof tasks                                                                                                                                         |
 
@@ -47,14 +48,14 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
 
 ## Hazards
 
-- **The TV app id is live on Google Play.** `tv` builds `io.put.putio`, the id
-  of the put.io TV app users run today, so a release replaces it in place and
-  imports its session ([Upgrade from tv-native](docs/behavior.md#upgrade-from-tv-native)).
-  Keep the id unless product owners choose a new listing. The repo has no Play
-  release lane or signing config yet; anything uploaded to Play by hand under
-  that id reaches existing users, and its version code cannot be reused. Play
-  internal and closed tracks are meant for nightly, the public listing for
-  production.
+- **The app id is live on Google Play.** `mobile` and `tv` both build
+  `io.put.putio` in production, the id of the put.io TV app users run today, so
+  a release replaces it in place and TV imports its session
+  ([Upgrade from tv-native](docs/behavior.md#upgrade-from-tv-native)). Keep the
+  id unless product owners choose a new listing. Version codes are shared with
+  that app's repository and never reusable; only the
+  [Distribution](docs/distribution.md) workflows upload, and each upload,
+  promotion or rollout change needs Altay's OK.
 - **Shared test account.** Live proof uses the `devs-auto` put.io CLI profile
   that the web, iOS, and TV harnesses share. Create uniquely named fixtures,
   record their ids, and remove only those. Never use a personal profile or put
@@ -71,7 +72,8 @@ and [Harness](docs/harness.md) the emulator lanes, evidence, and live proof.
 
 ## Setup
 
-The machine provides JDK 21 (pinned in `.java-version`), Node 20.19 or newer,
+The machine provides JDK 21 (pinned in `.java-version`), Node 24 (pinned in
+`.node-version`),
 `python3`, and, on macOS, Homebrew. Then run:
 
 ```bash
@@ -107,7 +109,7 @@ The root [`verify` task](build.gradle.kts) is the gate: every module's `check`
 checks), unsigned minified release builds, the instrumentation APKs, the design
 and icon lock checks, the script and `build-logic` tests, and `markdownCheck`;
 its `dependsOn` list is the inventory. The script checks need `bash` 3.2+,
-`python3`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
+`python3`, `node`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
 encoder on PATH. `markdownCheck` runs oxfmt at the version
 [package.json](package.json) pins; `npx --yes oxfmt@<version> '**/*.md'` fixes
 its findings.
@@ -126,15 +128,16 @@ its findings.
 Code changes pass `./gradlew verify` and the debug assembles, plus the row
 that matches. Report skipped or unavailable proof.
 
-| Change                              | Proof                                                                                                             |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Docs only                           | `./gradlew markdownCheck`; check web links and commands. Pull-request CI checks relative links, skips builds      |
-| Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module |
-| App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                              |
-| UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md)    |
-| Live API behavior                   | The lane's `devs-auto` steps in [Harness](docs/harness.md#live-api-proof-putio-cli)                               |
-| Design tokens or icons              | The sync in [design/README.md](design/README.md), then `./gradlew verify`                                         |
-| Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                            |
+| Change                              | Proof                                                                                                                                                     |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Docs only                           | `./gradlew markdownCheck`; check web links and commands. Pull-request CI checks relative links, skips builds                                              |
+| Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module                                         |
+| App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                                                                      |
+| UI, navigation, playback, or launch | The affected flow on the emulator: `./scripts/prove.sh <mobile\|tv>` or its lane in [Harness](docs/harness.md)                                            |
+| Google Play delivery                | `./gradlew testPlayScripts`, then `node scripts/play.ts build-check --version-name 3.0.0` or the dry run in [Distribution](docs/distribution.md#dry-runs) |
+| Live API behavior                   | The lane's `devs-auto` steps in [Harness](docs/harness.md#live-api-proof-putio-cli)                                                                       |
+| Design tokens or icons              | The sync in [design/README.md](design/README.md), then `./gradlew verify`                                                                                 |
+| Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                    |
 
 A changed product rule updates its [Behaviour](docs/behavior.md) section and
 names the tests that pin it; a new device lane gets a section in
@@ -143,10 +146,11 @@ names the tests that pin it; a new device lane gets a section in
 
 ## Delivery and CI
 
-Open pull requests against `main`; the repository squash-merges. Nothing signs,
-publishes, or uploads to Play: a push to `main` runs only
-[CI](.github/workflows/ci.yml), whose header comments own the triggers and
-path filters. CI holds no secrets.
+Open pull requests against `main`; the repository squash-merges. A push to
+`main` runs only [CI](.github/workflows/ci.yml), whose header comments own the
+triggers and path filters; CI holds no secrets. Google Play delivery is
+dispatch-only, with secrets in the `release` Environment
+([Distribution](docs/distribution.md)).
 
 - Docs-only pull requests (Markdown, `docs/`, issue templates, `LICENSE`) skip
   the build jobs and still run `Check Markdown` and the offline relative-link

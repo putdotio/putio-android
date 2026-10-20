@@ -157,6 +157,11 @@ jobs:
         with:
           validate-wrappers: true
 
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: putio-android/.node-version
+
       - name: Install evidence dependencies
         run: |
           sudo apt-get update
