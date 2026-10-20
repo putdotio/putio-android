@@ -66,6 +66,9 @@ code.
 
 Compose builds go to the internal track only: the legacy app's release
 promotes from the beta track and refuses one with more than one release.
+The concurrency group covers this repository alone, so don't upload from both
+repositories at once: the later upload fails on a taken version code and
+changes nothing on Google Play.
 
 ## Versions
 
