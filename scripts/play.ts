@@ -282,8 +282,9 @@ const upload = async (versionName: string, requested: number | undefined): Promi
   requireCi();
   const credentials = requiredEnv("ANDROID_PUBLISHER_CREDENTIALS");
   for (const name of SIGNING_ENV) requiredEnv(name);
-  // A release build without it never starts Sentry (docs/behavior.md#diagnostics).
-  requiredEnv("PUTIO_SENTRY_DSN");
+  // A release build without the DSN never starts Sentry, and one without the
+  // mapping upload reports obfuscated traces (docs/behavior.md#diagnostics).
+  for (const name of ["PUTIO_SENTRY_DSN", "SENTRY_AUTH_TOKEN", "SENTRY_PROJECT"]) requiredEnv(name);
   const sha = sourceSha();
 
   // Every code Google Play has seen: track releases plus every uploaded bundle

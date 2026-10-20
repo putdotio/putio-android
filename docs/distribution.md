@@ -97,7 +97,10 @@ upload certificate Google Play holds, with every bundle entry signed. Builds tha
 configuration cache, so no signing password lands on disk.
 
 Uploads also require `PUTIO_SENTRY_DSN`, since a release build without it
-never starts Sentry ([Diagnostics](behavior.md#diagnostics)).
+never starts Sentry, and `SENTRY_AUTH_TOKEN` with `SENTRY_PROJECT`: each build
+then uploads its R8 mapping to that project in the `putio` Sentry organization
+before Google Play sees the bundle, and a failed mapping upload fails the build
+([Diagnostics](behavior.md#diagnostics)).
 
 ## Release tags
 
@@ -138,4 +141,6 @@ between the signature check and the upload.
 | `PLAY_SERVICE_ACCOUNT_JSON` | secret   | The Google Play service account key                      |
 | `PUTIO_CI_APP_PRIVATE_KEY`  | secret   | The `putio-ci` App's private key, for tags               |
 | `PUTIO_CI_APP_CLIENT_ID`    | variable | The `putio-ci` App's client ID                           |
+| `SENTRY_AUTH_TOKEN`         | secret   | A Sentry organization token, for R8 mapping uploads      |
 | `PUTIO_SENTRY_DSN`          | variable | The Android Sentry project's DSN, embedded in the builds |
+| `SENTRY_PROJECT`            | variable | That project's slug, for R8 mapping uploads              |

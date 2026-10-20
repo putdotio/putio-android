@@ -3,6 +3,7 @@ import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.HostTestBuilder
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
+import io.sentry.android.gradle.extensions.SentryPluginExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
@@ -10,8 +11,8 @@ import org.gradle.kotlin.dsl.register
 
 /**
  * Shared setup for the `mobile` and `tv` application modules: SDK levels, the
- * `production` and `nightly` channels, release minification, the lint and detekt
- * gates, and the launcher manifest check. Each app declares its application id,
+ * `production` and `nightly` channels, release minification, upload signing, R8 mappings for
+ * Sentry, the lint and detekt gates, and the launcher manifest check. Each app declares its application id,
  * surface-specific build config and dependencies.
  */
 class PutioAndroidApplicationPlugin : Plugin<Project> {
@@ -94,6 +95,7 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
         }
 
         useOfflineRobolectric()
+        uploadMappingsToSentry()
 
         extensions.configure<DetektExtension> {
             config.setFrom(rootProject.file("detekt.yml"))
@@ -119,6 +121,30 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 }
                 tasks.named("check") { dependsOn(launcherManifest) }
             }
+        }
+    }
+
+    /**
+     * Only with delivery's `SENTRY_AUTH_TOKEN`: each release build then gets an R8 mapping id Sentry
+     * events carry and uploads its mapping under it. Other builds never apply the plugin. Its
+     * tracing, SDK installation, optimizations and telemetry stay off, since the SDK lives in
+     * core/telemetry.
+     */
+    private fun Project.uploadMappingsToSentry() {
+        val token = providers.environmentVariable("SENTRY_AUTH_TOKEN")
+        if (!token.isPresent) return
+        pluginManager.apply("io.sentry.android.gradle")
+        extensions.configure<SentryPluginExtension> {
+            authToken.set(token)
+            org.set("putio")
+            projectName.set(providers.environmentVariable("SENTRY_PROJECT"))
+            ignoredBuildTypes.set(setOf("debug"))
+            includeDependenciesReport.set(false)
+            includeSourceContext.set(false)
+            telemetry.set(false)
+            tracingInstrumentation.enabled.set(false)
+            autoInstallation.enabled.set(false)
+            runtimeOptimizations.enabled.set(false)
         }
     }
 

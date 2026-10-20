@@ -1061,8 +1061,10 @@ Sentry; leaving the DSN out is the kill switch that needs no code change.
   source kind, HTTP status, file id), never as error text: video from the
   player screen, audio from the background audio service.
 - The SDK is `sentry-android-core` alone: JVM crashes, ANRs and release-health
-  sessions, with no NDK, replay, tracing, logs or metrics. Release builds
-  upload no R8 mapping yet, so their stack traces stay obfuscated.
+  sessions, with no NDK, replay, tracing, logs or metrics. Builds from
+  [Google Play delivery](distribution.md#signing) upload their R8 mapping
+  under the id their events carry; other release builds upload none, so their
+  stack traces stay obfuscated.
 
 Tests: `SentryBoundaryTest`, `PutioDiagnosticsTest`, `SentryConfigurationTest`,
 `DebugSentryDsnTest`, `AccountSettingsDiagnosticsTest`, `PlaybackTelemetryTest`,

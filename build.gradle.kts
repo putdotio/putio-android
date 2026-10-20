@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
     alias(libs.plugins.play.publisher) apply false
+    alias(libs.plugins.sentry.android) apply false
 }
 
 // Script checks are deterministic in the repository files they read and the host
