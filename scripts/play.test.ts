@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { productionReleases } from "./google-play.ts";
+import { internalReleaseToPromote, productionReleases, rolloutRelease } from "./google-play.ts";
 import { nextVersionCodes } from "./play.ts";
 
 test("version codes clear every code Play has seen and the reserved one", () => {
@@ -44,4 +44,33 @@ test("a promoted release supersedes an older staged one", () => {
     completed,
     { ...promoted, status: "inProgress", userFraction: 0.1 },
   ]);
+});
+
+test("promotion takes every code of the internal track's only release", () => {
+  const internal = {
+    versionCodes: ["93", "94"],
+    status: "completed",
+    name: "3.0.0",
+    releaseNotes: [],
+  };
+  assert.deepEqual(internalReleaseToPromote([internal], 93), {
+    versionCodes: ["93", "94"],
+    name: "3.0.0",
+    releaseNotes: [],
+  });
+  assert.throws(
+    () => internalReleaseToPromote([internal], 95),
+    /must be in the internal track's only release/,
+  );
+  assert.throws(
+    () => internalReleaseToPromote([internal, { versionCodes: ["95"] }], 93),
+    /holds \[93, 94\] \[95\]/,
+  );
+  assert.throws(() => internalReleaseToPromote([], 93), /holds nothing/);
+});
+
+test("only a staged, halted or draft production release's rollout changes", () => {
+  assert.equal(rolloutRelease([completed, staged], 94), staged);
+  assert.throws(() => rolloutRelease([completed, staged], 91), /completed production release/);
+  assert.throws(() => rolloutRelease([completed], 99), /not on the production track/);
 });

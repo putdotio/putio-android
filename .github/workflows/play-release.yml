@@ -83,23 +83,6 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
-      # Gradle Play Publisher runs inside the Android project, so only the
-      # listing needs Java and Gradle.
-      - if: ${{ inputs.publish_listing }}
-        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
-        with:
-          distribution: temurin
-          java-version: '21'
-      - if: ${{ inputs.publish_listing }}
-        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
-        with:
-          validate-wrappers: true
-          cache-disabled: true
-      - name: Replace the listing
-        if: ${{ inputs.publish_listing }}
-        env:
-          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-        run: ./gradlew --no-daemon --no-configuration-cache :mobile:publishProductionReleaseListing
       - name: Promote the internal release
         id: promote
         if: ${{ inputs.from_track == 'internal' }}
@@ -115,6 +98,24 @@ jobs:
           VERSION_CODE: ${{ inputs.version_code }}
           ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
         run: node scripts/play.ts rollout --version-code "$VERSION_CODE" --percent "$ROLLOUT_PERCENT"
+      # After the release, so a rejected version code changes nothing. Gradle
+      # Play Publisher runs inside the Android project, so only the listing
+      # needs Java and Gradle.
+      - if: ${{ inputs.publish_listing }}
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - if: ${{ inputs.publish_listing }}
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+        with:
+          validate-wrappers: true
+          cache-disabled: true
+      - name: Replace the listing
+        if: ${{ inputs.publish_listing }}
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: ./gradlew --no-daemon --no-configuration-cache :mobile:publishProductionReleaseListing
       - name: Summarize
         env:
           VERSION_CODE: ${{ inputs.version_code }}

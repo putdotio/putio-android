@@ -207,9 +207,39 @@ const productionTrack = async (call: Call, editId: string): Promise<unknown[]> =
 const putProduction = (call: Call, editId: string, releases: JsonObject[]) =>
   call("PUT", `edits/${editId}/tracks/production`, { track: "production", releases });
 
-// Rolls the internal track's only release out to production with its version
-// codes, name and notes, and returns those codes. `code` must be one of them,
-// so the release promoted is the one the caller saw uploaded.
+// The internal track's only release as a production release with its version
+// codes, name and notes. `code` must be one of them, so the release promoted is
+// the one the caller saw uploaded.
+export const internalReleaseToPromote = (
+  internal: readonly unknown[],
+  code: number,
+): JsonObject => {
+  const [only, ...others] = internal;
+  const codes = isObject(only) ? releaseCodes(only, "internal") : [];
+  if (!isObject(only) || others.length > 0 || !codes.includes(code))
+    throw new Error(
+      `Version code ${code} must be in the internal track's only release, which holds ${internal.map((release) => `[${releaseCodes(release, "internal").join(", ")}]`).join(" ") || "nothing"}`,
+    );
+  const { name, releaseNotes } = only;
+  return {
+    versionCodes: codes.map(String),
+    ...(name === undefined ? {} : { name }),
+    ...(releaseNotes === undefined ? {} : { releaseNotes }),
+  };
+};
+
+// The staged, halted or draft production release holding `code`.
+export const rolloutRelease = (production: readonly unknown[], code: number): JsonObject => {
+  const selected = production.find((release) => releaseCodes(release, "production").includes(code));
+  if (!isObject(selected)) throw new Error(`Version code ${code} is not on the production track`);
+  if (typeof selected.status !== "string" || !ROLLOUT_STATUSES.includes(selected.status))
+    throw new Error(
+      `Version code ${code} is in a ${String(selected.status)} production release; only a staged, halted or draft release's rollout can change`,
+    );
+  return selected;
+};
+
+// Rolls the internal track's only release out to production and returns its codes.
 export const promoteInternalRelease = (
   credentialsJson: string,
   packageName: string,
@@ -222,25 +252,13 @@ export const promoteInternalRelease = (
       "releases",
       "internal",
     );
-    const [only, ...others] = internal;
-    const codes = isObject(only) ? releaseCodes(only, "internal") : [];
-    if (!isObject(only) || others.length > 0 || !codes.includes(code))
-      throw new Error(
-        `Version code ${code} must be in the internal track's only release, which holds ${internal.map((release) => `[${releaseCodes(release, "internal").join(", ")}]`).join(" ") || "nothing"}`,
-      );
-    const { name, releaseNotes } = only;
-    const promoted: JsonObject = {
-      versionCodes: codes.map(String),
-      ...(name === undefined ? {} : { name }),
-      ...(releaseNotes === undefined ? {} : { releaseNotes }),
-    };
+    const promoted = internalReleaseToPromote(internal, code);
     const production = await productionTrack(call, editId);
     await putProduction(call, editId, productionReleases(production, undefined, promoted, percent));
-    return codes;
+    return releaseCodes(promoted, "internal");
   });
 
-// Changes the rollout of the staged, halted or draft production release
-// holding `code`, keeping its name and notes.
+// Changes the rollout of the production release holding `code`, keeping its name and notes.
 export const updateProductionRollout = (
   credentialsJson: string,
   packageName: string,
@@ -249,11 +267,6 @@ export const updateProductionRollout = (
 ): Promise<void> =>
   withEdit(credentialsJson, packageName, "commit", async (call, editId) => {
     const releases = await productionTrack(call, editId);
-    const selected = releases.find((release) => releaseCodes(release, "production").includes(code));
-    if (!isObject(selected)) throw new Error(`Version code ${code} is not on the production track`);
-    if (typeof selected.status !== "string" || !ROLLOUT_STATUSES.includes(selected.status))
-      throw new Error(
-        `Version code ${code} is in a ${String(selected.status)} production release; only a staged, halted or draft release's rollout can change`,
-      );
+    const selected = rolloutRelease(releases, code);
     await putProduction(call, editId, productionReleases(releases, selected, selected, percent));
   });
