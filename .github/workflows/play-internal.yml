@@ -111,6 +111,8 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           PUTIO_SENTRY_DSN: ${{ vars.PUTIO_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: node scripts/play.ts upload --version-name "$PUTIO_VERSION_NAME" ${PUTIO_VERSION_CODE:+--version-code "$PUTIO_VERSION_CODE"}
 
   tag:

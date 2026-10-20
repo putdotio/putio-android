@@ -14,6 +14,7 @@ okhttp = "5.5.0"
 playPublisher = "4.1.1"
 putioSdkKotlin = "2.0.0"
 sentry = "8.60.0"
+sentryGradlePlugin = "6.24.0"
 tvMaterial = "1.1.0"
 zxing = "3.5.4"
 androidxTestCore = "1.7.0"
@@ -74,6 +75,7 @@ robolectric-android-all = { module = "org.robolectric:android-all-instrumented",
 robolectric-android-all-api26 = { module = "org.robolectric:android-all-instrumented", version = "8.0.0_r4-robolectric-r1-i7" }
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 detekt-gradle-plugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
+sentry-gradle-plugin = { module = "io.sentry:sentry-android-gradle-plugin", version.ref = "sentryGradlePlugin" }
 play-publisher-gradle-plugin = { module = "com.github.triplet.gradle:play-publisher", version.ref = "playPublisher" }
 
 [plugins]
@@ -83,3 +85,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 play-publisher = { id = "com.github.triplet.play", version.ref = "playPublisher" }
+sentry-android = { id = "io.sentry.android.gradle", version.ref = "sentryGradlePlugin" }
