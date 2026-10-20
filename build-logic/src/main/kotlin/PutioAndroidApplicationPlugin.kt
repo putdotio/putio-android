@@ -125,17 +125,16 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     }
 
     /**
-     * With delivery's `SENTRY_AUTH_TOKEN`, each release build gets an R8 mapping id Sentry events
-     * carry and uploads its mapping under it; without, the plugin changes nothing. Its tracing,
-     * SDK installation, optimizations and telemetry stay off, since the SDK lives in core/telemetry.
+     * Only with delivery's `SENTRY_AUTH_TOKEN`: each release build then gets an R8 mapping id Sentry
+     * events carry and uploads its mapping under it. Other builds never apply the plugin. Its
+     * tracing, SDK installation, optimizations and telemetry stay off, since the SDK lives in
+     * core/telemetry.
      */
     private fun Project.uploadMappingsToSentry() {
-        pluginManager.apply("io.sentry.android.gradle")
         val token = providers.environmentVariable("SENTRY_AUTH_TOKEN")
-        val upload = token.isPresent
+        if (!token.isPresent) return
+        pluginManager.apply("io.sentry.android.gradle")
         extensions.configure<SentryPluginExtension> {
-            includeProguardMapping.set(upload)
-            autoUploadProguardMapping.set(upload)
             authToken.set(token)
             org.set("putio")
             projectName.set(providers.environmentVariable("SENTRY_PROJECT"))
