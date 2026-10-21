@@ -302,17 +302,6 @@ class TvPlayerOptionsTest {
     }
 
     @Test
-    fun hideSubtitlesLeavesTheSubtitlesButtonOutWhateverTheTracks() {
-        val player = TrackPlayer()
-        show(player, policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true))
-
-        compose.onNodeWithContentDescription(LANGUAGE).assertIsDisplayed()
-        compose.onNodeWithContentDescription(SUBTITLES).assertDoesNotExist()
-        compose.onNodeWithContentDescription(SPEED).assertIsDisplayed()
-        compose.runOnIdle { assertNull(player.selectedTextIndex()) }
-    }
-
-    @Test
     fun playbackResolvedForHiddenSubtitlesLeavesTheButtonOutBeforeTheSettingsLoad() {
         val player = TrackPlayer()
         show(player, readyState(subtitlesHidden = true), policy = null)

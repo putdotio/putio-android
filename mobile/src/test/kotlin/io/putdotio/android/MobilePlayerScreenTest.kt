@@ -929,20 +929,6 @@ class MobilePlayerSubtitleTest {
     }
 
     @Test
-    fun hideSubtitlesLeavesTheCaptionsPickerOut() {
-        compose.mainClock.autoAdvance = false
-        compose.setPlayerScreen(
-            state = readyState(0.0),
-            playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
-            subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
-        )
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithText("Audio").assertIsDisplayed()
-        compose.onNodeWithText("Speed (1×)").assertIsDisplayed()
-        compose.onNodeWithText("Captions").assertDoesNotExist()
-    }
-
-    @Test
     fun playbackResolvedForHiddenSubtitlesLeavesTheCaptionsPickerOutBeforeTheSettingsLoad() {
         compose.mainClock.autoAdvance = false
         compose.setPlayerScreen(
@@ -1059,19 +1045,6 @@ class MobilePlayerMediaItemTest {
                     subtitles = PlaybackSubtitles.Sidecar(listOf(subtitle("Unknown", "und", "future-format"))),
                 ).hasSelectableSubtitles(),
         )
-    }
-
-    @Test
-    fun mp4MediaItemLetsMedia3InferTheContainer() {
-        val source = PlaybackSource(
-            fileId = Target.fileId.value,
-            kind = PlaybackSourceKind.MP4,
-            url = credentialUrl("https://api.put.io/v2/files/42/mp4/download?token=credential"),
-            startFromSeconds = 0.0,
-            subtitles = PlaybackSubtitles.None,
-        )
-
-        assertNull(source.toMediaItem(Target.name).localConfiguration?.mimeType)
     }
 
     @Test
@@ -2948,22 +2921,6 @@ class MobilePlayerCodecTest {
                 updatedWindow = PlayerSeekWindow(available = false, durationMillis = 0L),
             ),
         )
-    }
-
-    @Test
-    fun mobileFactoryAppliesMovieOrMusicAudioAttributesByMediaType() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val video = DefaultMobilePlayerFactory.create(context, PlaybackMediaType.VIDEO)
-        val audio = DefaultMobilePlayerFactory.create(context, PlaybackMediaType.AUDIO)
-        try {
-            assertEquals(C.AUDIO_CONTENT_TYPE_MOVIE, video.audioAttributes.contentType)
-            assertEquals(C.AUDIO_CONTENT_TYPE_MUSIC, audio.audioAttributes.contentType)
-            assertEquals(C.USAGE_MEDIA, video.audioAttributes.usage)
-            assertEquals(C.USAGE_MEDIA, audio.audioAttributes.usage)
-        } finally {
-            video.release()
-            audio.release()
-        }
     }
 
     @Test

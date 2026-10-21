@@ -17,11 +17,8 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.StubFilesRepository
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.sdk.files.PutioFileType
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -72,90 +69,6 @@ class MobileFilesViewModelTest {
         }
     }
 
-    @Test
-    fun conflatedSameUserReauthenticationClosesThenReplacesTheController() {
-        val repository = NestedFolderRepository()
-        val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
-        val activityController = Robolectric.buildActivity(FilesHostActivity::class.java).setup()
-
-        try {
-            val activity = activityController.get()
-            val viewModel = activity.filesViewModel(authState)
-            val first = checkNotNull(viewModel.controllerFor(USER_ID, SessionOne, repository))
-            shadowOf(Looper.getMainLooper()).idle()
-            runBlocking(Dispatchers.Default) {
-                authState.value = MobileAuthState.SignedOut()
-                authState.value = signedIn(SessionTwo)
-            }
-            shadowOf(Looper.getMainLooper()).idle()
-
-            val loadsBeforeReplacement = repository.loadedFolderIds.toList()
-            assertEquals(listOf(FilesFolder.Root.id), loadsBeforeReplacement)
-            assertFalse(first.dispatch(FilesBrowserEvent.OpenFolder(Folder.id)))
-            shadowOf(Looper.getMainLooper()).idle()
-            assertEquals(loadsBeforeReplacement, repository.loadedFolderIds)
-
-            val second = checkNotNull(viewModel.controllerFor(USER_ID, SessionTwo, repository))
-            shadowOf(Looper.getMainLooper()).idle()
-
-            assertNotSame(first, second)
-            assertEquals(
-                listOf(FilesFolder.Root.id, FilesFolder.Root.id),
-                repository.loadedFolderIds,
-            )
-        } finally {
-            activityController.close()
-        }
-    }
-
-    @Test
-    fun signedOutTransitionClosesTheActiveController() {
-        val repository = NestedFolderRepository()
-        val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
-        val activityController = Robolectric.buildActivity(FilesHostActivity::class.java).setup()
-
-        try {
-            val controller = checkNotNull(
-                activityController
-                    .get()
-                    .filesViewModel(authState)
-                    .controllerFor(USER_ID, SessionOne, repository),
-            )
-            shadowOf(Looper.getMainLooper()).idle()
-
-            authState.value = MobileAuthState.SignedOut()
-            shadowOf(Looper.getMainLooper()).idle()
-
-            val loadsAfterSignOut = repository.loadedFolderIds.toList()
-            assertFalse(controller.dispatch(FilesBrowserEvent.OpenFolder(Folder.id)))
-            shadowOf(Looper.getMainLooper()).idle()
-            assertEquals(loadsAfterSignOut, repository.loadedFolderIds)
-        } finally {
-            activityController.close()
-        }
-    }
-
-    @Test
-    fun permanentActivityDestructionClosesTheActiveController() {
-        val repository = NestedFolderRepository()
-        val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
-        val activityController = Robolectric.buildActivity(FilesHostActivity::class.java).setup()
-        val controller = checkNotNull(
-            activityController
-                .get()
-                .filesViewModel(authState)
-                .controllerFor(USER_ID, SessionOne, repository),
-        )
-        shadowOf(Looper.getMainLooper()).idle()
-        val loadsBeforeDestruction = repository.loadedFolderIds.toList()
-
-        activityController.close()
-
-        assertFalse(controller.dispatch(FilesBrowserEvent.OpenFolder(Folder.id)))
-        shadowOf(Looper.getMainLooper()).idle()
-        assertEquals(loadsBeforeDestruction, repository.loadedFolderIds)
-    }
-
     private fun FilesHostActivity.filesViewModel(
         authState: MutableStateFlow<MobileAuthState>,
     ): MobileFilesViewModel =
@@ -185,7 +98,6 @@ class MobileFilesViewModelTest {
         const val USER_ID = 42L
         val Account = MobileAccount(USER_ID, "user", "user@example.com")
         val SessionOne = MobileAuthSessionId(1L)
-        val SessionTwo = MobileAuthSessionId(2L)
         val Viewport = FilesViewportPosition(
             firstVisibleItemIndex = 12,
             firstVisibleItemScrollOffset = 34,

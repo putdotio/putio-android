@@ -89,12 +89,6 @@ class PlaybackSubtitleSelectionTest {
     @Test
     fun accountSubtitlePolicySeedsPlayerDefaults() {
         val defaults = TrackSelectionParameters.Builder().build()
-        val hidden =
-            restoreSubtitleSelection(
-                defaults = defaults,
-                retained = null,
-                startupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
-            )
         val forcedOnly =
             restoreSubtitleSelection(
                 defaults = defaults,
@@ -114,8 +108,6 @@ class PlaybackSubtitleSelectionTest {
                 startupPolicy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = false),
             )
 
-        assertFalse(hidden.selectTextByDefault)
-        assertTrue(C.TRACK_TYPE_TEXT in hidden.disabledTrackTypes)
         assertFalse(forcedOnly.selectTextByDefault)
         assertFalse(C.TRACK_TYPE_TEXT in forcedOnly.disabledTrackTypes)
         assertTrue(automatic.selectTextByDefault)

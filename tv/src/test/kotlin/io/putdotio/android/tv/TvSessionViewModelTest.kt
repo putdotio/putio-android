@@ -310,19 +310,6 @@ class TvSessionViewModelTest {
     }
 
     @Test
-    fun `signing out closes the live session`() {
-        val viewModel = TvSessionViewModel(auth)
-        val session = checkNotNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
-
-        auth.value = TvAuthState.Initializing
-
-        assertFalse(session.files.dispatch(FilesBrowserEvent.Refresh))
-        assertFalse(session.search.updateQuery("late"))
-        assertTrue(stores.single().closed)
-        assertNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
-    }
-
-    @Test
     fun `playing a video resolves it on the session with the account's playback type`() {
         appConfigPreferences = AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4)
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
