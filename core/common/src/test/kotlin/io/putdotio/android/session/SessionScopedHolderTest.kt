@@ -70,7 +70,10 @@ class SessionScopedHolderTest {
 
         assertEquals(listOf(first), fixture.ended)
         assertNull(fixture.holder.valueFor("a") { fixture.build() })
-        assertNotSame(first, fixture.holder.valueFor("b") { fixture.build() })
+        val second = checkNotNull(fixture.holder.valueFor("b") { fixture.build() })
+        assertNotSame(first, second)
+        assertEquals(listOf(first, second), fixture.built)
+        assertSame(second, fixture.holder.valueFor("b") { fixture.build() })
         assertTrue(fixture.closed.isEmpty())
     }
 
