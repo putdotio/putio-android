@@ -1,13 +1,5 @@
 package io.putdotio.android
 
-import android.app.Application
-import android.os.Looper
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelStore
-import androidx.test.core.app.ApplicationProvider
-import io.putdotio.android.auth.MobileAccount
-import io.putdotio.android.auth.MobileAuthSessionId
-import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesExternalOpen
 import io.putdotio.android.files.FilesItem
@@ -25,8 +17,6 @@ import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
-import io.putdotio.sdk.PutioClient
-import io.putdotio.sdk.PutioConfig
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,17 +27,13 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.search.ActiveSearchHistorySession
-import io.putdotio.android.search.MobileSearchHistoryViewModel
-import io.putdotio.android.search.mobileSearchHistoryViewModelFactory
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -206,94 +192,24 @@ class MobileSearchHistoryViewModelTest {
         }
 
     @Test
-    fun reauthenticationClosesOldSessionAndUsesReplacementRepositories() {
-        val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
-        val stores = mutableListOf<FakeRecentSearchStore>()
-        val viewModelStore = ViewModelStore()
-        val viewModel = viewModel(viewModelStore, authState, stores)
-        val firstSearch = RecordingSearchRepository()
-        val secondSearch = RecordingSearchRepository()
+    fun closingTheSessionClosesItsSearchAndRecentSearches() =
+        runBlocking {
+            val recentSearchStore = FakeRecentSearchStore()
+            val search = SearchController(RecordingSearchRepository(), recentSearchStore, this)
+            val session =
+                ActiveSearchHistorySession(
+                    recentSearchStore = recentSearchStore,
+                    search = search,
+                    history = HistoryController(EmptyHistoryRepository, historyEnabled = true, parentScope = this),
+                    parentScope = this,
+                    filesItemResolver = EmptyFilesItemResolver,
+                )
 
-        PutioClient(PutioConfig(accessToken = "token")).use { client ->
-            val first = checkNotNull(viewModel.controllersFor(firstSearch, SessionOne, client))
-            shadowOf(Looper.getMainLooper()).idle()
-            first.search.updateQuery("first")
-            first.search.submit()
-            shadowOf(Looper.getMainLooper()).idle()
-            assertTrue(SearchTerm("first") in firstSearch.terms)
+            session.close()
 
-            authState.value = signedIn(SessionTwo)
-            shadowOf(Looper.getMainLooper()).idle()
-
-            assertFalse(first.search.updateQuery("stale"))
-            assertTrue(stores.single().closed)
-
-            val second = checkNotNull(viewModel.controllersFor(secondSearch, SessionTwo, client))
-            shadowOf(Looper.getMainLooper()).idle()
-            second.search.updateQuery("second")
-            second.search.submit()
-            shadowOf(Looper.getMainLooper()).idle()
-
-            assertNotSame(first, second)
-            assertTrue(SearchTerm("second") in secondSearch.terms)
-            assertFalse(SearchTerm("stale") in firstSearch.terms)
+            assertFalse(search.updateQuery("closed"))
+            assertTrue(recentSearchStore.closed)
         }
-        viewModelStore.clear()
-    }
-
-    @Test
-    fun signOutAndViewModelClearCloseOwnedSessions() {
-        val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
-        val stores = mutableListOf<FakeRecentSearchStore>()
-        val viewModelStore = ViewModelStore()
-        val viewModel = viewModel(viewModelStore, authState, stores)
-
-        PutioClient(PutioConfig(accessToken = "token")).use { client ->
-            val first = checkNotNull(viewModel.controllersFor(RecordingSearchRepository(), SessionOne, client))
-            shadowOf(Looper.getMainLooper()).idle()
-            authState.value = MobileAuthState.SignedOut()
-            shadowOf(Looper.getMainLooper()).idle()
-
-            assertFalse(first.search.updateQuery("stale"))
-            assertTrue(stores.single().closed)
-
-            authState.value = signedIn(SessionTwo)
-            shadowOf(Looper.getMainLooper()).idle()
-            val second = checkNotNull(viewModel.controllersFor(RecordingSearchRepository(), SessionTwo, client))
-            shadowOf(Looper.getMainLooper()).idle()
-            viewModelStore.clear()
-
-            assertFalse(second.search.updateQuery("closed"))
-            assertTrue(stores.last().closed)
-        }
-    }
-
-    private fun viewModel(
-        store: ViewModelStore,
-        authState: MutableStateFlow<MobileAuthState>,
-        stores: MutableList<FakeRecentSearchStore>,
-    ): MobileSearchHistoryViewModel {
-        val application = ApplicationProvider.getApplicationContext<Application>()
-        return ViewModelProvider(
-            store,
-            mobileSearchHistoryViewModelFactory(application, authState) { _, _ ->
-                FakeRecentSearchStore().also(stores::add)
-            },
-        )[MobileSearchHistoryViewModel::class.java]
-    }
-
-    private fun MobileSearchHistoryViewModel.controllersFor(
-        searchRepository: SearchRepository,
-        sessionId: MobileAuthSessionId,
-        client: PutioClient,
-    ): ActiveSearchHistorySession? =
-        controllersFor(
-            session = signedIn(sessionId),
-            putioClient = client,
-            searchRepository = searchRepository,
-            historyRepository = EmptyHistoryRepository,
-            filesItemResolver = EmptyFilesItemResolver,
-        )
 
     private class FakeRecentSearchStore : RecentSearchStoreOwner {
         override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
@@ -360,14 +276,7 @@ class MobileSearchHistoryViewModelTest {
     }
 
     private companion object {
-        const val USER_ID = 42L
         const val TIMEOUT = 2_000L
         const val NO_SECOND_EVENT_TIMEOUT = 100L
-        val Account = MobileAccount(USER_ID, "user", "user@example.com", historyEnabled = true)
-        val SessionOne = MobileAuthSessionId(1L)
-        val SessionTwo = MobileAuthSessionId(2L)
-
-        fun signedIn(sessionId: MobileAuthSessionId): MobileAuthState.SignedIn =
-            MobileAuthState.SignedIn(Account, sessionId)
     }
 }

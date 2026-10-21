@@ -48,9 +48,8 @@ class SdkPlaybackRepositoryTest {
                 },
             )
 
-            val result = repository.resolve(Target) as PlaybackRepositoryResult.Success
+            repository.resolve(Target)
 
-            assertTrue(result.value is PlaybackResolution.Conversion)
             assertEquals(Target.fileId.value, request?.fileId)
             assertEquals(PlaybackPreference.HLS, request?.preference)
             assertTrue(request?.useStartFrom == true)

@@ -62,6 +62,19 @@ class SessionScopedHolderTest {
     }
 
     @Test
+    fun aSessionThatChangedHandsReleasesTheOldValueThroughOnSessionEnded() {
+        val fixture = Fixture(initial = "a")
+        val first = checkNotNull(fixture.holder.valueFor("a") { fixture.build() })
+
+        fixture.authState.value = "b"
+
+        assertEquals(listOf(first), fixture.ended)
+        assertNull(fixture.holder.valueFor("a") { fixture.build() })
+        assertNotSame(first, fixture.holder.valueFor("b") { fixture.build() })
+        assertTrue(fixture.closed.isEmpty())
+    }
+
+    @Test
     fun aSessionThatChangedHandsBeforeReconcileClosesTheOldValue() {
         // The collector has not run yet, so only valueFor sees the new session.
         val fixture = Fixture(initial = "a", eager = false)
