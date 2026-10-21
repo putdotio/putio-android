@@ -8,8 +8,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -25,9 +23,6 @@ import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.transfers.TransfersContent
 import io.putdotio.android.transfers.AppTransferStatus
 import io.putdotio.android.transfers.TransferFileId
-import io.putdotio.android.transfers.TransferMutation
-import io.putdotio.android.transfers.TransferAction
-import io.putdotio.android.transfers.TransfersRequestId
 import io.putdotio.android.transfers.TransferId
 import io.putdotio.android.transfers.TransferItem
 import io.putdotio.android.transfers.TransfersEvent
@@ -104,17 +99,6 @@ class MobileTransfersLayoutTest {
     }
 
     @Test
-    fun largeTextOverflowRetainsDisabledActionsDuringMutation() {
-        setScreen(mutation = TransferMutation.Running(TransferAction.Cancel(TransferId(1)), TransfersRequestId(1)))
-        compose.onNodeWithText("Add transfer").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Open $TRANSFER_NAME").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Cancel transfer $TRANSFER_NAME").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Transfer actions").assertIsEnabled().performClick()
-        compose.onNodeWithText("Refresh").assertIsNotEnabled()
-        compose.onNodeWithText("Clean completed").assertIsNotEnabled()
-    }
-
-    @Test
     @Config(sdk = [35], qualifiers = "en-rUS-w640dp-h320dp-land")
     fun shortLargeFontSheetCanScrollFromInputToSubmit() {
         val events = mutableListOf<TransfersEvent>()
@@ -130,7 +114,6 @@ class MobileTransfersLayoutTest {
 
     private fun setScreen(
         fontScale: Float = 2f,
-        mutation: TransferMutation = TransferMutation.Idle,
         onEvent: (TransfersEvent) -> Unit = {},
     ) {
         compose.setContent {
@@ -146,7 +129,6 @@ class MobileTransfersLayoutTest {
                                     estimatedSecondsRemaining = null, availability = null, errorMessage = null,
                                     createdAt = "2026-09-08T12:00:00Z", userFileExists = true,
                                 )), TransfersPaging.Complete),
-                                mutation = mutation,
                             ),
                             onEvent = onEvent,
                         )

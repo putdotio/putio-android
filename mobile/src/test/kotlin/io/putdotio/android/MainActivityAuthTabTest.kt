@@ -40,31 +40,18 @@ class MainActivityAuthTabTest {
     }
 
     @Test
-    fun `registered Auth Tab launcher consumes callback after Activity recreation`() {
-        assertResultConsumedAfterRecreation(
+    fun `registered Auth Tab launcher consumes callback cancellation and failure after Activity recreation`() {
+        listOf(
             AuthTabResult(
                 resultCode = AuthTabIntent.RESULT_OK,
                 resultUri = "putio://auth#state=expected-state&access_token=",
             ),
-        )
-    }
-
-    @Test
-    fun `registered Auth Tab launcher consumes cancellation after Activity recreation`() {
-        assertResultConsumedAfterRecreation(
-            AuthTabResult(
-                resultCode = AuthTabIntent.RESULT_CANCELED,
-            ),
-        )
-    }
-
-    @Test
-    fun `registered Auth Tab launcher consumes failure after Activity recreation`() {
-        assertResultConsumedAfterRecreation(
-            AuthTabResult(
-                resultCode = AuthTabIntent.RESULT_VERIFICATION_FAILED,
-            ),
-        )
+            AuthTabResult(resultCode = AuthTabIntent.RESULT_CANCELED),
+            AuthTabResult(resultCode = AuthTabIntent.RESULT_VERIFICATION_FAILED),
+        ).forEach { result ->
+            MobileOAuthRuntime.resetForTests()
+            assertResultConsumedAfterRecreation(result)
+        }
     }
 
     private fun assertResultConsumedAfterRecreation(result: AuthTabResult) {

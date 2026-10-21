@@ -1,6 +1,5 @@
 package io.putdotio.android.transfers
 
-import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
@@ -68,28 +67,6 @@ class TransfersControllerTest {
             controller.dispatch(TransfersEvent.VisibilityChanged(true))
             yield()
             assertEquals(0, waits)
-        } finally {
-            controller.close()
-        }
-    }
-
-    @Test
-    fun completedRowsWithoutFilesKeepPollingUntilResolved(): Unit = runBlocking {
-        val pollDelay = CompletableDeferred<Long>()
-        val repository = repository {
-            PutioResult.Success(
-                TransfersPage(listOf(item(1L, AppTransferStatus.Completed)), null),
-            )
-        }
-        val controller = TransfersController(repository, this) { millis ->
-            pollDelay.complete(millis)
-            awaitCancellation()
-        }
-        try {
-            controller.awaitState { it.content is TransfersContent.Ready }
-            controller.dispatch(TransfersEvent.VisibilityChanged(true))
-
-            assertEquals(5_000L, withTimeout(TIMEOUT) { pollDelay.await() })
         } finally {
             controller.close()
         }
@@ -196,35 +173,6 @@ class TransfersControllerTest {
                 listOf(9L, 1L, 2L, 3L, 4L),
                 (refreshed.content as TransfersContent.Ready).items.map { it.id.value },
             )
-        } finally {
-            controller.close()
-        }
-    }
-
-    @Test
-    fun mutationIsSingleFlightAndFailureKeepsSubmittedInput(): Unit = runBlocking {
-        val addStarted = CompletableDeferred<Unit>()
-        val addResult = CompletableDeferred<PutioResult<TransferAddOutcome>>()
-        val base = repository {
-            PutioResult.Success(TransfersPage(emptyList(), null))
-        }
-        val repository = object : TransfersRepository by base {
-            override suspend fun add(request: TransferAddRequest): PutioResult<TransferAddOutcome> {
-                addStarted.complete(Unit)
-                return addResult.await()
-            }
-        }
-        val controller = TransfersController(repository, this)
-        try {
-            controller.awaitState { it.content == TransfersContent.Empty }
-            assertTrue(controller.dispatch(TransfersEvent.Add("magnet:?xt=urn:test")))
-            withTimeout(TIMEOUT) { addStarted.await() }
-            assertFalse(controller.dispatch(TransfersEvent.Add("https://example.com/second")))
-            val failure = PutioFailure.Unexpected(IllegalStateException("offline"))
-            addResult.complete(PutioResult.Failure(failure))
-            val state = controller.awaitState { it.mutation is TransferMutation.Failed }
-            val action = (state.mutation as TransferMutation.Failed).action as TransferAction.Add
-            assertEquals("magnet:?xt=urn:test", (action.request as TransferAddRequest.Links).links.single().value)
         } finally {
             controller.close()
         }

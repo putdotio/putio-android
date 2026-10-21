@@ -41,7 +41,6 @@ import kotlin.math.roundToInt
 internal const val ACTION_PICTURE_IN_PICTURE_PLAY = "io.putdotio.android.action.PICTURE_IN_PICTURE_PLAY"
 internal const val ACTION_PICTURE_IN_PICTURE_PAUSE = "io.putdotio.android.action.PICTURE_IN_PICTURE_PAUSE"
 
-/** Whether the Activity hosting this composition is in picture-in-picture. */
 @Composable
 internal fun rememberPictureInPictureMode(): State<Boolean> {
     val activity = LocalActivity.current

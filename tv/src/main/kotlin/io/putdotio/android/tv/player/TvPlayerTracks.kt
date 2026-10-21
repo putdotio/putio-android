@@ -125,7 +125,7 @@ internal fun Player.keepChoices(
 ) {
     // A picked subtitle track is found again in each new track list, and automatic
     // subtitles find the account's default; Off stays off because the text type stays
-    // disabled whatever the tracks do (#45).
+    // disabled whatever the tracks do.
     val withSubtitles = trackSelectionParameters.withSubtitleTracks(
         retained = options.subtitles,
         startupPolicy = startupPolicy,

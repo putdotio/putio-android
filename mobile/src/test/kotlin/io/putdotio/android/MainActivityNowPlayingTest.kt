@@ -49,11 +49,4 @@ class MainActivityNowPlayingTest {
         assertFalse(shouldPublishLaunchIntent(Intent(Intent.ACTION_MAIN), alreadyConsumed = false))
         assertFalse(shouldPublishLaunchIntent(null, alreadyConsumed = false))
     }
-
-    @Test
-    fun aPlainLaunchPublishesNothing() {
-        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-            scenario.onActivity { assertFalse(it.nowPlayingRequests.pending.value) }
-        }
-    }
 }

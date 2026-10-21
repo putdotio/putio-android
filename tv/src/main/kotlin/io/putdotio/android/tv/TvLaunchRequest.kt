@@ -19,7 +19,6 @@ internal sealed interface TvLaunchRequest {
         val continueWatching: Boolean = false,
     ) : TvLaunchRequest
 
-    /** A query the system search handed to the app. */
     data class Search(val term: SearchTerm) : TvLaunchRequest
 }
 

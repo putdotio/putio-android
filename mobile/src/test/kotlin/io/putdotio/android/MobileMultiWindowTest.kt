@@ -43,7 +43,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
 
-/** Split-screen, freeform and keyboard changes, with and without the Activity being recreated. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobileMultiWindowTest {
@@ -83,7 +82,6 @@ class MobileMultiWindowTest {
             controller.configurationChange(denser)
 
             assertNotSame(activity, controller.get())
-            // Recreation keeps the Activity-scoped intake through its view model.
             assertSame(draft, controller.get().transferDraft)
         }
     }

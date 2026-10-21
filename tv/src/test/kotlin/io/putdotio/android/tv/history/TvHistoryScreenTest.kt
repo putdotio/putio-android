@@ -208,34 +208,30 @@ class TvHistoryScreenTest {
     }
 
     @Test
-    fun aFailedOpenNamesItsCause() {
-        show(
-            historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)),
-            notice = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")),
-        )
-
-        compose.onNodeWithText("Couldn’t open this file. Check the network and try again.").assertIsDisplayed()
-    }
-
-    @Test
     fun aBlockedOpenIsExplainedAboveTheList() {
-        show(
-            historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)),
-            notice = FilesFailure.NavigationBlocked,
+        val notices = listOf<Pair<FilesFailure, String>>(
+            PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")) to
+                "Couldn’t open this file. Check the network and try again.",
+            FilesFailure.NavigationBlocked to "This item can’t be opened right now. Check Files, then try again.",
         )
+        var notice by mutableStateOf<FilesFailure?>(null)
+        show(notice = { notice }) { historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
 
-        compose.onNodeWithText("This item can’t be opened right now. Check Files, then try again.").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
+        notices.forEach { (failure, message) ->
+            compose.runOnIdle { notice = failure }
+            compose.onNodeWithText(message).assertIsDisplayed()
+            compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
+        }
     }
 
-    private fun show(state: HistoryState, notice: FilesFailure? = null) = show(notice) { state }
+    private fun show(state: HistoryState) = show { state }
 
-    private fun show(notice: FilesFailure? = null, state: () -> HistoryState) {
+    private fun show(notice: () -> FilesFailure? = { null }, state: () -> HistoryState) {
         compose.setTvContent {
             TvHistoryScreen(
                 state = state(),
                 onEvent = { log += it; true },
-                notice = notice,
+                notice = notice(),
                 clock = clock,
             )
         }

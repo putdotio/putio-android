@@ -57,11 +57,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Fake account repositories for the controlled-state TV proofs: Files serves [listings] and
- * their later pages [continuations],
- * Search answers every term with [searchResults], History and Trash list one page of
- * [history] and [trash], account settings confirm [historyEnabled], and playback resolves to
- * [playback], read only when something plays.
- * Nothing reaches the API.
+ * their later pages [continuations], Search answers every term with [searchResults], History
+ * and Trash list one page of [history] and [trash], account settings confirm [historyEnabled],
+ * and playback resolves to [playback], read only when something plays. Nothing reaches the API.
  */
 internal fun tvProofDependencies(
     listings: Map<FilesItemId, FilesPage>,
@@ -170,7 +168,6 @@ internal fun proofItem(id: Long, name: String, type: PutioFileType, parentId: Fi
     createdAt = "2026-09-30T10:00:00Z",
 )
 
-/** Serves first pages from [listings] and later pages from [continuations], each after [pageDelayMillis]. */
 internal class ProofFilesRepository(
     private val listings: Map<FilesItemId, FilesPage>,
     private val continuations: Map<FilesCursor, FilesPage> = emptyMap(),

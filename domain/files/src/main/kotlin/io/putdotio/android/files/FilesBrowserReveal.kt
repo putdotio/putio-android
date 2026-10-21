@@ -56,10 +56,6 @@ internal fun FilesFolderState.withoutReveal(): FilesFolderState {
     return copy(content = shown, revealItemId = null, revealSearch = null)
 }
 
-/**
- * Shows [itemId] in the current folder, reading later pages when it is not among the loaded rows;
- * a folder still loading looks for it in what it reads.
- */
 internal fun FilesBrowserState.revealItem(folderId: FilesItemId, itemId: FilesItemId): FilesBrowserTransition {
     val content = current.content
     val paging = content.paging()
@@ -78,10 +74,6 @@ internal fun FilesBrowserState.revealItem(folderId: FilesItemId, itemId: FilesIt
 private val FilesFolderState.canReadAnotherPage: Boolean
     get() = consumedCursors.size + 1 < MAX_REVEAL_PAGES
 
-/**
- * Opens [folder] at its revealed item when [items] hold it, or reads the next page while the item
- * is missing, more pages exist, and the cap allows; otherwise shows [items] from the top.
- */
 private fun FilesBrowserState.settleReveal(
     index: Int,
     folder: FilesFolderState,

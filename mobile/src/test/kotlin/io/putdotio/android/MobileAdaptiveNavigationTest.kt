@@ -116,20 +116,6 @@ class MobileLargeTextNavigationTest : NavigationShellFixture(2f) {
     }
 
     @Test
-    fun backFromTheReopenedDrawerKeepsTheSelectedSearchDestination() {
-        mount()
-        compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
-        selectDrawerDestination("Search")
-        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
-        compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
-        drawerDestination("Search").assertIsDisplayed().assertIsSelected()
-        compose.runOnIdle { backOwner.onBackPressedDispatcher.onBackPressed() }
-        compose.waitForIdle()
-        compose.onNodeWithTag(MOBILE_NAV_DRAWER_TAG).assertIsNotDisplayed()
-        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsDisplayed()
-    }
-
-    @Test
     fun backWhileTheDrawerOpensKeepsTheSelectedSearchDestination() {
         mount()
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()

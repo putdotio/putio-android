@@ -51,19 +51,6 @@ private fun rendererCapabilities(trackType: Int): RendererCapabilities =
 @UnstableApi
 class PlaybackSubtitleSelectionTest {
     @Test
-    fun retainedSubtitleSelectionWinsWhenThePlayerIsRecreated() {
-        val restored =
-            restoreSubtitleSelection(
-                defaults = TrackSelectionParameters.Builder().build(),
-                retained = SubtitleSelection.Off,
-                startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
-            )
-
-        assertFalse(restored.selectTextByDefault)
-        assertTrue(C.TRACK_TYPE_TEXT in restored.disabledTrackTypes)
-    }
-
-    @Test
     fun forcedOnlyStartupReadsAsOffUntilTheViewerPicksAutomatic() {
         val captionsDisabled =
             TrackSelectionParameters.Builder()
@@ -112,7 +99,7 @@ class PlaybackSubtitleSelectionTest {
         assertFalse(C.TRACK_TYPE_TEXT in forcedOnly.disabledTrackTypes)
         assertTrue(automatic.selectTextByDefault)
         assertFalse(C.TRACK_TYPE_TEXT in automatic.disabledTrackTypes)
-        // hide_subtitles outranks a retained pick; its picker is gone (#237).
+        // hide_subtitles outranks a retained pick; its picker is gone.
         assertFalse(retained.selectTextByDefault)
         assertTrue(C.TRACK_TYPE_TEXT in retained.disabledTrackTypes)
     }
@@ -135,14 +122,7 @@ class PlaybackSubtitleSelectionTest {
     }
 
     @Test
-    fun subtitlesStayOffWhileAccountSettingsLoad() {
-        val loading = AccountSettingsReducer.start().state
-
-        assertNull(startupTextTrack(loading))
-    }
-
-    @Test
-    fun failedAccountSettingsKeepSubtitlesOffAndThePickerStillSelects() {
+    fun loadingOrFailedAccountSettingsKeepSubtitlesOffAndThePickerStillSelects() {
         val start = AccountSettingsReducer.start()
         val failed =
             AccountSettingsReducer.reduce(
@@ -152,28 +132,26 @@ class PlaybackSubtitleSelectionTest {
                     AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
                 ),
             ).state
-        val startup = startupParameters(failed)
         val tracks = listOf(PlaybackSubtitleTrack(TextGroup, 0, label = "English", selected = false))
 
-        assertNull(selectedTextId(startup))
-        assertEquals(
-            "ordinary",
-            selectedTextId(startup.withSubtitleSelection(SubtitleSelection.Track(tracks[0].identity), tracks)),
-        )
-        assertEquals(
-            "ordinary",
-            selectedTextId(startup.withSubtitleSelection(SubtitleSelection.Automatic, tracks, CaptionDefaults)),
-        )
+        for (settings in listOf(start.state, failed)) {
+            val startup = startupParameters(settings)
+            assertNull("$settings", selectedTextId(startup))
+            assertEquals(
+                "ordinary",
+                selectedTextId(startup.withSubtitleSelection(SubtitleSelection.Track(tracks[0].identity), tracks)),
+            )
+            assertEquals(
+                "ordinary",
+                selectedTextId(startup.withSubtitleSelection(SubtitleSelection.Automatic, tracks, CaptionDefaults)),
+            )
+        }
     }
 
     @Test
-    fun loadedHideSubtitlesKeepsSubtitlesOff() {
-        assertNull(startupTextTrack(loaded(showSubtitles = false)))
-    }
-
-    @Test
-    fun loadedShowSubtitlesSelectsTheDefaultTrack() {
+    fun loadedShowSubtitlesDecidesWhetherTheDefaultTrackShows() {
         assertEquals("ordinary", startupTextTrack(loaded(showSubtitles = true)))
+        assertNull(startupTextTrack(loaded(showSubtitles = false)))
     }
 
     @Test
@@ -217,8 +195,10 @@ class PlaybackSubtitleSelectionTest {
         // The viewer's pick still decides.
         val picked = SubtitleSelection.Track(tracks.single { it.identity.id == "tr" }.identity)
         assertEquals("tr", selectedTextId(arrived(SubtitleStartupPolicy(true, true), picked), flagged))
-        // Except under hide_subtitles, which outranks it (#237).
+        // Except under hide_subtitles, which outranks it.
         assertNull(selectedTextId(arrived(SubtitleStartupPolicy(false, true), picked), flagged))
+        // A retained Off outlives a recreated player even while the account auto-selects.
+        assertNull(selectedTextId(arrived(SubtitleStartupPolicy(true, true), SubtitleSelection.Off), flagged))
     }
 
     @Test

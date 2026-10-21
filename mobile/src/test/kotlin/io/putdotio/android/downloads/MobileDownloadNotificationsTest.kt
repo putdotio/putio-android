@@ -168,7 +168,6 @@ class MobileDownloadNotificationsTest {
     fun onlyTheSignedInAccountHearsAboutItsDownloads() {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
 
-        // A finished download of an account that is not the one signed in now stays quiet.
         signedIn = OTHER
         notifications.changed(download(10L, Download.STATE_COMPLETED))
         signedIn = null

@@ -37,8 +37,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
 /**
- * Controlled-state captures of the History, quota and Trash copy (#241) on the real signed-in
- * TV shell: History lists only shared files and completed transfers, the quota follows
+ * Controlled-state captures of the History, quota and Trash copy on the real signed-in TV
+ * shell: History lists only shared files and completed transfers, the quota follows
  * `show_optimistic_usage`, Trash states its 14 days. No API calls.
  */
 @RunWith(AndroidJUnit4::class)

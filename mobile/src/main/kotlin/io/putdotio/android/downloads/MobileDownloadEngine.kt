@@ -302,7 +302,7 @@ private fun MobileDownloadStore.markMissing(fileId: FilesItemId) =
 /**
  * Built here, not by the SDK: its URL builders embed `oauth_token`, and Media3 persists
  * this URL, so it must stay token-free. HLS asks for every subtitle rendition, or for none
- * when the account hides subtitles, as streaming does (#237, #53).
+ * when the account hides subtitles, as streaming does.
  */
 internal fun DownloadArtifact.apiUrl(fileId: FilesItemId, subtitlesHidden: Boolean = false): String =
     when (this) {

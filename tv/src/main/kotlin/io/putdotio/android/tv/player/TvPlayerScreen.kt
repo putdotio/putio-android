@@ -347,11 +347,10 @@ private fun TvReadyPlayer(
         }
     }
     // Account settings that arrive after playback started still decide until the viewer picks;
-    // hiding overrides a pick too (#237).
+    // hiding overrides a pick too.
     LaunchedEffect(player, subtitleStartupPolicy, options.subtitles == null) {
         player.followSubtitlePolicy(subtitleStartupPolicy, options.subtitles, defaultTrackSelection)
     }
-    // Back walks the overlay stack before it leaves; see TvPlayerOverlay.back.
     BackHandler { apply(overlay.back()) }
     // Home or another app takes the screen: stop where we are and show the paused controls.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
@@ -454,9 +453,8 @@ private fun TvReadyPlayer(
 
 /**
  * The tracks the player offers and shows. hide_subtitles hides subtitles entirely, as every
- * reference player does (#237). Off is authoritative: nothing is drawn while the text type is
- * disabled, whatever cues the renderer last delivered (#45: subtitles that stayed on screen after
- * being turned off).
+ * reference player does. Off is authoritative: nothing is drawn while the text type is
+ * disabled, whatever cues the renderer last delivered.
  */
 private class TvTrackChoices(tracks: Tracks, parameters: TrackSelectionParameters, policy: SubtitleStartupPolicy?) {
     val audio = tracks.playbackAudioTracks()

@@ -24,7 +24,7 @@ import org.gradle.work.DisableCachingByDefault
 /**
  * Runs Robolectric against the android-all jars Gradle resolved, instead of the
  * ones Robolectric downloads from Maven Central into `~/.m2` while tests run.
- * That download sat outside every build cache and failed CI on network errors;
+ * That download sits outside every build cache and fails CI on network errors;
  * Gradle's copies are cached with the rest of the dependencies. Robolectric looks
  * each jar up by file name in one `robolectric.dependency.dir`, and Gradle keeps
  * every artifact in its own directory, so the jars are linked into one.

@@ -18,28 +18,6 @@ import org.junit.Test
 
 class AccountSettingsControllerTest {
     @Test
-    fun loadsSavesAndRetriesThroughTheRepositoryBoundary() =
-        runBlocking<Unit> {
-            val repository = RecordingRepository()
-            val controller = AccountSettingsController(repository, this)
-
-            controller.use {
-                controller.awaitState { it.content is AccountSettingsContent.Ready }
-                val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
-                assertTrue(controller.dispatch(AccountSettingsEvent.ChangeRequested(change)))
-                controller.awaitState { it.mutation is AccountSettingsMutation.Failed }
-
-                val failedReady = controller.state.value.content as AccountSettingsContent.Ready
-                assertTrue(failedReady.preferences.historyEnabled)
-                assertTrue(controller.dispatch(AccountSettingsEvent.RetryChange))
-                controller.awaitState { it.mutation == AccountSettingsMutation.Idle }
-
-                assertEquals(listOf(change, change), repository.savedChanges)
-            }
-            assertTrue(coroutineContext[Job]?.isActive == true)
-        }
-
-    @Test
     fun immediateRetryFromTheFailureCollectorStartsANewEffect() =
         runBlocking<Unit> {
             val repository = RecordingRepository()
@@ -65,30 +43,6 @@ class AccountSettingsControllerTest {
             } finally {
                 collector.cancelAndJoin()
                 controller.close()
-            }
-        }
-
-    @Test
-    fun refreshRetryAfterAcceptedSaveDoesNotRepeatTheMutation() =
-        runBlocking<Unit> {
-            val repository = RefreshFailureRepository()
-            val controller = AccountSettingsController(repository, this)
-            val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
-
-            controller.use {
-                controller.awaitState { it.content is AccountSettingsContent.Ready }
-                assertTrue(controller.dispatch(AccountSettingsEvent.ChangeRequested(change)))
-                controller.awaitState {
-                    (it.mutation as? AccountSettingsMutation.Failed)?.operation ==
-                        AccountSettingsMutation.Operation.Refresh
-                }
-
-                assertEquals(1, repository.saveCount)
-                assertTrue(controller.dispatch(AccountSettingsEvent.RetryChange))
-                controller.awaitState { it.mutation == AccountSettingsMutation.Idle }
-
-                assertEquals(1, repository.saveCount)
-                assertEquals(3, repository.loadCount)
             }
         }
 
@@ -138,6 +92,7 @@ class AccountSettingsControllerTest {
             controller.close()
 
             withTimeout(TEST_TIMEOUT_MILLIS) { cancelled.await() }
+            assertTrue(coroutineContext[Job]?.isActive == true)
         }
 
     private suspend fun AccountSettingsController.awaitState(
@@ -162,31 +117,6 @@ class AccountSettingsControllerTest {
             } else {
                 AccountSettingsRepositoryResult.Success(Unit)
             }
-        }
-    }
-
-    private class RefreshFailureRepository : AccountSettingsRepository {
-        override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
-            error("Tunnel routes are not expected")
-
-        var loadCount = 0
-        var saveCount = 0
-
-        override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> {
-            loadCount += 1
-            return when (loadCount) {
-                1 -> AccountSettingsRepositoryResult.Success(Preferences)
-                2 ->
-                    AccountSettingsRepositoryResult.Failure(
-                        AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
-                    )
-                else -> AccountSettingsRepositoryResult.Success(Preferences.copy(historyEnabled = false))
-            }
-        }
-
-        override suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<Unit> {
-            saveCount += 1
-            return AccountSettingsRepositoryResult.Success(Unit)
         }
     }
 

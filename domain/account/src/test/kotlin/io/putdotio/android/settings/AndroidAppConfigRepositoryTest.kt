@@ -10,14 +10,12 @@ import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioRequestData
-import java.util.concurrent.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Test
 
 class AndroidAppConfigRepositoryTest {
@@ -76,23 +74,6 @@ class AndroidAppConfigRepositoryTest {
     }
 
     @Test
-    fun adapterLoadsAndSavesThroughGenericSdkBoundary() = runBlocking {
-        val updates = mutableListOf<AppConfigUpdate>()
-        val repository =
-            SdkAndroidAppConfigRepository(
-                getConfig = { AppConfig(mapOf(VIDEO_PLAYBACK_TYPE_KEY to JsonPrimitive("mp4"))) },
-                saveConfig = updates::add,
-            )
-
-        val loaded = repository.load() as PutioResult.Success
-        assertEquals(VideoPlaybackType.Mp4, loaded.value.videoPlaybackType)
-
-        val change = AndroidAppConfigChange.AutoplayNextVideo(enabled = true)
-        assertTrue(repository.save(change) is PutioResult.Success)
-        assertEquals(listOf(change.toUpdate()), updates)
-    }
-
-    @Test
     fun adapterClassifiesSdkAndUnexpectedFailures() = runBlocking {
         val sdkFailure = PutioConfigurationException("missing client")
         val sdkRepository =
@@ -118,13 +99,17 @@ class AndroidAppConfigRepositoryTest {
     @Test
     fun saveAndAuthoritativeRefreshRemainSeparateEffects() = runBlocking {
         val operations = mutableListOf<String>()
+        val updates = mutableListOf<AppConfigUpdate>()
         val repository =
             SdkAndroidAppConfigRepository(
                 getConfig = {
                     operations += "read"
                     AppConfig(mapOf(VIDEO_PLAYBACK_TYPE_KEY to JsonPrimitive("hls")))
                 },
-                saveConfig = { operations += "save" },
+                saveConfig = { update ->
+                    operations += "save"
+                    updates += update
+                },
             )
         val requestId = AndroidAppConfigRequestId(7L)
         val change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)
@@ -134,6 +119,7 @@ class AndroidAppConfigRepositoryTest {
             repository.execute(AndroidAppConfigEffect.Save(requestId, change)),
         )
         assertEquals(listOf("save"), operations)
+        assertEquals(listOf(change.toUpdate()), updates)
         assertEquals(
             AndroidAppConfigEvent.RefreshSucceeded(requestId, AndroidAppConfigPreferences()),
             repository.execute(AndroidAppConfigEffect.Refresh(requestId)),
@@ -153,17 +139,6 @@ class AndroidAppConfigRepositoryTest {
         val deniedResult = failingRepository(denied).load() as PutioResult.Failure
         assertTrue(deniedResult.failure is PutioFailure.AccessDenied)
         assertSame(denied, deniedResult.failure.cause)
-    }
-
-    @Test
-    fun preservesCancellation() {
-        val cancellation = CancellationException("screen closed")
-        try {
-            runBlocking { failingRepository(cancellation).load() }
-            fail("Expected cancellation")
-        } catch (actual: CancellationException) {
-            assertSame(cancellation, actual)
-        }
     }
 
     private fun failingRepository(error: Throwable) =

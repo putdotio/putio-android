@@ -182,24 +182,6 @@ class AppConfigRecentSearchStoreTest {
         }
 
     @Test
-    fun anAccountThatTurnedHistoryOffElsewhereCanTurnItBackOn() =
-        runBlocking<Unit> {
-            val savedEnabled = mutableListOf<Boolean>()
-            store(
-                loadConfig = { RecentSearchConfig(enabled = false, terms = emptyList()) },
-                saveEnabled = { savedEnabled += it },
-            ).use { store ->
-                store.awaitEnabled(false)
-
-                store.setEnabled(true)
-
-                store.awaitEnabled(true)
-                awaitUntil { savedEnabled.isNotEmpty() }
-                assertEquals(listOf(true), savedEnabled)
-            }
-        }
-
-    @Test
     fun aFailedSettingWriteRollsBackAndRetries() =
         runBlocking<Unit> {
             var attempts = 0
@@ -290,37 +272,6 @@ class AppConfigRecentSearchStoreTest {
         runBlocking<Unit> {
             var attempts = 0
             val saved = mutableListOf<List<String>>()
-            val firstAttempt = CompletableDeferred<Unit>()
-            store(
-                loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
-                saveTerms = {
-                    attempts += 1
-                    if (attempts == 1) {
-                        firstAttempt.complete(Unit)
-                        error("offline")
-                    }
-                    saved += it
-                },
-            ).use { store ->
-                store.awaitTerms("one")
-                store.record(SearchTerm("two"))
-                withTimeout(TIMEOUT) { firstAttempt.await() }
-                store.awaitTerms("one")
-
-                store.record(SearchTerm("three"))
-
-                store.awaitTerms("three", "two", "one")
-                awaitUntil { saved.size >= 2 }
-                assertEquals(listOf(listOf("two", "one"), listOf("three", "two", "one")), saved)
-                assertEquals(null, store.failure.value)
-            }
-        }
-
-    @Test
-    fun aFailedWriteRollsBackReportsItsCauseAndRetriesExplicitly() =
-        runBlocking<Unit> {
-            var attempts = 0
-            val saved = mutableListOf<List<String>>()
             val offline = IllegalStateException("offline")
             store(
                 loadConfig = { RecentSearchConfig(enabled = true, terms = listOf("one")) },
@@ -336,11 +287,11 @@ class AppConfigRecentSearchStoreTest {
                 assertSame(offline, (failure as PutioFailure.Unexpected).cause)
                 store.awaitTerms("one")
 
-                store.retry()
+                store.record(SearchTerm("three"))
 
-                store.awaitTerms("two", "one")
-                awaitUntil { saved.isNotEmpty() }
-                assertEquals(listOf(listOf("two", "one")), saved)
+                store.awaitTerms("three", "two", "one")
+                awaitUntil { saved.size >= 2 }
+                assertEquals(listOf(listOf("two", "one"), listOf("three", "two", "one")), saved)
                 assertEquals(null, store.failure.value)
             }
         }

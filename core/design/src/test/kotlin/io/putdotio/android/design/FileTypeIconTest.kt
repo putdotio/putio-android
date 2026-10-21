@@ -20,11 +20,8 @@ class FileTypeIconTest {
         )
         val icons = known.map(::fileTypeIconRes)
         assertEquals("each kind maps to a distinct drawable", known.size, icons.toSet().size)
-    }
-
-    @Test
-    fun unknownKindsFallBackToThePlainFileGlyph() {
         assertEquals(
+            "unknown kinds fall back to the plain file glyph",
             fileTypeIconRes(PutioFileType.FILE),
             fileTypeIconRes(PutioFileType.fromRaw("SOMETHING_NEW")),
         )

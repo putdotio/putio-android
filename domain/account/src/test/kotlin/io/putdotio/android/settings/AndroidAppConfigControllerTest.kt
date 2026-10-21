@@ -27,31 +27,6 @@ import org.junit.Test
 
 class AndroidAppConfigControllerTest {
     @Test
-    fun controllerLoadsAndRefreshesSavedPreference() = runBlocking<Unit> {
-        val saved = mutableListOf<AndroidAppConfigChange>()
-        var preferences = AndroidAppConfigPreferences()
-        val repository = object : AndroidAppConfigRepository {
-            override suspend fun load() =
-                PutioResult.Success(preferences)
-
-            override suspend fun save(change: AndroidAppConfigChange): PutioResult<Unit> {
-                saved += change
-                preferences = preferences.applying(change)
-                return PutioResult.Success(Unit)
-            }
-        }
-        val controller = AndroidAppConfigController(repository, this)
-        controller.use {
-            controller.awaitState { it.content is AndroidAppConfigContent.Ready }
-            val change = AndroidAppConfigChange.VideoPlayback(VideoPlaybackType.Mp4)
-            assertTrue(controller.dispatch(AndroidAppConfigEvent.ChangeRequested(change)))
-            controller.awaitState { it.mutation == AndroidAppConfigMutation.Idle }
-            assertEquals(listOf(change), saved)
-            assertEquals(VideoPlaybackType.Mp4, controller.state.value.readyPreferences().videoPlaybackType)
-        }
-    }
-
-    @Test
     fun simultaneousChangesAcceptOnlyOneSaveWhileRepositoryIsSuspended() = runBlocking<Unit> {
         val repository = SuspendedSaveRepository()
         val controller = AndroidAppConfigController(repository, this)

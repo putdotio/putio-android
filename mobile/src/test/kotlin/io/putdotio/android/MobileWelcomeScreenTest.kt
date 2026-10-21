@@ -1,6 +1,9 @@
 package io.putdotio.android
 
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -32,50 +35,48 @@ class MobileWelcomeScreenTest {
 
     private var actions = 0
 
-    private fun setSignedOut(reason: MobileSignedOutReason?, canSignIn: Boolean = true) {
+    private fun setSignedOut(canSignIn: Boolean = true, reason: () -> MobileSignedOutReason? = { null }) {
         compose.setContent {
             PutioTheme {
                 Surface {
-                    MobileSignedOutScreen(reason = reason, canSignIn = canSignIn, onSignIn = { actions += 1 })
+                    MobileSignedOutScreen(reason = reason(), canSignIn = canSignIn, onSignIn = { actions += 1 })
                 }
             }
         }
     }
 
     @Test
-    fun freshSignInWelcomesAndOffersSignIn() {
-        setSignedOut(reason = null)
+    fun eachSignedOutReasonShowsItsCopyAndOneAction() {
+        var reason by mutableStateOf<MobileSignedOutReason?>(null)
+        setSignedOut { reason }
 
         compose.onNodeWithContentDescription("put.io").assertIsDisplayed()
         compose.onNodeWithText("Welcome!").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
         compose.onNodeWithText("Sign in to stream, download and manage your files.").assertIsDisplayed()
         compose.onNodeWithText("Sign in").performClick()
         assertEquals(1, actions)
-    }
 
-    @Test
-    fun expiredSessionWelcomesBackWithNotice() {
-        setSignedOut(MobileSignedOutReason.SessionExpired)
-
+        compose.runOnIdle { reason = MobileSignedOutReason.SessionExpired }
         compose.onNodeWithText("Welcome back!").assertIsDisplayed()
         compose.onNodeWithText("Your session expired. Sign in again to continue.").assertIsDisplayed()
         compose.onNodeWithText("Sign in").performClick()
-        assertEquals(1, actions)
-    }
+        assertEquals(2, actions)
 
-    @Test
-    fun failedSignInOffersTryAgain() {
-        setSignedOut(MobileSignedOutReason.SignInFailed)
-
+        compose.runOnIdle { reason = MobileSignedOutReason.SignInFailed }
         compose.onNodeWithText("Sign-in didn’t finish", substring = true).assertIsDisplayed()
         compose.onAllNodesWithText("Sign in").assertCountEquals(0)
         compose.onNodeWithText("Try again").performClick()
-        assertEquals(1, actions)
+        assertEquals(3, actions)
+
+        compose.runOnIdle { reason = MobileSignedOutReason.SecureStorageUnavailable }
+        compose.onNodeWithText("could not be read or stored safely", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Reset and sign in").performClick()
+        assertEquals(4, actions)
     }
 
     @Test
     fun missingOAuthClientExplainsWithoutAnAction() {
-        setSignedOut(reason = null, canSignIn = false)
+        setSignedOut(canSignIn = false)
 
         compose.onNodeWithText("Mobile sign-in isn’t configured").assertIsDisplayed()
         compose.onAllNodes(hasClickAction()).assertCountEquals(0)

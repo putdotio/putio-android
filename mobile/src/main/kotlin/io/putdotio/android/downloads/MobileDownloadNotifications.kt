@@ -36,7 +36,6 @@ internal sealed interface DownloadOutcome {
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadNotifications(
     private val context: Context,
-    /** The signed-in account's user id, from the auth state; null while nobody is signed in. */
     private val signedInUser: () -> Long?,
 ) : DownloadManager.Listener {
     override fun onDownloadChanged(

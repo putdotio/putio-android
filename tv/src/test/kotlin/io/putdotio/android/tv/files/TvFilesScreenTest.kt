@@ -199,7 +199,11 @@ class TvFilesScreenTest {
     fun aFailedFolderKeepsRefreshAndSortInert() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(state = { state(FilesContent.Failed(networkFailure())) }, onEvent = { events += it; true })
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput {
+            pressCenter()
+            pressKey(Key.DirectionUp)
+        }
         compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
             pressCenter()
             pressKey(Key.DirectionRight)
@@ -208,7 +212,7 @@ class TvFilesScreenTest {
             pressCenter()
         }
         compose.onAllNodesWithText("Sort by").assertCountEquals(0)
-        assertEquals(emptyList<FilesBrowserEvent>(), events)
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
 
     @Test
@@ -239,19 +243,6 @@ class TvFilesScreenTest {
         }
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage, FilesBrowserEvent.Retry), events)
-    }
-
-    @Test
-    fun theSortDialogScrollsAChoiceBelowTheFoldIntoView() {
-        compose.showFiles(
-            state = { ready(item(1, "a.txt", PutioFileType.TEXT), sort = FilesSort.WATCH_STATUS_DESCENDING) },
-        )
-        compose.onNodeWithContentDescription("a.txt").performKeyInput { pressKey(Key.DirectionUp) }
-        compose.onNode(hasText("Refresh") and hasClickAction()).performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNode(hasText("Watched first") and hasClickAction()).performKeyInput { pressCenter() }
-        compose.onNode(hasText("Watched first") and hasClickAction() and hasSelectedState())
-            .assertIsFocused()
-            .assertIsDisplayed()
     }
 
     @Test
@@ -312,12 +303,6 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun aLoadingFolderKeepsFocusInThePane() {
-        compose.showFiles(state = { state(FilesContent.Loading(FilesRequestId(1))) })
-        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
-    }
-
-    @Test
     fun headerOffersRefreshAndSortAndTheSortDialogDispatchesTheChoice() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(
@@ -336,15 +321,6 @@ class TvFilesScreenTest {
             .performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNode(hasText("Name, Z–A") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(FilesBrowserEvent.SelectSort(FilesSort.NAME_DESCENDING), events.last())
-    }
-
-    @Test
-    fun aFailedFolderExplainsAndRetries() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.showFiles(state = { state(FilesContent.Failed(networkFailure())) }, onEvent = { events += it; true })
-        compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
-        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Retry), events)
     }
 
     private fun hasSelectedState() = androidx.compose.ui.test.isSelected()

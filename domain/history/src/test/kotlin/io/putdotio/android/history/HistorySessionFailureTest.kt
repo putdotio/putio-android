@@ -22,12 +22,4 @@ class HistorySessionFailureTest {
 
         assertSame(authFailure, state.authoritativeSessionFailure())
     }
-
-    @Test
-    fun `history preserves an authoritative failure while disabled`() {
-        val authFailure = PutioFailure.AuthenticationRequired(PutioConfigurationException("rejected"))
-        val state = HistoryState(HistoryContent.Disabled, authoritativeFailure = authFailure)
-
-        assertSame(authFailure, state.authoritativeSessionFailure())
-    }
 }

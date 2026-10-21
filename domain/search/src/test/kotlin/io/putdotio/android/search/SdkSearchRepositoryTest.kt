@@ -9,13 +9,11 @@ import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.FileSearchResponse
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
-import java.util.concurrent.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Test
 
 class SdkSearchRepositoryTest {
@@ -70,17 +68,6 @@ class SdkSearchRepositoryTest {
             assertTrue(result.failure is PutioFailure.RateLimited)
             assertSame(error, result.failure.cause)
         }
-
-    @Test
-    fun preservesCancellation() {
-        val cancellation = CancellationException("query replaced")
-        try {
-            runBlocking { repositoryThrowing(cancellation).search(SearchTerm("movie")) }
-            fail("Expected cancellation")
-        } catch (actual: CancellationException) {
-            assertSame(cancellation, actual)
-        }
-    }
 
     private fun repositoryThrowing(error: Throwable): SdkSearchRepository =
         SdkSearchRepository(

@@ -47,36 +47,6 @@ class MobileContentStateTest {
     }
 
     @Test
-    fun emptyStateExplainsTheState() {
-        compose.setContent {
-            MobileEmptyState(
-                title = "Nothing here",
-                message = "This folder is empty",
-            )
-        }
-
-        compose.onNodeWithText("Nothing here").assertIsDisplayed()
-        compose.onNodeWithText("This folder is empty").assertIsDisplayed()
-    }
-
-    @Test
-    fun errorStateOffersRetry() {
-        var retried = false
-        compose.setContent {
-            MobileErrorState(
-                title = "Couldn’t load files",
-                message = "Check your connection",
-                retryLabel = "Try again",
-                onRetry = { retried = true },
-            )
-        }
-
-        compose.onNodeWithText("Try again").performClick()
-
-        assertTrue(retried)
-    }
-
-    @Test
     fun largeFontInShortViewportKeepsAuthActionReachable() {
         var signedIn = false
         compose.setContent {

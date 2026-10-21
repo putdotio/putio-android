@@ -141,7 +141,6 @@ class MobileTransfersWidgetTest {
         val widget = place()
         assertEquals(1, loads.size)
 
-        // Account switch while the first account's read is still out.
         auth.value = signedIn(OTHER, session = 2L)
         gate.complete(Unit)
         idle()

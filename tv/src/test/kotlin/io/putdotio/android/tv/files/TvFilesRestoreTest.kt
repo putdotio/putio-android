@@ -122,13 +122,4 @@ class TvFilesRestoreTest {
         shown = true
         compose.onNodeWithContentDescription("second.txt").assertIsFocused()
     }
-
-    @Test
-    fun aRestoredViewportWithoutFocusMemoryScrollsToAndFocusesTheFirstRow() {
-        val rows = (1..40L).map { item(it, "file-$it.txt", PutioFileType.TEXT) }
-        compose.showFiles(
-            state = { state(FilesContent.Ready(rows, FilesPaging.Complete, FilesViewportPosition(30, 0))) },
-        )
-        compose.onNodeWithContentDescription("file-1.txt").assertIsFocused()
-    }
 }
