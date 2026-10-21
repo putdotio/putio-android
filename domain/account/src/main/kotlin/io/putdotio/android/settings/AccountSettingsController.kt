@@ -34,7 +34,7 @@ public class AccountSettingsController(
     public fun dispatch(event: AccountSettingsEvent): Boolean {
         val transition =
             synchronized(lock) {
-                if (closed) return false
+                if (closed || !controllerJob.isActive) return false
                 AccountSettingsReducer.reduce(mutableState.value, event).also {
                     mutableState.value = it.state
                 }

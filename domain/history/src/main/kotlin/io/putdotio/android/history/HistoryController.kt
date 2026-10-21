@@ -37,7 +37,7 @@ public class HistoryController(
 
     public fun dispatch(event: HistoryEvent): Boolean {
         val transition = synchronized(lock) {
-            if (closed) return false
+            if (closed || !controllerJob.isActive) return false
             HistoryReducer.reduce(mutableState.value, event).also { mutableState.value = it.state }
         }
         transition.effect?.let(::launchEffect)

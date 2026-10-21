@@ -2,7 +2,10 @@ package io.putdotio.android.history
 
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
@@ -63,6 +66,26 @@ class HistoryControllerTest {
             assertEquals(HistoryFileId(22L), withTimeout(2_000L) { navigation.await() }.fileId)
         } finally {
             controller.close()
+        }
+    }
+
+    @Test
+    fun cancelledParentRejectsEventsWithoutPublishingLoadingState() = runBlocking {
+        var calls = 0
+        val parent = Job()
+        val controller = HistoryController(
+            repository { calls += 1 },
+            historyEnabled = false,
+            parentScope = CoroutineScope(coroutineContext + parent),
+        )
+        try {
+            parent.cancel()
+            assertFalse(controller.dispatch(HistoryEvent.SetEnabled(true)))
+            assertEquals(HistoryContent.Disabled, controller.state.value.content)
+            assertEquals(0, calls)
+        } finally {
+            controller.close()
+            withTimeout(2_000L) { parent.cancelAndJoin() }
         }
     }
 
