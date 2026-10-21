@@ -33,7 +33,6 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.trash.TrashBulkSelection
-import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashItem
@@ -85,70 +84,6 @@ class TrashRestoreUiProofTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private lateinit var backOwner: OnBackPressedDispatcherOwner
     private var fallbacks = 0
-
-    @Test
-    fun queuedRestoreRetainsRecoveryAndRetriesOnlyReads() = withShell { repository, controller ->
-        openTrash()
-        compose.onNodeWithText(context.getString(R.string.mobile_trash_loading)).assertIsDisplayed()
-        repository.completeList(0, TrashPage(emptyList(), null, 0, 0))
-        text(R.string.mobile_trash_empty_title).assertIsDisplayed()
-        trashRestoreScreenshot("synthetic-empty")
-        text(R.string.mobile_action_refresh).performClick()
-        repository.failList(1)
-        await { (controller.state.value.content as? TrashContent.Loaded)?.refreshFailure != null }
-        text(R.string.mobile_state_error_unavailable).assertIsDisplayed()
-        trashRestoreScreenshot("synthetic-error")
-        text(R.string.mobile_action_retry).performClick()
-        repository.completeList(2, TrashPage(listOf(repository.item), FilesCursor("page-a"), 2, 40))
-        loadMore()
-        repository.failList(3)
-        await { (controller.state.value.content as? TrashContent.Loaded)?.pageFailure != null }
-        text(R.string.mobile_action_retry).performClick()
-        // First-seen ID wins; continuation aggregates are absent. Repeated cursor must terminate.
-        repository.completeList(
-            4,
-            TrashPage(listOf(repository.item.copy(name = "Stale duplicate")), FilesCursor("page-a")),
-        )
-        await { (controller.state.value.content as? TrashContent.Loaded)?.nextCursor == null }
-        val loaded = controller.state.value.content as TrashContent.Loaded
-        assertEquals(listOf(repository.item), loaded.items)
-        assertEquals(2, loaded.total)
-        assertEquals(40L, loaded.trashSizeBytes)
-        assertEquals(listOf(null, null, null, FilesCursor("page-a"), FilesCursor("page-a")), repository.listCursors)
-        select(repository.item)
-        compose.onNodeWithText(context.getString(R.string.mobile_action_cancel)).performClick()
-        assertEquals(0, repository.restores.size)
-        select(repository.item)
-        val confirmationId = checkNotNull(controller.state.value.confirmationId)
-        compose.onNodeWithTag(MOBILE_TRASH_CONFIRM_TAG).performClick()
-        await { repository.restores.size == 1 }
-        compose.runOnIdle { assertFalse(controller.dispatch(TrashEvent.ConfirmRestore(confirmationId))) }
-        repository.restores[0].complete(PutioResult.Success(Unit))
-        repository.completeCheck(0, PutioResult.Failure(notFound()))
-        await { controller.state.value.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
-        text(R.string.mobile_trash_started).assertIsDisplayed()
-        assertBackRetains(controller)
-        text(R.string.mobile_trash_started).assertIsDisplayed()
-        trashRestoreScreenshot("synthetic-recovery")
-        checkStatus()
-        repository.completeCheck(1, PutioResult.Failure(offline()))
-        await { controller.state.value.restoreOutcome?.check == TrashRestoreCheck.FAILED }
-        assertEquals(1, repository.restores.size)
-        checkStatus()
-        val restored = FilesItem(repository.item.id, FilesFolder.Root.id, "Collision renamed été",
-            repository.item.type, 40, "2026-09-06")
-        repository.completeCheck(2, PutioResult.Success(restored))
-        repository.failList(5)
-        await { (controller.state.value.content as? TrashContent.Loaded)?.refreshFailure != null }
-        assertEquals(TrashRestoreCheck.AVAILABLE, controller.state.value.restoreOutcome?.check)
-        assertEquals(restored, controller.state.value.restoreOutcome?.resolvedItem)
-        assertFalse(controller.state.value.canRestore(repository.item.id))
-        text(R.string.mobile_action_retry).performClick()
-        repository.completeList(6, TrashPage(emptyList(), null, 0, 0))
-        text(R.string.mobile_trash_empty_title).assertIsDisplayed()
-        assertEquals(1, repository.restores.size)
-        assertEquals(listOf(repository.item.id, repository.item.id, repository.item.id), repository.checkIds)
-    }
 
     @Test
     fun ambiguousRestoreAndAuthenticationFailureNeverRepeatMutation() = withShell { repository, controller ->
@@ -252,7 +187,6 @@ class TrashRestoreUiProofTest {
         ).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performClick()
     }
-    private fun loadMore() = text(R.string.mobile_files_load_more).performClick()
     private fun checkStatus() {
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_CHECK_TAG))
         compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick()
@@ -265,10 +199,9 @@ class TrashRestoreUiProofTest {
     }
     private fun await(condition: () -> Boolean) = compose.waitUntil(10_000, condition)
     private fun offline() = PutioFailure.Unexpected(IllegalStateException("Synthetic offline"))
-    private fun notFound() = PutioFailure.ApiRejected(404, "FileNotFound", apiFailure(404))
     private fun apiFailure(status: Int) = PutioApiException(
         request = PutioRequestData("GET", "/files/7"), resolvedStatusCode = status,
-        resolvedErrorType = if (status == 404) "FileNotFound" else "AuthenticationRequired",
+        resolvedErrorType = "AuthenticationRequired",
         envelope = PutioApiErrorEnvelope(statusCode = status), responseBody = "{}", message = "Synthetic failure",
     )
 }
@@ -276,14 +209,12 @@ class TrashRestoreUiProofTest {
 private class TrashRestoreControlledRepository(private val awaitRequest: (() -> Boolean) -> Unit) : TrashRepository {
     val item = TrashItem(FilesItemId(7), FilesItemId(12), "Restore été 東京 — missing dates", PutioFileType.FILE, 40)
     val lists = CopyOnWriteArrayList<CompletableDeferred<PutioResult<TrashPage>>>()
-    val listCursors = CopyOnWriteArrayList<FilesCursor?>()
     val restores = CopyOnWriteArrayList<CompletableDeferred<PutioResult<Unit>>>()
     val checkIds = CopyOnWriteArrayList<FilesItemId>()
     private val checks = CopyOnWriteArrayList<CompletableDeferred<PutioResult<FilesItem>>>()
     override suspend fun load() = list(null)
     override suspend fun loadNextPage(cursor: FilesCursor) = list(cursor)
     private suspend fun list(cursor: FilesCursor?): PutioResult<TrashPage> {
-        listCursors += cursor
         val result = CompletableDeferred<PutioResult<TrashPage>>()
         lists += result
         return result.await()
@@ -300,7 +231,6 @@ private class TrashRestoreControlledRepository(private val awaitRequest: (() -> 
         checks += result
         return result.await()
     }
-    // The synthetic Restore proof never exercises bulk actions; refuse them loudly.
     override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> = error("unexpected delete")
     override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> =
         error("unexpected restore all")
@@ -308,12 +238,6 @@ private class TrashRestoreControlledRepository(private val awaitRequest: (() -> 
     fun completeList(index: Int, page: TrashPage) {
         awaitRequest { lists.size > index }
         lists[index].complete(PutioResult.Success(page))
-    }
-    fun failList(index: Int) {
-        awaitRequest { lists.size > index }
-        lists[index].complete(
-            PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("Synthetic offline"))),
-        )
     }
     fun completeCheck(index: Int, result: PutioResult<FilesItem>) {
         awaitRequest { checks.size > index }

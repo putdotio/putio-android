@@ -5,6 +5,7 @@ import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -36,6 +37,9 @@ class HistoryReducerTest {
     fun settingEnabledReloadsWithAMonotonicRequestAndRejectsStaleResults() {
         val start = HistoryReducer.start(historyEnabled = true)
         val firstRequest = start.effect as HistoryEffect.Load
+        assertFalse(HistoryReducer.reduce(start.state, HistoryEvent.SetEnabled(true)).consumed)
+        val startedDisabled = HistoryReducer.start(historyEnabled = false).state
+        assertFalse(HistoryReducer.reduce(startedDisabled, HistoryEvent.SetEnabled(false)).consumed)
         val disabled = HistoryReducer.reduce(start.state, HistoryEvent.SetEnabled(false))
 
         assertEquals(HistoryContent.Disabled, disabled.state.content)
@@ -60,15 +64,6 @@ class HistoryReducerTest {
                 HistoryEvent.LoadSucceeded(secondRequest.requestId, HistoryPage(listOf(item(2L)), false)),
             )
         assertEquals(listOf(2L), (loaded.state.content as HistoryContent.Ready).items.map { it.id.value })
-    }
-
-    @Test
-    fun settingCurrentHistoryAvailabilityIsANoOp() {
-        val disabled = HistoryReducer.start(historyEnabled = false).state
-        val enabled = HistoryReducer.start(historyEnabled = true).state
-
-        assertFalse(HistoryReducer.reduce(disabled, HistoryEvent.SetEnabled(false)).consumed)
-        assertFalse(HistoryReducer.reduce(enabled, HistoryEvent.SetEnabled(true)).consumed)
     }
 
     @Test
@@ -118,6 +113,7 @@ class HistoryReducerTest {
         assertTrue(rejected.consumed)
         assertEquals(HistoryContent.Disabled, rejected.state.content)
         assertEquals(failure, rejected.state.authoritativeFailure)
+        assertSame(failure, rejected.state.authoritativeSessionFailure())
     }
 
     @Test

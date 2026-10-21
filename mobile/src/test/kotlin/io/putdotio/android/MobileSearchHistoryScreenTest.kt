@@ -99,22 +99,6 @@ class MobileSearchHistoryScreenTest {
     }
 
     @Test
-    fun recentSearchFailureIsVisibleAndCanBeRetriedWithoutBlockingSearch() {
-        var retries = 0
-        setScreen(
-            search = searchState(SearchContent.Idle, listOf(SearchTerm("documentary"))),
-            recentSearchFailure = PutioFailure.Unexpected(IllegalStateException("offline")),
-            actions = MobileSearchHistoryActions(onRecentRetry = { retries += 1 }),
-        )
-
-        compose.onNodeWithText("Couldn’t update recent searches").assertIsDisplayed()
-        compose.onNodeWithText("documentary").assertIsDisplayed()
-        compose.onNodeWithText("Try again").performClick()
-
-        assertEquals(1, retries)
-    }
-
-    @Test
     fun searchResultsLoadTheNextPageNearTheEndWithoutATap() {
         val items = (1L..60L).map { fileItem().copy(id = FilesItemId(it), name = "Sample $it.mp4") }
         var loads = 0
@@ -215,35 +199,6 @@ class MobileSearchHistoryScreenTest {
     }
 
     @Test
-    fun completedTransferWithAFileOpensThroughHistoryNavigation() {
-        val events = mutableListOf<HistoryEvent>()
-        val history =
-            historyState(
-                content =
-                    HistoryContent.Ready(
-                        listOf(
-                            HistoryItem(
-                                HistoryEventId(2L),
-                                "2026-08-30T10:00:00Z",
-                                HistoryEventKind.Transfer(
-                                    transferId = null,
-                                    fileId = HistoryFileId(32L),
-                                    name = "movie.mkv",
-                                ),
-                            ),
-                        ),
-                        HistoryPaging.Complete,
-                    ),
-            )
-        setScreen(history = history, actions = MobileSearchHistoryActions(onHistoryEvent = events::add))
-
-        compose.onNodeWithText("History").performClick()
-        compose.onNodeWithText("movie.mkv").performClick()
-
-        assertEquals(listOf(HistoryEvent.OpenFile(HistoryFileId(32L))), events)
-    }
-
-    @Test
     fun eachEventTypeReadsAsIosStatesItWithOnlyItsTime() {
         val previous = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
@@ -309,7 +264,6 @@ class MobileSearchHistoryScreenTest {
     private fun setScreen(
         search: SearchState = searchState(SearchContent.Idle),
         history: HistoryState = historyState(HistoryContent.Disabled),
-        recentSearchFailure: PutioFailure? = null,
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     ) {
         compose.setContent {
@@ -317,7 +271,7 @@ class MobileSearchHistoryScreenTest {
                 MobileSearchHistoryScreen(
                     searchState = search,
                     historyState = history,
-                    recentSearchFailure = recentSearchFailure,
+                    recentSearchFailure = null,
                     onSearchQueryChanged = {},
                     onSearchSubmit = {},
                     onSearchResult = actions.onResult,

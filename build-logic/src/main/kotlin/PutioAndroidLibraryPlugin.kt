@@ -23,7 +23,7 @@ object PutioAndroidSdk {
 class PutioAndroidLibraryPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
         pluginManager.apply("com.android.library")
-        // Compose infers stability for every module's models, as it did when they compiled in the app.
+        // Compose infers stability only for models compiled with its plugin, so every module applies it.
         pluginManager.apply("org.jetbrains.kotlin.plugin.compose")
         pluginManager.apply("io.gitlab.arturbosch.detekt")
 

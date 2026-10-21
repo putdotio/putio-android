@@ -210,6 +210,7 @@ class SdkTransfersRepositoryTest {
         val result = repository.clean(emptyList()) as PutioResult.Success
 
         assertEquals("magnet:?xt=urn:test", added?.url)
+        assertNull(added?.saveParentId)
         assertEquals(listOf(8L), cancelled)
         assertEquals(8L, retried)
         assertEquals(emptyList<Long>(), cleaned)
@@ -238,21 +239,6 @@ class SdkTransfersRepositoryTest {
         assertEquals(listOf(44L, 44L), sent?.map { it.saveParentId })
         assertEquals(listOf(TransferId(21L)), result.value.added.map { it.id })
         assertEquals(listOf("https://example.invalid/second"), result.value.rejectedLinks)
-    }
-
-    @Test
-    fun singleLinkWithoutDestinationLeavesTheDefaultFolderToPutio() = runBlocking {
-        var sent: TransferAddInput? = null
-        val repository = repository(mutations = MutationOperations().apply {
-            add = {
-                sent = it
-                sdkTransfer(9L)
-            }
-        })
-
-        repository.add(TransferAddRequest.Links(requireNotNull(TransferSubmission.parseAll("magnet:?xt=urn:one"))))
-
-        assertNull(requireNotNull(sent).saveParentId)
     }
 
     @Test

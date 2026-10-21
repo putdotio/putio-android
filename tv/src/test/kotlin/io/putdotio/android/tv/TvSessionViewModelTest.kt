@@ -314,21 +314,15 @@ class TvSessionViewModelTest {
         appConfigPreferences = AndroidAppConfigPreferences(videoPlaybackType = VideoPlaybackType.Mp4)
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
-        session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
-
-        val playback = checkNotNull(session.playback.value)
-        assertEquals(PlaybackTarget(FilesItemId(9), "clip.mp4", PlaybackMediaType.VIDEO), playback.state.value.target)
-        assertTrue(playback.state.value.content is PlaybackContent.Ready)
-        assertEquals(listOf(PlaybackPreference.MP4), playbackRepository.preferencesSeen)
-    }
-
-    @Test
-    fun `a row's listing duration reaches the resume choice`() {
-        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
-
         session.play(media(9, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(30.0, 840.0)))
 
-        assertEquals(840.0, checkNotNull(session.playback.value).state.value.target.durationSeconds)
+        val playback = checkNotNull(session.playback.value)
+        assertEquals(
+            PlaybackTarget(FilesItemId(9), "clip.mp4", PlaybackMediaType.VIDEO, 840.0),
+            playback.state.value.target,
+        )
+        assertTrue(playback.state.value.content is PlaybackContent.Ready)
+        assertEquals(listOf(PlaybackPreference.MP4), playbackRepository.preferencesSeen)
     }
 
     @Test

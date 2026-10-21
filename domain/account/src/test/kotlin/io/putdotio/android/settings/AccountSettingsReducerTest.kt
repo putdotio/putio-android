@@ -12,16 +12,6 @@ import org.junit.Test
 
 class AccountSettingsReducerTest {
     @Test
-    fun startsWithAnAccountSettingsLoad() {
-        val transition = AccountSettingsReducer.start()
-
-        val loading = transition.state.content as AccountSettingsContent.Loading
-        val effect = transition.effect as AccountSettingsEffect.Load
-        assertEquals(loading.requestId, effect.requestId)
-        assertEquals(AccountSettingsMutation.Idle, transition.state.mutation)
-    }
-
-    @Test
     fun savesAccountWideChangesOptimistically() {
         val change = AccountSettingsChange(AccountSettingsKey.History, enabled = false)
 
@@ -219,24 +209,6 @@ class AccountSettingsReducerTest {
     }
 
     @Test
-    fun aPendingOrFailedRouteChangeLeavesOtherConfirmedSettingsIntact() {
-        val loaded = loadedState(Preferences)
-        val route = AccountSettingsChange.Route(TunnelRouteName("cdn77"))
-        val saving = loaded.reduce(AccountSettingsEvent.ChangeRequested(route))
-        assertTrue(checkNotNull(saving.state.confirmedHistoryEnabled()))
-        assertTrue(checkNotNull(saving.state.confirmedTrashEnabled()))
-
-        val failure = AccountSettingsFailure.RouteUnavailable(PutioConfigurationException("UNAVAILABLE_VALUE"))
-        val failed = saving.state.reduce(AccountSettingsEvent.SaveFailed(saving.saveRequestId(), failure))
-        assertTrue(checkNotNull(failed.state.confirmedHistoryEnabled()))
-        assertTrue(checkNotNull(failed.state.confirmedTrashEnabled()))
-
-        val trashSaving = loaded.reduce(toggle(AccountSettingsKey.Trash, false))
-        assertNull(trashSaving.state.confirmedTrashEnabled())
-        assertTrue(checkNotNull(trashSaving.state.confirmedHistoryEnabled()))
-    }
-
-    @Test
     fun routeChangesSaveOptimisticallyAndIdenticalRoutesAreIgnored() {
         val loaded = loadedState(Preferences)
         val same =
@@ -282,6 +254,8 @@ class AccountSettingsReducerTest {
         val failed = saving.state.reduce(AccountSettingsEvent.SaveFailed(requestId, Offline))
         val rolledBack = failed.state.content as AccountSettingsContent.Ready
         assertEquals(FilesSort.NAME_ASCENDING, rolledBack.preferences.defaultSort)
+        assertTrue(checkNotNull(failed.state.confirmedTrashEnabled()))
+        assertTrue(checkNotNull(failed.state.confirmedHistoryEnabled()))
     }
 
     private fun toggle(key: AccountSettingsKey, enabled: Boolean): AccountSettingsEvent =

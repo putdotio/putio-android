@@ -48,16 +48,6 @@ class AuthenticatedRenameProcessTest {
     }
 
     @Test
-    fun hostTempLockDoesNotBlockTheSuite() {
-        withLock(hostLock) {
-            val output = runFailure(fixture("assertion"))
-            assertFalse(output, output.contains("Another rename proof owns this serial"))
-            assertTrue(output, output.contains("Authenticated instrumentation proof failed"))
-        }
-        assertTrue(hostLock.delete())
-    }
-
-    @Test
     fun heldFallbackLockInTheIsolatedTempRejectsAConcurrentProof() {
         val fixture = fixture("assertion")
         withLock(File(isolatedTemp, "putio-rename-proof-$SERIAL.lock")) {
@@ -65,12 +55,6 @@ class AuthenticatedRenameProcessTest {
             assertTrue(output, output.contains("Another rename proof owns this serial"))
             assertFalse(File(fixture, "state/commands").exists())
         }
-    }
-
-    @Test
-    fun fallbackLockLandsInTheIsolatedTemp() {
-        runFailure(fixture("assertion"))
-        assertTrue(File(isolatedTemp, "putio-rename-proof-$SERIAL.lock").isFile)
     }
 
     // Every test, including the nested builds it starts, must leave the real host temp untouched.

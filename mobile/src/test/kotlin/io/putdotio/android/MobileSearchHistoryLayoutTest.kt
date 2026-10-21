@@ -120,6 +120,7 @@ class MobileSearchHistoryLayoutTest {
             recentFailure = PutioFailure.Unexpected(IllegalStateException("offline")),
             actions = MobileSearchHistoryActions(onRecentRetry = { retries += 1 }),
         )
+        compose.onNodeWithText("Couldn’t update recent searches").assertIsDisplayed()
         val message = "put.io is temporarily unavailable. Try again."
         val copy = compose.onNodeWithText(message, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
         val retry = compose.onNodeWithText("Try again").fetchSemanticsNode().boundsInRoot

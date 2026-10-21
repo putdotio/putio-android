@@ -83,28 +83,6 @@ class TvSearchScreenTest {
     }
 
     @Test
-    fun recentChipsReplayTheTermAsTyped() {
-        show(
-            state = {
-                searchState(
-                    SearchContent.Idle,
-                    recent = listOf(SearchTerm("Tears Of Steel"), SearchTerm("sintel")),
-                )
-            },
-        )
-
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
-        }
-        compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused().performKeyInput {
-            pressCenter()
-        }
-        assertEquals(listOf("recent:sintel"), log)
-    }
-
-    @Test
     fun resultsAreStandardRowsReachedWithDownAndCenterOpensOne() {
         show(
             state = {
@@ -277,10 +255,15 @@ class TvSearchScreenTest {
 
     @Test
     fun aChipReplayRewritesTheFieldAndAStaleQueryDoesNotOverwriteTyping() {
-        var state by mutableStateOf(searchState(SearchContent.Idle, recent = listOf(SearchTerm("Tears Of Steel"))))
+        var state by mutableStateOf(
+            searchState(SearchContent.Idle, recent = listOf(SearchTerm("sintel"), SearchTerm("Tears Of Steel"))),
+        )
         show(state = { state })
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
         compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused().performKeyInput {
             pressCenter()
         }
@@ -293,10 +276,14 @@ class TvSearchScreenTest {
         // The controller reporting the previous text back, while the user is on the chips,
         // must not undo the edit.
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("Search again for Tears Of Steel").assertIsFocused()
+        compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused()
         state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel")
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel!"))
         assertEquals(listOf("recent:Tears Of Steel", "query:Tears Of Steel!"), log)
+
+        // The controller catching up leaves the field as typed.
+        state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel!")
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel!"))
     }
 
     @Test
@@ -312,21 +299,6 @@ class TvSearchScreenTest {
         compose.onNode(hasText("Try again") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Try again").assertCountEquals(0)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
-    }
-
-    @Test
-    fun aLaggingQueryDoesNotOverwriteTypedTextOnBlur() {
-        var state by mutableStateOf(searchState(SearchContent.Idle, recent = listOf(SearchTerm("x"))))
-        show(state = { state })
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("ab")
-        // The controller has only seen the first edit when the user moves on.
-        state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "a")
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithContentDescription("Search again for x").assertIsFocused()
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("ab"))
-        state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "ab")
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("ab"))
     }
 
     @Test

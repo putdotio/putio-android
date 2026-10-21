@@ -108,7 +108,7 @@ public fun TrackSelectionParameters.withSubtitleSelection(
         SubtitleSelection.Automatic -> {
             if (tracks.any(PlaybackSubtitleTrack::isServerDefault)) {
                 // Media3 ranks the device's caption language above a track's default flag; with no
-                // preference left, the account's default subtitle wins (#237).
+                // preference left, the account's default subtitle wins.
                 builder
                     .setPreferredTextLanguages()
                     .setPreferredTextRoleFlags(0)
@@ -162,7 +162,7 @@ internal val PlaybackSubtitleTrack.isServerDefault: Boolean
 
 /**
  * Reapplies the subtitle choice in effect to [tracks] as they arrive: off while the account hides
- * subtitles, whatever was picked (#237), else the viewer's pick, else automatic selection when the
+ * subtitles, whatever was picked, else the viewer's pick, else automatic selection when the
  * account auto-selects. Off and forced-only need no tracks.
  */
 public fun TrackSelectionParameters.withSubtitleTracks(
@@ -191,11 +191,11 @@ public fun restoreSubtitleSelection(
     startupPolicy: SubtitleStartupPolicy?,
 ): TrackSelectionParameters =
     when {
-        // hide_subtitles outranks any pick: its picker is gone, so nothing could turn one off (#237).
+        // hide_subtitles outranks any pick: its picker is gone, so nothing could turn one off.
         startupPolicy?.showSubtitles == false -> defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
         retained != null -> defaults.withSubtitleSelection(retained, emptyList(), defaults)
         // No policy means account settings are loading or failed to load; until they say
-        // otherwise a `hide_subtitles` account must not see subtitles (#229).
+        // otherwise a `hide_subtitles` account must not see subtitles.
         startupPolicy == null -> defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
         startupPolicy.autoSelectSubtitles ->
             defaults.withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaults)

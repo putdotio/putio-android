@@ -108,8 +108,6 @@ internal fun TvShell(
                 modifier = Modifier
                     .fillMaxHeight()
                     .padding(horizontal = 12.dp, vertical = 24.dp)
-                    // First entry lands on the selected destination; later entries return
-                    // to whichever item was focused last.
                     .focusRestorer(selectedItemFocus)
                     .onFocusChanged { drawerHasFocus = it.hasFocus }
                     .focusGroup(),

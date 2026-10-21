@@ -135,7 +135,6 @@ class MobileDocumentsProviderTest {
         }
         fixture.children("$ALICE:0").close()
         fixture.settle()
-        // Each page was asked for once, in order.
         assertEquals(listOf(ROOT), fixture.files.folderLoads)
         assertEquals(listOf("page-2"), fixture.files.continuationLoads)
     }

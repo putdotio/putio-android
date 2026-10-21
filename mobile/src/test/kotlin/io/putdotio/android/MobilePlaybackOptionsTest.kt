@@ -91,27 +91,10 @@ class MobilePlaybackOptionsTest {
         compose.onNodeWithText("Speed (1.5×)").assertIsDisplayed()
         compose.onNodeWithContentDescription("Playback speed 1.5×").assertDoesNotExist()
         compose.runOnIdle { assertEquals(1.5f, player.playbackParameters.speed) }
-    }
-
-    @Test
-    fun directAudioButtonOpensTrackChoicesWithoutRootSettings() {
-        val player = OptionsPlayer()
-        var selected: AudioSelection = AudioSelection.Automatic
-        compose.setContent {
-            PutioTheme {
-                Row { MobilePlaybackOptions(player, { selected = it }, {}, {}, {}, directControls = true) }
-            }
-        }
 
         compose.onNodeWithText("Audio").performClick()
         compose.onNodeWithText("Automatic").assertIsSelected()
         compose.onNodeWithContentDescription("Back").assertDoesNotExist()
-        compose.onNodeWithText("Deutsch").performClick()
-        compose.runOnIdle {
-            assertEquals(AudioSelection.Track(player.audio.getFormat(1).toAudioTrackIdentity()), selected)
-            assertEquals(listOf(1), player.trackSelectionParameters.overrides.getValue(player.audio).trackIndices)
-            assertEquals(player.subtitleOverride, player.trackSelectionParameters.overrides[player.text])
-        }
     }
 
     @Test

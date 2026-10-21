@@ -11,7 +11,7 @@ import kotlinx.coroutines.delay
 
 /**
  * Reads a queued or running [conversion] again every [PLAYBACK_CONVERSION_POLL_MILLIS] while the
- * app is in the foreground and no read is in flight, as tv-native's `useConversionStatus` did.
+ * app is in the foreground and no read is in flight.
  */
 @Composable
 public fun PlaybackConversionPolling(conversion: PlaybackContent.Conversion, onRefresh: () -> Unit) {

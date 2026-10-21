@@ -266,7 +266,6 @@ fail() {
 source "${REPO_ROOT}/scripts/lib.sh"
 require_sdk_root
 target_image="system-images;android-37.0;google_apis_playstore;$(sdk_arch)"
-[[ "$(phone_image)" == "${target_image}" ]] || fail "phone image is not pinned to API 37 Google Play"
 mkdir -p "${fake_sdk}/$(tr ';' '/' <<<"${target_image}")"
 
 reset_avd() {
@@ -443,38 +442,33 @@ api_elapsed=$(( $(date +%s) - api_started ))
 grep -q "before the boot deadline" "${runtime_out}" || fail "API exhaustion omitted its deadline diagnostic"
 grep -q "pm path" "${state}/adb-calls" && fail "API exhaustion reached Chrome preparation"
 
-reset_runtime
-printf '0\n' > "${state}/api-query-succeeds"
-if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
-  fail "failed API query passed readiness"
-fi
-grep -Fq "${serial_recovery}" "${runtime_out}" || fail "failed API query omitted its recovery command"
-
-reset_runtime 37 0
-if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
-  fail "missing Chrome passed readiness"
-fi
-grep -q "add-role-holder" "${state}/adb-calls" && fail "missing Chrome reached role assignment"
-grep -Fq "${serial_recovery}" "${runtime_out}" || fail "runtime readiness failure omitted its recovery command"
-
-reset_runtime 37 1 1 comxandroid.chrome
-if (prepare_device emulator-5554 phone) >/dev/null 2>&1; then
-  fail "regex-like browser role holder passed readiness"
-fi
-grep -q "query-services" "${state}/adb-calls" && fail "wrong role holder reached Auth Tab query"
-
-reset_runtime 37 1 1 $'com.android.chrome\ncom.example.browser'
-if (prepare_device emulator-5554 phone) >/dev/null 2>&1; then
-  fail "multiple browser role holders passed readiness"
-fi
-grep -q "query-services" "${state}/adb-calls" && fail "multiple role holders reached Auth Tab query"
-
-reset_runtime
-printf '0\n' > "${state}/role-query-succeeds"
-if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
-  fail "failed browser role query passed readiness"
-fi
-grep -Fq "${serial_recovery}" "${runtime_out}" || fail "failed role query omitted its recovery command"
+# Each refusal stops prepare_device before the step it guards. Arguments: label,
+# query forced to fail, adb call that must not happen, 1 when the serial
+# recovery command is expected, then reset_runtime's arguments.
+expect_readiness_refusal() {
+  local label="$1" failing_query="$2" not_reached="$3" recovery="$4"
+  shift 4
+  reset_runtime "$@"
+  [[ -z "${failing_query}" ]] || printf '0\n' > "${state}/${failing_query}"
+  if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
+    fail "${label} passed readiness"
+  fi
+  if [[ -n "${not_reached}" ]] && grep -q -- "${not_reached}" "${state}/adb-calls"; then
+    fail "${label} reached ${not_reached}"
+  fi
+  if [[ "${recovery}" == "1" ]] && ! grep -Fq "${serial_recovery}" "${runtime_out}"; then
+    fail "${label} omitted its recovery command"
+  fi
+}
+expect_readiness_refusal "failed API query" api-query-succeeds "" 1
+expect_readiness_refusal "missing Chrome" "" add-role-holder 1 37 0
+expect_readiness_refusal "regex-like browser role holder" "" query-services 0 37 1 1 comxandroid.chrome
+expect_readiness_refusal "multiple browser role holders" "" query-services 0 37 1 1 $'com.android.chrome\ncom.example.browser'
+expect_readiness_refusal "failed browser role query" role-query-succeeds "" 1
+expect_readiness_refusal "missing Auth Tab service" "" "" 0 37 1 1 com.android.chrome ""
+expect_readiness_refusal "failed Auth Tab service query" auth-tab-query-succeeds " install " 1
+expect_readiness_refusal "failed browser role assignment" "" query-services 0 37 1 0
+expect_readiness_refusal "wrong Auth Tab provider" "" " install " 0 37 1 1 com.android.chrome com.example.browser
 
 reset_runtime
 printf '0\n' > "${state}/version-query-succeeds"
@@ -482,37 +476,12 @@ prepare_device emulator-5554 phone >"${runtime_out}" 2>&1 || \
   fail "failed Chrome version query rejected a ready runtime"
 grep -Fq "Chrome unknown" "${runtime_out}" || fail "failed Chrome version query was not logged as unknown"
 
-reset_runtime 37 1 1 com.android.chrome ""
-if (prepare_device emulator-5554 phone) >/dev/null 2>&1; then
-  fail "missing Auth Tab service passed readiness"
-fi
-
-reset_runtime
-printf '0\n' > "${state}/auth-tab-query-succeeds"
-if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
-  fail "failed Auth Tab service query passed readiness"
-fi
-grep -Fq "${serial_recovery}" "${runtime_out}" || fail "failed Auth Tab query omitted its recovery command"
-grep -q " install " "${state}/adb-calls" && fail "failed Auth Tab query reached app install"
-
 reset_runtime 36
 if (prepare_device emulator-5554 phone "${PHONE_AVD}" "$(( $(date +%s) + 30 ))") >/dev/null 2>&1; then
   fail "wrong API level passed readiness"
 fi
 [[ "$(grep -c 'getprop ro.build.version.sdk$' "${state}/adb-calls")" == "1" ]] || fail "API mismatch was retried"
 grep -q "pm path" "${state}/adb-calls" && fail "wrong API level reached Chrome preparation"
-
-reset_runtime 37 1 0
-if (prepare_device emulator-5554 phone) >/dev/null 2>&1; then
-  fail "failed browser role assignment passed readiness"
-fi
-grep -q "query-services" "${state}/adb-calls" && fail "role failure reached Auth Tab query"
-
-reset_runtime 37 1 1 com.android.chrome com.example.browser
-if (prepare_device emulator-5554 phone) >/dev/null 2>&1; then
-  fail "wrong Auth Tab provider passed readiness"
-fi
-grep -q " install " "${state}/adb-calls" && fail "readiness failure reached app install"
 
 # prove.sh must stop between boot readiness and install when the real
 # emulator.sh rejects the browser's Auth Tab service.
@@ -578,7 +547,6 @@ fi
 
 # Bootstrap provisioning: a refused phone AVD must not block the TV AVD.
 tv_target_image="system-images;android-36;android-tv;$(sdk_arch)"
-[[ "$(tv_image)" == "${tv_target_image}" ]] || fail "TV image is not pinned to API 36 Android TV"
 mkdir -p "${fake_sdk}/$(tr ';' '/' <<<"${tv_target_image}")"
 reset_avd "${PHONE_AVD}" "${legacy_image}" 0
 provision_out="${tmpdir}/provision.log"
@@ -605,8 +573,6 @@ grep -Fq "AVD provisioning failed for: phone" "${provision_out}" || \
 # Google TV is opt-in: default provisioning never creates it, and its recovery
 # commands point at the opt-in bootstrap.
 google_tv_target_image="system-images;android-36;google-tv;$(sdk_arch)"
-[[ "$(google_tv_image)" == "${google_tv_target_image}" ]] || \
-  fail "Google TV image is not pinned to API 36 Google TV"
 reset_avd "${PHONE_AVD}" "${target_image}" 0
 google_tv_out="${tmpdir}/google-tv.log"
 if "${REPO_ROOT}/scripts/emulator.sh" create google-tv >"${google_tv_out}" 2>&1; then

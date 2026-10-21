@@ -1,6 +1,9 @@
 package io.putdotio.android
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertCountEquals
@@ -30,22 +33,17 @@ class MobileInactiveAccountNoticeTest {
 
     @Test
     fun deactivatedAccountShowsWebCopyWithTheDeletionCountdown() {
+        var days by mutableLongStateOf(14L)
         compose.setContent {
-            PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletionIn(14))) }
+            PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletionIn(days))) }
         }
 
         compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
         compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
             .assertIsDisplayed()
         assertNoActionOrPaymentWording()
-    }
 
-    @Test
-    fun deletionTomorrowReadsInTheSingular() {
-        compose.setContent {
-            PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletionIn(1))) }
-        }
-
+        compose.runOnIdle { days = 1L }
         compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 1 day.")
             .assertIsDisplayed()
     }

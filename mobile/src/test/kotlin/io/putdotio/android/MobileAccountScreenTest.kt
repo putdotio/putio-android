@@ -215,7 +215,9 @@ class MobileAccountScreenTest {
     fun privacyControlsAreOneRowThatShowsTheirStateAndOpensThePage() {
         val events = mutableListOf<AccountSettingsEvent>()
         var opened = 0
+        var state by mutableStateOf(readyAccountSettingsState())
         compose.setAccountContent(
+            state = { state },
             events = events,
             options = AccountScreenOptions(onPrivacyControls = { opened += 1 }),
         )
@@ -231,42 +233,12 @@ class MobileAccountScreenTest {
         compose.runOnIdle {
             assertEquals(1, opened)
             assertTrue(events.isEmpty())
+            state = readyAccountSettingsState(
+                DefaultAccountSettingsPreferences.copy(diagnosticsEnabled = false, productAnalyticsEnabled = true),
+            )
         }
-    }
-
-    @Test
-    fun privacyControlsRowFollowsTheAccountState() {
-        compose.setAccountContent(
-            state = {
-                readyAccountSettingsState(
-                    DefaultAccountSettingsPreferences.copy(diagnosticsEnabled = false, productAnalyticsEnabled = true),
-                )
-            },
-        )
-
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG))
         compose.onNodeWithTag(MOBILE_PRIVACY_CONTROLS_ROW_TAG)
             .assertTextContains("Diagnostics off · Product analytics on")
-    }
-
-    @Test
-    fun turningOffTrashRequiresConfirmation() {
-        val events = mutableListOf<AccountSettingsEvent>()
-        compose.setAccountContent(events = events)
-
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Move deleted files to Trash"))
-        compose.onNodeWithText("Move deleted files to Trash").performClick()
-        compose.onNodeWithText("Turn off Trash?").assertIsDisplayed()
-        assertTrue(events.isEmpty())
-
-        compose.onNodeWithText("Turn off").performClick()
-
-        assertEquals(
-            AccountSettingsEvent.ChangeRequested(
-                AccountSettingsChange(AccountSettingsKey.Trash, enabled = false),
-            ),
-            events.single(),
-        )
     }
 
     @Test

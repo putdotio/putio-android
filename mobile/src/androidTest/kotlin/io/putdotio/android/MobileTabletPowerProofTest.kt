@@ -326,7 +326,6 @@ class MobileTabletPowerProofTest {
         }
     }
 
-    /** Reads the screen's player on its own thread. */
     private fun <T> player(read: (Player) -> T): T? {
         var value: T? = null
         instrumentation.runOnMainSync { value = players.current?.let(read) }
@@ -570,7 +569,6 @@ class MobileTabletPowerProofTest {
         }
     }
 
-    /** Resolves every video to the caller's local fixture. */
     private class LocalVideo(file: File) : PlaybackRepository {
         // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         private val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)

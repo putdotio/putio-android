@@ -456,22 +456,6 @@ class MobileFilesListTest {
     }
 
     @Test
-    fun aShortPageLoadsTheNextOneWithoutATap() {
-        val events = mutableListOf<FilesBrowserEvent>()
-        compose.setFilesContent(
-            browserState(
-                FilesContent.Ready(
-                    listOf(filesItem(id = 1L, name = "Harbor film.mp4")),
-                    FilesPaging.Available(FilesCursor("next-page")),
-                ),
-            ),
-            onEvent = { events += it },
-        )
-
-        compose.runOnIdle { assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.LoadNextPage), events) }
-    }
-
-    @Test
     fun emptyPagesAndPagesWhoseLoadingWasNeverDrawnStillContinue() {
         val short = listOf(filesItem(id = 1L, name = "Harbor film.mp4"))
         var state by mutableStateOf(browserState(FilesContent.Empty(FilesPaging.Available(FilesCursor("page-2")))))

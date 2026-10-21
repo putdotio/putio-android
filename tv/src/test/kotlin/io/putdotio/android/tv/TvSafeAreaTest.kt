@@ -28,8 +28,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The signed-in shell keeps every label and focus target inside the overscan
- * safe area, the `tv.overscan` fractions of whatever viewport it fills. A
- * customer's Google TV cut the old shell off at the edges (#45).
+ * safe area, the `tv.overscan` fractions of whatever viewport it fills.
  */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)

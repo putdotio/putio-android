@@ -560,7 +560,7 @@ private fun SubtitleStartupEffect(
     val player = playerState.player
     LaunchedEffect(player, playerState.activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
         val policy = subtitleStartupPolicy ?: return@LaunchedEffect
-        // Hiding also overrides a pick made before the settings arrived (#237).
+        // Hiding also overrides a pick made before the settings arrived.
         if (playerState.activeFileId == fileId && (retainedSubtitleSelection == null || !policy.showSubtitles)) {
             val current = player.trackSelectionParameters
             val parameters =
@@ -1013,7 +1013,7 @@ private fun MobileReadyPlayerContent(
                         onPointerNavigation = onPointerNavigation,
                         directControls = !isAudio,
                     )
-                    // hide_subtitles hides subtitles entirely, as every reference player does (#237).
+                    // hide_subtitles hides subtitles entirely, as every reference player does.
                     if (!isAudio && subtitleStartupPolicy?.showSubtitles != false) {
                         MobileSubtitleControls(
                             player = player,

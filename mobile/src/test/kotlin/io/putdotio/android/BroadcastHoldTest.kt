@@ -24,7 +24,6 @@ class BroadcastHoldTest {
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1))
         assertEquals(1, finished)
 
-        // The work finishing later ends nothing twice.
         hold.release()
         assertEquals(1, finished)
     }

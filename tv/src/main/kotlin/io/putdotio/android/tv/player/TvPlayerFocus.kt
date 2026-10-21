@@ -6,7 +6,6 @@ package io.putdotio.android.tv.player
  */
 internal enum class TvPlayerControl { SeekBar, Language, Subtitles, Speed }
 
-/** A D-pad move between the overlay's controls. */
 internal enum class TvFocusMove { Up, Down, Left, Right }
 
 /**

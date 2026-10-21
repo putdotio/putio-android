@@ -166,7 +166,7 @@ internal class SdkPlaybackRepository internal constructor(
                     mediaCredential = PlaybackMediaCredential.downloadToken(downloadToken),
                     preference = preference,
                     useStartFrom = account.settings.useStartFrom,
-                    // hide_subtitles asks for no subtitles at all, as every reference player does (#237).
+                    // hide_subtitles asks for no subtitles at all, as every reference player does.
                     includeSidecarSubtitles = !hideSubtitles,
                     maxSubtitleCount = if (hideSubtitles) 0 else null,
                 ),

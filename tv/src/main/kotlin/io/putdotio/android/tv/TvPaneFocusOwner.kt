@@ -64,7 +64,6 @@ internal class TvPaneFocusOwner(
 
     fun focusEntry() = entryTarget.value.requestFocus()
 
-    /** Whether D-pad focus belongs to the pane. */
     val hasFocus: Boolean get() = paneHasFocus.value
 }
 

@@ -11,19 +11,12 @@ import org.junit.Test
 
 class FilesBrowserReducerTest {
     @Test
-    fun startsByLoadingRootFolderZero() {
-        val transition = FilesBrowserReducer.start()
-
-        val effect = transition.effect as FilesBrowserEffect.LoadFolder
-        assertEquals(FilesItemId(0L), effect.folderId)
-        assertEquals(effect.requestId, (transition.state.current.content as FilesContent.Loading).requestId)
-        assertFalse(transition.state.canNavigateBack)
-    }
-
-    @Test
     fun exposesEmptyAndRetryableInitialFailureStates() {
         val start = FilesBrowserReducer.start()
         val request = start.effect as FilesBrowserEffect.LoadFolder
+        assertEquals(FilesItemId(0L), request.folderId)
+        assertEquals(request.requestId, (start.state.current.content as FilesContent.Loading).requestId)
+        assertFalse(start.state.canNavigateBack)
         val empty =
             FilesBrowserReducer.reduce(
                 start.state,

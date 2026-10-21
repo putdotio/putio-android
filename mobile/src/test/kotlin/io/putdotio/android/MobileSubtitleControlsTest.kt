@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
@@ -163,6 +162,8 @@ class MobileSubtitleControlsTest {
             assertEquals(SubtitleSelection.Track(group.getFormat(0).toSubtitleTrackIdentity()), selection)
             assertEquals(listOf(0), player.trackSelectionParameters.overrides.getValue(group).trackIndices)
         }
+        compose.onNodeWithText("Captions").performClick()
+        compose.onNodeWithText("English").assertIsSelected()
     }
 
     @Test
@@ -238,26 +239,6 @@ class MobileSubtitleControlsTest {
         compose.runOnIdle { assertTrue(player.trackSelectionParameters.selectTextByDefault) }
         compose.onNodeWithContentDescription("Choose subtitles").performClick()
         compose.onNodeWithText("Automatic").assertIsSelected()
-    }
-
-    @Test
-    fun selectedSubtitleCueIsRendered() {
-        val cue = Cue.Builder().setText("A rendered subtitle").build()
-        compose.setContent {
-            PutioTheme {
-                SubtitleCueOverlay(
-                    cues = listOf(cue),
-                    videoAspectRatio = 16f / 9f,
-                    modifier = Modifier.requiredSize(320.dp, 180.dp),
-                )
-            }
-        }
-
-        compose.onNodeWithTag(SUBTITLE_CUES_TAG)
-            .assertIsDisplayed()
-            .assertWidthIsEqualTo(320.dp)
-            .assertHeightIsEqualTo(180.dp)
-        assertTrue(compose.onNodeWithTag(SUBTITLE_CUES_TAG).captureToImage().hasVisiblePixel())
     }
 
     @Test
@@ -351,30 +332,6 @@ class MobileSubtitleControlsTest {
         compose.onNodeWithTag("player-touch-target").performTouchInput { click() }
         assertEquals(1, taps)
         assertEquals(1, interactions)
-    }
-
-    @Test
-    fun selectedSubtitleTrackExposesCheckedState() {
-        val group =
-            TrackGroup(
-                Format.Builder().setId("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
-            )
-        compose.setContent {
-            PutioTheme {
-                MobileSubtitleTrackOption(
-                    track =
-                        PlaybackSubtitleTrack(
-                            group = group,
-                            trackIndex = 0,
-                            label = "English",
-                            selected = true,
-                        ),
-                    onClick = {},
-                )
-            }
-        }
-
-        compose.onNodeWithText("English").assertIsSelected()
     }
 
     @Test

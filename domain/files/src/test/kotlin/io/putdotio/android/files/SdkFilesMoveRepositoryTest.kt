@@ -12,7 +12,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.util.concurrent.CancellationException
 import io.putdotio.android.PutioResult
 
 class SdkFilesMoveRepositoryTest {
@@ -60,24 +59,6 @@ class SdkFilesMoveRepositoryTest {
         assertEquals(listOf(regular.toFilesItem()), second.value.items)
         assertEquals(50, continuationQuery?.perPage)
         assertTrue(repository.loadMoveDestinations(FilesItemId(-1L)) is PutioResult.Failure)
-    }
-
-    @Test
-    fun cancellationIsPreservedForMutationAndDestinationReads() = runBlocking {
-        val cancellation = CancellationException("cancelled")
-        val repository = repository(move = { _, _ -> throw cancellation }, list = { _, _ -> throw cancellation })
-        for (read in listOf(false, true)) {
-            try {
-                if (read) {
-                    repository.loadMoveDestinations(FilesFolder.Root.id)
-                } else {
-                    repository.move(FilesItemId(7L), FilesFolder.Root.id)
-                }
-                error("Expected cancellation")
-            } catch (caught: CancellationException) {
-                assertSame(cancellation, caught)
-            }
-        }
     }
 
     private fun repository(

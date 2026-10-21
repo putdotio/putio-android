@@ -9,7 +9,6 @@ public val FilesFolderOperation.canStartOperation: Boolean
             (intent !is FilesFolderOperationIntent.Rename || phase != FilesFolderOperationPhase.RELOADING)
     }
 
-/** Index of the folder whose in-flight operation matches [requestId], [phase], and intent type [I], or -1. */
 internal inline fun <reified I : FilesFolderOperationIntent> FilesBrowserState.requestIndex(
     requestId: FilesRequestId,
     phase: FilesFolderOperationPhase,

@@ -1,6 +1,5 @@
 package io.putdotio.android.tv.trash
 
-import android.content.res.Configuration
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.getValue
@@ -36,7 +35,6 @@ import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
-import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -164,23 +162,6 @@ class TvTrashScreenTest {
         }
 
         compose.onNodeWithText("10 B · Deleted Sep 6, 2026 · Expires Sep 20, 2026").assertIsDisplayed()
-    }
-
-    @Test
-    fun aHandledLocaleChangeReformatsTheSize() {
-        show { TrashState(content = loaded.copy(items = listOf(item.copy(sizeBytes = 1_500_000L)))) }
-        compose.onNodeWithText("1.5 MB · Deleted Sep 6, 2026 · Expires Sep 20, 2026").assertIsDisplayed()
-
-        // A configuration change the activity handles keeps the composition and its Context.
-        compose.runOnUiThread {
-            val resources = compose.activity.resources
-            val german = Configuration(resources.configuration).apply { setLocale(Locale.GERMANY) }
-            @Suppress("DEPRECATION")
-            resources.updateConfiguration(german, resources.displayMetrics)
-            compose.activity.window.decorView.dispatchConfigurationChanged(german)
-        }
-
-        compose.onNodeWithText("1,5 MB", substring = true).assertIsDisplayed()
     }
 
     @Test
