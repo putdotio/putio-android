@@ -51,8 +51,11 @@ Headless and shared hosts:
   `-no-window -gpu swiftshader_indirect`, because host-GPU headless rendering
   intermittently composites app windows black and fails the pixel assertion.
   `screencap` and `screenrecord` work without a window.
-- Boots set `hide_error_dialogs 1` so a system ANR dialog cannot sit over
-  captures; app crashes and ANRs still fail instrumented proof.
+- The first boot of a fresh AVD takes about a minute on Apple Silicon; later
+  boots are faster.
+- Cold headless boots often ANR the emulator's own `com.android.systemui`, so
+  boots set `hide_error_dialogs 1` and that dialog cannot sit over captures;
+  app crashes and ANRs still fail instrumented proof.
 - macOS needs Hypervisor.framework (default on Apple Silicon); Linux needs KVM
   (`emulator -accel-check`).
 - The scripts scan console ports 5554–5584; check `scripts/emulator.sh status`
