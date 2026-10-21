@@ -26,14 +26,17 @@ from xml.sax.saxutils import escape
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOCK_PATH = REPO_ROOT / "design" / "putio-design.lock.json"
 TOKENS_PATH = Path("design") / "tokens.dtcg.json"
-WORDMARK_PATH = Path("mobile/src/main/res/drawable/putio_wordmark.xml")
-# Both apps carry the nightly launcher icon in their own nightly source set.
+# Shared by the phone welcome screen and the TV banner.
+WORDMARK_PATH = Path("core/design/src/main/res/drawable/putio_wordmark.xml")
+# Both apps take the production launcher icon from core/design; each overrides
+# it with the nightly icon in its own nightly source set.
+PRODUCTION_RES_DIRS = (Path("core/design/src/main/res"),)
 NIGHTLY_RES_DIRS = (Path("mobile/src/nightly/res"), Path("tv/src/nightly/res"))
 SVG_NAMESPACE = "{http://www.w3.org/2000/svg}"
 SVG_FILLS = {"white": "#FFFFFFFF"}
 HEX_COLOR_PATTERN = re.compile(r"#([0-9A-Fa-f]{6})")
 NUMBER_PATTERN = re.compile(r"-?[0-9]+(?:\.[0-9]+)?")
-NIGHTLY_ICON_DENSITIES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+LAUNCHER_ICON_DENSITIES = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 VERSION_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 
@@ -57,18 +60,25 @@ class IconOutputLock:
     density: str
     size: int
     sha256: str
+    res_dirs: tuple[Path, ...]
 
     @property
     def paths(self) -> tuple[Path, ...]:
-        return tuple(res / f"drawable-{self.density}" / "putio_icon.png" for res in NIGHTLY_RES_DIRS)
+        return tuple(res / f"drawable-{self.density}" / "putio_icon.png" for res in self.res_dirs)
+
+
+@dataclass(frozen=True)
+class LauncherIconLock:
+    source: AssetLock
+    outputs: tuple[IconOutputLock, ...]
 
 
 @dataclass(frozen=True)
 class DesignLock:
     package: PackageLock
     tokens: AssetLock
-    nightly_icon: AssetLock
-    nightly_icon_outputs: tuple[IconOutputLock, ...]
+    production_icon: LauncherIconLock
+    nightly_icon: LauncherIconLock
     wordmark: AssetLock
     wordmark_output_sha256: str
 
@@ -143,6 +153,27 @@ def load_asset(value: object, field: str, extra: frozenset[str] = frozenset()) -
     return AssetLock(asset, require_sha256(raw["sourceSha256"], f"{field}.sourceSha256")), raw
 
 
+def load_launcher_icon(value: object, field: str, res_dirs: tuple[Path, ...]) -> LauncherIconLock:
+    source, raw_icon = load_asset(value, field, frozenset({"outputs"}))
+    raw_outputs = raw_icon["outputs"]
+    if not isinstance(raw_outputs, list):
+        fail(f"{field}.outputs must be an array")
+    outputs: list[IconOutputLock] = []
+    for index, raw_output in enumerate(raw_outputs):
+        output_field = f"{field}.outputs[{index}]"
+        output_value = require_object(raw_output, output_field, {"density", "size", "sha256"})
+        density = require_string(output_value["density"], f"{output_field}.density")
+        size = output_value["size"]
+        if type(size) is not int or LAUNCHER_ICON_DENSITIES.get(density) != size:
+            fail(f"{output_field} must pair a launcher density with its icon size")
+        outputs.append(IconOutputLock(
+            density, size, require_sha256(output_value["sha256"], f"{output_field}.sha256"), res_dirs,
+        ))
+    if sorted(output.density for output in outputs) != sorted(LAUNCHER_ICON_DENSITIES):
+        fail(f"{field}.outputs must list each launcher density exactly once")
+    return LauncherIconLock(source, tuple(outputs))
+
+
 def load_lock() -> DesignLock:
     try:
         document: object = json.loads(
@@ -152,33 +183,19 @@ def load_lock() -> DesignLock:
     except (OSError, json.JSONDecodeError) as error:
         fail(f"cannot read {LOCK_PATH.relative_to(REPO_ROOT)}: {error}")
 
-    root = require_object(document, "lock", {"schemaVersion", "package", "tokens", "nightlyIcon", "wordmark"})
+    root = require_object(
+        document, "lock", {"schemaVersion", "package", "tokens", "productionIcon", "nightlyIcon", "wordmark"},
+    )
     if type(root["schemaVersion"]) is not int or root["schemaVersion"] != 1:
         fail("lock must use schemaVersion 1")
     tokens, _ = load_asset(root["tokens"], "tokens")
-    nightly_icon, raw_icon = load_asset(root["nightlyIcon"], "nightlyIcon", frozenset({"outputs"}))
     wordmark, raw_wordmark = load_asset(root["wordmark"], "wordmark", frozenset({"outputSha256"}))
-
-    raw_outputs = raw_icon["outputs"]
-    if not isinstance(raw_outputs, list):
-        fail("nightlyIcon.outputs must be an array")
-    outputs: list[IconOutputLock] = []
-    for index, raw_output in enumerate(raw_outputs):
-        field = f"nightlyIcon.outputs[{index}]"
-        output_value = require_object(raw_output, field, {"density", "size", "sha256"})
-        density = require_string(output_value["density"], f"{field}.density")
-        size = output_value["size"]
-        if type(size) is not int or NIGHTLY_ICON_DENSITIES.get(density) != size:
-            fail(f"{field} must pair a launcher density with its icon size")
-        outputs.append(IconOutputLock(density, size, require_sha256(output_value["sha256"], f"{field}.sha256")))
-    if sorted(output.density for output in outputs) != sorted(NIGHTLY_ICON_DENSITIES):
-        fail("nightlyIcon.outputs must list each launcher density exactly once")
 
     return DesignLock(
         load_package(root["package"]),
         tokens,
-        nightly_icon,
-        tuple(outputs),
+        load_launcher_icon(root["productionIcon"], "productionIcon", PRODUCTION_RES_DIRS),
+        load_launcher_icon(root["nightlyIcon"], "nightlyIcon", NIGHTLY_RES_DIRS),
         wordmark,
         require_sha256(raw_wordmark["outputSha256"], "wordmark.outputSha256"),
     )
@@ -187,7 +204,12 @@ def load_lock() -> DesignLock:
 def locked_outputs(lock: DesignLock) -> tuple[tuple[Path, str], ...]:
     return (
         ((TOKENS_PATH, lock.tokens.source_sha256),)
-        + tuple((path, output.sha256) for output in lock.nightly_icon_outputs for path in output.paths)
+        + tuple(
+            (path, output.sha256)
+            for icon in (lock.production_icon, lock.nightly_icon)
+            for output in icon.outputs
+            for path in output.paths
+        )
         + ((WORDMARK_PATH, lock.wordmark_output_sha256),)
     )
 
@@ -234,11 +256,11 @@ def read_asset(package_tar: tarfile.TarFile, asset: AssetLock) -> bytes:
     return member.read()
 
 
-def render_nightly_icon(source: bytes, outputs: tuple[IconOutputLock, ...]) -> dict[Path, bytes]:
-    # The starfield is baked into the art: downscale with a smooth filter
-    # (sips uses Lanczos-class resampling), never re-render the stars.
+def render_launcher_icon(source: bytes, outputs: tuple[IconOutputLock, ...]) -> dict[Path, bytes]:
+    # The art (the nightly starfield included) is baked into the PNG: downscale
+    # with a smooth filter (sips uses Lanczos-class resampling), never re-render it.
     if shutil.which("sips") is None:
-        fail("sips not found; nightly icon regeneration needs macOS")
+        fail("sips not found; launcher icon regeneration needs macOS")
     rendered: dict[Path, bytes] = {}
     with tempfile.TemporaryDirectory() as directory:
         source_path = Path(directory) / "source.png"
@@ -321,7 +343,8 @@ def sync(lock: DesignLock) -> None:
         fail(f"locked package is not a readable tarball: {error}")
     with package_tar:
         tokens = read_asset(package_tar, lock.tokens)
-        nightly_icon = read_asset(package_tar, lock.nightly_icon)
+        production_icon = read_asset(package_tar, lock.production_icon.source)
+        nightly_icon = read_asset(package_tar, lock.nightly_icon.source)
         wordmark = read_asset(package_tar, lock.wordmark)
 
     # Every digest is compared before anything is written, and all mismatches
@@ -330,14 +353,16 @@ def sync(lock: DesignLock) -> None:
         f"{label} is {sha256(data)}, locked {expected}"
         for label, data, expected in (
             (lock.tokens.asset, tokens, lock.tokens.source_sha256),
-            (lock.nightly_icon.asset, nightly_icon, lock.nightly_icon.source_sha256),
+            (lock.production_icon.source.asset, production_icon, lock.production_icon.source.source_sha256),
+            (lock.nightly_icon.source.asset, nightly_icon, lock.nightly_icon.source.source_sha256),
             (lock.wordmark.asset, wordmark, lock.wordmark.source_sha256),
         )
         if not hmac.compare_digest(sha256(data), expected)
     ]
     outputs = {
         TOKENS_PATH: tokens,
-        **render_nightly_icon(nightly_icon, lock.nightly_icon_outputs),
+        **render_launcher_icon(production_icon, lock.production_icon.outputs),
+        **render_launcher_icon(nightly_icon, lock.nightly_icon.outputs),
         WORDMARK_PATH: render_wordmark(wordmark, lock.wordmark.asset, lock.package.version),
     }
     mismatches += [

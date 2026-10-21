@@ -355,8 +355,10 @@
     <string name="mobile_transfer_file_preparing">Preparing file…</string>
     <string name="mobile_transfer_file_unavailable">File is no longer available</string>
     <string name="mobile_transfer_error">This transfer needs attention.</string>
-    <string name="mobile_transfer_download_speed">↓ %1$s/s</string>
-    <string name="mobile_transfer_upload_speed">↑ %1$s/s</string>
+    <!-- The direction is an arrow icon; these words are what accessibility services read for it. -->
+    <string name="mobile_transfer_download_direction">Download</string>
+    <string name="mobile_transfer_upload_direction">Upload</string>
+    <string name="mobile_transfer_speed">%1$s/s</string>
     <string name="mobile_transfer_eta">%1$s remaining</string>
     <string name="mobile_transfer_availability">%1$s available</string>
     <string name="mobile_downloads_manage">Downloads</string>

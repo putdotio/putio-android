@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.text.format.DateUtils
 import android.text.format.Formatter
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,8 +20,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -64,9 +67,14 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.MobileEmptyState
@@ -360,11 +368,12 @@ private fun MobileTransferDetails(item: TransferItem, context: Context) {
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        item.details(context).takeIf(String::isNotBlank)?.let {
+        item.details(context).takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
+                inlineContent = TRANSFER_SPEED_ICONS,
             )
         }
     }
@@ -787,35 +796,65 @@ private fun TransferItem.completedStatusResource(): Int =
         else -> R.string.mobile_transfer_status_completed
     }
 
-private fun TransferItem.details(context: Context): String =
-    buildList {
+private fun TransferItem.details(context: Context): AnnotatedString {
+    val parts = buildList {
         sizeBytes?.takeIf { it >= 0.0 }?.let {
-            add(Formatter.formatShortFileSize(context, it.toLong()))
+            add(AnnotatedString(Formatter.formatShortFileSize(context, it.toLong())))
         }
         downloadSpeedBytesPerSecond?.takeIf { it > 0.0 }?.let {
-            add(
-                context.getString(
-                    R.string.mobile_transfer_download_speed,
-                    Formatter.formatShortFileSize(context, it.toLong()),
-                ),
-            )
+            add(transferSpeed(context, TRANSFER_DOWNLOAD_ICON, R.string.mobile_transfer_download_direction, it))
         }
         uploadSpeedBytesPerSecond?.takeIf { it > 0.0 }?.let {
-            add(
-                context.getString(
-                    R.string.mobile_transfer_upload_speed,
-                    Formatter.formatShortFileSize(context, it.toLong()),
-                ),
-            )
+            add(transferSpeed(context, TRANSFER_UPLOAD_ICON, R.string.mobile_transfer_upload_direction, it))
         }
         estimatedSecondsRemaining?.takeIf { it > 0.0 }?.let {
-            add(context.getString(R.string.mobile_transfer_eta, DateUtils.formatElapsedTime(it.toLong())))
+            val remaining = DateUtils.formatElapsedTime(it.toLong())
+            add(AnnotatedString(context.getString(R.string.mobile_transfer_eta, remaining)))
         }
         availability?.takeIf { it in 0.0..PERCENTAGE_SCALE }?.let {
             val percentage = NumberFormat.getPercentInstance().format(it / PERCENTAGE_SCALE)
-            add(context.getString(R.string.mobile_transfer_availability, percentage))
+            add(AnnotatedString(context.getString(R.string.mobile_transfer_availability, percentage)))
         }
-    }.joinToString(" · ")
+    }
+    return buildAnnotatedString {
+        parts.forEachIndexed { index, part ->
+            if (index > 0) append(" · ")
+            append(part)
+        }
+    }
+}
+
+// The arrow glyph's alternate text is the direction's word, so TalkBack reads "Download 1.6 MB/s".
+private fun transferSpeed(
+    context: Context,
+    icon: String,
+    @StringRes direction: Int,
+    bytesPerSecond: Double,
+): AnnotatedString = buildAnnotatedString {
+    appendInlineContent(icon, context.getString(direction))
+    append(" ")
+    val speed = Formatter.formatShortFileSize(context, bytesPerSecond.toLong())
+    append(context.getString(R.string.mobile_transfer_speed, speed))
+}
+
+private const val TRANSFER_DOWNLOAD_ICON = "transfer-download"
+private const val TRANSFER_UPLOAD_ICON = "transfer-upload"
+
+private val TRANSFER_SPEED_ICONS = mapOf(
+    TRANSFER_DOWNLOAD_ICON to transferSpeedIcon(R.drawable.ic_ph_arrow_down),
+    TRANSFER_UPLOAD_ICON to transferSpeedIcon(R.drawable.ic_ph_arrow_up),
+)
+
+private fun transferSpeedIcon(@DrawableRes icon: Int) = InlineTextContent(
+    Placeholder(width = 1.em, height = 1.em, placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter),
+) {
+    Icon(
+        painter = painterResource(icon),
+        contentDescription = null,
+        modifier = Modifier.fillMaxSize(),
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
 
 private data class TransfersInteractions(
     val controls: Boolean,

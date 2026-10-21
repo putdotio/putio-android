@@ -46,10 +46,15 @@ class DesignAssetLockTest(unittest.TestCase):
         self.repo_root = Path(self.temporary_directory.name)
         self.lock_path = self.repo_root / "design" / "putio-design.lock.json"
         self.tokens = b'{"tokens": true}\n'
+        self.production_source = b"production art"
         self.icon_source = b"icon art"
+        self.production_outputs = {
+            density: f"{density} production icon".encode("ascii")
+            for density in design_assets.LAUNCHER_ICON_DENSITIES
+        }
         self.icon_outputs = {
             density: f"{density} icon".encode("ascii")
-            for density in design_assets.NIGHTLY_ICON_DENSITIES
+            for density in design_assets.LAUNCHER_ICON_DENSITIES
         }
         self.wordmark = design_assets.render_wordmark(WORDMARK_SVG, WORDMARK_ASSET, "3.3.0")
         self.document: dict[str, object] = {
@@ -65,12 +70,24 @@ class DesignAssetLockTest(unittest.TestCase):
                 "asset": "dist/tokens.dtcg.json",
                 "sourceSha256": hashlib.sha256(self.tokens).hexdigest(),
             },
+            "productionIcon": {
+                "asset": "system/assets/app-icon-prod-dark.png",
+                "sourceSha256": hashlib.sha256(self.production_source).hexdigest(),
+                "outputs": [
+                    {
+                        "density": density,
+                        "size": size,
+                        "sha256": hashlib.sha256(self.production_outputs[density]).hexdigest(),
+                    }
+                    for density, size in design_assets.LAUNCHER_ICON_DENSITIES.items()
+                ],
+            },
             "nightlyIcon": {
                 "asset": "system/assets/app-icon-nightly-stars.png",
                 "sourceSha256": hashlib.sha256(self.icon_source).hexdigest(),
                 "outputs": [
                     {"density": density, "size": size, "sha256": hashlib.sha256(self.icon_outputs[density]).hexdigest()}
-                    for density, size in design_assets.NIGHTLY_ICON_DENSITIES.items()
+                    for density, size in design_assets.LAUNCHER_ICON_DENSITIES.items()
                 ],
             },
             "wordmark": {
@@ -81,12 +98,10 @@ class DesignAssetLockTest(unittest.TestCase):
         }
         self.lock_path.parent.mkdir(parents=True)
         (self.repo_root / design_assets.TOKENS_PATH).write_bytes(self.tokens)
-        for res in design_assets.NIGHTLY_RES_DIRS:
-            for density, data in self.icon_outputs.items():
-                path = self.icon_path(density, str(res))
-                path.parent.mkdir(parents=True)
-                path.write_bytes(data)
-        self.wordmark_path.parent.mkdir(parents=True)
+        for path, data in self.rendered_icons().items():
+            (self.repo_root / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.repo_root / path).write_bytes(data)
+        self.wordmark_path.parent.mkdir(parents=True, exist_ok=True)
         self.wordmark_path.write_bytes(self.wordmark)
         self.repo_patch = patch.multiple(
             design_assets,
@@ -104,11 +119,7 @@ class DesignAssetLockTest(unittest.TestCase):
         return self.repo_root / res / f"drawable-{density}" / "putio_icon.png"
 
     def icon_paths(self) -> list[Path]:
-        return [
-            self.icon_path(density, str(res))
-            for res in design_assets.NIGHTLY_RES_DIRS
-            for density in self.icon_outputs
-        ]
+        return [self.repo_root / path for path in self.rendered_icons()]
 
     def write_lock(self, document: object | None = None) -> None:
         self.lock_path.write_text(
@@ -150,6 +161,7 @@ class DesignAssetLockTest(unittest.TestCase):
             self.repo_root / design_assets.TOKENS_PATH,
             self.icon_path("xhdpi"),
             self.icon_path("xxhdpi", "tv/src/nightly/res"),
+            self.icon_path("hdpi", "core/design/src/main/res"),
             self.wordmark_path,
         ):
             relative = path.relative_to(self.repo_root).as_posix()
@@ -160,10 +172,20 @@ class DesignAssetLockTest(unittest.TestCase):
                     self.check()
                 path.write_bytes(original)
 
-    def test_missing_nightly_icon_is_rejected(self) -> None:
+    def test_missing_launcher_icons_are_rejected(self) -> None:
         self.write_lock()
         self.icon_path("mdpi").unlink()
-        with self.assertRaisesRegex(SystemExit, "missing mobile/src/nightly/res/drawable-mdpi/putio_icon.png"):
+        self.icon_path("xxxhdpi", "core/design/src/main/res").unlink()
+        with self.assertRaises(SystemExit) as raised:
+            self.check()
+        self.assertIn("missing mobile/src/nightly/res/drawable-mdpi/putio_icon.png", str(raised.exception))
+        self.assertIn("missing core/design/src/main/res/drawable-xxxhdpi/putio_icon.png", str(raised.exception))
+
+    def test_production_icon_must_lock_every_density(self) -> None:
+        document = json.loads(json.dumps(self.document))
+        document["productionIcon"]["outputs"].pop()
+        self.write_lock(document)
+        with self.assertRaisesRegex(SystemExit, "productionIcon.outputs must list each launcher density"):
             self.check()
 
     def test_wordmark_keeps_fills_and_viewbox_offset(self) -> None:
@@ -196,7 +218,7 @@ class DesignAssetLockTest(unittest.TestCase):
         rendered[Path("mobile/src/nightly/res/drawable-hdpi/putio_icon.png")] = b"resampled"
         paths = self.replace_outputs(b"previous")
 
-        with self.fetch(archive), patch.object(design_assets, "render_nightly_icon", return_value=rendered):
+        with self.fetch(archive), self.render(rendered):
             with self.assertRaises(SystemExit) as raised:
                 design_assets.sync(design_assets.load_lock())
 
@@ -207,9 +229,7 @@ class DesignAssetLockTest(unittest.TestCase):
         self.assertEqual([path.read_bytes() for path in paths], [b"previous"] * len(paths))
 
         archive = self.lock_archive(icon_source=b"tampered art")
-        with self.fetch(archive), patch.object(
-            design_assets, "render_nightly_icon", return_value=self.rendered_icons()
-        ):
+        with self.fetch(archive), self.render(self.rendered_icons()):
             with self.assertRaises(SystemExit) as raised:
                 design_assets.sync(design_assets.load_lock())
 
@@ -222,6 +242,7 @@ class DesignAssetLockTest(unittest.TestCase):
     def lock_archive(self, tokens: bytes | None = None, icon_source: bytes | None = None) -> bytes:
         archive = tarball({
             "dist/tokens.dtcg.json": self.tokens if tokens is None else tokens,
+            "system/assets/app-icon-prod-dark.png": self.production_source,
             "system/assets/app-icon-nightly-stars.png": self.icon_source if icon_source is None else icon_source,
             WORDMARK_ASSET: WORDMARK_SVG,
         })
@@ -235,9 +256,23 @@ class DesignAssetLockTest(unittest.TestCase):
     def rendered_icons(self) -> dict[Path, bytes]:
         return {
             res / f"drawable-{density}" / "putio_icon.png": data
-            for res in design_assets.NIGHTLY_RES_DIRS
-            for density, data in self.icon_outputs.items()
+            for res_dirs, outputs in (
+                (design_assets.PRODUCTION_RES_DIRS, self.production_outputs),
+                (design_assets.NIGHTLY_RES_DIRS, self.icon_outputs),
+            )
+            for res in res_dirs
+            for density, data in outputs.items()
         }
+
+    def render(self, rendered: dict[Path, bytes]) -> object:
+        """Stands in for sips: each launcher icon gets the bytes of its own output paths."""
+        return patch.object(
+            design_assets,
+            "render_launcher_icon",
+            side_effect=lambda _source, outputs: {
+                path: rendered[path] for output in outputs for path in output.paths
+            },
+        )
 
     def replace_outputs(self, data: bytes) -> list[Path]:
         paths = [self.repo_root / design_assets.TOKENS_PATH, self.wordmark_path] + self.icon_paths()
@@ -249,9 +284,7 @@ class DesignAssetLockTest(unittest.TestCase):
         archive = self.lock_archive()
         self.replace_outputs(b"previous")
 
-        with contextlib.redirect_stdout(io.StringIO()), self.fetch(archive), patch.object(
-            design_assets, "render_nightly_icon", return_value=self.rendered_icons()
-        ):
+        with contextlib.redirect_stdout(io.StringIO()), self.fetch(archive), self.render(self.rendered_icons()):
             design_assets.sync(design_assets.load_lock())
 
         self.check()

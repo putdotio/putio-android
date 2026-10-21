@@ -3,12 +3,15 @@
 `tokens.dtcg.json` is the DTCG token graph from
 [`@putdotio/design`](https://github.com/putdotio/putio-design)
 (`dist/tokens.dtcg.json`), vendored verbatim. From the same release, the
-nightly launcher icons `{mobile,tv}/src/nightly/res/drawable-*/putio_icon.png`
-are downscaled from `system/assets/app-icon-nightly-stars.png`, and the phone
-welcome wordmark `mobile/src/main/res/drawable/putio_wordmark.xml` is converted
-from `system/assets/logo-retro-dark.svg`: paths keep their fills and even-odd
-rule, and a group translation absorbs the SVG's offset viewBox. The converter
-rejects SVG features it does not model.
+production launcher icons `core/design/src/main/res/drawable-*/putio_icon.png`
+are downscaled from `system/assets/app-icon-prod-dark.png`, the nightly ones
+`{mobile,tv}/src/nightly/res/drawable-*/putio_icon.png`, which override them in
+nightly builds, from `system/assets/app-icon-nightly-stars.png`. The wordmark
+`core/design/src/main/res/drawable/putio_wordmark.xml`, on the phone welcome
+screen and the TV banner (`tv/src/main/res/drawable/tv_banner.xml`, on
+`@color/putio_app_bg`), is converted from `system/assets/logo-retro-dark.svg`:
+paths keep their fills and even-odd rule, and a group translation absorbs the
+SVG's offset viewBox. The converter rejects SVG features it does not model.
 
 `putio-design.lock.json` pins the npm release by version and tarball SHA-512
 SRI, plus the SHA-256 of every source asset and written file. At build time
@@ -55,6 +58,8 @@ selected Android vector drawables:
 ```
 
 The check hashes every locked drawable and rejects stale generated `ic_ph_*`
-files. Regular weight is the default for chrome, fill marks selected or active
-states, and file-kind glyphs use fill. Drawables stay black source art, tinted
-by Compose at the point of use.
+files. Regular weight is the default for chrome and file kinds, and fill marks
+folders and selected or active states. Saving to put.io (Transfers) and
+downloading to this device keep distinct glyphs: `arrow-circle-down` and
+`download-simple`. Drawables stay black source art, tinted by Compose at the
+point of use.

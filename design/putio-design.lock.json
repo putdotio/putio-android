@@ -2,13 +2,24 @@
   "schemaVersion": 1,
   "package": {
     "name": "@putdotio/design",
-    "version": "3.3.0",
-    "tarball": "https://registry.npmjs.org/@putdotio/design/-/design-3.3.0.tgz",
-    "integrity": "sha512-darpeQVwgMsuz/gYNEOfvQ2rNymj02k9TqnVo5W7BCnsKlpTu79O9nK1nO2SWgzdaB8B4SYIT1RX8Ftzc0NMqw=="
+    "version": "3.6.2",
+    "tarball": "https://registry.npmjs.org/@putdotio/design/-/design-3.6.2.tgz",
+    "integrity": "sha512-Or3FwoEX3rdF8jgy+8bzfpg1BnHzCErymfYugwl+Hbqr5fIeh2wTS7B27jtepY4ctG1lwmQ5uZSRVEsMYQAhZg=="
   },
   "tokens": {
     "asset": "dist/tokens.dtcg.json",
-    "sourceSha256": "a915906059426c95bde3fea77b4de72e1097fc50d46842b417143172dfc5c0c6"
+    "sourceSha256": "95d28a2c6eba8000bdae9627835dfe6765ae73c2a7f8b8b5f3f27c5e5c91a803"
+  },
+  "productionIcon": {
+    "asset": "system/assets/app-icon-prod-dark.png",
+    "sourceSha256": "75ee464d98ff7cf9dd7c54d04231a79fc29e295ec585bfd9ccc91979afafad8f",
+    "outputs": [
+      { "density": "mdpi", "size": 48, "sha256": "55e4373569f86393e08089b2bb70126a7aa0b430daf32ef0e556de3853cd4370" },
+      { "density": "hdpi", "size": 72, "sha256": "f98bb6735ee247a9f36648c0913d7dd55e53a434da6a6e2586184166942d56e2" },
+      { "density": "xhdpi", "size": 96, "sha256": "0be414435b94be3cfe3d480aa49113c63147861ec6ed23b38cec6fa184c0b141" },
+      { "density": "xxhdpi", "size": 144, "sha256": "0cccddf7499930e5f1ccb3881d0a43cbb9e3ac35c2ea9ca1de3592d5c227523c" },
+      { "density": "xxxhdpi", "size": 192, "sha256": "e669bc5992f59ed24686bfdf1a1007e37aada534f94d10c22690bf53a2b36aba" }
+    ]
   },
   "nightlyIcon": {
     "asset": "system/assets/app-icon-nightly-stars.png",
@@ -24,6 +35,6 @@
   "wordmark": {
     "asset": "system/assets/logo-retro-dark.svg",
     "sourceSha256": "81ed5dbe0baa5f18f4d200354894cab07e17b541eea4fa4cdc39397a44be3e46",
-    "outputSha256": "60a31324d861cd30f16303da41fcce75ed0fc29c24ecfa0577fb55b881a5ff3e"
+    "outputSha256": "a9d8b3f507825ff62e586581c2a3634e5701dbd1bfc922403cef3289af952a87"
   }
 }
